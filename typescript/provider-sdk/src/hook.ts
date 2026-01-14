@@ -56,7 +56,7 @@ export type HookModuleAddresses = {
 
 // Artifact API types
 
-export interface DeployedHookAddresses {
+export interface DeployedHookAddress {
   address: string;
 }
 
@@ -76,7 +76,7 @@ export type HookArtifactConfig = HookArtifactConfigs[HookType];
  */
 export type DeployedHookArtifact = ArtifactDeployed<
   HookArtifactConfig,
-  DeployedHookAddresses
+  DeployedHookAddress
 >;
 
 /**
@@ -86,7 +86,7 @@ export type DeployedHookArtifact = ArtifactDeployed<
 export type IHookArtifactManager = IArtifactManager<
   HookType,
   HookArtifactConfigs,
-  DeployedHookAddresses
+  DeployedHookAddress
 >;
 
 /**
@@ -110,11 +110,11 @@ export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
 export type IRawHookArtifactManager = IArtifactManager<
   HookType,
   RawHookArtifactConfigs,
-  DeployedHookAddresses
+  DeployedHookAddress
 >;
 
 export function hookOnChainAddress(
-  hook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddresses>,
+  hook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>,
 ): string {
   return hook.artifactState === ArtifactState.DEPLOYED
     ? hook.deployed.address

@@ -6,7 +6,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddresses,
+  DeployedHookAddress,
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
@@ -31,21 +31,21 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
 
   createReader<T extends HookType>(
     type: T,
-  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddresses> {
+  ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
     switch (type) {
       case AltVM.HookType.MERKLE_TREE:
         return new RadixMerkleTreeHookReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawHookArtifactConfigs[T],
-          DeployedHookAddresses
+          DeployedHookAddress
         >;
       case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
         return new RadixIgpHookReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawHookArtifactConfigs[T],
-          DeployedHookAddresses
+          DeployedHookAddress
         >;
       default:
         throw new Error(`Unsupported Hook type: ${type}`);
@@ -55,7 +55,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   createWriter<T extends HookType>(
     type: T,
     signer: RadixSigner,
-  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddresses> {
+  ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const baseSigner = signer.getBaseSigner();
 
     switch (type) {
@@ -67,7 +67,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
           this.mailboxAddress,
         ) as unknown as ArtifactWriter<
           RawHookArtifactConfigs[T],
-          DeployedHookAddresses
+          DeployedHookAddress
         >;
       case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
         return new RadixIgpHookWriter(
@@ -77,7 +77,7 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
           this.nativeTokenDenom,
         ) as unknown as ArtifactWriter<
           RawHookArtifactConfigs[T],
-          DeployedHookAddresses
+          DeployedHookAddress
         >;
       default:
         throw new Error(`Unsupported Hook type: ${type}`);

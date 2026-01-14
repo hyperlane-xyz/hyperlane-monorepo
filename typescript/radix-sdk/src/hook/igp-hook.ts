@@ -9,7 +9,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddresses,
+  DeployedHookAddress,
   IgpHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -27,13 +27,13 @@ import {
 } from './hook-tx.js';
 
 export class RadixIgpHookReader
-  implements ArtifactReader<IgpHookConfig, DeployedHookAddresses>
+  implements ArtifactReader<IgpHookConfig, DeployedHookAddress>
 {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<IgpHookConfig, DeployedHookAddresses>> {
+  ): Promise<ArtifactDeployed<IgpHookConfig, DeployedHookAddress>> {
     const hookConfig = await getIgpHookConfig(this.gateway, address);
 
     // Map Radix IGP config to provider-sdk IgpHookConfig format
@@ -77,7 +77,7 @@ export class RadixIgpHookReader
 
 export class RadixIgpHookWriter
   extends RadixIgpHookReader
-  implements ArtifactWriter<IgpHookConfig, DeployedHookAddresses>
+  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -91,7 +91,7 @@ export class RadixIgpHookWriter
   async create(
     artifact: ArtifactNew<IgpHookConfig>,
   ): Promise<
-    [ArtifactDeployed<IgpHookConfig, DeployedHookAddresses>, TxReceipt[]]
+    [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, TxReceipt[]]
   > {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
@@ -132,7 +132,7 @@ export class RadixIgpHookWriter
 
     const deployedArtifact: ArtifactDeployed<
       IgpHookConfig,
-      DeployedHookAddresses
+      DeployedHookAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
@@ -145,7 +145,7 @@ export class RadixIgpHookWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddresses>,
+    artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     const { config, deployed } = artifact;
     const updateTxs: AnnotatedRadixTransaction[] = [];

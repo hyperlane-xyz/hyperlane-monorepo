@@ -9,7 +9,7 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddresses,
+  DeployedHookAddress,
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
@@ -22,13 +22,13 @@ import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
 export class RadixMerkleTreeHookReader
-  implements ArtifactReader<MerkleTreeHookConfig, DeployedHookAddresses>
+  implements ArtifactReader<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddresses>> {
+  ): Promise<ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>> {
     const hookConfig = await getMerkleTreeHookConfig(this.gateway, address);
 
     return {
@@ -45,7 +45,7 @@ export class RadixMerkleTreeHookReader
 
 export class RadixMerkleTreeHookWriter
   extends RadixMerkleTreeHookReader
-  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddresses>
+  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -59,7 +59,7 @@ export class RadixMerkleTreeHookWriter
   async create(
     artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
-    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddresses>, TxReceipt[]]
+    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>, TxReceipt[]]
   > {
     const transactionManifest = await getCreateMerkleTreeHookTx(
       this.base,
@@ -72,7 +72,7 @@ export class RadixMerkleTreeHookWriter
 
     const deployedArtifact: ArtifactDeployed<
       MerkleTreeHookConfig,
-      DeployedHookAddresses
+      DeployedHookAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
@@ -85,7 +85,7 @@ export class RadixMerkleTreeHookWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddresses>,
+    _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     // MerkleTreeHook has no mutable state
     return [];
