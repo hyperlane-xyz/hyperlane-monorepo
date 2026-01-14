@@ -181,7 +181,8 @@ export class EvmTokenFeeModule extends HyperlaneModule<
         feeContracts,
       };
     } else {
-      intermediaryConfig = config;
+      assert(config.token, 'Token address must be provided for fee config');
+      intermediaryConfig = config as TokenFeeConfig;
     }
 
     return TokenFeeConfigSchema.parse(intermediaryConfig);
