@@ -163,6 +163,11 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     // For synchronous createWriter, we return a wrapper that will initialize lazily
     return {
+      read: async (address: string) => {
+        const query = await this.getQuery();
+        const writer = this.createWriterWithQuery(type, query, signer);
+        return writer.read(address);
+      },
       create: async (artifact) => {
         const query = await this.getQuery();
         const writer = this.createWriterWithQuery(type, query, signer);
@@ -173,7 +178,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.update(artifact);
       },
-    } as ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress>;
+    };
   }
 
   /**
