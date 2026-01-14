@@ -1,4 +1,3 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
 import { DeliverTxResponse } from '@cosmjs/stargate';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -16,6 +15,7 @@ import {
 
 import { CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
+import { AnnotatedEncodeObject } from '../utils/types.js';
 
 import {
   CosmosIsmQueryClient,
@@ -107,7 +107,7 @@ export class CosmosMessageIdMultisigIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<EncodeObject[]> {
+  ): Promise<AnnotatedEncodeObject[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed
     return [];
@@ -194,7 +194,7 @@ export class CosmosMerkleRootMultisigIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<EncodeObject[]> {
+  ): Promise<AnnotatedEncodeObject[]> {
     // Multisig ISMs are immutable.
     // To change configuration, a new ISM must be deployed
     return [];

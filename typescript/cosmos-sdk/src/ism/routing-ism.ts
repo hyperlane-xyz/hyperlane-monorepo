@@ -1,4 +1,3 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
 import { DeliverTxResponse } from '@cosmjs/stargate';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -18,6 +17,7 @@ import { eqAddressCosmos, isNullish } from '@hyperlane-xyz/utils';
 
 import { CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
+import { AnnotatedEncodeObject } from '../utils/types.js';
 
 import { CosmosIsmQueryClient, getRoutingIsmConfig } from './ism-query.js';
 import {
@@ -125,11 +125,11 @@ export class CosmosRoutingIsmRawWriter
 
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<EncodeObject[]> {
+  ): Promise<AnnotatedEncodeObject[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);
 
-    const transactions: EncodeObject[] = [];
+    const transactions: AnnotatedEncodeObject[] = [];
 
     // Find domains to add or update
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {

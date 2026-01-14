@@ -1,4 +1,3 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
 import { DeliverTxResponse } from '@cosmjs/stargate';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
@@ -16,6 +15,7 @@ import {
 
 import { CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
+import { AnnotatedEncodeObject } from '../utils/types.js';
 
 import { CosmosIsmQueryClient, getNoopIsmConfig } from './ism-query.js';
 import { getCreateTestIsmTx } from './ism-tx.js';
@@ -89,7 +89,7 @@ export class CosmosTestIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>,
-  ): Promise<EncodeObject[]> {
+  ): Promise<AnnotatedEncodeObject[]> {
     // NoopIsm has no mutable state
     return [];
   }
