@@ -17,6 +17,7 @@ import {
   IToken,
   LOCKBOX_STANDARDS,
   MultiProtocolProvider,
+  PERMIT_TYPES,
   PermitData,
   PermitSignature,
   ProviderType,
@@ -249,15 +250,7 @@ export function useSignPermit(): {
           chainId: permitData.domain.chainId,
           verifyingContract: permitData.domain.verifyingContract as Hex,
         },
-        types: {
-          Permit: [
-            { name: 'owner', type: 'address' },
-            { name: 'spender', type: 'address' },
-            { name: 'value', type: 'uint256' },
-            { name: 'nonce', type: 'uint256' },
-            { name: 'deadline', type: 'uint256' },
-          ],
-        },
+        types: PERMIT_TYPES,
         primaryType: 'Permit',
         message: {
           owner: permitData.message.owner as Hex,
