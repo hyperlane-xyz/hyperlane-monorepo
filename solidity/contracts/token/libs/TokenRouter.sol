@@ -461,16 +461,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             );
     }
 
-    // Convenience overload that computes feeHook() internally.
-    function _quoteGasPayment(
-        uint32 _destination,
-        bytes32 _recipient,
-        uint256 _amount
-    ) internal view virtual returns (uint256) {
-        address _feeToken = feeHook() != address(0) ? token() : address(0);
-        return _quoteGasPayment(_destination, _recipient, _amount, _feeToken);
-    }
-
     /**
      * @notice Generates hook metadata for dispatch, including feeToken if configured.
      * @param _destination The destination chain.
