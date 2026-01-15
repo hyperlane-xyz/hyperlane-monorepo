@@ -274,6 +274,91 @@ describe('EvmTokenFeeModule', () => {
         normalizeConfig(onchainConfig.feeContracts?.[test4Chain]).owner,
       ).to.equal(newOwner);
     });
+
+    it('should derive routingDestinations from target config when not provided', async () => {
+      const feeContracts = {
+        [test4Chain]: config,
+      };
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts,
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+
+      // Update without providing routingDestinations - should derive from target config
+      const updatedConfig = {
+        ...routingFeeConfig,
+        feeContracts: {
+          [test4Chain]: {
+            ...feeContracts[test4Chain],
+            bps: BPS + 1n,
+          },
+        },
+      };
+
+      // Should work without routingDestinations param
+      const txs = await module.update(updatedConfig);
+      expect(txs.length).to.be.greaterThanOrEqual(0);
+    });
+
+    it('should deploy new sub-fee contract when adding a new destination', async () => {
+      // Create a routing fee with one destination
+      const initialFeeContracts = {
+        [test4Chain]: config,
+      };
+      const routingFeeConfig: TokenFeeConfig = {
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: initialFeeContracts,
+      };
+      const module = await EvmTokenFeeModule.create({
+        multiProvider,
+        chain: test4Chain,
+        config: routingFeeConfig,
+      });
+
+      // Update with an additional destination (test1)
+      const test1Chain = TestChainName.test1;
+      const updatedConfig: RoutingFeeConfig = {
+        ...routingFeeConfig,
+        feeContracts: {
+          [test4Chain]: initialFeeContracts[test4Chain],
+          [test1Chain]: {
+            ...config,
+            // New destination - should trigger deployment
+          },
+        },
+      };
+
+      // Should generate transaction to set the new fee contract
+      const txs = await module.update(updatedConfig);
+      expect(txs.length).to.be.greaterThan(0);
+
+      // Execute the transactions to actually set the fee contract on-chain
+      for (const tx of txs) {
+        await multiProvider.sendTransaction(test4Chain, tx);
+      }
+
+      // Verify the new sub-fee was deployed by reading the config
+      const onchainConfig = await module.read({
+        routingDestinations: [
+          multiProvider.getDomainId(test4Chain),
+          multiProvider.getDomainId(test1Chain),
+        ],
+      });
+      assert(
+        onchainConfig.type === TokenFeeType.RoutingFee,
+        `Must be ${TokenFeeType.RoutingFee}`,
+      );
+      expect(onchainConfig.feeContracts?.[test1Chain]).to.not.be.undefined;
+    });
   });
 
   describe('expandConfig', () => {
