@@ -63,7 +63,7 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       context.ism.address,
       this.core.multiProvider.getSigner(context.message.parsed.destination),
     );
-    const verified = await ism.isVerified(context.message.id);
+    const verified = await ism.isVerified(context.message.message);
     if (verified) {
       this.logger.debug(
         'Message is already verified, relaying without metadata...',
