@@ -1,7 +1,7 @@
 import { strip0x } from '@hyperlane-xyz/utils';
 
 import { fillArray, fromAleoAddress } from '../utils/helper.js';
-import { AleoTransaction } from '../utils/types.js';
+import { type AleoTransaction } from '../utils/types.js';
 
 export function getCreateTestIsmTx(
   ismManagerProgramId: string,

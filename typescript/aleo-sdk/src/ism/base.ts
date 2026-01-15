@@ -1,6 +1,6 @@
 import { retryAsync } from '@hyperlane-xyz/utils';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { RETRY_ATTEMPTS, RETRY_DELAY_MS } from '../utils/helper.js';
 
 /**

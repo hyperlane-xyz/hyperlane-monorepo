@@ -3,7 +3,7 @@ import {
   type ExecuteOptions,
 } from '@provablehq/sdk';
 
-import { Annotated } from '@hyperlane-xyz/utils';
+import { type Annotated } from '@hyperlane-xyz/utils';
 
 export interface AleoTransaction extends ExecuteOptions {}
 export type AnnotatedAleoTransaction = Annotated<AleoTransaction>;

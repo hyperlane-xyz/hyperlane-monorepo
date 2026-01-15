@@ -1,18 +1,21 @@
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
+import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
+  type ArtifactDeployed,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  IsmType,
-  MultisigIsmConfig,
-  RawRoutingIsmArtifactConfig,
-  TestIsmConfig,
+  type IsmType,
+  type MultisigIsmConfig,
+  type RawRoutingIsmArtifactConfig,
+  type TestIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 import { normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
