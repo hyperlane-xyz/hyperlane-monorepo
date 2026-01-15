@@ -231,6 +231,15 @@ impl BaseAgent for Validator {
                 "Kaspa validator mode"
             );
 
+            // Verify escrow configuration matches hub anchor (post-migration safety check)
+            dymension_kaspa::verify_escrow_matches_hub_anchor(
+                prov.hub_rpc().query(),
+                &prov.rest().client,
+                &prov.escrow_address(),
+            )
+            .await
+            .expect("Escrow configuration must match hub anchor");
+
             let signing = dymension_kaspa::ValidatorISMSigningResources::new(
                 Arc::new(self.raw_signer.clone()),
                 self.signer.clone(),

@@ -1,3 +1,5 @@
+use crate::validator::error::ValidationError;
+use dym_kas_api::models::TxModel;
 use hyperlane_core::{HyperlaneDomain, HyperlaneDomainProtocol};
 
 use crate::consts::{
@@ -59,3 +61,20 @@ pub const HUB_DOMAINS: [u32; 6] = [
     HL_DOMAIN_DYM_PLAYGROUND_202507_LEGACY,
     HL_DOMAIN_DYM_PLAYGROUND_202509,
 ];
+
+/// Extract the address string from a transaction output at the given index.
+pub fn get_output_address(tx: &TxModel, index: usize) -> Result<String, ValidationError> {
+    let outputs = tx
+        .outputs
+        .as_ref()
+        .ok_or(ValidationError::MissingTransactionOutputs)?;
+
+    let output = outputs
+        .get(index)
+        .ok_or(ValidationError::UtxoNotFound { index })?;
+
+    output
+        .script_public_key_address
+        .clone()
+        .ok_or(ValidationError::MissingScriptPubKeyAddress)
+}

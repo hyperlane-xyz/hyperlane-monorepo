@@ -151,6 +151,17 @@ pub enum ValidationError {
 
     #[error("Finality check error: tx_id={tx_id} reason={reason}")]
     FinalityCheckError { tx_id: String, reason: String },
+
+    #[error(
+        "Escrow configuration mismatch: Hub anchor is at address {hub_anchor_address}, \
+         but validator is configured with escrow {configured_escrow}. \
+         This likely means the validator config was not updated after an escrow migration. \
+         Please update kaspaValidatorsEscrow configuration to match the current escrow."
+    )]
+    EscrowConfigMismatch {
+        hub_anchor_address: String,
+        configured_escrow: String,
+    },
 }
 
 /// Validate that a HyperlaneMessage matches expected static fields.

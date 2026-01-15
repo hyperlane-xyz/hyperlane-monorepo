@@ -1,7 +1,8 @@
 use crate::ops::confirmation::ConfirmationFXG;
 use crate::ops::payload::{MessageID, MessageIDs};
+use crate::util::get_output_address;
 use crate::validator::error::ValidationError;
-use dym_kas_api::models::{TxModel, TxOutput};
+use dym_kas_api::models::TxModel;
 use dym_kas_core::api::client::HttpClient;
 use dym_kas_core::finality::is_safe_against_reorg;
 use dym_kas_core::hash::hex_to_kaspa_hash;
@@ -185,23 +186,12 @@ fn escrow_outpoint_in_outputs(
     src_escrow: &Address,
     dst_escrow: &Address,
 ) -> Result<(), ValidationError> {
-    let outs = tx_trusted
-        .outputs
-        .as_ref()
-        .ok_or(ValidationError::MissingTransactionOutputs)?;
-
-    let out_actual: &TxOutput = outs
-        .get(escrow_outpoint_untrusted.index as usize)
-        .ok_or(ValidationError::NextAnchorNotFound)?;
-
     // We already know this TX spends escrow funds, so it must be signed by validators.
     // Validators only sign withdrawals containing exactly one change output back to escrow.
     // We accept both src and dst because the trace may span the migration boundary:
     // pre-migration TXs output to src, the migration TX outputs to dst.
-    let recipient_actual = out_actual
-        .script_public_key_address
-        .clone()
-        .ok_or(ValidationError::MissingScriptPubKeyAddress)?;
+    let recipient_actual =
+        get_output_address(tx_trusted, escrow_outpoint_untrusted.index as usize)?;
 
     let src_str = src_escrow.address_to_string();
     let dst_str = dst_escrow.address_to_string();
