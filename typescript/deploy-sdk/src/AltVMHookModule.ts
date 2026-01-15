@@ -6,7 +6,7 @@ import {
   HookModuleAddresses,
   HookModuleType,
   HookType,
-  IgpHookConfig,
+  IgpHookModuleConfig,
   MUTABLE_HOOK_TYPE,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
@@ -139,8 +139,8 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
     currentConfig,
     targetConfig,
   }: {
-    currentConfig: IgpHookConfig;
-    targetConfig: IgpHookConfig;
+    currentConfig: IgpHookModuleConfig;
+    targetConfig: IgpHookModuleConfig;
   }): Promise<AnnotatedTx[]> {
     const updateTxs: AnnotatedTx[] = [];
 
@@ -237,7 +237,7 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
   protected async deployIgpHook({
     config,
   }: {
-    config: IgpHookConfig;
+    config: IgpHookModuleConfig;
   }): Promise<Address> {
     this.logger.debug('Deploying IGP as hook...');
 

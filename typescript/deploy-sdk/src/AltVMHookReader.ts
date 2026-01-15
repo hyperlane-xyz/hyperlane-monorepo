@@ -4,7 +4,7 @@ import {
   DerivedHookConfig,
   HookConfig,
   HookModuleType,
-  IgpHookConfig,
+  IgpHookModuleConfig,
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
@@ -57,13 +57,13 @@ export class AltVMHookReader implements HypReader<HookModuleType> {
 
   private async deriveIgpConfig(
     address: Address,
-  ): Promise<WithAddress<IgpHookConfig>> {
+  ): Promise<WithAddress<IgpHookModuleConfig>> {
     const igp = await this.provider.getInterchainGasPaymasterHook({
       hookAddress: address,
     });
 
-    const overhead: IgpHookConfig['overhead'] = {};
-    const oracleConfig: IgpHookConfig['oracleConfig'] = {};
+    const overhead: IgpHookModuleConfig['overhead'] = {};
+    const oracleConfig: IgpHookModuleConfig['oracleConfig'] = {};
 
     Object.keys(igp.destinationGasConfigs).forEach((domain_id) => {
       const { name, nativeToken } = this.getChainMetadata(domain_id);

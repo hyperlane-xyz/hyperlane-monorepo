@@ -37,18 +37,20 @@ export class RadixIgpHookReader
     const hookConfig = await getIgpHookConfig(this.gateway, address);
 
     // Map Radix IGP config to provider-sdk IgpHookConfig format
-    const overhead: Record<string, number> = {};
+    // Note: Using numeric domain IDs as keys (Artifact API), not chain names
+    const overhead: Record<number, number> = {};
     const oracleConfig: Record<
-      string,
+      number,
       {
         gasPrice: string;
         tokenExchangeRate: string;
       }
     > = {};
 
-    for (const [domainId, gasConfig] of Object.entries(
+    for (const [domainIdStr, gasConfig] of Object.entries(
       hookConfig.destinationGasConfigs,
     )) {
+      const domainId = parseInt(domainIdStr);
       overhead[domainId] = parseInt(gasConfig.gasOverhead);
       oracleConfig[domainId] = {
         gasPrice: gasConfig.gasOracle.gasPrice,
@@ -109,14 +111,17 @@ export class RadixIgpHookWriter
     allReceipts.push(createReceipt);
 
     // Set destination gas configs for each domain
-    for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
+    for (const [domainIdStr, gasConfig] of Object.entries(
+      config.oracleConfig,
+    )) {
+      const domainId = parseInt(domainIdStr);
       const setConfigTx = await getSetIgpDestinationGasConfigTx(
         this.base,
         this.signer.getAddress(),
         {
           igpAddress: address,
           destinationGasConfig: {
-            remoteDomainId: parseInt(domainId),
+            remoteDomainId: domainId,
             gasOracle: {
               tokenExchangeRate: gasConfig.tokenExchangeRate,
               gasPrice: gasConfig.gasPrice,
@@ -172,7 +177,10 @@ export class RadixIgpHookWriter
     }
 
     // Update destination gas configs
-    for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
+    for (const [domainIdStr, gasConfig] of Object.entries(
+      config.oracleConfig,
+    )) {
+      const domainId = parseInt(domainIdStr);
       const currentGasConfig = currentState.config.oracleConfig[domainId];
       const needsUpdate =
         !currentGasConfig ||
@@ -187,7 +195,7 @@ export class RadixIgpHookWriter
           {
             igpAddress: deployed.address,
             destinationGasConfig: {
-              remoteDomainId: parseInt(domainId),
+              remoteDomainId: domainId,
               gasOracle: {
                 tokenExchangeRate: gasConfig.tokenExchangeRate,
                 gasPrice: gasConfig.gasPrice,

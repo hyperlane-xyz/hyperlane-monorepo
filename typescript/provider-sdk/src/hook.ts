@@ -14,7 +14,7 @@ export type HookModuleType = {
 };
 
 export interface HookConfigs {
-  interchainGasPaymaster: IgpHookConfig;
+  interchainGasPaymaster: IgpHookModuleConfig;
   merkleTreeHook: MerkleTreeHookConfig;
 }
 export type HookType = keyof HookConfigs;
@@ -29,7 +29,7 @@ export const MUTABLE_HOOK_TYPE: HookType[] = [
   // 'pausableHook',
 ];
 
-export interface IgpHookConfig {
+export interface IgpHookModuleConfig {
   type: 'interchainGasPaymaster';
   owner: string;
   beneficiary: string;
@@ -58,6 +58,27 @@ export type HookModuleAddresses = {
 
 export interface DeployedHookAddress {
   address: string;
+}
+
+/**
+ * IGP Hook config for Artifact API.
+ * Uses domain IDs (numbers) instead of chain names (strings) for overhead and oracleConfig keys.
+ * This differs from IgpHookModuleConfig which uses chain names for the Config API.
+ */
+export interface IgpHookConfig {
+  type: 'interchainGasPaymaster';
+  owner: string;
+  beneficiary: string;
+  oracleKey: string;
+  overhead: Record<number, number>;
+  oracleConfig: Record<
+    number,
+    {
+      gasPrice: string;
+      tokenExchangeRate: string;
+      tokenDecimals?: number;
+    }
+  >;
 }
 
 export interface HookArtifactConfigs {
