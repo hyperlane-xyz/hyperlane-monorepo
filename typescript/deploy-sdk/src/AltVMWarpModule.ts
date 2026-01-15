@@ -514,7 +514,9 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     }
 
     const metadata = this.chainLookup.getChainMetadata(this.args.chain);
-    const writer = createHookWriter(metadata, this.chainLookup, this.signer);
+    const writer = createHookWriter(metadata, this.chainLookup, this.signer, {
+      mailbox: expectedConfig.mailbox,
+    });
 
     const actualHookAddress =
       (actualConfig.hook as DerivedHookConfig)?.address ?? '';

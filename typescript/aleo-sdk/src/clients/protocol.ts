@@ -76,6 +76,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
   ): IRawHookArtifactManager {
     // TODO: Implement Aleo hook artifact manager
     throw new Error('Aleo hook artifact manager not yet implemented.');

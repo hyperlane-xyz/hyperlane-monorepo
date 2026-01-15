@@ -20,41 +20,45 @@ import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { HookReader } from './generic-hook.js';
 
 /**
+ * Deployment context for hooks that need environment information.
+ * Different protocols may require different context fields.
+ */
+export type HookDeploymentContext = {
+  /** Mailbox address on the chain where hooks are being deployed */
+  mailbox?: string;
+};
+
+/**
  * Factory function to create a HookWriter instance.
- *
- * Note: For protocols that require deployment context (mailbox, nativeTokenDenom),
- * you must create the artifact manager manually with the required context.
- * This factory uses the protocol provider which may not have access to deployment context.
  *
  * @param chainMetadata Chain metadata for the target chain
  * @param chainLookup Chain lookup interface for resolving chain names and domain IDs
  * @param signer Signer interface for signing transactions
- * @param context Optional deployment context (mailbox address, native token denom) for hook writers
+ * @param context Optional deployment context (mailbox address, etc.) required by some protocols
  * @returns A HookWriter instance
  *
  * @example
  * ```typescript
- * // For Radix, create artifact manager manually with deployment context
- * const artifactManager = new RadixHookArtifactManager(
- *   gateway,
- *   base,
- *   mailboxAddress,  // from deployment
- *   nativeTokenDenom // from chain metadata
- * );
- * const writer = new HookWriter(artifactManager, chainLookup, signer);
+ * // Creating hooks during core deployment (with mailbox context)
+ * const writer = createHookWriter(chainMetadata, chainLookup, signer, {
+ *   mailbox: mailboxAddress
+ * });
+ * const [deployed] = await writer.create(hookArtifact);
  *
- * // Or use factory for reading-only operations
- * const writer = createHookWriter(chainMetadata, chainLookup, signer);
+ * // Reading hooks (no context needed)
+ * const reader = createHookReader(chainMetadata, chainLookup);
+ * const hookConfig = await reader.deriveHookConfig(hookAddress);
  * ```
  */
 export function createHookWriter(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
+  context?: HookDeploymentContext,
 ): HookWriter {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawHookArtifactManager =
-    protocolProvider.createHookArtifactManager(chainMetadata);
+    protocolProvider.createHookArtifactManager(chainMetadata, context);
 
   return new HookWriter(artifactManager, chainLookup, signer);
 }

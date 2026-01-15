@@ -103,6 +103,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
   ): IRawHookArtifactManager {
     assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
 
@@ -147,12 +148,13 @@ export class RadixProtocolProvider implements ProtocolProvider {
     // Get native token denom from chain metadata
     const nativeTokenDenom = chainMetadata.nativeToken?.denom || '';
 
-    // Note: mailbox is empty for generic artifact manager creation
-    // When writing hooks that require mailbox, they should get it from the config context
+    // Get mailbox from context if provided, otherwise empty string for read-only operations
+    const mailboxAddress = context?.mailbox || '';
+
     return new RadixHookArtifactManager(
       gateway,
       base,
-      '', // mailbox - will be provided by writer context when needed
+      mailboxAddress,
       nativeTokenDenom,
     );
   }

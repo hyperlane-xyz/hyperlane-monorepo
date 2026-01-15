@@ -362,8 +362,10 @@ async function createWarpHook({
         return hook;
       }
 
-      // Deploy new hook using artifact writer
-      const writer = createHookWriter(metadata, multiProvider, signer);
+      // Deploy new hook using artifact writer with mailbox context
+      const writer = createHookWriter(metadata, multiProvider, signer, {
+        mailbox: chainAddresses.mailbox,
+      });
       const artifact = hookConfigToArtifact(
         hook as ProviderHookConfig,
         multiProvider,

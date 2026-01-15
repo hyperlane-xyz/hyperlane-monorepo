@@ -131,8 +131,10 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       // Address reference - use existing hook
       defaultHook = config.defaultHook;
     } else {
-      // Deploy new hook
-      const writer = createHookWriter(metadata, chainLookup, signer);
+      // Deploy new hook with mailbox context
+      const writer = createHookWriter(metadata, chainLookup, signer, {
+        mailbox: mailbox.mailboxAddress,
+      });
       const artifact = hookConfigToArtifact(config.defaultHook, chainLookup);
       const [deployed] = await writer.create(artifact);
       defaultHook = deployed.deployed.address;
@@ -144,8 +146,10 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       // Address reference - use existing hook
       requiredHook = config.requiredHook;
     } else {
-      // Deploy new hook
-      const writer = createHookWriter(metadata, chainLookup, signer);
+      // Deploy new hook with mailbox context
+      const writer = createHookWriter(metadata, chainLookup, signer, {
+        mailbox: mailbox.mailboxAddress,
+      });
       const artifact = hookConfigToArtifact(config.requiredHook, chainLookup);
       const [deployed] = await writer.create(artifact);
       requiredHook = deployed.deployed.address;
@@ -490,6 +494,9 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       chainMetadata,
       this.chainLookup,
       this.signer,
+      {
+        mailbox: this.args.addresses.mailbox,
+      },
     );
 
     // Read actual hook state

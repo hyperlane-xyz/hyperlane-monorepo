@@ -61,6 +61,7 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
   ): IRawHookArtifactManager {
     // TODO: Implement Cosmos hook artifact manager
     // The implementation is on branch xeno/cosmos-hook-artifact-api

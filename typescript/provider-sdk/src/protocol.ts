@@ -69,15 +69,17 @@ export interface ProtocolProvider {
   ): IRawIsmArtifactManager;
 
   /**
-   * Creates a Hook artifact manager for reading and deploying Hook configurations.
-   * This factory method enables the protocol-specific instantiation of artifact managers
+   * Creates a Hook artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
    * that handle Hook operations using the Artifact API pattern.
    *
    * @param chainMetadata Chain metadata for the target chain
+   * @param context Optional deployment context (mailbox address, etc.) needed by some hook types
    * @returns A protocol-specific Hook artifact manager
    */
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
   ): IRawHookArtifactManager;
 
   getMinGas(): MinimumRequiredGasByAction;
