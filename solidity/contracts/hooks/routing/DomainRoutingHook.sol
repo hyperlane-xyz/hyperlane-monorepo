@@ -55,7 +55,11 @@ contract DomainRoutingHook is
 
     function setHook(uint32 _destination, address _hook) public onlyOwner {
         hooks[_destination] = IPostDispatchHook(_hook);
-        _addDomain(_destination);
+        if (_hook == address(0)) {
+            _removeDomain(_destination);
+        } else {
+            _addDomain(_destination);
+        }
     }
 
     function setHooks(HookConfig[] calldata configs) external onlyOwner {

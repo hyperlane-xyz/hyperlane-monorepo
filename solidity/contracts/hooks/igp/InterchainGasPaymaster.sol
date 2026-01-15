@@ -318,7 +318,11 @@ contract InterchainGasPaymaster is
             _gasOracle,
             _gasOverhead
         );
-        _addDomain(_remoteDomain);
+        if (address(_gasOracle) == address(0)) {
+            _removeDomain(_remoteDomain);
+        } else {
+            _addDomain(_remoteDomain);
+        }
         emit DestinationGasConfigSet(
             _remoteDomain,
             address(_gasOracle),

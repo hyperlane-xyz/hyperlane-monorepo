@@ -448,4 +448,43 @@ contract RoutingFeeTest is BaseFeeTest {
         uint32[] memory domains = routingFee.domains();
         assertEq(domains.length, 1);
     }
+
+    function test_Domains_removedWhenFeeContractZero() public {
+        // Add a fee contract
+        vm.startPrank(OWNER);
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        assertEq(routingFee.domains().length, 1);
+
+        // Remove by setting to zero
+        routingFee.setFeeContract(DEST1, address(0));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_Domains_removeNonExistentNoOp() public {
+        // Remove non-existent domain should not revert
+        vm.prank(OWNER);
+        routingFee.setFeeContract(999, address(0));
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_Domains_readdAfterRemoval() public {
+        vm.startPrank(OWNER);
+        // Add then remove
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        routingFee.setFeeContract(DEST1, address(0));
+        assertEq(routingFee.domains().length, 0);
+
+        // Re-add
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], DEST1);
+    }
 }

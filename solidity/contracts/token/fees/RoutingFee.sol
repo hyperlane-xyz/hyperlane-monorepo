@@ -29,7 +29,11 @@ contract RoutingFee is BaseFee, EnumerableDomainSet {
         address feeContract
     ) external onlyOwner {
         feeContracts[destination] = feeContract;
-        _addDomain(destination);
+        if (feeContract == address(0)) {
+            _removeDomain(destination);
+        } else {
+            _addDomain(destination);
+        }
         emit FeeContractSet(destination, feeContract);
     }
 

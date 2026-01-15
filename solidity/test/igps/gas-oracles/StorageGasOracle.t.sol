@@ -187,4 +187,77 @@ contract StorageGasOracleTest is Test {
         uint32[] memory domainsAfter = oracle.domains();
         assertEq(domainsAfter.length, domainsBefore.length);
     }
+
+    function testDomains_removedWhenExchangeRateZero() public {
+        // Verify domain exists after setUp
+        uint32[] memory domainsBefore = oracle.domains();
+        assertEq(domainsBefore.length, 1);
+
+        // Set exchange rate to zero to remove domain
+        oracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: initialGasDataConfig.remoteDomain,
+                tokenExchangeRate: 0,
+                gasPrice: initialGasDataConfig.gasPrice
+            })
+        );
+
+        // Verify domain is removed
+        uint32[] memory domainsAfter = oracle.domains();
+        assertEq(domainsAfter.length, 0);
+    }
+
+    function testDomains_removedWhenGasPriceZero() public {
+        // Verify domain exists after setUp
+        uint32[] memory domainsBefore = oracle.domains();
+        assertEq(domainsBefore.length, 1);
+
+        // Set gas price to zero to remove domain
+        oracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: initialGasDataConfig.remoteDomain,
+                tokenExchangeRate: initialGasDataConfig.tokenExchangeRate,
+                gasPrice: 0
+            })
+        );
+
+        // Verify domain is removed
+        uint32[] memory domainsAfter = oracle.domains();
+        assertEq(domainsAfter.length, 0);
+    }
+
+    function testDomains_removeNonExistentNoOp() public {
+        StorageGasOracle newOracle = new StorageGasOracle();
+
+        // Remove non-existent domain should not revert
+        newOracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: 999,
+                tokenExchangeRate: 0,
+                gasPrice: 0
+            })
+        );
+
+        uint32[] memory domains = newOracle.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function testDomains_readdAfterRemoval() public {
+        // Remove domain
+        oracle.setRemoteGasData(
+            StorageGasOracle.RemoteGasDataConfig({
+                remoteDomain: initialGasDataConfig.remoteDomain,
+                tokenExchangeRate: 0,
+                gasPrice: 0
+            })
+        );
+        assertEq(oracle.domains().length, 0);
+
+        // Re-add domain
+        oracle.setRemoteGasData(initialGasDataConfig);
+
+        uint32[] memory domains = oracle.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], initialGasDataConfig.remoteDomain);
+    }
 }

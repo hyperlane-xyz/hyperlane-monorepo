@@ -103,8 +103,11 @@ contract StorageGasOracle is
             tokenExchangeRate: _config.tokenExchangeRate,
             gasPrice: _config.gasPrice
         });
-        _addDomain(_config.remoteDomain);
-
+        if (_config.tokenExchangeRate == 0 || _config.gasPrice == 0) {
+            _removeDomain(_config.remoteDomain);
+        } else {
+            _addDomain(_config.remoteDomain);
+        }
         emit RemoteGasDataSet(
             _config.remoteDomain,
             _config.tokenExchangeRate,

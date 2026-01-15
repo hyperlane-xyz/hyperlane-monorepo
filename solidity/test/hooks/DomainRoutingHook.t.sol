@@ -145,6 +145,40 @@ contract DomainRoutingHookTest is Test {
         uint32[] memory domains = hook.domains();
         assertEq(domains.length, 1);
     }
+
+    function test_domains_removedWhenHookZero(uint32 destination) public {
+        // Add a hook
+        hook.setHook(destination, address(noopHook));
+        assertEq(hook.domains().length, 1);
+
+        // Remove by setting to zero
+        hook.setHook(destination, address(0));
+
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_domains_removeNonExistentNoOp() public {
+        // Remove non-existent domain should not revert
+        hook.setHook(999, address(0));
+
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_domains_readdAfterRemoval(uint32 destination) public {
+        // Add then remove
+        hook.setHook(destination, address(noopHook));
+        hook.setHook(destination, address(0));
+        assertEq(hook.domains().length, 0);
+
+        // Re-add
+        hook.setHook(destination, address(noopHook));
+
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], destination);
+    }
 }
 
 contract FallbackDomainRoutingHookTest is DomainRoutingHookTest {
