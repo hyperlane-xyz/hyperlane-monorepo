@@ -8,6 +8,7 @@ import {
   getHookType as getHookTypeQuery,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
+import { getCreateMerkleTreeHookTx } from '../hook/hook-tx.js';
 import {
   getIsmType,
   getMessageIdMultisigIsmConfig,
@@ -738,17 +739,21 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.mailboxAddress);
     const suffix = getProgramSuffix(programId);
 
-    return {
-      programName: getProgramIdFromSuffix(this.prefix, 'hook_manager', suffix),
-      functionName: 'init_merkle_tree',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        getAddressFromProgramId(
-          getProgramIdFromSuffix(this.prefix, 'dispatch_proxy', suffix),
-        ),
-      ],
-    };
+    const hookManagerProgramId = getProgramIdFromSuffix(
+      this.prefix,
+      'hook_manager',
+      suffix,
+    );
+    const dispatchProxyProgramId = getProgramIdFromSuffix(
+      this.prefix,
+      'dispatch_proxy',
+      suffix,
+    );
+
+    return getCreateMerkleTreeHookTx(
+      hookManagerProgramId,
+      dispatchProxyProgramId,
+    );
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
