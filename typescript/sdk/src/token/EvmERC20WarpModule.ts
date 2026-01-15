@@ -985,7 +985,13 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       );
       const currentFeeRecipient = await tokenRouter
         .feeRecipient()
-        .catch(() => constants.AddressZero);
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to read feeRecipient, defaulting to generate setFeeRecipient tx`,
+            error,
+          );
+          return constants.AddressZero;
+        });
 
       if (eqAddress(currentFeeRecipient, deployedFee)) {
         return [];
