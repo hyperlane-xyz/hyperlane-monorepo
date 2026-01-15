@@ -6,6 +6,7 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   getHookType as getHookTypeQuery,
+  getIgpHookConfig,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
 import { getCreateMerkleTreeHookTx } from '../hook/hook-tx.js';
@@ -261,58 +262,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    const destinationGasConfigs: {
-      [domainId: string]: {
-        gasOracle: {
-          tokenExchangeRate: string;
-          gasPrice: string;
-        };
-        gasOverhead: string;
-      };
-    } = {};
-
-    const igpData = await this.queryMappingValue(programId, 'igps', address);
-    const owner = igpData.hook_owner;
-
-    const gasConfigLength = await this.queryMappingValue(
-      programId,
-      'destination_gas_config_length',
-      address,
-    );
-
-    for (let i = 0; i < (gasConfigLength || 0); i++) {
-      const gasConfigKey = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'destination_gas_config_iter',
-        `{hook:${address},index:${i}u32}`,
-      );
-
-      const destinationGasConfig = await this.queryMappingValue(
-        programId,
-        'destination_gas_configs',
-        gasConfigKey.toString(),
-      );
-
-      // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
-      // including those from domains that have already been removed. When a domain is
-      // deleted from the Destination Gas Configs, its key remains in the map and `destination_gas_configs` simply returns null.
-      if (!destinationGasConfig) continue;
-
-      destinationGasConfigs[gasConfigKey.toObject().destination] = {
-        gasOracle: {
-          tokenExchangeRate: destinationGasConfig.exchange_rate.toString(),
-          gasPrice: destinationGasConfig.gas_price.toString(),
-        },
-        gasOverhead: destinationGasConfig.gas_overhead.toString(),
-      };
-    }
+    const config = await getIgpHookConfig(this.aleoClient, req.hookAddress);
 
     return {
-      address: req.hookAddress,
-      owner: owner,
-      destinationGasConfigs: destinationGasConfigs,
+      address: config.address,
+      owner: config.owner,
+      destinationGasConfigs: config.destinationGasConfigs,
     };
   }
 
