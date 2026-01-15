@@ -89,6 +89,7 @@ export async function getEniEthWarpConfig(
     type: TokenType.synthetic,
     name: 'Ether',
     symbol: 'ETH',
+    decimals: 18,
     tokenFee: getFixedRoutingFeeConfig(
       getWarpFeeOwner('eni'),
       ['ethereum'],
@@ -100,6 +101,7 @@ export async function getEniEthWarpConfig(
     ...routerConfig.ethereum,
     owner: owners.ethereum,
     type: TokenType.native,
+    decimals: 18,
   };
 
   return {
@@ -117,6 +119,7 @@ export async function getEniWbtcWarpConfig(
     type: TokenType.synthetic,
     name: 'Wrapped BTC',
     symbol: 'WBTC',
+    decimals: 8,
     tokenFee: getFixedRoutingFeeConfig(
       getWarpFeeOwner('eni'),
       ['ethereum'],
@@ -129,6 +132,7 @@ export async function getEniWbtcWarpConfig(
     owner: owners.ethereum,
     type: TokenType.collateral,
     token: tokens.ethereum.WBTC,
+    decimals: 8,
   };
 
   return {
