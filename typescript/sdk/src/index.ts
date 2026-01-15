@@ -188,6 +188,7 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfig,
