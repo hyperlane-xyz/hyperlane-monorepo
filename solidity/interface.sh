@@ -102,7 +102,7 @@ if [ "$1" = "test-interface" ]; then
         base_file="$BASE_DIR/$contract_name-abi.json"
 
         if [ ! -f "$base_file" ]; then
-            echo "INFO: New contract added: $contract_name"
+            ADDED_ITEMS="$ADDED_ITEMS\n  New contract: $contract_name"
         fi
     done
 
