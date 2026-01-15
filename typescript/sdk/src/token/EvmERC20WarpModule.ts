@@ -62,6 +62,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { resolveTokenFeeAddress } from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -947,21 +948,24 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     expectedConfig: HypTokenRouterConfig,
     tokenReaderParams?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
-    // If no token fee is expected, return empty array
     if (!expectedConfig.tokenFee) {
       return [];
     }
 
-    // Get the current token fee configuration from the actual config
+    const routerAddress = this.args.addresses.deployedTokenRoute;
+    const resolvedTokenFee = resolveTokenFeeAddress(
+      expectedConfig.tokenFee,
+      routerAddress,
+      expectedConfig,
+    );
+
     const currentTokenFee = actualConfig.tokenFee;
 
-    // If there's no current token fee but we expect one, we need to deploy
     if (!currentTokenFee) {
       this.logger.info('No existing token fee found, creating new one');
 
-      // First expand the input config to a full config
       const expandedExpectedConfig = await EvmTokenFeeModule.expandConfig({
-        config: expectedConfig.tokenFee,
+        config: resolvedTokenFee,
         multiProvider: this.multiProvider,
         chainName: this.chainName,
       });
@@ -988,7 +992,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       ];
     }
 
-    // If there's an existing token fee, update it
     this.logger.info('Updating existing token fee configuration');
 
     const tokenFeeModule = new EvmTokenFeeModule(
@@ -1004,7 +1007,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     );
 
     const updateTransactions = await tokenFeeModule.update(
-      expectedConfig.tokenFee,
+      resolvedTokenFee,
       tokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();

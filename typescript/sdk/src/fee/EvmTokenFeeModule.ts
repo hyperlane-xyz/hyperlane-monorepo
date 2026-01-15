@@ -4,10 +4,8 @@ import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
-  assert,
   deepEquals,
   eqAddress,
-  isZeroishAddress,
   objMap,
   objMerge,
   objOmit,
@@ -37,15 +35,41 @@ import {
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
+  ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
+  TokenFeeConfigInputSchema,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
+import { convertToBps } from './utils.js';
 
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
+
+function resolveTokenForFeeConfig(
+  config: TokenFeeConfigInput,
+  token: Address,
+): ResolvedTokenFeeConfigInput {
+  if (
+    config.type === TokenFeeType.RoutingFee &&
+    'feeContracts' in config &&
+    config.feeContracts
+  ) {
+    return {
+      ...config,
+      token,
+      feeContracts: Object.fromEntries(
+        Object.entries(config.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenForFeeConfig(subFee, token),
+        ]),
+      ),
+    };
+  }
+  return { ...config, token };
+}
 
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -112,63 +136,104 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   // Processes the Input config to the Final config
   // For LinearFee, it converts the bps to maxFee and halfAmount
   public static async expandConfig(params: {
-    config: TokenFeeConfigInput;
+    config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
     chainName: string;
   }): Promise<TokenFeeConfig> {
     const { config, multiProvider, chainName } = params;
     let intermediaryConfig: TokenFeeConfig;
     if (config.type === TokenFeeType.LinearFee) {
+      const { token } = config;
+
+      let maxFee: bigint;
+      let halfAmount: bigint;
+      let bps: bigint;
+
       const reader = new EvmTokenFeeReader(
         params.multiProvider,
         params.chainName,
       );
 
-      let { maxFee, halfAmount } = config;
+      // Determine which values to use:
+      // - If maxFee/halfAmount are provided and bps matches what you'd compute from them,
+      //   the user provided explicit values (bps was auto-computed by schema) - use them
+      // - If bps doesn't match, the user explicitly provided a different bps - use bps
+      // - If only bps is provided, derive maxFee/halfAmount from bps
+      if (config.maxFee !== undefined && config.halfAmount !== undefined) {
+        const explicitMaxFee = BigInt(config.maxFee);
+        const explicitHalfAmount = BigInt(config.halfAmount);
+        const computedBps = convertToBps(explicitMaxFee, explicitHalfAmount);
 
-      if (!isZeroishAddress(config.token)) {
-        const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-          await reader.convertFromBps(config.bps, config.token);
-        maxFee = convertedMaxFee;
-        halfAmount = convertedHalfAmount;
+        if (config.bps === undefined || config.bps === computedBps) {
+          // bps was auto-computed or matches - use explicit values
+          maxFee = explicitMaxFee;
+          halfAmount = explicitHalfAmount;
+          bps = computedBps;
+        } else {
+          // User explicitly provided a different bps - use bps-derived values
+          const derived = reader.convertFromBps(config.bps);
+          maxFee = derived.maxFee;
+          halfAmount = derived.halfAmount;
+          bps = config.bps;
+        }
+      } else if (config.bps !== undefined) {
+        const derived = reader.convertFromBps(config.bps);
+        maxFee = derived.maxFee;
+        halfAmount = derived.halfAmount;
+        bps = config.bps;
+      } else {
+        throw new Error(
+          'LinearFee config must provide either bps or both maxFee and halfAmount',
+        );
       }
-
-      assert(
-        maxFee && halfAmount,
-        'Config properties "maxFee" and "halfAmount" must be supplied when "token" is not supplied',
-      );
 
       intermediaryConfig = {
         type: TokenFeeType.LinearFee,
-        token: config.token,
+        token,
         owner: config.owner,
-        bps: config.bps,
+        bps,
         maxFee,
         halfAmount,
       };
     } else if (config.type === TokenFeeType.RoutingFee) {
-      const feeContracts = config.feeContracts
+      const { token, owner } = config;
+      const inputFeeContracts =
+        'feeContracts' in config ? config.feeContracts : undefined;
+
+      const feeContracts = inputFeeContracts
         ? await promiseObjAll(
-            objMap(config.feeContracts, async (_, innerConfig) => {
-              return EvmTokenFeeModule.expandConfig({
-                config: innerConfig,
-                multiProvider,
-                chainName,
-              });
-            }),
+            objMap(
+              inputFeeContracts as Record<string, ResolvedTokenFeeConfigInput>,
+              async (_, innerConfig) => {
+                const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
+                  ...innerConfig,
+                  token: innerConfig.token ?? token,
+                };
+                return EvmTokenFeeModule.expandConfig({
+                  config: resolvedInnerConfig,
+                  multiProvider,
+                  chainName,
+                });
+              },
+            ),
           )
         : undefined;
 
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
-        token: config.token,
-        owner: config.owner,
+        token,
+        owner,
         maxFee: constants.MaxUint256.toBigInt(),
         halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts,
       };
     } else {
-      intermediaryConfig = config;
+      // Progressive/Regressive fees
+      intermediaryConfig = {
+        ...config,
+        maxFee: BigInt(config.maxFee),
+        halfAmount: BigInt(config.halfAmount),
+      };
     }
 
     return TokenFeeConfigSchema.parse(intermediaryConfig);
@@ -206,19 +271,26 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
-    let updateTransactions: AnnotatedEV5Transaction[] = [];
+    TokenFeeConfigInputSchema.parse(targetConfig);
 
-    const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
-      await EvmTokenFeeModule.expandConfig({
-        config: targetConfig,
-        multiProvider: this.multiProvider,
-        chainName: this.chainName,
-      }),
-    );
+    let updateTransactions: AnnotatedEV5Transaction[] = [];
 
     const actualConfig = await this.read(params);
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
+
+    const resolvedTargetConfig = resolveTokenForFeeConfig(
+      targetConfig,
+      actualConfig.token,
+    );
+
+    const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
+      await EvmTokenFeeModule.expandConfig({
+        config: resolvedTargetConfig,
+        multiProvider: this.multiProvider,
+        chainName: this.chainName,
+      }),
+    );
 
     //If configs are the same, return empty array
     if (deepEquals(normalizedActualConfig, normalizedTargetConfig)) {

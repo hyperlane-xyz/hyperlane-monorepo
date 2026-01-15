@@ -268,6 +268,8 @@ jobs:
           # Other commands
           - relay
           - status
+          # ICA
+          - ica-deploy
           # Warp Apply Commands
           - warp-apply-hook-updates
           - warp-apply-ism-updates
@@ -509,6 +511,35 @@ jobs:
         with:
           job_name: 'Aleo SDK E2E'
           result: ${{ needs.aleo-sdk-e2e-run.result }}
+
+  radix-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Radix SDK e2e tests
+        run: pnpm -C typescript/radix-sdk test:e2e
+
+  radix-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [radix-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check radix-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Radix SDK E2E'
+          result: ${{ needs.radix-sdk-e2e-run.result }}
 
   agent-configs:
     runs-on: depot-ubuntu-latest

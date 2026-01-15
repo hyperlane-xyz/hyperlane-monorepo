@@ -2,7 +2,13 @@ import chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import Sinon from 'sinon';
 
-import { AltVM, MockSigner } from '@hyperlane-xyz/provider-sdk';
+import {
+  AltVM,
+  MockSigner,
+  ProtocolType,
+  hasProtocol,
+  registerProtocol,
+} from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
@@ -12,6 +18,47 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 
 import { AltVMWarpModule } from './AltVMWarpModule.js';
+
+// Mock protocol type for testing (use a unique value to avoid collisions)
+const TestProtocolType = 'test' as ProtocolType;
+
+// Mock ISM artifact manager
+const mockIsmArtifactManager = {
+  readIsm: async () => ({
+    artifactState: 'DEPLOYED',
+    config: { type: AltVM.IsmType.TEST_ISM },
+    deployed: { address: '0x1234' },
+  }),
+  createReader: () => ({
+    read: async () => ({
+      artifactState: 'DEPLOYED',
+      config: { type: AltVM.IsmType.TEST_ISM },
+      deployed: { address: '0x1234' },
+    }),
+  }),
+  createWriter: () => {
+    throw new Error('Not implemented');
+  },
+};
+
+// Mock protocol provider
+const mockProtocolProvider = {
+  createProvider: async () => ({}),
+  createSigner: async () => ({}),
+  createSubmitter: async () => ({}),
+  createIsmArtifactManager: () => mockIsmArtifactManager,
+  getMinGas: () => ({
+    CORE_DEPLOY_GAS: 0n,
+    ISM_DEPLOY_GAS: 0n,
+    TOKEN_DEPLOY_GAS: 0n,
+    HOOK_DEPLOY_GAS: 0n,
+  }),
+};
+
+// Register mock protocol provider once
+if (!hasProtocol(TestProtocolType)) {
+  registerProtocol(TestProtocolType, () => mockProtocolProvider as any);
+}
 
 const TestChainName = {
   test1: 'test1',
@@ -72,7 +119,11 @@ describe('AltVMWarpModule', () => {
 
     // Create mock chainLookup
     chainLookup = {
-      getChainMetadata: () => ({ name: TestChainName.test1, domainId: 1 }),
+      getChainMetadata: () => ({
+        name: TestChainName.test1,
+        domainId: 1,
+        protocol: TestProtocolType,
+      }),
       getChainName: () => TestChainName.test1,
       getDomainId: () => 1,
       getKnownChainNames: () => [TestChainName.test1],

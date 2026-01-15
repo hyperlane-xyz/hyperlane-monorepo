@@ -850,7 +850,6 @@ describe('ERC20WarpRouterReader', async () => {
         tokenFee: {
           type: TokenFeeType.LinearFee,
           owner: mailbox.address,
-          token: token.address,
           bps: BPS,
         },
       },
@@ -865,6 +864,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(normalizeConfig(derivedConfig.tokenFee)).to.deep.equal(
       normalizeConfig({
         ...config[chain].tokenFee,
+        token: token.address,
         maxFee: MAX_FEE,
         halfAmount: HALF_AMOUNT,
       }),
@@ -899,7 +899,6 @@ describe('ERC20WarpRouterReader', async () => {
         tokenFee: {
           type: TokenFeeType.LinearFee,
           owner: mailbox.address,
-          token: token.address,
           bps: BPS,
         },
       },
