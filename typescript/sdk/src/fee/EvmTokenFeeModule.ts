@@ -267,6 +267,25 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     });
   }
 
+  /**
+   * Updates the fee configuration to match the target config.
+   *
+   * IMPORTANT: This method may deploy new contracts as a side effect when:
+   * - An immutable fee type (e.g., LinearFee) needs parameter changes (triggers redeploy)
+   * - A new routing destination is added that doesn't have an existing sub-fee contract
+   *
+   * These deployments are executed immediately and are NOT included in the returned
+   * transaction array. The returned transactions only include configuration changes
+   * (e.g., setFeeContract, ownership transfers) that callers need to execute.
+   *
+   * This behavior is consistent with other Hyperlane SDK modules (EvmIsmModule, EvmHookModule).
+   *
+   * @param targetConfig - The desired fee configuration
+   * @param params - Optional parameters including routingDestinations for reading sub-fees.
+   *                 If not provided for RoutingFee configs, destinations are derived from
+   *                 targetConfig.feeContracts keys.
+   * @returns Transactions to execute for configuration updates (does not include deployments)
+   */
   async update(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,

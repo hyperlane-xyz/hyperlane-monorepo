@@ -303,8 +303,10 @@ describe('EvmTokenFeeModule', () => {
       };
 
       // Should work without routingDestinations param
+      // Updating bps triggers a redeploy of the immutable LinearFee sub-contract,
+      // which results in a setFeeContract transaction
       const txs = await module.update(updatedConfig);
-      expect(txs.length).to.be.greaterThanOrEqual(0);
+      expect(txs.length).to.equal(1);
     });
 
     it('should deploy new sub-fee contract when adding a new destination', async () => {
