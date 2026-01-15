@@ -1,3 +1,4 @@
+import { ethers } from 'ethers';
 import { Logger } from 'pino';
 
 import {
@@ -39,6 +40,12 @@ import {
   IHypXERC20Adapter,
   InterchainGasQuote,
 } from '../token/adapters/ITokenAdapter.js';
+import {
+  Call3Value,
+  ERC20_APPROVE_ABI,
+  MULTICALL3_ADDRESS,
+  isEIP7702SupportedChain,
+} from '../token/eip7702.js';
 import type { PermitSignature } from '../token/permit.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
@@ -1181,5 +1188,66 @@ export class WarpCore {
     return this.tokens.filter(
       (t) => t.chainName === origin && t.getConnectionForChain(destination),
     );
+  }
+
+  /**
+   * Check if a chain supports EIP-7702 batch transactions (Pectra upgrade)
+   */
+  supportsEIP7702Batch(chainName: ChainName): boolean {
+    return isEIP7702SupportedChain(chainName);
+  }
+
+  /**
+   * Get the batch contract address for a chain (for EIP-7702 batching).
+   * Uses registry's batchContractAddress if set, otherwise defaults to Multicall3.
+   */
+  getBatchContractAddress(chainName: ChainName): Address {
+    const metadata = this.multiProvider.getChainMetadata(chainName);
+    // batchContractAddress is an optional extended field not in the core ChainMetadata type
+    // eslint-disable-next-line @typescript-eslint/no-explicit-any
+    return (metadata as any).batchContractAddress ?? MULTICALL3_ADDRESS;
+  }
+
+  /**
+   * Build the calls array for EIP-7702 batched approve + transferRemote.
+   * These calls are executed via Multicall3.aggregate3Value in a single transaction.
+   * @param params - Parameters for building the batch calls
+   * @returns Array of Call3Value structs for Multicall3
+   */
+  buildEIP7702BatchCalls(params: {
+    tokenAddress: Address;
+    warpRouteAddress: Address;
+    approvalAmount: bigint;
+    transferRemoteCallData: string;
+    interchainFeeValue: bigint;
+  }): Call3Value[] {
+    const {
+      tokenAddress,
+      warpRouteAddress,
+      approvalAmount,
+      transferRemoteCallData,
+      interchainFeeValue,
+    } = params;
+
+    const iface = new ethers.utils.Interface(ERC20_APPROVE_ABI);
+    const approveCallData = iface.encodeFunctionData('approve', [
+      warpRouteAddress,
+      approvalAmount,
+    ]);
+
+    return [
+      {
+        target: tokenAddress,
+        allowFailure: false,
+        value: 0n,
+        callData: approveCallData,
+      },
+      {
+        target: warpRouteAddress,
+        allowFailure: false,
+        value: interchainFeeValue,
+        callData: transferRemoteCallData,
+      },
+    ];
   }
 }
