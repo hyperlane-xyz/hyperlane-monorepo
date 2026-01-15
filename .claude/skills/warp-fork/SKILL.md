@@ -9,7 +9,7 @@ Fork a warp route using the local HTTP registry.
 
 **Instructions:**
 
-0. Check if `http://localhost:3333` is running. If not, run the start-http-registry SKILL. If that fails, let the user know and use `AskUserQuestion` to prompt the user for the registry.
+0. Check if `http://localhost:3333` is running. If not, run the start-http-registry SKILL. If that fails, use `AskUserQuestion` to prompt the user for an alternate registry URL to use instead of `http://localhost:3333`.
 
 1. First, use `AskUserQuestion` to prompt the user for the warp route ID:
 
@@ -23,7 +23,7 @@ Fork a warp route using the local HTTP registry.
    pnpm -C typescript/cli exec tsx cli.ts warp fork --registry $REGISTRY --warpRouteId $WARP_ROUTE_ID
    ```
 
-   - Attempt to use `http://localhost:3333` for $REGISTRY
+   - Use the registry URL from step 0 for $REGISTRY (`http://localhost:3333` by default, or user-provided if the local registry failed)
    - Use `run_in_background: true` so it doesn't block the conversation.
 
 3. After starting, report the task/shell ID and the fork registry server port back to the user.
