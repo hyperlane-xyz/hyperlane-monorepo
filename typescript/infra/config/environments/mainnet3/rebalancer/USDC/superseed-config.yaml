@@ -1,4 +1,4 @@
-warpRouteId: USDC/arbitrum-base-ethereum-ink-optimism-solanamainnet-superseed
+warpRouteId: USDC/superseed
 strategy:
   rebalanceStrategy: minAmount
   chains:
