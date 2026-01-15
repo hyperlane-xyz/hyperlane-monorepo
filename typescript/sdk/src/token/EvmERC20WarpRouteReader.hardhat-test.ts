@@ -871,6 +871,39 @@ describe('ERC20WarpRouterReader', async () => {
     );
   });
 
+  it('should not require routing destinations to derive RoutingFee token fee config', async () => {
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        ...baseConfig,
+        type: TokenType.collateral,
+        token: token.address,
+        hook: await mailbox.defaultHook(),
+        tokenFee: {
+          type: TokenFeeType.RoutingFee,
+          owner: mailbox.address,
+          feeContracts: {
+            [TestChainName.test3]: {
+              type: TokenFeeType.LinearFee,
+              owner: mailbox.address,
+              bps: BPS,
+            },
+          },
+        },
+      },
+    };
+
+    const warpRoute = await deployer.deploy(config);
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].collateral.address,
+    );
+
+    expect(derivedConfig.tokenFee?.type).to.equal(TokenFeeType.RoutingFee);
+    expect((derivedConfig.tokenFee as any).owner).to.equal(mailbox.address);
+    expect(
+      Object.keys(((derivedConfig.tokenFee as any)?.feeContracts ?? {}) as any),
+    ).to.have.length(0);
+  });
+
   it('should return undefined fee token config if it is not set onchain', async () => {
     const config: WarpRouteDeployConfigMailboxRequired = {
       [chain]: {

@@ -468,7 +468,7 @@ export async function enrollCrossChainRouters(
 
         const transactions = await evmWarpModule.update(expectedConfig, {
           routingDestinations: Object.keys(remoteRouters).map((domain) =>
-            multiProvider.getDomainId(domain),
+            parseInt(domain, 10),
           ),
         });
 
