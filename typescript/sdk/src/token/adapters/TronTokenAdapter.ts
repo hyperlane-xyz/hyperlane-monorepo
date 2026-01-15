@@ -1,0 +1,325 @@
+import { BigNumber } from 'bignumber.js';
+
+import { TronProvider, TronTransaction } from '@hyperlane-xyz/tron-sdk';
+import {
+  Address,
+  Domain,
+  addressToBytes32,
+  assert,
+  fromWei,
+  strip0x,
+} from '@hyperlane-xyz/utils';
+
+import { BaseTronAdapter } from '../../app/MultiProtocolApp.js';
+import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
+import { ChainName } from '../../types.js';
+import { TokenMetadata } from '../types.js';
+
+import {
+  IHypTokenAdapter,
+  ITokenAdapter,
+  InterchainGasQuote,
+  QuoteTransferRemoteParams,
+  TransferParams,
+  TransferRemoteParams,
+} from './ITokenAdapter.js';
+
+export class TronTokenAdapter
+  extends BaseTronAdapter
+  implements ITokenAdapter<TronTransaction>
+{
+  protected provider: TronProvider;
+  protected tokenAddress: string;
+
+  protected async getDenom(): Promise<string> {
+    return this.tokenAddress;
+  }
+
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+
+    this.provider = this.getProvider();
+    this.tokenAddress = addresses.token;
+  }
+
+  async getBalance(address: string): Promise<bigint> {
+    const denom = await this.getDenom();
+    return this.provider.getBalance({
+      address,
+      denom,
+    });
+  }
+
+  async getMetadata(): Promise<TokenMetadata> {
+    const { name, symbol, decimals } = await this.provider.getToken({
+      tokenAddress: this.tokenAddress,
+    });
+
+    assert(
+      name !== undefined,
+      `name on tron token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      symbol !== undefined,
+      `symbol on tron token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      decimals !== undefined,
+      `divisibility on tron token ${this.tokenAddress} is undefined`,
+    );
+
+    return {
+      name,
+      symbol,
+      decimals,
+    };
+  }
+
+  async getMinimumTransferAmount(_recipient: Address): Promise<bigint> {
+    return 0n;
+  }
+
+  async isApproveRequired(): Promise<boolean> {
+    return false;
+  }
+
+  populateApproveTx(_transferParams: TransferParams): Promise<TronTransaction> {
+    throw new Error('Approve not required for native tokens');
+  }
+
+  async isRevokeApprovalRequired(_: Address, __: Address): Promise<boolean> {
+    return false;
+  }
+
+  async populateTransferTx(
+    transferParams: TransferParams,
+  ): Promise<TronTransaction> {
+    const denom = await this.getDenom();
+
+    const { decimals } = await this.getMetadata();
+    assert(
+      decimals,
+      `Token decimals not found for "${this.getDenom()}" on chain "${this.chainName}"`,
+    );
+    assert(transferParams.fromAccountOwner, `no sender in transfer params`);
+
+    return this.provider.getTransferTransaction({
+      signer: transferParams.fromAccountOwner,
+      recipient: transferParams.recipient,
+      denom,
+      amount: fromWei(transferParams.weiAmountOrId.toString(), decimals),
+    });
+  }
+
+  async getTotalSupply(): Promise<bigint | undefined> {
+    const denom = await this.getDenom();
+    return this.provider.getTotalSupply({
+      denom,
+    });
+  }
+}
+
+export class TronNativeTokenAdapter
+  extends TronTokenAdapter
+  implements ITokenAdapter<TronTransaction>
+{
+  override async getDenom(): Promise<string> {
+    return '';
+  }
+
+  override async getMetadata(): Promise<TokenMetadata> {
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${TronNativeTokenAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
+  }
+}
+
+export class TronHypCollateralAdapter
+  extends TronTokenAdapter
+  implements IHypTokenAdapter<TronTransaction>
+{
+  constructor(
+    public readonly chainName: ChainName,
+    public readonly multiProvider: MultiProtocolProvider,
+    public readonly addresses: { token: Address },
+  ) {
+    super(chainName, multiProvider, addresses);
+  }
+
+  protected async getDenom(): Promise<string> {
+    const { denom } = await this.provider.getToken({
+      tokenAddress: this.tokenAddress,
+    });
+    return denom;
+  }
+
+  override async getMetadata(): Promise<TokenMetadata> {
+    // Only works for HypTokens
+    const { name, symbol, decimals } = await this.provider.getToken({
+      tokenAddress: this.tokenAddress,
+    });
+
+    assert(
+      name !== undefined,
+      `name on radix token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      symbol !== undefined,
+      `symbol on radix token ${this.tokenAddress} is undefined`,
+    );
+    assert(
+      decimals !== undefined,
+      `divisibility on radix token ${this.tokenAddress} is undefined`,
+    );
+
+    return {
+      name,
+      symbol,
+      decimals,
+    };
+  }
+
+  async getDomains(): Promise<Domain[]> {
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
+    });
+
+    return remoteRouters.map((router) => router.receiverDomainId);
+  }
+
+  async getRouterAddress(domain: Domain): Promise<Buffer> {
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
+    });
+
+    const router = remoteRouters.find(
+      (router) => router.receiverDomainId === domain,
+    );
+
+    if (!router) {
+      throw new Error(`Router with domain "${domain}" not found`);
+    }
+
+    return Buffer.from(strip0x(router.receiverAddress), 'hex');
+  }
+
+  async getAllRouters(): Promise<Array<{ domain: Domain; address: Buffer }>> {
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
+    });
+
+    return remoteRouters.map((router) => ({
+      domain: router.receiverDomainId,
+      address: Buffer.from(strip0x(router.receiverAddress), 'hex'),
+    }));
+  }
+
+  async getBridgedSupply(): Promise<bigint | undefined> {
+    return this.provider.getBridgedSupply({
+      tokenAddress: this.tokenAddress,
+    });
+  }
+
+  async quoteTransferRemoteGas({
+    destination,
+  }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
+    const { denom: addressOrDenom, amount } =
+      await this.provider.quoteRemoteTransfer({
+        tokenAddress: this.tokenAddress,
+        destinationDomainId: destination,
+      });
+
+    return {
+      igpQuote: {
+        addressOrDenom,
+        amount,
+      },
+    };
+  }
+
+  async populateTransferRemoteTx(
+    params: TransferRemoteParams,
+  ): Promise<TronTransaction> {
+    assert(params.fromAccountOwner, `no sender in remote transfer params`);
+
+    if (!params.interchainGas) {
+      params.interchainGas = await this.quoteTransferRemoteGas({
+        destination: params.destination,
+      });
+    }
+
+    const { remoteRouters } = await this.provider.getRemoteRouters({
+      tokenAddress: this.tokenAddress,
+    });
+
+    const router = remoteRouters.find(
+      (router) => router.receiverDomainId === params.destination,
+    );
+
+    if (!router) {
+      throw new Error(
+        `Failed to find remote router for token id and destination: ${this.tokenAddress},${params.destination}`,
+      );
+    }
+
+    if (!params.interchainGas.igpQuote?.addressOrDenom) {
+      throw new Error(
+        `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
+      );
+    }
+
+    return this.provider.getRemoteTransferTransaction({
+      signer: params.fromAccountOwner!,
+      tokenAddress: this.tokenAddress,
+      destinationDomainId: params.destination,
+      recipient: strip0x(addressToBytes32(params.recipient)),
+      amount: params.weiAmountOrId.toString(),
+      customHookAddress: params.customHook,
+      gasLimit: router.gas,
+      maxFee: {
+        denom: params.interchainGas.igpQuote?.addressOrDenom,
+        // convert the attos back to a Decimal with scale 18
+        amount: new BigNumber(params.interchainGas.igpQuote?.amount.toString())
+          .div(new BigNumber(10).pow(18))
+          .toString(),
+      },
+    });
+  }
+}
+
+export class TronHypSyntheticAdapter extends TronHypCollateralAdapter {}
+
+export class TronHypNativeAdapter
+  extends TronHypCollateralAdapter
+  implements ITokenAdapter<TronTransaction>
+{
+  override async getDenom(): Promise<string> {
+    return '';
+  }
+
+  override async getMetadata(): Promise<TokenMetadata> {
+    const { nativeToken } = this.multiProvider.getChainMetadata(this.chainName);
+    assert(
+      nativeToken,
+      `Native token data is required for ${TronHypNativeAdapter.name}`,
+    );
+
+    return {
+      name: nativeToken.name,
+      symbol: nativeToken.symbol,
+      decimals: nativeToken.decimals,
+    };
+  }
+}

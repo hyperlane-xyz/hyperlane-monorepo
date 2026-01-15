@@ -28,6 +28,7 @@ import {
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
+  TronProvider,
   TypedProvider,
   TypedTransaction,
   ViemProvider,
@@ -238,6 +239,13 @@ export class MultiProtocolProvider<
     return this.getSpecificProvider<AleoProvider['provider']>(
       chainNameOrId,
       ProviderType.Aleo,
+    );
+  }
+
+  getTronProvider(chainNameOrId: ChainNameOrId): TronProvider['provider'] {
+    return this.getSpecificProvider<TronProvider['provider']>(
+      chainNameOrId,
+      ProviderType.Tron,
     );
   }
 

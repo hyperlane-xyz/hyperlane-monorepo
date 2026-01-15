@@ -13,6 +13,7 @@ import {
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
+  TronProvider,
 } from './ProviderType.js';
 import { protocolToDefaultProviderBuilder } from './providerBuilders.js';
 
@@ -39,6 +40,8 @@ export async function isRpcHealthy(
     return isRadixProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.Aleo)
     return isAleoProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Tron)
+    return isTronProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,
@@ -140,6 +143,25 @@ export async function isAleoProviderHealthy(
   } catch (err) {
     rootLogger.warn(
       `Aleo rpc health check threw for ${metadata.name}`,
+      err as Error,
+    );
+    return false;
+  }
+}
+
+export async function isTronProviderHealthy(
+  provider: TronProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  try {
+    const healthy = await provider.isHealthy();
+    if (healthy) {
+      rootLogger.debug(`Rpc is healthy for ${metadata.name}`);
+    }
+    return healthy;
+  } catch (err) {
+    rootLogger.warn(
+      `Tron rpc health check threw for ${metadata.name}`,
       err as Error,
     );
     return false;

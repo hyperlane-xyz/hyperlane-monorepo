@@ -181,6 +181,8 @@ export const TOKEN_COLLATERALIZED_STANDARDS = [
   TokenStandard.EvmHypVSXERC20Lockbox,
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
+  TokenStandard.TronHypNative,
+  TokenStandard.TronHypCollateral,
 ];
 
 export const XERC20_STANDARDS = [
@@ -232,6 +234,9 @@ export const TOKEN_HYP_STANDARDS = [
   TokenStandard.AleoHypNative,
   TokenStandard.AleoHypCollateral,
   TokenStandard.AleoHypSynthetic,
+  TokenStandard.TronHypNative,
+  TokenStandard.TronHypCollateral,
+  TokenStandard.TronHypSynthetic,
 ];
 
 export const TOKEN_MULTI_CHAIN_STANDARDS = [
