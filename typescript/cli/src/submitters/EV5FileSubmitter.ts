@@ -16,6 +16,32 @@ import { readYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 
 import { CustomTxSubmitterType, type FileTxSubmitterProps } from './types.js';
 
+const fileWriteQueue = new Map<string, Promise<void>>();
+
+async function withFileLock<T>(
+  filepath: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const previous = fileWriteQueue.get(filepath) ?? Promise.resolve();
+  let release!: () => void;
+  const next = new Promise<void>((resolve) => {
+    release = resolve;
+  });
+  fileWriteQueue.set(
+    filepath,
+    previous.then(() => next),
+  );
+  await previous;
+  try {
+    return await fn();
+  } finally {
+    release();
+    if (fileWriteQueue.get(filepath) === next) {
+      fileWriteQueue.delete(filepath);
+    }
+  }
+}
+
 export class EV5FileSubmitter
   implements TxSubmitterInterface<ProtocolType.Ethereum>
 {
@@ -32,22 +58,24 @@ export class EV5FileSubmitter
     >[]
   ): Promise<[]> {
     const filepath = this.props.filepath.trim();
-    const allTxs = [...txs];
+    await withFileLock(filepath, async () => {
+      const allTxs = [...txs];
 
-    // Attempt to append transactions to existing filepath.
-    try {
-      const maybeExistingTxs = readYamlOrJson(filepath); // Can throw if file is empty
-      assert(
-        Array.isArray(maybeExistingTxs),
-        `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
-      );
-      allTxs.unshift(...maybeExistingTxs);
-    } catch (e) {
-      this.logger.debug(`Invalid transactions read from ${filepath}: ${e}`);
-    }
+      // Attempt to append transactions to existing filepath.
+      try {
+        const maybeExistingTxs = readYamlOrJson(filepath); // Can throw if file is empty
+        assert(
+          Array.isArray(maybeExistingTxs),
+          `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
+        );
+        allTxs.unshift(...maybeExistingTxs);
+      } catch (e) {
+        this.logger.debug(`Invalid transactions read from ${filepath}: ${e}`);
+      }
 
-    writeYamlOrJson(filepath, allTxs);
-    this.logger.debug(`Transactions written to ${filepath}`);
+      writeYamlOrJson(filepath, allTxs);
+      this.logger.debug(`Transactions written to ${filepath}`);
+    });
     return [];
   }
 }
