@@ -1,4 +1,5 @@
 import { useWallet } from '@tronweb3/tronwallet-adapter-react-hooks';
+import { TronLinkAdapterName } from '@tronweb3/tronwallet-adapters';
 import { useCallback, useMemo } from 'react';
 
 import {
@@ -55,7 +56,8 @@ export function useTronWalletDetails() {
 }
 
 export function useTronConnectFn(): () => void {
-  const { connect } = useWallet();
+  const { connect, select } = useWallet();
+  select(TronLinkAdapterName);
   return connect;
 }
 
