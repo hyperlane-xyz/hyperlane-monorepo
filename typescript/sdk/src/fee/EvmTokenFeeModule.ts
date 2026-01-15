@@ -6,6 +6,7 @@ import {
   ProtocolType,
   deepEquals,
   eqAddress,
+  isNullish,
   objMap,
   objMerge,
   objOmit,
@@ -300,8 +301,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     if (
       !params?.routingDestinations &&
       targetConfig.type === TokenFeeType.RoutingFee &&
-      'feeContracts' in targetConfig &&
-      targetConfig.feeContracts
+      !isNullish(targetConfig.feeContracts)
     ) {
       const routingDestinations = Object.keys(targetConfig.feeContracts).map(
         (chainName) => this.multiProvider.getDomainId(chainName),
@@ -436,7 +436,7 @@ export class EvmTokenFeeModule extends HyperlaneModule<
           updateTransactions.push(...subFeeUpdateTransactions);
 
           if (!eqAddress(deployedSubFee, address)) {
-            const annotation = `Sub fee contract redeployed. Updating contract for ${chainName} to ${deployedSubFee}`;
+            const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
             this.logger.debug(annotation);
             updateTransactions.push({
               annotation: annotation,
