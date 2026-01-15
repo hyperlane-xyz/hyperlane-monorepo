@@ -1,5 +1,12 @@
 # @hyperlane-xyz/http-registry-server
 
+## 21.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@21.1.0
+- @hyperlane-xyz/utils@21.1.0
+
 ## 21.0.0
 
 ### Patch Changes

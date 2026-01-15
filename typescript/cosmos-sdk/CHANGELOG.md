@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 21.1.0
+
+### Minor Changes
+
+- db857b5: Fixed cosmos sdk e2e tests failing locally by marking type imports with the `type` keyword to preserve type imports when reading js files directly for local test runs
+- 57a2053: Added `/testing` sub import path to expose testing utils for cosmos environments
+
+### Patch Changes
+
+- Updated dependencies [57a2053]
+  - @hyperlane-xyz/provider-sdk@1.1.0
+  - @hyperlane-xyz/cosmos-types@21.1.0
+  - @hyperlane-xyz/utils@21.1.0
+
 ## 21.0.0
 
 ### Minor Changes
