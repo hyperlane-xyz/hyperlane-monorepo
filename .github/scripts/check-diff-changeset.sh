@@ -17,6 +17,16 @@ if [ -z "$ANALYSIS_TYPE" ] || [ -z "$BASE_DIR" ] || [ -z "$HEAD_DIR" ]; then
   exit 1
 fi
 
+# Verify directories exist
+if [ ! -d "$BASE_DIR" ]; then
+  echo "ERROR: Base directory does not exist: $BASE_DIR"
+  exit 1
+fi
+if [ ! -d "$HEAD_DIR" ]; then
+  echo "ERROR: Head directory does not exist: $HEAD_DIR"
+  exit 1
+fi
+
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 
 # Generate diff

@@ -73,6 +73,18 @@ jobs:
           if [ "$EXIT_CODE" -eq 0 ]; then
             echo "No interface changes detected."
             exit 0
+          elif [ "$EXIT_CODE" -eq 1 ]; then
+            # Removals detected - require major changeset
+            echo ""
+            if .github/scripts/check-solidity-changeset.sh major; then
+              echo ""
+              echo "Interface removals are permitted with the existing changeset."
+              exit 0
+            else
+              echo ""
+              echo "ERROR: Interface removals (breaking changes) require a changeset for @hyperlane-xyz/core with a 'major' bump."
+              exit 1
+            fi
           elif [ "$EXIT_CODE" -eq 2 ]; then
             # Additions only - require minor changeset
             echo ""
@@ -86,15 +98,8 @@ jobs:
               exit 1
             fi
           else
-            # Removals detected - require major changeset
+            # Unexpected exit code - treat as error
             echo ""
-            if .github/scripts/check-solidity-changeset.sh major; then
-              echo ""
-              echo "Interface removals are permitted with the existing changeset."
-              exit 0
-            else
-              echo ""
-              echo "ERROR: Interface removals (breaking changes) require a changeset for @hyperlane-xyz/core with a 'major' bump."
-              exit 1
-            fi
+            echo "ERROR: Interface check script failed with unexpected exit code: $EXIT_CODE"
+            exit 1
           fi
