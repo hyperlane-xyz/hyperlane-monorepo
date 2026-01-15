@@ -27,16 +27,14 @@ async function withFileLock<T>(
   const next = new Promise<void>((resolve) => {
     release = resolve;
   });
-  fileWriteQueue.set(
-    filepath,
-    previous.then(() => next),
-  );
+  const queued = previous.then(() => next);
+  fileWriteQueue.set(filepath, queued);
   await previous;
   try {
     return await fn();
   } finally {
     release();
-    if (fileWriteQueue.get(filepath) === next) {
+    if (fileWriteQueue.get(filepath) === queued) {
       fileWriteQueue.delete(filepath);
     }
   }
