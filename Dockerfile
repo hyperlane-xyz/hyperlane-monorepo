@@ -4,6 +4,17 @@ WORKDIR /hyperlane-monorepo
 
 RUN apk add --update --no-cache git g++ make py3-pip jq bash curl
 
+# Install glibc compatibility for solc binary (Alpine uses musl, solc needs glibc)
+ARG GLIBC_VERSION=2.35-r1
+RUN curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL \
+      -o /etc/apk/keys/sgerrand.rsa.pub \
+      https://alpine-pkgs.sgerrand.com/sgerrand.rsa.pub && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL \
+      -o /tmp/glibc.apk \
+      https://github.com/sgerrand/alpine-pkg-glibc/releases/download/${GLIBC_VERSION}/glibc-${GLIBC_VERSION}.apk && \
+    apk add --no-cache --force-overwrite /tmp/glibc.apk && \
+    rm /tmp/glibc.apk
+
 # Install Foundry (Alpine binaries) - pinned version for reproducibility
 ARG FOUNDRY_VERSION
 ARG TARGETARCH
