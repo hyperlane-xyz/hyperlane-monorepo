@@ -1056,34 +1056,28 @@ async function submitWarpApplyTransactions(
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const evmResults = await Promise.allSettled(
-      evmChains.map((chain) =>
+    const { rejected } = await mapAllSettled(
+      evmChains,
+      (chain) =>
         submitChainTransactions(
           params,
           chain,
           updateTransactions[chain],
           isExtended(chain),
         ),
-      ),
+      (chain) => chain,
     );
 
-    evmResults.forEach((result, index) => {
-      const chain = evmChains[index];
-      if (result.status === 'rejected') {
-        const errorMessage =
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason);
-        rootLogger.debug(
-          `Error in submitWarpApplyTransactions for ${chain}`,
-          result.reason,
-        );
-        errorRed(
-          `Failed to submit warp apply transactions for ${chain}: ${errorMessage}`,
-        );
-        failures.push(chain);
-      }
-    });
+    for (const [chain, error] of rejected) {
+      rootLogger.debug(
+        `Error in submitWarpApplyTransactions for ${chain}`,
+        error,
+      );
+      errorRed(
+        `Failed to submit warp apply transactions for ${chain}: ${error.message}`,
+      );
+      failures.push(chain);
+    }
   }
 
   // Submit non-EVM chains sequentially (they may share signers)
