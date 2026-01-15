@@ -26,7 +26,7 @@ Fork a warp route using the local HTTP registry.
    - Attempt to use `http://localhost:3333` for $REGISTRY
    - Use `run_in_background: true` so it doesn't block the conversation.
 
-3. After starting, report the task/shell ID to the user
+3. After starting, report the task/shell ID and the fork registry server port back to the user.
 
 4. Remind the user they can stop it later with `KillShell` using that ID
 
