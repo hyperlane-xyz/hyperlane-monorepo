@@ -3,8 +3,9 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   AltVMDeployer,
   AltVMHookModule,
-  AltVMIsmModule,
   AltVMWarpModule,
+  createIsmWriter,
+  ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
@@ -271,18 +272,16 @@ async function createWarpIsm({
     }
     default: {
       const signer = mustGet(altVmSigners, chain);
-      const ismModule = await AltVMIsmModule.create({
-        chain,
-        addresses: {
-          mailbox: chainAddresses.mailbox,
-        },
+      const chainLookup = altVmChainLookup(multiProvider);
+      const chainMetadata = chainLookup.getChainMetadata(chain);
+      const writer = createIsmWriter(chainMetadata, chainLookup, signer);
+      const artifact = ismConfigToArtifact(
         // FIXME: not all ISM types are supported yet
-        config: interchainSecurityModule as ProviderIsmConfig | string,
-        chainLookup: altVmChainLookup(multiProvider),
-        signer,
-      });
-      const { deployedIsm } = ismModule.serialize();
-      return deployedIsm;
+        interchainSecurityModule as ProviderIsmConfig,
+        chainLookup,
+      );
+      const [deployed] = await writer.create(artifact);
+      return deployed.deployed.address;
     }
   }
 }
