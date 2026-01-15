@@ -109,6 +109,42 @@ contract DomainRoutingHookTest is Test {
     function testHookType() public virtual {
         assertEq(hook.hookType(), uint8(IPostDispatchHook.HookTypes.ROUTING));
     }
+
+    // ============ domains ============
+
+    function test_domains_empty() public {
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_domains_afterSetHook(uint32 destination) public {
+        hook.setHook(destination, address(noopHook));
+
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], destination);
+    }
+
+    function test_domains_multiple() public {
+        uint32 dest1 = 100;
+        uint32 dest2 = 200;
+        uint32 dest3 = 300;
+
+        hook.setHook(dest1, address(noopHook));
+        hook.setHook(dest2, address(noopHook));
+        hook.setHook(dest3, address(noopHook));
+
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 3);
+    }
+
+    function test_domains_idempotent(uint32 destination) public {
+        hook.setHook(destination, address(noopHook));
+        hook.setHook(destination, address(noopHook));
+
+        uint32[] memory domains = hook.domains();
+        assertEq(domains.length, 1);
+    }
 }
 
 contract FallbackDomainRoutingHookTest is DomainRoutingHookTest {

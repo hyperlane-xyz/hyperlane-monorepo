@@ -420,4 +420,32 @@ contract RoutingFeeTest is BaseFeeTest {
             "ERC20 balance not zero after claim"
         );
     }
+
+    function test_Domains_empty() public {
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function test_Domains_afterSetFeeContract() public {
+        uint32 dest1 = 100;
+        uint32 dest2 = 200;
+
+        vm.startPrank(OWNER);
+        routingFee.setFeeContract(dest1, address(linearFee1));
+        routingFee.setFeeContract(dest2, address(linearFee1));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 2);
+    }
+
+    function test_Domains_idempotent() public {
+        vm.startPrank(OWNER);
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        routingFee.setFeeContract(DEST1, address(linearFee1));
+        vm.stopPrank();
+
+        uint32[] memory domains = routingFee.domains();
+        assertEq(domains.length, 1);
+    }
 }

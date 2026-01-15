@@ -152,4 +152,39 @@ contract StorageGasOracleTest is Test {
         });
         return _configs;
     }
+
+    // ============ domains ============
+
+    function testDomains_empty() public {
+        StorageGasOracle newOracle = new StorageGasOracle();
+        uint32[] memory domains = newOracle.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function testDomains_afterSetConfig() public {
+        StorageGasOracle.RemoteGasDataConfig[]
+            memory _configs = _getTestRemoteGasDataConfigs();
+        oracle.setRemoteGasDataConfigs(_configs);
+
+        uint32[] memory domains = oracle.domains();
+        assertEq(domains.length, 3); // 2 new + 1 from setUp
+
+        bool found0;
+        bool found1;
+        for (uint256 i = 0; i < domains.length; i++) {
+            if (domains[i] == _configs[0].remoteDomain) found0 = true;
+            if (domains[i] == _configs[1].remoteDomain) found1 = true;
+        }
+        assertTrue(found0 && found1);
+    }
+
+    function testDomains_idempotent() public {
+        uint32[] memory domainsBefore = oracle.domains();
+
+        // Set same domain again
+        oracle.setRemoteGasData(initialGasDataConfig);
+
+        uint32[] memory domainsAfter = oracle.domains();
+        assertEq(domainsAfter.length, domainsBefore.length);
+    }
 }
