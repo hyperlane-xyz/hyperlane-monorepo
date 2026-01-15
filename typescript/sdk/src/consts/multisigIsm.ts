@@ -562,6 +562,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  citrea: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
   citreatestnet: {
     threshold: 1,
     validators: [
@@ -694,6 +705,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
         address: '0x7419021c0de2772b763e554480158a82a291c1f2',
         alias: 'Fusionist',
       },
+    ],
+  },
+
+  eni: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0xaedc7f95c57baa668eb94341589837b5430a484c',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
     ],
   },
 
@@ -1063,6 +1085,17 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     validators: [
       {
         address: '0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      DEFAULT_MITOSIS_VALIDATOR,
+    ],
+  },
+
+  krown: {
+    threshold: 2,
+    validators: [
+      {
+        address: '0x4f78f3fca0660716c4b276893d73f6f4c95fe618',
         alias: AW_VALIDATOR_ALIAS,
       },
       DEFAULT_MITOSIS_VALIDATOR,
@@ -1493,6 +1526,30 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
       {
         address: '0xc14514a91d0ee90ba3070abb6bfb45a10e6d341d',
         alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
+  neutron: {
+    threshold: 4,
+    validators: [
+      {
+        address: '0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+      {
+        address: '0xb65438a014fb05fbadcfe35bc6e25d372b6ba460',
+        alias: 'Cosmostation',
+      },
+      { address: '0x42fa752defe92459370a052b6387a87f7de9b80c', alias: 'P2P' },
+      {
+        address: '0xc79503a3e3011535a9c60f6d21f76f59823a38bd',
+        alias: 'Neutron',
+      },
+      { address: '0x47aa126e05933b95c5eb90b26e6b668d84f4b25a', alias: 'DSRV' },
+      {
+        address: '0x54b2cca5091b098a1a993dec03c4d1ee9af65999',
+        alias: 'Cosmos Spaces',
       },
     ],
   },

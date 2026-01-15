@@ -1,7 +1,7 @@
 import { ethers } from 'ethers';
-import { CommandModule, Options } from 'yargs';
+import { type CommandModule, type Options } from 'yargs';
 
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { sendTestMessage } from '../send/message.js';
 

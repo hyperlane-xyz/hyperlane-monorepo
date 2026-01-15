@@ -5,21 +5,21 @@ import { parseEther } from 'ethers/lib/utils.js';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
+  type ChainMap,
+  type ChainMetadata,
   HookType,
   IsmType,
-  Token,
+  type Token,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, randomInt } from '@hyperlane-xyz/utils';
+import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../../send/transfer.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';

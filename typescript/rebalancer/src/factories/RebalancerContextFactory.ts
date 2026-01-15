@@ -1,4 +1,4 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -10,7 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { objMap } from '@hyperlane-xyz/utils';
 
-import { RebalancerConfig } from '../config/RebalancerConfig.js';
+import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';

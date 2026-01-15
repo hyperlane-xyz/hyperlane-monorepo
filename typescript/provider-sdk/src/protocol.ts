@@ -2,6 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
 import { ChainMetadataForAltVM } from './chain.js';
+import { IRawIsmArtifactManager } from './ism.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 import {
@@ -53,6 +54,18 @@ export interface ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     config: TConfig,
   ): Promise<ITransactionSubmitter>;
+
+  /**
+   * Creates an ISM artifact manager for reading and deploying ISM configurations.
+   * This factory method enables the protocol-specific instantiation of artifact managers
+   * that handle ISM operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @returns A protocol-specific ISM artifact manager
+   */
+  createIsmArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+  ): IRawIsmArtifactManager;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

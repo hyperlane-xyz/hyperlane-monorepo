@@ -1541,5 +1541,47 @@ export const validatorChainConfig = (
         'aleo',
       ),
     },
+    citrea: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('citrea'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xe175e8db1d04fb525879ce9f088a215d3e3fe3f0'],
+        },
+        'citrea',
+      ),
+    },
+    neutron: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('neutron'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0'],
+          [Contexts.ReleaseCandidate]: [],
+          [Contexts.Neutron]: [],
+        },
+        'neutron',
+      ),
+    },
+    eni: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eni'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0xaedc7f95c57baa668eb94341589837b5430a484c'],
+        },
+        'eni',
+      ),
+    },
+    krown: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('krown'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x4f78f3fca0660716c4b276893d73f6f4c95fe618'],
+        },
+        'krown',
+      ),
+    },
   };
 };

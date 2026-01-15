@@ -50,6 +50,10 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 // Used by scripts like check-owner-ica.ts to exclude chains that are temporarily
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
+  // downtime
+  'flowmainnet',
+  'molten',
+
   // not AW owned
   'forma',
 

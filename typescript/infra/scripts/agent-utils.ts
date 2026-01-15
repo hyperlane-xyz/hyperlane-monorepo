@@ -144,13 +144,6 @@ export function withChainRequired<T>(args: Argv<T>) {
   return withChain(args).demandOption('chain');
 }
 
-export function withSafeHomeUrlRequired<T>(args: Argv<T>) {
-  return args
-    .string('safeHomeUrl')
-    .describe('safeHomeUrl', 'Custom safe home url')
-    .demandOption('safeHomeUrl');
-}
-
 export function withThreshold<T>(args: Argv<T>) {
   return args
     .describe('threshold', 'threshold for multisig')
@@ -217,6 +210,16 @@ export function withKnownWarpRouteId<T>(args: Argv<T>) {
 
 export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
+}
+
+export function withWarpRouteIds<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteIds', 'warp route ids')
+    .array('warpRouteIds')
+    .coerce('warpRouteIds', (ids: string[] | undefined) =>
+      Array.isArray(ids) ? ids.map(String) : [],
+    )
+    .alias('w', 'warpRouteIds');
 }
 
 export function withMetrics<T>(args: Argv<T>) {
@@ -332,6 +335,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .describe('concurrentDeploy', 'If enabled, runs all deploys concurrently')
     .boolean('concurrentDeploy')
     .default('concurrentDeploy', false);
+}
+
+export function withWritePlan<T>(args: Argv<T>) {
+  return args
+    .describe('writePlan', 'Write deployment plan YAML files to disk')
+    .boolean('writePlan')
+    .default('writePlan', false);
 }
 
 export function withConcurrency<T>(args: Argv<T>) {
@@ -593,7 +603,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(
       supportedChainNames.reduce((acc, chain) => {
-        if (chainMetadata[chain]) {
+        if (chainMetadata[chain] && chain !== 'zeronetwork') {
           acc[chain] = chainMetadata[chain];
         }
         return acc;

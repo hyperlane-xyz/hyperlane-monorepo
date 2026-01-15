@@ -17,6 +17,8 @@ ignored_warnings_from = ['lib', 'test', 'contracts/test']
 
 [profile.ci]
 verbosity = 4
+# disable metadata for bytecode comparison
+cbor_metadata = false
 
 [rpc_endpoints]
 mainnet = "${RPC_URL_MAINNET}"

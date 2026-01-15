@@ -206,19 +206,14 @@ export async function executeTx(
 
 export async function createSafeTransaction(
   safeSdk: Safe.default,
-  safeService: SafeApiKit.default,
-  safeAddress: Address,
   transactions: MetaTransactionData[],
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
-  const nextNonce = await retrySafeApi(() =>
-    safeService.getNextNonce(safeAddress),
-  );
   return safeSdk.createTransaction({
     transactions,
     onlyCalls,
-    options: { nonce: Number(nonce ?? nextNonce) },
+    ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
   });
 }
 

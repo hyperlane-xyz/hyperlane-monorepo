@@ -2,20 +2,24 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
-  ChainName,
-  DispatchedMessage,
+  type ChainName,
+  type DispatchedMessage,
   HyperlaneCore,
   MultiProtocolProvider,
   ProviderType,
-  Token,
+  type Token,
   TokenAmount,
   WarpCore,
-  WarpCoreConfig,
+  type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { parseWarpRouteMessage, timeout } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  parseWarpRouteMessage,
+  timeout,
+} from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
-import { WriteCommandContext } from '../context/types.js';
+import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { log, logBlue, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
@@ -35,6 +39,7 @@ export async function sendTestTransfer({
   timeoutSec,
   skipWaitForDelivery,
   selfRelay,
+  skipValidation,
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
@@ -44,7 +49,24 @@ export async function sendTestTransfer({
   timeoutSec: number;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
+  skipValidation?: boolean;
 }) {
+  const { multiProvider } = context;
+
+  // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
+  // but CLI transaction handling currently only processes EthersV5 transactions.
+  const nonEvmChains = chains.filter(
+    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+  if (nonEvmChains.length > 0) {
+    const chainDetails = nonEvmChains
+      .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+      .join(', ');
+    throw new Error(
+      `'hyperlane warp send' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
+    );
+  }
+
   await runPreflightChecksForChains({
     context,
     chains,
@@ -67,6 +89,7 @@ export async function sendTestTransfer({
           recipient,
           skipWaitForDelivery,
           selfRelay,
+          skipValidation,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -84,6 +107,7 @@ async function executeDelivery({
   recipient,
   skipWaitForDelivery,
   selfRelay,
+  skipValidation,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -93,6 +117,7 @@ async function executeDelivery({
   recipient?: string;
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
+  skipValidation?: boolean;
 }) {
   const { multiProvider, registry } = context;
 
@@ -126,15 +151,17 @@ async function executeDelivery({
     token = warpCore.findToken(origin, routerAddress)!;
   }
 
-  const errors = await warpCore.validateTransfer({
-    originTokenAmount: token.amount(amount),
-    destination,
-    recipient,
-    sender: signerAddress,
-  });
-  if (errors) {
-    logRed('Error validating transfer', JSON.stringify(errors));
-    throw new Error('Error validating transfer');
+  if (!skipValidation) {
+    const errors = await warpCore.validateTransfer({
+      originTokenAmount: token.amount(amount),
+      destination,
+      recipient,
+      sender: signerAddress,
+    });
+    if (errors) {
+      logRed('Error validating transfer', JSON.stringify(errors));
+      throw new Error('Error validating transfer');
+    }
   }
 
   // TODO: override hook address for self-relay

@@ -371,6 +371,7 @@ export type ResCreateValidatorAnnounce = {
 export type ReqCreateNativeToken = {
   signer: string;
   mailboxAddress: string;
+  warpSuffix?: string;
 };
 export type ResCreateNativeToken = {
   tokenAddress: string;
@@ -380,6 +381,7 @@ export type ReqCreateCollateralToken = {
   signer: string;
   mailboxAddress: string;
   collateralDenom: string;
+  warpSuffix?: string;
 };
 export type ResCreateCollateralToken = {
   tokenAddress: string;
@@ -391,6 +393,7 @@ export type ReqCreateSyntheticToken = {
   name: string;
   denom: string;
   decimals: number;
+  warpSuffix?: string;
 };
 export type ResCreateSyntheticToken = {
   tokenAddress: string;

@@ -1,6 +1,6 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import { type CommandModuleWithContext } from '../context/types.js';
 import { readIsmConfig } from '../ism/read.js';
 import { log, logGray } from '../logger.js';
 

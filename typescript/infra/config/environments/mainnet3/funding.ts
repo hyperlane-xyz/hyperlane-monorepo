@@ -3,6 +3,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
@@ -35,8 +36,8 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
 > = {
   docker: {
-    repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: '8da6852-20251215-172511',
+    repo: DockerImageRepos.MONOREPO,
+    tag: mainnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron
@@ -96,6 +97,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0',
     // ignore non-evm chains
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',
@@ -145,6 +147,7 @@ export const keyFunderConfig: KeyFunderConfig<
     zoramainnet: '0.1',
     // ignore non-evm chains
     eclipsemainnet: '0',
+    neutron: '0',
     solanamainnet: '0',
     soon: '0',
     sonicsvm: '0',

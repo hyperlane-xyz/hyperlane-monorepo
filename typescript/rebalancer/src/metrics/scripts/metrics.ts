@@ -1,13 +1,18 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 import { Counter, Gauge, Registry } from 'prom-client';
 
-import { ChainName, Token, TokenStandard, WarpCore } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import {
+  type ChainName,
+  type Token,
+  TokenStandard,
+  type WarpCore,
+} from '@hyperlane-xyz/sdk';
+import { type Address } from '@hyperlane-xyz/utils';
 
 import {
-  NativeWalletBalance,
-  WarpRouteBalance,
-  XERC20Limit,
+  type NativeWalletBalance,
+  type WarpRouteBalance,
+  type XERC20Limit,
 } from '../types.js';
 
 export const metricsRegister = new Registry();
