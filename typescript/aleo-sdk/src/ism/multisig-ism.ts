@@ -1,15 +1,15 @@
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactReader,
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  MultisigIsmConfig,
+  type DeployedIsmAddress,
+  type MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 
 import { getMessageIdMultisigIsmConfig } from './ism-query.js';
 
