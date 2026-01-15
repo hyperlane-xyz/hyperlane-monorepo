@@ -5,7 +5,6 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
-import { DEPLOYER } from '../../owners.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
@@ -14,25 +13,16 @@ import {
 } from './utils.js';
 
 const owners = {
-  // // Eni Safe
-  // ethereum: '0x409dcC6874919D2194236e2F10b403E15CC7F149',
+  // Eni Safe
+  ethereum: '0x409dcC6874919D2194236e2F10b403E15CC7F149',
 
-  // // ICAs controlled by Ethereum Safe
-  // arbitrum: '0x38C2c361E81C89e9cD0FD7f5c305e60C2A039054',
-  // base: '0x83bD81deFEC483194f7c5c8E161DFC535c794167',
-  // bsc: '0xb8d4b6B1f402Cf9C525e6c167B3Efa59BCb718A9',
-  // eni: '0xf0004476DDC8985C067b6BDf94a1759f7b230809',
-  // optimism: '0xd1219aef6eA190f6aD48525664C33ceE0169c7a8',
-  // polygon: '0x3211A1Fea94cd4000Bd82D7C9E9334E51938De1b',
-
-  // Tmp Ownership
-  ethereum: DEPLOYER,
-  arbitrum: DEPLOYER,
-  base: DEPLOYER,
-  bsc: DEPLOYER,
-  eni: DEPLOYER,
-  optimism: DEPLOYER,
-  polygon: DEPLOYER,
+  // ICAs controlled by Ethereum Safe
+  arbitrum: '0x38C2c361E81C89e9cD0FD7f5c305e60C2A039054',
+  base: '0x83bD81deFEC483194f7c5c8E161DFC535c794167',
+  bsc: '0xb8d4b6B1f402Cf9C525e6c167B3Efa59BCb718A9',
+  eni: '0xf0004476DDC8985C067b6BDf94a1759f7b230809',
+  optimism: '0xd1219aef6eA190f6aD48525664C33ceE0169c7a8',
+  polygon: '0x3211A1Fea94cd4000Bd82D7C9E9334E51938De1b',
 } as const;
 
 const WARP_FEE_BPS = 8n;
