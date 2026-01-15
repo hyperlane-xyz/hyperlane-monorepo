@@ -13,8 +13,8 @@ BASE_DIR=${2:-}
 HEAD_DIR=${3:-}
 
 if [ -z "$ANALYSIS_TYPE" ] || [ -z "$BASE_DIR" ] || [ -z "$HEAD_DIR" ]; then
-	echo "Usage: check-diff-changeset.sh <bytecode|storage> <base-dir> <head-dir>"
-	exit 1
+  echo "Usage: check-diff-changeset.sh <bytecode|storage> <base-dir> <head-dir>"
+  exit 1
 fi
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
@@ -23,8 +23,8 @@ SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 DIFF_OUTPUT=$(diff --unified --recursive "$BASE_DIR" "$HEAD_DIR" || true)
 
 if [ -z "$DIFF_OUTPUT" ]; then
-	echo "No $ANALYSIS_TYPE changes detected."
-	exit 0
+  echo "No $ANALYSIS_TYPE changes detected."
+  exit 0
 fi
 
 echo "Detected $ANALYSIS_TYPE changes:"
@@ -36,35 +36,35 @@ HAS_REMOVALS=false
 HAS_ADDITIONS=false
 
 if echo "$DIFF_OUTPUT" | grep -E '^-[^-]' >/dev/null; then
-	HAS_REMOVALS=true
+  HAS_REMOVALS=true
 fi
 if echo "$DIFF_OUTPUT" | grep -E '^\+[^+]' >/dev/null; then
-	HAS_ADDITIONS=true
+  HAS_ADDITIONS=true
 fi
 
 # Determine required level based on analysis type and change classification
 case "$ANALYSIS_TYPE" in
 bytecode)
-	# Any bytecode change requires patch
-	REQUIRED_LEVEL="patch"
-	CHANGE_DESC="Bytecode changes"
-	;;
+  # Any bytecode change requires patch
+  REQUIRED_LEVEL="patch"
+  CHANGE_DESC="Bytecode changes"
+  ;;
 storage)
-	if [ "$HAS_REMOVALS" = true ]; then
-		REQUIRED_LEVEL="major"
-		CHANGE_DESC="Storage layout removals (breaking change)"
-	elif [ "$HAS_ADDITIONS" = true ]; then
-		REQUIRED_LEVEL="minor"
-		CHANGE_DESC="Storage layout additions"
-	else
-		echo "No significant storage changes detected."
-		exit 0
-	fi
-	;;
+  if [ "$HAS_REMOVALS" = true ]; then
+    REQUIRED_LEVEL="major"
+    CHANGE_DESC="Storage layout removals (breaking change)"
+  elif [ "$HAS_ADDITIONS" = true ]; then
+    REQUIRED_LEVEL="minor"
+    CHANGE_DESC="Storage layout additions"
+  else
+    echo "No significant storage changes detected."
+    exit 0
+  fi
+  ;;
 *)
-	echo "Unknown analysis type: $ANALYSIS_TYPE"
-	exit 1
-	;;
+  echo "Unknown analysis type: $ANALYSIS_TYPE"
+  exit 1
+  ;;
 esac
 
 echo "$CHANGE_DESC detected."
@@ -72,11 +72,11 @@ echo ""
 
 # Check for adequate changeset
 if "$SCRIPT_DIR/check-solidity-changeset.sh" "$REQUIRED_LEVEL"; then
-	echo ""
-	echo "$CHANGE_DESC are permitted with the existing changeset."
-	exit 0
+  echo ""
+  echo "$CHANGE_DESC are permitted with the existing changeset."
+  exit 0
 else
-	echo ""
-	echo "ERROR: $CHANGE_DESC require a changeset for @hyperlane-xyz/core with at least a '$REQUIRED_LEVEL' bump."
-	exit 1
+  echo ""
+  echo "ERROR: $CHANGE_DESC require a changeset for @hyperlane-xyz/core with at least a '$REQUIRED_LEVEL' bump."
+  exit 1
 fi
