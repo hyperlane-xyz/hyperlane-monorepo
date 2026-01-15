@@ -11,13 +11,6 @@ import { getArgs, withWarpRouteIds } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 // Writes the warp configs into the Registry
-//
-// NOTE: The YAML is processed through ESLint with `yml/sort-keys` rule which
-// alphabetically sorts keys. There's a bug in eslint-plugin-yml where the auto-fix
-// can produce invalid YAML when reordering keys (missing newlines between blocks).
-// To avoid this, ensure warp config getters return ChainMap objects with keys
-// in alphabetical order.
-// See: https://github.com/ota-meshi/eslint-plugin-yml/issues/519
 async function main() {
   const { environment, warpRouteIds } = await withWarpRouteIds(getArgs()).argv;
   const { multiProvider } = await getHyperlaneCore(environment);
