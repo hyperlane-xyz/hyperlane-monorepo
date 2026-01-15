@@ -65,6 +65,7 @@ import { type TypedAnnotatedTransaction } from '../../../sdk/dist/providers/Prov
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
+  errorRed,
   log,
   logBlue,
   logGray,
@@ -168,13 +169,69 @@ export async function runWarpRouteDeploy({
     deployedContracts,
   );
 
-  for (const chain of Object.keys(enrollTxs)) {
+  // Group chains by protocol type for appropriate parallelization
+  // EVM chains can run in parallel (each chain has an independent nonce)
+  // Non-EVM chains (e.g., Cosmos) must run sequentially because when the same
+  // private key is used across multiple chains, parallel tx submission causes
+  // sequence number conflicts (both txs query sequence N, one succeeds with N,
+  // the other fails expecting N+1)
+  const enrollChains = Object.keys(enrollTxs);
+  const evmChains = enrollChains.filter(
+    (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const nonEvmChains = enrollChains.filter(
+    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  const enrollFailures: string[] = [];
+
+  // Helper function to submit enrollment for a single chain
+  const submitEnrollment = async (chain: string): Promise<void> => {
     log(`Enrolling routers for chain ${chain}`);
     const { submitter } = await getSubmitterByStrategy({
       chain,
       context: context,
     });
     await submitter.submit(...(enrollTxs[chain] as any[]));
+  };
+
+  // Submit EVM chains in parallel (they have independent signers)
+  if (evmChains.length > 0) {
+    const evmResults = await Promise.allSettled(
+      evmChains.map((chain) => submitEnrollment(chain)),
+    );
+
+    evmResults.forEach((result, index) => {
+      const chain = evmChains[index];
+      if (result.status === 'rejected') {
+        const errorMessage =
+          result.reason instanceof Error
+            ? result.reason.message
+            : String(result.reason);
+        errorRed(
+          `Failed to enroll routers for chain ${chain}: ${errorMessage}`,
+        );
+        enrollFailures.push(chain);
+      }
+    });
+  }
+
+  // Submit non-EVM chains sequentially (they may share signers)
+  for (const chain of nonEvmChains) {
+    try {
+      await submitEnrollment(chain);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      errorRed(`Failed to enroll routers for chain ${chain}: ${errorMessage}`);
+      enrollFailures.push(chain);
+    }
+  }
+
+  if (enrollFailures.length > 0) {
+    throw new Error(
+      `Router enrollment failed for chain(s): ${enrollFailures.join(', ')}`,
+    );
   }
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
