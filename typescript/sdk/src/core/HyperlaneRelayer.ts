@@ -19,6 +19,7 @@ import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { DerivedHookConfig, HookConfigSchema } from '../hook/types.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { BaseMetadataBuilder } from '../ism/metadata/builder.js';
+import { isMetadataBuildable } from '../ism/metadata/types.js';
 import { DerivedIsmConfig, IsmConfigSchema } from '../ism/types.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
@@ -275,15 +276,21 @@ export class HyperlaneRelayer {
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
-    const metadata = await this.metadataBuilder.build({
+    const metadataResult = await this.metadataBuilder.build({
       message,
       ism,
       hook,
       dispatchTx,
     });
 
+    if (!isMetadataBuildable(metadataResult)) {
+      throw new Error(
+        `Unable to build metadata for message ${message.id}: ${JSON.stringify(metadataResult)}`,
+      );
+    }
+
     this.logger.info(`Relaying message ${message.id}`);
-    return this.core.deliver(message, metadata);
+    return this.core.deliver(message, metadataResult.metadata);
   }
 
   hydrate(cache: RelayerCache): void {

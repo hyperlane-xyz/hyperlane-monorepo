@@ -1,6 +1,5 @@
 import {
   WithAddress,
-  assert,
   fromHexString,
   rootLogger,
   timeout,
@@ -12,6 +11,8 @@ import { AggregationIsmConfig, DerivedIsmConfig, IsmType } from '../types.js';
 import type { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';
 import {
+  AggregationMetadataBuildResult,
+  MetadataBuildResult,
   MetadataBuilder,
   MetadataContext,
   StructuredMetadata,
@@ -38,12 +39,23 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
     context: MetadataContext<WithAddress<AggregationIsmConfig>>,
     maxDepth = 10,
     timeoutMs = maxDepth * 1000,
-  ): Promise<string> {
+  ): Promise<AggregationMetadataBuildResult> {
     this.logger.debug(
       { context, maxDepth, timeoutMs },
       'Building aggregation metadata',
     );
-    assert(maxDepth > 0, 'Max depth reached');
+
+    if (maxDepth <= 0) {
+      return {
+        type: context.ism.type,
+        ismAddress: context.ism.address,
+        threshold: context.ism.threshold,
+        modules: [],
+        metadata: undefined,
+      };
+    }
+
+    // Build metadata for each submodule in parallel
     const results = await Promise.allSettled(
       context.ism.modules.map((module) =>
         timeout(
@@ -59,36 +71,68 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
       ),
     );
 
-    const metadatas = results.map((result, index) => {
-      if (result.status === 'rejected') {
-        this.logger.warn(
-          `Failed to build for submodule ${index}: ${result.reason}`,
-        );
-        return null;
-      } else {
-        this.logger.debug(`Built metadata for submodule ${index}`);
-        return result.value;
-      }
-    });
-
-    const included = metadatas.filter((meta) => meta !== null).length;
-    assert(
-      included >= context.ism.threshold,
-      `Only built ${included} of ${context.ism.threshold} required modules`,
+    // Convert results to MetadataBuildResult array
+    const moduleResults: MetadataBuildResult[] = results.map(
+      (result, index) => {
+        if (result.status === 'rejected') {
+          this.logger.warn(
+            `Failed to build for submodule ${index}: ${result.reason}`,
+          );
+          // Return a minimal result for failed modules
+          const module = context.ism.modules[index] as DerivedIsmConfig;
+          return {
+            type: module.type,
+            ismAddress: module.address,
+            metadata: undefined,
+          } as MetadataBuildResult;
+        } else {
+          this.logger.debug(`Built metadata for submodule ${index}`);
+          return result.value;
+        }
+      },
     );
 
-    // only include the first threshold metadatas
-    let count = 0;
-    for (let i = 0; i < metadatas.length; i++) {
-      if (metadatas[i] === null) continue;
-      count += 1;
-      if (count > context.ism.threshold) metadatas[i] = null;
+    // Count modules that have buildable metadata
+    const buildableModules = moduleResults.filter(
+      (r) => r.metadata !== undefined,
+    );
+    const buildableCount = buildableModules.length;
+    const quorumMet = buildableCount >= context.ism.threshold;
+
+    this.logger.debug(
+      { buildableCount, threshold: context.ism.threshold, quorumMet },
+      `Aggregation submodule build status`,
+    );
+
+    // Build the result
+    const result: AggregationMetadataBuildResult = {
+      type: context.ism.type,
+      ismAddress: context.ism.address,
+      threshold: context.ism.threshold,
+      modules: moduleResults,
+    };
+
+    // Only encode metadata if quorum is met
+    if (quorumMet) {
+      // Only include the first threshold metadatas for encoding
+      const metadatas: (string | null)[] = moduleResults.map((r) =>
+        r.metadata !== undefined ? r.metadata : null,
+      );
+
+      let count = 0;
+      for (let i = 0; i < metadatas.length; i++) {
+        if (metadatas[i] === null) continue;
+        count += 1;
+        if (count > context.ism.threshold) metadatas[i] = null;
+      }
+
+      result.metadata = AggregationMetadataBuilder.encode({
+        ...context.ism,
+        submoduleMetadata: metadatas,
+      });
     }
 
-    return AggregationMetadataBuilder.encode({
-      ...context.ism,
-      submoduleMetadata: metadatas,
-    });
+    return result;
   }
 
   static rangeIndex(index: number): number {

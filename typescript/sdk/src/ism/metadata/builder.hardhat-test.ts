@@ -40,7 +40,11 @@ import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 
 import { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';
-import { MetadataContext } from './types.js';
+import {
+  MetadataBuildResult,
+  MetadataContext,
+  isMetadataBuildable,
+} from './types.js';
 
 const MAX_ISM_DEPTH = 5;
 const MAX_NUM_VALIDATORS = 10;
@@ -144,7 +148,7 @@ describe('BaseMetadataBuilder', () => {
     let origin: ChainName;
     let destination: ChainName;
     let context: MetadataContext;
-    let metadata: string;
+    let metadataResult: MetadataBuildResult;
 
     beforeEach(async () => {
       origin = randomElement(testChains);
@@ -187,19 +191,25 @@ describe('BaseMetadataBuilder', () => {
         dispatchTx,
       };
 
-      metadata = await metadataBuilder.build(context, MAX_ISM_DEPTH);
+      metadataResult = await metadataBuilder.build(context, MAX_ISM_DEPTH);
     });
 
     for (let i = 0; i < NUM_RUNS; i++) {
       it(`should build valid metadata for random ism config (${i})`, async () => {
+        if (!isMetadataBuildable(metadataResult)) {
+          throw new Error('Metadata should be buildable');
+        }
         // must call process for trusted relayer to be able to verify
         await core
           .getContracts(destination)
-          .mailbox.process(metadata, context.message.message);
+          .mailbox.process(metadataResult.metadata, context.message.message);
       });
 
       it(`should decode metadata for random ism config (${i})`, async () => {
-        decodeIsmMetadata(metadata, context);
+        if (!isMetadataBuildable(metadataResult)) {
+          throw new Error('Metadata should be buildable');
+        }
+        decodeIsmMetadata(metadataResult.metadata, context);
       });
     }
   });

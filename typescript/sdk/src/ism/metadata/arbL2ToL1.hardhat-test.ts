@@ -41,7 +41,11 @@ import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 import { ArbL2ToL1IsmConfig } from '../types.js';
 
 import { ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
-import { MetadataContext } from './types.js';
+import {
+  ArbL2ToL1MetadataBuildResult,
+  MetadataContext,
+  isMetadataBuildable,
+} from './types.js';
 
 describe('ArbL2ToL1MetadataBuilder', () => {
   const origin: ChainName = 'test4';
@@ -149,7 +153,7 @@ describe('ArbL2ToL1MetadataBuilder', () => {
   });
 
   describe('#build', () => {
-    let metadata: string;
+    let result: ArbL2ToL1MetadataBuildResult;
 
     beforeEach(async () => {
       const testRecipient = testRecipients[destination];
@@ -189,28 +193,24 @@ describe('ArbL2ToL1MetadataBuilder', () => {
 
     it(`should build valid metadata using direct executeTransaction call`, async () => {
       setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
-      metadata = await metadataBuilder.build(context);
+      result = await metadataBuilder.build(context);
 
-      await arbL2ToL1Ism.verify(metadata, context.message.message);
+      expect(result.bridgeStatus).to.equal('confirmed');
+      expect(isMetadataBuildable(result)).to.be.true;
+      if (isMetadataBuildable(result)) {
+        await arbL2ToL1Ism.verify(result.metadata, context.message.message);
+      }
     });
 
-    it(`should throw an error if the message has already been relayed`, async () => {
+    it(`should return executed status if the message has already been relayed`, async () => {
       setArbitrumBridgeStatus(ChildToParentMessageStatus.EXECUTED);
 
-      try {
-        await metadataBuilder.build(context);
-        expect.fail('Expected an error to be thrown');
-      } catch (error: any) {
-        expect(error.message).to.include(
-          'Arbitrum L2ToL1 message has already been executed',
-        );
-      }
-      await expect(
-        arbL2ToL1Ism.verify(metadata, context.message.message),
-      ).to.be.revertedWith('ArbL2ToL1Ism: invalid message id');
+      result = await metadataBuilder.build(context);
+      expect(result.bridgeStatus).to.equal('executed');
+      expect(isMetadataBuildable(result)).to.be.false;
     });
 
-    it(`should throw an error if the challenge period hasn't passed`, async () => {
+    it(`should return unconfirmed status if the challenge period hasn't passed`, async () => {
       setArbitrumBridgeStatus(ChildToParentMessageStatus.UNCONFIRMED);
 
       // stub waiting period to 10 blocks
@@ -220,17 +220,10 @@ describe('ArbL2ToL1MetadataBuilder', () => {
           return BigNumber.from(10); // test waiting period
         });
 
-      try {
-        await metadataBuilder.build(context);
-        expect.fail('Expected an error to be thrown');
-      } catch (error: any) {
-        expect(error.message).to.include(
-          "Arbitrum L2ToL1 message isn't ready for relay. Wait 10 blocks until the challenge period before relaying again",
-        );
-      }
-      await expect(
-        arbL2ToL1Ism.verify(metadata, context.message.message),
-      ).to.be.revertedWith('ArbL2ToL1Ism: invalid message id');
+      result = await metadataBuilder.build(context);
+      expect(result.bridgeStatus).to.equal('unconfirmed');
+      expect(result.blocksRemaining).to.equal(10);
+      expect(isMetadataBuildable(result)).to.be.false;
     });
 
     it(`should build valid metadata if already preverified by 3rd party relayer`, async () => {
@@ -238,7 +231,10 @@ describe('ArbL2ToL1MetadataBuilder', () => {
 
       const calldata =
         await metadataBuilder.buildArbitrumBridgeCalldata(context);
-      metadata = ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(calldata);
+      const encodedMetadata =
+        ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(calldata);
+      // Simulate 3rd party executing the bridge transaction
+      void encodedMetadata; // we don't use this directly, just verify the encoding works
       await arbBridge.executeTransaction(
         calldata.proof,
         calldata.position,
@@ -250,15 +246,22 @@ describe('ArbL2ToL1MetadataBuilder', () => {
         BigNumber.from(0), // msg.value
         calldata.data,
       );
-      metadata = await metadataBuilder.build(context);
-      await arbL2ToL1Ism.verify(metadata, context.message.message);
+      result = await metadataBuilder.build(context);
+      expect(result.bridgeStatus).to.equal('verified');
+      expect(isMetadataBuildable(result)).to.be.true;
+      if (isMetadataBuildable(result)) {
+        await arbL2ToL1Ism.verify(result.metadata, context.message.message);
+      }
     });
 
     it(`should decode metadata`, async () => {
       setArbitrumBridgeStatus(ChildToParentMessageStatus.CONFIRMED);
-      metadata = await metadataBuilder.build(context);
+      result = await metadataBuilder.build(context);
 
-      ArbL2ToL1MetadataBuilder.decode(metadata, context);
+      expect(isMetadataBuildable(result)).to.be.true;
+      if (isMetadataBuildable(result)) {
+        ArbL2ToL1MetadataBuilder.decode(result.metadata, context);
+      }
     });
   });
 

@@ -19,6 +19,7 @@ import { decodeIsmMetadata } from './decode.js';
 import type {
   MetadataBuilder,
   MetadataContext,
+  RoutingMetadataBuildResult,
   StructuredMetadata,
 } from './types.js';
 
@@ -34,7 +35,7 @@ export class StaticRoutingMetadataBuilder implements MetadataBuilder {
   public async build(
     context: MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
     maxDepth = 10,
-  ): Promise<string> {
+  ): Promise<RoutingMetadataBuildResult> {
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
       context.message.parsed.origin,
     );
@@ -43,7 +44,19 @@ export class StaticRoutingMetadataBuilder implements MetadataBuilder {
       ism: context.ism.domains[originChain] as DerivedIsmConfig,
     };
 
-    return this.baseMetadataBuilder.build(originContext, maxDepth - 1);
+    const selectedIsmResult = await this.baseMetadataBuilder.build(
+      originContext,
+      maxDepth - 1,
+    );
+
+    return {
+      type: context.ism.type,
+      ismAddress: context.ism.address,
+      originChain,
+      selectedIsm: selectedIsmResult,
+      // Propagate metadata from selected ISM
+      metadata: selectedIsmResult.metadata,
+    };
   }
 
   static decode(
@@ -78,7 +91,7 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
   public async build(
     context: MetadataContext<WithAddress<RoutingIsmConfig>>,
     maxDepth = 10,
-  ): Promise<string> {
+  ): Promise<RoutingMetadataBuildResult> {
     const { message, ism } = context;
     const originChain = this.baseMetadataBuilder.multiProvider.getChainName(
       message.parsed.origin,
@@ -88,16 +101,26 @@ export class DynamicRoutingMetadataBuilder extends StaticRoutingMetadataBuilder 
       this.baseMetadataBuilder.multiProvider.getProvider(destination);
 
     // Helper to derive new ISM config and recurse
-    const deriveAndRecurse = async (moduleAddress: string) => {
+    const deriveAndRecurse = async (
+      moduleAddress: string,
+    ): Promise<RoutingMetadataBuildResult> => {
       const ismReader = new EvmIsmReader(
         this.baseMetadataBuilder.multiProvider,
         destination,
       );
       const nextConfig = await ismReader.deriveIsmConfig(moduleAddress);
-      return this.baseMetadataBuilder.build(
+      const selectedIsmResult = await this.baseMetadataBuilder.build(
         { ...context, ism: nextConfig },
         maxDepth - 1,
       );
+
+      return {
+        type: ism.type,
+        ismAddress: ism.address,
+        originChain,
+        selectedIsm: selectedIsmResult,
+        metadata: selectedIsmResult.metadata,
+      };
     };
 
     // 1) Dynamic routing (AmountRouting or ICA): always route via .route(message)
