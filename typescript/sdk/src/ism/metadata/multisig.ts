@@ -83,7 +83,6 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     originChain: ChainName,
     validators: string[],
   ): Promise<S3Validator[]> {
-    const startTime = Date.now();
     this.validatorCache[originChain] ??= {};
     const toFetch = validators.filter(
       (v) => !(v in this.validatorCache[originChain]),
@@ -93,26 +92,16 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       const validatorAnnounce =
         this.core.getContracts(originChain).validatorAnnounce;
 
-      const storageLocationsStart = Date.now();
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
-      this.logger.debug(
-        { duration: Date.now() - storageLocationsStart },
-        '[TIMING] getAnnouncedStorageLocations',
-      );
 
       this.logger.debug({ storageLocations }, 'Fetched storage locations');
 
-      const s3ValidatorsStart = Date.now();
       const s3Validators = await Promise.all(
         storageLocations.map((locations) => {
           const latestLocation = locations.slice(-1)[0];
           return S3Validator.fromStorageLocation(latestLocation);
         }),
-      );
-      this.logger.debug(
-        { duration: Date.now() - s3ValidatorsStart },
-        '[TIMING] S3Validator.fromStorageLocation (all)',
       );
 
       this.logger.debug({ s3Validators }, 'Fetched validators');
@@ -120,14 +109,8 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       toFetch.forEach((validator, index) => {
         this.validatorCache[originChain][validator] = s3Validators[index];
       });
-    } else {
-      this.logger.debug('[TIMING] s3Validators: all from cache');
     }
 
-    this.logger.debug(
-      { duration: Date.now() - startTime, toFetch: toFetch.length },
-      '[TIMING] s3Validators total',
-    );
     return validators.map((v) => this.validatorCache[originChain][v]);
   }
 
@@ -140,19 +123,13 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       index: number;
     },
   ): Promise<S3CheckpointWithId[]> {
-    const startTime = Date.now();
     this.logger.debug({ match, validators }, 'Fetching checkpoints');
 
     const originChain = this.core.multiProvider.getChainName(match.origin);
     const s3Validators = await this.s3Validators(originChain, validators);
 
-    const checkpointFetchStart = Date.now();
     const results = await Promise.allSettled(
       s3Validators.map((v) => v.getCheckpoint(match.index)),
-    );
-    this.logger.debug(
-      { duration: Date.now() - checkpointFetchStart },
-      '[TIMING] getCheckpoint (all validators parallel)',
     );
 
     results
@@ -194,10 +171,6 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       );
     }
 
-    this.logger.debug(
-      { duration: Date.now() - startTime },
-      '[TIMING] getS3Checkpoints total',
-    );
     return matchingCheckpoints;
   }
 
@@ -217,7 +190,6 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     validatorInfos: ValidatorInfo[];
     checkpoint?: Checkpoint;
   }> {
-    const startTime = Date.now();
     const originChain = this.core.multiProvider.getChainName(match.origin);
 
     // Get S3 validators (may throw if no storage location announced)
@@ -237,13 +209,8 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     }
 
     // Fetch checkpoints from each validator in parallel
-    const checkpointFetchStart = Date.now();
     const results = await Promise.allSettled(
       s3Validators.map((v) => v?.getCheckpoint(match.index)),
-    );
-    this.logger.debug(
-      { duration: Date.now() - checkpointFetchStart },
-      '[TIMING] getValidatorInfos: getCheckpoint (all validators parallel)',
     );
 
     let firstMatchingCheckpoint: Checkpoint | undefined;
@@ -305,11 +272,6 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
         checkpointIndex: checkpoint.value.checkpoint.index,
       };
     });
-
-    this.logger.debug(
-      { duration: Date.now() - startTime },
-      '[TIMING] getValidatorInfos total',
-    );
 
     return {
       validatorInfos,

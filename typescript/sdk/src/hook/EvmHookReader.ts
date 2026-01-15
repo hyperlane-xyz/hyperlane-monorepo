@@ -331,9 +331,15 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AggregationHookConfig>> {
     const hook = StaticAggregationHook__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.AGGREGATION);
 
-    const hooks = await hook.hooks(ethers.constants.AddressZero);
+    // Parallelize hookType and hooks list fetching
+    const [hookType, hooks] = await Promise.all([
+      hook.hookType(),
+      hook.hooks(ethers.constants.AddressZero),
+    ]);
+
+    this.assertHookType(hookType, OnchainHookType.AGGREGATION);
+
     const hookConfigs: DerivedHookConfig[] = await concurrentMap(
       this.concurrency,
       hooks,
@@ -373,13 +379,15 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       address,
       this.provider,
     );
-    this.assertHookType(
-      await hook.hookType(),
-      OnchainHookType.INTERCHAIN_GAS_PAYMASTER,
-    );
 
-    const owner = await hook.owner();
-    const beneficiary = await hook.beneficiary();
+    // Parallelize initial RPC calls
+    const [hookType, owner, beneficiary] = await Promise.all([
+      hook.hookType(),
+      hook.owner(),
+      hook.beneficiary(),
+    ]);
+
+    this.assertHookType(hookType, OnchainHookType.INTERCHAIN_GAS_PAYMASTER);
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
@@ -452,12 +460,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ProtocolFeeHookConfig>> {
     const hook = ProtocolFee__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.PROTOCOL_FEE);
 
-    const owner = await hook.owner();
-    const maxProtocolFee = await hook.MAX_PROTOCOL_FEE();
-    const protocolFee = await hook.protocolFee();
-    const beneficiary = await hook.beneficiary();
+    // Parallelize all RPC calls
+    const [hookType, owner, maxProtocolFee, protocolFee, beneficiary] =
+      await Promise.all([
+        hook.hookType(),
+        hook.owner(),
+        hook.MAX_PROTOCOL_FEE(),
+        hook.protocolFee(),
+        hook.beneficiary(),
+      ]);
+
+    this.assertHookType(hookType, OnchainHookType.PROTOCOL_FEE);
 
     const config: WithAddress<ProtocolFeeHookConfig> = {
       owner,
@@ -477,11 +491,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<OpStackHookConfig>> {
     const hook = OPStackHook__factory.connect(address, this.provider);
-    const owner = await hook.owner();
-    this.assertHookType(await hook.hookType(), OnchainHookType.ID_AUTH_ISM);
 
-    const messengerContract = await hook.l1Messenger();
-    const destinationDomain = await hook.destinationDomain();
+    // Parallelize all RPC calls
+    const [hookType, owner, messengerContract, destinationDomain] =
+      await Promise.all([
+        hook.hookType(),
+        hook.owner(),
+        hook.l1Messenger(),
+        hook.destinationDomain(),
+      ]);
+
+    this.assertHookType(hookType, OnchainHookType.ID_AUTH_ISM);
+
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
@@ -502,13 +523,17 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<ArbL2ToL1HookConfig>> {
     const hook = ArbL2ToL1Hook__factory.connect(address, this.provider);
-    const arbSys = await hook.arbSys();
 
-    const destinationDomain = await hook.destinationDomain();
+    // Parallelize initial RPC calls
+    const [arbSys, destinationDomain, childHookAddress] = await Promise.all([
+      hook.arbSys(),
+      hook.destinationDomain(),
+      hook.childHook(),
+    ]);
+
     const destinationChainName =
       this.multiProvider.getChainName(destinationDomain);
 
-    const childHookAddress = await hook.childHook();
     const childHookConfig = await this.deriveHookConfig(childHookAddress);
     const config: WithAddress<ArbL2ToL1HookConfig> = {
       address,
@@ -528,10 +553,14 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
   ): Promise<WithAddress<DomainRoutingHookConfig>> {
     const hook = DomainRoutingHook__factory.connect(address, this.provider);
 
-    this.assertHookType(await hook.hookType(), OnchainHookType.ROUTING);
+    // Parallelize hookType, owner, and domain hooks fetching
+    const [hookType, owner, domainHooks] = await Promise.all([
+      hook.hookType(),
+      hook.owner(),
+      this.fetchDomainHooks(hook),
+    ]);
 
-    const owner = await hook.owner();
-    const domainHooks = await this.fetchDomainHooks(hook);
+    this.assertHookType(hookType, OnchainHookType.ROUTING);
 
     const config: WithAddress<DomainRoutingHookConfig> = {
       owner,
@@ -553,16 +582,18 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       this.provider,
     );
 
-    this.assertHookType(
-      await hook.hookType(),
-      OnchainHookType.FALLBACK_ROUTING,
-    );
+    // Parallelize hookType, owner, fallback hook address, and domain hooks fetching
+    const [hookType, owner, fallbackHookAddress, domainHooks] =
+      await Promise.all([
+        hook.hookType(),
+        hook.owner(),
+        hook.fallbackHook(),
+        this.fetchDomainHooks(hook),
+      ]);
 
-    const owner = await hook.owner();
-    const domainHooks = await this.fetchDomainHooks(hook);
+    this.assertHookType(hookType, OnchainHookType.FALLBACK_ROUTING);
 
-    const fallbackHook = await hook.fallbackHook();
-    const fallbackHookConfig = await this.deriveHookConfig(fallbackHook);
+    const fallbackHookConfig = await this.deriveHookConfig(fallbackHookAddress);
 
     const config: WithAddress<FallbackRoutingHookConfig> = {
       owner,
@@ -608,10 +639,16 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<PausableHookConfig>> {
     const hook = PausableHook__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.PAUSABLE);
 
-    const owner = await hook.owner();
-    const paused = await hook.paused();
+    // Parallelize all RPC calls
+    const [hookType, owner, paused] = await Promise.all([
+      hook.hookType(),
+      hook.owner(),
+      hook.paused(),
+    ]);
+
+    this.assertHookType(hookType, OnchainHookType.PAUSABLE);
+
     const config: WithAddress<PausableHookConfig> = {
       owner,
       address,
@@ -628,20 +665,30 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
     address: Address,
   ): Promise<WithAddress<AmountRoutingHookConfig>> {
     const hook = AmountRoutingHook__factory.connect(address, this.provider);
-    this.assertHookType(await hook.hookType(), OnchainHookType.AMOUNT_ROUTING);
 
-    const [threshold, lowerHook, upperHook] = await Promise.all([
-      hook.threshold(),
-      hook.lower(),
-      hook.upper(),
+    // Parallelize initial RPC calls including hookType
+    const [hookType, threshold, lowerHookAddress, upperHookAddress] =
+      await Promise.all([
+        hook.hookType(),
+        hook.threshold(),
+        hook.lower(),
+        hook.upper(),
+      ]);
+
+    this.assertHookType(hookType, OnchainHookType.AMOUNT_ROUTING);
+
+    // Parallelize hook config derivation
+    const [lowerHookConfig, upperHookConfig] = await Promise.all([
+      this.deriveHookConfig(lowerHookAddress),
+      this.deriveHookConfig(upperHookAddress),
     ]);
 
     const config: WithAddress<AmountRoutingHookConfig> = {
       address,
       type: HookType.AMOUNT_ROUTING,
       threshold: threshold.toNumber(),
-      lowerHook: await this.deriveHookConfig(lowerHook),
-      upperHook: await this.deriveHookConfig(upperHook),
+      lowerHook: lowerHookConfig,
+      upperHook: upperHookConfig,
     };
 
     this._cache.set(address, config);

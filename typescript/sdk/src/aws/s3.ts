@@ -3,9 +3,7 @@ import { GetObjectCommand, S3Client } from '@aws-sdk/client-s3';
 // eslint-disable-next-line import/no-nodejs-modules
 import { Readable } from 'stream';
 
-import { rootLogger, streamToString } from '@hyperlane-xyz/utils';
-
-const logger = rootLogger.child({ module: 'S3Wrapper' });
+import { streamToString } from '@hyperlane-xyz/utils';
 
 export const S3_BUCKET_REGEX =
   /^(?:https?:\/\/)?(.*)\.s3\.(.*)\.amazonaws.com\/?$/;
@@ -57,10 +55,8 @@ export class S3Wrapper {
   }
 
   async getS3Obj<T>(key: string): Promise<S3Receipt<T> | undefined> {
-    const startTime = Date.now();
     const Key = this.formatKey(key);
     if (this.cache?.[Key]) {
-      logger.debug({ key: Key, cached: true }, '[TIMING] S3 cache hit');
       return this.cache![Key];
     }
 
@@ -70,7 +66,6 @@ export class S3Wrapper {
     });
     try {
       const response = await this.client.send(command);
-      const fetchTime = Date.now() - startTime;
       const body: string = await streamToString(response.Body as Readable);
       const result = {
         data: JSON.parse(body),
@@ -79,26 +74,8 @@ export class S3Wrapper {
       if (this.cache) {
         this.cache[Key] = result;
       }
-      logger.debug(
-        {
-          key: Key,
-          bucket: this.config.bucket,
-          duration: Date.now() - startTime,
-          fetchTime,
-        },
-        '[TIMING] S3 getS3Obj',
-      );
       return result;
     } catch (e: any) {
-      logger.debug(
-        {
-          key: Key,
-          bucket: this.config.bucket,
-          duration: Date.now() - startTime,
-          error: e.message,
-        },
-        '[TIMING] S3 getS3Obj (error/not found)',
-      );
       if (e.message.includes('The specified key does not exist.')) {
         return;
       }

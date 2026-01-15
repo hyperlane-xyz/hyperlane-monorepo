@@ -7,12 +7,9 @@ import {
   ValidatorConfig,
   ValidatorMetadata,
   isS3CheckpointWithId,
-  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { S3Config, S3Wrapper } from './s3.js';
-
-const logger = rootLogger.child({ module: 'S3Validator' });
 
 const checkpointWithMessageIdKey = (checkpointIndex: number) =>
   `checkpoint_${checkpointIndex}_with_id.json`;
@@ -39,7 +36,6 @@ export class S3Validator extends BaseValidator {
   static async fromStorageLocation(
     storageLocation: string,
   ): Promise<S3Validator> {
-    const startTime = Date.now();
     if (storageLocation.startsWith(S3_LOCATION_PREFIX)) {
       const suffix = storageLocation.slice(S3_LOCATION_PREFIX.length);
       const pieces = suffix.split('/');
@@ -62,11 +58,6 @@ export class S3Validator extends BaseValidator {
           localDomain: announcement.data.value.mailbox_domain,
           mailbox: announcement.data.value.mailbox_address,
         };
-
-        logger.debug(
-          { duration: Date.now() - startTime, bucket: s3Config.bucket },
-          '[TIMING] S3Validator.fromStorageLocation',
-        );
 
         return new S3Validator(validatorConfig, s3Config);
       }
@@ -98,18 +89,8 @@ export class S3Validator extends BaseValidator {
   }
 
   async getCheckpoint(index: number): Promise<S3CheckpointWithId | void> {
-    const startTime = Date.now();
     const key = checkpointWithMessageIdKey(index);
     const s3Object = await this.s3Bucket.getS3Obj<S3CheckpointWithId>(key);
-    logger.debug(
-      {
-        duration: Date.now() - startTime,
-        index,
-        bucket: this.s3Bucket.config.bucket,
-        found: !!s3Object,
-      },
-      '[TIMING] S3Validator.getCheckpoint',
-    );
     if (!s3Object) {
       return;
     }
