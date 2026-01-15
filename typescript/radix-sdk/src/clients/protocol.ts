@@ -144,13 +144,16 @@ export class RadixProtocolProvider implements ProtocolProvider {
       packageAddress,
     );
 
-    // Note: mailbox and nativeTokenDenom are placeholders for reading hooks
-    // For writing hooks, create RadixHookArtifactManager directly with proper values
+    // Get native token denom from chain metadata
+    const nativeTokenDenom = chainMetadata.nativeToken?.denom || '';
+
+    // Note: mailbox is empty for generic artifact manager creation
+    // When writing hooks that require mailbox, they should get it from the config context
     return new RadixHookArtifactManager(
       gateway,
       base,
-      '', // mailbox - not needed for reading
-      '', // nativeTokenDenom - not needed for reading
+      '', // mailbox - will be provided by writer context when needed
+      nativeTokenDenom,
     );
   }
 

@@ -1,7 +1,10 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  DeployedHookArtifact,
+  DerivedHookConfig,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmArtifact,
   DerivedIsmConfig,
@@ -26,9 +29,13 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { AltVMHookModule } from './AltVMHookModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { createHookWriter } from './hook/generic-hook-writer.js';
+import {
+  hookConfigToArtifact,
+  shouldDeployNewHook,
+} from './hook/hook-config-utils.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
 import {
   ismConfigToArtifact,
@@ -498,26 +505,66 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     assert(expectedConfig.hook, 'Hook derived incorrectly');
 
-    const hookModule = new AltVMHookModule(
+    // If expected hook is an address reference, use it directly
+    if (typeof expectedConfig.hook === 'string') {
+      return {
+        deployedHook: expectedConfig.hook,
+        updateTransactions: [],
+      };
+    }
+
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createHookWriter(metadata, this.chainLookup, this.signer);
+
+    const actualHookAddress =
+      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
+
+    // Convert expected config to artifact format
+    const expectedArtifact = hookConfigToArtifact(
+      expectedConfig.hook,
       this.chainLookup,
-      {
-        chain: this.args.chain,
-        config: expectedConfig.hook,
-        addresses: {
-          ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
-          deployedHook: (actualConfig.hook as DerivedHookConfig)?.address ?? '',
-        },
-      },
-      this.signer,
     );
+
+    // If no existing hook, deploy new one directly (no comparison needed)
+    if (!actualHookAddress) {
+      this.logger.debug(`No existing Hook found, deploying new one`);
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedHook: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Read actual hook state (only when we have existing hook to compare)
+    const actualArtifact = await writer.read(actualHookAddress);
+
     this.logger.debug(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await hookModule.update(expectedConfig.hook);
-    const { deployedHook } = hookModule.serialize();
 
-    return { deployedHook, updateTransactions };
+    // Decide: deploy new hook or update existing one
+    if (shouldDeployNewHook(actualArtifact.config, expectedArtifact.config)) {
+      // Deploy new hook
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedHook: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Update existing hook (only IGP hooks support updates)
+    const deployedArtifact: DeployedHookArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config,
+      deployed: actualArtifact.deployed,
+    };
+    const updateTransactions = await writer.update(deployedArtifact);
+
+    return {
+      deployedHook: actualHookAddress,
+      updateTransactions,
+    };
   }
 
   /**

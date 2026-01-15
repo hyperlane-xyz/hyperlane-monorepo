@@ -16,12 +16,12 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
-import { AltVMHookReader } from './AltVMHookReader.js';
+import { HookReader, createHookReader } from './hook/generic-hook.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
   protected readonly logger: ReturnType<typeof rootLogger.child>;
-  hookReader: AltVMHookReader;
+  protected readonly hookReader: HookReader;
   private readonly ismReader: IsmReader;
 
   constructor(
@@ -29,10 +29,7 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = new AltVMHookReader(
-      chainLookup.getChainMetadata,
-      provider,
-    );
+    this.hookReader = createHookReader(this.chainMetadata, this.chainLookup);
 
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,

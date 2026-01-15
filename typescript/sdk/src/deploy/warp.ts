@@ -2,9 +2,10 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMDeployer,
-  AltVMHookModule,
   AltVMWarpModule,
+  createHookWriter,
   createIsmWriter,
+  hookConfigToArtifact,
   ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
@@ -354,19 +355,21 @@ async function createWarpHook({
     }
     default: {
       const signer = mustGet(altVmSigners, chain);
-      const hookModule = await AltVMHookModule.create({
-        chain,
-        chainLookup: multiProvider,
-        addresses: {
-          deployedHook: '',
-          mailbox: chainAddresses.mailbox,
-        },
-        // FIXME: not all Hook types are supported yet
-        config: hook as ProviderHookConfig | string,
-        signer,
-      });
-      const { deployedHook } = hookModule.serialize();
-      return deployedHook;
+      const metadata = multiProvider.getChainMetadata(chain);
+
+      // If hook is an address reference, use it directly
+      if (typeof hook === 'string') {
+        return hook;
+      }
+
+      // Deploy new hook using artifact writer
+      const writer = createHookWriter(metadata, multiProvider, signer);
+      const artifact = hookConfigToArtifact(
+        hook as ProviderHookConfig,
+        multiProvider,
+      );
+      const [deployed] = await writer.create(artifact);
+      return deployed.deployed.address;
     }
   }
 }

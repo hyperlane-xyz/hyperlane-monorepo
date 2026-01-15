@@ -1,9 +1,8 @@
 import { constants } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { AltVMHookReader, createIsmReader } from '@hyperlane-xyz/deploy-sdk';
+import { createIsmReader } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   Address,
   TransformObjectTransformer,
@@ -14,7 +13,6 @@ import {
   isAddressEvm,
   isCosmosIbcDenomAddress,
   isObjEmpty,
-  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -142,6 +140,7 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
+  // @ts-ignore - parameter kept for backward compatibility but no longer used after hook artifact migration
   altVmProviders: ChainMap<AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
@@ -149,6 +148,7 @@ export async function expandWarpDeployConfig(params: {
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
+    // @ts-ignore - parameter kept for backward compatibility but no longer used after hook artifact migration
     altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
@@ -274,25 +274,13 @@ export async function expandWarpDeployConfig(params: {
       // Expand the hook config only if we have an explicit config in the deploy config
       // and the current chain is an EVM one.
       // if we have an address we leave it like that to avoid deriving
-      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
-        switch (protocol) {
-          case ProtocolType.Ethereum: {
-            const reader = new EvmHookReader(multiProvider, chain);
-            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
-            break;
-          }
-          default: {
-            const provider = mustGet(altVmProviders, chain);
-            const reader = new AltVMHookReader(
-              (chain) => multiProvider.getChainMetadata(chain),
-              provider,
-            );
-            chainConfig.hook = await reader.deriveHookConfig(
-              // FIXME: not all hook types are supported yet
-              chainConfig.hook as HookConfig | Address,
-            );
-          }
-        }
+      if (
+        chainConfig.hook &&
+        typeof chainConfig.hook !== 'string' &&
+        protocol === ProtocolType.Ethereum
+      ) {
+        const reader = new EvmHookReader(multiProvider, chain);
+        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
       }
 
       // Expand the ism config only if we have an explicit config in the deploy config

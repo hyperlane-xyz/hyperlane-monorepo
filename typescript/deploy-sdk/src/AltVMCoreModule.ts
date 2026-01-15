@@ -8,6 +8,7 @@ import {
   DerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/core';
 import {
+  DeployedHookArtifact,
   DerivedHookConfig,
   HookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
@@ -25,7 +26,11 @@ import {
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
-import { AltVMHookModule } from './AltVMHookModule.js';
+import { createHookWriter } from './hook/generic-hook-writer.js';
+import {
+  hookConfigToArtifact,
+  shouldDeployNewHook,
+} from './hook/hook-config-utils.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
 import {
   ismConfigToArtifact,
@@ -121,32 +126,30 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     });
 
     // 3. Deploy default hook
-    const defaultHookModule = await AltVMHookModule.create({
-      chain: chainName,
-      config: config.defaultHook,
-      addresses: {
-        deployedHook: '',
-        mailbox: mailbox.mailboxAddress,
-      },
-      chainLookup,
-      signer,
-    });
-
-    const { deployedHook: defaultHook } = defaultHookModule.serialize();
+    let defaultHook: string;
+    if (typeof config.defaultHook === 'string') {
+      // Address reference - use existing hook
+      defaultHook = config.defaultHook;
+    } else {
+      // Deploy new hook
+      const writer = createHookWriter(metadata, chainLookup, signer);
+      const artifact = hookConfigToArtifact(config.defaultHook, chainLookup);
+      const [deployed] = await writer.create(artifact);
+      defaultHook = deployed.deployed.address;
+    }
 
     // 4. Deploy required hook
-    const requiredHookModule = await AltVMHookModule.create({
-      chain: chainName,
-      config: config.requiredHook,
-      addresses: {
-        deployedHook: '',
-        mailbox: mailbox.mailboxAddress,
-      },
-      chainLookup,
-      signer,
-    });
-
-    const { deployedHook: requiredHook } = requiredHookModule.serialize();
+    let requiredHook: string;
+    if (typeof config.requiredHook === 'string') {
+      // Address reference - use existing hook
+      requiredHook = config.requiredHook;
+    } else {
+      // Deploy new hook
+      const writer = createHookWriter(metadata, chainLookup, signer);
+      const artifact = hookConfigToArtifact(config.requiredHook, chainLookup);
+      const [deployed] = await writer.create(artifact);
+      requiredHook = deployed.deployed.address;
+    }
 
     // 5. Update the configuration with the newly created hooks
     await signer.setDefaultIsm({
@@ -474,26 +477,56 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     deployedHook: Address;
     hookUpdateTxs: AnnotatedTx[];
   }> {
-    const { mailbox } = this.serialize();
+    // If expected hook is an address reference, use it directly
+    if (typeof expectHookConfig === 'string') {
+      return {
+        deployedHook: expectHookConfig,
+        hookUpdateTxs: [],
+      };
+    }
 
-    const hookModule = new AltVMHookModule(
+    const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createHookWriter(
+      chainMetadata,
       this.chainLookup,
-      {
-        addresses: {
-          mailbox: mailbox,
-          deployedHook: actualHookConfig.address,
-        },
-        chain: this.chainName,
-        config: actualHookConfig.address,
-      },
       this.signer,
     );
+
+    // Read actual hook state
+    const actualArtifact = await writer.read(actualHookConfig.address);
+
+    // Convert expected config to artifact format
+    const expectedArtifact = hookConfigToArtifact(
+      expectHookConfig,
+      this.chainLookup,
+    );
+
     this.logger.info(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const hookUpdateTxs = await hookModule.update(expectHookConfig);
-    const { deployedHook } = hookModule.serialize();
 
-    return { deployedHook, hookUpdateTxs };
+    // Decide: deploy new hook or update existing one
+    if (shouldDeployNewHook(actualArtifact.config, expectedArtifact.config)) {
+      // Deploy new hook
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedHook: deployed.deployed.address,
+        hookUpdateTxs: [],
+      };
+    }
+
+    // Update existing hook (only IGP hooks support updates)
+    const deployedArtifact: DeployedHookArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config,
+      deployed: actualArtifact.deployed,
+    };
+    const hookUpdateTxs = await writer.update(deployedArtifact);
+
+    return {
+      deployedHook: actualHookConfig.address,
+      hookUpdateTxs,
+    };
   }
 }
