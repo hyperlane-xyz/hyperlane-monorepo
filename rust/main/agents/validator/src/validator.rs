@@ -231,6 +231,23 @@ impl BaseAgent for Validator {
                 "Kaspa validator mode"
             );
 
+            // Verify escrow configuration matches hub anchor (post-migration safety check)
+            // This prevents operating with stale config after an escrow migration
+            if let Err(e) = dymension_kaspa::verify_escrow_matches_hub_anchor(
+                prov.hub_rpc().query(),
+                &prov.rest().client.client,
+                &prov.escrow_address(),
+            )
+            .await
+            {
+                error!(
+                    error = %e,
+                    "Escrow configuration verification failed. \
+                     The validator will not start to prevent operating with stale configuration."
+                );
+                panic!("Startup verification failed: {}", e);
+            }
+
             let signing = dymension_kaspa::ValidatorISMSigningResources::new(
                 Arc::new(self.raw_signer.clone()),
                 self.signer.clone(),
