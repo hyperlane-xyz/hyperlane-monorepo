@@ -106,6 +106,7 @@ function getChainConnections(
       ['solanamainnet', 'everclear'],
       ['solanamainnet', 'sophon'],
       ['solanamainnet', 'abstract'],
+      ['solanamainnet', 'aleo'],
       ['solanamainnet', 'apechain'],
       ['solanamainnet', 'subtensor'],
       ['solanamainnet', 'pulsechain'],

@@ -1,0 +1,14 @@
+{
+  "hyperevm": {
+    "hex": "0x000000000000000000000000ee3147deedfc0c6ddd7c65d4e9ff9a48632be645",
+    "base58": "1111111111114KUAwKS6KECF3E3evmuzFU77Nc1r"
+  },
+  "solanamainnet": {
+    "hex": "0x70044816db8f44ca15c5ecb6c68e34608e263371748f607b687e61490706d37a",
+    "base58": "8YGT2pZwyZe94qBpGzWfY2TMEVcwaQ1bXAE7YAgpUaM7"
+  },
+  "aleo": {
+    "hex": "0xdc53a6aa017fb1dd6032729e67796c282ecbf28b8c7b6d60f17da5b33bfa8504",
+    "base58": "Fq4g9Nqu8UtwiKRsdLeNAKB3svVqc41TDW3T2Z1GEY6F"
+  }
+}
