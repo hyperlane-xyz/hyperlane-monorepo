@@ -427,6 +427,34 @@ export class WarpCore {
           type: providerType,
           transaction: permitTxReq,
         } as WarpTypedTransaction);
+      } else {
+        this.logger.warn(
+          `permitSignature provided but adapter.populatePermitTx is unavailable for token ${token.symbol} (${token.addressOrDenom}). Falling back to traditional approval flow.`,
+        );
+        const feeQuote = tokenFeeQuote?.amount ?? 0n;
+        const amountToApprove = amount + feeQuote;
+
+        const isApproveRequired = await this.isApproveRequired({
+          originTokenAmount,
+          owner: sender,
+        });
+
+        if (isApproveRequired) {
+          const approveTxReq = await hypAdapter.populateApproveTx({
+            weiAmountOrId: amountToApprove.toString(),
+            recipient: token.addressOrDenom,
+            interchainGas,
+          });
+          this.logger.debug(
+            `Approval tx for ${token.symbol} populated (permit fallback)`,
+          );
+
+          transactions.push({
+            category: WarpTxCategory.Approval,
+            type: providerType,
+            transaction: approveTxReq,
+          } as WarpTypedTransaction);
+        }
       }
     } else {
       // Traditional approval flow
