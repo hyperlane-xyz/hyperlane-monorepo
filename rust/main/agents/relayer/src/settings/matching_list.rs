@@ -345,7 +345,7 @@ impl MatchingList {
     {
         let rules = match &self.0 {
             Some(rules) => rules,
-            None => return Some(HashSet::new()),
+            None => return None, // No configuration = wildcard (no domain restrictions)
         };
 
         let mut domains = HashSet::new();
@@ -599,8 +599,8 @@ mod test {
     #[test]
     fn matching_list_domain_methods() {
         let empty = MatchingList(None);
-        assert_eq!(empty.origin_domains(), Some(HashSet::new()));
-        assert_eq!(empty.destination_domains(), Some(HashSet::new()));
+        assert_eq!(empty.origin_domains(), None);
+        assert_eq!(empty.destination_domains(), None);
 
         let wildcard_origin: MatchingList =
             serde_json::from_str(r#"[{"origindomain":"*"}]"#).unwrap();
