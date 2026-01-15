@@ -53,6 +53,7 @@ import {
 import {
   type Address,
   assert,
+  mapAllSettled,
   mustGet,
   objFilter,
   objMap,
@@ -197,23 +198,16 @@ export async function runWarpRouteDeploy({
 
   // Submit EVM chains in parallel (they have independent signers)
   if (evmChains.length > 0) {
-    const evmResults = await Promise.allSettled(
-      evmChains.map((chain) => submitEnrollment(chain)),
+    const { rejected } = await mapAllSettled(
+      evmChains,
+      (chain) => submitEnrollment(chain),
+      (chain) => chain,
     );
 
-    evmResults.forEach((result, index) => {
-      const chain = evmChains[index];
-      if (result.status === 'rejected') {
-        const errorMessage =
-          result.reason instanceof Error
-            ? result.reason.message
-            : String(result.reason);
-        errorRed(
-          `Failed to enroll routers for chain ${chain}: ${errorMessage}`,
-        );
-        enrollFailures.push(chain);
-      }
-    });
+    for (const [chain, error] of rejected) {
+      errorRed(`Failed to enroll routers for chain ${chain}: ${error.message}`);
+      enrollFailures.push(chain);
+    }
   }
 
   // Submit non-EVM chains sequentially (they may share signers)

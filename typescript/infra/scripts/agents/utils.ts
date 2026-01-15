@@ -1,7 +1,7 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 
-import { concurrentMap, rootLogger } from '@hyperlane-xyz/utils';
+import { concurrentMap, mapAllSettled, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   AgentHelmManager,
@@ -149,23 +149,20 @@ export class AgentCli {
     console.log(chalk.cyan.bold('🔍 Running pre-flight checks...\n'));
 
     const managerEntries = Object.entries(managers);
-    const diffResults = await Promise.allSettled(
-      managerEntries.map(async ([key, manager]) => ({
+    const { fulfilled, rejected } = await mapAllSettled(
+      managerEntries,
+      async ([key, manager]) => ({
         key,
         diff: await manager.getPreflightDiff(),
-      })),
+      }),
     );
 
-    const diffs: Array<{ key: string; diff: PreflightDiff }> = [];
-    const failures: string[] = [];
-
-    for (const result of diffResults) {
-      if (result.status === 'fulfilled') {
-        diffs.push(result.value);
-      } else {
-        failures.push(result.reason?.message || 'Unknown error');
-      }
-    }
+    const diffs: Array<{ key: string; diff: PreflightDiff }> = [
+      ...fulfilled.values(),
+    ];
+    const failures: string[] = [...rejected.values()].map(
+      (error) => error.message || 'Unknown error',
+    );
 
     if (failures.length > 0) {
       console.log(chalk.red.bold('\n❌ Failed to gather pre-flight diffs:'));

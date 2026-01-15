@@ -10,7 +10,7 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, toWei } from '@hyperlane-xyz/utils';
+import { eqAddress, mapAllSettled, toWei } from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
@@ -331,38 +331,35 @@ export class Rebalancer implements IRebalancer {
     );
 
     // 1. Estimate gas
-    const gasEstimateResults = await Promise.allSettled(
-      transactions.map(async (transaction) => {
+    const { fulfilled, rejected } = await mapAllSettled(
+      transactions,
+      async (transaction) => {
         await this.multiProvider.estimateGas(
           transaction.route.origin,
           transaction.populatedTx,
         );
         return transaction;
-      }),
+      },
+      (_, i) => i,
     );
 
     // 2. Filter out failed transactions and log errors
-    const validTransactions: PreparedTransaction[] = [];
-    let gasEstimationFailures = 0;
-    gasEstimateResults.forEach((result, i) => {
-      if (result.status === 'fulfilled') {
-        validTransactions.push(result.value);
-      } else {
-        gasEstimationFailures++;
-        const failedTransaction = transactions[i];
-        this.logger.error(
-          {
-            origin: failedTransaction.route.origin,
-            destination: failedTransaction.route.destination,
-            amount:
-              failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
-            tokenName: failedTransaction.originTokenAmount.token.name,
-            error: result.reason,
-          },
-          'Gas estimation failed for route.',
-        );
-      }
-    });
+    const validTransactions = Array.from(fulfilled.values());
+    const gasEstimationFailures = rejected.size;
+    for (const [i, error] of rejected) {
+      const failedTransaction = transactions[i];
+      this.logger.error(
+        {
+          origin: failedTransaction.route.origin,
+          destination: failedTransaction.route.destination,
+          amount:
+            failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
+          tokenName: failedTransaction.originTokenAmount.token.name,
+          error,
+        },
+        'Gas estimation failed for route.',
+      );
+    }
 
     if (validTransactions.length === 0) {
       this.logger.info('No transactions to execute after gas estimation.');
