@@ -3,12 +3,13 @@ pragma solidity >=0.8.0;
 
 import {ITokenFee, Quote} from "../../interfaces/ITokenBridge.sol";
 import {BaseFee, FeeType} from "./BaseFee.sol";
+import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
 
 /**
  * @title RoutingFee
  * @notice Implements ITokenFee, allowing per-destination fee contracts. Returns 0 fee for destinations not configured.
  */
-contract RoutingFee is BaseFee {
+contract RoutingFee is BaseFee, EnumerableDomainSet {
     constructor(
         address _token,
         address _owner
@@ -28,6 +29,7 @@ contract RoutingFee is BaseFee {
         address feeContract
     ) external onlyOwner {
         feeContracts[destination] = feeContract;
+        _addDomain(destination);
         emit FeeContractSet(destination, feeContract);
     }
 
