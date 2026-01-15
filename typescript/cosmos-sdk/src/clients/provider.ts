@@ -20,6 +20,12 @@ import {
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
 import {
+  getCreateIgpTx,
+  getCreateMerkleTreeHookTx,
+  getSetIgpDestinationGasConfigTx,
+  getSetIgpOwnerTx,
+} from '../hook/hook-tx.js';
+import {
   type MsgCreateMailboxEncodeObject,
   type MsgSetMailboxEncodeObject,
 } from '../hyperlane/core/messages.js';
@@ -522,60 +528,32 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<MsgCreateMerkleTreeHookEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateMerkleTreeHook.proto.type,
-      value: R.MsgCreateMerkleTreeHook.proto.converter.create({
-        owner: req.signer,
-        mailbox_id: req.mailboxAddress,
-      }),
-    };
+    return getCreateMerkleTreeHookTx(req.signer, req.mailboxAddress);
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<MsgCreateIgpEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateIgp.proto.type,
-      value: R.MsgCreateIgp.proto.converter.create({
-        owner: req.signer,
-        denom: req.denom,
-      }),
-    };
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+    return getCreateIgpTx(req.signer, req.denom);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<MsgSetIgpOwnerEncodeObject> {
-    return {
-      typeUrl: R.MsgSetIgpOwner.proto.type,
-      value: R.MsgSetIgpOwner.proto.converter.create({
-        owner: req.signer,
-        igp_id: req.hookAddress,
-        new_owner: req.newOwner,
-        renounce_ownership: !req.newOwner,
-      }),
-    };
+    return getSetIgpOwnerTx(req.signer, {
+      igpAddress: req.hookAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<MsgSetDestinationGasConfigEncodeObject> {
-    return {
-      typeUrl: R.MsgSetDestinationGasConfig.proto.type,
-      value: R.MsgSetDestinationGasConfig.proto.converter.create({
-        owner: req.signer,
-        igp_id: req.hookAddress,
-        destination_gas_config: {
-          remote_domain: req.destinationGasConfig.remoteDomainId,
-          gas_overhead: req.destinationGasConfig.gasOverhead,
-          gas_oracle: {
-            token_exchange_rate:
-              req.destinationGasConfig.gasOracle.tokenExchangeRate,
-            gas_price: req.destinationGasConfig.gasOracle.gasPrice,
-          },
-        },
-      }),
-    };
+    return getSetIgpDestinationGasConfigTx(req.signer, {
+      igpAddress: req.hookAddress,
+      destinationGasConfig: req.destinationGasConfig,
+    });
   }
 
   async getRemoveDestinationGasConfigTransaction(
