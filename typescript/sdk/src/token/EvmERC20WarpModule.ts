@@ -1,6 +1,6 @@
 // import { expect } from 'chai';
 import { compareVersions } from 'compare-versions';
-import { BigNumberish } from 'ethers';
+import { BigNumberish, constants } from 'ethers';
 import { UINT_256_MAX } from 'starknet';
 
 import {
@@ -970,7 +970,6 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         chainName: this.chainName,
       });
 
-      // Create a new EvmTokenFeeModule to deploy the token fee
       const tokenFeeModule = await EvmTokenFeeModule.create({
         multiProvider: this.multiProvider,
         chain: this.chainName,
@@ -978,6 +977,25 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         contractVerifier: this.contractVerifier,
       });
       const { deployedFee } = tokenFeeModule.serialize();
+
+      // Check if fee recipient is already set correctly on-chain
+      const tokenRouter = TokenRouter__factory.connect(
+        routerAddress,
+        this.multiProvider.getProvider(this.chainId),
+      );
+      const currentFeeRecipient = await tokenRouter
+        .feeRecipient()
+        .catch((error) => {
+          this.logger.warn(
+            `Failed to read feeRecipient, defaulting to generate setFeeRecipient tx`,
+            error,
+          );
+          return constants.AddressZero;
+        });
+
+      if (eqAddress(currentFeeRecipient, deployedFee)) {
+        return [];
+      }
 
       return [
         {
@@ -1011,15 +1029,19 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       tokenReaderParams,
     );
     const { deployedFee } = tokenFeeModule.serialize();
-    updateTransactions.push({
-      annotation: 'Updating routing fee...',
-      chainId: this.chainId,
-      to: this.args.addresses.deployedTokenRoute,
-      data: TokenRouter__factory.createInterface().encodeFunctionData(
-        'setFeeRecipient(address)',
-        [deployedFee],
-      ),
-    });
+
+    // Only call setFeeRecipient if the fee recipient address has changed
+    if (!eqAddress(currentTokenFee.address, deployedFee)) {
+      updateTransactions.push({
+        annotation: 'Updating routing fee...',
+        chainId: this.chainId,
+        to: this.args.addresses.deployedTokenRoute,
+        data: TokenRouter__factory.createInterface().encodeFunctionData(
+          'setFeeRecipient(address)',
+          [deployedFee],
+        ),
+      });
+    }
     return updateTransactions;
   }
 

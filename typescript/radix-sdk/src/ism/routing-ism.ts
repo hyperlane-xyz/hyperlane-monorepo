@@ -85,6 +85,7 @@ export class RadixRoutingIsmRawWriter
     ]
   > {
     const { config } = artifact;
+    const receipts: TxReceipt[] = [];
 
     const routes = Object.entries(config.domains).map(
       ([domainId, ismAddress]) => ({
@@ -100,7 +101,24 @@ export class RadixRoutingIsmRawWriter
     );
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    receipts.push(receipt);
     const address = await this.base.getNewComponent(receipt);
+
+    // Transfer ownership if config.owner differs from signer
+    if (!eqAddressRadix(config.owner, this.signer.getAddress())) {
+      const ownerTransferTx = await getSetRoutingIsmOwnerTx(
+        this.base,
+        this.gateway,
+        this.signer.getAddress(),
+        {
+          ismAddress: address,
+          newOwner: config.owner,
+        },
+      );
+
+      const ownerReceipt = await this.signer.signAndBroadcast(ownerTransferTx);
+      receipts.push(ownerReceipt);
+    }
 
     const deployedArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
@@ -113,7 +131,7 @@ export class RadixRoutingIsmRawWriter
       },
     };
 
-    return [deployedArtifact, [receipt]];
+    return [deployedArtifact, receipts];
   }
 
   async update(

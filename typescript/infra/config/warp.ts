@@ -59,6 +59,12 @@ import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/co
 import { getEclipseUSDCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import { getEclipseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
+import {
+  getEniEthWarpConfig,
+  getEniUsdcWarpConfig,
+  getEniUsdtWarpConfig,
+  getEniWbtcWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getEniWarpConfigs.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
 import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
@@ -190,6 +196,10 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.CarrChainUSDC]: getCarchainnUSDCWarpConfig,
   [WarpRouteIds.CarrChainUSDT]: getCarchainnUSDTWarpConfig,
   [WarpRouteIds.CarrChainWBTC]: getCarchainnWBTCWarpConfig,
+  [WarpRouteIds.EniETH]: getEniEthWarpConfig,
+  [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
+  [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
+  [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;

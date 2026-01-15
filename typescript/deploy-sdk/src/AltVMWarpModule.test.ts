@@ -36,9 +36,37 @@ const mockIsmArtifactManager = {
       deployed: { address: '0x1234' },
     }),
   }),
-  createWriter: () => {
-    throw new Error('Not implemented');
-  },
+  createWriter: (type: any, signer: any) => ({
+    create: async (artifact: any) => {
+      // Call the appropriate signer method based on ISM type
+      let ismAddress: string;
+      if (type === AltVM.IsmType.MESSAGE_ID_MULTISIG) {
+        const result = await signer.createMessageIdMultisigIsm({
+          validators: artifact.config.validators,
+          threshold: artifact.config.threshold,
+        });
+        ismAddress = result.ismAddress;
+      } else if (type === AltVM.IsmType.MERKLE_ROOT_MULTISIG) {
+        const result = await signer.createMerkleRootMultisigIsm({
+          validators: artifact.config.validators,
+          threshold: artifact.config.threshold,
+        });
+        ismAddress = result.ismAddress;
+      } else {
+        throw new Error(`Unsupported ISM type: ${type}`);
+      }
+
+      return [
+        {
+          artifactState: 'DEPLOYED',
+          config: artifact.config,
+          deployed: { address: ismAddress },
+        },
+        [], // No receipts for mock
+      ];
+    },
+    update: async () => [],
+  }),
 };
 
 // Mock protocol provider

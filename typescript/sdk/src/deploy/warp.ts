@@ -3,8 +3,9 @@ import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArt
 import {
   AltVMDeployer,
   AltVMHookModule,
-  AltVMIsmModule,
   AltVMWarpModule,
+  createIsmWriter,
+  ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
@@ -271,18 +272,16 @@ async function createWarpIsm({
     }
     default: {
       const signer = mustGet(altVmSigners, chain);
-      const ismModule = await AltVMIsmModule.create({
-        chain,
-        addresses: {
-          mailbox: chainAddresses.mailbox,
-        },
+      const chainLookup = altVmChainLookup(multiProvider);
+      const chainMetadata = chainLookup.getChainMetadata(chain);
+      const writer = createIsmWriter(chainMetadata, chainLookup, signer);
+      const artifact = ismConfigToArtifact(
         // FIXME: not all ISM types are supported yet
-        config: interchainSecurityModule as ProviderIsmConfig | string,
-        chainLookup: altVmChainLookup(multiProvider),
-        signer,
-      });
-      const { deployedIsm } = ismModule.serialize();
-      return deployedIsm;
+        interchainSecurityModule as ProviderIsmConfig,
+        chainLookup,
+      );
+      const [deployed] = await writer.create(artifact);
+      return deployed.deployed.address;
     }
   }
 }
@@ -393,8 +392,6 @@ export async function enrollCrossChainRouters(
     ...config,
   }));
 
-  const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
-
   const supportedChains = Object.keys(
     objFilter(
       resolvedConfigMap,
@@ -402,52 +399,42 @@ export async function enrollCrossChainRouters(
     ),
   );
 
-  for (const currentChain of supportedChains) {
-    const protocol = multiProvider.getProtocol(currentChain);
+  // Process all chains in parallel since they are independent
+  const settledResults = await Promise.allSettled(
+    supportedChains.map(async (currentChain) => {
+      const protocol = multiProvider.getProtocol(currentChain);
 
-    const remoteRouters: RemoteRouters = Object.fromEntries(
-      Object.entries(deployedContracts)
-        .filter(([chain, _address]) => chain !== currentChain)
-        .map(([chain, address]) => [
-          multiProvider.getDomainId(chain).toString(),
-          {
-            address: addressToBytes32(address),
-          },
-        ]),
-    );
-
-    const destinationGas: DestinationGas = Object.fromEntries(
-      Object.entries(deployedContracts)
-        .filter(([chain, _address]) => chain !== currentChain)
-        .map(([chain, _address]) => [
-          multiProvider.getDomainId(chain).toString(),
-          resolvedConfigMap[chain].gas.toString(),
-        ]),
-    );
-
-    for (const domainId of Object.keys(remoteRouters)) {
-      rootLogger.debug(
-        `Creating enroll remote router transactions with remote domain id ${domainId} and address ${remoteRouters[domainId]} on chain ${currentChain}`,
+      const remoteRouters: RemoteRouters = Object.fromEntries(
+        Object.entries(deployedContracts)
+          .filter(([chain, _address]) => chain !== currentChain)
+          .map(([chain, address]) => [
+            multiProvider.getDomainId(chain).toString(),
+            {
+              address: addressToBytes32(address),
+            },
+          ]),
       );
-    }
 
-    switch (protocol) {
-      case ProtocolType.Ethereum: {
-        const {
-          domainRoutingIsmFactory,
-          staticMerkleRootMultisigIsmFactory,
-          staticMessageIdMultisigIsmFactory,
-          staticAggregationIsmFactory,
-          staticAggregationHookFactory,
-          staticMerkleRootWeightedMultisigIsmFactory,
-          staticMessageIdWeightedMultisigIsmFactory,
-        } = registryAddresses[currentChain];
+      const destinationGas: DestinationGas = Object.fromEntries(
+        Object.entries(deployedContracts)
+          .filter(([chain, _address]) => chain !== currentChain)
+          .map(([chain, _address]) => [
+            multiProvider.getDomainId(chain).toString(),
+            resolvedConfigMap[chain].gas.toString(),
+          ]),
+      );
 
-        const evmWarpModule = new EvmERC20WarpModule(multiProvider, {
-          chain: currentChain,
-          config: resolvedConfigMap[currentChain],
-          addresses: {
-            deployedTokenRoute: deployedContracts[currentChain],
+      for (const domainId of Object.keys(remoteRouters)) {
+        rootLogger.debug(
+          `Creating enroll remote router transactions with remote domain id ${domainId} and address ${remoteRouters[domainId]} on chain ${currentChain}`,
+        );
+      }
+
+      let transactions: TypedAnnotatedTransaction[] = [];
+
+      switch (protocol) {
+        case ProtocolType.Ethereum: {
+          const {
             domainRoutingIsmFactory,
             staticMerkleRootMultisigIsmFactory,
             staticMessageIdMultisigIsmFactory,
@@ -455,63 +442,100 @@ export async function enrollCrossChainRouters(
             staticAggregationHookFactory,
             staticMerkleRootWeightedMultisigIsmFactory,
             staticMessageIdWeightedMultisigIsmFactory,
-          },
-        });
+          } = registryAddresses[currentChain];
 
-        const actualConfig = await evmWarpModule.read();
-        const expectedConfig: HypTokenRouterConfig = {
-          ...actualConfig,
-          owner: resolvedConfigMap[currentChain].owner,
-          remoteRouters,
-          destinationGas,
-        };
-
-        const transactions = await evmWarpModule.update(expectedConfig, {
-          routingDestinations: Object.keys(remoteRouters).map((domain) =>
-            parseInt(domain, 10),
-          ),
-        });
-
-        if (transactions.length) {
-          updateTransactions[currentChain] = transactions;
-        }
-
-        break;
-      }
-      default: {
-        const signer = mustGet(altVmSigners, currentChain);
-
-        const warpModule = new AltVMWarpModule(
-          altVmChainLookup(multiProvider),
-          signer,
-          {
+          const evmWarpModule = new EvmERC20WarpModule(multiProvider, {
             chain: currentChain,
-            config: resolvedConfigMap[currentChain] as ProviderWarpConfig,
+            config: resolvedConfigMap[currentChain],
             addresses: {
               deployedTokenRoute: deployedContracts[currentChain],
+              domainRoutingIsmFactory,
+              staticMerkleRootMultisigIsmFactory,
+              staticMessageIdMultisigIsmFactory,
+              staticAggregationIsmFactory,
+              staticAggregationHookFactory,
+              staticMerkleRootWeightedMultisigIsmFactory,
+              staticMessageIdWeightedMultisigIsmFactory,
             },
-          },
-        );
-        const actualConfig = await warpModule.read();
-        const expectedConfig: HypTokenRouterConfig = {
-          ...actualConfig,
-          owner: resolvedConfigMap[currentChain].owner,
-          remoteRouters,
-          destinationGas,
-        };
+          });
 
-        const transactions = await warpModule.update(
-          expectedConfig as ProviderWarpConfig,
-        );
+          const actualConfig = await evmWarpModule.read();
+          const expectedConfig: HypTokenRouterConfig = {
+            ...actualConfig,
+            owner: resolvedConfigMap[currentChain].owner,
+            remoteRouters,
+            destinationGas,
+          };
 
-        if (transactions.length) {
-          updateTransactions[currentChain] = transactions;
+          transactions = await evmWarpModule.update(expectedConfig, {
+            routingDestinations: Object.keys(remoteRouters).map((domain) =>
+              parseInt(domain, 10),
+            ),
+          });
+
+          break;
+        }
+        default: {
+          const signer = mustGet(altVmSigners, currentChain);
+
+          const warpModule = new AltVMWarpModule(
+            altVmChainLookup(multiProvider),
+            signer,
+            {
+              chain: currentChain,
+              config: resolvedConfigMap[currentChain] as ProviderWarpConfig,
+              addresses: {
+                deployedTokenRoute: deployedContracts[currentChain],
+              },
+            },
+          );
+          const actualConfig = await warpModule.read();
+          const expectedConfig: HypTokenRouterConfig = {
+            ...actualConfig,
+            owner: resolvedConfigMap[currentChain].owner,
+            remoteRouters,
+            destinationGas,
+          };
+
+          transactions = await warpModule.update(
+            expectedConfig as ProviderWarpConfig,
+          );
         }
       }
-    }
 
-    rootLogger.debug(
-      `Created enroll router update transactions for chain ${currentChain}`,
+      rootLogger.debug(
+        `Created enroll router update transactions for chain ${currentChain}`,
+      );
+
+      return { chain: currentChain, transactions };
+    }),
+  );
+
+  // Process settled results and collect transactions
+  const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
+  const errors: string[] = [];
+
+  settledResults.forEach((result, index) => {
+    const chain = supportedChains[index];
+    if (result.status === 'fulfilled') {
+      if (result.value.transactions.length) {
+        updateTransactions[result.value.chain] = result.value.transactions;
+      }
+    } else {
+      const errorMessage =
+        result.reason instanceof Error
+          ? result.reason.message
+          : String(result.reason);
+      rootLogger.error(
+        `Failed to create enroll router transactions for chain ${chain}: ${errorMessage}`,
+      );
+      errors.push(`${chain}: ${errorMessage}`);
+    }
+  });
+
+  if (errors.length > 0) {
+    throw new Error(
+      `Failed to create router enrollment transactions for ${errors.length} chain(s): ${errors.join('; ')}`,
     );
   }
 

@@ -11,18 +11,21 @@ import {
   type RawIsmArtifactConfigs,
   altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import {
-  type AnnotatedTx,
-  type TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { type AleoSigner } from '../clients/signer.js';
 import { AleoIsmType } from '../utils/types.js';
 
 import { getIsmType } from './ism-query.js';
-import { AleoMessageIdMultisigIsmReader } from './multisig-ism.js';
-import { AleoRoutingIsmRawReader } from './routing-ism.js';
-import { AleoTestIsmReader } from './test-ism.js';
+import {
+  AleoMessageIdMultisigIsmReader,
+  AleoMessageIdMultisigIsmWriter,
+} from './multisig-ism.js';
+import {
+  AleoRoutingIsmRawReader,
+  AleoRoutingIsmRawWriter,
+} from './routing-ism.js';
+import { AleoTestIsmReader, AleoTestIsmWriter } from './test-ism.js';
 
 /**
  * Maps Aleo-specific ISM type values to provider-sdk ISM types.
@@ -87,10 +90,35 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
 
   createWriter<T extends IsmType>(
     type: T,
-    _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    signer: AleoSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    throw new Error(
-      `ISM writers not yet implemented for Aleo (requested type: ${type})`,
-    );
+    switch (type) {
+      case AltVM.IsmType.TEST_ISM:
+        return new AleoTestIsmWriter(
+          this.aleoClient,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
+        return new AleoMessageIdMultisigIsmWriter(
+          this.aleoClient,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.ROUTING:
+        return new AleoRoutingIsmRawWriter(
+          this.aleoClient,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      default:
+        throw new Error(`Unsupported ISM type: ${type}`);
+    }
   }
 }

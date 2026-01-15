@@ -125,4 +125,10 @@ export enum WarpRouteIds {
   CarrChainUSDC = 'USDC/carrchain',
   CarrChainUSDT = 'USDT/carrchain',
   CarrChainWBTC = 'WBTC/carrchain',
+
+  // ENI routes
+  EniETH = 'ETH/eni',
+  EniWBTC = 'WBTC/eni',
+  EniUSDC = 'USDC/eni',
+  EniUSDT = 'USDT/eni',
 }
