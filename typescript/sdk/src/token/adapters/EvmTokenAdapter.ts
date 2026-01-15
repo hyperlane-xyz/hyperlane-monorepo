@@ -1,5 +1,6 @@
 import {
   BigNumber,
+  Contract,
   PopulatedTransaction,
   constants as ethersConstants,
 } from 'ethers';
@@ -52,6 +53,8 @@ import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
+import type { GetPermitDataParams, PopulatePermitTxParams } from '../permit.js';
+import { PERMIT_TYPES, PermitData } from '../permit.js';
 import { TokenMetadata } from '../types.js';
 
 import {
@@ -76,6 +79,13 @@ import {
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
 export const EVM_TRANSFER_REMOTE_GAS_ESTIMATE = 450_000n;
 const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
+
+const ERC2612_PERMIT_ABI = [
+  'function permit(address owner, address spender, uint256 value, uint256 deadline, uint8 v, bytes32 r, bytes32 s)',
+  'function nonces(address owner) view returns (uint256)',
+  'function DOMAIN_SEPARATOR() view returns (bytes32)',
+  'function version() view returns (string)',
+];
 
 // Interacts with native currencies
 export class EvmNativeTokenAdapter
@@ -215,6 +225,97 @@ export class EvmTokenAdapter<T extends ERC20 = ERC20>
   async getTotalSupply(): Promise<bigint> {
     const totalSupply = await this.contract.totalSupply();
     return totalSupply.toBigInt();
+  }
+
+  async supportsPermit(): Promise<boolean> {
+    try {
+      const permitContract = new Contract(
+        this.addresses.token,
+        ERC2612_PERMIT_ABI,
+        this.getProvider(),
+      );
+      await permitContract.DOMAIN_SEPARATOR();
+      return true;
+    } catch {
+      return false;
+    }
+  }
+
+  async getPermitNonce(owner: Address): Promise<bigint> {
+    const permitContract = new Contract(
+      this.addresses.token,
+      ERC2612_PERMIT_ABI,
+      this.getProvider(),
+    );
+    const nonce = await permitContract.nonces(owner);
+    return BigInt(nonce.toString());
+  }
+
+  async getPermitData({
+    owner,
+    spender,
+    amount,
+    deadline,
+  }: GetPermitDataParams): Promise<PermitData> {
+    const permitContract = new Contract(
+      this.addresses.token,
+      ERC2612_PERMIT_ABI,
+      this.getProvider(),
+    );
+
+    const [name, nonce, chainId] = await Promise.all([
+      this.contract.name(),
+      permitContract.nonces(owner),
+      this.multiProvider.getChainMetadata(this.chainName).chainId,
+    ]);
+
+    let version = '1';
+    try {
+      version = await permitContract.version();
+    } catch {
+      // Most tokens use version "1" if version() is not implemented
+    }
+
+    return {
+      domain: {
+        name,
+        version,
+        chainId: chainId as number,
+        verifyingContract: this.addresses.token,
+      },
+      message: {
+        owner,
+        spender,
+        value: amount.toString(),
+        nonce: BigInt(nonce.toString()),
+        deadline,
+      },
+      types: PERMIT_TYPES,
+    };
+  }
+
+  async populatePermitTx({
+    owner,
+    spender,
+    amount,
+    deadline,
+    signature,
+  }: PopulatePermitTxParams): Promise<PopulatedTransaction> {
+    const permitContract = new Contract(
+      this.addresses.token,
+      ERC2612_PERMIT_ABI,
+      this.getProvider(),
+    );
+
+    return permitContract.populateTransaction.permit(
+      owner,
+      spender,
+      amount.toString(),
+      deadline,
+      signature.v,
+      signature.r,
+      signature.s,
+    );
   }
 }
 

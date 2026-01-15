@@ -49,6 +49,7 @@ export type RouteBlacklist = Array<{
 // Transaction types for warp core remote transfers
 export enum WarpTxCategory {
   Approval = 'approval',
+  Permit = 'permit',
   Revoke = 'revoke',
   Transfer = 'transfer',
 }

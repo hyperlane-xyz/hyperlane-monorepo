@@ -39,6 +39,7 @@ import {
   IHypXERC20Adapter,
   InterchainGasQuote,
 } from '../token/adapters/ITokenAdapter.js';
+import type { PermitSignature } from '../token/permit.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 
 import {
@@ -356,6 +357,7 @@ export class WarpCore {
   /**
    * Gets a list of populated transactions required to transfer a token to a remote chain
    * Typically just 1 transaction but sometimes more, like when an approval is required first
+   * If permitSignature is provided, uses ERC-2612 permit instead of approve (single tx)
    */
   async getTransferRemoteTxs({
     originTokenAmount,
@@ -364,6 +366,7 @@ export class WarpCore {
     recipient,
     interchainFee,
     tokenFeeQuote,
+    permitSignature,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
@@ -371,6 +374,7 @@ export class WarpCore {
     recipient: Address;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    permitSignature?: PermitSignature;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -401,53 +405,79 @@ export class WarpCore {
       },
     };
 
-    const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
-      this.isApproveRequired({
-        originTokenAmount,
-        owner: sender,
-      }),
-      hypAdapter.isRevokeApprovalRequired(
-        sender,
-        originTokenAmount.token.addressOrDenom,
-      ),
-    ]);
+    // If permit signature provided, use ERC-2612 permit instead of traditional approve
+    if (permitSignature) {
+      const adapter = token.getAdapter(this.multiProvider);
+      if (adapter.populatePermitTx) {
+        const feeQuote = tokenFeeQuote?.amount ?? 0n;
+        const amountToApprove = amount + feeQuote;
 
-    const preTransferRemoteTxs: [Numberish, WarpTxCategory][] = [];
-    // if the approval is required and the current allowance is not 0 we reset
-    // the allowance before setting the right approval as some tokens don't allow
-    // to override an already existing allowance. USDT is one of these tokens
-    // see: https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7#code#L205
-    if (isApproveRequired && isRevokeApprovalRequired) {
-      preTransferRemoteTxs.push([0, WarpTxCategory.Revoke]);
-    }
+        this.logger.info(`Using permit for transfer of ${token.symbol}`);
+        const permitTxReq = await adapter.populatePermitTx({
+          owner: sender,
+          spender: token.addressOrDenom,
+          amount: amountToApprove,
+          deadline: permitSignature.deadline,
+          signature: permitSignature,
+        });
+        this.logger.debug(`Permit tx for ${token.symbol} populated`);
 
-    if (isApproveRequired) {
-      // feeQuote is required to be approved for routes that have fees set
-      const feeQuote = tokenFeeQuote?.amount ?? 0n;
-      const amountToApprove = amount + feeQuote;
-      preTransferRemoteTxs.push([
-        amountToApprove.toString(),
-        WarpTxCategory.Approval,
+        transactions.push({
+          category: WarpTxCategory.Permit,
+          type: providerType,
+          transaction: permitTxReq,
+        } as WarpTypedTransaction);
+      }
+    } else {
+      // Traditional approval flow
+      const [isApproveRequired, isRevokeApprovalRequired] = await Promise.all([
+        this.isApproveRequired({
+          originTokenAmount,
+          owner: sender,
+        }),
+        hypAdapter.isRevokeApprovalRequired(
+          sender,
+          originTokenAmount.token.addressOrDenom,
+        ),
       ]);
-    }
 
-    for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
-      this.logger.info(
-        `${txCategory} required for transfer of ${token.symbol}`,
-      );
-      const approveTxReq = await hypAdapter.populateApproveTx({
-        weiAmountOrId: approveAmount,
-        recipient: token.addressOrDenom,
-        interchainGas,
-      });
-      this.logger.debug(`${txCategory} tx for ${token.symbol} populated`);
+      const preTransferRemoteTxs: [Numberish, WarpTxCategory][] = [];
+      // if the approval is required and the current allowance is not 0 we reset
+      // the allowance before setting the right approval as some tokens don't allow
+      // to override an already existing allowance. USDT is one of these tokens
+      // see: https://etherscan.io/token/0xdac17f958d2ee523a2206206994597c13d831ec7#code#L205
+      if (isApproveRequired && isRevokeApprovalRequired) {
+        preTransferRemoteTxs.push([0, WarpTxCategory.Revoke]);
+      }
 
-      const approveTx = {
-        category: txCategory,
-        type: providerType,
-        transaction: approveTxReq,
-      } as WarpTypedTransaction;
-      transactions.push(approveTx);
+      if (isApproveRequired) {
+        // feeQuote is required to be approved for routes that have fees set
+        const feeQuote = tokenFeeQuote?.amount ?? 0n;
+        const amountToApprove = amount + feeQuote;
+        preTransferRemoteTxs.push([
+          amountToApprove.toString(),
+          WarpTxCategory.Approval,
+        ]);
+      }
+
+      for (const [approveAmount, txCategory] of preTransferRemoteTxs) {
+        this.logger.info(
+          `${txCategory} required for transfer of ${token.symbol}`,
+        );
+        const approveTxReq = await hypAdapter.populateApproveTx({
+          weiAmountOrId: approveAmount,
+          recipient: token.addressOrDenom,
+          interchainGas,
+        });
+        this.logger.debug(`${txCategory} tx for ${token.symbol} populated`);
+
+        const approveTx = {
+          category: txCategory,
+          type: providerType,
+          transaction: approveTxReq,
+        } as WarpTypedTransaction;
+        transactions.push(approveTx);
+      }
     }
 
     // if the interchain fee is of protocol starknet we also have
