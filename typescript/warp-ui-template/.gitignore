@@ -1,0 +1,39 @@
+# dependencies
+/node_modules
+cache/
+.pnpm-store/
+
+# testing
+/coverage
+coverage.json
+/test/outputs
+
+# next.js
+/.next/
+/out/
+
+# production
+/src/context/*.json
+/artifacts
+/build
+/dist
+
+# misc
+.DS_Store
+*.pem
+
+# debug
+npm-debug.log*
+.pnpm-debug.log*
+
+# local env files
+.env*
+!.env.example
+
+# vercel
+.vercel
+
+# typescript
+*.tsbuildinfo
+
+.idea
