@@ -9,7 +9,13 @@ import {
   getIgpHookConfig,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
-import { getCreateMerkleTreeHookTx } from '../hook/hook-tx.js';
+import {
+  getCreateIgpHookTx,
+  getCreateMerkleTreeHookTx,
+  getRemoveDestinationGasConfigTx,
+  getSetDestinationGasConfigTx,
+  getSetIgpHookOwnerTx,
+} from '../hook/hook-tx.js';
 import {
   getIsmType,
   getMessageIdMultisigIsmConfig,
@@ -715,64 +721,38 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<AleoTransaction> {
     const { programId } = fromAleoAddress(req.mailboxAddress);
+    const suffix = getProgramSuffix(programId);
 
-    return {
-      programName: getProgramIdFromSuffix(
-        this.prefix,
-        'hook_manager',
-        getProgramSuffix(programId),
-      ),
-      functionName: 'init_igp',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [],
-    };
+    const hookManagerProgramId = getProgramIdFromSuffix(
+      this.prefix,
+      'hook_manager',
+      suffix,
+    );
+
+    return getCreateIgpHookTx(hookManagerProgramId);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    return {
-      programName: programId,
-      functionName: 'transfer_igp_ownership',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, req.newOwner],
-    };
+    return getSetIgpHookOwnerTx(req.hookAddress, req.newOwner);
   }
 
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    return {
-      programName: programId,
-      functionName: 'set_destination_gas_config',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        address,
-        `${req.destinationGasConfig.remoteDomainId}u32`,
-        `{gas_overhead:${req.destinationGasConfig.gasOverhead}u128,exchange_rate:${req.destinationGasConfig.gasOracle.tokenExchangeRate}u128,gas_price:${req.destinationGasConfig.gasOracle.gasPrice}u128}`,
-      ],
-    };
+    return getSetDestinationGasConfigTx(req.hookAddress, {
+      remoteDomainId: req.destinationGasConfig.remoteDomainId,
+      gasOverhead: req.destinationGasConfig.gasOverhead,
+      tokenExchangeRate: req.destinationGasConfig.gasOracle.tokenExchangeRate,
+      gasPrice: req.destinationGasConfig.gasOracle.gasPrice,
+    });
   }
 
   async getRemoveDestinationGasConfigTransaction(
     req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    return {
-      programName: programId,
-      functionName: 'remove_destination_gas_config',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, `${req.remoteDomainId}u32`],
-    };
+    return getRemoveDestinationGasConfigTx(req.hookAddress, req.remoteDomainId);
   }
 
   async getCreateNoopHookTransaction(
