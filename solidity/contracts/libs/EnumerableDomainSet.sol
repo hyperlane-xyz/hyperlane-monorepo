@@ -47,7 +47,7 @@ abstract contract EnumerableDomainSet is IEnumerableDomains {
 
     // keccak256(abi.encode(uint256(keccak256("hyperlane.storage.EnumerableDomainSet")) - 1)) & ~bytes32(uint256(0xff))
     bytes32 private constant DOMAIN_SET_STORAGE_LOCATION =
-        0x401ab19a9fb8dc7fa26ffcc89668c40f221f16a983a5a473a4f0c5e49ab97b00;
+        0xdcbc515942dd8ef153d6dc57820c8985f8a2facbcec06feacd3986bb6c43ef00;
 
     function _getDomainSetStorage()
         private
