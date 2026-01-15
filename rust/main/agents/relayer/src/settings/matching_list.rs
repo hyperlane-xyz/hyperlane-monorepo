@@ -448,6 +448,8 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
     use hyperlane_core::{H160, H256};
 
     use super::{Filter::*, MatchingList};
@@ -592,6 +594,34 @@ mod test {
         assert!(MatchingList(None).matches(&info, true));
         // blacklist use
         assert!(!MatchingList(None).matches(&info, false));
+    }
+
+    #[test]
+    fn matching_list_domain_methods() {
+        let empty = MatchingList(None);
+        assert_eq!(empty.origin_domains(), Some(HashSet::new()));
+        assert_eq!(empty.destination_domains(), Some(HashSet::new()));
+
+        let wildcard_origin: MatchingList = serde_json::from_str(r#"[{"origindomain":"*"}]"#).unwrap();
+        assert_eq!(wildcard_origin.origin_domains(), None);
+
+        let wildcard_destination: MatchingList =
+            serde_json::from_str(r#"[{"destinationdomain":"*"}]"#).unwrap();
+        assert_eq!(wildcard_destination.destination_domains(), None);
+
+        let enumerated_origin: MatchingList =
+            serde_json::from_str(r#"[{"origindomain":[1,2]},{"origindomain":[2,3]}]"#).unwrap();
+        let expected_origin: HashSet<u32> = [1u32, 2, 3].iter().copied().collect();
+        assert_eq!(enumerated_origin.origin_domains(), Some(expected_origin));
+
+        let enumerated_destination: MatchingList =
+            serde_json::from_str(r#"[{"destinationdomain":[10,11]},{"destinationdomain":[11,12]}]"#)
+                .unwrap();
+        let expected_destination: HashSet<u32> = [10u32, 11, 12].iter().copied().collect();
+        assert_eq!(
+            enumerated_destination.destination_domains(),
+            Some(expected_destination)
+        );
     }
 
     #[test]
