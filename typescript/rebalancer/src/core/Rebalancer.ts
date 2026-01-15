@@ -101,17 +101,19 @@ export class Rebalancer implements IRebalancer {
       { numRoutes: routes.length },
       'Preparing all rebalance transactions.',
     );
-    const settledResults = await Promise.allSettled(
-      routes.map((route) => this.prepareTransaction(route)),
+    const { fulfilled, rejected } = await mapAllSettled(
+      routes,
+      (route) => this.prepareTransaction(route),
+      (_, i) => i,
     );
 
-    const preparedTransactions: PreparedTransaction[] = [];
-    for (const result of settledResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        preparedTransactions.push(result.value);
-      }
-    }
-    const preparationFailures = routes.length - preparedTransactions.length;
+    // Filter out null results (validation failures logged internally)
+    const preparedTransactions = Array.from(fulfilled.values()).filter(
+      (tx): tx is PreparedTransaction => tx !== null,
+    );
+    // Count rejections + null results as failures
+    const preparationFailures =
+      rejected.size + (fulfilled.size - preparedTransactions.length);
 
     return { preparedTransactions, preparationFailures };
   }
