@@ -113,7 +113,12 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         quotes = new Quote[](3);
         quotes[0] = Quote({
             token: _feeToken, // address(0) for native, token() for ERC20 payments
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
+            amount: _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _feeToken
+            )
         });
         (, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -162,6 +167,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount
     ) internal virtual returns (bytes32 messageId) {
         address _feeHook = feeHook();
+        address _feeToken = _feeHook != address(0) ? token() : address(0);
 
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
@@ -186,7 +192,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             scaledAmount,
             remainingNativeValue,
             _tokenMessage,
-            _feeHook
+            _feeToken
         );
     }
 
@@ -217,7 +223,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
                 _destination,
                 _recipient,
                 _amount,
-                _feeHook
+                _token
             );
 
             // For collateral routers (token() != address(this)), we can add hook fee to charge
@@ -444,9 +450,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        address _feeHook
+        address _feeToken
     ) internal view virtual returns (uint256) {
-        address _feeToken = _feeHook != address(0) ? token() : address(0);
         return
             _Router_quoteDispatch(
                 _destination,
@@ -462,7 +467,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) internal view virtual returns (uint256) {
-        return _quoteGasPayment(_destination, _recipient, _amount, feeHook());
+        address _feeToken = feeHook() != address(0) ? token() : address(0);
+        return _quoteGasPayment(_destination, _recipient, _amount, _feeToken);
     }
 
     /**
