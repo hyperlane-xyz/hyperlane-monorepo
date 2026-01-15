@@ -2,7 +2,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { AnyAleoNetworkClient } from '../clients/base.js';
-import { queryMappingValue } from '../utils/base-query.js';
+import {
+  queryMappingValue,
+  tryQueryMappingValue,
+} from '../utils/base-query.js';
 import { fromAleoAddress } from '../utils/helper.js';
 import { AleoHookType } from '../utils/types.js';
 
@@ -94,5 +97,102 @@ export async function getMerkleTreeHookConfig(
   return {
     type: AleoHookType.MERKLE_TREE,
     address: hookAddress,
+  };
+}
+
+/**
+ * Query the configuration for an IGP (Interchain Gas Paymaster) hook.
+ *
+ * @param aleoClient - The Aleo network client
+ * @param hookAddress - The full hook address (e.g., "hook_manager.aleo/aleo1...")
+ * @returns The IGP hook configuration with owner and destination gas configs
+ */
+export async function getIgpHookConfig(
+  aleoClient: AnyAleoNetworkClient,
+  hookAddress: string,
+): Promise<{
+  type: AleoHookType.INTERCHAIN_GAS_PAYMASTER;
+  address: string;
+  owner: string;
+  destinationGasConfigs: {
+    [domainId: string]: {
+      gasOracle: {
+        tokenExchangeRate: string;
+        gasPrice: string;
+      };
+      gasOverhead: string;
+    };
+  };
+}> {
+  const hookType = await getHookType(aleoClient, hookAddress);
+
+  assert(
+    hookType === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+    `Expected IGP hook but got ${hookType} at address ${hookAddress}`,
+  );
+
+  const { programId, address } = fromAleoAddress(hookAddress);
+
+  const destinationGasConfigs: {
+    [domainId: string]: {
+      gasOracle: {
+        tokenExchangeRate: string;
+        gasPrice: string;
+      };
+      gasOverhead: string;
+    };
+  } = {};
+
+  const igpData = await queryMappingValue(
+    aleoClient,
+    programId,
+    'igps',
+    address,
+    (raw) => raw as any,
+  );
+  const owner = igpData.hook_owner;
+
+  const gasConfigLength = await tryQueryMappingValue(
+    aleoClient,
+    programId,
+    'destination_gas_config_length',
+    address,
+    (raw) => raw as number,
+  );
+
+  for (let i = 0; i < (gasConfigLength || 0); i++) {
+    const gasConfigKey = await aleoClient.getProgramMappingPlaintext(
+      programId,
+      'destination_gas_config_iter',
+      `{hook:${address},index:${i}u32}`,
+    );
+
+    const destinationGasConfig = await tryQueryMappingValue(
+      aleoClient,
+      programId,
+      'destination_gas_configs',
+      gasConfigKey.toString(),
+      (raw) => raw as any,
+    );
+
+    // This is necessary because `destination_gas_config_iter` maintains keys for all destination domain entries,
+    // including those from domains that have already been removed. When a domain is
+    // deleted from the Destination Gas Configs, its key remains in the map and `destination_gas_configs` simply returns null.
+    if (!destinationGasConfig) continue;
+
+    destinationGasConfigs[gasConfigKey.toObject().destination] = {
+      gasOracle: {
+        tokenExchangeRate: destinationGasConfig.exchange_rate.toString(),
+        gasPrice: destinationGasConfig.gas_price.toString(),
+      },
+      gasOverhead: destinationGasConfig.gas_overhead.toString(),
+    };
+  }
+
+  return {
+    type: AleoHookType.INTERCHAIN_GAS_PAYMASTER,
+    address: hookAddress,
+    owner,
+    destinationGasConfigs,
   };
 }
