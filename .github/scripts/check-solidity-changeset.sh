@@ -10,52 +10,35 @@ REQUIRED_LEVEL=${1:-}
 PACKAGE="@hyperlane-xyz/core"
 
 if [ -z "$REQUIRED_LEVEL" ]; then
-  echo "Usage: check-solidity-changeset.sh <patch|minor|major>"
-  exit 1
+	echo "Usage: check-solidity-changeset.sh <patch|minor|major>"
+	exit 1
 fi
 
-# Map levels to numeric values for comparison
+# Get changeset status as JSON
+# Note: changeset status --output requires a path relative to repo root
+STATUS_FILE=".changeset-status-$$.json"
+trap "rm -f $STATUS_FILE" EXIT
+# changeset status exits non-zero when there are pending changesets, so ignore exit code
+pnpm changeset status --output "$STATUS_FILE" 2>/dev/null || true
+
+# Extract bump type for the package (only if it has explicit changesets, not transitive)
+FOUND_LEVEL=$(jq -r --arg pkg "$PACKAGE" '.releases[] | select(.name == $pkg and (.changesets | length > 0)) | .type' "$STATUS_FILE")
+
+# Map levels to numbers
 level_to_num() {
-  case "$1" in
-  patch) echo 1 ;;
-  minor) echo 2 ;;
-  major) echo 3 ;;
-  *) echo 0 ;;
-  esac
+	case "$1" in
+	patch) echo 1 ;; minor) echo 2 ;; major) echo 3 ;; *) echo 0 ;;
+	esac
 }
 
 REQUIRED_NUM=$(level_to_num "$REQUIRED_LEVEL")
-FOUND_LEVEL=""
-FOUND_NUM=0
-
-# Scan all changeset files (excluding README.md and config.json)
-for file in .changeset/*.md; do
-  [ -f "$file" ] || continue
-  [[ "$(basename "$file")" == "README.md" ]] && continue
-
-  # Extract the bump level for @hyperlane-xyz/core from YAML frontmatter
-  # Handles both quoted and unquoted package names
-  LEVEL=$(sed -n '/^---$/,/^---$/p' "$file" | grep -E "^['\"]?${PACKAGE}['\"]?:" | sed "s/.*: *//" | tr -d "'" | tr -d '"' || true)
-
-  if [ -n "$LEVEL" ]; then
-    LEVEL_NUM=$(level_to_num "$LEVEL")
-    if [ "$LEVEL_NUM" -gt "$FOUND_NUM" ]; then
-      FOUND_NUM=$LEVEL_NUM
-      FOUND_LEVEL=$LEVEL
-    fi
-  fi
-done
+FOUND_NUM=$(level_to_num "$FOUND_LEVEL")
 
 if [ "$FOUND_NUM" -ge "$REQUIRED_NUM" ]; then
-  echo "Found $PACKAGE changeset with '$FOUND_LEVEL' bump (required: $REQUIRED_LEVEL or higher)"
-  exit 0
+	echo "Found $PACKAGE changeset with '$FOUND_LEVEL' bump (required: $REQUIRED_LEVEL or higher)"
+	exit 0
 else
-  if [ -n "$FOUND_LEVEL" ]; then
-    echo "Found $PACKAGE changeset with '$FOUND_LEVEL' bump, but '$REQUIRED_LEVEL' or higher is required"
-  else
-    echo "No changeset found for $PACKAGE (required: $REQUIRED_LEVEL or higher)"
-  fi
-  echo ""
-  echo "To fix this, run 'pnpm changeset' and select '$PACKAGE' with a '$REQUIRED_LEVEL' (or higher) bump."
-  exit 1
+	echo "No adequate changeset for $PACKAGE (found: ${FOUND_LEVEL:-none}, required: $REQUIRED_LEVEL or higher)"
+	echo "Run 'pnpm changeset' and select '$PACKAGE' with a '$REQUIRED_LEVEL' (or higher) bump."
+	exit 1
 fi
