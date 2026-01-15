@@ -362,9 +362,6 @@ importers:
 
   solidity:
     dependencies:
-      '@hyperlane-xyz/utils':
-        specifier: workspace:*
-        version: link:../typescript/utils
       '@types/sinon-chai':
         specifier: '*'
         version: 3.2.12
@@ -378,6 +375,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../typescript/tsconfig
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../typescript/utils
       '@matterlabs/hardhat-zksync-solc':
         specifier: 1.2.5
         version: 1.2.5(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
