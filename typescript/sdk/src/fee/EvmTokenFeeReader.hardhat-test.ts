@@ -180,5 +180,44 @@ describe('EvmTokenFeeReader', () => {
         normalizeConfig(routingFeeConfig),
       );
     });
+
+    it('should derive routing fee config without routingDestinations', async () => {
+      const routingFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [TestChainName.test2]: {
+            owner: signer.address,
+            token: token.address,
+            type: TokenFeeType.LinearFee,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
+            bps: BPS,
+          },
+        },
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: routingFeeConfig,
+      });
+
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const routingFee = await reader.deriveTokenFeeConfig({
+        address:
+          deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee]
+            .address,
+      });
+
+      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
+      expect(routingFee.owner).to.equal(signer.address);
+      expect(routingFee.token).to.equal(token.address);
+      expect(
+        Object.keys((routingFee as any).feeContracts ?? {}),
+      ).to.have.length(0);
+    });
   });
 });

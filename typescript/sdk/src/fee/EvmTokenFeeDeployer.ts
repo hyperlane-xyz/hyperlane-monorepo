@@ -1,4 +1,5 @@
 import { BaseFee, RoutingFee } from '@hyperlane-xyz/core';
+import { eqAddress } from '@hyperlane-xyz/utils';
 
 import {
   DeployerOptions,
@@ -105,11 +106,14 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       throw new Error('Invalid config type for routing fee deployment');
     }
 
-    // Deploy the routing fee contract
+    const signerAddress = await this.multiProvider.getSignerAddress(chain);
+
+    // RoutingFee.setFeeContract is onlyOwner, so we deploy with the signer as a
+    // temporary owner to allow setup, then transfer to the configured owner.
     const routingFee = await this.deployContract(
       chain,
       TokenFeeType.RoutingFee,
-      [config.token, config.owner],
+      [config.token, signerAddress],
     );
 
     const subFeeContracts: Record<ChainName, BaseFee> = {};
@@ -120,12 +124,29 @@ export class EvmTokenFeeDeployer extends HyperlaneDeployer<
       )) {
         const deployedFeeContract = await this.deployFee(chain, feeConfig);
 
-        await routingFee.setFeeContract(
-          this.multiProvider.getChainId(destinationChain),
-          deployedFeeContract.address,
+        await this.multiProvider.handleTx(
+          chain,
+          routingFee.setFeeContract(
+            this.multiProvider.getChainId(destinationChain),
+            deployedFeeContract.address,
+            this.multiProvider.getTransactionOverrides(chain),
+          ),
         );
         subFeeContracts[destinationChain] = deployedFeeContract;
       }
+    }
+
+    if (!eqAddress(signerAddress, config.owner)) {
+      this.logger.debug(
+        `Transferring ownership of RoutingFee to ${config.owner} on ${chain}`,
+      );
+      await this.multiProvider.handleTx(
+        chain,
+        routingFee.transferOwnership(
+          config.owner,
+          this.multiProvider.getTransactionOverrides(chain),
+        ),
+      );
     }
 
     return {

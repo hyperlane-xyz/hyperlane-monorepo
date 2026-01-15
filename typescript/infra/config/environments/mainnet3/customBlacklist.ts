@@ -196,4 +196,9 @@ export const blacklistedMessageIds = [
   // Frontrun by another relayer, CCTP nonce already used
   '0xae99b5ef2f0116b205954c1d91ce277d42ad5d7ce32f3733f17dc791392247b7',
   '0x3e1543a71103e080cddbdd7a441b7d80e5ac4607fe6c24c3980f3b2bb2b8a258',
+
+  // USDC
+  // 01/15/2026
+  // Malformed recipient
+  '0x10cd1bdd58d89db18d300fe64786637a7bea210f31c24a1e9d7dbc87af4824ec',
 ];

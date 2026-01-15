@@ -5,7 +5,7 @@ import {
   LinearFee__factory,
   RoutingFee__factory,
 } from '@hyperlane-xyz/core';
-import { Address, WithAddress, assert } from '@hyperlane-xyz/utils';
+import { Address, WithAddress } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -17,7 +17,6 @@ import {
   RoutingFeeConfig,
   TokenFeeConfig,
   TokenFeeType,
-  onChainTypeToTokenFeeTypeMap,
 } from './types.js';
 import {
   ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY,
@@ -33,7 +32,7 @@ export type DerivedRoutingFeeConfig = WithAddress<RoutingFeeConfig> & {
 
 export type TokenFeeReaderParams = {
   address: Address;
-  routingDestinations?: number[]; // Required for RoutingFee.feeContracts() interface
+  routingDestinations?: number[]; // Optional: when provided, derives feeContracts
 };
 
 export class EvmTokenFeeReader extends HyperlaneReader {
@@ -63,10 +62,6 @@ export class EvmTokenFeeReader extends HyperlaneReader {
         derivedConfig = await this.deriveRegressiveFeeConfig(address);
         break;
       case OnchainTokenFeeType.RoutingFee:
-        assert(
-          routingDestinations,
-          `routingDestinations required for ${onChainTypeToTokenFeeTypeMap[onchainFeeType]}`,
-        );
         derivedConfig = await this.deriveRoutingFeeConfig({
           address,
           routingDestinations,
