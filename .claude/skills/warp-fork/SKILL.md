@@ -1,6 +1,6 @@
 ---
 name: warp-fork
-description: Fork a warp route from the local HTTP registry for development and testing.
+description: Fork a warp route from the local HTTP registry for development and testing. Use when the goal is try to simulate transactions on a set of anvil forks.
 ---
 
 # Warp Fork
