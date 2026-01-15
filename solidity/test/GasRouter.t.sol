@@ -125,4 +125,20 @@ contract GasRouterTest is Test {
         );
         originRouter.dispatch{value: requiredPayment + 1}(remoteDomain, "");
     }
+
+    function testSetDestinationGas_revertsIfNoRouterEnrolled() public {
+        uint32 unenrolledDomain = 999;
+        vm.expectRevert("No router enrolled for domain: 999");
+        originRouter.setDestinationGas(unenrolledDomain, 100000);
+    }
+
+    function testSetDestinationGas_batchRevertsIfNoRouterEnrolled() public {
+        uint32 unenrolledDomain = 999;
+        GasRouter.GasRouterConfig[]
+            memory configs = new GasRouter.GasRouterConfig[](1);
+        configs[0] = GasRouter.GasRouterConfig(unenrolledDomain, 100000);
+
+        vm.expectRevert("No router enrolled for domain: 999");
+        originRouter.setDestinationGas(configs);
+    }
 }
