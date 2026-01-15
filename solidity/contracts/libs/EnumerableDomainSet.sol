@@ -16,6 +16,9 @@ pragma solidity >=0.8.0;
 // ============ External Imports ============
 import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet.sol";
 
+// ============ Internal Imports ============
+import {IEnumerableDomains} from "../interfaces/IEnumerableDomains.sol";
+
 /**
  * @title EnumerableDomainSet
  * @notice Abstract contract that provides enumerable domain key tracking using EIP-7201 namespaced storage.
@@ -34,7 +37,7 @@ import {EnumerableSet} from "@openzeppelin/contracts/utils/structs/EnumerableSet
  *      The storage slot is computed using EIP-7201:
  *      keccak256(abi.encode(uint256(keccak256("hyperlane.storage.EnumerableDomainSet")) - 1)) & ~bytes32(uint256(0xff))
  */
-abstract contract EnumerableDomainSet {
+abstract contract EnumerableDomainSet is IEnumerableDomains {
     using EnumerableSet for EnumerableSet.UintSet;
 
     /// @custom:storage-location erc7201:hyperlane.storage.EnumerableDomainSet

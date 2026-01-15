@@ -9,6 +9,7 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
 // ============ Internal Imports ============
 import {AbstractRoutingIsm} from "./AbstractRoutingIsm.sol";
 import {IInterchainSecurityModule} from "../../interfaces/IInterchainSecurityModule.sol";
+import {IEnumerableDomains} from "../../interfaces/IEnumerableDomains.sol";
 import {Message} from "../../libs/Message.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {EnumerableMapExtended} from "../../libs/EnumerableMapExtended.sol";
@@ -20,7 +21,8 @@ import {PackageVersioned} from "../../PackageVersioned.sol";
 contract DomainRoutingIsm is
     AbstractRoutingIsm,
     OwnableUpgradeable,
-    PackageVersioned
+    PackageVersioned,
+    IEnumerableDomains
 {
     using EnumerableMapExtended for EnumerableMapExtended.UintToBytes32Map;
     using Message for bytes;
@@ -82,8 +84,8 @@ contract DomainRoutingIsm is
         _remove(_domain);
     }
 
-    function domains() external view returns (uint256[] memory) {
-        return _modules.keys();
+    function domains() external view returns (uint32[] memory) {
+        return _modules.uint32Keys();
     }
 
     function module(
