@@ -1084,10 +1084,9 @@ async function submitWarpApplyTransactions(
           `Error in submitWarpApplyTransactions for ${chain}`,
           result.reason,
         );
-        logBlue(
-          `Error in submitWarpApplyTransactions for ${chain}: ${errorMessage}`,
+        errorRed(
+          `Failed to submit warp apply transactions for ${chain}: ${errorMessage}`,
         );
-        console.dir(updateTransactions[chain]);
         failures.push(chain);
       }
     });
@@ -1105,10 +1104,9 @@ async function submitWarpApplyTransactions(
     } catch (e) {
       const errorMessage = e instanceof Error ? e.message : String(e);
       rootLogger.debug(`Error in submitWarpApplyTransactions for ${chain}`, e);
-      logBlue(
-        `Error in submitWarpApplyTransactions for ${chain}: ${errorMessage}`,
+      errorRed(
+        `Failed to submit warp apply transactions for ${chain}: ${errorMessage}`,
       );
-      console.dir(updateTransactions[chain]);
       failures.push(chain);
     }
   }
