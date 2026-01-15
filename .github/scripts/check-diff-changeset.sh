@@ -35,10 +35,20 @@ echo ""
 HAS_REMOVALS=false
 HAS_ADDITIONS=false
 
+# Check for removed lines in diff (lines starting with '-' but not '---')
 if echo "$DIFF_OUTPUT" | grep -E '^-[^-]' >/dev/null; then
   HAS_REMOVALS=true
 fi
+# Check for added lines in diff (lines starting with '+' but not '+++')
 if echo "$DIFF_OUTPUT" | grep -E '^\+[^+]' >/dev/null; then
+  HAS_ADDITIONS=true
+fi
+# Check for files only in base (removed files) - "Only in <base-dir>"
+if echo "$DIFF_OUTPUT" | grep -E "^Only in ${BASE_DIR}" >/dev/null; then
+  HAS_REMOVALS=true
+fi
+# Check for files only in head (added files) - "Only in <head-dir>"
+if echo "$DIFF_OUTPUT" | grep -E "^Only in ${HEAD_DIR}" >/dev/null; then
   HAS_ADDITIONS=true
 fi
 
