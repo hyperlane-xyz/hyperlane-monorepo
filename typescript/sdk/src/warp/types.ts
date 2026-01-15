@@ -52,6 +52,7 @@ export enum WarpTxCategory {
   Permit = 'permit',
   Revoke = 'revoke',
   Transfer = 'transfer',
+  Batch = 'batch',
 }
 
 export type WarpTypedTransaction = TypedTransaction & {

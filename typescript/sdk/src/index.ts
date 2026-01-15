@@ -711,6 +711,17 @@ export {
   PermitSignature,
   PopulatePermitTxParams,
 } from './token/permit.js';
+export {
+  Call3Value,
+  checkEIP7702Support,
+  EIP7702BatchTransferParams,
+  EIP7702_DETECTION_REQUEST,
+  EIP7702_MAGIC_PREFIX,
+  ERC20_APPROVE_ABI,
+  MULTICALL3_ADDRESS,
+  MULTICALL3_AGGREGATE3VALUE_ABI,
+  Multicall3Result,
+} from './token/eip7702.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
 export {

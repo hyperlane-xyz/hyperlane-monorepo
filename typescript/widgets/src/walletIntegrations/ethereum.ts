@@ -7,15 +7,18 @@ import {
   waitForTransactionReceipt,
   watchAsset,
 } from '@wagmi/core';
-import { useCallback, useMemo } from 'react';
-import { Hex, Chain as ViemChain } from 'viem';
+import { useCallback, useEffect, useMemo, useState } from 'react';
+import { Hex, Chain as ViemChain, encodeFunctionData } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
+  Call3Value,
   ChainName,
   EvmHypXERC20LockboxAdapter,
   IToken,
   LOCKBOX_STANDARDS,
+  MULTICALL3_ADDRESS,
+  MULTICALL3_AGGREGATE3VALUE_ABI,
   MultiProtocolProvider,
   PERMIT_TYPES,
   PermitData,
@@ -24,6 +27,7 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
   chainMetadataToViemChain,
+  checkEIP7702Support,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
@@ -276,6 +280,138 @@ export function useSignPermit(): {
   );
 
   return { signPermit };
+}
+
+export function useSupportsEIP7702(
+  multiProvider: MultiProtocolProvider,
+  chainName?: ChainName,
+): {
+  chainSupportsEIP7702: boolean;
+  walletSupportsEIP7702: boolean;
+  isLoading: boolean;
+} {
+  const config = useConfig();
+  const [chainSupportsEIP7702, setChainSupportsEIP7702] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
+
+  useEffect(() => {
+    if (!chainName) {
+      setChainSupportsEIP7702(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const rpcUrl = multiProvider.getRpcUrl(chainName);
+    checkEIP7702Support(rpcUrl)
+      .then(setChainSupportsEIP7702)
+      .finally(() => setIsLoading(false));
+  }, [chainName, multiProvider]);
+
+  const walletSupportsEIP7702 = useMemo(() => {
+    try {
+      const connector = (config as any).state?.current;
+      if (!connector) return false;
+
+      return typeof (connector as any).signAuthorization === 'function';
+    } catch {
+      return false;
+    }
+  }, [config]);
+
+  return { chainSupportsEIP7702, walletSupportsEIP7702, isLoading };
+}
+
+export function useEIP7702BatchTransfer(multiProvider: MultiProtocolProvider): {
+  executeBatchTransfer: (params: {
+    chainName: ChainName;
+    calls: Call3Value[];
+    batchContractAddress?: string;
+    activeChainName?: ChainName;
+  }) => Promise<{ hash: Hex; confirm: () => Promise<TypedTransactionReceipt> }>;
+} {
+  const config = useConfig();
+  const { switchNetwork } = useEthereumSwitchNetwork(multiProvider);
+
+  const executeBatchTransfer = useCallback(
+    async ({
+      chainName,
+      calls,
+      batchContractAddress = MULTICALL3_ADDRESS,
+      activeChainName,
+    }: {
+      chainName: ChainName;
+      calls: Call3Value[];
+      batchContractAddress?: string;
+      activeChainName?: ChainName;
+    }) => {
+      if (activeChainName && activeChainName !== chainName) {
+        await switchNetwork(chainName);
+      }
+
+      const chainId = multiProvider.getChainMetadata(chainName)
+        .chainId as number;
+      const account = getAccount(config);
+
+      assert(
+        account?.chain?.id === chainId,
+        `Wallet not on chain ${chainName} (ChainMismatchError)`,
+      );
+
+      assert(account.address, 'No account address available');
+
+      const walletClient = await (config as any).getClient?.({ chainId });
+
+      assert(
+        typeof (walletClient as any)?.signAuthorization === 'function',
+        'Wallet does not support EIP-7702 authorization signing',
+      );
+
+      const authorization = await (walletClient as any).signAuthorization({
+        contractAddress: batchContractAddress as Hex,
+      });
+
+      const totalValue = calls.reduce((sum, call) => sum + call.value, 0n);
+
+      const callData = encodeFunctionData({
+        abi: MULTICALL3_AGGREGATE3VALUE_ABI,
+        functionName: 'aggregate3Value',
+        args: [
+          calls.map((c) => ({
+            target: c.target as Hex,
+            allowFailure: c.allowFailure,
+            value: c.value,
+            callData: c.callData as Hex,
+          })),
+        ],
+      });
+
+      logger.debug(`Sending EIP-7702 batch tx on chain ${chainName}`);
+      const hash = await sendTransaction(config, {
+        chainId,
+        to: account.address,
+        value: totalValue,
+        data: callData,
+
+        authorizationList: [authorization] as any,
+      });
+
+      const confirm = (): Promise<TypedTransactionReceipt> => {
+        return waitForTransactionReceipt(config, {
+          chainId,
+          hash,
+          confirmations: 1,
+        }).then((r) => ({
+          type: ProviderType.Viem,
+          receipt: { ...r, contractAddress: r.contractAddress || null },
+        }));
+      };
+
+      return { hash, confirm };
+    },
+    [config, switchNetwork, multiProvider],
+  );
+
+  return { executeBatchTransfer };
 }
 
 // Metadata formatted for use in Wagmi config
