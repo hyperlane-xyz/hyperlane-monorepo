@@ -62,13 +62,20 @@ jobs:
             --model claude-opus-4-5
             --max-turns 10
 
-  # Security-focused review on mission-critical paths
+  # Security-focused review: auto on PR or manual via @claude security
   security-review:
     if: |
-      github.event_name == 'pull_request' &&
-      !github.event.pull_request.draft &&
-      !contains(github.event.pull_request.title, '[skip-review]') &&
-      !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
+      (
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.draft &&
+        !contains(github.event.pull_request.title, '[skip-review]') &&
+        !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '@claude security')
+      )
     runs-on: depot-ubuntu-latest
     timeout-minutes: 20
     permissions:
@@ -80,8 +87,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 2 # Only need recent commits for security diff analysis
+          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
+          fetch-depth: 2
 
       - name: Run Claude Security Review
         uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
@@ -94,94 +101,20 @@ jobs:
           claude-model: claude-opus-4-5
           custom-security-scan-instructions: '.github/prompts/security-scan.md'
 
-  # Trail of Bits security skills for smart contract analysis
+  # Trail of Bits security skills: auto on PR or manual via @claude security
   tob-security-skills:
     if: |
-      github.event_name == 'pull_request' &&
-      !github.event.pull_request.draft &&
-      !contains(github.event.pull_request.title, '[skip-review]') &&
-      !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
-    runs-on: depot-ubuntu-latest
-    timeout-minutes: 25
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
-    steps:
-      - name: Check for Solidity changes
-        id: solidity-changes
-        uses: dorny/paths-filter@v3
-        with:
-          filters: |
-            solidity:
-              - 'solidity/**'
-
-      - name: Checkout repository
-        if: steps.solidity-changes.outputs.solidity == 'true'
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha }}
-          fetch-depth: 0 # Full history for differential-review
-
-      - name: Read ToB security skills prompt
-        if: steps.solidity-changes.outputs.solidity == 'true'
-        id: tob-prompt
-        run: |
-          {
-            echo 'content<<EOF'
-            cat .github/prompts/tob-security-skills.md
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
-      - name: Run ToB Security Skills
-        if: steps.solidity-changes.outputs.solidity == 'true'
-        uses: anthropics/claude-code-action@v1
-        with:
-          anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.tob-prompt.outputs.content }}
-          track_progress: true
-          claude_args: |
-            --model claude-opus-4-5
-            --max-turns 15
-
-  # On-demand security review triggered by @claude security comment
-  security-review-manual:
-    if: |
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude security')
-    runs-on: depot-ubuntu-latest
-    timeout-minutes: 20
-    permissions:
-      contents: read
-      pull-requests: write
-      issues: write
-      id-token: write
-    steps:
-      - name: Checkout repository
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
-          fetch-depth: 2 # Only need recent commits for security diff analysis
-
-      - name: Run Claude Security Review
-        uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
-        with:
-          claude-api-key: ${{ secrets.ANTHROPIC_API_KEY }}
-          comment-pr: true
-          upload-results: true
-          exclude-directories: 'node_modules,dist,coverage,artifacts,cache,typechain'
-          claudecode-timeout: '15'
-          claude-model: claude-opus-4-5
-          custom-security-scan-instructions: '.github/prompts/security-scan.md'
-
-  # On-demand ToB security skills triggered by @claude security comment
-  tob-security-skills-manual:
-    if: |
-      github.event_name == 'issue_comment' &&
-      github.event.issue.pull_request &&
-      contains(github.event.comment.body, '@claude security')
+      (
+        github.event_name == 'pull_request' &&
+        !github.event.pull_request.draft &&
+        !contains(github.event.pull_request.title, '[skip-review]') &&
+        !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review')
+      ) ||
+      (
+        github.event_name == 'issue_comment' &&
+        github.event.issue.pull_request &&
+        contains(github.event.comment.body, '@claude security')
+      )
     runs-on: depot-ubuntu-latest
     timeout-minutes: 25
     permissions:
@@ -203,7 +136,7 @@ jobs:
         uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
-          fetch-depth: 0 # Full history for differential-review
+          fetch-depth: 0
 
       - name: Read ToB security skills prompt
         if: steps.solidity-changes.outputs.solidity == 'true'
