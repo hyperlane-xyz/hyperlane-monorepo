@@ -1,0 +1,40 @@
+---
+name: warp-fork
+description: Fork a warp route from the local HTTP registry for development and testing.
+---
+
+# Warp Fork
+
+Fork a warp route using the local HTTP registry.
+
+**Instructions:**
+
+0. Check if `http://localhost:3333` is running. If not, run the start-http-registry SKILL. If that fails, let the user know and use `AskUserQuestion` to prompt the user for the registry.
+
+1. First, use `AskUserQuestion` to prompt the user for the warp route ID:
+
+   - Question: "Which warp route would you like to fork?"
+   - Header: "Warp Route"
+   - Options: Provide 2-3 common examples if known, otherwise use generic placeholders
+
+2. Run the command in the background:
+
+   ```bash
+   pnpm -C typescript/cli exec tsx cli.ts warp fork --registry $REGISTRY --warpRouteId <WARP_ROUTE_ID>
+   ```
+
+   - Attempt to use `http://localhost:3333` for $REGISTRY
+   - Use `run_in_background: true` so it doesn't block the conversation.
+
+3. After starting, report the task/shell ID to the user
+
+4. Remind the user they can stop it later with `KillShell` using that ID
+
+**Prerequisites:**
+
+- The http-registry server must be running on port 3333. If not, start it first with `/start-http-registry`.
+
+**Example output:**
+
+> Started warp fork for `EZETH/ethereum-megaeth` in background (shell ID: `shell_abc123`).
+> To stop it later, I can use KillShell with that ID.
