@@ -5,6 +5,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  getHookType as getHookTypeQuery,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
   getIsmType,
   getMessageIdMultisigIsmConfig,
   getRoutingIsmConfig,
@@ -35,7 +39,6 @@ import {
   toAleoAddress,
 } from '../utils/helper.js';
 import {
-  AleoHookType,
   AleoIsmType,
   AleoTokenType,
   type AleoTransaction,
@@ -251,22 +254,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    const result = await this.queryMappingValue(programId, 'hooks', address);
-
-    switch (result) {
-      case AleoHookType.CUSTOM:
-        return AltVM.HookType.CUSTOM;
-      case AleoHookType.MERKLE_TREE:
-        return AltVM.HookType.MERKLE_TREE;
-      case AleoHookType.INTERCHAIN_GAS_PAYMASTER:
-        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      case AleoHookType.PAUSABLE:
-        return AltVM.HookType.PAUSABLE;
-      default:
-        throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
-    }
+    return getHookTypeQuery(this.aleoClient, req.hookAddress);
   }
 
   async getInterchainGasPaymasterHook(
@@ -330,12 +318,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const { programId, address } = fromAleoAddress(req.hookAddress);
-
-    await this.queryMappingValue(programId, 'merkle_tree_hooks', address);
+    const config = await getMerkleTreeHookConfig(
+      this.aleoClient,
+      req.hookAddress,
+    );
 
     return {
-      address: req.hookAddress,
+      address: config.address,
     };
   }
 
