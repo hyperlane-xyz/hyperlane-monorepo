@@ -21,6 +21,7 @@ import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {Indexed} from "../../libs/Indexed.sol";
+import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -40,7 +41,8 @@ contract InterchainGasPaymaster is
     AbstractPostDispatchHook,
     IGasOracle,
     Indexed,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    EnumerableDomainSet
 {
     using Address for address payable;
     using Message for bytes;
@@ -316,6 +318,11 @@ contract InterchainGasPaymaster is
             _gasOracle,
             _gasOverhead
         );
+        if (address(_gasOracle) == address(0)) {
+            _removeDomain(_remoteDomain);
+        } else {
+            _addDomain(_remoteDomain);
+        }
         emit DestinationGasConfigSet(
             _remoteDomain,
             address(_gasOracle),

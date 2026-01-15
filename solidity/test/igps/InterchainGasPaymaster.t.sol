@@ -611,4 +611,125 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     receive() external payable {}
+
+    // ============ domains ============
+
+    function testDomains_empty() public {
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        newIgp.initialize(address(this), beneficiary);
+        uint32[] memory domains = newIgp.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function testDomains_afterSetConfig() public {
+        uint32 domain1 = 1;
+        uint32 domain2 = 2;
+        uint32 domain3 = 3;
+
+        InterchainGasPaymaster.GasParam[]
+            memory params = new InterchainGasPaymaster.GasParam[](3);
+        params[0] = InterchainGasPaymaster.GasParam(
+            domain1,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, 100)
+        );
+        params[1] = InterchainGasPaymaster.GasParam(
+            domain2,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, 200)
+        );
+        params[2] = InterchainGasPaymaster.GasParam(
+            domain3,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, 300)
+        );
+
+        igp.setDestinationGasConfigs(params);
+
+        uint32[] memory domains = igp.domains();
+        assertEq(domains.length, 4); // 3 new + 1 from setUp
+
+        bool found1;
+        bool found2;
+        bool found3;
+        for (uint256 i = 0; i < domains.length; i++) {
+            if (domains[i] == domain1) found1 = true;
+            if (domains[i] == domain2) found2 = true;
+            if (domains[i] == domain3) found3 = true;
+        }
+        assertTrue(found1 && found2 && found3);
+    }
+
+    function testDomains_idempotent() public {
+        uint32[] memory domainsBefore = igp.domains();
+
+        // Set same domain again (testDestinationDomain was set in setUp)
+        setTestDestinationGasConfig(
+            testDestinationDomain,
+            testOracle,
+            testGasOverhead
+        );
+
+        uint32[] memory domainsAfter = igp.domains();
+        assertEq(domainsAfter.length, domainsBefore.length);
+    }
+
+    function testDomains_removedWhenGasOracleZero() public {
+        // Verify domain exists after setUp
+        uint32[] memory domainsBefore = igp.domains();
+        assertEq(domainsBefore.length, 1);
+        assertEq(domainsBefore[0], testDestinationDomain);
+
+        // Set gas oracle to zero address to remove domain
+        InterchainGasPaymaster.GasParam[]
+            memory params = new InterchainGasPaymaster.GasParam[](1);
+        params[0] = InterchainGasPaymaster.GasParam(
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+        );
+        igp.setDestinationGasConfigs(params);
+
+        // Verify domain is removed
+        uint32[] memory domainsAfter = igp.domains();
+        assertEq(domainsAfter.length, 0);
+    }
+
+    function testDomains_removeNonExistentNoOp() public {
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        newIgp.initialize(address(this), beneficiary);
+
+        // Remove non-existent domain should not revert
+        InterchainGasPaymaster.GasParam[]
+            memory params = new InterchainGasPaymaster.GasParam[](1);
+        params[0] = InterchainGasPaymaster.GasParam(
+            999,
+            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+        );
+        newIgp.setDestinationGasConfigs(params);
+
+        uint32[] memory domains = newIgp.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function testDomains_readdAfterRemoval() public {
+        // Remove domain
+        InterchainGasPaymaster.GasParam[]
+            memory removeParams = new InterchainGasPaymaster.GasParam[](1);
+        removeParams[0] = InterchainGasPaymaster.GasParam(
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+        );
+        igp.setDestinationGasConfigs(removeParams);
+        assertEq(igp.domains().length, 0);
+
+        // Re-add domain
+        InterchainGasPaymaster.GasParam[]
+            memory addParams = new InterchainGasPaymaster.GasParam[](1);
+        addParams[0] = InterchainGasPaymaster.GasParam(
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, testGasOverhead)
+        );
+        igp.setDestinationGasConfigs(addParams);
+
+        uint32[] memory domains = igp.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], testDestinationDomain);
+    }
 }
