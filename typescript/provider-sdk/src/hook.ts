@@ -128,11 +128,20 @@ export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
  * Should be used to implement an object/closure or class that individually deploys
  * Hooks on chain
  */
-export type IRawHookArtifactManager = IArtifactManager<
-  HookType,
-  RawHookArtifactConfigs,
-  DeployedHookAddress
->;
+export interface IRawHookArtifactManager
+  extends IArtifactManager<
+    HookType,
+    RawHookArtifactConfigs,
+    DeployedHookAddress
+  > {
+  /**
+   * Read any hook by detecting its type and delegating to the appropriate reader.
+   * This is the generic entry point for reading hooks of unknown types.
+   * @param address The on-chain address of the hook
+   * @returns The artifact configuration and deployment data
+   */
+  readHook(address: string): Promise<DeployedHookArtifact>;
+}
 
 export function hookOnChainAddress(
   hook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>,

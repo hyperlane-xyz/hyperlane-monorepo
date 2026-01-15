@@ -7,6 +7,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
+  DeployedHookArtifact,
   HookType,
   IRawHookArtifactManager,
   RawHookArtifactConfigs,
@@ -15,6 +16,7 @@ import {
 import { RadixSigner } from '../clients/signer.js';
 import { RadixBase } from '../utils/base.js';
 
+import { getHookType } from './hook-query.js';
 import { RadixIgpHookReader, RadixIgpHookWriter } from './igp-hook.js';
 import {
   RadixMerkleTreeHookReader,
@@ -28,6 +30,29 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
     private readonly mailboxAddress: string,
     private readonly nativeTokenDenom: string,
   ) {}
+
+  async readHook(address: string): Promise<DeployedHookArtifact> {
+    // Detect hook type first
+    const radixHookType = await getHookType(this.gateway, address);
+
+    // Map Radix hook type to AltVM hook type
+    const hookType = this.radixHookTypeToAltVMHookType(radixHookType);
+
+    // Get the appropriate reader and read the hook
+    const reader = this.createReader(hookType);
+    return reader.read(address);
+  }
+
+  private radixHookTypeToAltVMHookType(radixType: string): HookType {
+    switch (radixType) {
+      case 'InterchainGasPaymaster':
+        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+      case 'MerkleTreeHook':
+        return AltVM.HookType.MERKLE_TREE;
+      default:
+        throw new Error(`Unknown Radix hook type: ${radixType}`);
+    }
+  }
 
   createReader<T extends HookType>(
     type: T,

@@ -8,6 +8,7 @@ import {
   type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
@@ -56,6 +57,17 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
     return new CosmosIsmArtifactManager(rpcUrls);
+  }
+
+  createHookArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+  ): IRawHookArtifactManager {
+    // TODO: Implement Cosmos hook artifact manager
+    // The implementation is on branch xeno/cosmos-hook-artifact-api
+    throw new Error(
+      'Cosmos hook artifact manager not yet implemented. ' +
+        'See branch xeno/cosmos-hook-artifact-api for implementation.',
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {
