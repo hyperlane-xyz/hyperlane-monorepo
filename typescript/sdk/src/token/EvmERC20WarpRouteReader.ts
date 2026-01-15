@@ -275,9 +275,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     const routingDestinations =
       destinations ??
-      (await TokenRouter.domains().catch(() => {
+      (await TokenRouter.domains().catch((error) => {
         this.logger.debug(
           `Failed to derive token router domains for routing fee config on "${this.chain}"`,
+          error,
         );
         return undefined;
       }));
