@@ -16,6 +16,10 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
   type MsgCreateMailboxEncodeObject,
   type MsgSetMailboxEncodeObject,
 } from '../hyperlane/core/messages.js';
@@ -279,55 +283,13 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const { igp } = await this.query.postDispatch.Igp({ id: req.hookAddress });
-    assert(igp, `found no igp for id ${req.hookAddress}`);
-
-    const { destination_gas_configs } =
-      await this.query.postDispatch.DestinationGasConfigs({
-        id: igp.id,
-      });
-
-    const configs: {
-      [domainId: string]: {
-        gasOracle: {
-          tokenExchangeRate: string;
-          gasPrice: string;
-        };
-        gasOverhead: string;
-      };
-    } = {};
-
-    for (const config of destination_gas_configs) {
-      configs[config.remote_domain] = {
-        gasOracle: {
-          tokenExchangeRate: config.gas_oracle?.token_exchange_rate ?? '0',
-          gasPrice: config.gas_oracle?.gas_price ?? '0',
-        },
-        gasOverhead: config.gas_overhead,
-      };
-    }
-
-    return {
-      address: igp.id,
-      owner: igp.owner,
-      destinationGasConfigs: configs,
-    };
+    return getIgpHookConfig(this.query, req.hookAddress);
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const { merkle_tree_hook } = await this.query.postDispatch.MerkleTreeHook({
-      id: req.hookAddress,
-    });
-    assert(
-      merkle_tree_hook,
-      `found no merkle tree hook for id ${req.hookAddress}`,
-    );
-
-    return {
-      address: merkle_tree_hook.id,
-    };
+    return getMerkleTreeHookConfig(this.query, req.hookAddress);
   }
 
   async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
