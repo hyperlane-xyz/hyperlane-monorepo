@@ -32,7 +32,9 @@ struct OutputAssetInfo {
  * @title EverclearBridge
  * @author Hyperlane Team
  * @notice A token bridge that integrates with Everclear's intent-based architecture
+ * @dev Everclear bridge is deprecated
  */
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 abstract contract EverclearBridge is TokenRouter {
     using TokenMessage for bytes;
     using TypeCasts for bytes32;

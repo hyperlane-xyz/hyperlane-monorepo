@@ -36,7 +36,9 @@ import {Address} from "@openzeppelin/contracts/utils/Address.sol";
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
  * proxy contract on chain B.
+ * @dev ISMs enrolled alongside routers via _enrollRemoteRouterAndIsm, domains always match router table
  */
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     // ============ Libraries ============
 

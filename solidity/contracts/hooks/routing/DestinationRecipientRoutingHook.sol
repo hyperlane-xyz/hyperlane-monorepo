@@ -17,6 +17,8 @@ import {Message} from "../../libs/Message.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {DomainRoutingHook} from "./DomainRoutingHook.sol";
 
+// This contract is unused/deprecated
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 contract DestinationRecipientRoutingHook is DomainRoutingHook {
     using Message for bytes;
 
