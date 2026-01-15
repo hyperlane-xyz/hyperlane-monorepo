@@ -44,6 +44,7 @@ export class RadixIgpHookReader
       {
         gasPrice: string;
         tokenExchangeRate: string;
+        tokenDecimals?: number;
       }
     > = {};
 
@@ -55,6 +56,9 @@ export class RadixIgpHookReader
       oracleConfig[domainId] = {
         gasPrice: gasConfig.gasOracle.gasPrice,
         tokenExchangeRate: gasConfig.gasOracle.tokenExchangeRate,
+        // Radix IGP doesn't store tokenDecimals on-chain.
+        // The exchange rate is pre-calculated to include decimal adjustments.
+        // tokenDecimals is left undefined (optional field).
       };
     }
 
@@ -133,6 +137,21 @@ export class RadixIgpHookWriter
 
       const configReceipt = await this.signer.signAndBroadcast(setConfigTx);
       allReceipts.push(configReceipt);
+    }
+
+    // Transfer ownership if the configured owner is different from the signer
+    if (!eqAddressRadix(this.signer.getAddress(), config.owner)) {
+      const setOwnerTx = await getSetIgpOwnerTx(
+        this.base,
+        this.gateway,
+        this.signer.getAddress(),
+        {
+          igpAddress: address,
+          newOwner: config.owner,
+        },
+      );
+      const ownerReceipt = await this.signer.signAndBroadcast(setOwnerTx);
+      allReceipts.push(ownerReceipt);
     }
 
     const deployedArtifact: ArtifactDeployed<
