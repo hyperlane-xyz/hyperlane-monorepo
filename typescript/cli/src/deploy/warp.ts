@@ -168,13 +168,34 @@ export async function runWarpRouteDeploy({
     deployedContracts,
   );
 
-  for (const chain of Object.keys(enrollTxs)) {
-    log(`Enrolling routers for chain ${chain}`);
-    const { submitter } = await getSubmitterByStrategy({
-      chain,
-      context: context,
-    });
-    await submitter.submit(...(enrollTxs[chain] as any[]));
+  const enrollEntries = Object.entries(enrollTxs);
+  const enrollmentResults = await Promise.allSettled(
+    enrollEntries.map(async ([chain, transactions]) => {
+      log(`Enrolling routers for chain ${chain}`);
+      const { submitter } = await getSubmitterByStrategy({
+        chain,
+        context: context,
+      });
+      await submitter.submit(...(transactions as any[]));
+      return chain;
+    }),
+  );
+
+  const errors: string[] = [];
+  enrollmentResults.forEach((result, idx) => {
+    if (result.status === 'rejected') {
+      const chain = enrollEntries[idx][0];
+      const err = (result as PromiseRejectedResult).reason as Error;
+      errors.push(`${chain}: ${err?.message ?? err ?? 'unknown error'}`);
+    }
+  });
+
+  if (errors.length) {
+    throw new Error(
+      `Failed to enroll routers for ${errors.length} chain(s): ${errors.join(
+        '; ',
+      )}`,
+    );
   }
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
