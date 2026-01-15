@@ -713,11 +713,11 @@ export {
 } from './token/permit.js';
 export {
   Call3Value,
+  checkEIP7702Support,
   EIP7702BatchTransferParams,
-  EIP7702SupportedChain,
-  EIP7702_SUPPORTED_CHAINS,
+  EIP7702_DETECTION_REQUEST,
+  EIP7702_MAGIC_PREFIX,
   ERC20_APPROVE_ABI,
-  isEIP7702SupportedChain,
   MULTICALL3_ADDRESS,
   MULTICALL3_AGGREGATE3VALUE_ABI,
   Multicall3Result,

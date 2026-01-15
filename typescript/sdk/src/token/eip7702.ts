@@ -84,24 +84,61 @@ export const ERC20_APPROVE_ABI = [
 ] as const;
 
 /**
- * Chains known to support EIP-7702 (Pectra upgrade).
- * This list will expand as more chains adopt Pectra.
+ * EIP-7702 delegation indicator prefix.
+ * When this prefix + an address is set as an EOA's code, calls to the EOA
+ * execute the code at the specified address.
  */
-export const EIP7702_SUPPORTED_CHAINS = [
-  'ethereum',
-  'sepolia',
-  'holesky',
-] as const;
-
-export type EIP7702SupportedChain = (typeof EIP7702_SUPPORTED_CHAINS)[number];
+export const EIP7702_MAGIC_PREFIX = '0xef0100';
 
 /**
- * Check if a chain name is known to support EIP-7702
- * @param chainName - The chain name to check
- * @returns true if the chain supports EIP-7702
+ * Probe request for detecting EIP-7702 support via eth_estimateGas.
+ * Uses state override with EIP-7702 delegation code to test if the RPC understands it.
+ * @see https://medium.com/@Jingkangchua/how-to-quickly-verify-eip-7702-support-on-any-evm-chain-39975a08dcd4
  */
-export function isEIP7702SupportedChain(chainName: string): boolean {
-  return EIP7702_SUPPORTED_CHAINS.includes(chainName as EIP7702SupportedChain);
+export const EIP7702_DETECTION_REQUEST = {
+  jsonrpc: '2.0',
+  method: 'eth_estimateGas',
+  params: [
+    {
+      from: '0xdeadbeef00000000000000000000000000000000',
+      to: '0xdeadbeef00000000000000000000000000000000',
+      // ecrecover precompile call data (r, s, v parameters)
+      data: '0x0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000100000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000',
+      value: '0x0',
+    },
+    'latest',
+    {
+      // State override: set EOA code to EIP-7702 delegation to ecrecover precompile
+      '0xdeadbeef00000000000000000000000000000000': {
+        code: '0xef01000000000000000000000000000000000000000001',
+      },
+    },
+  ],
+  id: 1,
+} as const;
+
+/**
+ * Dynamically check if an RPC endpoint supports EIP-7702.
+ * Uses eth_estimateGas with a state override containing EIP-7702 delegation code.
+ * @param rpcUrl - The RPC endpoint URL to check
+ * @returns true if the RPC supports EIP-7702
+ */
+export async function checkEIP7702Support(rpcUrl: string): Promise<boolean> {
+  try {
+    const response = await fetch(rpcUrl, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify(EIP7702_DETECTION_REQUEST),
+    });
+
+    const result = await response.json();
+
+    // If we get a result (gas estimate), the RPC supports EIP-7702
+    // If we get an error, it doesn't understand the EIP-7702 code format
+    return result.result !== undefined && !result.error;
+  } catch {
+    return false;
+  }
 }
 
 /**

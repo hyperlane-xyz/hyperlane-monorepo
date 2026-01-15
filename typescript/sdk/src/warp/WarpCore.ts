@@ -44,7 +44,7 @@ import {
   Call3Value,
   ERC20_APPROVE_ABI,
   MULTICALL3_ADDRESS,
-  isEIP7702SupportedChain,
+  checkEIP7702Support,
 } from '../token/eip7702.js';
 import type { PermitSignature } from '../token/permit.js';
 import { ChainName, ChainNameOrId } from '../types.js';
@@ -1191,10 +1191,12 @@ export class WarpCore {
   }
 
   /**
-   * Check if a chain supports EIP-7702 batch transactions (Pectra upgrade)
+   * Check if a chain supports EIP-7702 batch transactions (Pectra upgrade).
+   * Uses dynamic detection via RPC probe.
    */
-  supportsEIP7702Batch(chainName: ChainName): boolean {
-    return isEIP7702SupportedChain(chainName);
+  async supportsEIP7702Batch(chainName: ChainName): Promise<boolean> {
+    const rpcUrl = this.multiProvider.getRpcUrl(chainName);
+    return checkEIP7702Support(rpcUrl);
   }
 
   /**

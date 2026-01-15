@@ -7,7 +7,7 @@ import {
   waitForTransactionReceipt,
   watchAsset,
 } from '@wagmi/core';
-import { useCallback, useMemo } from 'react';
+import { useCallback, useEffect, useMemo, useState } from 'react';
 import { Hex, Chain as ViemChain, encodeFunctionData } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
@@ -27,7 +27,7 @@ import {
   TypedTransactionReceipt,
   WarpTypedTransaction,
   chainMetadataToViemChain,
-  isEIP7702SupportedChain,
+  checkEIP7702Support,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, sleep } from '@hyperlane-xyz/utils';
 
@@ -282,16 +282,30 @@ export function useSignPermit(): {
   return { signPermit };
 }
 
-export function useSupportsEIP7702(chainName?: ChainName): {
+export function useSupportsEIP7702(
+  multiProvider: MultiProtocolProvider,
+  chainName?: ChainName,
+): {
   chainSupportsEIP7702: boolean;
   walletSupportsEIP7702: boolean;
+  isLoading: boolean;
 } {
   const config = useConfig();
+  const [chainSupportsEIP7702, setChainSupportsEIP7702] = useState(false);
+  const [isLoading, setIsLoading] = useState(false);
 
-  const chainSupportsEIP7702 = useMemo(() => {
-    if (!chainName) return false;
-    return isEIP7702SupportedChain(chainName);
-  }, [chainName]);
+  useEffect(() => {
+    if (!chainName) {
+      setChainSupportsEIP7702(false);
+      return;
+    }
+
+    setIsLoading(true);
+    const rpcUrl = multiProvider.getRpcUrl(chainName);
+    checkEIP7702Support(rpcUrl)
+      .then(setChainSupportsEIP7702)
+      .finally(() => setIsLoading(false));
+  }, [chainName, multiProvider]);
 
   const walletSupportsEIP7702 = useMemo(() => {
     try {
@@ -304,7 +318,7 @@ export function useSupportsEIP7702(chainName?: ChainName): {
     }
   }, [config]);
 
-  return { chainSupportsEIP7702, walletSupportsEIP7702 };
+  return { chainSupportsEIP7702, walletSupportsEIP7702, isLoading };
 }
 
 export function useEIP7702BatchTransfer(multiProvider: MultiProtocolProvider): {
