@@ -10,7 +10,12 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, mapAllSettled, toWei } from '@hyperlane-xyz/utils';
+import {
+  eqAddress,
+  isNullish,
+  mapAllSettled,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
@@ -109,7 +114,7 @@ export class Rebalancer implements IRebalancer {
 
     // Filter out null results (validation failures logged internally)
     const preparedTransactions = Array.from(fulfilled.values()).filter(
-      (tx): tx is PreparedTransaction => tx !== null,
+      (tx): tx is PreparedTransaction => !isNullish(tx),
     );
     // Count rejections + null results as failures
     const preparationFailures =
