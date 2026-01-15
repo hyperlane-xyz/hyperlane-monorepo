@@ -67,7 +67,6 @@ import {
 } from './environments/mainnet3/warp/configGetters/getEniWarpConfigs.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
 import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
-import { getEthereumSuperseedUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumSuperseedUSDCWarpConfig.js';
 import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
@@ -104,6 +103,10 @@ import {
   getRezStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getRenzoREZStaging.js';
 import { getSubtensorUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getSubtensorUSDCWarpConfig.js';
+import {
+  getSuperseedUSDCStrategyConfig,
+  getSuperseedUSDCWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getSuperseedUSDCWarpConfig.js';
 import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
@@ -161,7 +164,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EthereumZircuitRe7LRT]: getEthereumZircuitRe7LRTWarpConfig,
   [WarpRouteIds.BaseEthereumSuperseedCBBTC]:
     getBaseEthereumSuperseedCBBTCWarpConfig,
-  [WarpRouteIds.EthereumSuperseedUSDC]: getEthereumSuperseedUSDCWarpConfig,
+  [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCWarpConfig,
   [WarpRouteIds.EclipseEthereumES]: getEclipseEthereumESWarpConfig,
   [WarpRouteIds.oUSDT]: getoUSDTTokenProductionWarpConfig,
   // TODO: uncomment after merging the staging route to registry
@@ -220,6 +223,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StrategyConfig,
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
+  [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
 };
 
 /**

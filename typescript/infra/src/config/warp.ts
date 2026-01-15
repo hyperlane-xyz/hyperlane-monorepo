@@ -76,6 +76,7 @@ export const tokens = {
   },
   ink: {
     USDCe: '0xF1815bd50389c46847f0Bda824eC8da914045D14',
+    USDC: '0x2D270e6886d130D724215A266106e6832161EAEd',
   },
   solanamainnet: {
     USDC: 'EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v',
