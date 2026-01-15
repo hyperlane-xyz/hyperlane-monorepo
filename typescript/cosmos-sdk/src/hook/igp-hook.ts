@@ -1,15 +1,29 @@
+import { EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
+
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
   IgpHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { eqAddressCosmos } from '@hyperlane-xyz/utils';
+
+import { CosmosNativeSigner } from '../clients/signer.js';
+import { getNewContractAddress } from '../utils/base.js';
 
 import { CosmosHookQueryClient, getIgpHookConfig } from './hook-query.js';
+import {
+  getCreateIgpTx,
+  getSetIgpDestinationGasConfigTx,
+  getSetIgpOwnerTx,
+} from './hook-tx.js';
 
 /**
  * Reader for Cosmos IGP (Interchain Gas Paymaster) Hook.
@@ -61,5 +75,128 @@ export class CosmosIgpHookReader
         address: hookConfig.address,
       },
     };
+  }
+}
+
+/**
+ * Writer for Cosmos IGP (Interchain Gas Paymaster) Hook.
+ * Handles deployment and updates of IGP hooks.
+ */
+export class CosmosIgpHookWriter
+  extends CosmosIgpHookReader
+  implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
+{
+  constructor(
+    query: CosmosHookQueryClient,
+    private readonly signer: CosmosNativeSigner,
+    private readonly denom: string,
+  ) {
+    super(query);
+  }
+
+  async create(
+    artifact: ArtifactNew<IgpHookConfig>,
+  ): Promise<
+    [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, DeliverTxResponse[]]
+  > {
+    const { config } = artifact;
+    const allReceipts: DeliverTxResponse[] = [];
+
+    // Create the IGP hook
+    const createTx = await getCreateIgpTx(
+      this.signer.getSignerAddress(),
+      this.denom,
+    );
+
+    const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
+    const address = getNewContractAddress(createReceipt);
+    allReceipts.push(createReceipt);
+
+    // Set destination gas configs for each domain
+    for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
+      const setConfigTx = await getSetIgpDestinationGasConfigTx(
+        this.signer.getSignerAddress(),
+        {
+          igpAddress: address,
+          destinationGasConfig: {
+            remoteDomainId: parseInt(domainId),
+            gasOracle: {
+              tokenExchangeRate: gasConfig.tokenExchangeRate,
+              gasPrice: gasConfig.gasPrice,
+            },
+            gasOverhead: config.overhead[domainId]?.toString() || '0',
+          },
+        },
+      );
+
+      const configReceipt =
+        await this.signer.sendAndConfirmTransaction(setConfigTx);
+      allReceipts.push(configReceipt);
+    }
+
+    const deployedArtifact: ArtifactDeployed<
+      IgpHookConfig,
+      DeployedHookAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address,
+      },
+    };
+
+    return [deployedArtifact, allReceipts];
+  }
+
+  async update(
+    artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
+  ): Promise<EncodeObject[]> {
+    const { config, deployed } = artifact;
+    const updateTxs: EncodeObject[] = [];
+
+    // Read current state
+    const currentState = await this.read(deployed.address);
+
+    // Check if owner needs to be updated
+    if (!eqAddressCosmos(currentState.config.owner, config.owner)) {
+      const setOwnerTx = await getSetIgpOwnerTx(
+        this.signer.getSignerAddress(),
+        {
+          igpAddress: deployed.address,
+          newOwner: config.owner,
+        },
+      );
+      updateTxs.push(setOwnerTx);
+    }
+
+    // Update destination gas configs
+    for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
+      const currentGasConfig = currentState.config.oracleConfig[domainId];
+      const needsUpdate =
+        !currentGasConfig ||
+        currentGasConfig.tokenExchangeRate !== gasConfig.tokenExchangeRate ||
+        currentGasConfig.gasPrice !== gasConfig.gasPrice ||
+        currentState.config.overhead[domainId] !== config.overhead[domainId];
+
+      if (needsUpdate) {
+        const setConfigTx = await getSetIgpDestinationGasConfigTx(
+          this.signer.getSignerAddress(),
+          {
+            igpAddress: deployed.address,
+            destinationGasConfig: {
+              remoteDomainId: parseInt(domainId),
+              gasOracle: {
+                tokenExchangeRate: gasConfig.tokenExchangeRate,
+                gasPrice: gasConfig.gasPrice,
+              },
+              gasOverhead: config.overhead[domainId]?.toString() || '0',
+            },
+          },
+        );
+        updateTxs.push(setConfigTx);
+      }
+    }
+
+    return updateTxs;
   }
 }
