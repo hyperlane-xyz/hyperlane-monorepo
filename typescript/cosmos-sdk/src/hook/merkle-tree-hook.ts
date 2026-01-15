@@ -1,18 +1,27 @@
+import { EncodeObject } from '@cosmjs/proto-signing';
+import { DeliverTxResponse } from '@cosmjs/stargate';
+
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactDeployed,
+  ArtifactNew,
   ArtifactReader,
   ArtifactState,
+  ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedHookAddress,
   MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
+import { CosmosNativeSigner } from '../clients/signer.js';
+import { getNewContractAddress } from '../utils/base.js';
+
 import {
   CosmosHookQueryClient,
   getMerkleTreeHookConfig,
 } from './hook-query.js';
+import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
 /**
  * Reader for Cosmos MerkleTree Hook.
@@ -38,5 +47,60 @@ export class CosmosMerkleTreeHookReader
         address: hookConfig.address,
       },
     };
+  }
+}
+
+/**
+ * Writer for Cosmos MerkleTree Hook.
+ * Handles deployment of MerkleTree hooks.
+ * MerkleTree hooks are immutable, so no update operations are needed.
+ */
+export class CosmosMerkleTreeHookWriter
+  extends CosmosMerkleTreeHookReader
+  implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
+{
+  constructor(
+    query: CosmosHookQueryClient,
+    private readonly signer: CosmosNativeSigner,
+    private readonly mailboxAddress: string,
+  ) {
+    super(query);
+  }
+
+  async create(
+    artifact: ArtifactNew<MerkleTreeHookConfig>,
+  ): Promise<
+    [
+      ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
+      DeliverTxResponse[],
+    ]
+  > {
+    const createTx = await getCreateMerkleTreeHookTx(
+      this.signer.getSignerAddress(),
+      this.mailboxAddress,
+    );
+
+    const receipt = await this.signer.sendAndConfirmTransaction(createTx);
+    const address = getNewContractAddress(receipt);
+
+    const deployedArtifact: ArtifactDeployed<
+      MerkleTreeHookConfig,
+      DeployedHookAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address,
+      },
+    };
+
+    return [deployedArtifact, [receipt]];
+  }
+
+  async update(
+    _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
+  ): Promise<EncodeObject[]> {
+    // MerkleTreeHook has no mutable state
+    return [];
   }
 }
