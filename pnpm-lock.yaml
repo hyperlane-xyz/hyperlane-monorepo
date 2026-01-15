@@ -285,6 +285,7 @@ overrides:
   undici: ^5.11
   '@babel/parser': ^7.22.7
   '@typechain/ethers-v5': 11.1.2
+  xmlhttprequest-ssl: 4.0.0
 
 patchedDependencies:
   '@provablehq/sdk@0.9.14':
@@ -16461,13 +16462,9 @@ packages:
       utf-8-validate:
         optional: true
 
-  xmlhttprequest-ssl@2.1.2:
-    resolution: {integrity: sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ==}
-    engines: {node: '>=0.4.0'}
-
-  xmlhttprequest-ssl@3.1.0:
-    resolution: {integrity: sha512-UsofFE/khRRAcM9c3FGDEUSwupaQQC3Kme1brtz+B3N+RZHXGbD6AG6QzgWcunHzszqtOSMiZoPNrmHEBB2DjA==}
-    engines: {node: '>=12.0.0'}
+  xmlhttprequest-ssl@4.0.0:
+    resolution: {integrity: sha512-b7DXzbCm8VWmII2mQiQHy5VG1L6YBUnNxuCooldWpMUXTwa08uXEz1q5Nv6wlULnSI5GiHuwBIq6pNJrqRh/8Q==}
+    engines: {node: '>=13.0.0'}
 
   xstream@11.14.0:
     resolution: {integrity: sha512-1bLb+kKKtKPbgTK6i/BaoAn03g47PpFstlbe1BA+y3pNS/LfvcaghS5BFf9+EE1J+KwSQsEpfJvFN5GqFtiNmw==}
@@ -21321,7 +21318,7 @@ snapshots:
       core-js: 3.47.0
       mime: 4.1.0
       sync-request: 6.1.0
-      xmlhttprequest-ssl: 3.1.0
+      xmlhttprequest-ssl: 4.0.0
 
   '@provablehq/wasm@0.9.14': {}
 
@@ -29271,7 +29268,7 @@ snapshots:
       debug: 4.3.4
       engine.io-parser: 5.2.3
       ws: 8.17.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      xmlhttprequest-ssl: 2.1.2
+      xmlhttprequest-ssl: 4.0.0
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -37193,9 +37190,7 @@ snapshots:
       bufferutil: 4.0.9
       utf-8-validate: 5.0.10
 
-  xmlhttprequest-ssl@2.1.2: {}
-
-  xmlhttprequest-ssl@3.1.0: {}
+  xmlhttprequest-ssl@4.0.0: {}
 
   xstream@11.14.0:
     dependencies:
