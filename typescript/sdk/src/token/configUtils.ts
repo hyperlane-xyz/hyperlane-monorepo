@@ -1,3 +1,4 @@
+import { constants } from 'ethers';
 import { zeroAddress } from 'viem';
 
 import { AltVMHookReader, createIsmReader } from '@hyperlane-xyz/deploy-sdk';
@@ -22,6 +23,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import {
+  ResolvedTokenFeeConfigInput,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -36,12 +42,17 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   ContractVerificationStatus,
   DerivedWarpRouteDeployConfig,
+  HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
+  isNativeTokenConfig,
+  isSyntheticRebaseTokenConfig,
+  isSyntheticTokenConfig,
 } from './types.js';
 
 /**
@@ -322,9 +333,68 @@ export async function expandWarpDeployConfig(params: {
         }
       }
 
+      if (chainConfig.tokenFee) {
+        const routerAddress = deployedRoutersAddresses[chain];
+        assert(routerAddress, `Missing deployed router address for ${chain}`);
+        chainConfig.tokenFee = resolveTokenFeeAddress(
+          chainConfig.tokenFee,
+          routerAddress,
+          chainConfig,
+        );
+      }
+
       return chainConfig;
     }),
   );
+}
+
+/**
+ * Resolves the fee token address based on the warp route token type.
+ * - Native tokens: fee token is AddressZero
+ * - Collateral tokens: fee token is the collateral token address
+ * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
+ */
+export function resolveTokenFeeAddress(
+  feeConfig: TokenFeeConfigInput,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+): ResolvedTokenFeeConfigInput {
+  let feeToken: Address;
+
+  if (isNativeTokenConfig(tokenConfig)) {
+    feeToken = constants.AddressZero;
+  } else if (isCollateralTokenConfig(tokenConfig)) {
+    feeToken = tokenConfig.token;
+  } else if (
+    isSyntheticTokenConfig(tokenConfig) ||
+    isSyntheticRebaseTokenConfig(tokenConfig)
+  ) {
+    feeToken = routerAddress;
+  } else {
+    throw new Error(`Unsupported token type for fee resolution`);
+  }
+
+  if (
+    feeConfig.type === TokenFeeType.RoutingFee &&
+    'feeContracts' in feeConfig &&
+    feeConfig.feeContracts
+  ) {
+    return {
+      ...feeConfig,
+      token: feeToken,
+      feeContracts: Object.fromEntries(
+        Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
+  return {
+    ...feeConfig,
+    token: feeToken,
+  } satisfies ResolvedTokenFeeConfigInput;
 }
 
 export async function expandVirtualWarpDeployConfig(params: {

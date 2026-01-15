@@ -46,8 +46,10 @@ import { DEFAULT_CONTRACT_READ_CONCURRENCY } from '../consts/concurrency.js';
 import { isAddressActive } from '../contracts/contracts.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { VerifyContractTypes } from '../deploy/verify/types.js';
-import { EvmTokenFeeReader } from '../fee/EvmTokenFeeReader.js';
-import { TokenFeeConfig } from '../fee/types.js';
+import {
+  DerivedTokenFeeConfig,
+  EvmTokenFeeReader,
+} from '../fee/EvmTokenFeeReader.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -176,6 +178,9 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     let allowedRebalancers: Address[] | undefined;
     let allowedRebalancingBridges: MovableTokenConfig['allowedRebalancingBridges'];
+    let domains: number[] | undefined;
+
+    // Only movable collateral tokens (collateral/native) have rebalancing config
     if (
       hasRebalancingInterface &&
       isMovableCollateralTokenConfig(tokenConfig)
@@ -199,10 +204,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       }
 
       try {
-        const knownDomains = await movableToken.domains();
+        domains = await movableToken.domains();
         const allowedBridgesByDomain = await promiseObjAll(
           objMap(
-            arrayToObject(knownDomains.map((domain) => domain.toString())),
+            arrayToObject(domains.map((domain) => domain.toString())),
             (domain) => movableToken.allowedBridges(domain),
           ),
         );
@@ -221,35 +226,26 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
           error,
         );
       }
-
-      const tokenFee = await this.fetchTokenFee(
-        warpRouteAddress,
-        await movableToken.domains(),
-      );
-
-      return {
-        ...routerConfig,
-        ...tokenConfig,
-        allowedRebalancers,
-        allowedRebalancingBridges,
-        proxyAdmin,
-        destinationGas,
-        tokenFee,
-      } as DerivedTokenRouterConfig;
     }
+
+    // Fetch tokenFee for ALL token types that support it, not just movable collateral
+    const tokenFee = await this.fetchTokenFee(warpRouteAddress, domains);
 
     return {
       ...routerConfig,
       ...tokenConfig,
+      allowedRebalancers,
+      allowedRebalancingBridges,
       proxyAdmin,
       destinationGas,
-    };
+      tokenFee,
+    } as DerivedTokenRouterConfig;
   }
 
   public async fetchTokenFee(
     routerAddress: Address,
     destinations?: number[],
-  ): Promise<TokenFeeConfig | undefined> {
+  ): Promise<DerivedTokenFeeConfig | undefined> {
     const TokenRouter = TokenRouter__factory.connect(
       routerAddress,
       this.provider,

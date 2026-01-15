@@ -110,8 +110,6 @@ export const getEclipseUSDCWarpConfig = async (
     );
 
     const usdcTokenAddress = usdcTokenAddresses[currentChain];
-    const owner = ownersByChain[currentChain];
-
     configs.push([
       currentChain,
       {
@@ -123,7 +121,6 @@ export const getEclipseUSDCWarpConfig = async (
         },
         contractVersion: CONTRACT_VERSION,
         tokenFee: getFixedRoutingFeeConfig(
-          usdcTokenAddress,
           getWarpFeeOwner(currentChain),
           rebalanceableCollateralChains.filter((c) => c !== currentChain),
           5n,

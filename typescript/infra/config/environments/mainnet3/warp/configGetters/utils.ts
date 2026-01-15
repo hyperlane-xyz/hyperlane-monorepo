@@ -185,14 +185,13 @@ export const getNativeTokenConfigForChain = <
 /**
  * Creates a RoutingFee configuration with a fixed fee for specified destinations.
  * Destinations not included will have no fee (RoutingFee returns 0 for unconfigured destinations).
+ * The fee token is auto-derived at deploy time based on the warp route token type.
  *
- * @param token - The token address for the fee
  * @param owner - The owner address for the fee contract
  * @param feeDestinations - List of destination chains that should have the fee applied
  * @param bps - The fee in basis points to apply for feeDestinations
  */
 export function getFixedRoutingFeeConfig(
-  token: Address,
   owner: Address,
   feeDestinations: readonly ChainName[],
   bps: bigint,
@@ -202,7 +201,6 @@ export function getFixedRoutingFeeConfig(
   for (const chain of feeDestinations) {
     feeContracts[chain] = {
       type: TokenFeeType.LinearFee,
-      token,
       owner,
       bps,
     };
@@ -210,7 +208,6 @@ export function getFixedRoutingFeeConfig(
 
   return {
     type: TokenFeeType.RoutingFee,
-    token,
     owner,
     feeContracts,
   };
