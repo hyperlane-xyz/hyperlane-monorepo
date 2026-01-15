@@ -37,10 +37,26 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - name: Get PR SHA
+        id: pr-sha
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === 'issue_comment') {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+              core.setOutput('head_sha', pr.head.sha);
+            } else {
+              core.setOutput('head_sha', context.payload.pull_request.head.sha);
+            }
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
+          ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
 
       - name: Read code review prompt
@@ -84,10 +100,26 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - name: Get PR SHA
+        id: pr-sha
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === 'issue_comment') {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+              core.setOutput('head_sha', pr.head.sha);
+            } else {
+              core.setOutput('head_sha', context.payload.pull_request.head.sha);
+            }
+
       - name: Checkout repository
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
+          ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 2
 
       - name: Run Claude Security Review
@@ -123,10 +155,30 @@ jobs:
       issues: write
       id-token: write
     steps:
+      - name: Get PR SHA
+        id: pr-sha
+        uses: actions/github-script@v7
+        with:
+          script: |
+            if (context.eventName === 'issue_comment') {
+              const { data: pr } = await github.rest.pulls.get({
+                owner: context.repo.owner,
+                repo: context.repo.repo,
+                pull_number: context.issue.number
+              });
+              core.setOutput('head_sha', pr.head.sha);
+              core.setOutput('base_sha', pr.base.sha);
+            } else {
+              core.setOutput('head_sha', context.payload.pull_request.head.sha);
+              core.setOutput('base_sha', context.payload.pull_request.base.sha);
+            }
+
       - name: Check for Solidity changes
         id: solidity-changes
         uses: dorny/paths-filter@v3
         with:
+          base: ${{ steps.pr-sha.outputs.base_sha }}
+          ref: ${{ steps.pr-sha.outputs.head_sha }}
           filters: |
             solidity:
               - 'solidity/**'
@@ -135,7 +187,7 @@ jobs:
         if: steps.solidity-changes.outputs.solidity == 'true'
         uses: actions/checkout@v6
         with:
-          ref: ${{ github.event.pull_request.head.sha || github.event.issue.pull_request.head.sha }}
+          ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
 
       - name: Read ToB security skills prompt
