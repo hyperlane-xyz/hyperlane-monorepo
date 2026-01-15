@@ -182,7 +182,7 @@ describe('EvmTokenFeeReader', () => {
     });
 
     it('should derive routing fee config without routingDestinations', async () => {
-      const routingFeeConfig = {
+      const routingFeeConfig = TokenFeeConfigSchema.parse({
         type: TokenFeeType.RoutingFee,
         owner: signer.address,
         token: token.address,
@@ -196,7 +196,7 @@ describe('EvmTokenFeeReader', () => {
             bps: BPS,
           },
         },
-      };
+      });
       const deployer = new EvmTokenFeeDeployer(
         multiProvider,
         TestChainName.test2,
