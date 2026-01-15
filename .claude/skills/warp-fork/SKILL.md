@@ -15,12 +15,12 @@ Fork a warp route using the local HTTP registry.
 
    - Question: "Which warp route would you like to fork?"
    - Header: "Warp Route"
-   - Options: Provide 2-3 common examples if known, otherwise use generic placeholders
+   - Options: Provide 2-3 common examples if known, otherwise use generic placeholders. Note that the fork may fail if the warp routes are invalid. Re-prompt the user!
 
 2. Run the command in the background:
 
    ```bash
-   pnpm -C typescript/cli exec tsx cli.ts warp fork --registry $REGISTRY --warpRouteId <WARP_ROUTE_ID>
+   pnpm -C typescript/cli exec tsx cli.ts warp fork --registry $REGISTRY --warpRouteId $WARP_ROUTE_ID
    ```
 
    - Attempt to use `http://localhost:3333` for $REGISTRY
