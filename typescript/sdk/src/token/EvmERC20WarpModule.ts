@@ -159,9 +159,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
 
     /**
      * @remark
-     * The order of operations matter
+     * The order of operations matter:
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
-     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * 2. createZeroDestinationGasUpdateTxs() must be BEFORE createUnenrollRemoteRoutersUpdateTxs()
+     *    because the contract requires routers to be enrolled when setting gas
+     * 3. createEnrollRemoteRoutersUpdateTxs() must be BEFORE createSetDestinationGasUpdateTxs()
+     *    because gas can only be set for enrolled domains
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
@@ -175,11 +178,12 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig,
         tokenReaderParams,
       )),
-      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
+      ...this.createZeroDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
       ),
+      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
@@ -272,26 +276,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.remoteRouters) {
       return [];
     }
 
-    assert(actualConfig.remoteRouters, 'actualRemoteRouters is undefined');
-    assert(expectedConfig.remoteRouters, 'actualRemoteRouters is undefined');
-
-    const { remoteRouters: actualRemoteRouters } = actualConfig;
-    const { remoteRouters: expectedRemoteRouters } = expectedConfig;
-
-    const routesToUnenroll = Array.from(
-      difference(
-        new Set(Object.keys(actualRemoteRouters)),
-        new Set(Object.keys(expectedRemoteRouters)),
-      ),
+    const { toUnenroll } = this.getRouterDomainDiff(
+      actualConfig,
+      expectedConfig,
     );
 
-    if (routesToUnenroll.length === 0) {
-      return updateTransactions;
+    if (toUnenroll.size === 0) {
+      return [];
     }
 
     const contractToUpdate = TokenRouter__factory.connect(
@@ -299,17 +294,17 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       this.multiProvider.getProvider(this.domainId),
     );
 
-    updateTransactions.push({
-      annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
-      chainId: this.chainId,
-      to: contractToUpdate.address,
-      data: contractToUpdate.interface.encodeFunctionData(
-        'unenrollRemoteRouters(uint32[])',
-        [routesToUnenroll.map((k) => Number(k))],
-      ),
-    });
-
-    return updateTransactions;
+    return [
+      {
+        annotation: `Unenrolling Router ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
+        chainId: this.chainId,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'unenrollRemoteRouters(uint32[])',
+          [[...toUnenroll]],
+        ),
+      },
+    ];
   }
 
   createAddRebalancersUpdateTxs(
@@ -793,17 +788,94 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }
 
   /**
-   * Create a transaction to update the remote routers for the Warp Route contract.
+   * Compute the sets of domains being enrolled and unenrolled based on config diff.
+   */
+  private getRouterDomainDiff(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): { toEnroll: Set<number>; toUnenroll: Set<number>; toKeep: Set<number> } {
+    const actualDomains = new Set(
+      Object.keys(actualConfig.remoteRouters ?? {}).map(Number),
+    );
+    const expectedDomains = new Set(
+      Object.keys(expectedConfig.remoteRouters ?? {}).map(Number),
+    );
+
+    return {
+      toEnroll: difference(expectedDomains, actualDomains),
+      toUnenroll: difference(actualDomains, expectedDomains),
+      toKeep: new Set([...expectedDomains].filter((d) => actualDomains.has(d))),
+    };
+  }
+
+  /**
+   * Create a transaction to zero out destination gas for domains being unenrolled.
+   * This must be called BEFORE unenrolling routers since the contract requires
+   * the router to be enrolled when setting destination gas.
    *
-   * @param actualConfig - The on-chain router configuration, including the remoteRouters array.
+   * @param actualConfig - The on-chain router configuration.
    * @param expectedConfig - The expected token router configuration.
-   * @returns A array with a single Ethereum transaction that need to be executed to enroll the routers
+   * @returns Ethereum transactions to zero destination gas for unenrolling domains.
+   */
+  createZeroDestinationGasUpdateTxs(
+    actualConfig: DerivedTokenRouterConfig,
+    expectedConfig: HypTokenRouterConfig,
+  ): AnnotatedEV5Transaction[] {
+    const { toUnenroll } = this.getRouterDomainDiff(
+      actualConfig,
+      expectedConfig,
+    );
+
+    if (toUnenroll.size === 0) {
+      return [];
+    }
+
+    // Filter to only domains with non-zero gas
+    const actualDestinationGas = actualConfig.destinationGas ?? {};
+    const domainsToZero = [...toUnenroll].filter((domain) => {
+      const gas = actualDestinationGas[domain];
+      return gas !== undefined && gas !== '0' && Number(gas) !== 0;
+    });
+
+    if (domainsToZero.length === 0) {
+      return [];
+    }
+
+    const contractToUpdate = GasRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    const gasRouterConfigs = domainsToZero.map((domain) => ({
+      domain,
+      gas: 0,
+    }));
+
+    return [
+      {
+        chainId: this.chainId,
+        annotation: `Zeroing destination gas for unenrolling domains on ${this.args.chain}`,
+        to: contractToUpdate.address,
+        data: contractToUpdate.interface.encodeFunctionData(
+          'setDestinationGas((uint32,uint256)[])',
+          [gasRouterConfigs],
+        ),
+      },
+    ];
+  }
+
+  /**
+   * Create a transaction to update the destination gas for the Warp Route contract.
+   * Only sets gas for domains that will be enrolled after the update.
+   *
+   * @param actualConfig - The on-chain router configuration, including the destinationGas.
+   * @param expectedConfig - The expected token router configuration.
+   * @returns Ethereum transactions to set destination gas for enrolled domains.
    */
   createSetDestinationGasUpdateTxs(
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    const updateTransactions: AnnotatedEV5Transaction[] = [];
     if (!expectedConfig.destinationGas) {
       return [];
     }
@@ -812,6 +884,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     assert(
       expectedConfig.destinationGas,
       'expectedDestinationGas is undefined',
+    );
+
+    // Only set gas for domains that will be enrolled after the update
+    const expectedRemoteRouterDomains = new Set(
+      Object.keys(expectedConfig.remoteRouters ?? {}).map(Number),
     );
 
     const actualDestinationGas = resolveRouterMapConfig(
@@ -823,23 +900,40 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       expectedConfig.destinationGas,
     );
 
-    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
-      const contractToUpdate = GasRouter__factory.connect(
-        this.args.addresses.deployedTokenRoute,
-        this.multiProvider.getProvider(this.domainId),
-      );
+    // Filter to only domains that will be enrolled
+    const filteredExpectedGas = Object.fromEntries(
+      Object.entries(expectedDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
 
-      // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
-      const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
-        [];
-      objMap(expectedDestinationGas, (domain: Domain, gas: string) => {
-        gasRouterConfigs.push({
-          domain,
-          gas,
-        });
+    // Filter actual gas to the same domains for comparison
+    const filteredActualGas = Object.fromEntries(
+      Object.entries(actualDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    if (deepEquals(filteredActualGas, filteredExpectedGas)) {
+      return [];
+    }
+
+    const contractToUpdate = GasRouter__factory.connect(
+      this.args.addresses.deployedTokenRoute,
+      this.multiProvider.getProvider(this.domainId),
+    );
+
+    // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
+    const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] = [];
+    objMap(filteredExpectedGas, (domain: Domain, gas: string) => {
+      gasRouterConfigs.push({
+        domain,
+        gas,
       });
+    });
 
-      updateTransactions.push({
+    return [
+      {
         chainId: this.chainId,
         annotation: `Setting destination gas for ${this.args.addresses.deployedTokenRoute} on ${this.args.chain}`,
         to: contractToUpdate.address,
@@ -847,9 +941,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
           'setDestinationGas((uint32,uint256)[])',
           [gasRouterConfigs],
         ),
-      });
-    }
-    return updateTransactions;
+      },
+    ];
   }
 
   /**
