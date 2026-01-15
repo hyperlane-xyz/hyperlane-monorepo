@@ -418,10 +418,12 @@ where
         .ok_or_else(|| ProviderError::CustomError("EIP-1559 not activated".into()))?;
 
     // use the provided fee estimator function, or fallback to the default implementation.
+    // Sanitize rewards to filter out empty inner vectors that would cause panics.
+    let rewards = sanitize_rewards(fee_history.reward);
     let (max_fee_per_gas, max_priority_fee_per_gas) = if let Some(es) = estimator {
-        es(base_fee_per_gas, fee_history.reward)
+        es(base_fee_per_gas, rewards)
     } else {
-        eip1559_default_estimator(base_fee_per_gas, fee_history.reward)
+        eip1559_default_estimator(base_fee_per_gas, rewards)
     };
 
     Ok((
@@ -493,6 +495,12 @@ fn has_rewards(fee_history: &FeeHistory) -> bool {
         .iter()
         .filter_map(|r| r.first())
         .any(|r| !r.is_zero())
+}
+
+/// Filter out empty inner vectors from rewards to prevent panics in eip1559_default_estimator.
+/// Sparse arrays like [[],[],["0x17a1df1700"],[]] will be sanitized to [["0x17a1df1700"]].
+fn sanitize_rewards(rewards: Vec<Vec<EthersU256>>) -> Vec<Vec<EthersU256>> {
+    rewards.into_iter().filter(|r| !r.is_empty()).collect()
 }
 
 pub(crate) async fn call_with_reorg_period<M, T>(
@@ -568,5 +576,42 @@ mod test {
         });
         // Require a parsing success
         let _response = zksync_estimate_fee(provider, &tx).await.unwrap();
+    }
+
+    #[test]
+    fn test_sanitize_rewards_filters_empty_vectors() {
+        // Sparse array like [[],[],["0x17a1df1700"],[]] should become [["0x17a1df1700"]]
+        let rewards = vec![vec![], vec![], vec![U256::from(100000000000u64)], vec![]];
+        let sanitized = super::sanitize_rewards(rewards);
+        assert_eq!(sanitized.len(), 1);
+        assert_eq!(sanitized[0], vec![U256::from(100000000000u64)]);
+    }
+
+    #[test]
+    fn test_sanitize_rewards_preserves_non_empty_vectors() {
+        let rewards = vec![
+            vec![U256::from(1)],
+            vec![U256::from(2)],
+            vec![U256::from(3)],
+        ];
+        let sanitized = super::sanitize_rewards(rewards);
+        assert_eq!(sanitized.len(), 3);
+        assert_eq!(sanitized[0], vec![U256::from(1)]);
+        assert_eq!(sanitized[1], vec![U256::from(2)]);
+        assert_eq!(sanitized[2], vec![U256::from(3)]);
+    }
+
+    #[test]
+    fn test_sanitize_rewards_handles_all_empty() {
+        let rewards = vec![vec![], vec![], vec![]];
+        let sanitized = super::sanitize_rewards(rewards);
+        assert!(sanitized.is_empty());
+    }
+
+    #[test]
+    fn test_sanitize_rewards_handles_empty_input() {
+        let rewards: Vec<Vec<U256>> = vec![];
+        let sanitized = super::sanitize_rewards(rewards);
+        assert!(sanitized.is_empty());
     }
 }
