@@ -2,6 +2,15 @@
 
 This file provides guidance to Claude Code when working with code in this repository.
 
+## Communication
+
+Be extremely concise. Sacrifice grammar for concision. Terse responses preferred. No fluff.
+
+## Plan Mode
+
+- Make the plan extremely concise. Sacrifice grammar for the sake of concision.
+- At the end of each plan, give me a list of unresolved questions to answer, if any.
+
 ## Overview
 
 Hyperlane is an interchain messaging protocol that enables applications to communicate between blockchains. The monorepo contains three main components:
@@ -277,6 +286,17 @@ cd rust/main && cargo run --release --bin run-locally
 cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture
 cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture
 ```
+
+## TypeScript Style
+
+- Avoid unnecessary type casts (`as` assertions), especially `as unknown as X` double-casts.
+- If types don't match, fix the underlying types rather than casting. Alternatives:
+  - Adjust interface definitions to be compatible
+  - Use type guards for runtime narrowing
+  - Compose objects explicitly (spread + missing properties)
+  - Use `Partial<>` patterns as last resort
+- Note: spread operators (`{ ...obj }`) don't bypass type checking - they still error if types are incompatible.
+- Prefer proper typing over `any` or type assertions.
 
 ## Tips for Claude Code Sessions
 

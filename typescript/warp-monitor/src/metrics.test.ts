@@ -1,6 +1,11 @@
 import { expect } from 'chai';
 import { Registry } from 'prom-client';
 
+import type {
+  NativeWalletBalance,
+  WarpRouteBalance,
+  XERC20Limit,
+} from '@hyperlane-xyz/metrics';
 import { TokenStandard } from '@hyperlane-xyz/sdk';
 
 import {
@@ -9,11 +14,6 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './metrics.js';
-import type {
-  NativeWalletBalance,
-  WarpRouteBalance,
-  XERC20Limit,
-} from './types.js';
 
 describe('Warp Monitor Metrics', () => {
   // Note: We don't clear the registry between tests because the gauges are

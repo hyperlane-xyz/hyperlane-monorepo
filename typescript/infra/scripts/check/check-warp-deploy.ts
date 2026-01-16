@@ -1,13 +1,13 @@
 import chalk from 'chalk';
 import { Gauge, Registry } from 'prom-client';
 
+import { submitMetrics } from '@hyperlane-xyz/metrics';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { WarpRouteIds } from '../../config/environments/mainnet3/warp/warpIds.js';
 import { DEFAULT_REGISTRY_URI } from '../../config/registry.js';
 import { getWarpConfigMapFromMergedRegistry } from '../../config/warp.js';
-import { submitMetrics } from '../../src/utils/metrics.js';
 import { Modules } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

@@ -2,10 +2,11 @@ import { expect } from 'chai';
 
 import type {
   NativeWalletBalance,
-  WarpMonitorConfig,
   WarpRouteBalance,
   XERC20Limit,
-} from './types.js';
+} from '@hyperlane-xyz/metrics';
+
+import type { WarpMonitorConfig } from './types.js';
 
 describe('Warp Monitor Types', () => {
   describe('WarpRouteBalance', () => {

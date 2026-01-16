@@ -1,13 +1,16 @@
-import { Contract, type PopulatedTransaction } from 'ethers';
 import { type Logger } from 'pino';
 
-import { IXERC20VS__factory } from '@hyperlane-xyz/core';
 import {
-  type EvmHypXERC20Adapter,
-  type EvmHypXERC20LockboxAdapter,
-  EvmTokenAdapter,
-  type IHypXERC20Adapter,
-  type SealevelHypTokenAdapter,
+  type TokenPriceGetter,
+  getExtraLockboxBalance,
+  getExtraLockboxInfo,
+  getManagedLockBoxCollateralInfo,
+  getSealevelAtaPayerBalance,
+  getTokenBridgedBalance,
+  getXERC20Info,
+  startMetricsServer,
+} from '@hyperlane-xyz/metrics';
+import {
   Token,
   type TokenAmount,
   TokenStandard,
@@ -15,12 +18,11 @@ import {
   type WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, tryFn } from '@hyperlane-xyz/utils';
 
 import { type IMetrics } from '../interfaces/IMetrics.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
 import { type RebalancingRoute } from '../interfaces/IStrategy.js';
-import { formatBigInt, tryFn } from '../utils/index.js';
 
 import { type PriceGetter } from './PriceGetter.js';
 import {
@@ -33,20 +35,10 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
-import {
-  type NativeWalletBalance,
-  type WarpRouteBalance,
-  type XERC20Info,
-  type XERC20Limit,
-} from './types.js';
-import { startMetricsServer } from './utils/metrics.js';
 
 export class Metrics implements IMetrics {
-  private readonly managedLockBoxMinimalABI = [
-    'function XERC20() view returns (address)',
-    'function ERC20() view returns (address)',
-  ] as const;
   private readonly logger: Logger;
+  private readonly priceGetter: TokenPriceGetter;
 
   constructor(
     private readonly tokenPriceGetter: PriceGetter,
@@ -57,6 +49,13 @@ export class Metrics implements IMetrics {
   ) {
     this.logger = logger.child({ class: Metrics.name });
     startMetricsServer(metricsRegister);
+
+    // Wrap PriceGetter to match TokenPriceGetter interface
+    this.priceGetter = {
+      tryGetTokenPrice: async (token: Token) => {
+        return this.tokenPriceGetter.tryGetTokenPrice(token);
+      },
+    };
   }
 
   recordRebalancerSuccess() {
@@ -112,8 +111,11 @@ export class Metrics implements IMetrics {
     const promises = [
       tryFn(
         async () => {
-          const balanceInfo = await this.getTokenBridgedBalance(
+          const balanceInfo = await getTokenBridgedBalance(
+            this.warpCore,
             token,
+            this.priceGetter,
+            this.logger,
             bridgedSupply,
           );
 
@@ -142,7 +144,8 @@ export class Metrics implements IMetrics {
       promises.push(
         tryFn(
           async () => {
-            const balance = await this.getSealevelAtaPayerBalance(
+            const balance = await getSealevelAtaPayerBalance(
+              this.warpCore,
               token,
               this.warpRouteId,
             );
@@ -159,7 +162,10 @@ export class Metrics implements IMetrics {
       promises.push(
         tryFn(
           async () => {
-            const { limits, xERC20Address } = await this.getXERC20Info(token);
+            const { limits, xERC20Address } = await getXERC20Info(
+              this.warpCore,
+              token,
+            );
             const routerAddress = token.addressOrDenom;
 
             updateXERC20LimitsMetrics(
@@ -213,7 +219,8 @@ export class Metrics implements IMetrics {
         promises.push(
           tryFn(
             async () => {
-              const { limits, xERC20Address } = await this.getExtraLockboxInfo(
+              const { limits, xERC20Address } = await getExtraLockboxInfo(
+                this.warpCore.multiProvider,
                 token,
                 lockbox.lockbox,
               );
@@ -232,14 +239,18 @@ export class Metrics implements IMetrics {
           ),
           tryFn(
             async () => {
-              const balance = await this.getExtraLockboxBalance(
+              const balance = await getExtraLockboxBalance(
+                this.warpCore.multiProvider,
                 token,
+                this.priceGetter,
                 lockbox.lockbox,
+                this.logger,
               );
 
               if (balance) {
                 const { tokenName, tokenAddress } =
-                  await this.getManagedLockBoxCollateralInfo(
+                  await getManagedLockBoxCollateralInfo(
+                    this.warpCore.multiProvider,
                     token,
                     lockbox.lockbox,
                   );
@@ -264,261 +275,6 @@ export class Metrics implements IMetrics {
     }
 
     await Promise.all(promises);
-  }
-
-  // Gets the bridged balance and value of a token in a warp route.
-  private async getTokenBridgedBalance(
-    token: Token,
-    bridgedSupply?: bigint,
-  ): Promise<WarpRouteBalance | undefined> {
-    if (!token.isHypToken()) {
-      this.logger.warn(
-        {
-          tokenChain: token.chainName,
-          tokenSymbol: token.symbol,
-          tokenAddress: token.addressOrDenom,
-        },
-        'Cannot get bridged balance for a non-Hyperlane token',
-      );
-      return undefined;
-    }
-
-    const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-    let tokenAddress = token.collateralAddressOrDenom ?? token.addressOrDenom;
-
-    if (bridgedSupply === undefined) {
-      this.logger.warn(
-        {
-          tokenChain: token.chainName,
-          tokenSymbol: token.symbol,
-          tokenAddress: token.addressOrDenom,
-        },
-        'Bridged supply not found for token',
-      );
-      return undefined;
-    }
-
-    const balance = token.amount(bridgedSupply).getDecimalFormattedAmount();
-
-    let tokenPrice;
-    // Only record value for collateralized and xERC20 lockbox tokens.
-    // removed the check for `EvmHypXERC20Lockbox` as it's already listed as collateralized
-    if (token.isCollateralized()) {
-      tokenPrice = await this.tokenPriceGetter.tryGetTokenPrice(token);
-    }
-
-    if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
-      tokenAddress = (await (adapter as EvmHypXERC20LockboxAdapter).getXERC20())
-        .address;
-    }
-
-    return {
-      balance,
-      valueUSD: tokenPrice ? balance * tokenPrice : undefined,
-      tokenAddress,
-    };
-  }
-
-  // Gets the native balance of the ATA payer, which is used to pay for
-  // rent when delivering tokens to an account that previously didn't
-  // have a balance.
-  // Only intended for Collateral or Synthetic Sealevel tokens.
-  private async getSealevelAtaPayerBalance(
-    token: Token,
-    warpRouteId: string,
-  ): Promise<NativeWalletBalance> {
-    if (token.protocol !== ProtocolType.Sealevel || token.isNative()) {
-      throw new Error(
-        `Unsupported ATA payer protocol type ${token.protocol} or standard ${token.standard}`,
-      );
-    }
-    const adapter = token.getHypAdapter(
-      this.warpCore.multiProvider,
-    ) as SealevelHypTokenAdapter;
-
-    const ataPayer = adapter.deriveAtaPayerAccount().toString();
-    const nativeToken = Token.FromChainMetadataNativeToken(
-      this.warpCore.multiProvider.getChainMetadata(token.chainName),
-    );
-    const ataPayerBalance = await nativeToken.getBalance(
-      this.warpCore.multiProvider,
-      ataPayer,
-    );
-
-    return {
-      chain: token.chainName,
-      walletAddress: ataPayer.toString(),
-      walletName: `${warpRouteId}/ata-payer`,
-      balance: ataPayerBalance.getDecimalFormattedAmount(),
-    };
-  }
-
-  private async getXERC20Info(token: Token): Promise<XERC20Info> {
-    if (token.protocol !== ProtocolType.Ethereum) {
-      throw new Error(`Unsupported XERC20 protocol type ${token.protocol}`);
-    }
-
-    if (token.standard === TokenStandard.EvmHypXERC20) {
-      const adapter = token.getAdapter(
-        this.warpCore.multiProvider,
-      ) as EvmHypXERC20Adapter;
-      return {
-        limits: await this.getXERC20Limit(token, adapter),
-        xERC20Address: (await adapter.getXERC20()).address,
-      };
-    } else if (token.standard === TokenStandard.EvmHypXERC20Lockbox) {
-      const adapter = token.getAdapter(
-        this.warpCore.multiProvider,
-      ) as EvmHypXERC20LockboxAdapter;
-      return {
-        limits: await this.getXERC20Limit(token, adapter),
-        xERC20Address: (await adapter.getXERC20()).address,
-      };
-    }
-    throw new Error(`Unsupported XERC20 token standard ${token.standard}`);
-  }
-
-  private async getXERC20Limit(
-    token: Token,
-    xerc20: IHypXERC20Adapter<PopulatedTransaction>,
-  ): Promise<XERC20Limit> {
-    const [mintCurrent, mintMax, burnCurrent, burnMax] = await Promise.all([
-      xerc20.getMintLimit(),
-      xerc20.getMintMaxLimit(),
-      xerc20.getBurnLimit(),
-      xerc20.getBurnMaxLimit(),
-    ]);
-
-    return {
-      mint: formatBigInt(token, mintCurrent),
-      mintMax: formatBigInt(token, mintMax),
-      burn: formatBigInt(token, burnCurrent),
-      burnMax: formatBigInt(token, burnMax),
-    };
-  }
-
-  private async getExtraLockboxInfo(
-    warpToken: Token,
-    lockboxAddress: Address,
-  ): Promise<XERC20Info> {
-    const currentChainProvider =
-      this.warpCore.multiProvider.getEthersV5Provider(warpToken.chainName);
-    const lockboxInstance = await this.getManagedLockBox(
-      warpToken,
-      lockboxAddress,
-    );
-
-    const xERC20Address = await lockboxInstance.XERC20();
-    const vsXERC20Address = IXERC20VS__factory.connect(
-      xERC20Address,
-      currentChainProvider,
-    ); // todo use adapter
-
-    const [mintMax, burnMax, mint, burn] = await Promise.all([
-      vsXERC20Address.mintingMaxLimitOf(lockboxAddress),
-      vsXERC20Address.burningMaxLimitOf(lockboxAddress),
-      vsXERC20Address.mintingCurrentLimitOf(lockboxAddress),
-      vsXERC20Address.burningCurrentLimitOf(lockboxAddress),
-    ]);
-
-    return {
-      limits: {
-        burn: formatBigInt(warpToken, burn.toBigInt()),
-        burnMax: formatBigInt(warpToken, burnMax.toBigInt()),
-        mint: formatBigInt(warpToken, mint.toBigInt()),
-        mintMax: formatBigInt(warpToken, mintMax.toBigInt()),
-      },
-      xERC20Address,
-    };
-  }
-
-  private async getManagedLockBox(
-    warpToken: Token,
-    lockboxAddress: Address,
-  ): Promise<Contract> {
-    const chainName = warpToken.chainName;
-    const provider = this.warpCore.multiProvider.getEthersV5Provider(chainName);
-
-    return new Contract(
-      lockboxAddress,
-      this.managedLockBoxMinimalABI,
-      provider,
-    );
-  }
-
-  private async getExtraLockboxBalance(
-    warpToken: Token,
-    lockboxAddress: Address,
-  ): Promise<WarpRouteBalance | undefined> {
-    if (!warpToken.isXerc20()) {
-      return;
-    }
-
-    const lockboxInstance = await this.getManagedLockBox(
-      warpToken,
-      lockboxAddress,
-    );
-
-    const erc20TokenAddress = await lockboxInstance.ERC20();
-    const erc20tokenAdapter = new EvmTokenAdapter(
-      warpToken.chainName,
-      this.warpCore.multiProvider,
-      {
-        token: erc20TokenAddress,
-      },
-    );
-
-    let balance;
-    try {
-      balance = await erc20tokenAdapter.getBalance(lockboxAddress);
-    } catch (error) {
-      this.logger.error(
-        {
-          lockboxAddress,
-          chain: warpToken.chainName,
-          erc20TokenAddress,
-          error: error as Error,
-        },
-        'Error getting balance for contract at lockbox',
-      );
-      return;
-    }
-
-    const tokenPrice = await this.tokenPriceGetter.tryGetTokenPrice(warpToken);
-
-    const balanceNumber = formatBigInt(warpToken, balance);
-
-    return {
-      balance: balanceNumber,
-      valueUSD: tokenPrice ? balanceNumber * tokenPrice : undefined,
-      tokenAddress: erc20TokenAddress,
-    };
-  }
-
-  private async getManagedLockBoxCollateralInfo(
-    warpToken: Token,
-    lockBoxAddress: Address,
-  ): Promise<{ tokenName: string; tokenAddress: Address }> {
-    const lockBoxInstance = await this.getManagedLockBox(
-      warpToken,
-      lockBoxAddress,
-    );
-
-    const collateralTokenAddress = await lockBoxInstance.ERC20();
-    const collateralTokenAdapter = new EvmTokenAdapter(
-      warpToken.chainName,
-      this.warpCore.multiProvider,
-      {
-        token: collateralTokenAddress,
-      },
-    );
-
-    const { name } = await collateralTokenAdapter.getMetadata();
-
-    return {
-      tokenName: name,
-      tokenAddress: collateralTokenAddress,
-    };
   }
 
   static getWarpRouteCollateralTokenSymbol(tokens: Token[]): string {
