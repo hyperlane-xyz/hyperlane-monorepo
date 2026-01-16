@@ -391,6 +391,91 @@ describe('Radix Hooks (e2e)', function () {
       const txs = await writer.update(deployedHook);
       expect(txs).to.be.an('array').with.length(0);
     });
+
+    it('should update gas configs AND transfer ownership (ownership last)', async () => {
+      // This test exposes the bug where ownership transfer happens before gas config updates
+      // The ownership transfer MUST be the last transaction, otherwise the gas config
+      // updates will fail because the signer is no longer the owner
+      const initialConfig: IgpHookConfig = {
+        type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        owner: TEST_RADIX_DEPLOYER_ADDRESS,
+        beneficiary: TEST_RADIX_DEPLOYER_ADDRESS,
+        oracleKey: TEST_RADIX_DEPLOYER_ADDRESS,
+        overhead: {
+          [DOMAIN_1]: 50000,
+        },
+        oracleConfig: {
+          [DOMAIN_1]: {
+            gasPrice: '1000000000',
+            tokenExchangeRate: '10000000000',
+          },
+        },
+      };
+
+      const writer = artifactManager.createWriter(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        radixSigner,
+      );
+      const [deployedHook] = await writer.create({ config: initialConfig });
+
+      // Update BOTH gas config AND ownership
+      const updatedConfig: ArtifactDeployed<
+        IgpHookConfig,
+        DeployedHookAddress
+      > = {
+        ...deployedHook,
+        config: {
+          ...deployedHook.config,
+          owner: TEST_RADIX_BURN_ADDRESS, // Transfer ownership
+          overhead: {
+            [DOMAIN_1]: 60000, // Also update gas config
+            [DOMAIN_2]: 100000, // Add new domain
+          },
+          oracleConfig: {
+            [DOMAIN_1]: {
+              gasPrice: '2000000000', // Changed
+              tokenExchangeRate: '12000000000', // Changed
+            },
+            [DOMAIN_2]: {
+              gasPrice: '3000000000',
+              tokenExchangeRate: '15000000000',
+            },
+          },
+        },
+      };
+
+      const txs = await writer.update(updatedConfig);
+      expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+      // Verify ownership transfer is the LAST transaction
+      const lastTx = txs[txs.length - 1];
+      expect(lastTx.annotation).to.include('owner');
+
+      // Execute all transactions - this will fail if ownership transfer is not last
+      for (const tx of txs) {
+        await providerSdkSigner.sendAndConfirmTransaction(tx);
+      }
+
+      // Verify both gas config updates AND ownership transfer succeeded
+      const reader = artifactManager.createReader(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+      );
+      const readHook = await reader.read(deployedHook.deployed.address);
+
+      // Verify gas configs were updated
+      expect(readHook.config.overhead[DOMAIN_1]).to.equal(60000);
+      expect(readHook.config.overhead[DOMAIN_2]).to.equal(100000);
+      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal(
+        '2000000000',
+      );
+      expect(readHook.config.oracleConfig[DOMAIN_2].gasPrice).to.equal(
+        '3000000000',
+      );
+
+      // Verify ownership was transferred
+      expect(eqAddressRadix(readHook.config.owner, TEST_RADIX_BURN_ADDRESS)).to
+        .be.true;
+    });
   });
 
   describe('Generic hook reading via readHook', () => {

@@ -177,24 +177,6 @@ export class RadixIgpHookWriter
     // Read current state
     const currentState = await this.read(deployed.address);
 
-    // Check if owner needs to be updated
-    if (!eqAddressRadix(currentState.config.owner, config.owner)) {
-      const setOwnerTx = await getSetIgpOwnerTx(
-        this.base,
-        this.gateway,
-        this.signer.getAddress(),
-        {
-          igpAddress: deployed.address,
-          newOwner: config.owner,
-        },
-      );
-      updateTxs.push({
-        annotation: 'Setting new IGP owner',
-        networkId: this.base.getNetworkId(),
-        manifest: setOwnerTx,
-      });
-    }
-
     // Update destination gas configs
     for (const [domainIdStr, gasConfig] of Object.entries(
       config.oracleConfig,
@@ -229,6 +211,24 @@ export class RadixIgpHookWriter
           manifest: setConfigTx,
         });
       }
+    }
+
+    // Owner transfer must be last transaction as the current owner executes all updates
+    if (!eqAddressRadix(currentState.config.owner, config.owner)) {
+      const setOwnerTx = await getSetIgpOwnerTx(
+        this.base,
+        this.gateway,
+        this.signer.getAddress(),
+        {
+          igpAddress: deployed.address,
+          newOwner: config.owner,
+        },
+      );
+      updateTxs.push({
+        annotation: 'Setting new IGP owner',
+        networkId: this.base.getNetworkId(),
+        manifest: setOwnerTx,
+      });
     }
 
     return updateTxs;
