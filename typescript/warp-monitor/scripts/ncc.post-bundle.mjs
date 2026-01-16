@@ -7,14 +7,29 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
 
 const OUTPUT_FILE = path.join(__dirname, '..', 'bundle', 'index.js');
-const SHEBANG = '#!/usr/bin/env node';
+// Use -S to pass additional arguments to node
+// --no-warnings suppresses process warnings like the node-fetch DeprecationWarning
+// about .data not being a valid RequestInit property (comes from gaxios via Google Cloud libs)
+const SHEBANG = '#!/usr/bin/env -S node --no-warnings';
 
+// This shim runs before any other code and:
+// 1. Adds __dirname/__filename support for ESM
+// 2. Suppresses the bigint-buffer console.warn about native bindings
+//    (comes from @solana/spl-token -> @solana/buffer-layout-utils -> bigint-buffer)
 const DIRNAME_SHIM = `
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = path.dirname(__filename);
+
+// Suppress bigint-buffer warning about native bindings
+// The warning is harmless - it just uses a slower pure JS implementation
+const _origWarn = console.warn;
+console.warn = (...args) => {
+  if (args[0]?.includes?.('bigint: Failed to load bindings')) return;
+  _origWarn.apply(console, args);
+};
 `.trim();
 
 /**
