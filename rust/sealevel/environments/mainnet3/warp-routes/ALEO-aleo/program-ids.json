@@ -1,0 +1,22 @@
+{
+  "solanamainnet": {
+    "hex": "0x388393be6087b306cda5930d79888e9fcf73147a2e0fa92afbfa0b6a26ae55e9",
+    "base58": "4ocCWvTFwoKWGwoxqFDau2taUR6aUVVBFT8p3kFS6Afr"
+  },
+  "aleo": {
+    "hex": "0x0740c5275b9aaa6e27b47b69e2c1411fa9df9b02c3bea416a9eb2f27b7127900",
+    "base58": "VK8wbCPq8eXRC5moP1u3Er9PeCY2iCm81xTJtFoZQNb"
+  },
+  "base": {
+    "hex": "0x00000000000000000000000033fbc08bd84e61e04e51ea0f32885aa77f7d5eca",
+    "base58": "111111111111j1GH4Kp6ePxzf3Wu3zqQ9sdvpT3"
+  },
+  "hyperevm": {
+    "hex": "0x0000000000000000000000009562b536713af52627679c2c559ebe54fb7c3cc9",
+    "base58": "11111111111135i8ZyeLrtCCE5VwvQDiBvNEdoix"
+  },
+  "ethereum": {
+    "hex": "0x00000000000000000000000033fbc08bd84e61e04e51ea0f32885aa77f7d5eca",
+    "base58": "111111111111j1GH4Kp6ePxzf3Wu3zqQ9sdvpT3"
+  }
+}
