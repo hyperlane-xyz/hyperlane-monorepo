@@ -57,13 +57,16 @@ export async function sendTestTransfer({
 
   // Each hop's origin must be EVM (we need an EVM signer to submit).
   // Destinations can be any protocol - the Rust relayer handles delivery.
+  // When using --chains, non-EVM chains must be the final destination
+  // (e.g., --chains ethereum,sealevel OK; --chains sealevel,ethereum NOT OK).
   const hopOrigins = new Set<ChainName>();
   for (let i = 0; i < chains.length - 1; i++) {
     const hopOrigin = chains[i];
     hopOrigins.add(hopOrigin);
     if (multiProvider.getProtocol(hopOrigin) !== ProtocolType.Ethereum) {
       throw new Error(
-        `'hyperlane warp send' requires EVM origin chains. '${hopOrigin}' is ${multiProvider.getProtocol(hopOrigin)}`,
+        `'hyperlane warp send' requires EVM origin chains. '${hopOrigin}' is ${multiProvider.getProtocol(hopOrigin)}. ` +
+          `Non-EVM chains can only be the final destination.`,
       );
     }
   }
