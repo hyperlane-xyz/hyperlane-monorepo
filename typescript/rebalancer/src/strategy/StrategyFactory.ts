@@ -1,10 +1,13 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
-import { ChainMap, Token } from '@hyperlane-xyz/sdk';
+import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
 
-import { RebalancerStrategyOptions, StrategyConfig } from '../config/types.js';
+import {
+  RebalancerStrategyOptions,
+  type StrategyConfig,
+} from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
-import { Metrics } from '../metrics/Metrics.js';
+import { type Metrics } from '../metrics/Metrics.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';
 import { WeightedStrategy } from './WeightedStrategy.js';

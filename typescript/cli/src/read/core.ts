@@ -1,13 +1,18 @@
 import { AltVMCoreReader } from '@hyperlane-xyz/deploy-sdk';
 import {
-  ChainName,
-  CoreConfig,
+  type ChainName,
+  type CoreConfig,
   EvmCoreReader,
   altVmChainLookup,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert, mustGet } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  mustGet,
+} from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed } from '../logger.js';
 
 export async function executeCoreRead({
@@ -50,10 +55,9 @@ export async function executeCoreRead({
     }
     default: {
       const provider = mustGet(context.altVmProviders, chain);
-      const coreReader = new AltVMCoreReader(
-        altVmChainLookup(context.multiProvider),
-        provider,
-      );
+      const chainLookup = altVmChainLookup(context.multiProvider);
+      const metadata = chainLookup.getChainMetadata(chain);
+      const coreReader = new AltVMCoreReader(metadata, chainLookup, provider);
       try {
         return await coreReader.deriveCoreConfig(mailbox);
       } catch (e: any) {

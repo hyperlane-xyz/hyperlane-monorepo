@@ -1,5 +1,5 @@
 import EventEmitter from 'events';
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';

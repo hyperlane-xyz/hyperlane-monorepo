@@ -125,6 +125,9 @@ function getChainConnections(
       ['eclipsemainnet', 'sonicsvm'],
       ['eclipsemainnet', 'soon'],
       ['eclipsemainnet', 'katana'],
+      ['eclipsemainnet', 'unichain'],
+      ['eclipsemainnet', 'optimism'],
+      ['eclipsemainnet', 'polygon'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],

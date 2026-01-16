@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ChainMap, IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
+import { type ChainMap, type IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
 
 import { readIsmConfig } from '../../config/ism.js';
 

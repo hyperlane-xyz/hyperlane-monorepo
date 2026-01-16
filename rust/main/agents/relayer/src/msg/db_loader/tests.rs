@@ -91,7 +91,7 @@ fn dummy_message_loader(
             dummy_message_loader_metrics(origin_domain.id()),
             HashMap::from([(destination_domain.id(), send_channel)]),
             HashMap::from([(destination_domain.id(), message_context)]),
-            vec![],
+            vec![].into(),
             DEFAULT_MAX_MESSAGE_RETRIES,
         ),
         receive_channel,

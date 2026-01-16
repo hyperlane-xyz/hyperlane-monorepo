@@ -1,4 +1,9 @@
-import { HookConfig, HookType, IsmConfig, IsmType } from '@hyperlane-xyz/sdk';
+import {
+  type HookConfig,
+  type HookType,
+  type IsmConfig,
+  type IsmType,
+} from '@hyperlane-xyz/sdk';
 
 import { logGray } from '../logger.js';
 

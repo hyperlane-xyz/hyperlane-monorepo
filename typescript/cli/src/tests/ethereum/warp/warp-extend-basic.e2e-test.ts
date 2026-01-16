@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';

@@ -1,15 +1,18 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
-import { CommandContext, CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type CommandModuleWithContext,
+} from '../context/types.js';
 import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
 
 import {
   chainTargetsCommandOption,
   outputFileCommandOption,
 } from './options.js';
-import { ChainType, ChainTypes } from './types.js';
+import { type ChainType, ChainTypes } from './types.js';
 
 /**
  * Parent command

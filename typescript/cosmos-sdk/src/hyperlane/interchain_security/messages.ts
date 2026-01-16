@@ -1,8 +1,8 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
+import { type EncodeObject } from '@cosmjs/proto-signing';
 
-import { isTx } from '@hyperlane-xyz/cosmos-types';
+import { type isTx } from '@hyperlane-xyz/cosmos-types';
 
-import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../../registry.js';
+import { type COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../../registry.js';
 
 export interface MsgCreateMessageIdMultisigIsmEncodeObject
   extends EncodeObject {

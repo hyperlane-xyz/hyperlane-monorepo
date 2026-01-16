@@ -4,10 +4,9 @@ import { RoutingFee__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
-  assert,
   deepEquals,
   eqAddress,
-  isZeroishAddress,
+  isNullish,
   objMap,
   objMerge,
   objOmit,
@@ -37,15 +36,41 @@ import {
 import { EvmTokenFeeFactories } from './contracts.js';
 import {
   ImmutableTokenFeeType,
+  ResolvedTokenFeeConfigInput,
   TokenFeeConfig,
   TokenFeeConfigInput,
+  TokenFeeConfigInputSchema,
   TokenFeeConfigSchema,
   TokenFeeType,
 } from './types.js';
+import { convertToBps } from './utils.js';
 
 type TokenFeeModuleAddresses = {
   deployedFee: Address;
 };
+
+function resolveTokenForFeeConfig(
+  config: TokenFeeConfigInput,
+  token: Address,
+): ResolvedTokenFeeConfigInput {
+  if (
+    config.type === TokenFeeType.RoutingFee &&
+    'feeContracts' in config &&
+    config.feeContracts
+  ) {
+    return {
+      ...config,
+      token,
+      feeContracts: Object.fromEntries(
+        Object.entries(config.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenForFeeConfig(subFee, token),
+        ]),
+      ),
+    };
+  }
+  return { ...config, token };
+}
 
 export class EvmTokenFeeModule extends HyperlaneModule<
   ProtocolType.Ethereum,
@@ -112,63 +137,104 @@ export class EvmTokenFeeModule extends HyperlaneModule<
   // Processes the Input config to the Final config
   // For LinearFee, it converts the bps to maxFee and halfAmount
   public static async expandConfig(params: {
-    config: TokenFeeConfigInput;
+    config: ResolvedTokenFeeConfigInput;
     multiProvider: MultiProvider;
     chainName: string;
   }): Promise<TokenFeeConfig> {
     const { config, multiProvider, chainName } = params;
     let intermediaryConfig: TokenFeeConfig;
     if (config.type === TokenFeeType.LinearFee) {
+      const { token } = config;
+
+      let maxFee: bigint;
+      let halfAmount: bigint;
+      let bps: bigint;
+
       const reader = new EvmTokenFeeReader(
         params.multiProvider,
         params.chainName,
       );
 
-      let { maxFee, halfAmount } = config;
+      // Determine which values to use:
+      // - If maxFee/halfAmount are provided and bps matches what you'd compute from them,
+      //   the user provided explicit values (bps was auto-computed by schema) - use them
+      // - If bps doesn't match, the user explicitly provided a different bps - use bps
+      // - If only bps is provided, derive maxFee/halfAmount from bps
+      if (config.maxFee !== undefined && config.halfAmount !== undefined) {
+        const explicitMaxFee = BigInt(config.maxFee);
+        const explicitHalfAmount = BigInt(config.halfAmount);
+        const computedBps = convertToBps(explicitMaxFee, explicitHalfAmount);
 
-      if (!isZeroishAddress(config.token)) {
-        const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-          await reader.convertFromBps(config.bps, config.token);
-        maxFee = convertedMaxFee;
-        halfAmount = convertedHalfAmount;
+        if (config.bps === undefined || config.bps === computedBps) {
+          // bps was auto-computed or matches - use explicit values
+          maxFee = explicitMaxFee;
+          halfAmount = explicitHalfAmount;
+          bps = computedBps;
+        } else {
+          // User explicitly provided a different bps - use bps-derived values
+          const derived = reader.convertFromBps(config.bps);
+          maxFee = derived.maxFee;
+          halfAmount = derived.halfAmount;
+          bps = config.bps;
+        }
+      } else if (config.bps !== undefined) {
+        const derived = reader.convertFromBps(config.bps);
+        maxFee = derived.maxFee;
+        halfAmount = derived.halfAmount;
+        bps = config.bps;
+      } else {
+        throw new Error(
+          'LinearFee config must provide either bps or both maxFee and halfAmount',
+        );
       }
-
-      assert(
-        maxFee && halfAmount,
-        'Config properties "maxFee" and "halfAmount" must be supplied when "token" is not supplied',
-      );
 
       intermediaryConfig = {
         type: TokenFeeType.LinearFee,
-        token: config.token,
+        token,
         owner: config.owner,
-        bps: config.bps,
+        bps,
         maxFee,
         halfAmount,
       };
     } else if (config.type === TokenFeeType.RoutingFee) {
-      const feeContracts = config.feeContracts
+      const { token, owner } = config;
+      const inputFeeContracts =
+        'feeContracts' in config ? config.feeContracts : undefined;
+
+      const feeContracts = inputFeeContracts
         ? await promiseObjAll(
-            objMap(config.feeContracts, async (_, innerConfig) => {
-              return EvmTokenFeeModule.expandConfig({
-                config: innerConfig,
-                multiProvider,
-                chainName,
-              });
-            }),
+            objMap(
+              inputFeeContracts as Record<string, ResolvedTokenFeeConfigInput>,
+              async (_, innerConfig) => {
+                const resolvedInnerConfig: ResolvedTokenFeeConfigInput = {
+                  ...innerConfig,
+                  token: innerConfig.token ?? token,
+                };
+                return EvmTokenFeeModule.expandConfig({
+                  config: resolvedInnerConfig,
+                  multiProvider,
+                  chainName,
+                });
+              },
+            ),
           )
         : undefined;
 
       intermediaryConfig = {
         type: TokenFeeType.RoutingFee,
-        token: config.token,
-        owner: config.owner,
+        token,
+        owner,
         maxFee: constants.MaxUint256.toBigInt(),
         halfAmount: constants.MaxUint256.toBigInt(),
         feeContracts,
       };
     } else {
-      intermediaryConfig = config;
+      // Progressive/Regressive fees
+      intermediaryConfig = {
+        ...config,
+        maxFee: BigInt(config.maxFee),
+        halfAmount: BigInt(config.halfAmount),
+      };
     }
 
     return TokenFeeConfigSchema.parse(intermediaryConfig);
@@ -202,23 +268,63 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     });
   }
 
+  /**
+   * Updates the fee configuration to match the target config.
+   *
+   * IMPORTANT: This method may deploy new contracts as a side effect when:
+   * - An immutable fee type (e.g., LinearFee) needs parameter changes (triggers redeploy)
+   * - A new routing destination is added that doesn't have an existing sub-fee contract
+   *
+   * These deployments are executed immediately and are NOT included in the returned
+   * transaction array. The returned transactions only include configuration changes
+   * (e.g., setFeeContract, ownership transfers) that callers need to execute.
+   *
+   * This behavior is consistent with other Hyperlane SDK modules (EvmIsmModule, EvmHookModule).
+   *
+   * @param targetConfig - The desired fee configuration
+   * @param params - Optional parameters including routingDestinations for reading sub-fees.
+   *                 If not provided for RoutingFee configs, destinations are derived from
+   *                 targetConfig.feeContracts keys.
+   * @returns Transactions to execute for configuration updates (does not include deployments)
+   */
   async update(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
   ): Promise<AnnotatedEV5Transaction[]> {
+    TokenFeeConfigInputSchema.parse(targetConfig);
+
     let updateTransactions: AnnotatedEV5Transaction[] = [];
+
+    // Derive routingDestinations from target config if not provided
+    // This ensures we read all sub-fee configs that need to be compared/updated
+    let effectiveParams = params;
+    if (
+      !params?.routingDestinations &&
+      targetConfig.type === TokenFeeType.RoutingFee &&
+      !isNullish(targetConfig.feeContracts)
+    ) {
+      const routingDestinations = Object.keys(targetConfig.feeContracts).map(
+        (chainName) => this.multiProvider.getDomainId(chainName),
+      );
+      effectiveParams = { ...params, routingDestinations };
+    }
+
+    const actualConfig = await this.read(effectiveParams);
+    const normalizedActualConfig: TokenFeeConfig =
+      normalizeConfig(actualConfig);
+
+    const resolvedTargetConfig = resolveTokenForFeeConfig(
+      targetConfig,
+      actualConfig.token,
+    );
 
     const normalizedTargetConfig: TokenFeeConfig = normalizeConfig(
       await EvmTokenFeeModule.expandConfig({
-        config: targetConfig,
+        config: resolvedTargetConfig,
         multiProvider: this.multiProvider,
         chainName: this.chainName,
       }),
     );
-
-    const actualConfig = await this.read(params);
-    const normalizedActualConfig: TokenFeeConfig =
-      normalizeConfig(actualConfig);
 
     //If configs are the same, return empty array
     if (deepEquals(normalizedActualConfig, normalizedTargetConfig)) {
@@ -281,26 +387,24 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     await promiseObjAll(
       objMap(targetConfig.feeContracts, async (chainName, config) => {
         const address = config.address;
-        const subFeeModule = new EvmTokenFeeModule(
-          this.multiProvider,
-          {
-            addresses: {
-              deployedFee: address,
-            },
+
+        let subFeeModule: EvmTokenFeeModule;
+        let deployedSubFee: string;
+
+        if (!address) {
+          // Sub-fee contract doesn't exist yet, deploy a new one
+          this.logger.info(
+            `No existing sub-fee contract for ${chainName}, deploying new one`,
+          );
+          subFeeModule = await EvmTokenFeeModule.create({
+            multiProvider: this.multiProvider,
             chain: this.chainName,
             config,
-          },
-          this.contractVerifier,
-        );
-        const subFeeUpdateTransactions = await subFeeModule.update(config, {
-          address,
-        });
-        const { deployedFee: deployedSubFee } = subFeeModule.serialize();
+            contractVerifier: this.contractVerifier,
+          });
+          deployedSubFee = subFeeModule.serialize().deployedFee;
 
-        updateTransactions.push(...subFeeUpdateTransactions);
-
-        if (!eqAddress(deployedSubFee, address)) {
-          const annotation = `Sub fee contract redeployed. Updating contract for ${chainName} to ${deployedSubFee}`;
+          const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
           this.logger.debug(annotation);
           updateTransactions.push({
             annotation: annotation,
@@ -311,6 +415,39 @@ export class EvmTokenFeeModule extends HyperlaneModule<
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });
+        } else {
+          // Update existing sub-fee contract
+          subFeeModule = new EvmTokenFeeModule(
+            this.multiProvider,
+            {
+              addresses: {
+                deployedFee: address,
+              },
+              chain: this.chainName,
+              config,
+            },
+            this.contractVerifier,
+          );
+          const subFeeUpdateTransactions = await subFeeModule.update(config, {
+            address,
+          });
+          deployedSubFee = subFeeModule.serialize().deployedFee;
+
+          updateTransactions.push(...subFeeUpdateTransactions);
+
+          if (!eqAddress(deployedSubFee, address)) {
+            const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
+            this.logger.debug(annotation);
+            updateTransactions.push({
+              annotation: annotation,
+              chainId: this.chainId,
+              to: currentRoutingAddress,
+              data: RoutingFee__factory.createInterface().encodeFunctionData(
+                'setFeeContract(uint32,address)',
+                [this.multiProvider.getDomainId(chainName), deployedSubFee],
+              ),
+            });
+          }
         }
       }),
     );

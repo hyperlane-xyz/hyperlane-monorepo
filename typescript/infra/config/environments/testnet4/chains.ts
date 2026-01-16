@@ -1,5 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -11,6 +11,9 @@ export const environment = 'testnet4';
 export const ethereumChainNames = supportedChainNames.filter(
   isEthereumProtocolChain,
 );
+
+// Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
+export const tokenPriceOverrides: ChainMap<string> = {};
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   bsctestnet: {
@@ -43,10 +46,13 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // },
 };
 
-export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+export const getRegistry = async (
+  useSecrets = true,
+  chains: ChainName[] = supportedChainNames,
+): Promise<IRegistry> =>
   getRegistryForEnvironment(
     environment,
-    supportedChainNames,
+    chains,
     chainMetadataOverrides,
     useSecrets,
   );

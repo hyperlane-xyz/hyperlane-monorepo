@@ -38,7 +38,7 @@ pub struct MessageDbLoader {
     send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
-    metric_app_contexts: Vec<(MatchingList, String)>,
+    metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     nonce_iterator: ForwardBackwardIterator,
     max_retries: u32,
 }
@@ -338,7 +338,7 @@ impl MessageDbLoader {
         metrics: MessageDbLoaderMetrics,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
-        metric_app_contexts: Vec<(MatchingList, String)>,
+        metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
     ) -> Self {
         Self {

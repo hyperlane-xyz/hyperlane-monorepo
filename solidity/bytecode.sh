@@ -9,6 +9,9 @@ unset IFS
 echo "Generating bytecode in $OUTPUT_PATH"
 mkdir -p $OUTPUT_PATH
 
+# generate with CI profile (without CBOR metadata)
+export FOUNDRY_PROFILE=ci
+
 for file in "${CONTRACT_FILES[@]}";
 do
     if [[ $file =~ .*($EXCLUDE).* ]]; then

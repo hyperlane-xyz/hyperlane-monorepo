@@ -33,6 +33,11 @@ import {
   types as zkSyncTypes,
 } from 'zksync-ethers';
 
+import {
+  AleoProvider as AleoSDKProvider,
+  AleoReceipt as AleoSDKReceipt,
+  AleoTransaction as AleoSDKTransaction,
+} from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import {
   RadixProvider as RadixSDKProvider,
@@ -108,10 +113,10 @@ type ProtocolTypesMapping = {
     receipt: RadixTransactionReceipt;
   };
   [ProtocolType.Aleo]: {
-    transaction: any;
-    provider: any;
-    contract: any;
-    receipt: any;
+    transaction: AleoTransaction;
+    provider: AleoProvider;
+    contract: null;
+    receipt: AleoTransactionReceipt;
   };
 };
 
@@ -203,6 +208,11 @@ export interface RadixProvider extends TypedProviderBase<RadixSDKProvider> {
   provider: RadixSDKProvider;
 }
 
+export interface AleoProvider extends TypedProviderBase<AleoSDKProvider> {
+  type: ProviderType.Aleo;
+  provider: AleoSDKProvider;
+}
+
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
   type: ProviderType.ZkSync;
   provider: ZKSyncBaseProvider;
@@ -218,7 +228,8 @@ export type TypedProvider =
   | CosmJsNativeProvider
   | StarknetJsProvider
   | ZKSyncProvider
-  | RadixProvider;
+  | RadixProvider
+  | AleoProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -333,6 +344,12 @@ export interface RadixTransaction
   transaction: RadixSDKTransaction;
 }
 
+export interface AleoTransaction
+  extends TypedTransactionBase<AleoSDKTransaction> {
+  type: ProviderType.Aleo;
+  transaction: AleoSDKTransaction;
+}
+
 export interface ZKSyncTransaction
   extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
   type: ProviderType.ZkSync;
@@ -349,7 +366,8 @@ export type TypedTransaction =
   | CosmJsNativeTransaction
   | StarknetJsTransaction
   | ZKSyncTransaction
-  | RadixTransaction;
+  | RadixTransaction
+  | AleoTransaction;
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
@@ -444,6 +462,12 @@ export interface RadixTransactionReceipt
   receipt: RadixSDKReceipt;
 }
 
+export interface AleoTransactionReceipt
+  extends TypedTransactionReceiptBase<AleoSDKReceipt> {
+  type: ProviderType.Aleo;
+  receipt: AleoSDKReceipt;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
@@ -453,4 +477,5 @@ export type TypedTransactionReceipt =
   | CosmJsNativeTransactionReceipt
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt
-  | RadixTransactionReceipt;
+  | RadixTransactionReceipt
+  | AleoTransactionReceipt;

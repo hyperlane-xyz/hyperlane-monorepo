@@ -195,4 +195,61 @@ describe('EvmTokenFeeDeployer', () => {
       deployedContracts[TestChainName.test2][TokenFeeType.LinearFee].address,
     );
   });
+
+  it('should deploy RoutingFee with fee contracts when owner differs from signer', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+
+    const config = RoutingFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: otherSigner.address,
+      token: token.address,
+      feeContracts: {
+        [TestChainName.test2]: {
+          type: TokenFeeType.LinearFee,
+          token: token.address,
+          owner: otherSigner.address,
+          maxFee: MAX_FEE,
+          halfAmount: HALF_AMOUNT,
+          bps: BPS,
+        },
+      },
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+    const linearFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.LinearFee];
+
+    expect(await routingFeeContract.owner()).to.equal(config.owner);
+
+    const actualLinearFeeAddress = await routingFeeContract.feeContracts(
+      multiProvider.getChainId(TestChainName.test2),
+    );
+    expect(actualLinearFeeAddress).to.equal(linearFeeContract.address);
+    expect(await linearFeeContract.owner()).to.equal(otherSigner.address);
+  });
+
+  it('should deploy RoutingFee and transfer ownership when owner differs from signer (no fee contracts)', async () => {
+    const [, otherSigner] = await hre.ethers.getSigners();
+
+    const config = TokenFeeConfigSchema.parse({
+      type: TokenFeeType.RoutingFee,
+      owner: otherSigner.address,
+      token: token.address,
+    });
+
+    const deployedContracts = await deployer.deploy({
+      [TestChainName.test2]: config,
+    });
+
+    const routingFeeContract =
+      deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee];
+
+    expect(await routingFeeContract.owner()).to.equal(otherSigner.address);
+    expect(await routingFeeContract.token()).to.equal(token.address);
+  });
 });

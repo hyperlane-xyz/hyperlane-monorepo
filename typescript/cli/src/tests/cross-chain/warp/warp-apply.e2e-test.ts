@@ -1,18 +1,26 @@
-import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
+import { type StartedTestContainer } from 'testcontainers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  DerivedWarpRouteDeployConfig,
+  createSignerWithPrivateKey,
+  runCosmosNode,
+} from '@hyperlane-xyz/cosmos-sdk/testing';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
+import {
+  type ChainMap,
+  type DerivedWarpRouteDeployConfig,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  addressToBytes32,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
@@ -33,7 +41,7 @@ import {
   getWarpDeployConfigPath,
   getWarpId,
 } from '../../constants.js';
-import { runCosmosNode, runEvmNode } from '../../nodes.js';
+import { runEvmNode } from '../../nodes.js';
 import {
   assertWarpRouteConfig,
   getUnsupportedChainWarpCoreTokenConfig,
@@ -84,18 +92,22 @@ describe('hyperlane warp apply e2e tests', async function () {
 
   let coreAddressByChain: ChainMap<ChainAddresses>;
 
+  let cosmosNodeInstance: StartedTestContainer;
+  let evmNodeInstance: StartedTestContainer;
+
   before(async function () {
-    await runCosmosNode(
+    cosmosNodeInstance = await runCosmosNode(
       TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
     );
-    await runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2);
-
-    const cosmosWallet = await DirectSecp256k1Wallet.fromKey(
-      Buffer.from(HYP_KEY_BY_PROTOCOL.cosmosnative, 'hex'),
-      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1.bech32Prefix,
+    evmNodeInstance = await runEvmNode(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     );
-    [{ address: cosmosNativeDeployerAddress }] =
-      await cosmosWallet.getAccounts();
+
+    const cosmosWallet = await createSignerWithPrivateKey(
+      HYP_KEY_BY_PROTOCOL.cosmosnative,
+      TEST_CHAIN_METADATA_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
+    );
+    cosmosNativeDeployerAddress = cosmosWallet.getSignerAddress();
 
     evmDeployerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
 
@@ -118,6 +130,10 @@ describe('hyperlane warp apply e2e tests', async function () {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2]:
         evmChain1CoreCoreAddress,
     };
+  });
+
+  after(async () => {
+    await Promise.all([cosmosNodeInstance?.stop(), evmNodeInstance?.stop()]);
   });
 
   let warpDeployConfig: WarpRouteDeployConfig;

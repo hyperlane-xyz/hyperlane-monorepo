@@ -1,19 +1,19 @@
-import { TransactionReceipt } from '@ethersproject/providers';
+import { type TransactionReceipt } from '@ethersproject/providers';
 
-import { IRegistry } from '@hyperlane-xyz/registry';
+import { type IRegistry } from '@hyperlane-xyz/registry';
 import {
-  DispatchedMessage,
+  type DispatchedMessage,
   HookType,
   HyperlaneCore,
   HyperlaneRelayer,
-  MultiProvider,
-  TxSubmitterBuilder,
+  type MultiProvider,
+  type TxSubmitterBuilder,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { type ProtocolType } from '@hyperlane-xyz/utils';
 
 import { log, logGreen } from '../logger.js';
-import { ExtendedSubmissionStrategy } from '../submitters/types.js';
+import { type ExtendedSubmissionStrategy } from '../submitters/types.js';
 
 /**
  * Workaround helper for bypassing bad hook derivation when self-relaying.

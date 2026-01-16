@@ -8,7 +8,7 @@ import { writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import { RebalancerConfig } from './RebalancerConfig.js';
 import {
-  RebalancerConfigFileInput,
+  type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from './types.js';

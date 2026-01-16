@@ -2,10 +2,10 @@ import { Account } from '@provablehq/sdk';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import { AleoSigner } from '../clients/signer.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('3. aleo sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);
@@ -46,7 +46,7 @@ describe('3. aleo sdk post dispatch e2e tests', async function () {
     // ASSERT
     expect(txResponse.hookAddress).to.be.not.empty;
 
-    let merkle_tree_hook = await signer.getMerkleTreeHook({
+    const merkle_tree_hook = await signer.getMerkleTreeHook({
       hookAddress: txResponse.hookAddress,
     });
 
@@ -66,7 +66,7 @@ describe('3. aleo sdk post dispatch e2e tests', async function () {
     // ASSERT
     expect(txResponse.hookAddress).to.be.not.empty;
 
-    let igp = await signer.getInterchainGasPaymasterHook({
+    const igp = await signer.getInterchainGasPaymasterHook({
       hookAddress: txResponse.hookAddress,
     });
 

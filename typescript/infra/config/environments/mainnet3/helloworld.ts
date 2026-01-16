@@ -3,6 +3,7 @@ import {
   HelloWorldKathyRunMode,
 } from '../../../src/config/helloworld/types.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
 import { environment } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json' with { type: 'json' };
@@ -12,8 +13,8 @@ export const hyperlane: HelloWorldConfig = {
   addresses: hyperlaneAddresses,
   kathy: {
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '8da6852-20251215-172511',
+      repo: DockerImageRepos.MONOREPO,
+      tag: mainnetDockerTags.kathy,
     },
     chainsToSkip: [],
     runEnv: environment,
@@ -32,8 +33,8 @@ export const releaseCandidate: HelloWorldConfig = {
   addresses: rcAddresses,
   kathy: {
     docker: {
-      repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-      tag: '8da6852-20251215-172511',
+      repo: DockerImageRepos.MONOREPO,
+      tag: mainnetDockerTags.kathy,
     },
     chainsToSkip: [],
     runEnv: environment,

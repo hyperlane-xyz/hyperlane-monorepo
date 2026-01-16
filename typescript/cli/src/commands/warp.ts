@@ -1,10 +1,10 @@
 import util from 'util';
 import { stringify as yamlStringify } from 'yaml';
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
-  RawForkedChainConfigByChain,
+  type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
@@ -22,10 +22,10 @@ import {
 import { runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
-  CommandModuleWithContext,
-  CommandModuleWithWarpApplyContext,
-  CommandModuleWithWarpDeployContext,
-  CommandModuleWithWriteContext,
+  type CommandModuleWithContext,
+  type CommandModuleWithWarpApplyContext,
+  type CommandModuleWithWarpDeployContext,
+  type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
 import { runForkCommand } from '../fork/fork.js';
@@ -63,7 +63,7 @@ import {
   warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
-import { MessageOptionsArgTypes, messageSendOptions } from './send.js';
+import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
 
 /**
  * Parent command
@@ -264,6 +264,7 @@ const send: CommandModuleWithWriteContext<
       amount: string;
       recipient?: string;
       chains?: string;
+      skipValidation?: boolean;
     }
 > = {
   command: 'send',
@@ -286,6 +287,11 @@ const send: CommandModuleWithWriteContext<
       demandOption: false,
       conflicts: ['origin', 'destination'],
     },
+    'skip-validation': {
+      type: 'boolean',
+      description: 'Skip transfer validation (e.g., collateral checks)',
+      default: false,
+    },
   },
   handler: async ({
     context,
@@ -300,6 +306,7 @@ const send: CommandModuleWithWriteContext<
     recipient,
     roundTrip,
     chains: chainsAsString,
+    skipValidation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
@@ -351,6 +358,7 @@ const send: CommandModuleWithWriteContext<
       timeoutSec: timeout,
       skipWaitForDelivery: quick,
       selfRelay: relay,
+      skipValidation,
     });
     logGreen(
       `✅ Successfully sent messages for chains: ${chains.join(' ➡️ ')}`,
@@ -597,14 +605,6 @@ const fork: CommandModuleWithContext<
     config,
     forkConfig: forkConfigPath,
   }) => {
-    const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
-      context,
-      warpRouteId,
-      symbol,
-      warpDeployConfigPath: config,
-      warpCoreConfigPath: warp,
-    });
-
     let forkConfig: RawForkedChainConfigByChain;
     if (forkConfigPath) {
       forkConfig = RawForkedChainConfigByChainSchema.parse(
@@ -614,12 +614,22 @@ const fork: CommandModuleWithContext<
       forkConfig = {};
     }
 
+    // Get chains from warp deploy config
+    const { warpDeployConfig } = await getWarpConfigs({
+      context,
+      warpRouteId,
+      symbol,
+      warpDeployConfigPath: config,
+      warpCoreConfigPath: warp,
+    });
+    const chainsToFork = new Set(Object.keys(warpDeployConfig));
+    logBlue(
+      `Forking chains from warp deploy config: ${Array.from(chainsToFork).join(', ')}`,
+    );
+
     await runForkCommand({
       context,
-      chainsToFork: new Set([
-        ...warpCoreConfig.tokens.map((tokenConfig) => tokenConfig.chainName),
-        ...Object.keys(warpDeployConfig),
-      ]),
+      chainsToFork,
       forkConfig,
       basePort: port,
       kill,

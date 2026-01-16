@@ -52,6 +52,7 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 export const chainsToSkip: ChainName[] = [
   // downtime
   'flowmainnet',
+  'molten',
 
   // not AW owned
   'forma',

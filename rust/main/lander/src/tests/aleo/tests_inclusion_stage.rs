@@ -112,7 +112,7 @@ impl AleoProviderForLander for ConfigurableMockProvider {
         }
     }
 
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
@@ -132,7 +132,7 @@ impl AleoProviderForLander for ConfigurableMockProvider {
         }
     }
 
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {
@@ -213,7 +213,7 @@ impl AleoProviderForLander for AleoErrorMockProvider {
         }
     }
 
-    async fn get_confirmed_transaction(
+    async fn request_confirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoConfirmedTransaction<CurrentNetwork>> {
@@ -222,7 +222,7 @@ impl AleoProviderForLander for AleoErrorMockProvider {
         ))
     }
 
-    async fn get_unconfirmed_transaction(
+    async fn request_unconfirmed_transaction(
         &self,
         _transaction_id: H512,
     ) -> ChainResult<AleoUnconfirmedTransaction<CurrentNetwork>> {

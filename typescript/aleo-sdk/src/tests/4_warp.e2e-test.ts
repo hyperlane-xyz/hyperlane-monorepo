@@ -12,7 +12,7 @@ import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ensure0x } from '@hyperlane-xyz/utils';
+import { ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
 import { hyp_synthetic, token_registry } from '../artifacts.js';
 import { AleoSigner } from '../clients/signer.js';
@@ -21,7 +21,7 @@ import {
   fromAleoAddress,
   stringToU128,
 } from '../utils/helper.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('4. aleo sdk warp e2e tests', async function () {
   this.timeout(100_000);
@@ -82,7 +82,10 @@ describe('4. aleo sdk warp e2e tests', async function () {
 
       await aleoClient.waitForTransactionConfirmation(txId);
     } catch (e) {
-      console.log('Token registry deployment skipped:', (e as Error).message);
+      rootLogger.warn(
+        'Token registry deployment skipped:',
+        (e as Error).message,
+      );
     }
 
     await signer.sendAndConfirmTransaction({
@@ -131,7 +134,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     // ASSERT
     expect(txResponse.tokenAddress).to.be.not.empty;
 
-    let token = await signer.getToken({
+    const token = await signer.getToken({
       tokenAddress: txResponse.tokenAddress,
     });
 
@@ -160,7 +163,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     // ASSERT
     expect(txResponse.tokenAddress).to.be.not.empty;
 
-    let token = await signer.getToken({
+    const token = await signer.getToken({
       tokenAddress: txResponse.tokenAddress,
     });
 
@@ -191,7 +194,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     // ASSERT
     expect(txResponse.tokenAddress).to.be.not.empty;
 
-    let token = await signer.getToken({
+    const token = await signer.getToken({
       tokenAddress: txResponse.tokenAddress,
     });
 

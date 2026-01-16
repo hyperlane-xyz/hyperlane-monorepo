@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
+import path from 'path';
 import tmp from 'tmp';
 
 import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
@@ -9,7 +10,7 @@ import {
   HelmChartRepositoryConfig,
 } from '../config/infrastructure.js';
 
-import { execCmd } from './utils.js';
+import { execCmd, execCmdAndParseJson } from './utils.js';
 
 export enum HelmCommand {
   InstallOrUpgrade = 'upgrade --install',
@@ -95,10 +96,57 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
   return helmChartConfig.name;
 }
 
+function helmDependenciesNeedRebuild(chartPath: string): boolean {
+  const chartYamlPath = path.join(chartPath, 'Chart.yaml');
+  const chartLockPath = path.join(chartPath, 'Chart.lock');
+  const chartsDir = path.join(chartPath, 'charts');
+
+  if (!fs.existsSync(chartLockPath) || !fs.existsSync(chartsDir)) {
+    return true;
+  }
+
+  try {
+    const chartYamlStat = fs.statSync(chartYamlPath);
+    const chartLockStat = fs.statSync(chartLockPath);
+
+    if (chartYamlStat.mtimeMs > chartLockStat.mtimeMs) {
+      return true;
+    }
+
+    const tgzFiles = fs
+      .readdirSync(chartsDir)
+      .filter((f) => f.endsWith('.tgz'));
+    if (tgzFiles.length === 0) {
+      return true;
+    }
+
+    const newestTgzMtime = Math.max(
+      ...tgzFiles.map((f) => fs.statSync(path.join(chartsDir, f)).mtimeMs),
+    );
+
+    if (chartLockStat.mtimeMs > newestTgzMtime) {
+      return true;
+    }
+
+    return false;
+  } catch (_) {
+    return true;
+  }
+}
+
 export function buildHelmChartDependencies(
   chartPath: string,
   updateRepoCache: boolean,
+  forceRebuild: boolean = false,
 ) {
+  // Skip rebuild if dependencies are up to date (optimization)
+  if (!forceRebuild && !helmDependenciesNeedRebuild(chartPath)) {
+    rootLogger.debug(
+      `Helm dependencies for ${chartPath} are up to date, skipping build`,
+    );
+    return Promise.resolve();
+  }
+
   const flags = updateRepoCache ? '' : '--skip-refresh';
   return execCmd(
     `cd ${chartPath} && helm dependency build ${flags}`,
@@ -115,9 +163,17 @@ export function removeHelmRelease(releaseName: string, namespace: string) {
 
 export type HelmValues = Record<string, any>;
 
+export interface PreflightDiff {
+  releaseName: string;
+  chainDiff: { hasChanges: boolean; added: string[]; removed: string[] };
+  imageDiff: { hasChanges: boolean; currentTag?: string; newTag?: string };
+  isNewDeployment: boolean;
+}
+
 export interface HelmCommandOptions {
   dryRun?: boolean;
   updateRepoCache?: boolean;
+  skipDependencyBuild?: boolean;
 }
 
 export abstract class HelmManager<T = HelmValues> {
@@ -137,6 +193,7 @@ export abstract class HelmManager<T = HelmValues> {
   ): Promise<void> {
     const dryRun = options?.dryRun ?? false;
     const updateRepoCache = options?.updateRepoCache ?? false;
+    const skipDependencyBuild = options?.skipDependencyBuild ?? false;
 
     const cmd = ['helm', action];
     if (dryRun) cmd.push('--dry-run');
@@ -168,24 +225,26 @@ export abstract class HelmManager<T = HelmValues> {
       }
     }
 
-    await buildHelmChartDependencies(this.helmChartPath, updateRepoCache);
+    if (!skipDependencyBuild) {
+      await buildHelmChartDependencies(this.helmChartPath, updateRepoCache);
+    }
 
-    // Create a temporary filepath
-    // Removes any files on exit
+    // Removes temp files on process exit
     tmp.setGracefulCleanup();
     const valuesTmpFile = tmp.fileSync({
       prefix: 'helm-values',
       postfix: `${this.helmReleaseName}-${this.namespace}.yaml`,
     });
     rootLogger.debug(`Writing values to ${valuesTmpFile.name}`);
-    // Write the values to the temporary file
     fs.writeFileSync(valuesTmpFile.name, stringifyObject(values, 'yaml'));
-    // If the process is interrupted, we still need to explicitly remove the temporary file
-    process.on('SIGINT', () => {
+
+    // Explicitly clean up temp file on interrupt since graceful cleanup may not trigger
+    const sigintHandler = () => {
       rootLogger.debug(`Cleaning up temp file ${valuesTmpFile.name}`);
       valuesTmpFile.removeCallback();
       process.exit(130);
-    });
+    };
+    process.once('SIGINT', sigintHandler);
 
     cmd.push(
       this.helmReleaseName,
@@ -201,9 +260,13 @@ export abstract class HelmManager<T = HelmValues> {
         `| kubectl diff --namespace ${this.namespace} --field-manager="Go-http-client" -f - || true`,
       );
     }
-    await execCmd(cmd, {}, false, true);
-    // Remove the temporary file
-    valuesTmpFile.removeCallback();
+
+    try {
+      await execCmd(cmd, {}, false, true);
+    } finally {
+      process.removeListener('SIGINT', sigintHandler);
+      valuesTmpFile.removeCallback();
+    }
   }
 
   static async doesHelmReleaseExist(
@@ -255,6 +318,134 @@ export abstract class HelmManager<T = HelmValues> {
         encoding: 'utf-8',
       },
     );
+  }
+
+  /**
+   * Gets the currently deployed helm values for this release.
+   * Returns null if the release doesn't exist.
+   */
+  async getDeployedHelmValues(): Promise<HelmValues | null> {
+    const exists = await HelmManager.doesHelmReleaseExist(
+      this.helmReleaseName,
+      this.namespace,
+    );
+    if (!exists) {
+      return null;
+    }
+
+    try {
+      const values = await execCmdAndParseJson(
+        `helm get values ${this.helmReleaseName} --namespace ${this.namespace} -o json`,
+      );
+      return values;
+    } catch (error) {
+      rootLogger.warn(
+        `Failed to get deployed helm values for ${this.helmReleaseName}: ${error}`,
+      );
+      return null;
+    }
+  }
+
+  /**
+   * Gets the pre-flight diff without logging or prompting.
+   * Used for batch processing multiple agents.
+   */
+  async getPreflightDiff(): Promise<PreflightDiff> {
+    const deployedValues = await this.getDeployedHelmValues();
+
+    if (!deployedValues) {
+      // For new deployments, still show what will be deployed
+      const proposedValues = (await this.helmValues()) as HelmValues;
+      const proposedChains = this.extractChainNames(proposedValues);
+      const proposedTag = proposedValues?.image?.tag;
+
+      return {
+        releaseName: this.helmReleaseName,
+        chainDiff: {
+          hasChanges: proposedChains.length > 0,
+          added: proposedChains,
+          removed: [],
+        },
+        imageDiff: {
+          hasChanges: !!proposedTag,
+          newTag: proposedTag,
+        },
+        isNewDeployment: true,
+      };
+    }
+
+    const proposedValues = (await this.helmValues()) as HelmValues;
+    const chainDiff = this.compareChainConfigurations(
+      deployedValues,
+      proposedValues,
+    );
+    const imageDiff = this.compareDockerImages(deployedValues, proposedValues);
+
+    return {
+      releaseName: this.helmReleaseName,
+      chainDiff,
+      imageDiff,
+      isNewDeployment: false,
+    };
+  }
+
+  /**
+   * Compares chain configurations between deployed and proposed values.
+   */
+  protected compareChainConfigurations(
+    deployed: HelmValues,
+    proposed: HelmValues,
+  ): { hasChanges: boolean; added: string[]; removed: string[] } {
+    const deployedChains = this.extractChainNames(deployed);
+    const proposedChains = this.extractChainNames(proposed);
+
+    const added = proposedChains.filter((c) => !deployedChains.includes(c));
+    const removed = deployedChains.filter((c) => !proposedChains.includes(c));
+
+    return {
+      hasChanges: added.length > 0 || removed.length > 0,
+      added,
+      removed,
+    };
+  }
+
+  /**
+   * Extracts chain names from helm values.
+   * Subclasses can override this for custom chain extraction logic.
+   */
+  protected extractChainNames(values: HelmValues): string[] {
+    // Default extraction from hyperlane.chains
+    if (values?.hyperlane?.chains && Array.isArray(values.hyperlane.chains)) {
+      return values.hyperlane.chains
+        .map((c: any) => c.name || c)
+        .filter(Boolean);
+    }
+    return [];
+  }
+
+  /**
+   * Compares docker images between deployed and proposed values.
+   */
+  protected compareDockerImages(
+    deployed: HelmValues,
+    proposed: HelmValues,
+  ): { hasChanges: boolean; currentTag?: string; newTag?: string } {
+    const deployedTag = deployed?.image?.tag;
+    const proposedTag = proposed?.image?.tag;
+
+    if (!proposedTag) {
+      return { hasChanges: false };
+    }
+
+    if (!deployedTag) {
+      return { hasChanges: true, newTag: proposedTag };
+    }
+
+    return {
+      hasChanges: deployedTag !== proposedTag,
+      currentTag: deployedTag,
+      newTag: proposedTag,
+    };
   }
 }
 

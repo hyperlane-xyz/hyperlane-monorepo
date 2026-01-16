@@ -17,6 +17,7 @@ import {
   getArgs,
   getWarpRouteIdsInteractive,
   withMetrics,
+  withRegistryCommit,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -27,9 +28,12 @@ function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId, metrics } = await withMetrics(
-    withWarpRouteId(getArgs()),
-  ).parse();
+  const {
+    environment,
+    warpRouteId,
+    metrics,
+    registryCommit: registryCommitArg,
+  } = await withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))).parse();
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
@@ -40,10 +44,12 @@ async function main() {
     warpRouteIds = await getWarpRouteIdsInteractive(environment);
   }
 
-  const registryCommit = await input({
-    message:
-      'Enter the registry version to use (can be a commit, branch or tag):',
-  });
+  const registryCommit =
+    registryCommitArg ??
+    (await input({
+      message:
+        'Enter the registry version to use (can be a commit, branch or tag):',
+    }));
   await validateRegistryCommit(registryCommit);
 
   rootLogger.info(

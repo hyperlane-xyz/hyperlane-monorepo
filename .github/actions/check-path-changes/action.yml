@@ -29,12 +29,12 @@ runs:
       shell: bash
       run: |
         # Check if the specified path has any changes
-        if git diff ${{ inputs.base_sha }}..${{ inputs.head_sha }} --name-only | grep -qE '^${{ inputs.path_pattern }}'; then
+        if git diff ${{ inputs.base_sha }}...${{ inputs.head_sha }} --name-only | grep -qE '^${{ inputs.path_pattern }}'; then
           echo "has_changes=true" >> $GITHUB_OUTPUT
 
           # If path_pattern_only is requested, also check if ONLY this path changed
           if [[ "${{ inputs.path_pattern_only }}" == "true" ]]; then
-            if ! git diff ${{ inputs.base_sha }}..${{ inputs.head_sha }} --name-only | grep -qvE '^${{ inputs.path_pattern }}'; then
+            if ! git diff ${{ inputs.base_sha }}...${{ inputs.head_sha }} --name-only | grep -qvE '^${{ inputs.path_pattern }}'; then
               echo "only_changes=true" >> $GITHUB_OUTPUT
               echo "Only ${{ inputs.path_pattern }} changes detected."
             else

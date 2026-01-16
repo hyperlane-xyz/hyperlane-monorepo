@@ -1,4 +1,7 @@
-import { WarpCoreConfig, WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
+import {
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { createSnapshot, restoreSnapshot } from '../commands/helpers.js';

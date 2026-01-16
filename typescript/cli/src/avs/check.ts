@@ -1,4 +1,4 @@
-import { Wallet } from 'ethers';
+import { type Wallet } from 'ethers';
 
 import {
   ECDSAStakeRegistry__factory,
@@ -7,14 +7,14 @@ import {
   ValidatorAnnounce__factory,
 } from '@hyperlane-xyz/core';
 import {
-  ChainMap,
-  ChainName,
-  MultiProvider,
+  type ChainMap,
+  type ChainName,
+  type MultiProvider,
   isValidValidatorStorageLocation,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, isObjEmpty } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import {
   errorRed,
   log,

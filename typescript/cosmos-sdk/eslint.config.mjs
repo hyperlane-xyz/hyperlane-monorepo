@@ -7,8 +7,14 @@ export default [
   ...restrictedSdkAndUtilsImportRules,
   {
     files: ['src/**/*.ts'],
-  },
-  {
-    ignores: ['src/tests/**/*.ts'],
+    rules: {
+      '@typescript-eslint/consistent-type-imports': [
+        'error',
+        {
+          prefer: 'type-imports',
+          fixStyle: 'inline-type-imports',
+        },
+      ],
+    },
   },
 ];

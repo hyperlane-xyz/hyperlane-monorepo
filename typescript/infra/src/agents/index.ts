@@ -388,6 +388,11 @@ export class ValidatorHelmManager extends MultichainAgentHelmManager {
 
     return helmValues;
   }
+
+  protected compareChainConfigurations() {
+    // Validators are always scoped to a single origin chain; skip chain diffs.
+    return { hasChanges: false, added: [], removed: [] };
+  }
 }
 
 export function getSecretName(

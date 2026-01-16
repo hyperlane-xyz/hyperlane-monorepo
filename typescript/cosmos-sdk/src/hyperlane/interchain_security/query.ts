@@ -1,6 +1,11 @@
-import { QueryClient, createProtobufRpcClient } from '@cosmjs/stargate';
+import { type QueryClient, createProtobufRpcClient } from '@cosmjs/stargate';
 
-import { any, isQuery, isTypes, pagination } from '@hyperlane-xyz/cosmos-types';
+import {
+  type any,
+  isQuery,
+  isTypes,
+  type pagination,
+} from '@hyperlane-xyz/cosmos-types';
 
 type ISM =
   | isTypes.NoopISM

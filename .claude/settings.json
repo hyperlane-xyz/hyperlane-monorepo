@@ -1,0 +1,16 @@
+{
+  "extraKnownMarketplaces": {
+    "trailofbits": {
+      "source": {
+        "source": "github",
+        "repo": "trailofbits/skills"
+      }
+    }
+  },
+  "enabledPlugins": {
+    "building-secure-contracts@trailofbits": true,
+    "differential-review@trailofbits": true,
+    "variant-analysis@trailofbits": true,
+    "property-based-testing@trailofbits": true
+  }
+}

@@ -90,7 +90,7 @@ pub struct Relayer {
     transaction_gas_limit: Option<U256>,
     skip_transaction_gas_limit_for: HashSet<u32>,
     allow_local_checkpoint_syncers: bool,
-    metric_app_contexts: Vec<(MatchingList, String)>,
+    metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     max_retries: u32,
     core_metrics: Arc<CoreMetrics>,
     // TODO: decide whether to consolidate `agent_metrics` and `chain_metrics` into a single struct

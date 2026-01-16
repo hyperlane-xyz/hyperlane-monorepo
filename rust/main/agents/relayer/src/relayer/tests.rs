@@ -132,7 +132,7 @@ fn generate_test_relayer_settings(
         transaction_gas_limit: None,
         skip_transaction_gas_limit_for: HashSet::new(),
         allow_local_checkpoint_syncers: true,
-        metric_app_contexts: Vec::new(),
+        metric_app_contexts: Vec::new().into(),
         allow_contract_call_caching: true,
         ism_cache_configs: Default::default(),
         max_retries: 1,

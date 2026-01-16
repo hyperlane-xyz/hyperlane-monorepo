@@ -2,6 +2,7 @@ import {
   WithAddress,
   assert,
   fromHexString,
+  mapAllSettled,
   rootLogger,
   timeout,
   toHexString,
@@ -44,8 +45,9 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
       'Building aggregation metadata',
     );
     assert(maxDepth > 0, 'Max depth reached');
-    const results = await Promise.allSettled(
-      context.ism.modules.map((module) =>
+    const { fulfilled, rejected } = await mapAllSettled(
+      context.ism.modules,
+      (module) =>
         timeout(
           this.base.build(
             {
@@ -56,18 +58,18 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
           ),
           timeoutMs,
         ),
-      ),
     );
 
-    const metadatas = results.map((result, index) => {
-      if (result.status === 'rejected') {
+    // Build metadatas array preserving index order for threshold selection
+    const metadatas = context.ism.modules.map((_, index) => {
+      if (rejected.has(index)) {
         this.logger.warn(
-          `Failed to build for submodule ${index}: ${result.reason}`,
+          `Failed to build for submodule ${index}: ${rejected.get(index)?.message}`,
         );
         return null;
       } else {
         this.logger.debug(`Built metadata for submodule ${index}`);
-        return result.value;
+        return fulfilled.get(index) ?? null;
       }
     });
 

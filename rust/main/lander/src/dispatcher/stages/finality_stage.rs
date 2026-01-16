@@ -67,11 +67,11 @@ impl FinalityStage {
         let futures = vec![
             tokio::spawn(
                 Self::receive_txs(tx_receiver, pool.clone(), state.clone(), domain.clone())
-                    .instrument(info_span!("receive_txs")),
+                    .instrument(info_span!("receive_txs_task")),
             ),
             tokio::spawn(
                 Self::process_txs(pool, building_stage_queue, state, domain)
-                    .instrument(info_span!("process_txs")),
+                    .instrument(info_span!("process_txs_task")),
             ),
         ];
         if let Err(err) = try_join_all(futures).await {
@@ -82,7 +82,7 @@ impl FinalityStage {
         }
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     async fn receive_txs(
         mut tx_receiver: mpsc::Receiver<Transaction>,
         pool: FinalityStagePool,
@@ -103,7 +103,7 @@ impl FinalityStage {
         }
     }
 
-    #[instrument(skip_all, fields(domain))]
+    #[instrument(skip_all, fields(?domain))]
     async fn process_txs(
         pool: FinalityStagePool,
         building_stage_queue: BuildingStageQueue,
