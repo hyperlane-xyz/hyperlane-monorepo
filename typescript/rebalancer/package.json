@@ -31,6 +31,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
+    "@hyperlane-xyz/warp-metrics": "workspace:*",
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
     "bignumber.js": "catalog:",
