@@ -8,6 +8,7 @@ import {
   getSealevelAtaPayerBalance,
   getTokenBridgedBalance,
   getXERC20Info,
+  startMetricsServer,
   tryFn,
 } from '@hyperlane-xyz/metrics';
 import {
@@ -35,7 +36,6 @@ import {
   updateTokenBalanceMetrics,
   updateXERC20LimitsMetrics,
 } from './scripts/metrics.js';
-import { startMetricsServer } from './utils/metrics.js';
 
 export class Metrics implements IMetrics {
   private readonly logger: Logger;
