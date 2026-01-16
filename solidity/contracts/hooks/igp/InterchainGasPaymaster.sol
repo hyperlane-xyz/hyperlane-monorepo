@@ -300,7 +300,7 @@ contract InterchainGasPaymaster is
         address _feeToken,
         uint32 _destinationDomain,
         uint256 _gasLimit
-    ) public view returns (uint256) {
+    ) public view virtual returns (uint256) {
         IGasOracle _oracle = tokenGasOracles[_feeToken][_destinationDomain];
         require(
             address(_oracle) != address(0),
