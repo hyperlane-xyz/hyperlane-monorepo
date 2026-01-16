@@ -15,6 +15,7 @@
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
  * - REGISTRY_URI: Registry URI for chain metadata. Can include /tree/{commit} to pin version (default: GitHub registry)
+ * - RPC_URL_<CHAIN>: Override RPC URL for a specific chain (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM)
  *
  * Usage:
  *   node dist/service.js
@@ -24,7 +25,11 @@ import { Wallet } from 'ethers';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
-import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainMetadata,
+  MultiProtocolProvider,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from './config/RebalancerConfig.js';
@@ -100,6 +105,12 @@ async function main(): Promise<void> {
       `✅ Loaded metadata for ${Object.keys(chainMetadata).length} chains`,
     );
 
+    // Apply RPC URL overrides from environment variables
+    const configuredChains = Object.keys(
+      rebalancerConfig.strategyConfig.chains,
+    );
+    applyRpcOverrides(chainMetadata, configuredChains);
+
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
     const signer = new Wallet(privateKey);
@@ -136,6 +147,30 @@ async function main(): Promise<void> {
       'Failed to start rebalancer service',
     );
     process.exit(1);
+  }
+}
+
+/**
+ * Applies RPC URL overrides from environment variables.
+ * For each configured chain, checks for RPC_URL_<CHAIN> env var
+ * (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM) and overrides the registry URL.
+ */
+function applyRpcOverrides(
+  chainMetadata: Record<string, Partial<ChainMetadata>>,
+  configuredChains: string[],
+): void {
+  for (const chain of configuredChains) {
+    const envVarName = `RPC_URL_${chain.toUpperCase().replace(/-/g, '_')}`;
+    const rpcUrl = process.env[envVarName];
+    if (rpcUrl && chainMetadata[chain]) {
+      rootLogger.debug(
+        { chain, envVarName },
+        'Using RPC from environment variable',
+      );
+      chainMetadata[chain].rpcUrls = [
+        { http: rpcUrl },
+      ] as ChainMetadata['rpcUrls'];
+    }
   }
 }
 
