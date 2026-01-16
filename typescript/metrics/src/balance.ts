@@ -249,7 +249,7 @@ export async function getExtraLockboxInfo(
     lockboxAddress,
   );
 
-  const xERC20Address = await lockboxInstance.XERC20();
+  const xERC20Address = await lockboxInstance['XERC20']();
   const vsXERC20Instance = IXERC20VS__factory.connect(
     xERC20Address,
     currentChainProvider,
@@ -300,7 +300,7 @@ export async function getExtraLockboxBalance(
     lockboxAddress,
   );
 
-  const erc20TokenAddress = await lockboxInstance.ERC20();
+  const erc20TokenAddress = await lockboxInstance['ERC20']();
   const erc20tokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,
@@ -355,7 +355,7 @@ export async function getManagedLockBoxCollateralInfo(
     lockBoxAddress,
   );
 
-  const collateralTokenAddress = await lockBoxInstance.ERC20();
+  const collateralTokenAddress = await lockBoxInstance['ERC20']();
   const collateralTokenAdapter = new EvmTokenAdapter(
     warpToken.chainName,
     multiProvider,

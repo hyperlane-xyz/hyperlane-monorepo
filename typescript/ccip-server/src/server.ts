@@ -1,6 +1,7 @@
 import cors from 'cors';
 import express from 'express';
 import { pinoHttp } from 'pino-http';
+import { Registry } from 'prom-client';
 
 import { startMetricsServer } from '@hyperlane-xyz/metrics';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
@@ -14,7 +15,7 @@ import { OPStackService } from './services/OPStackService.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
-  register,
+  initializeMetrics,
 } from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, ServiceFactory> = {
@@ -31,6 +32,10 @@ async function startServer() {
     service: 'ccip-server',
     version: VERSION,
   });
+
+  // Create metrics registry and initialize metrics
+  const register = new Registry();
+  initializeMetrics(register);
 
   const app = express();
   app.use(cors());
@@ -109,12 +114,12 @@ async function startServer() {
   const port = parseInt(process.env.SERVER_PORT ?? '3000');
   app.listen(port, () => logger.info(`Server listening on port ${port}`));
 
-  return logger; // Return logger for error handlers
+  return { logger, register };
 }
 
 // Start the server and handle startup logging
 startServer()
-  .then((logger) => {
+  .then(({ logger, register }) => {
     logger.info('Server startup completed');
     startMetricsServer(register, logger);
     logger.info('Prometheus metrics server started');
