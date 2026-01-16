@@ -70,6 +70,13 @@ export const CORE_CONFIG_PATH_BY_PROTOCOL = {
   [ProtocolType.Aleo]: './examples/aleo/core-config.yaml',
 } as const satisfies ProtocolMap<string>;
 
+export const CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL = {
+  [ProtocolType.Ethereum]: './examples/crosschain/ethereum/core-config.yaml',
+  [ProtocolType.CosmosNative]:
+    './examples/crosschain/cosmosnative/core-config.yaml',
+  [ProtocolType.Radix]: './examples/crosschain/radix/core-config.yaml',
+} as const satisfies ProtocolMap<string>;
+
 export const HYP_KEY_BY_PROTOCOL = {
   [ProtocolType.Ethereum]:
     '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
