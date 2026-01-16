@@ -1,0 +1,39 @@
+{
+  "aleo": {
+    "type": "native",
+    "decimals": 6,
+    "name": "Aleo",
+    "symbol": "ALEO",
+    "foreignDeployment": "aleo1qaqv2f6mn24xufa50d579s2pr75alxczcwl2g94favhj0dcj0yqqexazpp"
+  },
+  "base": {
+    "type": "synthetic",
+    "name": "Aleo",
+    "symbol": "ALEO",
+    "decimals": 6,
+    "foreignDeployment": "0x33fbC08bD84E61E04e51eA0F32885AA77F7D5ECa"
+  },
+  "ethereum": {
+    "type": "synthetic",
+    "name": "Aleo",
+    "symbol": "ALEO",
+    "decimals": 6,
+    "foreignDeployment": "0x33fbC08bD84E61E04e51eA0F32885AA77F7D5ECa"
+  },
+  "hyperevm": {
+    "type": "synthetic",
+    "name": "Aleo",
+    "symbol": "ALEO",
+    "decimals": 6,
+    "foreignDeployment": "0x9562b536713aF52627679c2c559ebE54fB7c3cc9"
+  },
+  "solanamainnet": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Aleo",
+    "symbol": "ALEO",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/ea47535339bc8d1ebc4435aa7ee66ea53ba2f669/deployments/warp_routes/ALEO/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "remoteDecimals": 6
+  }
+}

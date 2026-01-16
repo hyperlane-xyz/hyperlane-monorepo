@@ -1,0 +1,34 @@
+{
+  "aleo": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "Tether USD",
+    "symbol": "USDT",
+    "foreignDeployment": "aleo1t8xqj2q5lem2jr5gj6036am9hu69t59554cl5gd2pasxnjxmdsgsh98eqg"
+  },
+  "bsc": {
+    "type": "collateral",
+    "decimals": 18,
+    "token": "0x55d398326f99059ff775485246999027b3197955",
+    "foreignDeployment": "0x1FdA66FA15A261F01F1E09228D41bD0A806d7529"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xdAC17F958D2ee523a2206206994597C13D831ec7",
+    "foreignDeployment": "0x3C2064D78e4578E8F936E3db42aEF044E33FBF31"
+  },
+  "hyperevm": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xB8CE59FC3717ada4C02eaDF9682A9e934F625ebb",
+    "foreignDeployment": "0x36E437699E3658396Bf6229ddDaE54884cf28779"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "remoteDecimals": 18,
+    "token": "Es9vMFrzaCERmJfrF4H2FYD4KCoNkY11McCe8BenwNYB",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  }
+}

@@ -8,6 +8,14 @@
       },
       "overhead": 333774
     },
+    "aleo": {
+      "oracleConfig": {
+        "tokenExchangeRate": "1260404925902",
+        "gasPrice": "24534",
+        "tokenDecimals": 6
+      },
+      "overhead": 400000
+    },
     "apechain": {
       "oracleConfig": {
         "tokenExchangeRate": "23762039029457594",
