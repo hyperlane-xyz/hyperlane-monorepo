@@ -117,6 +117,7 @@ export {
   useEthereumWalletDetails,
   useEthereumSwitchNetwork,
   useEthereumWatchAsset,
+  useSignPermit,
 } from './walletIntegrations/ethereum.js';
 export {
   getAccountAddressAndPubKey,

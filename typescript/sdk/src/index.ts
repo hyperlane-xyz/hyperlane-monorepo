@@ -702,6 +702,15 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
 export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
+export {
+  GetPermitDataParams,
+  PERMIT_TYPES,
+  PermitData,
+  PermitDomain,
+  PermitMessage,
+  PermitSignature,
+  PopulatePermitTxParams,
+} from './token/permit.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
 export {

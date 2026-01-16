@@ -1,5 +1,10 @@
 import { Address, Domain, Numberish } from '@hyperlane-xyz/utils';
 
+import type {
+  GetPermitDataParams,
+  PermitData,
+  PopulatePermitTxParams,
+} from '../permit.js';
 import { TokenMetadata } from '../types.js';
 
 export interface TransferParams {
@@ -61,6 +66,12 @@ export interface ITokenAdapter<Tx> {
   isRevokeApprovalRequired(owner: Address, spender: Address): Promise<boolean>;
   populateApproveTx(params: TransferParams): Promise<Tx>;
   populateTransferTx(params: TransferParams): Promise<Tx>;
+
+  // ERC-2612 permit support (optional - only implemented by EVM adapters)
+  supportsPermit?(): Promise<boolean>;
+  getPermitNonce?(owner: Address): Promise<bigint>;
+  getPermitData?(params: GetPermitDataParams): Promise<PermitData>;
+  populatePermitTx?(params: PopulatePermitTxParams): Promise<Tx>;
 }
 
 export interface IMovableCollateralRouterAdapter<Tx> extends ITokenAdapter<Tx> {

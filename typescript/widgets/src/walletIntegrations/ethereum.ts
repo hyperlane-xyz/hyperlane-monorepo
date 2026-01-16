@@ -2,12 +2,13 @@ import { useConnectModal } from '@rainbow-me/rainbowkit';
 import {
   getAccount,
   sendTransaction,
+  signTypedData,
   switchChain,
   waitForTransactionReceipt,
   watchAsset,
 } from '@wagmi/core';
 import { useCallback, useMemo } from 'react';
-import { Chain as ViemChain } from 'viem';
+import { Hex, Chain as ViemChain } from 'viem';
 import { useAccount, useConfig, useDisconnect } from 'wagmi';
 
 import {
@@ -16,6 +17,9 @@ import {
   IToken,
   LOCKBOX_STANDARDS,
   MultiProtocolProvider,
+  PERMIT_TYPES,
+  PermitData,
+  PermitSignature,
   ProviderType,
   TypedTransactionReceipt,
   WarpTypedTransaction,
@@ -230,6 +234,48 @@ export function useEthereumTransactionFns(
     sendMultiTransaction: onMultiSendTx,
     switchNetwork,
   };
+}
+
+export function useSignPermit(): {
+  signPermit: (permitData: PermitData) => Promise<PermitSignature>;
+} {
+  const config = useConfig();
+
+  const signPermit = useCallback(
+    async (permitData: PermitData): Promise<PermitSignature> => {
+      const signature = await signTypedData(config, {
+        domain: {
+          name: permitData.domain.name,
+          version: permitData.domain.version,
+          chainId: permitData.domain.chainId,
+          verifyingContract: permitData.domain.verifyingContract as Hex,
+        },
+        types: PERMIT_TYPES,
+        primaryType: 'Permit',
+        message: {
+          owner: permitData.message.owner as Hex,
+          spender: permitData.message.spender as Hex,
+          value: BigInt(permitData.message.value),
+          nonce: permitData.message.nonce,
+          deadline: BigInt(permitData.message.deadline),
+        },
+      });
+
+      const r = signature.slice(0, 66) as string;
+      const s = ('0x' + signature.slice(66, 130)) as string;
+      const v = parseInt(signature.slice(130, 132), 16);
+
+      return {
+        v,
+        r,
+        s,
+        deadline: permitData.message.deadline,
+      };
+    },
+    [config],
+  );
+
+  return { signPermit };
 }
 
 // Metadata formatted for use in Wagmi config
