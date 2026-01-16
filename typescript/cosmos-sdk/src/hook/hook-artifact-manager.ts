@@ -41,12 +41,13 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   private queryPromise?: Promise<CosmosHookQueryClient>;
 
   constructor(
-    private readonly rpcUrls: string[],
-    private readonly mailboxAddress: string,
-    private readonly nativeTokenDenom: string,
-  ) {
-    assert(rpcUrls.length > 0, 'rpcUrls must not be empty');
-  }
+    private readonly config: {
+      rpcUrls: [string, ...string[]];
+      // Required only on deployments
+      mailboxAddress?: string;
+      nativeTokenDenom: string;
+    },
+  ) {}
 
   /**
    * Lazy initialization - creates query client on first use.
@@ -63,7 +64,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
    * Creates a Cosmos query client with PostDispatch extension.
    */
   private async createQuery(): Promise<CosmosHookQueryClient> {
-    const cometClient = await connectComet(this.rpcUrls[0]);
+    const cometClient = await connectComet(this.config.rpcUrls[0]);
     return QueryClient.withExtensions(cometClient, setupPostDispatchExtension);
   }
 
@@ -178,10 +179,14 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     switch (type) {
       case AltVM.HookType.MERKLE_TREE:
+        assert(
+          this.config.mailboxAddress,
+          `Mailbox needs to be defined to deploy a ${AltVM.HookType.MERKLE_TREE} hook`,
+        );
         return new CosmosMerkleTreeHookWriter(
           query,
           signer,
-          this.mailboxAddress,
+          this.config.mailboxAddress,
         ) as unknown as ArtifactWriter<
           RawHookArtifactConfigs[T],
           DeployedHookAddress
@@ -190,7 +195,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
         return new CosmosIgpHookWriter(
           query,
           signer,
-          this.nativeTokenDenom,
+          this.config.nativeTokenDenom,
         ) as unknown as ArtifactWriter<
           RawHookArtifactConfigs[T],
           DeployedHookAddress

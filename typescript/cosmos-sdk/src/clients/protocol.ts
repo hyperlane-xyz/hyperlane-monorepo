@@ -16,6 +16,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
@@ -60,15 +61,24 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
   }
 
   createHookArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
   ): IRawHookArtifactManager {
-    // TODO: Implement Cosmos hook artifact manager
-    // The implementation is on branch xeno/cosmos-hook-artifact-api
-    throw new Error(
-      'Cosmos hook artifact manager not yet implemented. ' +
-        'See branch xeno/cosmos-hook-artifact-api for implementation.',
+    const [mainRpcUrl, ...otherRpcUrls] = (chainMetadata.rpcUrls ?? []).map(
+      (rpc) => rpc.http,
     );
+
+    assert(mainRpcUrl, 'At least one rpc url is required');
+    assert(chainMetadata.nativeToken?.denom, 'native token denom undefined');
+
+    const mailboxAddress = context?.mailbox;
+    const nativeTokenDenom = chainMetadata.nativeToken.denom;
+
+    return new CosmosHookArtifactManager({
+      rpcUrls: [mainRpcUrl, ...otherRpcUrls],
+      mailboxAddress,
+      nativeTokenDenom,
+    });
   }
 
   getMinGas(): MinimumRequiredGasByAction {

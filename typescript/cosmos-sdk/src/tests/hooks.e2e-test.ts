@@ -17,6 +17,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -47,12 +48,15 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
     mailboxAddress = mailboxResult.mailboxAddress;
     denom = 'uhyp';
 
+    const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
+    assert(rpc, 'At least one rpc is required');
+
     // Create artifact manager
-    artifactManager = new CosmosHookArtifactManager(
-      cosmosSigner.getRpcUrls(),
+    artifactManager = new CosmosHookArtifactManager({
+      rpcUrls: [rpc, ...otherRpcUrls],
       mailboxAddress,
-      denom,
-    );
+      nativeTokenDenom: denom,
+    });
   });
 
   describe('Immutable Hooks', () => {
