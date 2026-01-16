@@ -70,6 +70,9 @@ mod starknet;
 #[cfg(feature = "radix")]
 mod radix;
 
+#[cfg(feature = "aleo")]
+mod aleo;
+
 pub static AGENT_LOGGING_DIR: Lazy<&Path> = Lazy::new(|| {
     let dir = Path::new("/tmp/test_logs");
     fs::create_dir_all(dir).unwrap();
@@ -667,6 +670,7 @@ where
         log!("Checking e2e invariants...");
         sleep(loop_check_interval);
         if !config.ci_mode {
+            log!("Not in CI mode, continuing endlessly...");
             continue;
         }
         match condition_fn() {
