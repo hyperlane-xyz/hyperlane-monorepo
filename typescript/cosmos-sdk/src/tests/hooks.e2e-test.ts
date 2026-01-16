@@ -170,6 +170,44 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
       );
     });
 
+    it('should transfer ownership during creation when owner differs from deployer', async () => {
+      const bobSigner = await createSigner('bob');
+      const bobAddress = bobSigner.getSignerAddress();
+      const aliceAddress = cosmosSigner.getSignerAddress();
+
+      // Create config with bob as owner (alice is the deployer)
+      const configWithDifferentOwner: IgpHookConfig = {
+        ...baseConfig,
+        owner: bobAddress,
+        beneficiary: bobAddress,
+        oracleKey: bobAddress,
+      };
+
+      const [igpHook, receipts] = await igpWriter.create({
+        config: configWithDifferentOwner,
+      });
+
+      expect(igpHook.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(igpHook.deployed.address).to.be.a('string').and.not.be.empty;
+
+      // Should have extra receipt for ownership transfer (create + gas configs + ownership)
+      // Expecting: 1 create + 1 gas config + 1 ownership = 3 receipts
+      expect(receipts.length).to.equal(3);
+      receipts.forEach((receipt) => {
+        expect(receipt.code).to.equal(0);
+      });
+
+      // Verify ownership was transferred by reading back the state
+      const reader = artifactManager.createReader(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+      );
+      const readHook = await reader.read(igpHook.deployed.address);
+
+      // The owner should be bob, NOT alice (the deployer)
+      expect(readHook.config.owner).to.equal(bobAddress);
+      expect(readHook.config.owner).to.not.equal(aliceAddress);
+    });
+
     it('should update the owner', async () => {
       const [igpHook] = await igpWriter.create({ config: baseConfig });
 
