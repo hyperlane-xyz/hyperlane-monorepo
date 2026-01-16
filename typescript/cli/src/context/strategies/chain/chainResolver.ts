@@ -139,6 +139,72 @@ async function resolveWarpConfigChains(
   return argv.context.chains;
 }
 
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+  const chainPath: ChainName[] = [];
+
+  if (argv.chains?.length) {
+    chainPath.push(...argv.chains);
+  } else if (argv.origin && argv.destination) {
+    chainPath.push(argv.origin, argv.destination);
+  } else {
+    const filterChains = [argv.origin, argv.destination].filter(
+      Boolean,
+    ) as ChainName[];
+    const warpCoreConfig = await getWarpCoreConfigOrExit({
+      context: argv.context,
+      warpRouteId: argv.warpRouteId,
+      chains: filterChains,
+    });
+    argv.context.warpCoreConfig = warpCoreConfig;
+
+    const supportedChains = new Set(
+      warpCoreConfig.tokens.map((token) => token.chainName),
+    );
+    const orderedDefaultChains = [
+      ...[...supportedChains]
+        .filter(
+          (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+        )
+        .sort((a, b) => a.localeCompare(b)),
+      ...[...supportedChains]
+        .filter(
+          (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+        )
+        .sort((a, b) => a.localeCompare(b)),
+    ];
+    chainPath.push(...orderedDefaultChains);
+  }
+
+  const signerChains = new Set<ChainName>();
+  const normalizedRecipient =
+    typeof argv.recipient === 'string' && argv.recipient.trim().length > 0
+      ? argv.recipient
+      : undefined;
+
+  // Every hop origin needs a signer. For round-trip sends, all chains become origins.
+  const hopOrigins = argv.roundTrip
+    ? chainPath
+    : chainPath.length > 1
+      ? chainPath.slice(0, -1)
+      : chainPath;
+  hopOrigins.forEach((chain) => signerChains.add(chain));
+
+  // If recipient is omitted, EVM destinations default to destination signer addresses.
+  if (!normalizedRecipient) {
+    for (let i = 1; i < chainPath.length; i += 1) {
+      const destination = chainPath[i];
+      if (multiProvider.getProtocol(destination) === ProtocolType.Ethereum) {
+        signerChains.add(destination);
+      }
+    }
+  }
+
+  return Array.from(signerChains);
+}
+
 async function resolveWarpRebalancerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
@@ -217,56 +283,6 @@ async function resolveRelayerChains(
 
   chains.add(argv.destination);
   return Array.from(chains);
-}
-
-/**
- * Resolves chains for warp send.
- * Returns only EVM chains that may submit transactions for this invocation.
- */
-async function resolveWarpSendChains(
-  argv: Record<string, any>,
-): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
-
-  // Validate origin is EVM if specified
-  if (
-    argv.origin &&
-    multiProvider.getProtocol(argv.origin) !== ProtocolType.Ethereum
-  ) {
-    throw new Error(
-      `'hyperlane warp send' requires an EVM origin chain. '${argv.origin}' is ${multiProvider.getProtocol(argv.origin)}`,
-    );
-  }
-
-  const selectedChains = new Set<ChainName>();
-  if (argv.chains?.length) {
-    argv.chains.forEach((chain: ChainName) => selectedChains.add(chain));
-  } else {
-    [argv.origin, argv.destination]
-      .filter(Boolean)
-      .forEach((chain) => selectedChains.add(chain as ChainName));
-  }
-
-  // If no explicit origin was provided (destination-only or fully implicit),
-  // derive signer chains from the resolved route so middleware signer setup
-  // matches the path warp send will execute.
-  if (selectedChains.size === 0 || (!argv.origin && !argv.chains?.length)) {
-    const filterChains = Array.from(selectedChains);
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      context: argv.context,
-      warpRouteId: argv.warpRouteId,
-      chains: filterChains,
-    });
-    argv.preResolvedWarpCoreConfig = warpCoreConfig;
-    selectedChains.clear();
-    warpCoreConfig.tokens.forEach((token) =>
-      selectedChains.add(token.chainName),
-    );
-  }
-
-  return Array.from(selectedChains).filter(
-    (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-  );
 }
 
 async function resolveCoreApplyChains(

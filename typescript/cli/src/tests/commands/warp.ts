@@ -198,4 +198,54 @@ export class HyperlaneE2EWarpTestCommands {
     if (isFile(registryDeployPath)) return;
     writeYamlOrJson(registryDeployPath, config);
   }
+
+  public sendRaw({
+    origin,
+    destination,
+    warpRouteId,
+    amount,
+    recipient,
+    relay,
+    quick,
+    chains,
+    roundTrip,
+    skipValidation,
+    privateKey,
+    hypKey,
+    extraArgs,
+  }: {
+    origin?: string;
+    destination?: string;
+    warpRouteId?: string;
+    amount?: number | string;
+    recipient?: string;
+    relay?: boolean;
+    quick?: boolean;
+    chains?: string;
+    roundTrip?: boolean;
+    skipValidation?: boolean;
+    privateKey?: string;
+    hypKey?: string;
+    extraArgs?: string[];
+  }): ProcessPromise {
+    return $`${
+      hypKey ? [`${this.hypKeyEnvName}=${hypKey}`] : []
+    } ${localTestRunCmdPrefix()} hyperlane warp send \
+          --registry ${this.registryPath} \
+          ${origin ? ['--origin', origin] : []} \
+          ${destination ? ['--destination', destination] : []} \
+          ${warpRouteId ? ['--warp-route-id', warpRouteId] : []} \
+          ${amount !== undefined ? ['--amount', amount] : []} \
+          ${recipient ? ['--recipient', recipient] : []} \
+          ${relay ? ['--relay'] : []} \
+          ${quick ? ['--quick'] : []} \
+          ${chains ? ['--chains', chains] : []} \
+          ${roundTrip ? ['--round-trip'] : []} \
+          ${skipValidation ? ['--skip-validation'] : []} \
+          ${privateKey ? [this.privateKeyFlag, privateKey] : []} \
+          --verbosity debug \
+          --yes \
+          ${extraArgs ? extraArgs : []}
+          `;
+  }
 }

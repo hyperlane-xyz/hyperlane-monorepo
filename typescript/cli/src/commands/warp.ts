@@ -266,7 +266,6 @@ const send: CommandModuleWithWriteContext<
       recipient?: string;
       chains?: string[];
       skipValidation?: boolean;
-      preResolvedWarpCoreConfig?: WarpCoreConfig;
     }
 > = {
   command: 'send',
@@ -308,14 +307,13 @@ const send: CommandModuleWithWriteContext<
     roundTrip,
     chains: chainsArg,
     skipValidation,
-    preResolvedWarpCoreConfig,
   }) => {
     const filterChains = [origin, destination, ...(chainsArg || [])]
       .filter(Boolean)
       .filter((v, i, a) => a.indexOf(v) === i) as string[];
 
     const warpCoreConfig =
-      preResolvedWarpCoreConfig ??
+      context.warpCoreConfig ??
       (await getWarpCoreConfigOrExit({
         warpRouteId,
         context,

@@ -65,6 +65,7 @@ export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
   signer: ethers.Signer;
   altVmSigners: ChainMap<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
   apiKeys?: ChainMap<string>;
+  warpCoreConfig?: WarpCoreConfig;
 }
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
