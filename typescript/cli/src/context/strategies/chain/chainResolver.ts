@@ -153,7 +153,7 @@ async function resolveWarpRebalancerChains(
 async function resolveSendMessageChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { multiProvider, chainMetadata } = argv.context;
+  const { multiProvider } = argv.context;
   const selectedChains = [argv.origin, argv.destination].filter(
     Boolean,
   ) as ChainName[];
