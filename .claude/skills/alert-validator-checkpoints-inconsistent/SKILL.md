@@ -64,7 +64,7 @@ The metric shows the latest highest signed index by a validator as it's observed
 - It's possible for a different origin chain validator set to be enrolled on different destination chains. This is usually not intentional and may reflect in-progress validator set rotations, but it could also indicate an issue. Keep this in mind if you ignore the destination chain by using `max by (origin, validator, app_context)`
 - It's possible that some validators are healthy and are just a couple seconds behind the rest of the pack, so the metric might show them as a tiny bit behind the rest. In this case, they aren't stalled, it's just that the relayer attempted to deliver a message shortly before the validator signed the checkpoint.
 
-**NEVER** ignore negative values from these metric. A `-1` value here means that the validator signatures are not accessible by the relayer. Consider this as serious as if the validator were completely down. Note that the root cause of this is one of the following:
+**NEVER** ignore negative values from these metrics. A `-1` value here means that the validator signatures are not accessible by the relayer. Consider this as serious as if the validator were completely down. Note that the root cause of this is one of the following:
 
 - The validator isn't configured correctly
 - The validator isn't running at all
