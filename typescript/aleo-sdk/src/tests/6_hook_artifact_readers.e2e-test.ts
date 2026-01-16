@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -14,7 +15,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { normalizeConfig } from '@hyperlane-xyz/utils';
+import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
 import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -316,5 +317,87 @@ describe('6. aleo sdk Hook artifact readers e2e tests', async function () {
         expect(readHook.config.owner).to.not.equal(signer.getSignerAddress());
       },
     );
+  });
+
+  describe('Generic hook reading via readHook', () => {
+    const DOMAIN_1 = 42;
+
+    step('should detect and read MerkleTree hook', async () => {
+      // Create MerkleTree Hook
+      const writer = artifactManager.createWriter(
+        AltVM.HookType.MERKLE_TREE,
+        signer as any,
+      );
+
+      const [deployedHook] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.MERKLE_TREE,
+        },
+      });
+
+      // Read via generic readHook (without knowing the type)
+      const readHook = await artifactManager.readHook(
+        deployedHook.deployed.address,
+      );
+
+      expect(readHook.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(readHook.config.type).to.equal(AltVM.HookType.MERKLE_TREE);
+      expect(readHook.deployed.address).to.equal(deployedHook.deployed.address);
+    });
+
+    step('should detect and read IGP hook', async () => {
+      // Create IGP Hook
+      const writer = artifactManager.createWriter(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        signer as any,
+      );
+
+      const [deployedHook] = await writer.create({
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          owner: signer.getSignerAddress(),
+          beneficiary: signer.getSignerAddress(),
+          oracleKey: signer.getSignerAddress(),
+          overhead: {
+            [DOMAIN_1]: 50000,
+          },
+          oracleConfig: {
+            [DOMAIN_1]: {
+              tokenExchangeRate: '1000000000000000000',
+              gasPrice: '1000000000',
+            },
+          },
+        },
+      });
+
+      // Read via generic readHook (without knowing the type)
+      const readHook = await artifactManager.readHook(
+        deployedHook.deployed.address,
+      );
+
+      expect(readHook.artifactState).to.equal(ArtifactState.DEPLOYED);
+      expect(readHook.config.type).to.equal(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+      );
+      expect(readHook.deployed.address).to.equal(deployedHook.deployed.address);
+
+      // Verify IGP-specific config details
+      // After checking the type, we can safely cast to IgpHookConfig
+      const igpConfig = readHook.config;
+      assert(
+        igpConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+        `Expected config to be of type ${HookType.INTERCHAIN_GAS_PAYMASTER}`,
+      );
+      expect(igpConfig.owner).to.equal(signer.getSignerAddress());
+      expect(igpConfig.beneficiary).to.equal(signer.getSignerAddress());
+      expect(igpConfig.oracleKey).to.equal(signer.getSignerAddress());
+      expect(igpConfig.overhead[DOMAIN_1]).to.equal(50000);
+      expect(igpConfig.oracleConfig[DOMAIN_1].gasPrice).to.equal('1000000000');
+      expect(igpConfig.oracleConfig[DOMAIN_1].tokenExchangeRate).to.equal(
+        '1000000000000000000',
+      );
+    });
   });
 });
