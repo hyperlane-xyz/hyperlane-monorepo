@@ -32,6 +32,38 @@ export class Monitor implements IMonitor {
     private readonly logger: Logger,
   ) {}
 
+  /**
+   * Get the confirmed block tag for a chain based on its reorgPeriod.
+   * For chains with string reorgPeriod (e.g., "finalized"), returns the string.
+   * For chains with numeric reorgPeriod, returns latestBlock - reorgPeriod.
+   * Falls back to undefined (latest) if unable to determine.
+   */
+  private async getConfirmedBlockTag(
+    chainName: string,
+  ): Promise<number | string | undefined> {
+    try {
+      const metadata = this.warpCore.multiProvider.getChainMetadata(chainName);
+      const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+
+      // Handle string block tags (e.g., "finalized" for Polygon)
+      if (typeof reorgPeriod === 'string') {
+        return reorgPeriod;
+      }
+
+      // Handle numeric reorgPeriod: compute latestBlock - reorgPeriod
+      const provider =
+        this.warpCore.multiProvider.getEthersV5Provider(chainName);
+      const latestBlock = await provider.getBlockNumber();
+      return Math.max(0, latestBlock - reorgPeriod);
+    } catch (error) {
+      this.logger.warn(
+        { chain: chainName, error: (error as Error).message },
+        'Failed to get confirmed block, using latest',
+      );
+      return undefined;
+    }
+  }
+
   // overloads from IMonitor
   on(
     eventName: MonitorEventType.TokenInfo,
@@ -158,7 +190,31 @@ export class Monitor implements IMonitor {
     }
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-    const bridgedSupply = await adapter.getBridgedSupply();
+
+    // Query at confirmed block to sync with Explorer indexing
+    const targetBlockTag = await this.getConfirmedBlockTag(token.chainName);
+    let bridgedSupply: bigint | undefined;
+
+    try {
+      bridgedSupply = await adapter.getBridgedSupply({
+        blockTag: targetBlockTag,
+      });
+      this.logger.debug(
+        { chain: token.chainName, targetBlockTag },
+        'Queried confirmed balance',
+      );
+    } catch (error) {
+      // Fallback to latest if historical query fails
+      this.logger.warn(
+        {
+          chain: token.chainName,
+          targetBlockTag,
+          error: (error as Error).message,
+        },
+        'Historical block query failed, falling back to latest',
+      );
+      bridgedSupply = await adapter.getBridgedSupply();
+    }
 
     if (bridgedSupply === undefined) {
       this.logger.warn(
