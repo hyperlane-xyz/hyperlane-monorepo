@@ -6,6 +6,7 @@ import {
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactNew,
+  ArtifactState,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
@@ -13,9 +14,13 @@ import {
   DeployedHookAddress,
   DeployedHookArtifact,
   HookArtifactConfig,
+  HookConfig,
   IRawHookArtifactManager,
+  hookConfigToArtifact,
+  shouldDeployNewHook,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { Address } from '@hyperlane-xyz/utils';
 
 import { HookReader } from './generic-hook.js';
 
@@ -133,5 +138,70 @@ export class HookWriter
 
     // MerkleTree hooks are immutable - no updates possible
     return [];
+  }
+
+  /**
+   * Deploys a new hook or updates an existing one based on configuration comparison.
+   *
+   * This method encapsulates the logic to:
+   * 1. If no existing hook, deploy a new one
+   * 2. If existing hook exists, read its state and compare with expected config
+   * 3. If configs differ significantly, deploy a new hook
+   * 4. If configs can be updated in-place, generate update transactions
+   *
+   * @param params.actualAddress - The address of the existing hook (if any)
+   * @param params.expectedConfig - The desired hook configuration
+   * @returns Object with the deployed hook address and any update transactions
+   */
+  async deployOrUpdate(params: {
+    actualAddress: string | undefined;
+    expectedConfig: HookConfig;
+  }): Promise<{
+    address: Address;
+    transactions: AnnotatedTx[];
+  }> {
+    const { actualAddress, expectedConfig } = params;
+
+    // Convert expected config to artifact format
+    const expectedArtifact = hookConfigToArtifact(
+      expectedConfig,
+      this.chainLookup,
+    );
+
+    // If no existing hook, deploy new one directly
+    if (!actualAddress) {
+      const [deployed] = await this.create(expectedArtifact);
+      return {
+        address: deployed.deployed.address,
+        transactions: [],
+      };
+    }
+
+    // Read actual hook state
+    const actualArtifact = await this.read(actualAddress);
+
+    // Decide: deploy new hook or update existing one
+    if (shouldDeployNewHook(actualArtifact.config, expectedArtifact.config)) {
+      // Deploy new hook
+      const [deployed] = await this.create(expectedArtifact);
+      return {
+        address: deployed.deployed.address,
+        transactions: [],
+      };
+    }
+
+    // Update existing hook (only IGP hooks support updates)
+    const deployedArtifact: DeployedHookArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config,
+      deployed: actualArtifact.deployed,
+    };
+    const transactions = await this.update(deployedArtifact);
+
+    return {
+      address: actualAddress,
+      transactions,
+    };
   }
 }
