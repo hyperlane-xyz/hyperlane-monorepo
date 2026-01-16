@@ -6,7 +6,11 @@ import { WithAddress, ensure0x } from '@hyperlane-xyz/utils';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { IsmType, OffchainLookupIsmConfig } from '../types.js';
 
-import type { MetadataBuilder, MetadataContext } from './types.js';
+import type {
+  CcipReadMetadataBuildResult,
+  MetadataBuilder,
+  MetadataContext,
+} from './types.js';
 
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
@@ -18,7 +22,7 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
 
   async build(
     context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
-  ): Promise<string> {
+  ): Promise<CcipReadMetadataBuildResult> {
     const { ism, message } = context;
     const provider = this.core.multiProvider.getProvider(
       message.parsed.destination,
@@ -47,6 +51,12 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       string[],
       Uint8Array,
     ];
+
+    const baseResult: Omit<CcipReadMetadataBuildResult, 'metadata'> = {
+      type: IsmType.OFFCHAIN_LOOKUP,
+      ismAddress: ism.address,
+      urls,
+    };
 
     const callDataHex = utils.hexlify(callData);
 
@@ -90,7 +100,10 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       try {
         const responseJson = await res.json();
         if (res.ok) {
-          return ensure0x(responseJson.data);
+          return {
+            ...baseResult,
+            metadata: ensure0x(responseJson.data),
+          };
         }
       } catch (error) {
         this.core.logger.warn(
@@ -100,7 +113,8 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
       }
     }
 
-    throw new Error('Could not fetch CCIP-read metadata');
+    // Return without metadata if all URLs failed
+    return baseResult;
   }
 }
 

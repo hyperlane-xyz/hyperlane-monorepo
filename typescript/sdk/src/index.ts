@@ -188,6 +188,7 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
   FallbackRoutingHookConfig,
@@ -215,6 +216,21 @@ export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
 export { BaseMetadataBuilder } from './ism/metadata/builder.js';
 export { decodeIsmMetadata } from './ism/metadata/decode.js';
+export {
+  MetadataBuildResult,
+  MultisigMetadataBuildResult,
+  AggregationMetadataBuildResult,
+  RoutingMetadataBuildResult,
+  NullMetadataBuildResult,
+  ArbL2ToL1MetadataBuildResult,
+  CcipReadMetadataBuildResult,
+  ValidatorInfo,
+  isMetadataBuildable,
+  getSignedValidatorCount,
+  isQuorumMet,
+  MetadataBuilder,
+  MetadataContext,
+} from './ism/metadata/types.js';
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,

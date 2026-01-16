@@ -22,6 +22,7 @@ import { MultisigMetadataBuilder } from './multisig.js';
 import { NullMetadataBuilder } from './null.js';
 import { DynamicRoutingMetadataBuilder } from './routing.js';
 import type {
+  MetadataBuildResult,
   MetadataBuilder,
   MetadataContext,
   StructuredMetadata,
@@ -49,7 +50,10 @@ export class BaseMetadataBuilder implements MetadataBuilder {
   }
 
   // assumes that all post dispatch hooks are included in dispatchTx logs
-  async build(context: MetadataContext, maxDepth = 10): Promise<string> {
+  async build(
+    context: MetadataContext,
+    maxDepth = 10,
+  ): Promise<MetadataBuildResult> {
     this.logger.debug(
       { context, maxDepth },
       `Building ${context.ism.type} metadata`,

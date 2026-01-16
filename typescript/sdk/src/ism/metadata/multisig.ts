@@ -21,12 +21,18 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { S3Validator } from '../../aws/validator.js';
+import { defaultMultisigConfigs } from '../../consts/multisigIsm.js';
 import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { MerkleTreeHookConfig } from '../../hook/types.js';
 import { ChainName } from '../../types.js';
 import { IsmType, MultisigIsmConfig } from '../types.js';
 
-import type { MetadataBuilder, MetadataContext } from './types.js';
+import type {
+  MetadataBuilder,
+  MetadataContext,
+  MultisigMetadataBuildResult,
+  ValidatorInfo,
+} from './types.js';
 
 interface MessageIdMultisigMetadata {
   type: typeof IsmType.MESSAGE_ID_MULTISIG;
@@ -58,6 +64,21 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     }),
   ) {}
 
+  /**
+   * Get human-readable alias for a validator address from defaultMultisigConfigs
+   */
+  protected getValidatorAlias(
+    validatorAddress: Address,
+    chain: ChainName,
+  ): string | undefined {
+    const config = defaultMultisigConfigs[chain];
+    if (!config) return undefined;
+    const validator = config.validators.find((v) =>
+      eqAddress(v.address, validatorAddress),
+    );
+    return validator?.alias;
+  }
+
   protected async s3Validators(
     originChain: ChainName,
     validators: string[],
@@ -70,6 +91,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     if (toFetch.length > 0) {
       const validatorAnnounce =
         this.core.getContracts(originChain).validatorAnnounce;
+
       const storageLocations =
         await validatorAnnounce.getAnnouncedStorageLocations(toFetch);
 
@@ -109,6 +131,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     const results = await Promise.allSettled(
       s3Validators.map((v) => v.getCheckpoint(match.index)),
     );
+
     results
       .filter((r) => r.status === 'rejected')
       .forEach((r) => {
@@ -151,12 +174,118 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     return matchingCheckpoints;
   }
 
+  /**
+   * Get detailed status for each validator including signature status.
+   * Returns ValidatorInfo for each validator with 'signed', 'pending', or 'error' status.
+   */
+  async getValidatorInfos(
+    validators: Address[],
+    match: {
+      origin: number;
+      merkleTree: Address;
+      messageId: string;
+      index: number;
+    },
+  ): Promise<{
+    validatorInfos: ValidatorInfo[];
+    checkpoint?: Checkpoint;
+  }> {
+    const originChain = this.core.multiProvider.getChainName(match.origin);
+
+    // Get S3 validators (may throw if no storage location announced)
+    let s3Validators: S3Validator[];
+    try {
+      s3Validators = await this.s3Validators(originChain, validators);
+    } catch (error) {
+      // If we can't fetch storage locations at all, return all as error
+      return {
+        validatorInfos: validators.map((address) => ({
+          address,
+          alias: this.getValidatorAlias(address, originChain),
+          status: 'error' as const,
+          error: `Failed to fetch storage locations: ${error}`,
+        })),
+      };
+    }
+
+    // Fetch checkpoints from each validator in parallel
+    const results = await Promise.allSettled(
+      s3Validators.map((v) => v?.getCheckpoint(match.index)),
+    );
+
+    let firstMatchingCheckpoint: Checkpoint | undefined;
+    const validatorInfos: ValidatorInfo[] = validators.map((address, index) => {
+      const result = results[index];
+      const alias = this.getValidatorAlias(address, originChain);
+
+      // Check if fetch failed
+      if (result.status === 'rejected') {
+        return {
+          address,
+          alias,
+          status: 'error' as const,
+          error: `Failed to fetch checkpoint: ${result.reason}`,
+        };
+      }
+
+      const checkpoint = result.value;
+
+      // Check if checkpoint doesn't exist (validator hasn't signed this index yet)
+      if (!checkpoint) {
+        return {
+          address,
+          alias,
+          status: 'pending' as const,
+        };
+      }
+
+      // Check if checkpoint matches our expected values
+      const matches =
+        eqAddress(
+          bytes32ToAddress(
+            checkpoint.value.checkpoint.merkle_tree_hook_address,
+          ),
+          match.merkleTree,
+        ) &&
+        checkpoint.value.message_id === match.messageId &&
+        checkpoint.value.checkpoint.index === match.index &&
+        checkpoint.value.checkpoint.mailbox_domain === match.origin;
+
+      if (!matches) {
+        return {
+          address,
+          alias,
+          status: 'pending' as const,
+        };
+      }
+
+      // Valid matching checkpoint found
+      if (!firstMatchingCheckpoint) {
+        firstMatchingCheckpoint = checkpoint.value.checkpoint;
+      }
+
+      return {
+        address,
+        alias,
+        status: 'signed' as const,
+        signature: checkpoint.signature,
+        checkpointIndex: checkpoint.value.checkpoint.index,
+      };
+    });
+
+    return {
+      validatorInfos,
+      checkpoint: firstMatchingCheckpoint,
+    };
+  }
+
   async build(
     context: MetadataContext<
       WithAddress<MultisigIsmConfig>,
       WithAddress<MerkleTreeHookConfig>
     >,
-  ): Promise<string> {
+  ): Promise<MultisigMetadataBuildResult> {
+    // Currently only MESSAGE_ID_MULTISIG is supported
     assert(
       context.ism.type === IsmType.MESSAGE_ID_MULTISIG ||
         context.ism.type === IsmType.STORAGE_MESSAGE_ID_MULTISIG,
@@ -165,6 +294,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     const merkleTree = context.hook.address;
 
+    // Find the merkle tree insertion event for this message
     const matchingInsertion = context.dispatchTx.logs
       .filter((log) => eqAddressEvm(log.address, merkleTree))
       .map((log) => MerkleTreeInterface.parseLog(log))
@@ -176,38 +306,66 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     );
     this.logger.debug({ matchingInsertion }, 'Found matching insertion event');
 
-    const checkpoints = await this.getS3Checkpoints(context.ism.validators, {
-      origin: context.message.parsed.origin,
-      messageId: context.message.id,
-      merkleTree,
-      index: matchingInsertion.args.index,
-    });
-    assert(
-      checkpoints.length >= context.ism.threshold,
-      `Only ${checkpoints.length} of ${context.ism.threshold} required checkpoints found`,
+    const checkpointIndex = matchingInsertion.args.index;
+
+    // Get detailed validator status
+    const { validatorInfos, checkpoint } = await this.getValidatorInfos(
+      context.ism.validators,
+      {
+        origin: context.message.parsed.origin,
+        messageId: context.message.id,
+        merkleTree,
+        index: checkpointIndex,
+      },
     );
+
+    // Count signed validators
+    const signedValidators = validatorInfos.filter(
+      (v) => v.status === 'signed',
+    );
+    const signedCount = signedValidators.length;
+    const quorumMet = signedCount >= context.ism.threshold;
 
     this.logger.debug(
-      { checkpoints },
-      `Found ${checkpoints.length} checkpoints for message ${context.message.id}`,
+      { signedCount, threshold: context.ism.threshold, quorumMet },
+      `Validator signature status for message ${context.message.id}`,
     );
 
-    const signatures = checkpoints
-      .map((checkpoint) => checkpoint.signature)
-      .slice(0, context.ism.threshold);
-
-    this.logger.debug(
-      { signatures, ism: context.ism },
-      `Taking ${signatures.length} (threshold) signatures for message ${context.message.id}`,
-    );
-
-    const metadata: MessageIdMultisigMetadata = {
-      type: IsmType.MESSAGE_ID_MULTISIG,
-      checkpoint: checkpoints[0].value.checkpoint,
-      signatures,
+    // Build the result
+    const result: MultisigMetadataBuildResult = {
+      type: context.ism.type,
+      ismAddress: context.ism.address,
+      threshold: context.ism.threshold,
+      validators: validatorInfos,
+      checkpointIndex,
     };
 
-    return MultisigMetadataBuilder.encode(metadata);
+    // Only encode metadata if quorum is met
+    if (quorumMet && checkpoint) {
+      const signatures = signedValidators
+        .map((v) => v.signature!)
+        .slice(0, context.ism.threshold);
+
+      this.logger.debug(
+        { signatures: signatures.length, ism: context.ism },
+        `Taking ${signatures.length} (threshold) signatures for message ${context.message.id}`,
+      );
+
+      const metadata: MessageIdMultisigMetadata = {
+        type: IsmType.MESSAGE_ID_MULTISIG,
+        checkpoint,
+        signatures,
+      };
+
+      result.metadata = MultisigMetadataBuilder.encode(metadata);
+    } else {
+      this.logger.debug(
+        { signedCount, threshold: context.ism.threshold },
+        `Quorum not met for message ${context.message.id}, metadata not buildable`,
+      );
+    }
+
+    return result;
   }
 
   protected static encodeSimplePrefix(

@@ -17,7 +17,7 @@ import { OffchainLookupIsmConfig } from '../types.js';
 
 import { BaseMetadataBuilder } from './builder.js';
 import { offchainLookupRequestMessageHash } from './ccipread.js';
-import { MetadataContext } from './types.js';
+import { MetadataContext, isMetadataBuildable } from './types.js';
 
 const OFFCHAIN_LOOKUP_SERVER_URL = 'http://example.com/namespace';
 describe('Offchain Lookup ISM Integration', () => {
@@ -93,11 +93,17 @@ describe('Offchain Lookup ISM Integration', () => {
       dispatchTx,
       hook: {} as any,
     };
-    const metadata = await metadataBuilder.build(context);
+    const result = await metadataBuilder.build(context);
+
+    expect(isMetadataBuildable(result)).to.be.true;
+    if (!isMetadataBuildable(result)) {
+      throw new Error('Metadata should be buildable');
+    }
 
     // Finally, call mailbox.process on test2 with the metadata and message
     const mailbox = core.getContracts('test2').mailbox;
-    await expect(mailbox.process(metadata, message.message)).to.not.be.reverted;
+    await expect(mailbox.process(result.metadata, message.message)).to.not.be
+      .reverted;
   });
 
   it('sends signature field in request when calling fetch', async () => {
