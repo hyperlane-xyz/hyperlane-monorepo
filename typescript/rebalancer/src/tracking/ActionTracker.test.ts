@@ -62,10 +62,12 @@ describe('ActionTracker', () => {
     } as any;
 
     config = {
-      routers: ['0xrouter1', '0xrouter2'],
+      routersByDomain: {
+        1: '0xrouter1',
+        2: '0xrouter2',
+      },
       bridges: ['0xbridge1', '0xbridge2'],
       rebalancerAddress: '0xrebalancer',
-      domains: [1, 2, 3],
     };
 
     tracker = new ActionTracker(
@@ -90,6 +92,7 @@ describe('ActionTracker', () => {
           recipient: '0xrouter2',
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
@@ -132,6 +135,7 @@ describe('ActionTracker', () => {
           recipient: '0xrouter2',
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xrebalancer',
+          origin_tx_recipient: '0xrouter1',
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
@@ -177,6 +181,7 @@ describe('ActionTracker', () => {
           recipient: '0xuser2',
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xuser1',
+          origin_tx_recipient: '0xrouter1',
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',
@@ -219,6 +224,7 @@ describe('ActionTracker', () => {
           recipient: '0xuser2',
           origin_tx_hash: '0xtx1',
           origin_tx_sender: '0xuser1',
+          origin_tx_recipient: '0xrouter1',
           is_delivered: false,
           message_body:
             '0x00000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000064',

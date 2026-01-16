@@ -17,10 +17,21 @@ import {
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+} from '../interfaces/IRebalancer.js';
+import type {
+  IStrategy,
+  InflightContext,
+  RebalancingRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
+import {
+  type IActionTracker,
+  InflightContextAdapter,
+} from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
 export interface RebalancerServiceConfig {
@@ -102,6 +113,8 @@ export class RebalancerService {
   private rebalancer?: IRebalancer;
   private metrics?: Metrics;
   private mode: 'manual' | 'daemon';
+  private actionTracker?: IActionTracker;
+  private inflightContextAdapter?: InflightContextAdapter;
 
   constructor(
     private readonly multiProvider: MultiProvider,
@@ -160,7 +173,24 @@ export class RebalancerService {
       );
     }
 
-    this.logger.info('✅ RebalancerService initialized successfully');
+    // Create ActionTracker for tracking inflight actions
+    const { tracker, adapter } =
+      await this.contextFactory.createActionTracker();
+    this.actionTracker = tracker;
+    this.inflightContextAdapter = adapter;
+    await this.actionTracker.initialize();
+    this.logger.info('ActionTracker initialized');
+
+    this.logger.info(
+      {
+        warpRouteId: this.rebalancerConfig.warpRouteId,
+        strategyTypes: this.rebalancerConfig.strategyConfig.map(
+          (s) => s.rebalanceStrategy,
+        ),
+        chains: getStrategyChainNames(this.rebalancerConfig.strategyConfig),
+      },
+      'RebalancerService initialized',
+    );
   }
 
   /**
@@ -279,6 +309,8 @@ export class RebalancerService {
    * Event handler for token info updates from monitor
    */
   private async onTokenInfo(event: MonitorEvent): Promise<void> {
+    this.logger.info('Polling cycle started');
+
     if (this.metrics) {
       await Promise.all(
         event.tokensInfo.map((tokenInfo) =>
@@ -287,24 +319,191 @@ export class RebalancerService {
       );
     }
 
+    // Sync ActionTracker state with on-chain and Explorer data
+    await this.syncActionTracker();
+
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
       event,
       this.logger,
     );
 
-    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(rawBalances);
+    this.logger.info(
+      {
+        balances: Object.entries(rawBalances).map(([chain, balance]) => ({
+          chain,
+          balance: balance.toString(),
+        })),
+      },
+      'Router balances',
+    );
 
-    this.rebalancer
-      ?.rebalance(rebalancingRoutes)
-      .then(() => {
-        this.metrics?.recordRebalancerSuccess();
-        this.logger.info('Rebalancer completed a cycle successfully');
-      })
-      .catch((error: any) => {
-        this.metrics?.recordRebalancerFailure();
-        this.logger.error({ error }, 'Error while rebalancing');
-      });
+    // Get inflight context for strategy decision-making
+    const inflightContext = await this.getInflightContext();
+
+    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(
+      rawBalances,
+      inflightContext,
+    );
+
+    if (rebalancingRoutes.length > 0) {
+      this.logger.info(
+        {
+          routes: rebalancingRoutes.map((r) => ({
+            from: r.origin,
+            to: r.destination,
+            amount: r.amount.toString(),
+          })),
+        },
+        'Routes proposed',
+      );
+      if (this.rebalancer) {
+        await this.executeWithTracking(rebalancingRoutes);
+      }
+    } else {
+      this.logger.info('No rebalancing needed');
+    }
+
+    this.logger.info('Polling cycle completed');
+  }
+
+  /**
+   * Sync ActionTracker state from Explorer and on-chain data
+   */
+  private async syncActionTracker(): Promise<void> {
+    if (!this.actionTracker) return;
+
+    try {
+      await Promise.all([
+        this.actionTracker.syncTransfers(),
+        this.actionTracker.syncRebalanceIntents(),
+        this.actionTracker.syncRebalanceActions(),
+      ]);
+
+      // Log store contents for debugging
+      await this.actionTracker.logStoreContents();
+    } catch (error) {
+      // Log error but continue with stale data (best effort)
+      this.logger.warn(
+        { error },
+        'ActionTracker sync failed, using stale data',
+      );
+    }
+  }
+
+  /**
+   * Get inflight context for strategy decision-making
+   */
+  private async getInflightContext(): Promise<InflightContext> {
+    if (!this.inflightContextAdapter) {
+      return { pendingRebalances: [], pendingTransfers: [] };
+    }
+
+    return this.inflightContextAdapter.getInflightContext();
+  }
+
+  /**
+   * Execute rebalancing with intent tracking.
+   * Creates intents before execution, processes results after.
+   */
+  private async executeWithTracking(routes: RebalancingRoute[]): Promise<void> {
+    if (!this.rebalancer || !this.actionTracker) {
+      this.logger.warn('Rebalancer or ActionTracker not available, skipping');
+      return;
+    }
+
+    // 1. Create intents for each route BEFORE execution
+    const intents = await Promise.all(
+      routes.map((route) =>
+        this.actionTracker!.createRebalanceIntent({
+          origin: this.multiProvider.getDomainId(route.origin),
+          destination: this.multiProvider.getDomainId(route.destination),
+          amount: route.amount,
+          bridge: route.bridge,
+        }),
+      ),
+    );
+
+    this.logger.debug(
+      { intentCount: intents.length },
+      'Created rebalance intents',
+    );
+
+    // 2. Execute rebalance
+    let results: RebalanceExecutionResult[];
+    try {
+      results = await this.rebalancer.rebalance(routes);
+      this.metrics?.recordRebalancerSuccess();
+      this.logger.info('Rebalancer completed a cycle successfully');
+    } catch (error: any) {
+      this.metrics?.recordRebalancerFailure();
+      this.logger.error({ error }, 'Error while rebalancing');
+
+      // Mark all intents as failed
+      await Promise.all(
+        intents.map((intent) =>
+          this.actionTracker!.failRebalanceIntent(intent.id),
+        ),
+      );
+      return;
+    }
+
+    // 3. Process results - create action for successful txs, mark intent appropriately
+    await this.processExecutionResults(results, intents);
+  }
+
+  /**
+   * Process execution results and update tracking state.
+   * Creates actions for successful transactions and updates intent statuses.
+   */
+  private async processExecutionResults(
+    results: RebalanceExecutionResult[],
+    intents: Array<{ id: string }>,
+  ): Promise<void> {
+    for (let i = 0; i < results.length; i++) {
+      const result = results[i];
+      const intent = intents[i];
+
+      if (result.success && result.messageId) {
+        // Create action for successful transaction with messageId
+        // Note: createRebalanceAction() automatically transitions intent to 'in_progress'.
+        // The intent will be marked 'complete' when the action is delivered (in syncRebalanceActions).
+        await this.actionTracker!.createRebalanceAction({
+          intentId: intent.id,
+          origin: this.multiProvider.getDomainId(result.route.origin),
+          destination: this.multiProvider.getDomainId(result.route.destination),
+          amount: result.route.amount,
+          messageId: result.messageId,
+          txHash: result.txHash,
+        });
+
+        this.logger.info(
+          {
+            intentId: intent.id,
+            messageId: result.messageId,
+            txHash: result.txHash,
+            origin: result.route.origin,
+            destination: result.route.destination,
+          },
+          'Rebalance action created successfully',
+        );
+      } else {
+        // Mark intent as failed for failed transactions or those without messageId
+        await this.actionTracker!.failRebalanceIntent(intent.id);
+
+        this.logger.warn(
+          {
+            intentId: intent.id,
+            success: result.success,
+            hasMessageId: !!result.messageId,
+            error: result.error,
+            origin: result.route.origin,
+            destination: result.route.destination,
+          },
+          'Rebalance intent marked as failed',
+        );
+      }
+    }
   }
 
   /**

@@ -1,13 +1,14 @@
 import type { Logger } from 'pino';
 
-import { type ChainMetadataManager } from '@hyperlane-xyz/sdk';
-
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+} from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type ExplorerClient } from '../utils/ExplorerClient.js';
 
@@ -22,13 +23,15 @@ export class WithInflightGuard implements IRebalancer {
     private readonly rebalancer: IRebalancer,
     private readonly explorer: ExplorerClient,
     private readonly txSender: string,
-    private readonly chainManager: ChainMetadataManager,
+    private readonly routersByDomain: Record<number, string>,
     logger: Logger,
   ) {
     this.logger = logger.child({ class: WithInflightGuard.name });
   }
 
-  async rebalance(routes: RebalancingRoute[]): Promise<void> {
+  async rebalance(
+    routes: RebalancingRoute[],
+  ): Promise<RebalanceExecutionResult[]> {
     // Always enforce the inflight guard
     if (routes.length === 0) {
       return this.rebalancer.rebalance(routes);
@@ -44,14 +47,13 @@ export class WithInflightGuard implements IRebalancer {
         return chainConfig?.bridge;
       })
       .filter((bridge): bridge is string => bridge !== undefined);
-    const domains = chains.map((chain) => this.chainManager.getDomainId(chain));
 
     let hasInflightRebalances = false;
     try {
       hasInflightRebalances = await this.explorer.hasUndeliveredRebalance(
         {
           bridges,
-          domains: Array.from(new Set(domains)),
+          routersByDomain: this.routersByDomain,
           txSender: this.txSender,
           limit: 5,
         },
@@ -69,7 +71,7 @@ export class WithInflightGuard implements IRebalancer {
       this.logger.info(
         'Inflight rebalance detected via Explorer; skipping this cycle',
       );
-      return;
+      return [];
     }
 
     return this.rebalancer.rebalance(routes);

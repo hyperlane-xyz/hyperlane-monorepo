@@ -2,12 +2,15 @@ import { ethers } from 'ethers';
 
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { RebalancerStrategyOptions } from '../config/types.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+} from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 export class MockRebalancer implements IRebalancer {
-  rebalance(_routes: RebalancingRoute[]): Promise<void> {
-    return Promise.resolve();
+  rebalance(_routes: RebalancingRoute[]): Promise<RebalanceExecutionResult[]> {
+    return Promise.resolve([]);
   }
 }
 

@@ -4,9 +4,6 @@ import { ethers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import { chainMetadata } from '@hyperlane-xyz/registry';
-import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
-
 import { type RebalancingRoute } from '../interfaces/IStrategy.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 import { ExplorerClient } from '../utils/ExplorerClient.js';
@@ -32,7 +29,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      { 1: '0xrouter1', 42161: '0xrouter2' },
       testLogger,
     );
 
@@ -61,7 +58,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      { 1: '0xrouter1', 42161: '0xrouter2' },
       testLogger,
     );
 
@@ -90,7 +87,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      { 1: '0xrouter1', 42161: '0xrouter2' },
       testLogger,
     );
 
@@ -117,7 +114,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      { 1: '0xrouter1', 42161: '0xrouter2' },
       testLogger,
     );
 

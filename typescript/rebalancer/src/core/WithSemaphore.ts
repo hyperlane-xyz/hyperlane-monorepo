@@ -2,7 +2,10 @@ import type { Logger } from 'pino';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import { getStrategyChainConfig } from '../config/types.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+} from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 /**
@@ -27,11 +30,13 @@ export class WithSemaphore implements IRebalancer {
    * Rebalance with timing control
    * @param routes - Routes to process
    */
-  async rebalance(routes: RebalancingRoute[]): Promise<void> {
+  async rebalance(
+    routes: RebalancingRoute[],
+  ): Promise<RebalanceExecutionResult[]> {
     if (this.executing) {
       this.logger.info('Currently executing rebalance. Skipping.');
 
-      return;
+      return [];
     }
 
     // No routes mean the system is balanced so we reset the timer to allow new rebalancing
@@ -41,23 +46,24 @@ export class WithSemaphore implements IRebalancer {
       );
 
       this.waitUntil = 0;
-      return;
+      return [];
     }
 
     // Skip if still in waiting period
     if (Date.now() < this.waitUntil) {
       this.logger.info('Still in waiting period. Skipping rebalance.');
 
-      return;
+      return [];
     }
 
     // The wait period will be determined by the bridge with the highest wait tolerance
     const highestTolerance = this.getHighestLockTime(routes);
 
+    let results: RebalanceExecutionResult[];
     try {
       // Execute rebalance
       this.executing = true;
-      await this.rebalancer.rebalance(routes);
+      results = await this.rebalancer.rebalance(routes);
     } finally {
       this.executing = false;
     }
@@ -72,6 +78,8 @@ export class WithSemaphore implements IRebalancer {
       },
       'Rebalance semaphore locked',
     );
+
+    return results;
   }
 
   private getHighestLockTime(routes: RebalancingRoute[]) {

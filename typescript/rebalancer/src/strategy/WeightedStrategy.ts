@@ -7,7 +7,11 @@ import {
   RebalancerStrategyOptions,
   type WeightedStrategyConfig,
 } from '../config/types.js';
-import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
+import type {
+  InflightContext,
+  RawBalances,
+  RebalancingRoute,
+} from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -62,17 +66,36 @@ export class WeightedStrategy extends BaseStrategy {
 
   /**
    * Gets balances categorized by surplus and deficit based on weights
+   *
+   * Simulates both types of rebalances before calculating surpluses/deficits:
+   * - pendingRebalances: in-flight intents (origin tx confirmed, add to destination only)
+   * - proposedRebalances: routes from earlier strategies (subtract from origin AND add to destination)
+   *
+   * This prevents over-rebalancing when multiple strategies run in sequence.
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    _pendingRebalances?: RebalancingRoute[],
+    pendingRebalances?: RebalancingRoute[],
+    proposedRebalances?: RebalancingRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
+      rawBalances,
+      pendingRebalances ?? [],
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      proposedRebalances ?? [],
+    );
+
     // Get the total balance from all chains
     const total = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
+      (sum, chain) => sum + simulatedBalances[chain],
       0n,
     );
 
@@ -81,7 +104,7 @@ export class WeightedStrategy extends BaseStrategy {
         const { weight, tolerance } = this.config[chain].weighted;
         const target = (total * weight) / this.totalWeight;
         const toleranceAmount = (target * tolerance) / 100n;
-        const balance = rawBalances[chain];
+        const balance = simulatedBalances[chain];
 
         // Apply the tolerance to deficits to prevent small imbalances
         if (balance < target - toleranceAmount) {
@@ -99,5 +122,21 @@ export class WeightedStrategy extends BaseStrategy {
         deficits: [] as Delta[],
       },
     );
+  }
+
+  /**
+   * Override getRebalancingRoutes to set bridge field on output routes.
+   */
+  getRebalancingRoutes(
+    rawBalances: RawBalances,
+    inflightContext?: InflightContext,
+  ): RebalancingRoute[] {
+    const routes = super.getRebalancingRoutes(rawBalances, inflightContext);
+
+    // Set bridge field on each route using first configured bridge for the origin
+    return routes.map((route) => ({
+      ...route,
+      bridge: this.bridges?.[route.origin]?.[0],
+    }));
   }
 }
