@@ -59,11 +59,8 @@ contract InterchainGasPaymaster is
 
     // ============ Public Storage ============
 
-    /// @notice Destination domain => gas oracle and overhead gas amount.
-    /// @dev @deprecated Use tokenGasOracles with NATIVE_TOKEN (address(0)) for oracles
-    /// and destinationGasOverhead for overhead instead.
-    mapping(uint32 destinationDomain => DomainGasConfig config)
-        public destinationGasConfigs;
+    /// @dev Deprecated storage slot, previously destinationGasConfigs mapping.
+    uint256 private __deprecated_destinationGasConfigs;
 
     /// @notice The benficiary that can receive native tokens paid into this contract.
     address public beneficiary;
@@ -155,8 +152,8 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Sets the gas oracles for remote domains specified in the config array.
-     * @dev @deprecated Use setTokenGasOracles with NATIVE_TOKEN (address(0)) for oracles
-     * and setDestinationGasOverhead for overhead instead.
+     * @dev @deprecated Use setTokenGasOracles for oracles and setDestinationGasOverhead for overhead instead.
+     * This function still works for backward compatibility, but is not recommended for new deployments.
      * @param _configs An array of configs including the remote domain and gas oracles to set.
      */
     function setDestinationGasConfigs(
@@ -363,6 +360,22 @@ contract InterchainGasPaymaster is
         return uint256(destinationGasOverhead[_destinationDomain]) + _gasLimit;
     }
 
+    /**
+     * @notice Returns the gas oracle and overhead for a destination domain.
+     * @dev Reads from tokenGasOracles and destinationGasOverhead storage.
+     * @param _destinationDomain The destination domain.
+     * @return The DomainGasConfig containing the gas oracle and overhead.
+     */
+    function destinationGasConfigs(
+        uint32 _destinationDomain
+    ) public view returns (DomainGasConfig memory) {
+        return
+            DomainGasConfig(
+                tokenGasOracles[NATIVE_TOKEN][_destinationDomain],
+                uint96(destinationGasOverhead[_destinationDomain])
+            );
+    }
+
     // ============ Internal Functions ============
 
     /**
@@ -469,6 +482,8 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Sets the gas oracle and destination gas overhead for a remote domain.
+     * @dev Writes to both legacy destinationGasConfigs and new tokenGasOracles/destinationGasOverhead
+     *      storage for backward compatibility.
      * @param _remoteDomain The remote domain.
      * @param _gasOracle The gas oracle.
      * @param _gasOverhead The destination gas overhead.
@@ -478,10 +493,10 @@ contract InterchainGasPaymaster is
         IGasOracle _gasOracle,
         uint96 _gasOverhead
     ) internal {
-        destinationGasConfigs[_remoteDomain] = DomainGasConfig(
-            _gasOracle,
-            _gasOverhead
-        );
+        // Write to new storage
+        tokenGasOracles[NATIVE_TOKEN][_remoteDomain] = _gasOracle;
+        destinationGasOverhead[_remoteDomain] = _gasOverhead;
+
         emit DestinationGasConfigSet(
             _remoteDomain,
             address(_gasOracle),
