@@ -21,6 +21,7 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
 import { KathyHelmManager } from '../helloworld/kathy.js';
+import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
 import { HelmManager } from './helm.js';
@@ -272,9 +273,8 @@ async function updateSecretAndDisablePrevious(
 
 /**
  * Interactively refreshes dependent k8s resources for the given chain in the given environment.
- * Allows for helm releases to be selected for refreshing. Refreshing involves first deleting
- * secrets, expecting them to be recreated by external-secrets, and then deleting pods to restart
- * them with the new secrets.
+ * Prompts for core infrastructure, warp monitors, and CronJobs separately, then executes refreshes.
+ * CronJobs only get secret refresh (no pod restart) - they pick up new secrets on next run.
  * @param environment The environment to refresh resources in
  * @param chain The chain to refresh resources for
  */
@@ -290,73 +290,190 @@ async function refreshDependentK8sResourcesInteractive(
     return;
   }
 
+  // Collect selections from all prompts
+  const coreManagers = await selectCoreInfrastructure(environment, chain);
+  const warpManagers = await selectWarpMonitors(environment, chain);
+  const cronjobManagers = await selectCronJobs(environment);
+
+  // Services get both secret and pod refresh
+  const serviceManagers = [...coreManagers, ...warpManagers];
+  // CronJobs only get secret refresh (they pick up new secrets on next scheduled run)
+  const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
+
+  if (allManagersForSecrets.length > 0) {
+    await refreshK8sResources(
+      allManagersForSecrets,
+      K8sResourceType.SECRET,
+      environment,
+    );
+  }
+  if (serviceManagers.length > 0) {
+    await refreshK8sResources(
+      serviceManagers,
+      K8sResourceType.POD,
+      environment,
+    );
+  }
+}
+
+async function selectCoreInfrastructure(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<HelmManager<any>[]> {
   const envConfig = getEnvironmentConfig(environment);
-  const contextHelmManagers: [string, HelmManager<any>][] = [];
-  const pushContextHelmManager = (
-    context: string,
-    manager: HelmManager<any>,
-  ) => {
-    contextHelmManagers.push([context, manager]);
-  };
+  const coreHelmManagers: [string, HelmManager<any>][] = [];
+
   for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
     if (agentConfig.relayer) {
-      pushContextHelmManager(context, new RelayerHelmManager(agentConfig));
+      coreHelmManagers.push([context, new RelayerHelmManager(agentConfig)]);
     }
+
     if (
       agentConfig.validators &&
       agentConfig.contextChainNames.validator?.includes(chain)
     ) {
-      pushContextHelmManager(
+      coreHelmManagers.push([
         context,
         new ValidatorHelmManager(agentConfig, chain),
-      );
+      ]);
     }
+
     if (agentConfig.scraper) {
-      pushContextHelmManager(context, new ScraperHelmManager(agentConfig));
+      coreHelmManagers.push([context, new ScraperHelmManager(agentConfig)]);
     }
+  }
 
-    if (context == Contexts.Hyperlane) {
-      // Key funder
-      pushContextHelmManager(
-        context,
-        KeyFunderHelmManager.forEnvironment(environment),
-      );
-
-      // Kathy - only expected to be running as a long-running service in the
-      // Hyperlane context
-      if (envConfig.helloWorld?.hyperlane?.addresses[chain]) {
-        pushContextHelmManager(
-          context,
-          KathyHelmManager.forEnvironment(environment, context),
-        );
-      }
-    }
+  if (coreHelmManagers.length === 0) {
+    console.log('No core infrastructure to refresh');
+    return [];
   }
 
   const selection = await checkbox({
     message:
-      'Select deployments to refresh (update secrets & restart any pods)',
-    choices: contextHelmManagers.map(([context, helmManager], i) => ({
+      'Select core infrastructure to refresh (update secrets & restart pods)',
+    choices: coreHelmManagers.map(([context, helmManager], i) => ({
       name: `${helmManager.helmReleaseName} (context: ${context})`,
       value: i,
-      // By default, all deployments are selected
       checked: true,
     })),
   });
-  const selectedHelmManagers = contextHelmManagers
-    .map(([_, m]) => m)
-    .filter((_, m) => selection.includes(m));
 
-  await refreshK8sResources(
-    selectedHelmManagers,
-    K8sResourceType.SECRET,
-    environment,
+  return coreHelmManagers
+    .map(([_, m]) => m)
+    .filter((_, i) => selection.includes(i));
+}
+
+enum WarpMonitorRefreshChoice {
+  ALL = 'all',
+  SELECT = 'select',
+  SKIP = 'skip',
+}
+
+async function selectWarpMonitors(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<WarpRouteMonitorHelmManager[]> {
+  const warpMonitorManagers =
+    await WarpRouteMonitorHelmManager.getManagersForChain(environment, chain);
+
+  if (warpMonitorManagers.length === 0) {
+    console.log(`No warp route monitors found for ${chain}`);
+    return [];
+  }
+
+  console.log(
+    `Found ${warpMonitorManagers.length} warp route monitors that include ${chain}:`,
   );
-  await refreshK8sResources(
-    selectedHelmManagers,
-    K8sResourceType.POD,
-    environment,
+  for (const manager of warpMonitorManagers) {
+    console.log(`  - ${manager.helmReleaseName} (${manager.warpRouteId})`);
+  }
+
+  const choice = await select({
+    message: `Refresh warp route monitors?`,
+    choices: [
+      {
+        name: `Yes, refresh all ${warpMonitorManagers.length} monitors`,
+        value: WarpMonitorRefreshChoice.ALL,
+      },
+      {
+        name: 'Yes, let me select which ones',
+        value: WarpMonitorRefreshChoice.SELECT,
+      },
+      {
+        name: 'No, skip warp monitors',
+        value: WarpMonitorRefreshChoice.SKIP,
+      },
+    ],
+  });
+
+  if (choice === WarpMonitorRefreshChoice.SKIP) {
+    console.log('Skipping warp monitor refresh');
+    return [];
+  }
+
+  if (choice === WarpMonitorRefreshChoice.ALL) {
+    return warpMonitorManagers;
+  }
+
+  const selection = await checkbox({
+    message: 'Select warp monitors to refresh',
+    choices: warpMonitorManagers.map((manager, i) => ({
+      name: manager.helmReleaseName,
+      value: i,
+      checked: true,
+    })),
+  });
+
+  return warpMonitorManagers.filter((_, i) => selection.includes(i));
+}
+
+async function selectCronJobs(
+  environment: DeployEnvironment,
+): Promise<HelmManager<any>[]> {
+  const cronjobManagers: [string, HelmManager<any>][] = [];
+
+  try {
+    const keyFunder = KeyFunderHelmManager.forEnvironment(environment);
+    cronjobManagers.push(['Key Funder', keyFunder]);
+  } catch (e) {
+    // Environment may not have key funder configured
+  }
+
+  try {
+    const kathy = KathyHelmManager.forEnvironment(
+      environment,
+      Contexts.Hyperlane,
+    );
+    cronjobManagers.push(['Kathy', kathy]);
+  } catch (e) {
+    // Environment may not have kathy configured
+  }
+
+  if (cronjobManagers.length === 0) {
+    console.log('No CronJobs to refresh');
+    return [];
+  }
+
+  console.log(
+    `Found ${cronjobManagers.length} CronJobs (secrets only, no pod restart):`,
   );
+  for (const [name, manager] of cronjobManagers) {
+    console.log(`  - ${manager.helmReleaseName} (${name})`);
+  }
+
+  const selection = await checkbox({
+    message:
+      'Select CronJobs to refresh secrets (pods pick up changes on next run)',
+    choices: cronjobManagers.map(([name, manager], i) => ({
+      name: `${manager.helmReleaseName} (${name})`,
+      value: i,
+      checked: true,
+    })),
+  });
+
+  return cronjobManagers
+    .map(([_, m]) => m)
+    .filter((_, i) => selection.includes(i));
 }
 
 /**

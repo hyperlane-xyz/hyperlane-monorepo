@@ -13,19 +13,16 @@ import {
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
-import {
-  DEFAULT_REGISTRY_URI,
-  getRegistry,
-  getWarpCoreConfig,
-} from '../../config/registry.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
-import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
+import { getRegistry, getWarpCoreConfig } from '../../config/registry.js';
+import { getEnvironmentConfig } from '../../scripts/core-utils.js';
+import { DeployEnvironment } from '../config/environment.js';
+import { REBALANCER_HELM_RELEASE_PREFIX } from '../utils/consts.js';
 import {
   HelmManager,
   getHelmReleaseName,
   removeHelmRelease,
-} from '../../src/utils/helm.js';
-import { execCmdAndParseJson, getInfraPath } from '../../src/utils/utils.js';
+} from '../utils/helm.js';
+import { execCmdAndParseJson, getInfraPath } from '../utils/utils.js';
 
 // TODO: once we have automated tooling for ATA payer balances and a
 // consolidated source of truth, move away from this hardcoded setup.
@@ -58,6 +55,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   }
 
   private get registryUri(): string {
+    // If no commit specified, use the default registry URL without /tree/ suffix
+    if (!this.registryCommit) {
+      return DEFAULT_GITHUB_REGISTRY;
+    }
     // Build registry URI with commit embedded in /tree/{commit} format
     return `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
   }
@@ -172,6 +173,44 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     }
   }
 
+  static async getManagersForChain(
+    environment: DeployEnvironment,
+    chain: string,
+  ): Promise<WarpRouteMonitorHelmManager[]> {
+    const deployedMonitors = await getDeployedWarpMonitorWarpRouteIds(
+      environment,
+      WarpRouteMonitorHelmManager.helmReleasePrefix,
+    );
+
+    const envConfig = getEnvironmentConfig(environment);
+    const helmManagers: WarpRouteMonitorHelmManager[] = [];
+
+    for (const { warpRouteId } of deployedMonitors) {
+      let warpCoreConfig;
+      try {
+        warpCoreConfig = getWarpCoreConfig(warpRouteId);
+      } catch (e) {
+        continue;
+      }
+
+      const warpChains = warpCoreConfig.tokens.map((t) => t.chainName);
+      if (!warpChains.includes(chain)) {
+        continue;
+      }
+
+      helmManagers.push(
+        new WarpRouteMonitorHelmManager(
+          warpRouteId,
+          environment,
+          envConfig.supportedChainNames,
+          '',
+        ),
+      );
+    }
+
+    return helmManagers;
+  }
+
   async ensureAtaPayerBalanceSufficient(warpCore: WarpCore, token: IToken) {
     if (!ataPayerAlertThreshold[token.chainName]) {
       rootLogger.warn(
@@ -221,4 +260,64 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
       );
     }
   }
+}
+
+export interface WarpMonitorPodInfo {
+  helmReleaseName: string;
+  warpRouteId: string;
+}
+
+export async function getDeployedWarpMonitorWarpRouteIds(
+  namespace: string,
+  helmReleasePrefix: string,
+): Promise<WarpMonitorPodInfo[]> {
+  const podsResult = await execCmdAndParseJson(
+    `kubectl get pods -n ${namespace} -o json`,
+  );
+
+  const warpMonitorPods: WarpMonitorPodInfo[] = [];
+
+  for (const pod of podsResult.items || []) {
+    const helmReleaseName =
+      pod.metadata?.labels?.['app.kubernetes.io/instance'];
+
+    if (!helmReleaseName?.startsWith(helmReleasePrefix)) {
+      continue;
+    }
+
+    let warpRouteId: string | undefined;
+
+    for (const container of pod.spec?.containers || []) {
+      // Standalone image: WARP_ROUTE_ID env var
+      const warpRouteIdEnv = (container.env || []).find(
+        (e: { name: string; value?: string }) => e.name === 'WARP_ROUTE_ID',
+      );
+      if (warpRouteIdEnv?.value) {
+        warpRouteId = warpRouteIdEnv.value;
+        break;
+      }
+
+      // Legacy monorepo image: --warpRouteId in command or args
+      // Some pods use container.command, others use container.args
+      const allArgs: string[] = [
+        ...(container.command || []),
+        ...(container.args || []),
+      ];
+      const warpRouteIdArgIndex = allArgs.indexOf('--warpRouteId');
+      if (warpRouteIdArgIndex !== -1 && allArgs[warpRouteIdArgIndex + 1]) {
+        warpRouteId = allArgs[warpRouteIdArgIndex + 1];
+        break;
+      }
+    }
+
+    if (warpRouteId) {
+      warpMonitorPods.push({ helmReleaseName, warpRouteId });
+    } else {
+      rootLogger.warn(
+        `Could not extract warp route ID from pod with helm release: ${helmReleaseName}. Skipping.`,
+      );
+    }
+  }
+
+  return warpMonitorPods;
 }

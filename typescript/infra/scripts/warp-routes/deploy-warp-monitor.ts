@@ -12,7 +12,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
-import { WarpRouteMonitorHelmManager } from '../../src/warp/helm.js';
+import { WarpRouteMonitorHelmManager } from '../../src/warp-monitor/helm.js';
 import {
   assertCorrectKubeContext,
   getAgentConfig,
