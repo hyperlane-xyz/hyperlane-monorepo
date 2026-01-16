@@ -3,6 +3,7 @@
 //! ANY CHANGES HERE NEED TO BE REFLECTED IN THE TYPESCRIPT SDK.
 
 use std::{
+    collections::HashSet,
     fmt,
     fmt::{Debug, Display, Formatter},
     marker::PhantomData,
@@ -330,6 +331,36 @@ impl<'a> From<&'a QueueOperation> for MatchInfo<'a> {
 }
 
 impl MatchingList {
+    pub(crate) fn origin_domains(&self) -> Option<HashSet<u32>> {
+        self.domain_filter(|rule| &rule.origin_domain)
+    }
+
+    pub(crate) fn destination_domains(&self) -> Option<HashSet<u32>> {
+        self.domain_filter(|rule| &rule.destination_domain)
+    }
+
+    fn domain_filter<F>(&self, filter: F) -> Option<HashSet<u32>>
+    where
+        F: Fn(&ListElement) -> &Filter<u32>,
+    {
+        let rules = match &self.0 {
+            Some(rules) => rules,
+            None => return None, // No configuration = wildcard (no domain restrictions)
+        };
+
+        let mut domains = HashSet::new();
+        for rule in rules {
+            match filter(rule) {
+                Filter::Wildcard => return None,
+                Filter::Enumerated(values) => {
+                    domains.extend(values.iter().copied());
+                }
+            }
+        }
+
+        Some(domains)
+    }
+
     pub fn with_message_id(message_id: H256) -> Self {
         Self(Some(vec![ListElement {
             message_id: Filter::Enumerated(vec![message_id]),
@@ -355,18 +386,18 @@ impl MatchingList {
     /// Check if a message matches any of the rules.
     /// - `default`: What to return if the matching list is empty.
     pub fn msg_matches(&self, msg: &HyperlaneMessage, default: bool) -> bool {
-        self.matches(msg.into(), default)
+        let info = MatchInfo::from(msg);
+        self.matches(&info, default)
     }
 
     /// Check if queue operation matches any of the rules.
     /// If the matching list is empty, we assume the queue operation does not match.
     pub fn op_matches(&self, op: &QueueOperation) -> bool {
-        self.matches(op.into(), false)
+        let info = MatchInfo::from(op);
+        self.matches(&info, false)
     }
 
-    /// Check if a message matches any of the rules.
-    /// - `default`: What to return if the matching list is empty.
-    fn matches(&self, info: MatchInfo, default: bool) -> bool {
+    fn matches(&self, info: &MatchInfo, default: bool) -> bool {
         if let Some(rules) = &self.0 {
             matches_any_rule(rules.iter(), info)
         } else {
@@ -375,7 +406,10 @@ impl MatchingList {
     }
 }
 
-fn matches_any_rule<'a>(mut rules: impl Iterator<Item = &'a ListElement>, info: MatchInfo) -> bool {
+fn matches_any_rule<'a>(
+    mut rules: impl Iterator<Item = &'a ListElement>,
+    info: &MatchInfo,
+) -> bool {
     rules.any(|rule| {
         rule.message_id.matches(&info.src_msg_id)
             && rule.origin_domain.matches(&info.src_domain)
@@ -414,6 +448,8 @@ fn parse_addr<E: Error>(addr_str: &str) -> Result<H256, E> {
 
 #[cfg(test)]
 mod test {
+    use std::collections::HashSet;
+
     use hyperlane_core::{H160, H256};
 
     use super::{Filter::*, MatchingList};
@@ -439,7 +475,7 @@ mod test {
         assert_eq!(elem.sender_address, Wildcard);
 
         assert!(list.matches(
-            MatchInfo {
+            &MatchInfo {
                 src_msg_id: H256::random(),
                 src_domain: 0,
                 src_addr: &H256::default(),
@@ -451,7 +487,7 @@ mod test {
         ));
 
         assert!(list.matches(
-            MatchInfo {
+            &MatchInfo {
                 src_msg_id: H256::random(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -491,7 +527,7 @@ mod test {
         );
 
         assert!(list.matches(
-            MatchInfo {
+            &MatchInfo {
                 src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -509,7 +545,7 @@ mod test {
         ));
 
         assert!(!list.matches(
-            MatchInfo {
+            &MatchInfo {
                 src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -555,9 +591,86 @@ mod test {
             body: "".into(),
         };
         // whitelist use
-        assert!(MatchingList(None).matches(info.clone(), true));
+        assert!(MatchingList(None).matches(&info, true));
         // blacklist use
-        assert!(!MatchingList(None).matches(info, false));
+        assert!(!MatchingList(None).matches(&info, false));
+    }
+
+    #[test]
+    fn matching_list_domain_methods() {
+        let empty = MatchingList(None);
+        assert_eq!(empty.origin_domains(), None);
+        assert_eq!(empty.destination_domains(), None);
+
+        let wildcard_origin: MatchingList =
+            serde_json::from_str(r#"[{"origindomain":"*"}]"#).unwrap();
+        assert_eq!(wildcard_origin.origin_domains(), None);
+
+        let wildcard_destination: MatchingList =
+            serde_json::from_str(r#"[{"destinationdomain":"*"}]"#).unwrap();
+        assert_eq!(wildcard_destination.destination_domains(), None);
+
+        let enumerated_origin: MatchingList =
+            serde_json::from_str(r#"[{"origindomain":[1,2]},{"origindomain":[2,3]}]"#).unwrap();
+        let expected_origin: HashSet<u32> = [1u32, 2, 3].iter().copied().collect();
+        assert_eq!(enumerated_origin.origin_domains(), Some(expected_origin));
+
+        let enumerated_destination: MatchingList = serde_json::from_str(
+            r#"[{"destinationdomain":[10,11]},{"destinationdomain":[11,12]}]"#,
+        )
+        .unwrap();
+        let expected_destination: HashSet<u32> = [10u32, 11, 12].iter().copied().collect();
+        assert_eq!(
+            enumerated_destination.destination_domains(),
+            Some(expected_destination)
+        );
+
+        // Rule with no domain fields specified (defaults to Wildcard)
+        // Critical: many real configs only specify sender/recipient addresses
+        let no_domains_specified: MatchingList = serde_json::from_str(
+            r#"[{"senderaddress":"0x0000000000000000000000001234567890123456789012345678901234567890"}]"#,
+        )
+        .unwrap();
+        assert_eq!(no_domains_specified.origin_domains(), None);
+        assert_eq!(no_domains_specified.destination_domains(), None);
+
+        // Mixed: one rule enumerated, another wildcard → None
+        let mixed_origin: MatchingList =
+            serde_json::from_str(r#"[{"origindomain":[1,2]},{"origindomain":"*"}]"#).unwrap();
+        assert_eq!(mixed_origin.origin_domains(), None);
+
+        // Single scalar domain (common shorthand, not array)
+        let single_origin: MatchingList = serde_json::from_str(r#"[{"origindomain":42}]"#).unwrap();
+        let expected_single: HashSet<u32> = [42u32].iter().copied().collect();
+        assert_eq!(single_origin.origin_domains(), Some(expected_single));
+
+        // Cross-field independence: wildcard dest shouldn't affect origin_domains()
+        // Real pattern from mainnet_config.json (e.g., "aave" config)
+        let specific_origin_wildcard_dest: MatchingList =
+            serde_json::from_str(r#"[{"origindomain":1,"destinationdomain":"*"}]"#).unwrap();
+        let expected_specific: HashSet<u32> = [1u32].iter().copied().collect();
+        assert_eq!(
+            specific_origin_wildcard_dest.origin_domains(),
+            Some(expected_specific)
+        );
+        assert_eq!(specific_origin_wildcard_dest.destination_domains(), None);
+
+        // Multiple rules with same domain (deduplication via HashSet)
+        let duplicate_domains: MatchingList =
+            serde_json::from_str(r#"[{"origindomain":1},{"origindomain":1},{"origindomain":1}]"#)
+                .unwrap();
+        let expected_dedup: HashSet<u32> = [1u32].iter().copied().collect();
+        assert_eq!(duplicate_domains.origin_domains(), Some(expected_dedup));
+
+        // Bidirectional warp route pattern (from mainnet_config.json)
+        let bidirectional: MatchingList = serde_json::from_str(
+            r#"[{"origindomain":888888888,"destinationdomain":1},{"origindomain":1,"destinationdomain":888888888}]"#,
+        )
+        .unwrap();
+        let expected_origins: HashSet<u32> = [888888888u32, 1].iter().copied().collect();
+        let expected_dests: HashSet<u32> = [1u32, 888888888].iter().copied().collect();
+        assert_eq!(bidirectional.origin_domains(), Some(expected_origins));
+        assert_eq!(bidirectional.destination_domains(), Some(expected_dests));
     }
 
     #[test]
@@ -586,7 +699,7 @@ mod test {
     fn test_matching_list_regex() {
         let list: MatchingList = serde_json::from_str(r#"[{"bodyregex": "0x([0-9]*)$"}]"#).unwrap();
         assert!(list.matches(
-            MatchInfo {
+            &MatchInfo {
                 src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -604,7 +717,7 @@ mod test {
         ));
 
         assert!(!list.matches(
-            MatchInfo {
+            &MatchInfo {
                 src_msg_id: H256::default(),
                 src_domain: 34,
                 src_addr: &"0x9d4454B023096f34B160D6B654540c56A1F81688"
@@ -638,7 +751,7 @@ mod test {
 
         assert!(
             commitment_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 8453, // Base
                     src_addr: &H256::default(),
@@ -656,7 +769,7 @@ mod test {
 
         assert!(
             !commitment_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 8453,
                     src_addr: &H256::default(),
@@ -676,7 +789,7 @@ mod test {
 
         assert!(
             !commitment_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 10, // Optimism
                     src_addr: &H256::default(),
@@ -694,7 +807,7 @@ mod test {
 
         assert!(
             !commitment_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 8453,
                     src_addr: &H256::default(),
@@ -712,7 +825,7 @@ mod test {
 
         assert!(
             commitment_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 8453,
                     src_addr: &H256::default(),
@@ -732,7 +845,7 @@ mod test {
 
         assert!(
             reveal_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 10,
                     src_addr: &H256::default(),
@@ -748,7 +861,7 @@ mod test {
         // Test 7: REVEAL pattern should NOT match CALLS or COMMITMENT
         assert!(
             !reveal_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 8453,
                     src_addr: &H256::default(),
@@ -763,7 +876,7 @@ mod test {
 
         assert!(
             !reveal_list.matches(
-                MatchInfo {
+                &MatchInfo {
                     src_msg_id: H256::default(),
                     src_domain: 8453,
                     src_addr: &H256::default(),

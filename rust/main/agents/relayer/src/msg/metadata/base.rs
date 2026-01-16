@@ -170,12 +170,43 @@ impl IsmAwareAppContextClassifier {
 }
 
 /// Classifies messages into an app context if they have one.
-#[derive(Debug, new)]
+#[derive(Debug)]
 pub struct AppContextClassifier {
-    app_matching_lists: Vec<(MatchingList, String)>,
+    app_matching_lists: Vec<AppMatchingList>,
+}
+
+#[derive(Debug)]
+struct AppMatchingList {
+    matching_list: MatchingList,
+    app_context: String,
+    origin_domains: Option<HashSet<u32>>,
+    destination_domains: Option<HashSet<u32>>,
+}
+
+impl AppMatchingList {
+    fn new(matching_list: MatchingList, app_context: String) -> Self {
+        let origin_domains = matching_list.origin_domains();
+        let destination_domains = matching_list.destination_domains();
+
+        Self {
+            matching_list,
+            app_context,
+            origin_domains,
+            destination_domains,
+        }
+    }
 }
 
 impl AppContextClassifier {
+    pub fn new(app_matching_lists: Vec<(MatchingList, String)>) -> Self {
+        let app_matching_lists = app_matching_lists
+            .into_iter()
+            .map(|(matching_list, app_context)| AppMatchingList::new(matching_list, app_context))
+            .collect();
+
+        Self { app_matching_lists }
+    }
+
     /// Classifies messages into an app context if they have one, or None
     /// if they don't.
     /// An app context is a string that identifies the app that sent the message
@@ -187,9 +218,22 @@ impl AppContextClassifier {
         // Give priority to the matching list. If the app from the matching list happens
         // to use the default ISM, it's preferable to use the app context from the matching
         // list.
-        for (matching_list, app_context) in self.app_matching_lists.iter() {
-            if matching_list.msg_matches(message, false) {
-                return Ok(Some(app_context.clone()));
+        for entry in self.app_matching_lists.iter() {
+            // Early rejection based on domains
+            if let Some(origin_domains) = &entry.origin_domains {
+                if !origin_domains.contains(&message.origin) {
+                    continue;
+                }
+            }
+
+            if let Some(destination_domains) = &entry.destination_domains {
+                if !destination_domains.contains(&message.destination) {
+                    continue;
+                }
+            }
+
+            if entry.matching_list.msg_matches(message, false) {
+                return Ok(Some(entry.app_context.clone()));
             }
         }
 
