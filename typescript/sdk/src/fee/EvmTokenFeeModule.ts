@@ -6,6 +6,7 @@ import {
   ProtocolType,
   deepEquals,
   eqAddress,
+  isNullish,
   objMap,
   objMerge,
   objOmit,
@@ -267,6 +268,25 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     });
   }
 
+  /**
+   * Updates the fee configuration to match the target config.
+   *
+   * IMPORTANT: This method may deploy new contracts as a side effect when:
+   * - An immutable fee type (e.g., LinearFee) needs parameter changes (triggers redeploy)
+   * - A new routing destination is added that doesn't have an existing sub-fee contract
+   *
+   * These deployments are executed immediately and are NOT included in the returned
+   * transaction array. The returned transactions only include configuration changes
+   * (e.g., setFeeContract, ownership transfers) that callers need to execute.
+   *
+   * This behavior is consistent with other Hyperlane SDK modules (EvmIsmModule, EvmHookModule).
+   *
+   * @param targetConfig - The desired fee configuration
+   * @param params - Optional parameters including routingDestinations for reading sub-fees.
+   *                 If not provided for RoutingFee configs, destinations are derived from
+   *                 targetConfig.feeContracts keys.
+   * @returns Transactions to execute for configuration updates (does not include deployments)
+   */
   async update(
     targetConfig: TokenFeeConfigInput,
     params?: Partial<TokenFeeReaderParams>,
@@ -275,7 +295,21 @@ export class EvmTokenFeeModule extends HyperlaneModule<
 
     let updateTransactions: AnnotatedEV5Transaction[] = [];
 
-    const actualConfig = await this.read(params);
+    // Derive routingDestinations from target config if not provided
+    // This ensures we read all sub-fee configs that need to be compared/updated
+    let effectiveParams = params;
+    if (
+      !params?.routingDestinations &&
+      targetConfig.type === TokenFeeType.RoutingFee &&
+      !isNullish(targetConfig.feeContracts)
+    ) {
+      const routingDestinations = Object.keys(targetConfig.feeContracts).map(
+        (chainName) => this.multiProvider.getDomainId(chainName),
+      );
+      effectiveParams = { ...params, routingDestinations };
+    }
+
+    const actualConfig = await this.read(effectiveParams);
     const normalizedActualConfig: TokenFeeConfig =
       normalizeConfig(actualConfig);
 
@@ -353,26 +387,24 @@ export class EvmTokenFeeModule extends HyperlaneModule<
     await promiseObjAll(
       objMap(targetConfig.feeContracts, async (chainName, config) => {
         const address = config.address;
-        const subFeeModule = new EvmTokenFeeModule(
-          this.multiProvider,
-          {
-            addresses: {
-              deployedFee: address,
-            },
+
+        let subFeeModule: EvmTokenFeeModule;
+        let deployedSubFee: string;
+
+        if (!address) {
+          // Sub-fee contract doesn't exist yet, deploy a new one
+          this.logger.info(
+            `No existing sub-fee contract for ${chainName}, deploying new one`,
+          );
+          subFeeModule = await EvmTokenFeeModule.create({
+            multiProvider: this.multiProvider,
             chain: this.chainName,
             config,
-          },
-          this.contractVerifier,
-        );
-        const subFeeUpdateTransactions = await subFeeModule.update(config, {
-          address,
-        });
-        const { deployedFee: deployedSubFee } = subFeeModule.serialize();
+            contractVerifier: this.contractVerifier,
+          });
+          deployedSubFee = subFeeModule.serialize().deployedFee;
 
-        updateTransactions.push(...subFeeUpdateTransactions);
-
-        if (!eqAddress(deployedSubFee, address)) {
-          const annotation = `Sub fee contract redeployed. Updating contract for ${chainName} to ${deployedSubFee}`;
+          const annotation = `New sub fee contract deployed. Setting contract for ${chainName} to ${deployedSubFee}`;
           this.logger.debug(annotation);
           updateTransactions.push({
             annotation: annotation,
@@ -383,6 +415,39 @@ export class EvmTokenFeeModule extends HyperlaneModule<
               [this.multiProvider.getDomainId(chainName), deployedSubFee],
             ),
           });
+        } else {
+          // Update existing sub-fee contract
+          subFeeModule = new EvmTokenFeeModule(
+            this.multiProvider,
+            {
+              addresses: {
+                deployedFee: address,
+              },
+              chain: this.chainName,
+              config,
+            },
+            this.contractVerifier,
+          );
+          const subFeeUpdateTransactions = await subFeeModule.update(config, {
+            address,
+          });
+          deployedSubFee = subFeeModule.serialize().deployedFee;
+
+          updateTransactions.push(...subFeeUpdateTransactions);
+
+          if (!eqAddress(deployedSubFee, address)) {
+            const annotation = `Sub fee contract redeployed on chain ${this.chainName}. Updating fee contract for destination ${chainName} to ${deployedSubFee}`;
+            this.logger.debug(annotation);
+            updateTransactions.push({
+              annotation: annotation,
+              chainId: this.chainId,
+              to: currentRoutingAddress,
+              data: RoutingFee__factory.createInterface().encodeFunctionData(
+                'setFeeContract(uint32,address)',
+                [this.multiProvider.getDomainId(chainName), deployedSubFee],
+              ),
+            });
+          }
         }
       }),
     );

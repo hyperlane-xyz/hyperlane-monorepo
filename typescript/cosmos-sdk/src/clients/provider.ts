@@ -66,6 +66,15 @@ import {
   getNoopIsmConfig,
   getRoutingIsmConfig,
 } from '../ism/ism-query.js';
+import {
+  getCreateMerkleRootMultisigIsmTx,
+  getCreateMessageIdMultisigIsmTx,
+  getCreateRoutingIsmTx,
+  getCreateTestIsmTx,
+  getRemoveRoutingIsmRouteTx,
+  getSetRoutingIsmOwnerTx,
+  getSetRoutingIsmRouteTx,
+} from '../ism/ism-tx.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
@@ -494,96 +503,58 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateMerkleRootMultisigIsmTransaction(
     req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<MsgCreateMerkleRootMultisigIsmEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateMerkleRootMultisigIsm.proto.type,
-      value: R.MsgCreateMerkleRootMultisigIsm.proto.converter.create({
-        creator: req.signer,
-        validators: req.validators,
-        threshold: req.threshold,
-      }),
-    };
+    return getCreateMerkleRootMultisigIsmTx(req.signer, {
+      threshold: req.threshold,
+      validators: req.validators,
+    });
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<MsgCreateMessageIdMultisigIsmEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateMessageIdMultisigIsm.proto.type,
-      value: R.MsgCreateMessageIdMultisigIsm.proto.converter.create({
-        creator: req.signer,
-        validators: req.validators,
-        threshold: req.threshold,
-      }),
-    };
+    return getCreateMessageIdMultisigIsmTx(req.signer, {
+      threshold: req.threshold,
+      validators: req.validators,
+    });
   }
 
   async getCreateRoutingIsmTransaction(
     req: AltVM.ReqCreateRoutingIsm,
   ): Promise<MsgCreateRoutingIsmEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateRoutingIsm.proto.type,
-      value: R.MsgCreateRoutingIsm.proto.converter.create({
-        creator: req.signer,
-        routes: req.routes.map((r) => ({
-          domain: r.domainId,
-          ism: r.ismAddress,
-        })),
-      }),
-    };
+    return getCreateRoutingIsmTx(req.signer, req.routes);
   }
 
   async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<MsgSetRoutingIsmDomainEncodeObject> {
-    return {
-      typeUrl: R.MsgSetRoutingIsmDomain.proto.type,
-      value: R.MsgSetRoutingIsmDomain.proto.converter.create({
-        owner: req.signer,
-        ism_id: req.ismAddress,
-        route: {
-          domain: req.route.domainId,
-          ism: req.route.ismAddress,
-        },
-      }),
-    };
+    return getSetRoutingIsmRouteTx(req.signer, {
+      ismAddress: req.ismAddress,
+      domainIsm: req.route,
+    });
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<MsgRemoveRoutingIsmDomainEncodeObject> {
-    return {
-      typeUrl: R.MsgRemoveRoutingIsmDomain.proto.type,
-      value: R.MsgRemoveRoutingIsmDomain.proto.converter.create({
-        owner: req.signer,
-        ism_id: req.ismAddress,
-        domain: req.domainId,
-      }),
-    };
+    return getRemoveRoutingIsmRouteTx(req.signer, {
+      domainId: req.domainId,
+      ismAddress: req.ismAddress,
+    });
   }
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<MsgUpdateRoutingIsmOwnerEncodeObject> {
-    return {
-      typeUrl: R.MsgUpdateRoutingIsmOwner.proto.type,
-      value: R.MsgUpdateRoutingIsmOwner.proto.converter.create({
-        owner: req.signer,
-        ism_id: req.ismAddress,
-        new_owner: req.newOwner,
-        renounce_ownership: !req.newOwner,
-      }),
-    };
+    return getSetRoutingIsmOwnerTx(req.signer, {
+      ismAddress: req.ismAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getCreateNoopIsmTransaction(
     req: AltVM.ReqCreateNoopIsm,
   ): Promise<MsgCreateNoopIsmEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateNoopIsm.proto.type,
-      value: R.MsgCreateNoopIsm.proto.converter.create({
-        creator: req.signer,
-      }),
-    };
+    return getCreateTestIsmTx(req.signer);
   }
 
   async getCreateMerkleTreeHookTransaction(

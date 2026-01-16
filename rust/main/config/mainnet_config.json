@@ -1353,10 +1353,10 @@
           "http": "https://rpc.mainnet.lukso.network"
         },
         {
-          "http": "https://rpc.lukso.sigmacore.io"
+          "http": "https://42.rpc.thirdweb.com"
         },
         {
-          "http": "https://42.rpc.thirdweb.com"
+          "http": "https://public-lukso.nownodes.io"
         }
       ],
       "staticAggregationHookFactory": "0x71774316DB85BCb9bc064948Df27E9F3A4F58500",
@@ -9143,7 +9143,8 @@
       "index": {
         "chunk": 99,
         "from": 1452983
-      }
+      },
+      "gnosisSafeTransactionServiceUrl": "https://api.safe.global/tx-service/mega"
     },
     "stable": {
       "blockExplorers": [

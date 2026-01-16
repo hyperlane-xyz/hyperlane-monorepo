@@ -13,20 +13,22 @@ import {
   type IsmType,
   type RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import {
-  type AnnotatedTx,
-  type TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
 
+import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
 
 import { type CosmosIsmQueryClient, getIsmType } from './ism-query.js';
 import {
   CosmosMerkleRootMultisigIsmReader,
+  CosmosMerkleRootMultisigIsmWriter,
   CosmosMessageIdMultisigIsmReader,
+  CosmosMessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
-import { CosmosRoutingIsmRawReader } from './routing-ism.js';
-import { CosmosTestIsmReader } from './test-ism.js';
+import {
+  CosmosRoutingIsmRawReader,
+  CosmosRoutingIsmRawWriter,
+} from './routing-ism.js';
+import { CosmosTestIsmReader, CosmosTestIsmWriter } from './test-ism.js';
 
 /**
  * Cosmos ISM Artifact Manager implementing IRawIsmArtifactManager.
@@ -150,19 +152,83 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
 
   /**
    * Factory method to create type-specific ISM writers.
-   * Currently not implemented - will be added in future work.
    *
    * @param type - ISM type to create writer for
-   * @param _signer - Signer to use for writing
+   * @param signer - Signer to use for writing transactions
    * @returns Type-specific ISM writer
-   * @throws Error indicating writers are not yet implemented
    */
   createWriter<T extends IsmType>(
     type: T,
-    _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    signer: CosmosNativeSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    throw new Error(
-      `ISM writers not yet implemented for Cosmos (requested type: ${type})`,
-    );
+    // For synchronous createWriter, we return a wrapper that will initialize lazily
+    return {
+      read: async (address: string) => {
+        const query = await this.getQuery();
+        const writer = this.createWriterWithQuery(type, query, signer);
+        return writer.read(address);
+      },
+      create: async (artifact) => {
+        const query = await this.getQuery();
+        const writer = this.createWriterWithQuery(type, query, signer);
+        return writer.create(artifact);
+      },
+      update: async (artifact) => {
+        const query = await this.getQuery();
+        const writer = this.createWriterWithQuery(type, query, signer);
+        return writer.update(artifact);
+      },
+    };
+  }
+
+  /**
+   * Internal helper to create type-specific ISM writers with query client and signer.
+   *
+   * @param type - ISM type to create writer for
+   * @param query - Query client to use for reading
+   * @param signer - Signer to use for writing
+   * @returns Type-specific ISM writer
+   */
+  private createWriterWithQuery<T extends IsmType>(
+    type: T,
+    query: CosmosIsmQueryClient,
+    signer: CosmosNativeSigner,
+  ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
+    switch (type) {
+      case AltVM.IsmType.TEST_ISM:
+        return new CosmosTestIsmWriter(
+          query,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
+        return new CosmosMerkleRootMultisigIsmWriter(
+          query,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
+        return new CosmosMessageIdMultisigIsmWriter(
+          query,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.ROUTING:
+        return new CosmosRoutingIsmRawWriter(
+          query,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      default:
+        throw new Error(`Unsupported ISM type: ${type}`);
+    }
   }
 }
