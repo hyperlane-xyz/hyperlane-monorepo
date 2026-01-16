@@ -1,26 +1,14 @@
-import type { ChainName } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+// Re-export shared types from warp-metrics
+export {
+  type NativeWalletBalance,
+  type WarpRouteBalance,
+  type XERC20Info,
+  type XERC20Limit,
+} from '@hyperlane-xyz/warp-metrics';
 
-export interface XERC20Limit {
-  mint: number;
-  burn: number;
-  mintMax: number;
-  burnMax: number;
-}
-
-export interface WarpRouteBalance {
-  balance: number;
-  valueUSD?: number;
-  tokenAddress: Address;
-}
-
-export interface NativeWalletBalance {
-  chain: ChainName;
-  walletAddress: Address;
-  walletName: string;
-  balance: number;
-}
-
+/**
+ * Configuration for the warp monitor service.
+ */
 export interface WarpMonitorConfig {
   warpRouteId: string;
   checkFrequency: number;
