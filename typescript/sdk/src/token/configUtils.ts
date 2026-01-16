@@ -1,8 +1,7 @@
 import { constants } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { createIsmReader } from '@hyperlane-xyz/deploy-sdk';
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   TransformObjectTransformer,
@@ -140,16 +139,12 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  // @ts-ignore - parameter kept for backward compatibility but no longer used after hook artifact migration
-  altVmProviders: ChainMap<AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
-    // @ts-ignore - parameter kept for backward compatibility but no longer used after hook artifact migration
-    altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -272,19 +267,24 @@ export async function expandWarpDeployConfig(params: {
       }
 
       // Expand the hook config only if we have an explicit config in the deploy config
-      // and the current chain is an EVM one.
-      // if we have an address we leave it like that to avoid deriving
-      if (
-        chainConfig.hook &&
-        typeof chainConfig.hook !== 'string' &&
-        protocol === ProtocolType.Ethereum
-      ) {
-        const reader = new EvmHookReader(multiProvider, chain);
-        chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+      // (not just an address string for EVM - those are left as-is to avoid deriving)
+      if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
+        switch (protocol) {
+          case ProtocolType.Ethereum: {
+            const reader = new EvmHookReader(multiProvider, chain);
+            chainConfig.hook = await reader.deriveHookConfig(chainConfig.hook);
+            break;
+          }
+          default: {
+            // For non-EVM chains: config objects are kept as-is (no recursive expansion support)
+            // TODO: Handle HookConfig objects (nested config expansion) when Artifact API adds support
+            break;
+          }
+        }
       }
 
       // Expand the ism config only if we have an explicit config in the deploy config
-      // if we have an address we leave it like that to avoid deriving
+      // (not just an address string for EVM - those are left as-is to avoid deriving)
       if (
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
@@ -298,25 +298,9 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            // For now, only handle address strings (not config objects)
-            if (typeof chainConfig.interchainSecurityModule === 'string') {
-              const metadata = multiProvider.getChainMetadata(chain);
-              const chainLookup = {
-                getChainMetadata: (chain: string | number) =>
-                  multiProvider.getChainMetadata(chain),
-                getChainName: (domainId: string | number) =>
-                  multiProvider.tryGetChainName(domainId),
-                getDomainId: (chainName: string | number) =>
-                  multiProvider.getDomainId(chainName),
-                getKnownChainNames: () => multiProvider.getKnownChainNames(),
-              };
-              const reader = createIsmReader(metadata, chainLookup);
-              chainConfig.interchainSecurityModule =
-                await reader.deriveIsmConfig(
-                  chainConfig.interchainSecurityModule,
-                );
-            }
-            // TODO: Handle IsmConfig objects (nested config expansion)
+            // For non-EVM chains: config objects are kept as-is (no recursive expansion support)
+            // TODO: Handle IsmConfig objects (nested config expansion) when Artifact API adds support
+            break;
           }
         }
       }
