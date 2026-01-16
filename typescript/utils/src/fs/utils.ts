@@ -25,11 +25,12 @@ export function resolvePath(filePath: string): string {
 
 /**
  * Checks if a path points to an existing file.
+ * Uses statSync to follow symlinks (important for ConfigMap mounts in Kubernetes).
  */
 export function isFile(filepath: string): boolean {
   if (!filepath) return false;
   try {
-    return fs.existsSync(filepath) && fs.lstatSync(filepath).isFile();
+    return fs.existsSync(filepath) && fs.statSync(filepath).isFile();
   } catch {
     return false;
   }

@@ -38,6 +38,19 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       minPriorityFeePerGas: 1, // 1 wei
     },
   },
+  krown: {
+    transactionOverrides: {
+      minGasPrice: 11 * 10 ** 5,
+      minFeePerGas: 11 * 10 ** 5,
+      minPriorityFeePerGas: 11 * 10 ** 5,
+    },
+  },
+};
+
+// Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
+export const tokenPriceOverrides: ChainMap<string> = {
+  incentiv: '0.003',
+  krown: '0.0015',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -94,43 +107,15 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
-  // taiko: {
-  //   transactionOverrides: {
-  //     gasPrice: 25 * 10 ** 7, // 0.25 gwei
-  //   },
-  // },
-  // linea: {
-  //   transactionOverrides: {
-  //     gasPrice: 5 * 10 ** 8, // 0.5 gwei
-  //   },
-  // },
-  // zircuit: {
+  // xlayer: {
   //   blocks: {
   //     confirmations: 5,
   //   },
   // },
-  // degenchain: {
-  //   transactionOverrides: {
-  //     maxFeePerGas: 100 * 10 ** 9, // 100 gwei
-  //     maxPriorityFeePerGas: 10 * 10 ** 9, // 10 gwei
-  //   },
-  // },
-  // polygon: {
-  //   transactionOverrides: {
-  //     // A very high max fee per gas is used as Polygon is susceptible
-  //     // to large swings in gas prices.
-  //     maxFeePerGas: 800 * 10 ** 9, // 800 gwei
-  //     maxPriorityFeePerGas: 50 * 10 ** 9, // 50 gwei
-  //   },
-  // },
-  // matchain: {
-  //   blocks: {
-  //     confirmations: 5,
-  //   },
-  // },
-  // cyber: {
+  // soneium: {
   //   blocks: {
   //     confirmations: 3,
   //   },

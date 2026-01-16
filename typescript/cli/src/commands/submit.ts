@@ -1,12 +1,12 @@
 import { groupBy } from 'lodash-es';
 
 import {
-  SubmissionStrategy,
+  type SubmissionStrategy,
   SubmissionStrategySchema,
 } from '@hyperlane-xyz/sdk';
 
 import { getTransactions, runSubmit } from '../config/submit.js';
-import { CommandModuleWithWriteContext } from '../context/types.js';
+import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { logBlue, logGray, logRed } from '../logger.js';
 import { isFile, readYamlOrJson } from '../utils/files.js';
 

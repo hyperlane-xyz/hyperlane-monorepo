@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/rebalancer",
-  "version": "0.0.0",
+  "version": "0.1.1",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
   "type": "module",
   "main": "./dist/index.js",
@@ -14,7 +14,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "clean": "rm -rf dist cache",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ./scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
@@ -50,6 +51,7 @@
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
+    "@vercel/ncc": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",

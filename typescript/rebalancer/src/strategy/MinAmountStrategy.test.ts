@@ -5,11 +5,11 @@ import { pino } from 'pino';
 import {
   type ChainMap,
   type ChainName,
-  RebalancerMinAmountType,
   Token,
   TokenStandard,
 } from '@hyperlane-xyz/sdk';
 
+import { RebalancerMinAmountType } from '../config/types.js';
 import type { RawBalances } from '../interfaces/IStrategy.js';
 
 import { MinAmountStrategy } from './MinAmountStrategy.js';

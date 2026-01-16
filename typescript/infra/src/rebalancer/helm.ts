@@ -1,13 +1,16 @@
+import fs from 'fs';
 import path from 'path';
 import { fromZodError } from 'zod-validation-error';
 
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
-} from '@hyperlane-xyz/sdk';
+} from '@hyperlane-xyz/rebalancer';
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { isObjEmpty } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
@@ -21,6 +24,8 @@ export class RebalancerHelmManager extends HelmManager {
     getInfraPath(),
     './helm/rebalancer',
   );
+
+  private rebalancerConfigContent: string = '';
 
   constructor(
     readonly warpRouteId: string,
@@ -66,6 +71,12 @@ export class RebalancerHelmManager extends HelmManager {
     if (isObjEmpty(chains)) {
       throw new Error('No chains configured');
     }
+
+    // Store the config file content for helm values
+    this.rebalancerConfigContent = fs.readFileSync(
+      rebalancerConfigFile,
+      'utf8',
+    );
   }
 
   get namespace() {
@@ -73,17 +84,19 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async helmValues() {
+    const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
+
     return {
       image: {
-        repository: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-        tag: '8da6852-20251215-172511',
+        repository: DockerImageRepos.REBALANCER,
+        tag: mainnetDockerTags.rebalancer,
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
         runEnv: this.environment,
-        registryCommit: this.registryCommit,
-        rebalancerConfigFile: this.rebalancerConfigFile,
+        registryUri,
+        rebalancerConfig: this.rebalancerConfigContent,
         withMetrics: this.withMetrics,
       },
     };

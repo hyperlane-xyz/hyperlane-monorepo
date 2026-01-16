@@ -1,13 +1,13 @@
 import { AltVMHookReader } from '@hyperlane-xyz/deploy-sdk';
-import { ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
+import { type ChainName, EvmHookReader } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
   mustGet,
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { log, logBlue } from '../logger.js';
 import { resolveFileFormat, writeFileAtPath } from '../utils/files.js';
 
