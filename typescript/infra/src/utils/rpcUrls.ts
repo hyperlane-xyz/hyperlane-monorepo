@@ -6,7 +6,6 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import {
@@ -307,10 +306,6 @@ async function selectCoreInfrastructure(
   const coreHelmManagers: [string, HelmManager<any>][] = [];
 
   for (const [context, agentConfig] of Object.entries(envConfig.agents)) {
-    if (context === Contexts.Neutron) {
-      continue;
-    }
-
     if (agentConfig.relayer) {
       coreHelmManagers.push([context, new RelayerHelmManager(agentConfig)]);
     }
