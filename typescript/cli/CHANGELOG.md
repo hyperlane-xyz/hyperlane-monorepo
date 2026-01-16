@@ -1,5 +1,13 @@
 # @hyperlane-xyz/cli
 
+## 21.2.0
+
+### Patch Changes
+
+- cc17360: Signer initialization is now deferred until after interactive chain selection for the `send message` command. This improves startup performance by only creating signers for the chains that will actually be used, rather than all EVM chains upfront.
+- 347ca12: Disabled chains (including deprecated ones) are now filtered out from CLI interactive prompts and the `hyperlane registry list` command output. This prevents users from accidentally selecting unsupported chains when deploying warp routes, sending messages, or running relayers.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+
 ## 21.1.0
 
 ## 21.0.0

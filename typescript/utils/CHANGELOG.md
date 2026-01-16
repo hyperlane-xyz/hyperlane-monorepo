@@ -1,5 +1,12 @@
 # @hyperlane-xyz/utils
 
+## 21.2.0
+
+### Minor Changes
+
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 3aec1c4: Added `timedAsync` utility for trace-level timing instrumentation of async operations.
+
 ## 21.1.0
 
 ## 21.0.0

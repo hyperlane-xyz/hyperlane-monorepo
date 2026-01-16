@@ -1,5 +1,24 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 1.2.0
+
+### Minor Changes
+
+- b0e9d48: Introduced artifact-based IsmWriter and migrated existing code to use it instead of AltVMIsmModule.
+
+### Patch Changes
+
+- Updated dependencies [8b3f8da]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [44fbfd6]
+  - @hyperlane-xyz/aleo-sdk@21.2.0
+  - @hyperlane-xyz/cosmos-sdk@21.2.0
+  - @hyperlane-xyz/utils@21.2.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/radix-sdk@21.2.0
+
 ## 1.1.0
 
 ### Patch Changes
