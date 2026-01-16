@@ -1,18 +1,18 @@
 import { ethers } from 'ethers';
 import { fromError } from 'zod-validation-error';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  AgentConfig,
+  type AgentConfig,
   AgentConfigSchema,
-  ChainMap,
+  type ChainMap,
   HyperlaneCore,
-  HyperlaneDeploymentArtifacts,
+  type HyperlaneDeploymentArtifacts,
   buildAgentConfig,
 } from '@hyperlane-xyz/sdk';
 import { objMap, pick, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { errorRed, logBlue, logGreen, warnYellow } from '../logger.js';
 import { writeYamlOrJson } from '../utils/files.js';
 

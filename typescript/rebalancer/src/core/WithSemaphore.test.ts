@@ -3,9 +3,8 @@ import chaiAsPromised from 'chai-as-promised';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import { RebalancerStrategyOptions } from '@hyperlane-xyz/sdk';
-
-import { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { RebalancerStrategyOptions } from '../config/types.js';
+import { type RebalancingRoute } from '../interfaces/IStrategy.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 
 import { WithSemaphore } from './WithSemaphore.js';

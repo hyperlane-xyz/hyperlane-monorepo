@@ -1,4 +1,4 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
@@ -7,7 +7,7 @@ import type {
   RawBalances,
   RebalancingRoute,
 } from '../interfaces/IStrategy.js';
-import { Metrics } from '../metrics/Metrics.js';
+import { type Metrics } from '../metrics/Metrics.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
 

@@ -8,6 +8,7 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
 
 # Install Foundry (Linux binaries) - pinned version for reproducibility
 ARG FOUNDRY_VERSION
+ARG SERVICE_VERSION=dev
 ARG TARGETARCH
 SHELL ["/bin/bash", "-c"]
 RUN set -o pipefail && \
@@ -34,6 +35,7 @@ COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
+COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY solidity/package.json ./solidity/
@@ -61,6 +63,7 @@ COPY typescript/utils ./typescript/utils
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/cosmos-types ./typescript/cosmos-types
 COPY typescript/radix-sdk ./typescript/radix-sdk
+COPY typescript/aleo-sdk ./typescript/aleo-sdk
 COPY typescript/tsconfig ./typescript/tsconfig
 COPY typescript/eslint-config ./typescript/eslint-config
 COPY solidity ./solidity
@@ -93,9 +96,11 @@ COPY --from=builder /app ./
 COPY --from=builder /hyperlane-monorepo/typescript/ccip-server/prisma ./prisma
 
 # Environment variables
+ARG SERVICE_VERSION=dev
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV SERVER_PORT=3000
+ENV SERVICE_VERSION=${SERVICE_VERSION}
 
 # Expose ports
 EXPOSE 3000

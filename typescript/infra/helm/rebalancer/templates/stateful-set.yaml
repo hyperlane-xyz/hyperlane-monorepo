@@ -18,4 +18,8 @@ spec:
     spec:
       containers:
 {{- include "hyperlane.rebalancer.container" . | indent 6 }}
+      volumes:
+      - name: config
+        configMap:
+          name: {{ include "hyperlane.fullname" . }}-config
 
