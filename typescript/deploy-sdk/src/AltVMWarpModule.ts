@@ -1,14 +1,7 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import {
-  DeployedHookArtifact,
-  DerivedHookConfig,
-} from '@hyperlane-xyz/provider-sdk/hook';
-import {
-  hookConfigToArtifact,
-  shouldDeployNewHook,
-} from '@hyperlane-xyz/provider-sdk/hook';
+import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmArtifact,
   DerivedIsmConfig,
@@ -521,51 +514,19 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     const actualHookAddress =
       (actualConfig.hook as DerivedHookConfig)?.address ?? '';
 
-    // Convert expected config to artifact format
-    const expectedArtifact = hookConfigToArtifact(
-      expectedConfig.hook,
-      this.chainLookup,
-    );
-
-    // If no existing hook, deploy new one directly (no comparison needed)
-    if (!actualHookAddress) {
-      this.logger.debug(`No existing Hook found, deploying new one`);
-      const [deployed] = await writer.create(expectedArtifact);
-      return {
-        deployedHook: deployed.deployed.address,
-        updateTransactions: [],
-      };
-    }
-
-    // Read actual hook state (only when we have existing hook to compare)
-    const actualArtifact = await writer.read(actualHookAddress);
-
     this.logger.debug(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
 
-    // Decide: deploy new hook or update existing one
-    if (shouldDeployNewHook(actualArtifact.config, expectedArtifact.config)) {
-      // Deploy new hook
-      const [deployed] = await writer.create(expectedArtifact);
-      return {
-        deployedHook: deployed.deployed.address,
-        updateTransactions: [],
-      };
-    }
-
-    // Update existing hook (only IGP hooks support updates)
-    const deployedArtifact: DeployedHookArtifact = {
-      ...expectedArtifact,
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config,
-      deployed: actualArtifact.deployed,
-    };
-    const updateTransactions = await writer.update(deployedArtifact);
+    // Use the new deployOrUpdate method from HookWriter
+    const result = await writer.deployOrUpdate({
+      actualAddress: actualHookAddress || undefined,
+      expectedConfig: expectedConfig.hook,
+    });
 
     return {
-      deployedHook: actualHookAddress,
-      updateTransactions,
+      deployedHook: result.address,
+      updateTransactions: result.transactions,
     };
   }
 

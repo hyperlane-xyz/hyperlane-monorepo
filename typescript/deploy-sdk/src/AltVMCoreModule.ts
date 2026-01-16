@@ -8,13 +8,9 @@ import {
   DerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/core';
 import {
-  DeployedHookArtifact,
   DerivedHookConfig,
   HookConfig,
-} from '@hyperlane-xyz/provider-sdk/hook';
-import {
   hookConfigToArtifact,
-  shouldDeployNewHook,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
   DeployedIsmArtifact,
@@ -499,41 +495,19 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       },
     );
 
-    // Read actual hook state
-    const actualArtifact = await writer.read(actualHookConfig.address);
-
-    // Convert expected config to artifact format
-    const expectedArtifact = hookConfigToArtifact(
-      expectHookConfig,
-      this.chainLookup,
-    );
-
     this.logger.info(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
 
-    // Decide: deploy new hook or update existing one
-    if (shouldDeployNewHook(actualArtifact.config, expectedArtifact.config)) {
-      // Deploy new hook
-      const [deployed] = await writer.create(expectedArtifact);
-      return {
-        deployedHook: deployed.deployed.address,
-        hookUpdateTxs: [],
-      };
-    }
-
-    // Update existing hook (only IGP hooks support updates)
-    const deployedArtifact: DeployedHookArtifact = {
-      ...expectedArtifact,
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config,
-      deployed: actualArtifact.deployed,
-    };
-    const hookUpdateTxs = await writer.update(deployedArtifact);
+    // Use the new deployOrUpdate method from HookWriter
+    const result = await writer.deployOrUpdate({
+      actualAddress: actualHookConfig.address,
+      expectedConfig: expectHookConfig,
+    });
 
     return {
-      deployedHook: actualHookConfig.address,
-      hookUpdateTxs,
+      deployedHook: result.address,
+      hookUpdateTxs: result.transactions,
     };
   }
 }

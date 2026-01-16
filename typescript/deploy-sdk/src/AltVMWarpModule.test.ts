@@ -83,7 +83,7 @@ const mockHookArtifactManager = {
       deployed: { address: '0x5678' },
     }),
   }),
-  createWriter: (type: any, signer: any) => ({
+  createWriter: (_type: any, _signer: any) => ({
     create: async (artifact: any) => {
       const hookAddress = '0xHOOKADDRESS';
       return [
