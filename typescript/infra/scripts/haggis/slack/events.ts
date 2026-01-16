@@ -14,6 +14,7 @@ import {
   formatThinkingMessage,
   formatToolCall,
 } from './formatting.js';
+import { fetchThreadMessages } from './threads.js';
 
 // Event type for app_mention
 interface AppMentionEvent {
@@ -36,8 +37,27 @@ export function registerEventHandlers(app: App): void {
     // Remove the @mention from the message to get the actual query
     const userMessage = mentionEvent.text.replace(/<@[^>]+>/g, '').trim();
 
+    // Fetch thread context if we're in a thread
+    let threadContext: string | undefined;
+    if (mentionEvent.thread_ts) {
+      const threadMessages = await fetchThreadMessages(
+        client,
+        mentionEvent.channel,
+        mentionEvent.thread_ts,
+        mentionEvent.ts, // Exclude the @mention message itself
+      );
+      if (threadMessages.length > 0) {
+        threadContext = threadMessages.join('\n\n');
+      }
+    }
+
     logger.info(
-      { threadTs, channel: mentionEvent.channel, userMessage },
+      {
+        threadTs,
+        channel: mentionEvent.channel,
+        userMessage,
+        hasThreadContext: !!threadContext,
+      },
       'Received app mention',
     );
 
@@ -67,7 +87,11 @@ export function registerEventHandlers(app: App): void {
     let hasResult = false;
 
     try {
-      for await (const msg of executeClaudeQuery(threadTs, userMessage)) {
+      for await (const msg of executeClaudeQuery(
+        threadTs,
+        userMessage,
+        threadContext,
+      )) {
         if (msg.type === 'thinking') {
           buffer += msg.content + '\n';
         } else if (msg.type === 'tool_call') {

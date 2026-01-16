@@ -42,14 +42,14 @@ If a specific `evaluation_timestamp` is provided that is not Now, be sure to alw
 
 - All Prometheus metrics queried should be at `evaluation_timestamp` at the very newest - never query anything past this time
 - Fetching the latest Prometheus metric should mean that it's queried at the `evaluation_timestamp`
-- Always use the `evaluation_timestamp` as the end time when querying any prometheus metrics, NOT the state time.
+- Always use the `evaluation_timestamp` as the end time when querying any prometheus metrics, NOT the start time.
 
 The following metric exists that shows the relayer's perspective of all validators:
 
 ```promql
 hyperlane_observed_validator_latest_index{
   origin="[origin_chain]",
-  destination="[destination_chain]
+  destination="[destination_chain]",
   hyperlane_deployment="[environment]",
   app_context="[APP_CONTEXT]",
   validator="[validator_address]",
@@ -80,7 +80,7 @@ Skip this step if no specific `validator` was specified.
 
 If any `validator` was specified, first use the `hyperlane_observed_validator_latest_index` metric to find the `app_context`s to focus on. Find the values of the `app_context` label for the metric:
 
-```
+```promql
 hyperlane_observed_validator_latest_index{origin="[origin_chain]", validator="[validator]"}
 ```
 
@@ -92,11 +92,11 @@ If the list of app contexts includes `default_ism`, we will set the `app_context
 
 Look at the following metric values for the last `time_range`, one data point every minute.
 
-```
+```promql
 max_over_time(
     max by (validator) (
         hyperlane_observed_validator_latest_index{hyperlane_context="hyperlane", hyperlane_deployment="[environment]", origin="[origin_chain]", app_context=~"[app_context]"}
-    > 0)[3h:]
+    )[3h:]
 )
 ```
 

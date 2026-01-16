@@ -18,15 +18,28 @@ export interface ClaudeMessage {
  *
  * @param threadTs - Slack thread timestamp (used for session management)
  * @param prompt - User's prompt/question
- * @param contextPrompt - Optional context to prepend (e.g., PagerDuty incident info)
+ * @param threadContext - Optional thread context (previous messages in the Slack thread)
  */
 export async function* executeClaudeQuery(
   threadTs: string,
   prompt: string,
-  contextPrompt?: string,
+  threadContext?: string,
 ): AsyncGenerator<ClaudeMessage> {
   const sessionId = getSession(threadTs);
-  const fullPrompt = contextPrompt ? `${contextPrompt}\n\n${prompt}` : prompt;
+
+  // Structure the prompt based on whether we have thread context
+  let fullPrompt: string;
+  if (threadContext) {
+    fullPrompt = `## Thread Context (previous messages in this Slack thread)
+${threadContext}
+
+## User Request
+${prompt}
+
+If the user's request is brief (e.g., "debug this", "investigate", "help"), focus on the thread context as the primary subject to investigate or debug. Otherwise, treat the user's request as the primary task with the thread context as background information.`;
+  } else {
+    fullPrompt = prompt;
+  }
 
   logger.info(
     { threadTs, hasSession: !!sessionId, promptLength: fullPrompt.length },
@@ -77,7 +90,12 @@ export async function* executeClaudeQuery(
       // Handle tool results
       if (message.type === 'user' && message.message?.content) {
         for (const block of message.message.content) {
-          if ('content' in block && typeof block.content === 'string') {
+          if (
+            typeof block === 'object' &&
+            block !== null &&
+            'content' in block &&
+            typeof block.content === 'string'
+          ) {
             // Tool results can be very long, truncate for display
             const preview = block.content.slice(0, 200);
             yield {
