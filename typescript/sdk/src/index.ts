@@ -353,6 +353,7 @@ export {
 } from './middleware/account/contracts.js';
 export {
   commitmentFromIcaCalls,
+  commitmentFromRevealMessage,
   encodeIcaCalls,
   InterchainAccount,
   normalizeCalls,

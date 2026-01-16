@@ -2,7 +2,7 @@ import { Router } from 'express';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
-import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { DEFAULT_GITHUB_REGISTRY, IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 
@@ -51,14 +51,21 @@ export abstract class BaseService {
     return logger.child({ service: this.constructor.name });
   }
 
-  protected static async getMultiProvider(
+  protected static async getRegistry(
     registryUri: string[] | undefined,
-  ): Promise<MultiProvider> {
+  ): Promise<IRegistry> {
     const registryUris = registryUri ?? [DEFAULT_GITHUB_REGISTRY];
     const registry = getRegistry({
       registryUris: registryUris,
       enableProxy: true,
     });
+    return registry;
+  }
+
+  protected static async getMultiProvider(
+    registryUri: string[] | undefined,
+  ): Promise<MultiProvider> {
+    const registry = await this.getRegistry(registryUri);
     const metadata = await registry.getMetadata();
     const multiProvider = new MultiProvider({ ...metadata });
     return multiProvider;

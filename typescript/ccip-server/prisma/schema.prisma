@@ -13,13 +13,11 @@ datasource db {
 }
 
 model Commitment {
-  commitment           String
-  revealMessageId      String   @id
-  calls                Json
-  relayers             Json
-  salt                 String
-  ica                  String
-  commitmentDispatchTx String
-  originDomain         Int
-  createdAt            DateTime @default(now())
+  commitment   String   @id
+  calls        Json
+  relayers     Json
+  salt         String
+  ica          String
+  originDomain Int
+  createdAt    DateTime @default(now())
 }
