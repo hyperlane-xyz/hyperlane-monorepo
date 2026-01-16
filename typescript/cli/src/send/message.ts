@@ -9,6 +9,7 @@ import {
 import { ProtocolType, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
+import { ensureEvmSignersForChains } from '../context/context.js';
 import {
   type CommandContext,
   type WriteCommandContext,
@@ -68,6 +69,10 @@ export async function sendTestMessage({
       'Select the destination chain:',
     );
   }
+
+  // Ensure signers are created for the selected chains (handles case where
+  // chains were interactively selected after initial signer middleware ran)
+  await ensureEvmSignersForChains(context, [origin, destination]);
 
   // Validate that origin and destination are EVM chains (in case passed via CLI flags)
   const originProtocol = multiProvider.getProtocol(origin);

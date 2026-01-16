@@ -143,8 +143,9 @@ async function resolveWarpRebalancerChains(
 
 /**
  * Resolves chains for the 'send message' command.
- * If origin/destination are provided, return them (EVM-only).
- * If either is missing, return all EVM chains so interactive selection can work.
+ * Returns only explicitly provided chains (origin/destination).
+ * If either is missing, returns only the provided ones - signers for
+ * interactively selected chains will be created after selection.
  */
 async function resolveSendMessageChains(
   argv: Record<string, any>,
@@ -168,16 +169,9 @@ async function resolveSendMessageChains(
     }
   }
 
-  if (selectedChains.length === 2) {
-    return selectedChains;
-  }
-
-  return multiProvider
-    .getKnownChainNames()
-    .filter(
-      (chain: string) =>
-        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
-    );
+  // Return only explicitly provided chains - signers for interactively
+  // selected chains will be created after selection
+  return selectedChains;
 }
 
 async function resolveRelayerChains(
