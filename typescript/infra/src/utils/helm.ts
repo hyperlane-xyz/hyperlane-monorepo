@@ -108,16 +108,23 @@ function helmDependenciesNeedRebuild(chartPath: string): boolean {
   try {
     const chartYamlStat = fs.statSync(chartYamlPath);
     const chartLockStat = fs.statSync(chartLockPath);
-    const chartsDirStat = fs.statSync(chartsDir);
 
-    // Rebuild if Chart.yaml changed (dependencies definition changed)
     if (chartYamlStat.mtimeMs > chartLockStat.mtimeMs) {
       return true;
     }
 
-    // Rebuild if Chart.lock is newer than charts/ directory
-    // (e.g., after git pull with updated lockfile, or helm dependency update)
-    if (chartLockStat.mtimeMs > chartsDirStat.mtimeMs) {
+    const tgzFiles = fs
+      .readdirSync(chartsDir)
+      .filter((f) => f.endsWith('.tgz'));
+    if (tgzFiles.length === 0) {
+      return true;
+    }
+
+    const newestTgzMtime = Math.max(
+      ...tgzFiles.map((f) => fs.statSync(path.join(chartsDir, f)).mtimeMs),
+    );
+
+    if (chartLockStat.mtimeMs > newestTgzMtime) {
       return true;
     }
 
