@@ -32,6 +32,7 @@ const ezEthStagingAddresses: Record<
   monad: '0x06232BC2a4388695a2C5A6C8e1F67743B9e6cc51',
   xlayer: '0x06232BC2a4388695a2C5A6C8e1F67743B9e6cc51',
   stable: '0x44144aDF80FF5998F70A92560D27a655c879A962',
+  megaeth: '0x27d1F7D3084Ed4AC90b7eec50968DF909fB50f7f',
 };
 
 export const ezEthStagingSafes: Record<
@@ -59,6 +60,7 @@ export const ezEthStagingSafes: Record<
   monad: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
   xlayer: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
   stable: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
+  megaeth: '0xA9421c6F339eC414b7e77449986bE9C2Ae430C25',
 };
 
 const ezEthStagingLockbox = '0x74c8290836612e6251E49e8f3198fdD80C4DbEB8';
