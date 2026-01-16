@@ -14,6 +14,7 @@ import {
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupPostDispatchExtension } from '../hyperlane/post_dispatch/query.js';
@@ -43,7 +44,9 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     private readonly rpcUrls: string[],
     private readonly mailboxAddress: string,
     private readonly nativeTokenDenom: string,
-  ) {}
+  ) {
+    assert(rpcUrls.length > 0, 'rpcUrls must not be empty');
+  }
 
   /**
    * Lazy initialization - creates query client on first use.
@@ -65,10 +68,10 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   }
 
   /**
-   * Read an ISM of unknown type from the blockchain.
+   * Read a hook of unknown type from the blockchain.
    *
-   * @param address - Address of the ISM to read
-   * @returns Deployed ISM artifact with configuration
+   * @param address - Address of the hook to read
+   * @returns Deployed hook artifact with configuration
    */
   async readHook(address: string): Promise<DeployedHookArtifact> {
     const query = await this.getQuery();

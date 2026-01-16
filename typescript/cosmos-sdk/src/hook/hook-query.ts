@@ -35,13 +35,13 @@ export async function getHookType(
   query: CosmosHookQueryClient,
   hookAddress: string,
 ): Promise<AltVM.HookType> {
-  for (const igp of HOOK_READ_METHODS) {
+  for (const method of HOOK_READ_METHODS) {
     try {
-      await query.postDispatch[igp]({
+      await query.postDispatch[method]({
         id: hookAddress,
       });
 
-      return hookReadMethodToHookType(igp);
+      return hookReadMethodToHookType(method);
     } catch {
       // We need to brute force the hook type detection going
       // over all possible supported hook derivation functions

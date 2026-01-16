@@ -103,10 +103,7 @@ export class CosmosIgpHookWriter
     const receipts: DeliverTxResponse[] = [];
 
     // Create the IGP hook
-    const createTx = await getCreateIgpTx(
-      this.signer.getSignerAddress(),
-      this.denom,
-    );
+    const createTx = getCreateIgpTx(this.signer.getSignerAddress(), this.denom);
 
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     const address = getNewContractAddress(createReceipt);
@@ -116,7 +113,7 @@ export class CosmosIgpHookWriter
     for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
       const parsedDomainId = parseInt(domainId);
 
-      const setConfigTx = await getSetIgpDestinationGasConfigTx(
+      const setConfigTx = getSetIgpDestinationGasConfigTx(
         this.signer.getSignerAddress(),
         {
           igpAddress: address,
@@ -139,7 +136,7 @@ export class CosmosIgpHookWriter
     // Transfer ownership if needed (deployer is initial owner)
     const deployerAddress = this.signer.getSignerAddress();
     if (!eqAddressCosmos(artifact.config.owner, deployerAddress)) {
-      const ownerTx = await getSetIgpOwnerTx(deployerAddress, {
+      const ownerTx = getSetIgpOwnerTx(deployerAddress, {
         igpAddress: address,
         newOwner: artifact.config.owner,
       });
@@ -184,7 +181,7 @@ export class CosmosIgpHookWriter
           config.overhead[parsedDomainId];
 
       if (needsUpdate) {
-        const setConfigTx = await getSetIgpDestinationGasConfigTx(
+        const setConfigTx = getSetIgpDestinationGasConfigTx(
           this.signer.getSignerAddress(),
           {
             igpAddress: deployed.address,
@@ -208,13 +205,10 @@ export class CosmosIgpHookWriter
 
     // Check if owner needs to be updated
     if (!eqAddressCosmos(currentState.config.owner, config.owner)) {
-      const setOwnerTx = await getSetIgpOwnerTx(
-        this.signer.getSignerAddress(),
-        {
-          igpAddress: deployed.address,
-          newOwner: config.owner,
-        },
-      );
+      const setOwnerTx = getSetIgpOwnerTx(this.signer.getSignerAddress(), {
+        igpAddress: deployed.address,
+        newOwner: config.owner,
+      });
 
       updateTxs.push({
         annotation: `Setting IGP hook owner to ${artifact.config.owner}`,

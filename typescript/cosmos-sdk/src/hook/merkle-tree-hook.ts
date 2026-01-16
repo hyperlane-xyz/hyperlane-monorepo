@@ -75,7 +75,7 @@ export class CosmosMerkleTreeHookWriter
       DeliverTxResponse[],
     ]
   > {
-    const createTx = await getCreateMerkleTreeHookTx(
+    const createTx = getCreateMerkleTreeHookTx(
       this.signer.getSignerAddress(),
       this.mailboxAddress,
     );

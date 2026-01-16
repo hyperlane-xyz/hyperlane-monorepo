@@ -13,10 +13,10 @@ import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.j
  * @param mailboxAddress - Address of the mailbox this hook will be attached to
  * @returns EncodeObject for MsgCreateMerkleTreeHook transaction
  */
-export async function getCreateMerkleTreeHookTx(
+export function getCreateMerkleTreeHookTx(
   fromAddress: string,
   mailboxAddress: string,
-): Promise<MsgCreateMerkleTreeHookEncodeObject> {
+): MsgCreateMerkleTreeHookEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgCreateMerkleTreeHook.proto.type,
     value: MessageRegistry.MsgCreateMerkleTreeHook.proto.converter.create({
@@ -33,10 +33,10 @@ export async function getCreateMerkleTreeHookTx(
  * @param denom - Native token denomination for gas payments
  * @returns EncodeObject for MsgCreateIgp transaction
  */
-export async function getCreateIgpTx(
+export function getCreateIgpTx(
   fromAddress: string,
   denom: string,
-): Promise<MsgCreateIgpEncodeObject> {
+): MsgCreateIgpEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgCreateIgp.proto.type,
     value: MessageRegistry.MsgCreateIgp.proto.converter.create({
@@ -53,13 +53,13 @@ export async function getCreateIgpTx(
  * @param config - Configuration with IGP address and new owner
  * @returns EncodeObject for MsgSetIgpOwner transaction
  */
-export async function getSetIgpOwnerTx(
+export function getSetIgpOwnerTx(
   fromAddress: string,
   config: {
     igpAddress: string;
     newOwner: string;
   },
-): Promise<MsgSetIgpOwnerEncodeObject> {
+): MsgSetIgpOwnerEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgSetIgpOwner.proto.type,
     value: MessageRegistry.MsgSetIgpOwner.proto.converter.create({
@@ -78,7 +78,7 @@ export async function getSetIgpOwnerTx(
  * @param config - Configuration with IGP address and destination gas config
  * @returns EncodeObject for MsgSetDestinationGasConfig transaction
  */
-export async function getSetIgpDestinationGasConfigTx(
+export function getSetIgpDestinationGasConfigTx(
   fromAddress: string,
   config: {
     igpAddress: string;
@@ -91,7 +91,7 @@ export async function getSetIgpDestinationGasConfigTx(
       gasOverhead: string;
     };
   },
-): Promise<MsgSetDestinationGasConfigEncodeObject> {
+): MsgSetDestinationGasConfigEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgSetDestinationGasConfig.proto.type,
     value: MessageRegistry.MsgSetDestinationGasConfig.proto.converter.create({
