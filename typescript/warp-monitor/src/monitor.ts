@@ -1,3 +1,13 @@
+import {
+  type TokenPriceGetter,
+  getExtraLockboxBalance,
+  getExtraLockboxInfo,
+  getManagedLockBoxCollateralInfo,
+  getSealevelAtaPayerBalance,
+  getTokenBridgedBalance,
+  getXERC20Info,
+  tryFn,
+} from '@hyperlane-xyz/metrics';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
@@ -10,16 +20,6 @@ import {
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
-import {
-  type TokenPriceGetter,
-  getExtraLockboxBalance,
-  getExtraLockboxInfo,
-  getManagedLockBoxCollateralInfo,
-  getSealevelAtaPayerBalance,
-  getTokenBridgedBalance,
-  getXERC20Info,
-  tryFn,
-} from '@hyperlane-xyz/warp-metrics';
 
 import {
   metricsRegister,

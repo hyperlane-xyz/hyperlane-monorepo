@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { tryFn } from '@hyperlane-xyz/warp-metrics';
+import { tryFn } from '@hyperlane-xyz/metrics';
 
 import { getLogger, setLoggerBindings } from './utils.js';
 
