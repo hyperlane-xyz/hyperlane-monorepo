@@ -1,6 +1,8 @@
 ---
+"@hyperlane-xyz/warp-monitor": patch
+"@hyperlane-xyz/rebalancer": patch
+"@hyperlane-xyz/infra": patch
 "@hyperlane-xyz/ccip-server": patch
-"@hyperlane-xyz/metrics": patch
 ---
 
-Migrated ccip-server to use the shared `startMetricsServer` from `@hyperlane-xyz/metrics`. This eliminates the duplicate Express-based metrics server implementation and ensures consistent behavior across all services. The shared server now uses `register.contentType` for proper Prometheus content type headers.
+Migrated to use shared utilities from `@hyperlane-xyz/metrics` package, eliminating duplicate metric server implementations and ensuring consistent Prometheus metric collection across all services.
