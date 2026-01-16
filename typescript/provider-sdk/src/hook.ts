@@ -4,7 +4,6 @@ import * as AltVM from './altvm.js';
 import {
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactOnChain,
   ArtifactState,
   IArtifactManager,
 } from './artifact.js';
@@ -144,14 +143,6 @@ export interface IRawHookArtifactManager
    * @returns The artifact configuration and deployment data
    */
   readHook(address: string): Promise<DeployedHookArtifact>;
-}
-
-export function hookOnChainAddress(
-  hook: ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>,
-): string {
-  return hook.artifactState === ArtifactState.DEPLOYED
-    ? hook.deployed.address
-    : hook.deployed.address;
 }
 
 // Hook Config Utilities
