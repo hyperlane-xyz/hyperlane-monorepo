@@ -17,6 +17,7 @@ import {
   addressToBytes32,
   assert,
   isObjEmpty,
+  mapAllSettled,
   mustGet,
   objFilter,
   objKeys,
@@ -400,8 +401,9 @@ export async function enrollCrossChainRouters(
   );
 
   // Process all chains in parallel since they are independent
-  const settledResults = await Promise.allSettled(
-    supportedChains.map(async (currentChain) => {
+  const { fulfilled, rejected } = await mapAllSettled(
+    supportedChains,
+    async (currentChain) => {
       const protocol = multiProvider.getProtocol(currentChain);
 
       const remoteRouters: RemoteRouters = Object.fromEntries(
@@ -508,30 +510,26 @@ export async function enrollCrossChainRouters(
       );
 
       return { chain: currentChain, transactions };
-    }),
+    },
+    (chain) => chain,
   );
 
   // Process settled results and collect transactions
   const updateTransactions = {} as ChainMap<TypedAnnotatedTransaction[]>;
   const errors: string[] = [];
 
-  settledResults.forEach((result, index) => {
-    const chain = supportedChains[index];
-    if (result.status === 'fulfilled') {
-      if (result.value.transactions.length) {
-        updateTransactions[result.value.chain] = result.value.transactions;
-      }
-    } else {
-      const errorMessage =
-        result.reason instanceof Error
-          ? result.reason.message
-          : String(result.reason);
-      rootLogger.error(
-        `Failed to create enroll router transactions for chain ${chain}: ${errorMessage}`,
-      );
-      errors.push(`${chain}: ${errorMessage}`);
+  for (const [, result] of fulfilled) {
+    if (result.transactions.length) {
+      updateTransactions[result.chain] = result.transactions;
     }
-  });
+  }
+
+  for (const [chain, error] of rejected) {
+    rootLogger.error(
+      `Failed to create enroll router transactions for chain ${chain}: ${error.message}`,
+    );
+    errors.push(`${chain}: ${error.message}`);
+  }
 
   if (errors.length > 0) {
     throw new Error(

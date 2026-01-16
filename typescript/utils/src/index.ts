@@ -77,8 +77,10 @@ export {
 } from './amount.js';
 export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
+  AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  mapAllSettled,
   pollAsync,
   raceWithContext,
   retryAsync,
