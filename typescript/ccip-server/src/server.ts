@@ -113,15 +113,15 @@ async function startServer() {
 
 // Start the server and handle startup logging
 startServer()
-  .then((logger) => logger.info('Server startup completed'))
+  .then((logger) => {
+    logger.info('Server startup completed');
+    startPrometheusServer(logger);
+    logger.info('Prometheus metrics server started');
+  })
   .catch((err) => {
     console.error('Server startup failed:', err); // Fallback to console if logger failed
     process.exit(1);
   });
-
-startPrometheusServer()
-  .then(() => console.log('Prometheus server started'))
-  .catch((err) => console.error('Prometheus server startup failed:', err));
 
 /*
  * TODO: if PRISMA throws an error the entire express application crashes.

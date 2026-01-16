@@ -30,7 +30,9 @@ export function startMetricsServer(
       register
         .metrics()
         .then((metricsStr) => {
-          res.writeHead(200, { 'Content-Type': 'text/plain' }).end(metricsStr);
+          res
+            .writeHead(200, { 'Content-Type': register.contentType })
+            .end(metricsStr);
         })
         .catch((err) => {
           if (logger) {

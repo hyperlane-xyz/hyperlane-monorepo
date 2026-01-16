@@ -611,6 +611,9 @@ importers:
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
+      '@hyperlane-xyz/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
         version: 23.7.0
