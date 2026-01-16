@@ -2,6 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
+  type ChainMap,
   type ChainName,
   type DispatchedMessage,
   HyperlaneCore,
@@ -12,6 +13,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 import {
   ProtocolType,
   parseWarpRouteMessage,
@@ -144,10 +146,22 @@ async function executeDelivery({
   // Core is needed for on-chain wait (EVM destinations)
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  const warpCore = WarpCore.FromConfig(
-    MultiProtocolProvider.fromMultiProvider(multiProvider),
-    warpCoreConfig,
-  );
+  // Extract mailbox addresses from registry for each chain
+  // Required for Sealevel/non-EVM token adapters during validation
+  const mailboxAddresses: ChainMap<{ mailbox?: Address }> = {};
+  for (const [chainName, addresses] of Object.entries(chainAddresses)) {
+    if (addresses?.mailbox) {
+      mailboxAddresses[chainName] = { mailbox: addresses.mailbox };
+    }
+  }
+
+  // Extend the MultiProtocolProvider with mailbox addresses
+  const multiProtocolProvider =
+    MultiProtocolProvider.fromMultiProvider(multiProvider).extendChainMetadata(
+      mailboxAddresses,
+    );
+
+  const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
 
   let token: Token;
   const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
