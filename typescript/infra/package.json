@@ -19,7 +19,7 @@
     "@hyperlane-xyz/helloworld": "workspace:*",
     "@hyperlane-xyz/http-registry-server": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "23.11.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/input": "^1.0.0",
