@@ -415,10 +415,11 @@ contract InterchainGasPaymaster is
             metadata.gasLimit(DEFAULT_GAS_USAGE)
         );
 
-        // Use appropriate quote function to support overrides (e.g., TestInterchainGasPaymaster)
-        uint256 _payment = _feeToken == address(0)
-            ? quoteGasPayment(_destinationDomain, _gasLimit)
-            : quoteGasPayment(_feeToken, _destinationDomain, _gasLimit);
+        uint256 _payment = quoteGasPayment(
+            _feeToken,
+            _destinationDomain,
+            _gasLimit
+        );
 
         address _payer = _feeToken == address(0)
             ? metadata.refundAddress(message.senderAddress())
@@ -442,15 +443,6 @@ contract InterchainGasPaymaster is
         address _feeToken = metadata.feeToken(address(0));
         uint32 _destinationDomain = message.destination();
         uint256 _gasLimit = metadata.gasLimit(DEFAULT_GAS_USAGE);
-
-        if (_feeToken == address(0)) {
-            return
-                quoteGasPayment(
-                    _destinationDomain,
-                    destinationGasLimit(_destinationDomain, _gasLimit)
-                );
-        }
-        // Token payments use same overhead as native via destinationGasLimit
         return
             quoteGasPayment(
                 _feeToken,
