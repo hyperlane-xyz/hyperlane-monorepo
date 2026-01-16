@@ -1,11 +1,7 @@
-import type http from 'http';
-import type { Logger } from 'pino';
 import { Counter, Registry } from 'prom-client';
 
-import { startMetricsServer } from '@hyperlane-xyz/metrics';
-
 // Global register for offchain lookup metrics
-const register = new Registry();
+export const register = new Registry();
 
 const requestCounter = new Counter({
   name: 'hyperlane_offchain_lookup_server_http_requests',
@@ -58,7 +54,3 @@ export const PrometheusMetrics = {
     });
   },
 };
-
-export function startPrometheusServer(logger?: Logger): http.Server {
-  return startMetricsServer(register, logger);
-}

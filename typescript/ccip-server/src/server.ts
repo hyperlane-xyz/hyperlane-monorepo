@@ -2,6 +2,7 @@ import cors from 'cors';
 import express from 'express';
 import { pinoHttp } from 'pino-http';
 
+import { startMetricsServer } from '@hyperlane-xyz/metrics';
 import { createServiceLogger } from '@hyperlane-xyz/utils';
 
 import { getEnabledModules } from './config.js';
@@ -13,7 +14,7 @@ import { OPStackService } from './services/OPStackService.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
-  startPrometheusServer,
+  register,
 } from './utils/prometheus.js';
 
 export const moduleRegistry: Record<string, ServiceFactory> = {
@@ -115,7 +116,7 @@ async function startServer() {
 startServer()
   .then((logger) => {
     logger.info('Server startup completed');
-    startPrometheusServer(logger);
+    startMetricsServer(register, logger);
     logger.info('Prometheus metrics server started');
   })
   .catch((err) => {
