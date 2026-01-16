@@ -42,51 +42,41 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    switch (type) {
-      case AltVM.HookType.MERKLE_TREE:
-        return new AleoMerkleTreeHookReader(
-          this.aleoClient,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
-        return new AleoIgpHookReader(
-          this.aleoClient,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported Hook type: ${type}`);
-    }
+    const readers: {
+      [K in HookType]: () => ArtifactReader<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      [AltVM.HookType.MERKLE_TREE]: () =>
+        new AleoMerkleTreeHookReader(this.aleoClient),
+      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
+        new AleoIgpHookReader(this.aleoClient),
+    };
+
+    return readers[type]();
   }
 
   createWriter<T extends HookType>(
     type: T,
     signer: AleoSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    switch (type) {
-      case AltVM.HookType.MERKLE_TREE:
-        return new AleoMerkleTreeHookWriter(
+    const writers: {
+      [K in HookType]: () => ArtifactWriter<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      [AltVM.HookType.MERKLE_TREE]: () =>
+        new AleoMerkleTreeHookWriter(
           this.aleoClient,
           signer,
           this.mailboxAddress,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
-        return new AleoIgpHookWriter(
-          this.aleoClient,
-          signer,
-          this.mailboxAddress,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported Hook type: ${type}`);
-    }
+        ),
+      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
+        new AleoIgpHookWriter(this.aleoClient, signer, this.mailboxAddress),
+    };
+
+    return writers[type]();
   }
 }

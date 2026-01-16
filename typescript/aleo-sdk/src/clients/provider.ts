@@ -5,7 +5,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
-  getHookType as getHookTypeQuery,
+  getHookType,
   getIgpHookConfig,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
@@ -262,7 +262,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    return getHookTypeQuery(this.aleoClient, req.hookAddress);
+    return getHookType(this.aleoClient, req.hookAddress);
   }
 
   async getInterchainGasPaymasterHook(
