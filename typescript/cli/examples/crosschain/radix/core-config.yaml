@@ -1,0 +1,86 @@
+defaultHook:
+  beneficiary: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  oracleConfig:
+    # Radix chains (18 decimals)
+    radix1:
+      tokenExchangeRate: '347026904130352406214'
+      gasPrice: '201383436'
+    radix2:
+      tokenExchangeRate: '347026904130352406214'
+      gasPrice: '201383436'
+    # Cosmos chains (6 decimals)
+    hyp1:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    hyp2:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    hyp3:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    # EVM chains (18 decimals)
+    anvil1:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    anvil2:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    anvil3:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    anvil4:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+    # Sealevel chains (9 decimals)
+    sealevel1:
+      tokenExchangeRate: '10000000000'
+      gasPrice: '1'
+  oracleKey: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  overhead:
+    radix1: 100
+    radix2: 100
+    hyp1: 200000
+    hyp2: 200000
+    hyp3: 200000
+    anvil1: 200000
+    anvil2: 200000
+    anvil3: 200000
+    anvil4: 200000
+    sealevel1: 200000
+  owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  type: interchainGasPaymaster
+defaultIsm:
+  domains:
+    radix1:
+      domains:
+        radix2:
+          type: testIsm
+      owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+      type: domainRoutingIsm
+
+    radix2:
+      validators: ['0x10E0271ec47d55511a047516f2a7301801d55eaB']
+      threshold: 1
+      type: messageIdMultisigIsm
+
+    hyp1:
+      type: testIsm
+    hyp2:
+      type: testIsm
+    hyp3:
+      type: testIsm
+    anvil1:
+      type: testIsm
+    anvil2:
+      type: testIsm
+    anvil3:
+      type: testIsm
+    anvil4:
+      type: testIsm
+    sealevel1:
+      type: testIsm
+  owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+  type: domainRoutingIsm
+owner: account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3
+requiredHook:
+  type: merkleTreeHook
