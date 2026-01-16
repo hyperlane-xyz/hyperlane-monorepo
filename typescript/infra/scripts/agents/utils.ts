@@ -155,13 +155,14 @@ export class AgentCli {
         key,
         diff: await manager.getPreflightDiff(),
       }),
+      ([key]) => key,
     );
 
     const diffs: Array<{ key: string; diff: PreflightDiff }> = [
       ...fulfilled.values(),
     ];
-    const failures: string[] = [...rejected.values()].map(
-      (error) => error.message || 'Unknown error',
+    const failures: string[] = [...rejected.entries()].map(
+      ([key, error]) => `${key}: ${error.message || 'Unknown error'}`,
     );
 
     if (failures.length > 0) {
