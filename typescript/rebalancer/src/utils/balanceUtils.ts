@@ -7,9 +7,6 @@ import { type RawBalances } from '../interfaces/IStrategy.js';
 
 import { isCollateralizedTokenEligibleForRebalancing } from './tokenUtils.js';
 
-// Re-export formatBigInt from metrics for backwards compatibility
-export { formatBigInt } from '@hyperlane-xyz/metrics';
-
 /**
  * Returns the raw balances required by the strategies from the monitor event
  * @param chains - The chains that should be included in the raw balances (e.g. the chains in the rebalancer config)

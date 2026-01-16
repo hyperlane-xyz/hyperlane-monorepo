@@ -44,7 +44,7 @@ export {
 } from './balance.js';
 
 // Utilities
-export { formatBigInt, tryFn } from './utils.js';
+export { formatBigInt } from './utils.js';
 
 // Server
 export { startMetricsServer } from './server.js';

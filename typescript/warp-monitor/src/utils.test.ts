@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { tryFn } from '@hyperlane-xyz/metrics';
+import { tryFn } from '@hyperlane-xyz/utils';
 
 import { getLogger, setLoggerBindings } from './utils.js';
 

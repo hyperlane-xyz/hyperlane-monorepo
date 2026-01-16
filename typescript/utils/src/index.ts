@@ -87,6 +87,7 @@ export {
   runWithTimeout,
   sleep,
   timeout,
+  tryFn,
 } from './async.js';
 export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './base58.js';
 export { fromBase64, toBase64 } from './base64.js';

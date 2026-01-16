@@ -6,7 +6,6 @@ import {
   getSealevelAtaPayerBalance,
   getTokenBridgedBalance,
   getXERC20Info,
-  tryFn,
 } from '@hyperlane-xyz/metrics';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -19,7 +18,13 @@ import {
   WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, objMap, objMerge, sleep } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  objMap,
+  objMerge,
+  sleep,
+  tryFn,
+} from '@hyperlane-xyz/utils';
 
 import {
   metricsRegister,

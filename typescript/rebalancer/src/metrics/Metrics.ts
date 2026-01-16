@@ -9,7 +9,6 @@ import {
   getTokenBridgedBalance,
   getXERC20Info,
   startMetricsServer,
-  tryFn,
 } from '@hyperlane-xyz/metrics';
 import {
   Token,
@@ -19,7 +18,7 @@ import {
   type WarpCore,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, tryFn } from '@hyperlane-xyz/utils';
 
 import { type IMetrics } from '../interfaces/IMetrics.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
