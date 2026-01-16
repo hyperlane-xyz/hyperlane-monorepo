@@ -101,6 +101,13 @@ export async function getMerkleTreeHookConfig(
 }
 
 /**
+ * Type definition for Aleo IGP data returned from chain
+ */
+interface AleoIgpData {
+  hook_owner: string;
+}
+
+/**
  * Query the configuration for an IGP (Interchain Gas Paymaster) hook.
  *
  * @param aleoClient - The Aleo network client
@@ -148,7 +155,14 @@ export async function getIgpHookConfig(
     programId,
     'igps',
     address,
-    (raw) => raw as any,
+    (raw): AleoIgpData => {
+      const igpData = raw as AleoIgpData | undefined;
+      assert(
+        igpData?.hook_owner,
+        `Invalid IGP data structure for hook ${hookAddress}, expected object with hook_owner field`,
+      );
+      return igpData;
+    },
   );
   const owner = igpData.hook_owner;
 
