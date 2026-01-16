@@ -21,7 +21,7 @@ import { AleoSigner } from '../clients/signer.js';
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
-describe('6. aleo sdk Hook artifact readers e2e tests', async function () {
+describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   this.timeout(100_000);
 
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
