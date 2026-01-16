@@ -41,6 +41,11 @@ async function main(): Promise<void> {
     const configuredChains = configLoader.getConfiguredChains();
     logger.info({ chains: configuredChains }, 'Loaded keyfunder configuration');
 
+    // Set PROMETHEUS_PUSH_GATEWAY env var for shared metrics package
+    if (config.metrics?.pushGateway) {
+      process.env['PROMETHEUS_PUSH_GATEWAY'] = config.metrics.pushGateway;
+    }
+
     const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
       registryUris: [registryUri],
