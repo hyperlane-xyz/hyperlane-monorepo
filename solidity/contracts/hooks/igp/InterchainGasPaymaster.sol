@@ -364,16 +364,16 @@ contract InterchainGasPaymaster is
      * @notice Returns the gas oracle and overhead for a destination domain.
      * @dev Reads from tokenGasOracles and destinationGasOverhead storage.
      * @param _destinationDomain The destination domain.
-     * @return The DomainGasConfig containing the gas oracle and overhead.
+     * @return gasOracle The gas oracle for the destination domain.
+     * @return gasOverhead The gas overhead for the destination domain.
      */
     function destinationGasConfigs(
         uint32 _destinationDomain
-    ) public view returns (DomainGasConfig memory) {
-        return
-            DomainGasConfig(
-                tokenGasOracles[NATIVE_TOKEN][_destinationDomain],
-                uint96(destinationGasOverhead[_destinationDomain])
-            );
+    ) public view returns (IGasOracle gasOracle, uint96 gasOverhead) {
+        return (
+            tokenGasOracles[NATIVE_TOKEN][_destinationDomain],
+            uint96(destinationGasOverhead[_destinationDomain])
+        );
     }
 
     // ============ Internal Functions ============
