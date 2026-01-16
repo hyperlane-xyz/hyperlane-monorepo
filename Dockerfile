@@ -1,15 +1,19 @@
-FROM node:20-alpine
+FROM node:20-slim
 
 WORKDIR /hyperlane-monorepo
 
-RUN apk add --update --no-cache git g++ make py3-pip jq bash curl
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    git g++ make python3 python3-pip jq bash curl ca-certificates unzip \
+    && rm -rf /var/lib/apt/lists/*
 
-# Install Foundry (Alpine binaries) - pinned version for reproducibility
+# Install Foundry (Linux binaries) - pinned version for reproducibility
 ARG FOUNDRY_VERSION
 ARG TARGETARCH
+SHELL ["/bin/bash", "-c"]
 RUN set -o pipefail && \
     ARCH=$([ "$TARGETARCH" = "arm64" ] && echo "arm64" || echo "amd64") && \
-    curl --fail -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_alpine_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
+    curl --fail -L "https://github.com/foundry-rs/foundry/releases/download/${FOUNDRY_VERSION}/foundry_${FOUNDRY_VERSION}_linux_${ARCH}.tar.gz" | tar -xzC /usr/local/bin forge cast
+SHELL ["/bin/sh", "-c"]
 
 # Copy package.json first for corepack to read packageManager field
 COPY package.json ./
@@ -55,6 +59,23 @@ COPY typescript ./typescript
 COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
+
+# Pre-download solc compiler to avoid flaky network issues during build.
+# Hardhat downloads this on-demand, but the network request can timeout in CI.
+#
+# To update when changing solidity version in solidity/rootHardhatConfig.cts:
+#   1. Find the commit hash: curl -s "https://binaries.soliditylang.org/linux-amd64/list.json" | jq '.releases["X.Y.Z"]'
+#   2. Update SOLC_VERSION and SOLC_COMMIT below
+ARG SOLC_VERSION=0.8.22
+ARG SOLC_COMMIT=4fc1097e
+RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
+    SOLC_LIST_URL="https://binaries.soliditylang.org/linux-amd64/list.json" && \
+    SOLC_BIN_URL="https://binaries.soliditylang.org/linux-amd64/${SOLC_BINARY}" && \
+    CACHE_DIR="/root/.cache/hardhat-nodejs/compilers-v2/linux-amd64" && \
+    mkdir -p "$CACHE_DIR" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_LIST_URL" -o "$CACHE_DIR/list.json" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
+    chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
 RUN pnpm build
 

@@ -275,3 +275,13 @@ export async function tryFn(
     logger.error({ context, err: error as Error }, `Error in ${context}`);
   }
 }
+
+export async function timedAsync<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now();
+  const result = await fn();
+  rootLogger.trace(`Timing: ${name} took ${Date.now() - start}ms`);
+  return result;
+}

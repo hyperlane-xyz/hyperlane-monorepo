@@ -86,6 +86,7 @@ export {
   retryAsync,
   runWithTimeout,
   sleep,
+  timedAsync,
   timeout,
   tryFn,
 } from './async.js';
