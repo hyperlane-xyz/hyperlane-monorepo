@@ -5,6 +5,7 @@ import {
   LogLevel,
   configureRootLogger,
   rootLogger,
+  timedAsync,
 } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -23,14 +24,6 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-// Helper for debug-level timing logs
-const time = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
-  const start = Date.now();
-  const result = await fn();
-  rootLogger.debug(`Timing: ${name} took ${Date.now() - start}ms`);
-  return result;
-};
-
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const {
@@ -38,7 +31,7 @@ async function main() {
     warpRouteId,
     registryCommit: registryCommitArg,
   } = await withRegistryCommit(withWarpRouteId(getArgs())).argv;
-  await time('assertCorrectKubeContext', () =>
+  await timedAsync('assertCorrectKubeContext', () =>
     assertCorrectKubeContext(getEnvironmentConfig(environment)),
   );
 
@@ -73,14 +66,17 @@ async function main() {
     }));
 
   // Only fetch secrets for the chains in the warp routes (optimization)
-  const [registry] = await time('getRegistry + validateRegistryCommit', () =>
-    Promise.all([
-      envConfig.getRegistry(true, chainsNeeded),
-      validateRegistryCommit(registryCommit),
-    ]),
+  const [registry] = await timedAsync(
+    'getRegistry + validateRegistryCommit',
+    () =>
+      Promise.all([
+        envConfig.getRegistry(true, chainsNeeded),
+        validateRegistryCommit(registryCommit),
+      ]),
   );
-  const multiProtocolProvider = await time('getMultiProtocolProvider', () =>
-    getMultiProtocolProvider(registry),
+  const multiProtocolProvider = await timedAsync(
+    'getMultiProtocolProvider',
+    () => getMultiProtocolProvider(registry),
   );
 
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
@@ -92,10 +88,10 @@ async function main() {
       agentConfig.environmentChainNames,
       registryCommit,
     );
-    await time(`runPreflightChecks(${warpRouteId})`, () =>
+    await timedAsync(`runPreflightChecks(${warpRouteId})`, () =>
       helmManager.runPreflightChecks(multiProtocolProvider),
     );
-    await time(`runHelmCommand(${warpRouteId})`, () =>
+    await timedAsync(`runHelmCommand(${warpRouteId})`, () =>
       helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade),
     );
   };
@@ -103,7 +99,7 @@ async function main() {
   // Only run cleanup when deploying all warp routes (no specific ID provided).
   // This cleanup is slow (~20s) because it reads all warp routes from the registry.
   if (!warpRouteId) {
-    await time('uninstallUnknownWarpMonitorReleases', () =>
+    await timedAsync('uninstallUnknownWarpMonitorReleases', () =>
       WarpRouteMonitorHelmManager.uninstallUnknownWarpMonitorReleases(
         environment,
       ),

@@ -253,3 +253,13 @@ export async function mapAllSettled<T, R, K = number>(
 
   return { fulfilled, rejected };
 }
+
+export async function timedAsync<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now();
+  const result = await fn();
+  rootLogger.trace(`Timing: ${name} took ${Date.now() - start}ms`);
+  return result;
+}
