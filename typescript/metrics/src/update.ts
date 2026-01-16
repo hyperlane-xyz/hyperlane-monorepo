@@ -6,7 +6,7 @@ import {
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+import { type Address, isNullish } from '@hyperlane-xyz/utils';
 
 import type { WarpMetricsGauges } from './gauges.js';
 import type {
@@ -67,7 +67,7 @@ export function updateTokenBalanceMetrics(
     'Wallet balance updated for token',
   );
 
-  if (balanceInfo.valueUSD) {
+  if (!isNullish(balanceInfo.valueUSD)) {
     // TODO: consider deprecating this metric in favor of the value at risk metric
     gauges.warpRouteCollateralValue
       .labels({ ...metrics })
@@ -151,7 +151,7 @@ export function updateManagedLockboxBalanceMetrics(
     'ManagedLockbox collateral balance updated',
   );
 
-  if (balanceInfo.valueUSD) {
+  if (!isNullish(balanceInfo.valueUSD)) {
     gauges.warpRouteCollateralValue
       .labels({ ...metrics })
       .set(balanceInfo.valueUSD);

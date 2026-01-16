@@ -289,7 +289,13 @@ cargo test --release --package run-locally --features sealevel -- sealevel::test
 
 ## TypeScript Style
 
-- Avoid unnecessary type casts (`as` assertions). If types don't match, fix the types or use spread operators (`{ ...obj }`) rather than `as unknown as X` double-casts.
+- Avoid unnecessary type casts (`as` assertions), especially `as unknown as X` double-casts.
+- If types don't match, fix the underlying types rather than casting. Alternatives:
+  - Adjust interface definitions to be compatible
+  - Use type guards for runtime narrowing
+  - Compose objects explicitly (spread + missing properties)
+  - Use `Partial<>` patterns as last resort
+- Note: spread operators (`{ ...obj }`) don't bypass type checking - they still error if types are incompatible.
 - Prefer proper typing over `any` or type assertions.
 
 ## Tips for Claude Code Sessions
