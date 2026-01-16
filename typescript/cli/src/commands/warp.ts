@@ -279,7 +279,8 @@ const send: CommandModuleWithWriteContext<
     },
     recipient: {
       type: 'string',
-      description: 'Token recipient address (defaults to sender)',
+      description:
+        'Token recipient address. Required for non-EVM destinations. Defaults to sender for EVM destinations.',
     },
     chains: stringArrayOptionConfig({
       description: 'List of chains to send messages to',
