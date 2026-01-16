@@ -1,0 +1,44 @@
+warpRouteId: USDC/eni
+
+strategy:
+  rebalanceStrategy: weighted
+  chains:
+    arbitrum:
+      weighted:
+        weight: 20
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x4c19c653a8419A475d9B6735511cB81C15b8d9b2'
+
+    base:
+      weighted:
+        weight: 20
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+
+    ethereum:
+      weighted:
+        weight: 20
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x8c8D831E1e879604b4B304a2c951B8AEe3aB3a23'
+
+    optimism:
+      weighted:
+        weight: 20
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
+
+    polygon:
+      weighted:
+        weight: 20
+        tolerance: 5
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: 3000
+      bridge: '0x33e94B6D2ae697c16a750dB7c3d9443622C4405a'
