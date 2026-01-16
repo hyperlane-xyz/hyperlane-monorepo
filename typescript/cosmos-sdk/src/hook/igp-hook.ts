@@ -1,4 +1,3 @@
-import { type EncodeObject } from '@cosmjs/proto-signing';
 import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -17,6 +16,7 @@ import { eqAddressCosmos } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
+import { type AnnotatedEncodeObject } from '../utils/types.js';
 
 import { type CosmosHookQueryClient, getIgpHookConfig } from './hook-query.js';
 import {
@@ -100,7 +100,7 @@ export class CosmosIgpHookWriter
     [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, DeliverTxResponse[]]
   > {
     const { config } = artifact;
-    const allReceipts: DeliverTxResponse[] = [];
+    const receipts: DeliverTxResponse[] = [];
 
     // Create the IGP hook
     const createTx = await getCreateIgpTx(
@@ -110,7 +110,7 @@ export class CosmosIgpHookWriter
 
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
     const address = getNewContractAddress(createReceipt);
-    allReceipts.push(createReceipt);
+    receipts.push(createReceipt);
 
     // Set destination gas configs for each domain
     for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
@@ -133,7 +133,19 @@ export class CosmosIgpHookWriter
 
       const configReceipt =
         await this.signer.sendAndConfirmTransaction(setConfigTx);
-      allReceipts.push(configReceipt);
+      receipts.push(configReceipt);
+    }
+
+    // Transfer ownership if needed (deployer is initial owner)
+    const deployerAddress = this.signer.getSignerAddress();
+    if (!eqAddressCosmos(artifact.config.owner, deployerAddress)) {
+      const ownerTx = await getSetIgpOwnerTx(deployerAddress, {
+        igpAddress: address,
+        newOwner: artifact.config.owner,
+      });
+
+      const ownerReceipt = await this.signer.sendAndConfirmTransaction(ownerTx);
+      receipts.push(ownerReceipt);
     }
 
     const deployedArtifact: ArtifactDeployed<
@@ -147,29 +159,17 @@ export class CosmosIgpHookWriter
       },
     };
 
-    return [deployedArtifact, allReceipts];
+    return [deployedArtifact, receipts];
   }
 
   async update(
     artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
-  ): Promise<EncodeObject[]> {
+  ): Promise<AnnotatedEncodeObject[]> {
     const { config, deployed } = artifact;
-    const updateTxs: EncodeObject[] = [];
+    const updateTxs: AnnotatedEncodeObject[] = [];
 
     // Read current state
     const currentState = await this.read(deployed.address);
-
-    // Check if owner needs to be updated
-    if (!eqAddressCosmos(currentState.config.owner, config.owner)) {
-      const setOwnerTx = await getSetIgpOwnerTx(
-        this.signer.getSignerAddress(),
-        {
-          igpAddress: deployed.address,
-          newOwner: config.owner,
-        },
-      );
-      updateTxs.push(setOwnerTx);
-    }
 
     // Update destination gas configs
     for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
@@ -198,8 +198,28 @@ export class CosmosIgpHookWriter
             },
           },
         );
-        updateTxs.push(setConfigTx);
+
+        updateTxs.push({
+          annotation: `Setting destination gas config for domain ${domainId}`,
+          ...setConfigTx,
+        });
       }
+    }
+
+    // Check if owner needs to be updated
+    if (!eqAddressCosmos(currentState.config.owner, config.owner)) {
+      const setOwnerTx = await getSetIgpOwnerTx(
+        this.signer.getSignerAddress(),
+        {
+          igpAddress: deployed.address,
+          newOwner: config.owner,
+        },
+      );
+
+      updateTxs.push({
+        annotation: `Setting IGP hook owner to ${artifact.config.owner}`,
+        ...setOwnerTx,
+      });
     }
 
     return updateTxs;

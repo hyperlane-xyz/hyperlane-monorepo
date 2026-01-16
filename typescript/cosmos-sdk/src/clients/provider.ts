@@ -16,6 +16,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  getHookType,
   getIgpHookConfig,
   getMerkleTreeHookConfig,
 } from '../hook/hook-query.js';
@@ -262,28 +263,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    try {
-      const { igp } = await this.query.postDispatch.Igp({
-        id: req.hookAddress,
-      });
-
-      if (igp) {
-        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      }
-    } catch {
-      try {
-        const { merkle_tree_hook } =
-          await this.query.postDispatch.MerkleTreeHook({ id: req.hookAddress });
-
-        if (merkle_tree_hook) {
-          return AltVM.HookType.MERKLE_TREE;
-        }
-      } catch {
-        throw new Error(`Unknown Hook Type: ${req.hookAddress}`);
-      }
-    }
-
-    throw new Error(`Unknown Hook Type: ${req.hookAddress}`);
+    return getHookType(this.query, req.hookAddress);
   }
 
   async getInterchainGasPaymasterHook(

@@ -1,4 +1,3 @@
-import { type EncodeObject } from '@cosmjs/proto-signing';
 import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
@@ -16,6 +15,7 @@ import {
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
+import { type AnnotatedEncodeObject } from '../utils/types.js';
 
 import {
   type CosmosHookQueryClient,
@@ -99,7 +99,7 @@ export class CosmosMerkleTreeHookWriter
 
   async update(
     _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
-  ): Promise<EncodeObject[]> {
+  ): Promise<AnnotatedEncodeObject[]> {
     // MerkleTreeHook has no mutable state
     return [];
   }

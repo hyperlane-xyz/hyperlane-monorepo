@@ -14,7 +14,6 @@ export type CosmosHookQueryClient = QueryClient & PostDispatchExtension;
 const HOOK_READ_METHODS = [
   'Igp',
   'MerkleTreeHook',
-  'NoopHook',
 ] satisfies (keyof CosmosHookQueryClient['postDispatch'])[];
 
 type HookMethod = (typeof HOOK_READ_METHODS)[number];
@@ -25,8 +24,6 @@ function hookReadMethodToHookType(hook: HookMethod): AltVM.HookType {
       return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
     case 'MerkleTreeHook':
       return AltVM.HookType.MERKLE_TREE;
-    case 'NoopHook':
-      return AltVM.HookType.CUSTOM;
     default: {
       const unknownHook: never = hook;
       throw new Error(`Unknown Cosmos Hook type: ${unknownHook}`);
@@ -40,13 +37,11 @@ export async function getHookType(
 ): Promise<AltVM.HookType> {
   for (const igp of HOOK_READ_METHODS) {
     try {
-      const hook = await query.postDispatch[igp]({
+      await query.postDispatch[igp]({
         id: hookAddress,
       });
 
-      if (hook) {
-        return hookReadMethodToHookType(igp);
-      }
+      return hookReadMethodToHookType(igp);
     } catch {
       // We need to brute force the hook type detection going
       // over all possible supported hook derivation functions

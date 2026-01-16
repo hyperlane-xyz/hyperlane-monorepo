@@ -1,6 +1,5 @@
-import { type EncodeObject } from '@cosmjs/proto-signing';
-import { type DeliverTxResponse } from '@cosmjs/stargate';
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
@@ -14,15 +13,21 @@ import {
   type IgpHookConfig,
   type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  type AnnotatedTx,
+  type TxReceipt,
+} from '@hyperlane-xyz/provider-sdk/module';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { createSigner } from '../testing/utils.js';
 
+chai.use(chaiAsPromised);
+
 describe('Cosmos Hooks Artifact API (e2e)', function () {
   this.timeout(100_000);
 
-  let signer: AltVM.ISigner<EncodeObject, DeliverTxResponse>;
+  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   let cosmosSigner: CosmosNativeSigner;
   let artifactManager: CosmosHookArtifactManager;
   let mailboxAddress: string;
@@ -283,10 +288,113 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
 
       const txs = await igpWriter.update(updatedConfig);
 
-      expect(txs).to.be.an('array').with.length(3); // 1 owner + 2 gas configs
-      expect(txs[0].typeUrl).to.include('MsgSetIgpOwner');
+      // Verify we get the expected transactions (gas configs first, then owner)
+      expect(txs).to.be.an('array').with.length(3);
+      expect(txs[0].typeUrl).to.include('MsgSetDestinationGasConfig');
       expect(txs[1].typeUrl).to.include('MsgSetDestinationGasConfig');
-      expect(txs[2].typeUrl).to.include('MsgSetDestinationGasConfig');
+      expect(txs[2].typeUrl).to.include('MsgSetIgpOwner');
+
+      // Execute the transactions to verify they work
+      for (const tx of txs) {
+        const receipt = await signer.sendAndConfirmTransaction(tx);
+        expect(receipt.code).to.equal(0);
+      }
+
+      // Verify the updates were applied by reading back the state
+      const reader = artifactManager.createReader(
+        AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+      );
+      const readHook = await reader.read(igpHook.deployed.address);
+
+      expect(readHook.config.owner).to.equal(newOwner);
+      expect(readHook.config.overhead[DOMAIN_1]).to.equal(60000);
+      expect(readHook.config.overhead[DOMAIN_2]).to.equal(70000);
+      expect(readHook.config.oracleConfig[DOMAIN_1].gasPrice).to.equal('200');
+      expect(readHook.config.oracleConfig[DOMAIN_2].gasPrice).to.equal('150');
+    });
+  });
+
+  describe('readHook (Dynamic Hook Type Detection)', () => {
+    const testCases: Array<{
+      name: string;
+      type: HookType;
+      getConfig: () => MerkleTreeHookConfig | IgpHookConfig;
+      verifyConfig: (
+        readHook: ArtifactDeployed<any, DeployedHookAddress>,
+      ) => void;
+    }> = [
+      {
+        name: 'MerkleTree Hook',
+        type: AltVM.HookType.MERKLE_TREE,
+        getConfig: () => ({
+          type: AltVM.HookType.MERKLE_TREE,
+        }),
+        verifyConfig: (readHook) => {
+          expect(readHook.config.type).to.equal(AltVM.HookType.MERKLE_TREE);
+        },
+      },
+      {
+        name: 'IGP Hook',
+        type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+        getConfig: () => ({
+          type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          owner: cosmosSigner.getSignerAddress(),
+          beneficiary: cosmosSigner.getSignerAddress(),
+          oracleKey: cosmosSigner.getSignerAddress(),
+          overhead: {
+            '1234': 50000,
+          },
+          oracleConfig: {
+            '1234': {
+              gasPrice: '100',
+              tokenExchangeRate: '1000000000000000000',
+            },
+          },
+        }),
+        verifyConfig: (readHook) => {
+          expect(readHook.config.type).to.equal(
+            AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          );
+          const igpHook = readHook as ArtifactDeployed<
+            IgpHookConfig,
+            DeployedHookAddress
+          >;
+          expect(igpHook.config.owner).to.equal(
+            cosmosSigner.getSignerAddress(),
+          );
+          expect(igpHook.config.overhead['1234']).to.equal(50000);
+          expect(igpHook.config.oracleConfig['1234'].gasPrice).to.equal('100');
+          expect(
+            igpHook.config.oracleConfig['1234'].tokenExchangeRate,
+          ).to.equal('1000000000000000000');
+        },
+      },
+    ];
+
+    testCases.forEach(({ name, type, getConfig, verifyConfig }) => {
+      it(`should read ${name} without specifying type`, async () => {
+        const config = getConfig();
+        const writer = artifactManager.createWriter(type, cosmosSigner);
+        const [deployedHook] = await writer.create({ config });
+
+        const readHook = await artifactManager.readHook(
+          deployedHook.deployed.address,
+        );
+
+        expect(readHook.artifactState).to.equal(ArtifactState.DEPLOYED);
+        expect(readHook.deployed.address).to.equal(
+          deployedHook.deployed.address,
+        );
+        verifyConfig(readHook);
+      });
+    });
+
+    it('should throw an error for an invalid hook address', async () => {
+      const invalidAddress = 'osmo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqmcn030';
+
+      await expect(artifactManager.readHook(invalidAddress)).to.be.rejectedWith(
+        'is not a Cosmos hook',
+      );
     });
   });
 });
