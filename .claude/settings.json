@@ -12,5 +12,31 @@
     "differential-review@trailofbits": true,
     "variant-analysis@trailofbits": true,
     "property-based-testing@trailofbits": true
+  },
+  "hooks": {
+    "PreToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/prevent-main-edits.sh",
+            "timeout": 5000
+          }
+        ]
+      }
+    ],
+    "PostToolUse": [
+      {
+        "matcher": "Edit|Write",
+        "hooks": [
+          {
+            "type": "command",
+            "command": ".claude/hooks/auto-format.sh",
+            "timeout": 30000
+          }
+        ]
+      }
+    ]
   }
 }
