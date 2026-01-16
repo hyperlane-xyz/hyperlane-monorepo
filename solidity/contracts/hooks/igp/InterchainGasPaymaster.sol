@@ -373,7 +373,7 @@ contract InterchainGasPaymaster is
      * @param _messageId The ID of the message to pay for.
      * @param _destinationDomain The domain of the message's destination chain.
      * @param _gasLimit The amount of destination gas to pay for.
-     * @param _payer For native: refund address. For tokens: address to transfer from.
+     * @param _payerOrRefundAddress For native: refund address. For tokens: address to transfer from.
      * @param _payment The payment amount (from quoteGasPayment).
      */
     function _payForGas(
@@ -381,7 +381,7 @@ contract InterchainGasPaymaster is
         bytes32 _messageId,
         uint32 _destinationDomain,
         uint256 _gasLimit,
-        address _payer,
+        address _payerOrRefundAddress,
         uint256 _payment
     ) internal {
         if (_feeToken == address(0)) {
@@ -392,12 +392,19 @@ contract InterchainGasPaymaster is
             );
             uint256 _overpayment = msg.value - _payment;
             if (_overpayment > 0) {
-                require(_payer != address(0), "no refund address");
-                payable(_payer).sendValue(_overpayment);
+                require(
+                    _payerOrRefundAddress != address(0),
+                    "no refund address"
+                );
+                payable(_payerOrRefundAddress).sendValue(_overpayment);
             }
         } else {
             // Token payment: transfer exact amount from payer
-            IERC20(_feeToken).safeTransferFrom(_payer, address(this), _payment);
+            IERC20(_feeToken).safeTransferFrom(
+                _payerOrRefundAddress,
+                address(this),
+                _payment
+            );
         }
 
         emit GasPayment(_messageId, _destinationDomain, _gasLimit, _payment);
@@ -421,7 +428,7 @@ contract InterchainGasPaymaster is
             _gasLimit
         );
 
-        address _payer = _feeToken == address(0)
+        address _payerOrRefundAddress = _feeToken == address(0)
             ? metadata.refundAddress(message.senderAddress())
             : message.senderAddress();
 
@@ -430,7 +437,7 @@ contract InterchainGasPaymaster is
             message.id(),
             _destinationDomain,
             _gasLimit,
-            _payer,
+            _payerOrRefundAddress,
             _payment
         );
     }
