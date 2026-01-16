@@ -43,6 +43,7 @@ export async function resolveChains(
     case CommandType.SEND_MESSAGE:
       return resolveSendMessageChains(argv);
     case CommandType.WARP_SEND:
+      return resolveWarpSendChains(argv);
     case CommandType.STATUS:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
@@ -215,6 +216,76 @@ async function resolveRelayerChains(
   }
 
   chains.add(argv.destination);
+  return Array.from(chains);
+}
+
+/**
+ * Resolves chains for warp send - returns EVM chains for signer creation.
+ * Non-EVM destinations don't need signers (Rust relayer handles delivery).
+ *
+ * When destination is not specified, returns all EVM chains since the actual
+ * destination may be derived from the warp route config and needs a signer
+ * for recipient address derivation.
+ */
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const { multiProvider } = argv.context;
+  const chains = new Set<ChainName>();
+
+  // Validate origin is EVM if specified
+  if (argv.origin) {
+    if (multiProvider.getProtocol(argv.origin) !== ProtocolType.Ethereum) {
+      throw new Error(
+        `'hyperlane warp send' requires an EVM origin chain. '${argv.origin}' is ${multiProvider.getProtocol(argv.origin)}`,
+      );
+    }
+    chains.add(argv.origin);
+  }
+
+  // For --chains, only add EVM chains (they become origins in multi-hop)
+  if (argv.chains) {
+    const requestedChains = argv.chains
+      .split(',')
+      .map((c: string) => c.trim()) as ChainName[];
+    for (const chain of requestedChains) {
+      if (multiProvider.getProtocol(chain) === ProtocolType.Ethereum) {
+        chains.add(chain);
+      }
+    }
+  }
+
+  // Only add destination if it's EVM (for signer creation)
+  if (
+    argv.destination &&
+    multiProvider.getProtocol(argv.destination) === ProtocolType.Ethereum
+  ) {
+    chains.add(argv.destination);
+  }
+
+  // If destination is not specified, return all EVM chains.
+  // The actual destination may be derived from warp route config and
+  // needs a signer for default recipient address derivation.
+  if (!argv.destination && !argv.chains) {
+    return multiProvider
+      .getKnownChainNames()
+      .filter(
+        (chain: string) =>
+          multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+      );
+  }
+
+  // If no chains resolved (e.g., only non-EVM destination specified),
+  // still need all EVM chains for origin selection
+  if (chains.size === 0) {
+    return multiProvider
+      .getKnownChainNames()
+      .filter(
+        (chain: string) =>
+          multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+      );
+  }
+
   return Array.from(chains);
 }
 
