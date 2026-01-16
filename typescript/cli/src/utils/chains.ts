@@ -219,6 +219,16 @@ export function filterOutDisabledChains(
 }
 
 /**
+ * Returns the names of all chains that are not disabled.
+ * This is a convenience wrapper around filterOutDisabledChains.
+ */
+export function getActiveChainNames(
+  chainMetadata: ChainMap<ChainMetadata>,
+): string[] {
+  return Object.keys(filterOutDisabledChains(chainMetadata));
+}
+
+/**
  * @notice Extracts chain names from a nested configuration object
  * @param config Object to search for chain names
  * @return Array of discovered chain names
