@@ -4,8 +4,10 @@ import select from '@inquirer/select';
 import chalk from 'chalk';
 
 import {
+  ChainDisabledReason,
   type ChainMap,
   type ChainMetadata,
+  ChainStatus,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { type ProtocolType, toTitleCase } from '@hyperlane-xyz/utils';
@@ -163,7 +165,7 @@ function getChainChoices(
       .map((c) => ({ name: c.name, value: c.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-  const chains = Object.values(chainMetadata);
+  const chains = Object.values(filterOutDeprecatedChains(chainMetadata));
   const filteredChains = chains.filter((c) =>
     networkType === 'mainnet' ? !c.isTestnet : !!c.isTestnet,
   );
@@ -199,6 +201,27 @@ export function filterChainMetadataByProtocol(
   return Object.fromEntries(
     Object.entries(chainMetadata).filter(
       ([chain]) => multiProvider.getProtocol(chain) === protocol,
+    ),
+  );
+}
+
+export function isDeprecatedChainMetadata(
+  chainMetadata: ChainMetadata,
+): boolean {
+  const availability = chainMetadata.availability;
+  if (!availability || availability.status !== ChainStatus.Disabled) {
+    return false;
+  }
+
+  return availability.reasons.includes(ChainDisabledReason.Deprecated);
+}
+
+export function filterOutDeprecatedChains(
+  chainMetadata: ChainMap<ChainMetadata>,
+): ChainMap<ChainMetadata> {
+  return Object.fromEntries(
+    Object.entries(chainMetadata).filter(
+      ([, metadata]) => !isDeprecatedChainMetadata(metadata),
     ),
   );
 }

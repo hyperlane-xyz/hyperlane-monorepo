@@ -18,6 +18,7 @@ import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   filterChainMetadataByProtocol,
+  filterOutDeprecatedChains,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
@@ -49,8 +50,9 @@ export async function sendTestMessage({
     multiProvider,
     ProtocolType.Ethereum,
   );
+  const activeEvmChainMetadata = filterOutDeprecatedChains(evmChainMetadata);
 
-  if (Object.keys(evmChainMetadata).length === 0) {
+  if (Object.keys(activeEvmChainMetadata).length === 0) {
     throw new Error(
       `No EVM chains found in registry. 'hyperlane send message' only supports EVM chains.`,
     );
@@ -58,14 +60,14 @@ export async function sendTestMessage({
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
-      evmChainMetadata,
+      activeEvmChainMetadata,
       'Select the origin chain:',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      evmChainMetadata,
+      activeEvmChainMetadata,
       'Select the destination chain:',
     );
   }

@@ -1,9 +1,17 @@
 import { expect } from 'chai';
 
-import { type ChainMetadata, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainDisabledReason,
+  type ChainMetadata,
+  ChainStatus,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { filterChainMetadataByProtocol } from './chains.js';
+import {
+  filterChainMetadataByProtocol,
+  filterOutDeprecatedChains,
+} from './chains.js';
 
 describe('filterChainMetadataByProtocol', () => {
   const mockEvmChain: ChainMetadata = {
@@ -111,5 +119,61 @@ describe('filterChainMetadataByProtocol', () => {
     expect(Object.keys(result)).to.have.lengthOf(2);
     expect(result).to.have.property('ethereum');
     expect(result).to.have.property('polygon');
+  });
+});
+
+describe('filterOutDeprecatedChains', () => {
+  const baseChain: Omit<ChainMetadata, 'name'> = {
+    chainId: 1,
+    domainId: 1,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+  };
+
+  const deprecatedChain: ChainMetadata = {
+    ...baseChain,
+    name: 'deprecated',
+    availability: {
+      status: ChainStatus.Disabled,
+      reasons: [ChainDisabledReason.Deprecated],
+    },
+  };
+
+  const badRpcChain: ChainMetadata = {
+    ...baseChain,
+    name: 'badrpc',
+    availability: {
+      status: ChainStatus.Disabled,
+      reasons: [ChainDisabledReason.BadRpc],
+    },
+  };
+
+  const liveChain: ChainMetadata = {
+    ...baseChain,
+    name: 'live',
+    availability: {
+      status: ChainStatus.Live,
+    },
+  };
+
+  const defaultChain: ChainMetadata = {
+    ...baseChain,
+    name: 'default',
+  };
+
+  it('should drop chains marked as deprecated', () => {
+    const chainMetadata = {
+      deprecated: deprecatedChain,
+      badrpc: badRpcChain,
+      live: liveChain,
+      default: defaultChain,
+    };
+
+    const result = filterOutDeprecatedChains(chainMetadata);
+
+    expect(result).to.not.have.property('deprecated');
+    expect(result).to.have.property('badrpc');
+    expect(result).to.have.property('live');
+    expect(result).to.have.property('default');
   });
 });
