@@ -1,10 +1,12 @@
-import { Gauge, Pushgateway, Registry } from 'prom-client';
+import { Gauge, Registry } from 'prom-client';
+
+import { submitMetrics } from '@hyperlane-xyz/metrics';
 
 import type { MetricsConfig } from '../config/types.js';
 
 export class KeyFunderMetrics {
   private registry: Registry;
-  private pushGateway: Pushgateway | null = null;
+  private jobName: string;
 
   readonly walletBalanceGauge: Gauge<string>;
   readonly fundingAmountGauge: Gauge<string>;
@@ -13,10 +15,11 @@ export class KeyFunderMetrics {
   readonly operationDurationGauge: Gauge<string>;
 
   constructor(
-    private readonly config: MetricsConfig | undefined,
+    config: MetricsConfig | undefined,
     private readonly baseLabels: Record<string, string> = {},
   ) {
     this.registry = new Registry();
+    this.jobName = config?.jobName ?? 'keyfunder';
 
     const labelNames = ['chain', 'address', 'role', ...Object.keys(baseLabels)];
 
@@ -54,10 +57,6 @@ export class KeyFunderMetrics {
       labelNames: ['chain', 'operation', ...Object.keys(baseLabels)],
       registers: [this.registry],
     });
-
-    if (config?.pushGateway) {
-      this.pushGateway = new Pushgateway(config.pushGateway, [], this.registry);
-    }
   }
 
   recordWalletBalance(
@@ -104,12 +103,9 @@ export class KeyFunderMetrics {
   }
 
   async push(): Promise<void> {
-    if (!this.pushGateway) {
-      return;
-    }
-
-    const jobName = this.config?.jobName ?? 'keyfunder';
-    await this.pushGateway.push({ jobName });
+    await submitMetrics(this.registry, this.jobName, {
+      overwriteAllMetrics: true,
+    });
   }
 
   getRegistry(): Registry {
