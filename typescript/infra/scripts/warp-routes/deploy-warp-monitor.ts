@@ -18,6 +18,7 @@ import {
   getArgs,
   getMultiProtocolProvider,
   getWarpRouteIdsInteractive,
+  withRegistryCommit,
   withWarpRouteId,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -32,7 +33,11 @@ const time = async <T>(name: string, fn: () => Promise<T>): Promise<T> => {
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
-  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const {
+    environment,
+    warpRouteId,
+    registryCommit: registryCommitArg,
+  } = await withRegistryCommit(withWarpRouteId(getArgs())).argv;
   await time('assertCorrectKubeContext', () =>
     assertCorrectKubeContext(getEnvironmentConfig(environment)),
   );
@@ -60,11 +65,12 @@ async function main() {
     `Loading secrets for ${chainsNeeded.length} chains: ${chainsNeeded.join(', ')}`,
   );
 
-  // Prompt for registry commit first (user input)
-  const registryCommit = await input({
-    message:
-      'Enter the registry version to use (can be a commit, branch or tag):',
-  });
+  const registryCommit =
+    registryCommitArg ??
+    (await input({
+      message:
+        'Enter the registry version to use (can be a commit, branch or tag):',
+    }));
 
   // Only fetch secrets for the chains in the warp routes (optimization)
   const [registry] = await time('getRegistry + validateRegistryCommit', () =>
