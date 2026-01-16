@@ -152,6 +152,35 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
   });
 
   it('should send between EVM and CosmosNative with expected logs', async function () {
+    // First: Cosmos (collateral) → EVM (synthetic) - locks collateral, mints synthetic
+    // This must happen first so there's collateral to release for the reverse direction
+    const cosmosToEvm = await hyperlaneWarp
+      .sendRaw({
+        origin: TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
+        destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        warpRouteId: WARP_ROUTE_ID,
+        amount: 1,
+        quick: true,
+        extraArgs: [
+          `--key.${ProtocolType.Ethereum}`,
+          HYP_KEY_BY_PROTOCOL.ethereum,
+          `--key.${ProtocolType.CosmosNative}`,
+          HYP_KEY_BY_PROTOCOL.cosmosnative,
+        ],
+      })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(cosmosToEvm.exitCode).to.eql(0);
+    const cosmosToEvmText = cosmosToEvm.text();
+    expect(cosmosToEvmText).to.include('Message ID:');
+    expect(cosmosToEvmText).to.include('Explorer Link:');
+    expect(cosmosToEvmText).to.include(
+      `Skipping transfer validation for ${TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1}`,
+    );
+
+    // Second: EVM (synthetic) → Cosmos (collateral) - burns synthetic, releases collateral
+    // Now there's locked collateral from the first transfer to release
     const evmToCosmos = await hyperlaneWarp
       .sendRaw({
         origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
@@ -176,31 +205,6 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
     expect(evmToCosmosText).to.include('Explorer Link:');
     expect(evmToCosmosText).to.include(
       'Self-relay is only supported for EVM destinations.',
-    );
-
-    const cosmosToEvm = await hyperlaneWarp
-      .sendRaw({
-        origin: TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
-        destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-        warpRouteId: WARP_ROUTE_ID,
-        amount: 1,
-        quick: true,
-        extraArgs: [
-          `--key.${ProtocolType.Ethereum}`,
-          HYP_KEY_BY_PROTOCOL.ethereum,
-          `--key.${ProtocolType.CosmosNative}`,
-          HYP_KEY_BY_PROTOCOL.cosmosnative,
-        ],
-      })
-      .stdio('pipe')
-      .nothrow();
-
-    expect(cosmosToEvm.exitCode).to.eql(0);
-    const cosmosToEvmText = cosmosToEvm.text();
-    expect(cosmosToEvmText).to.include('Message ID:');
-    expect(cosmosToEvmText).to.include('Explorer Link:');
-    expect(cosmosToEvmText).to.include(
-      `Skipping transfer validation for ${TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1}`,
     );
   });
 });
