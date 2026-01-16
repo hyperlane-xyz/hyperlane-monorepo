@@ -1,12 +1,14 @@
-import type { PopulatedTransaction } from 'ethers';
-
-import type { TokenAmount } from '@hyperlane-xyz/sdk';
+import {
+  type EvmMovableCollateralAdapter,
+  type TokenAmount,
+} from '@hyperlane-xyz/sdk';
 
 import type { RebalancingRoute } from './IStrategy.js';
 
 export type PreparedTransaction = {
-  /** Array of transactions: [approvalTx?, rebalanceTx] */
-  populatedTxs: PopulatedTransaction[];
+  populatedTx: Awaited<
+    ReturnType<EvmMovableCollateralAdapter['populateRebalanceTx']>
+  >;
   route: RebalancingRoute;
   originTokenAmount: TokenAmount;
 };
