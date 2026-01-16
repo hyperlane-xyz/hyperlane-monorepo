@@ -58,9 +58,7 @@ export function updateTokenBalanceMetrics(
     related_chain_names: relatedChains.join(','),
   };
 
-  gauges.warpRouteTokenBalance
-    .labels(metrics as unknown as Record<string, string>)
-    .set(balanceInfo.balance);
+  gauges.warpRouteTokenBalance.labels({ ...metrics }).set(balanceInfo.balance);
   logger.info(
     {
       labels: metrics,
@@ -72,7 +70,7 @@ export function updateTokenBalanceMetrics(
   if (balanceInfo.valueUSD) {
     // TODO: consider deprecating this metric in favor of the value at risk metric
     gauges.warpRouteCollateralValue
-      .labels(metrics as unknown as Record<string, string>)
+      .labels({ ...metrics })
       .set(balanceInfo.valueUSD);
     logger.info(
       {
@@ -93,7 +91,7 @@ export function updateTokenBalanceMetrics(
       };
 
       gauges.warpRouteValueAtRisk
-        .labels(labels as unknown as Record<string, string>)
+        .labels({ ...labels })
         .set(balanceInfo.valueUSD);
       logger.info(
         {
@@ -144,9 +142,7 @@ export function updateManagedLockboxBalanceMetrics(
       .join(','),
   };
 
-  gauges.warpRouteTokenBalance
-    .labels(metrics as unknown as Record<string, string>)
-    .set(balanceInfo.balance);
+  gauges.warpRouteTokenBalance.labels({ ...metrics }).set(balanceInfo.balance);
   logger.info(
     {
       labels: metrics,
@@ -157,7 +153,7 @@ export function updateManagedLockboxBalanceMetrics(
 
   if (balanceInfo.valueUSD) {
     gauges.warpRouteCollateralValue
-      .labels(metrics as unknown as Record<string, string>)
+      .labels({ ...metrics })
       .set(balanceInfo.valueUSD);
     logger.info(
       {
