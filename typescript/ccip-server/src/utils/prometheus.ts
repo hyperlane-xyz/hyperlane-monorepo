@@ -1,5 +1,8 @@
-import express from 'express';
+import type http from 'http';
+import type { Logger } from 'pino';
 import { Counter, Registry } from 'prom-client';
+
+import { startMetricsServer } from '@hyperlane-xyz/metrics';
 
 // Global register for offchain lookup metrics
 const register = new Registry();
@@ -56,16 +59,6 @@ export const PrometheusMetrics = {
   },
 };
 
-export async function startPrometheusServer() {
-  const app = express();
-
-  app.get('/metrics', async (req, res) => {
-    res.set('Content-Type', register.contentType);
-    res.end(await register.metrics());
-  });
-
-  const port = parseInt(process.env.PROMETHEUS_PORT ?? '9090');
-  app.listen(port, () =>
-    console.log(`Prometheus server started on port ${port}`),
-  );
+export function startPrometheusServer(logger?: Logger): http.Server {
+  return startMetricsServer(register, logger);
 }
