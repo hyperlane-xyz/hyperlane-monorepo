@@ -69,12 +69,48 @@ const mockIsmArtifactManager = {
   }),
 };
 
+// Mock hook artifact manager
+const mockHookArtifactManager = {
+  readHook: async () => ({
+    artifactState: 'deployed' as const,
+    config: { type: AltVM.HookType.MERKLE_TREE },
+    deployed: { address: '0x5678' },
+  }),
+  createReader: () => ({
+    read: async () => ({
+      artifactState: 'deployed' as const,
+      config: { type: AltVM.HookType.MERKLE_TREE },
+      deployed: { address: '0x5678' },
+    }),
+  }),
+  createWriter: (type: any, signer: any) => ({
+    create: async (artifact: any) => {
+      const hookAddress = '0xHOOKADDRESS';
+      return [
+        {
+          artifactState: 'deployed' as const,
+          config: artifact.config,
+          deployed: { address: hookAddress },
+        },
+        [],
+      ];
+    },
+    read: async () => ({
+      artifactState: 'deployed' as const,
+      config: { type: AltVM.HookType.MERKLE_TREE },
+      deployed: { address: '0x5678' },
+    }),
+    update: async () => [],
+  }),
+};
+
 // Mock protocol provider
 const mockProtocolProvider = {
   createProvider: async () => ({}),
   createSigner: async () => ({}),
   createSubmitter: async () => ({}),
   createIsmArtifactManager: () => mockIsmArtifactManager,
+  createHookArtifactManager: () => mockHookArtifactManager,
   getMinGas: () => ({
     CORE_DEPLOY_GAS: 0n,
     ISM_DEPLOY_GAS: 0n,
