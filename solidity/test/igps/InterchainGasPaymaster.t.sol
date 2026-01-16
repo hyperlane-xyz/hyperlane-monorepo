@@ -207,15 +207,15 @@ contract InterchainGasPaymasterTest is Test {
 
         igp.setDestinationGasConfigs(params);
 
-        InterchainGasPaymaster.DomainGasConfig memory config1 = igp
+        (IGasOracle actualOracle1, uint96 actualGasOverhead1) = igp
             .destinationGasConfigs(_domain1);
-        assertEq(address(config1.gasOracle), address(oracle1));
-        assertEq(config1.gasOverhead, _gasOverhead1);
+        assertEq(address(actualOracle1), address(oracle1));
+        assertEq(actualGasOverhead1, _gasOverhead1);
 
-        InterchainGasPaymaster.DomainGasConfig memory config2 = igp
+        (IGasOracle actualOracle2, uint96 actualGasOverhead2) = igp
             .destinationGasConfigs(_domain2);
-        assertEq(address(config2.gasOracle), address(oracle2));
-        assertEq(config2.gasOverhead, _gasOverhead2);
+        assertEq(address(actualOracle2), address(oracle2));
+        assertEq(actualGasOverhead2, _gasOverhead2);
     }
 
     function testSetDestinationGasConfigs_reverts_notOwner(
