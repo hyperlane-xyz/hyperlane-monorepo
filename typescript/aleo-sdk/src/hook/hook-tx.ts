@@ -1,5 +1,5 @@
 import { fromAleoAddress, getAddressFromProgramId } from '../utils/helper.js';
-import { AleoTransaction } from '../utils/types.js';
+import { type AleoTransaction } from '../utils/types.js';
 
 /**
  * Build transaction to create a MerkleTree hook

@@ -1,18 +1,21 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactReader,
-  ArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  HookType,
-  IRawHookArtifactManager,
-  RawHookArtifactConfigs,
+  type DeployedHookAddress,
+  type DeployedHookArtifact,
+  type HookType,
+  type IRawHookArtifactManager,
+  type RawHookArtifactConfigs,
+  altVmHookTypeToProviderHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
-import { AleoSigner } from '../clients/signer.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { type AleoSigner } from '../clients/signer.js';
 
+import { getHookType } from './hook-query.js';
 import { AleoIgpHookReader, AleoIgpHookWriter } from './igp-hook.js';
 import {
   AleoMerkleTreeHookReader,
@@ -24,6 +27,17 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
     private readonly aleoClient: AnyAleoNetworkClient,
     private readonly mailboxAddress: string,
   ) {}
+
+  async readHook(address: string): Promise<DeployedHookArtifact> {
+    // Detect hook type first
+    const aleoHookType = await getHookType(this.aleoClient, address);
+
+    // Get the appropriate reader and read the hook
+    const reader = this.createReader(
+      altVmHookTypeToProviderHookType(aleoHookType),
+    );
+    return reader.read(address);
+  }
 
   createReader<T extends HookType>(
     type: T,
