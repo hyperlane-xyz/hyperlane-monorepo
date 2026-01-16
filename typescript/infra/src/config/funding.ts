@@ -7,6 +7,15 @@ import { FundableRole, Role } from '../roles.js';
 
 import { DockerConfig } from './agent/agent.js';
 
+/**
+ * Default address for sweeping excess funds from the keyfunder wallet.
+ * This is a Hyperlane-controlled Safe address used to collect surplus funds
+ * when the keyfunder wallet balance exceeds the configured threshold.
+ * Can be overridden per-chain via sweepOverrides config.
+ */
+export const DEFAULT_SWEEP_ADDRESS =
+  '0x478be6076f31E9666123B9721D0B6631baD944AF';
+
 export interface ContextAndRoles {
   context: Contexts;
   roles: Role[];
