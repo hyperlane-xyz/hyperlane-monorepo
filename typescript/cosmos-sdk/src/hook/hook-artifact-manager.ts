@@ -3,20 +3,22 @@ import { connectComet } from '@cosmjs/tendermint-rpc';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactReader,
-  ArtifactWriter,
+  type ArtifactReader,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  HookType,
-  IRawHookArtifactManager,
-  RawHookArtifactConfigs,
+  type DeployedHookAddress,
+  type DeployedHookArtifact,
+  type HookConfigs,
+  type HookType,
+  type IRawHookArtifactManager,
+  type RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { CosmosNativeSigner } from '../clients/signer.js';
+import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupPostDispatchExtension } from '../hyperlane/post_dispatch/query.js';
 
-import { CosmosHookQueryClient } from './hook-query.js';
+import { type CosmosHookQueryClient, getHookType } from './hook-query.js';
 import { CosmosIgpHookReader, CosmosIgpHookWriter } from './igp-hook.js';
 import {
   CosmosMerkleTreeHookReader,
@@ -60,6 +62,23 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
   private async createQuery(): Promise<CosmosHookQueryClient> {
     const cometClient = await connectComet(this.rpcUrls[0]);
     return QueryClient.withExtensions(cometClient, setupPostDispatchExtension);
+  }
+
+  /**
+   * Read an ISM of unknown type from the blockchain.
+   *
+   * @param address - Address of the ISM to read
+   * @returns Deployed ISM artifact with configuration
+   */
+  async readHook(address: string): Promise<DeployedHookArtifact> {
+    const query = await this.getQuery();
+    const altVMType = await getHookType(query, address);
+
+    const reader = this.createReaderWithQuery(
+      altVMType as keyof HookConfigs,
+      query,
+    );
+    return reader.read(address);
   }
 
   /**

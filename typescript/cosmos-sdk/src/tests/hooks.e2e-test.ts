@@ -1,24 +1,23 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 import { expect } from 'chai';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactDeployed,
+  type ArtifactDeployed,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  HookType,
-  IgpHookConfig,
-  MerkleTreeHookConfig,
+  type DeployedHookAddress,
+  type HookType,
+  type IgpHookConfig,
+  type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { CosmosNativeSigner } from '../clients/signer.js';
+import { type CosmosNativeSigner } from '../clients/signer.js';
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
-
-import { createSigner } from './utils.js';
+import { createSigner } from '../testing/utils.js';
 
 describe('Cosmos Hooks Artifact API (e2e)', function () {
   this.timeout(100_000);

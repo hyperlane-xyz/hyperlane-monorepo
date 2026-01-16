@@ -1,24 +1,24 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  IgpHookConfig,
+  type DeployedHookAddress,
+  type IgpHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { eqAddressCosmos } from '@hyperlane-xyz/utils';
 
-import { CosmosNativeSigner } from '../clients/signer.js';
+import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
 
-import { CosmosHookQueryClient, getIgpHookConfig } from './hook-query.js';
+import { type CosmosHookQueryClient, getIgpHookConfig } from './hook-query.js';
 import {
   getCreateIgpTx,
   getSetIgpDestinationGasConfigTx,
@@ -114,17 +114,19 @@ export class CosmosIgpHookWriter
 
     // Set destination gas configs for each domain
     for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
+      const parsedDomainId = parseInt(domainId);
+
       const setConfigTx = await getSetIgpDestinationGasConfigTx(
         this.signer.getSignerAddress(),
         {
           igpAddress: address,
           destinationGasConfig: {
-            remoteDomainId: parseInt(domainId),
+            remoteDomainId: parsedDomainId,
             gasOracle: {
               tokenExchangeRate: gasConfig.tokenExchangeRate,
               gasPrice: gasConfig.gasPrice,
             },
-            gasOverhead: config.overhead[domainId]?.toString() || '0',
+            gasOverhead: config.overhead[parsedDomainId]?.toString() || '0',
           },
         },
       );
@@ -171,12 +173,15 @@ export class CosmosIgpHookWriter
 
     // Update destination gas configs
     for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
-      const currentGasConfig = currentState.config.oracleConfig[domainId];
+      const parsedDomainId = parseInt(domainId);
+
+      const currentGasConfig = currentState.config.oracleConfig[parsedDomainId];
       const needsUpdate =
         !currentGasConfig ||
         currentGasConfig.tokenExchangeRate !== gasConfig.tokenExchangeRate ||
         currentGasConfig.gasPrice !== gasConfig.gasPrice ||
-        currentState.config.overhead[domainId] !== config.overhead[domainId];
+        currentState.config.overhead[parsedDomainId] !==
+          config.overhead[parsedDomainId];
 
       if (needsUpdate) {
         const setConfigTx = await getSetIgpDestinationGasConfigTx(
@@ -184,12 +189,12 @@ export class CosmosIgpHookWriter
           {
             igpAddress: deployed.address,
             destinationGasConfig: {
-              remoteDomainId: parseInt(domainId),
+              remoteDomainId: parsedDomainId,
               gasOracle: {
                 tokenExchangeRate: gasConfig.tokenExchangeRate,
                 gasPrice: gasConfig.gasPrice,
               },
-              gasOverhead: config.overhead[domainId]?.toString() || '0',
+              gasOverhead: config.overhead[parsedDomainId]?.toString() || '0',
             },
           },
         );

@@ -1,8 +1,8 @@
 import {
-  MsgCreateIgpEncodeObject,
-  MsgCreateMerkleTreeHookEncodeObject,
-  MsgSetDestinationGasConfigEncodeObject,
-  MsgSetIgpOwnerEncodeObject,
+  type MsgCreateIgpEncodeObject,
+  type MsgCreateMerkleTreeHookEncodeObject,
+  type MsgSetDestinationGasConfigEncodeObject,
+  type MsgSetIgpOwnerEncodeObject,
 } from '../hyperlane/post_dispatch/messages.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 

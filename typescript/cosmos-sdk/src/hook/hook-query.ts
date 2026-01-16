@@ -1,14 +1,61 @@
-import { QueryClient } from '@cosmjs/stargate';
+import { type QueryClient } from '@cosmjs/stargate';
 
+import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { PostDispatchExtension } from '../hyperlane/post_dispatch/query.js';
+import { type PostDispatchExtension } from '../hyperlane/post_dispatch/query.js';
 
 /**
  * Type alias for query client with PostDispatch extension.
  * Used throughout hook readers to ensure type safety.
  */
 export type CosmosHookQueryClient = QueryClient & PostDispatchExtension;
+
+const HOOK_READ_METHODS = [
+  'Igp',
+  'MerkleTreeHook',
+  'NoopHook',
+] satisfies (keyof CosmosHookQueryClient['postDispatch'])[];
+
+type HookMethod = (typeof HOOK_READ_METHODS)[number];
+
+function hookReadMethodToHookType(hook: HookMethod): AltVM.HookType {
+  switch (hook) {
+    case 'Igp':
+      return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+    case 'MerkleTreeHook':
+      return AltVM.HookType.MERKLE_TREE;
+    case 'NoopHook':
+      return AltVM.HookType.CUSTOM;
+    default: {
+      const unknownHook: never = hook;
+      throw new Error(`Unknown Cosmos Hook type: ${unknownHook}`);
+    }
+  }
+}
+
+export async function getHookType(
+  query: CosmosHookQueryClient,
+  hookAddress: string,
+): Promise<AltVM.HookType> {
+  for (const igp of HOOK_READ_METHODS) {
+    try {
+      const hook = await query.postDispatch[igp]({
+        id: hookAddress,
+      });
+
+      if (hook) {
+        return hookReadMethodToHookType(igp);
+      }
+    } catch {
+      // We need to brute force the hook type detection going
+      // over all possible supported hook derivation functions
+      // so we need to ignore the errors here
+    }
+  }
+
+  throw new Error(`Provided address ${hookAddress} is not a Cosmos hook`);
+}
 
 /**
  * Query IGP hook configuration from chain.

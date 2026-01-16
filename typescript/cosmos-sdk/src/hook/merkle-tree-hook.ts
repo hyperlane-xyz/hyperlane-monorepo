@@ -1,24 +1,24 @@
-import { EncodeObject } from '@cosmjs/proto-signing';
-import { DeliverTxResponse } from '@cosmjs/stargate';
+import { type EncodeObject } from '@cosmjs/proto-signing';
+import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  MerkleTreeHookConfig,
+  type DeployedHookAddress,
+  type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { CosmosNativeSigner } from '../clients/signer.js';
+import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
 
 import {
-  CosmosHookQueryClient,
+  type CosmosHookQueryClient,
   getMerkleTreeHookConfig,
 } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
