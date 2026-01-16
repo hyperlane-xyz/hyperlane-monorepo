@@ -96,11 +96,6 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
   return helmChartConfig.name;
 }
 
-/**
- * Checks if helm chart dependencies need to be rebuilt.
- * Returns true if Chart.lock or charts/ directory is missing,
- * or if Chart.yaml is newer than Chart.lock.
- */
 function helmDependenciesNeedRebuild(chartPath: string): boolean {
   const chartYamlPath = path.join(chartPath, 'Chart.yaml');
   const chartLockPath = path.join(chartPath, 'Chart.lock');
@@ -113,7 +108,20 @@ function helmDependenciesNeedRebuild(chartPath: string): boolean {
   try {
     const chartYamlStat = fs.statSync(chartYamlPath);
     const chartLockStat = fs.statSync(chartLockPath);
-    return chartYamlStat.mtimeMs > chartLockStat.mtimeMs;
+    const chartsDirStat = fs.statSync(chartsDir);
+
+    // Rebuild if Chart.yaml changed (dependencies definition changed)
+    if (chartYamlStat.mtimeMs > chartLockStat.mtimeMs) {
+      return true;
+    }
+
+    // Rebuild if Chart.lock is newer than charts/ directory
+    // (e.g., after git pull with updated lockfile, or helm dependency update)
+    if (chartLockStat.mtimeMs > chartsDirStat.mtimeMs) {
+      return true;
+    }
+
+    return false;
   } catch (_) {
     return true;
   }
