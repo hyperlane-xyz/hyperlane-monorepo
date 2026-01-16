@@ -401,6 +401,7 @@ jobs:
           # Warp Commands
           - warp-apply
           - warp-deploy
+          - warp-send
     steps:
       - uses: actions/checkout@v6
         with:
