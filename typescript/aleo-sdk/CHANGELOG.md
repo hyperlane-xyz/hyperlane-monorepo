@@ -1,5 +1,19 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 21.2.0
+
+### Minor Changes
+
+- 8b3f8da: Implemented ISM writers for Aleo SDK. Added Test ISM, MessageId Multisig ISM, and Routing ISM writers with full CRUD support through the artifact API.
+
+### Patch Changes
+
+- 44fbfd6: fix: aleo wasm runtime error
+- Updated dependencies [66ef635]
+- Updated dependencies [3aec1c4]
+  - @hyperlane-xyz/utils@21.2.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+
 ## 21.1.0
 
 ### Minor Changes

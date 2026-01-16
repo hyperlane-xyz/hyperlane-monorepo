@@ -1,5 +1,19 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 21.2.0
+
+### Minor Changes
+
+- b0e9d48: Implemented ISM writers using the new artifact API for Cosmos. Added CosmosTestIsmWriter, CosmosMessageIdMultisigIsmWriter, CosmosMerkleRootMultisigIsmWriter, and CosmosRoutingIsmRawWriter classes. These writers support creating and updating ISMs on Cosmos chains, with routing ISM supporting full domain route management and ownership transfers. The CosmosIsmArtifactManager now provides functional createWriter() factory methods for all supported ISM types.
+
+### Patch Changes
+
+- Updated dependencies [66ef635]
+- Updated dependencies [3aec1c4]
+  - @hyperlane-xyz/utils@21.2.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/cosmos-types@21.2.0
+
 ## 21.1.0
 
 ### Minor Changes

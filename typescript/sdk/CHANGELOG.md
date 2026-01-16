@@ -1,5 +1,32 @@
 # @hyperlane-xyz/sdk
 
+## 21.2.0
+
+### Minor Changes
+
+- b0e9d48: Introduced artifact-based IsmWriter and migrated existing code to use it instead of AltVMIsmModule.
+
+### Patch Changes
+
+- 99948bc: Fixed EvmTokenFeeModule to derive routingDestinations from target config when not explicitly provided. This ensures sub-fee contracts are properly read from on-chain when updating RoutingFee configurations. Also added support for deploying new sub-fee contracts when adding destinations to an existing RoutingFee.
+- 99948bc: Fixed warp apply idempotency issue where re-running after partial failure would fail with UNPREDICTABLE_GAS_LIMIT error when ownership had already been transferred. The setFeeRecipient transaction is now only generated when the fee recipient actually needs to change.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 7a0a9e4: Fix `RoutingFee` deployment when the configured owner differs from the deployer signer, and avoid requiring routing destinations when deriving `RoutingFee` configs during warp deploy.
+- Updated dependencies [8b3f8da]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [44fbfd6]
+  - @hyperlane-xyz/aleo-sdk@21.2.0
+  - @hyperlane-xyz/cosmos-sdk@21.2.0
+  - @hyperlane-xyz/deploy-sdk@1.2.0
+  - @hyperlane-xyz/utils@21.2.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/radix-sdk@21.2.0
+  - @hyperlane-xyz/starknet-core@21.2.0
+
 ## 21.1.0
 
 ### Patch Changes
