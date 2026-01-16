@@ -21,6 +21,13 @@ trap "rm -f $STATUS_FILE" EXIT
 # changeset status exits non-zero when there are pending changesets, so ignore exit code
 pnpm changeset status --output "$STATUS_FILE" 2>/dev/null || true
 
+# Verify file was created
+if [ ! -f "$STATUS_FILE" ]; then
+	echo "No adequate changeset for $PACKAGE (found: none, required: $REQUIRED_LEVEL or higher)"
+	echo "Run 'pnpm changeset' and select '$PACKAGE' with a '$REQUIRED_LEVEL' (or higher) bump."
+	exit 1
+fi
+
 # Extract bump type for the package (only if it has explicit changesets, not transitive)
 FOUND_LEVEL=$(jq -r --arg pkg "$PACKAGE" '.releases[] | select(.name == $pkg and (.changesets | length > 0)) | .type' "$STATUS_FILE")
 
