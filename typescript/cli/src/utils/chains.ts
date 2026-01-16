@@ -4,7 +4,6 @@ import select from '@inquirer/select';
 import chalk from 'chalk';
 
 import {
-  ChainDisabledReason,
   type ChainMap,
   type ChainMetadata,
   ChainStatus,
@@ -165,7 +164,7 @@ function getChainChoices(
       .map((c) => ({ name: c.name, value: c.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-  const chains = Object.values(filterOutDeprecatedChains(chainMetadata));
+  const chains = Object.values(filterOutDisabledChains(chainMetadata));
   const filteredChains = chains.filter((c) =>
     networkType === 'mainnet' ? !c.isTestnet : !!c.isTestnet,
   );
@@ -205,23 +204,16 @@ export function filterChainMetadataByProtocol(
   );
 }
 
-export function isDeprecatedChainMetadata(
-  chainMetadata: ChainMetadata,
-): boolean {
-  const availability = chainMetadata.availability;
-  if (!availability || availability.status !== ChainStatus.Disabled) {
-    return false;
-  }
-
-  return availability.reasons.includes(ChainDisabledReason.Deprecated);
+export function isDisabledChainMetadata(chainMetadata: ChainMetadata): boolean {
+  return chainMetadata.availability?.status === ChainStatus.Disabled;
 }
 
-export function filterOutDeprecatedChains(
+export function filterOutDisabledChains(
   chainMetadata: ChainMap<ChainMetadata>,
 ): ChainMap<ChainMetadata> {
   return Object.fromEntries(
     Object.entries(chainMetadata).filter(
-      ([, metadata]) => !isDeprecatedChainMetadata(metadata),
+      ([, metadata]) => !isDisabledChainMetadata(metadata),
     ),
   );
 }

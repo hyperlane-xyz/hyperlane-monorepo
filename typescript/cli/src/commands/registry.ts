@@ -7,7 +7,7 @@ import {
   type CommandModuleWithContext,
 } from '../context/types.js';
 import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
-import { filterOutDeprecatedChains } from '../utils/chains.js';
+import { filterOutDisabledChains } from '../utils/chains.js';
 
 import {
   chainTargetsCommandOption,
@@ -50,7 +50,7 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
       logBlue(`\nHyperlane ${type} chains:`);
       logGray('------------------------------');
       const chains = Object.values(
-        filterOutDeprecatedChains(context.chainMetadata),
+        filterOutDisabledChains(context.chainMetadata),
       ).filter((c) => {
         if (type === 'mainnet') return !c.isTestnet;
         else return !!c.isTestnet;

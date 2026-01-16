@@ -18,7 +18,7 @@ import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   filterChainMetadataByProtocol,
-  filterOutDeprecatedChains,
+  filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
@@ -50,7 +50,7 @@ export async function sendTestMessage({
     multiProvider,
     ProtocolType.Ethereum,
   );
-  const activeEvmChainMetadata = filterOutDeprecatedChains(evmChainMetadata);
+  const activeEvmChainMetadata = filterOutDisabledChains(evmChainMetadata);
 
   if (Object.keys(activeEvmChainMetadata).length === 0) {
     throw new Error(

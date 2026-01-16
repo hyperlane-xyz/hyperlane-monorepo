@@ -11,7 +11,7 @@ import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
-  filterOutDeprecatedChains,
+  filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
 import {
@@ -200,7 +200,7 @@ async function resolveRelayerChains(
 
   // If no destination is specified, return all EVM chains only
   if (!argv.destination) {
-    const chains = Object.keys(filterOutDeprecatedChains(chainMetadata));
+    const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
     return chains.filter(
       (chain: string) =>

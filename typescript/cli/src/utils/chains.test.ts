@@ -10,7 +10,7 @@ import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import {
   filterChainMetadataByProtocol,
-  filterOutDeprecatedChains,
+  filterOutDisabledChains,
 } from './chains.js';
 
 describe('filterChainMetadataByProtocol', () => {
@@ -122,7 +122,7 @@ describe('filterChainMetadataByProtocol', () => {
   });
 });
 
-describe('filterOutDeprecatedChains', () => {
+describe('filterOutDisabledChains', () => {
   const baseChain: Omit<ChainMetadata, 'name'> = {
     chainId: 1,
     domainId: 1,
@@ -130,21 +130,12 @@ describe('filterOutDeprecatedChains', () => {
     rpcUrls: [{ http: 'http://localhost:8545' }],
   };
 
-  const deprecatedChain: ChainMetadata = {
+  const disabledChain: ChainMetadata = {
     ...baseChain,
-    name: 'deprecated',
+    name: 'disabled',
     availability: {
       status: ChainStatus.Disabled,
       reasons: [ChainDisabledReason.Deprecated],
-    },
-  };
-
-  const badRpcChain: ChainMetadata = {
-    ...baseChain,
-    name: 'badrpc',
-    availability: {
-      status: ChainStatus.Disabled,
-      reasons: [ChainDisabledReason.BadRpc],
     },
   };
 
@@ -161,18 +152,16 @@ describe('filterOutDeprecatedChains', () => {
     name: 'default',
   };
 
-  it('should drop chains marked as deprecated', () => {
+  it('should drop chains with disabled status', () => {
     const chainMetadata = {
-      deprecated: deprecatedChain,
-      badrpc: badRpcChain,
+      disabled: disabledChain,
       live: liveChain,
       default: defaultChain,
     };
 
-    const result = filterOutDeprecatedChains(chainMetadata);
+    const result = filterOutDisabledChains(chainMetadata);
 
-    expect(result).to.not.have.property('deprecated');
-    expect(result).to.have.property('badrpc');
+    expect(result).to.not.have.property('disabled');
     expect(result).to.have.property('live');
     expect(result).to.have.property('default');
   });
