@@ -1,7 +1,8 @@
 ---
-"@hyperlane-xyz/warp-metrics": minor
+"@hyperlane-xyz/metrics": minor
 "@hyperlane-xyz/warp-monitor": patch
 "@hyperlane-xyz/rebalancer": patch
+"@hyperlane-xyz/infra": patch
 ---
 
-Created new `@hyperlane-xyz/warp-metrics` package to deduplicate monitoring logic between warp-monitor and rebalancer. Extracted shared Prometheus gauge definitions, metric update functions, balance utilities, and types into the new package. Both warp-monitor and rebalancer now use the shared package, eliminating code duplication and ensuring consistent metric collection.
+Created new `@hyperlane-xyz/metrics` package to consolidate Prometheus metric utilities across the monorepo. Extracted shared gauge definitions, metric update functions, balance utilities, server utilities, and types from warp-monitor, rebalancer, and infra into the new package. This eliminates code duplication and ensures consistent metric collection across all services.

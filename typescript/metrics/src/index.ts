@@ -48,3 +48,6 @@ export { formatBigInt, tryFn } from './utils.js';
 
 // Server
 export { startMetricsServer } from './server.js';
+
+// Push Gateway
+export { getPushGateway, submitMetrics } from './pushgateway.js';

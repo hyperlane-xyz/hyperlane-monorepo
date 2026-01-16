@@ -1,15 +1,6 @@
 import { type Logger } from 'pino';
 
 import {
-  Token,
-  type TokenAmount,
-  TokenStandard,
-  TokenType,
-  type WarpCore,
-  type WarpRouteDeployConfig,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
-import {
   type TokenPriceGetter,
   getExtraLockboxBalance,
   getExtraLockboxInfo,
@@ -18,7 +9,16 @@ import {
   getTokenBridgedBalance,
   getXERC20Info,
   tryFn,
-} from '@hyperlane-xyz/warp-metrics';
+} from '@hyperlane-xyz/metrics';
+import {
+  Token,
+  type TokenAmount,
+  TokenStandard,
+  TokenType,
+  type WarpCore,
+  type WarpRouteDeployConfig,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { type IMetrics } from '../interfaces/IMetrics.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';

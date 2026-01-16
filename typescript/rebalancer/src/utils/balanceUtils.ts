@@ -7,8 +7,8 @@ import { type RawBalances } from '../interfaces/IStrategy.js';
 
 import { isCollateralizedTokenEligibleForRebalancing } from './tokenUtils.js';
 
-// Re-export formatBigInt from warp-metrics for backwards compatibility
-export { formatBigInt } from '@hyperlane-xyz/warp-metrics';
+// Re-export formatBigInt from metrics for backwards compatibility
+export { formatBigInt } from '@hyperlane-xyz/metrics';
 
 /**
  * Returns the raw balances required by the strategies from the monitor event

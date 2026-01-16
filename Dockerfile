@@ -37,7 +37,7 @@ COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/utils/package.json ./typescript/utils/
-COPY typescript/warp-metrics/package.json ./typescript/warp-metrics/
+COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
 COPY typescript/widgets/package.json ./typescript/widgets/
 COPY solidity/package.json ./solidity/

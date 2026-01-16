@@ -1,10 +1,10 @@
-// Re-export shared types from warp-metrics
+// Re-export shared types from metrics
 export {
   type NativeWalletBalance,
   type WarpRouteBalance,
   type XERC20Info,
   type XERC20Limit,
-} from '@hyperlane-xyz/warp-metrics';
+} from '@hyperlane-xyz/metrics';
 
 /**
  * Configuration for the warp monitor service.

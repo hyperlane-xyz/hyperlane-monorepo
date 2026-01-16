@@ -1,8 +1,6 @@
 import { type Logger } from 'pino';
 import { Counter, Registry } from 'prom-client';
 
-import { type ChainName, type Token, type WarpCore } from '@hyperlane-xyz/sdk';
-import { type Address } from '@hyperlane-xyz/utils';
 import {
   type NativeWalletBalance,
   type WarpMetricsGauges,
@@ -13,7 +11,9 @@ import {
   updateNativeWalletBalanceMetrics as sharedUpdateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics as sharedUpdateTokenBalanceMetrics,
   updateXERC20LimitsMetrics as sharedUpdateXERC20LimitsMetrics,
-} from '@hyperlane-xyz/warp-metrics';
+} from '@hyperlane-xyz/metrics';
+import { type ChainName, type Token, type WarpCore } from '@hyperlane-xyz/sdk';
+import { type Address } from '@hyperlane-xyz/utils';
 
 export const metricsRegister = new Registry();
 

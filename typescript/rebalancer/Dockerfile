@@ -28,7 +28,7 @@ COPY patches ./patches
 
 # Copy only the packages needed for rebalancer
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
-COPY typescript/warp-metrics/package.json ./typescript/warp-metrics/
+COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
@@ -48,7 +48,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source files
 COPY turbo.json ./
 COPY typescript/rebalancer ./typescript/rebalancer
-COPY typescript/warp-metrics ./typescript/warp-metrics
+COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/sdk ./typescript/sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk

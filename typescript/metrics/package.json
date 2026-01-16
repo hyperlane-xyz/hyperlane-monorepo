@@ -1,7 +1,7 @@
 {
-  "name": "@hyperlane-xyz/warp-metrics",
+  "name": "@hyperlane-xyz/metrics",
   "version": "0.0.1",
-  "description": "Shared Prometheus metrics for Hyperlane Warp Route monitoring",
+  "description": "Shared Prometheus metrics utilities for Hyperlane monitoring",
   "type": "module",
   "main": "./dist/index.js",
   "types": "./dist/index.d.ts",
@@ -47,11 +47,10 @@
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "keywords": [
     "hyperlane",
-    "warp-metrics",
-    "warp-route",
     "prometheus",
     "monitoring",
-    "metrics"
+    "metrics",
+    "warp-route"
   ],
   "author": "Abacus Works, Inc.",
   "license": "Apache-2.0"
