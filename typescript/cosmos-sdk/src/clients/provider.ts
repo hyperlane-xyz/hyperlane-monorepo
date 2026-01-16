@@ -16,6 +16,17 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  getHookType,
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
+  getCreateIgpTx,
+  getCreateMerkleTreeHookTx,
+  getSetIgpDestinationGasConfigTx,
+  getSetIgpOwnerTx,
+} from '../hook/hook-tx.js';
+import {
   type MsgCreateMailboxEncodeObject,
   type MsgSetMailboxEncodeObject,
 } from '../hyperlane/core/messages.js';
@@ -252,82 +263,19 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    try {
-      const { igp } = await this.query.postDispatch.Igp({
-        id: req.hookAddress,
-      });
-
-      if (igp) {
-        return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      }
-    } catch {
-      try {
-        const { merkle_tree_hook } =
-          await this.query.postDispatch.MerkleTreeHook({ id: req.hookAddress });
-
-        if (merkle_tree_hook) {
-          return AltVM.HookType.MERKLE_TREE;
-        }
-      } catch {
-        throw new Error(`Unknown Hook Type: ${req.hookAddress}`);
-      }
-    }
-
-    throw new Error(`Unknown Hook Type: ${req.hookAddress}`);
+    return getHookType(this.query, req.hookAddress);
   }
 
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const { igp } = await this.query.postDispatch.Igp({ id: req.hookAddress });
-    assert(igp, `found no igp for id ${req.hookAddress}`);
-
-    const { destination_gas_configs } =
-      await this.query.postDispatch.DestinationGasConfigs({
-        id: igp.id,
-      });
-
-    const configs: {
-      [domainId: string]: {
-        gasOracle: {
-          tokenExchangeRate: string;
-          gasPrice: string;
-        };
-        gasOverhead: string;
-      };
-    } = {};
-
-    for (const config of destination_gas_configs) {
-      configs[config.remote_domain] = {
-        gasOracle: {
-          tokenExchangeRate: config.gas_oracle?.token_exchange_rate ?? '0',
-          gasPrice: config.gas_oracle?.gas_price ?? '0',
-        },
-        gasOverhead: config.gas_overhead,
-      };
-    }
-
-    return {
-      address: igp.id,
-      owner: igp.owner,
-      destinationGasConfigs: configs,
-    };
+    return getIgpHookConfig(this.query, req.hookAddress);
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const { merkle_tree_hook } = await this.query.postDispatch.MerkleTreeHook({
-      id: req.hookAddress,
-    });
-    assert(
-      merkle_tree_hook,
-      `found no merkle tree hook for id ${req.hookAddress}`,
-    );
-
-    return {
-      address: merkle_tree_hook.id,
-    };
+    return getMerkleTreeHookConfig(this.query, req.hookAddress);
   }
 
   async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
@@ -560,60 +508,32 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<MsgCreateMerkleTreeHookEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateMerkleTreeHook.proto.type,
-      value: R.MsgCreateMerkleTreeHook.proto.converter.create({
-        owner: req.signer,
-        mailbox_id: req.mailboxAddress,
-      }),
-    };
+    return getCreateMerkleTreeHookTx(req.signer, req.mailboxAddress);
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<MsgCreateIgpEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateIgp.proto.type,
-      value: R.MsgCreateIgp.proto.converter.create({
-        owner: req.signer,
-        denom: req.denom,
-      }),
-    };
+    assert(req.denom, `denom required by ${CosmosNativeProvider.name}`);
+    return getCreateIgpTx(req.signer, req.denom);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<MsgSetIgpOwnerEncodeObject> {
-    return {
-      typeUrl: R.MsgSetIgpOwner.proto.type,
-      value: R.MsgSetIgpOwner.proto.converter.create({
-        owner: req.signer,
-        igp_id: req.hookAddress,
-        new_owner: req.newOwner,
-        renounce_ownership: !req.newOwner,
-      }),
-    };
+    return getSetIgpOwnerTx(req.signer, {
+      igpAddress: req.hookAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<MsgSetDestinationGasConfigEncodeObject> {
-    return {
-      typeUrl: R.MsgSetDestinationGasConfig.proto.type,
-      value: R.MsgSetDestinationGasConfig.proto.converter.create({
-        owner: req.signer,
-        igp_id: req.hookAddress,
-        destination_gas_config: {
-          remote_domain: req.destinationGasConfig.remoteDomainId,
-          gas_overhead: req.destinationGasConfig.gasOverhead,
-          gas_oracle: {
-            token_exchange_rate:
-              req.destinationGasConfig.gasOracle.tokenExchangeRate,
-            gas_price: req.destinationGasConfig.gasOracle.gasPrice,
-          },
-        },
-      }),
-    };
+    return getSetIgpDestinationGasConfigTx(req.signer, {
+      igpAddress: req.hookAddress,
+      destinationGasConfig: req.destinationGasConfig,
+    });
   }
 
   async getRemoveDestinationGasConfigTransaction(

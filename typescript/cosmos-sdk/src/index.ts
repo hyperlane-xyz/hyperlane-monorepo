@@ -23,6 +23,27 @@ export {
 } from './ism/multisig-ism.js';
 export { CosmosRoutingIsmRawReader } from './ism/routing-ism.js';
 
+// Hook Artifact Management
+export { CosmosHookArtifactManager } from './hook/hook-artifact-manager.js';
+export {
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+  type CosmosHookQueryClient,
+} from './hook/hook-query.js';
+export {
+  getCreateMerkleTreeHookTx,
+  getCreateIgpTx,
+  getSetIgpOwnerTx,
+  getSetIgpDestinationGasConfigTx,
+} from './hook/hook-tx.js';
+
+// Hook Readers and Writers
+export { CosmosIgpHookReader, CosmosIgpHookWriter } from './hook/igp-hook.js';
+export {
+  CosmosMerkleTreeHookReader,
+  CosmosMerkleTreeHookWriter,
+} from './hook/merkle-tree-hook.js';
+
 export * from './hyperlane/core/messages.js';
 export * from './hyperlane/core/query.js';
 

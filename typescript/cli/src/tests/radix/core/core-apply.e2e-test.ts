@@ -83,7 +83,6 @@ describe('hyperlane core apply (Radix E2E tests)', async function () {
         oracleConfig: {
           [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_2]: {
             gasPrice: '1',
-            tokenDecimals: 18,
             tokenExchangeRate: '3',
           },
         },

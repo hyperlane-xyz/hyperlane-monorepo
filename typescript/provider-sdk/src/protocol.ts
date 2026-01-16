@@ -2,6 +2,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
 import { ChainMetadataForAltVM } from './chain.js';
+import { IRawHookArtifactManager } from './hook.js';
 import { IRawIsmArtifactManager } from './ism.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
@@ -66,6 +67,20 @@ export interface ProtocolProvider {
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager;
+
+  /**
+   * Creates a Hook artifact manager for the protocol.
+   * The artifact manager provides protocol-specific readers and writers
+   * that handle Hook operations using the Artifact API pattern.
+   *
+   * @param chainMetadata Chain metadata for the target chain
+   * @param context Optional deployment context (mailbox address, etc.) needed by some hook types
+   * @returns A protocol-specific Hook artifact manager
+   */
+  createHookArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawHookArtifactManager;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

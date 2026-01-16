@@ -11,6 +11,7 @@ import {
   type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
@@ -71,6 +72,14 @@ export class AleoProtocolProvider implements ProtocolProvider {
         : new AleoTestnetNetworkClient(rpcUrl);
 
     return new AleoIsmArtifactManager(aleoClient);
+  }
+
+  createHookArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
+  ): IRawHookArtifactManager {
+    // TODO: Implement Aleo hook artifact manager
+    throw new Error('Aleo hook artifact manager not yet implemented.');
   }
 
   getMinGas(): MinimumRequiredGasByAction {
