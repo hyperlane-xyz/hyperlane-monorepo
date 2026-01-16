@@ -188,19 +188,14 @@ export class Rebalancer implements IRebalancer {
       return null;
     }
 
-    // 3. Get sender address for approval check
-    const signer = this.multiProvider.getSigner(origin);
-    const signerAddress = await signer.getAddress();
-
-    // 4. Populate transaction(s) - may include approval tx if needed
-    let populatedTxs: PopulatedTransaction[];
+    // 3. Populate transaction
+    let populatedTx: PopulatedTransaction;
     try {
-      populatedTxs = await originHypAdapter.populateRebalanceTx(
+      populatedTx = await originHypAdapter.populateRebalanceTx(
         destinationChainMeta.domainId,
         amount,
         bridge,
         quotes,
-        signerAddress,
       );
     } catch (error) {
       this.logger.error(
@@ -216,7 +211,7 @@ export class Rebalancer implements IRebalancer {
       return null;
     }
 
-    return { populatedTxs, route, originTokenAmount };
+    return { populatedTx, route, originTokenAmount };
   }
 
   private async validateRoute(route: RebalancingRoute): Promise<boolean> {
@@ -344,16 +339,12 @@ export class Rebalancer implements IRebalancer {
 
     const results: RebalanceExecutionResult[] = [];
 
-    // 1. Estimate gas for rebalance transactions only (skipping approvals)
+    // 1. Estimate gas for rebalance transactions
     const gasEstimateResults = await Promise.allSettled(
       transactions.map(async (transaction) => {
-        // TEMPORARY: Only estimate gas for the rebalance tx (last one)
-        // Approvals are skipped since we're not using fast bridges
-        const rebalanceTx =
-          transaction.populatedTxs[transaction.populatedTxs.length - 1];
         await this.multiProvider.estimateGas(
           transaction.route.origin,
-          rebalanceTx,
+          transaction.populatedTx,
         );
         return transaction;
       }),
@@ -403,26 +394,19 @@ export class Rebalancer implements IRebalancer {
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
 
-        // TEMPORARY: Skip approval transactions, only execute the rebalance tx
-        // Approvals are not needed when not using fast bridges
-        const rebalanceTx =
-          transaction.populatedTxs[transaction.populatedTxs.length - 1];
-
         this.logger.info(
           {
             origin,
             destination,
             amount: decimalFormattedAmount,
             tokenName,
-            txType: 'rebalance',
-            skippedApprovals: transaction.populatedTxs.length - 1,
           },
-          'Sending rebalance transaction for route (skipping approvals).',
+          'Sending rebalance transaction for route.',
         );
 
         const rebalanceReceipt = await this.multiProvider.sendTransaction(
           origin,
-          rebalanceTx,
+          transaction.populatedTx,
         );
 
         this.logger.info(
@@ -432,7 +416,6 @@ export class Rebalancer implements IRebalancer {
             amount: decimalFormattedAmount,
             tokenName,
             txHash: rebalanceReceipt.transactionHash,
-            txType: 'rebalance',
           },
           'Rebalance transaction confirmed for route.',
         );
