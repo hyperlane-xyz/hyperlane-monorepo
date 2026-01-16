@@ -10,7 +10,10 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
-import { runSingleChainSelectionStep } from '../../../utils/chains.js';
+import {
+  filterOutDisabledChains,
+  runSingleChainSelectionStep,
+} from '../../../utils/chains.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -177,7 +180,7 @@ async function resolveSendMessageChains(
 async function resolveRelayerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
+  const { multiProvider, chainMetadata } = argv.context;
   const chains = new Set<ChainName>();
 
   if (argv.origin) {
@@ -197,7 +200,7 @@ async function resolveRelayerChains(
 
   // If no destination is specified, return all EVM chains only
   if (!argv.destination) {
-    const chains = multiProvider.getKnownChainNames();
+    const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
     return chains.filter(
       (chain: string) =>
