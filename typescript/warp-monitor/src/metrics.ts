@@ -1,4 +1,3 @@
-import http from 'http';
 import { Registry } from 'prom-client';
 
 import {
@@ -7,16 +6,18 @@ import {
   type WarpRouteBalance,
   type XERC20Limit,
   createWarpMetricsGauges,
-  startMetricsServer as sharedStartMetricsServer,
   updateManagedLockboxBalanceMetrics as sharedUpdateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics as sharedUpdateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics as sharedUpdateTokenBalanceMetrics,
   updateXERC20LimitsMetrics as sharedUpdateXERC20LimitsMetrics,
+  startMetricsServer,
 } from '@hyperlane-xyz/metrics';
 import { type ChainName, type Token, type WarpCore } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import { getLogger } from './utils.js';
+
+export { startMetricsServer };
 
 export const metricsRegister = new Registry();
 
@@ -95,14 +96,4 @@ export function updateXERC20LimitsMetrics(
     xERC20Address,
     getLogger(),
   );
-}
-
-/**
- * Start a simple HTTP server to host metrics. This just takes the registry and dumps the text
- * string to people who request `GET /metrics`.
- *
- * PROMETHEUS_PORT env var is used to determine what port to host on, defaults to 9090.
- */
-export function startMetricsServer(register: Registry): http.Server {
-  return sharedStartMetricsServer(register, getLogger());
 }
