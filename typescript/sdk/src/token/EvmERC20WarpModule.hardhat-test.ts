@@ -1772,5 +1772,95 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         expectedConfig.tokenFee?.type,
       );
     });
+
+    it('should not generate setFeeRecipient tx when fee recipient is unchanged (idempotency)', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+      };
+
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const tokenFeeConfig = {
+        type: TokenFeeType.LinearFee,
+        maxFee: 1000000000,
+        halfAmount: 500000000,
+      };
+
+      const actualConfig = await evmERC20WarpModule.read();
+      const expectedConfig = HypTokenRouterConfigSchema.parse({
+        ...actualConfig,
+        tokenFee: tokenFeeConfig,
+      });
+
+      const firstTxs = await evmERC20WarpModule.update(expectedConfig);
+      const SET_FEE_RECIPIENT_SELECTOR = '0xe74b981b';
+      const firstSetFeeRecipientTxs = firstTxs.filter((tx) =>
+        tx.data?.startsWith(SET_FEE_RECIPIENT_SELECTOR),
+      );
+      expect(firstSetFeeRecipientTxs.length).to.equal(1);
+
+      await sendTxs(firstTxs);
+
+      const secondTxs = await evmERC20WarpModule.update(expectedConfig);
+      const secondSetFeeRecipientTxs = secondTxs.filter((tx) =>
+        tx.data?.startsWith(SET_FEE_RECIPIENT_SELECTOR),
+      );
+      expect(
+        secondSetFeeRecipientTxs.length,
+        'setFeeRecipient should not be called when fee recipient is unchanged',
+      ).to.equal(0);
+    });
+
+    it('should generate setFeeRecipient tx when fee recipient changes', async () => {
+      const config: HypTokenRouterConfig = {
+        ...baseConfig,
+        type: TokenType.native,
+      };
+
+      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        chain,
+        config,
+        multiProvider,
+        proxyFactoryFactories: ismFactoryAddresses,
+      });
+
+      const actualConfig = await evmERC20WarpModule.read();
+      const firstFeeConfig = HypTokenRouterConfigSchema.parse({
+        ...actualConfig,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          maxFee: 1000000000,
+          halfAmount: 500000000,
+        },
+      });
+      await sendTxs(await evmERC20WarpModule.update(firstFeeConfig));
+
+      const updatedConfig = await evmERC20WarpModule.read();
+      const secondFeeConfig = HypTokenRouterConfigSchema.parse({
+        ...updatedConfig,
+        tokenFee: {
+          type: TokenFeeType.LinearFee,
+          maxFee: 2000000000,
+          halfAmount: 1000000000,
+        },
+      });
+
+      const txs = await evmERC20WarpModule.update(secondFeeConfig);
+      const SET_FEE_RECIPIENT_SELECTOR = '0xe74b981b';
+      const setFeeRecipientTxs = txs.filter((tx) =>
+        tx.data?.startsWith(SET_FEE_RECIPIENT_SELECTOR),
+      );
+
+      expect(
+        setFeeRecipientTxs.length,
+        'setFeeRecipient should be called when fee contract address changes',
+      ).to.equal(1);
+    });
   });
 });

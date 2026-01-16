@@ -52,6 +52,21 @@ export class AleoSigner
     this.programManager = this.getProgramManager(privateKey);
   }
 
+  async getIsmManager(): Promise<string> {
+    // Use the configured ISM manager program ID (from env or default)
+    const ismManagerProgramId = this.ismManager;
+
+    // Check if it's already deployed
+    const isDeployed = await this.isProgramDeployed(ismManagerProgramId);
+
+    if (!isDeployed) {
+      const suffix = getProgramSuffix(ismManagerProgramId);
+      await this.deployProgram('ism_manager', suffix);
+    }
+
+    return ismManagerProgramId;
+  }
+
   private async isProgramDeployed(programId: string): Promise<boolean> {
     try {
       await this.aleoClient.getProgram(programId);
