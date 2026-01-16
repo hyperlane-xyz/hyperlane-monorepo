@@ -11,6 +11,7 @@ import {
   type RawHookArtifactConfigs,
   altVmHookTypeToProviderHookType,
 } from '@hyperlane-xyz/provider-sdk/hook';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
 import { type AleoSigner } from '../clients/signer.js';
@@ -22,10 +23,22 @@ import {
   AleoMerkleTreeHookWriter,
 } from './merkle-tree-hook.js';
 
+/**
+ * Aleo Hook Artifact Manager implementing IRawHookArtifactManager.
+ *
+ * This manager:
+ * - Provides factory methods for creating type-specific hook readers and writers
+ * - Supports IGP and MerkleTree hook types
+ * - Automatically detects hook type when reading deployed hooks
+ *
+ * Design: The mailbox address is optional at construction and only validated
+ * when creating writers for deployment. This allows the manager to be used
+ * for read-only operations without requiring deployment context.
+ */
 export class AleoHookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly aleoClient: AnyAleoNetworkClient,
-    private readonly mailboxAddress: string,
+    private readonly mailboxAddress?: string, // Required only for deployments
   ) {}
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
@@ -61,6 +74,9 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     signer: AleoSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+    const mailboxAddress = this.mailboxAddress;
+    assert(mailboxAddress, 'mailbox address required for hook deployment');
+
     const writers: {
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
@@ -68,13 +84,9 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
       >;
     } = {
       [AltVM.HookType.MERKLE_TREE]: () =>
-        new AleoMerkleTreeHookWriter(
-          this.aleoClient,
-          signer,
-          this.mailboxAddress,
-        ),
+        new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
-        new AleoIgpHookWriter(this.aleoClient, signer, this.mailboxAddress),
+        new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
     };
 
     return writers[type]();
