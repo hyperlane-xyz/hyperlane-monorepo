@@ -412,12 +412,10 @@ export class EvmHookModule extends HyperlaneModule<
     // We should be reusing the same oracle for all remotes, but if not, the updateIgpRemoteGasParams step will rectify this
     if (domainKeys.length > 0) {
       const domainId = this.multiProvider.getDomainId(domainKeys[0]);
-      // Read gas oracle from tokenGasOracles with NATIVE_TOKEN (address(0))
-      const NATIVE_TOKEN = ethers.constants.AddressZero;
-      gasOracle = await InterchainGasPaymaster__factory.connect(
+      ({ gasOracle } = await InterchainGasPaymaster__factory.connect(
         this.args.addresses.deployedHook,
         this.multiProvider.getSignerOrProvider(this.chain),
-      ).tokenGasOracles(NATIVE_TOKEN, domainId);
+      )['destinationGasConfigs(uint32)'](domainId));
 
       // update storage gas oracle
       // Note: this will only update the gas oracle for remotes that are in the target config
@@ -461,17 +459,7 @@ export class EvmHookModule extends HyperlaneModule<
     currentOverheads?: IgpConfig['overhead'];
     targetOverheads: IgpConfig['overhead'];
   }): Promise<AnnotatedEV5Transaction[]> {
-    // Use setTokenGasOracles with NATIVE_TOKEN (address(0)) for native gas payments
-    const NATIVE_TOKEN = ethers.constants.AddressZero;
-    const tokenGasOraclesToSet: InterchainGasPaymaster.TokenGasOracleConfigStruct[] =
-      [];
-    const overheadTxs: AnnotatedEV5Transaction[] = [];
-
-    const igp = InterchainGasPaymaster__factory.connect(
-      interchainGasPaymaster,
-      this.multiProvider.getProvider(this.chain),
-    );
-
+    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, gasOverhead] of Object.entries(targetOverheads)) {
       // Note: non-EVM remotes actually *are* supported, provided that the remote domain is in the MultiProvider.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
@@ -484,58 +472,38 @@ export class EvmHookModule extends HyperlaneModule<
         continue;
       }
 
-      // Check if gas oracle needs to be updated
-      const currentGasOracle = await igp.tokenGasOracles(
-        NATIVE_TOKEN,
-        remoteDomain,
-      );
-      if (!eqAddress(currentGasOracle, gasOracle)) {
-        this.logger.debug(
-          `Setting gas oracle for ${this.chain} -> ${remote}: gasOracle = ${gasOracle}`,
-        );
-        tokenGasOraclesToSet.push({
-          feeToken: NATIVE_TOKEN,
-          remoteDomain,
-          gasOracle,
-        });
-      }
-
-      // Check if overhead needs to be updated
+      // only update if the gas overhead has changed
       if (currentOverheads?.[remote] !== gasOverhead) {
         this.logger.debug(
-          `Setting gas overhead for ${this.chain} -> ${remote}: gasOverhead = ${gasOverhead}`,
+          `Setting gas params for ${this.chain} -> ${remote}: gasOverhead = ${gasOverhead} gasOracle = ${gasOracle}`,
         );
-        overheadTxs.push({
-          annotation: `Setting gas overhead for ${this.chain} -> ${remote}: ${gasOverhead}`,
-          chainId: this.chainId,
-          to: interchainGasPaymaster,
-          data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
-            'setDestinationGasOverhead',
-            [remoteDomain, gasOverhead],
-          ),
+        gasParamsToSet.push({
+          remoteDomain,
+          config: {
+            gasOverhead,
+            gasOracle,
+          },
         });
       }
     }
 
-    const txs: AnnotatedEV5Transaction[] = [];
+    if (gasParamsToSet.length === 0) {
+      return [];
+    }
 
-    if (tokenGasOraclesToSet.length > 0) {
-      txs.push({
-        annotation: `Setting token gas oracles for domains ${Object.keys(
+    return [
+      {
+        annotation: `Updating overhead for domains ${Object.keys(
           targetOverheads,
         ).join(', ')}...`,
         chainId: this.chainId,
         to: interchainGasPaymaster,
         data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
-          'setTokenGasOracles',
-          [tokenGasOraclesToSet],
+          'setDestinationGasConfigs((uint32,(address,uint96))[])',
+          [gasParamsToSet],
         ),
-      });
-    }
-
-    txs.push(...overheadTxs);
-
-    return txs;
+      },
+    ];
   }
 
   protected async updateStorageGasOracle({

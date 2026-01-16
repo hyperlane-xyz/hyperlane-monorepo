@@ -404,9 +404,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             tokenDecimals: nativeToken?.decimals,
           };
 
-          // Read from tokenGasOracles with NATIVE_TOKEN (address(0))
-          const NATIVE_TOKEN = ethers.constants.AddressZero;
-          const gasOracle = await hook.tokenGasOracles(NATIVE_TOKEN, domainId);
+          const { gasOracle } = await hook.destinationGasConfigs(domainId);
           const oracle = StorageGasOracle__factory.connect(
             gasOracle,
             this.provider,

@@ -56,11 +56,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       [await this.multiProvider.getSignerAddress(chain), config.beneficiary],
     );
 
-    // Use setTokenGasOracles with NATIVE_TOKEN (address(0)) for native gas payments
-    const NATIVE_TOKEN = ethers.constants.AddressZero;
-    const tokenGasOraclesToSet: InterchainGasPaymaster.TokenGasOracleConfigStruct[] =
-      [];
-
+    const gasParamsToSet: InterchainGasPaymaster.GasParamStruct[] = [];
     for (const [remote, newGasOverhead] of Object.entries(config.overhead)) {
       // TODO: add back support for non-EVM remotes.
       // Previously would check core metadata for non EVMs and fallback to multiprovider for custom EVMs
@@ -72,45 +68,31 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
         continue;
       }
 
-      const currentGasOracle = await igp.tokenGasOracles(
-        NATIVE_TOKEN,
-        remoteId,
-      );
-      const currentOverhead = await igp.destinationGasOverhead(remoteId);
-
-      if (!eqAddress(currentGasOracle, storageGasOracle.address)) {
+      const currentGasConfig = await igp.destinationGasConfigs(remoteId);
+      if (
+        !eqAddress(currentGasConfig.gasOracle, storageGasOracle.address) ||
+        !currentGasConfig.gasOverhead.eq(newGasOverhead)
+      ) {
         this.logger.debug(
-          `Setting token gas oracle for ${chain} -> ${remote}: gasOracle = ${storageGasOracle.address}`,
+          `Setting gas params for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead} gasOracle = ${storageGasOracle.address}`,
         );
-        tokenGasOraclesToSet.push({
-          feeToken: NATIVE_TOKEN,
+        gasParamsToSet.push({
           remoteDomain: remoteId,
-          gasOracle: storageGasOracle.address,
-        });
-      }
-
-      if (!currentOverhead.eq(newGasOverhead)) {
-        this.logger.debug(
-          `Setting gas overhead for ${chain} -> ${remote}: gasOverhead = ${newGasOverhead}`,
-        );
-        await this.runIfOwner(chain, igp, async () => {
-          return this.multiProvider.handleTx(
-            chain,
-            igp.setDestinationGasOverhead(remoteId, newGasOverhead, {
-              ...this.multiProvider.getTransactionOverrides(chain),
-            }),
-          );
+          config: {
+            gasOverhead: newGasOverhead,
+            gasOracle: storageGasOracle.address,
+          },
         });
       }
     }
 
-    if (tokenGasOraclesToSet.length > 0) {
+    if (gasParamsToSet.length > 0) {
       await this.runIfOwner(chain, igp, async () => {
         const estimatedGas =
-          await igp.estimateGas.setTokenGasOracles(tokenGasOraclesToSet);
+          await igp.estimateGas.setDestinationGasConfigs(gasParamsToSet);
         return this.multiProvider.handleTx(
           chain,
-          igp.setTokenGasOracles(tokenGasOraclesToSet, {
+          igp.setDestinationGasConfigs(gasParamsToSet, {
             gasLimit: addBufferToGasLimit(estimatedGas),
             ...this.multiProvider.getTransactionOverrides(chain),
           }),
