@@ -1,22 +1,25 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  IgpHookConfig,
+  type DeployedHookAddress,
+  type IgpHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { eqAddressAleo, isNullish } from '@hyperlane-xyz/utils';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
-import { AleoSigner } from '../clients/signer.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { type AleoSigner } from '../clients/signer.js';
 import { getNewContractExpectedNonce } from '../utils/base-query.js';
 import { fromAleoAddress, getProgramSuffix } from '../utils/helper.js';
-import { AleoReceipt, AnnotatedAleoTransaction } from '../utils/types.js';
+import {
+  type AleoReceipt,
+  type AnnotatedAleoTransaction,
+} from '../utils/types.js';
 
 import { getNewHookAddress } from './base.js';
 import { getIgpHookConfig } from './hook-query.js';
@@ -116,13 +119,15 @@ export class AleoIgpHookWriter
     for (const [domainId, gasOverhead] of Object.entries(
       artifact.config.overhead,
     )) {
-      const oracleConfig = artifact.config.oracleConfig[domainId];
+      const parsedDomainId = parseInt(domainId);
+
+      const oracleConfig = artifact.config.oracleConfig[parsedDomainId];
       if (!oracleConfig) {
         throw new Error(`Missing oracle config for domain ${domainId}`);
       }
 
       const gasConfigTx = getSetDestinationGasConfigTx(hookAddress, {
-        remoteDomainId: parseInt(domainId),
+        remoteDomainId: parsedDomainId,
         gasOverhead: gasOverhead.toString(),
         tokenExchangeRate: oracleConfig.tokenExchangeRate,
         gasPrice: oracleConfig.gasPrice,
@@ -169,7 +174,7 @@ export class AleoIgpHookWriter
 
     // Remove configs that are no longer needed
     const domainsToRemove = Object.keys(currentOverhead).filter((domainId) =>
-      isNullish(desiredOverhead[domainId]),
+      isNullish(desiredOverhead[parseInt(domainId)]),
     );
 
     for (const domainId of domainsToRemove) {
@@ -184,13 +189,15 @@ export class AleoIgpHookWriter
 
     // Add or update configs
     for (const [domainId, gasOverhead] of Object.entries(desiredOverhead)) {
-      const oracleConfig = desiredOracleConfig[domainId];
+      const parsedDomainId = parseInt(domainId);
+
+      const oracleConfig = desiredOracleConfig[parsedDomainId];
       if (!oracleConfig) {
         throw new Error(`Missing oracle config for domain ${domainId}`);
       }
 
-      const currentGasOverhead = currentOverhead[domainId];
-      const currentOracle = currentOracleConfig[domainId];
+      const currentGasOverhead = currentOverhead[parsedDomainId];
+      const currentOracle = currentOracleConfig[parsedDomainId];
 
       // Check if config changed
       const configChanged =

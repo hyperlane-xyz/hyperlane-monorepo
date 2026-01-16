@@ -1,25 +1,28 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
-  ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedHookAddress,
-  MerkleTreeHookConfig,
+  type DeployedHookAddress,
+  type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
-import { AleoSigner } from '../clients/signer.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
+import { type AleoSigner } from '../clients/signer.js';
 import { getNewContractExpectedNonce } from '../utils/base-query.js';
 import {
   fromAleoAddress,
   getProgramIdFromSuffix,
   getProgramSuffix,
 } from '../utils/helper.js';
-import { AleoReceipt, AnnotatedAleoTransaction } from '../utils/types.js';
+import {
+  type AleoReceipt,
+  type AnnotatedAleoTransaction,
+} from '../utils/types.js';
 
 import { getNewHookAddress } from './base.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
