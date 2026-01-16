@@ -6,6 +6,7 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import {
@@ -18,6 +19,8 @@ import {
   setSecretRpcEndpoints,
 } from '../agents/index.js';
 import { DeployEnvironment } from '../config/environment.js';
+import { KeyFunderHelmManager } from '../funding/key-funder.js';
+import { KathyHelmManager } from '../helloworld/kathy.js';
 import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
@@ -270,7 +273,8 @@ async function updateSecretAndDisablePrevious(
 
 /**
  * Interactively refreshes dependent k8s resources for the given chain in the given environment.
- * Prompts for core infrastructure and warp monitors separately, then executes all refreshes together.
+ * Prompts for core infrastructure, warp monitors, and CronJobs separately, then executes refreshes.
+ * CronJobs only get secret refresh (no pod restart) - they pick up new secrets on next run.
  * @param environment The environment to refresh resources in
  * @param chain The chain to refresh resources for
  */
@@ -286,15 +290,29 @@ async function refreshDependentK8sResourcesInteractive(
     return;
   }
 
-  // Collect selections from both prompts
+  // Collect selections from all prompts
   const coreManagers = await selectCoreInfrastructure(environment, chain);
   const warpManagers = await selectWarpMonitors(environment, chain);
+  const cronjobManagers = await selectCronJobs(environment);
 
-  // Execute all refreshes together
-  const allManagers = [...coreManagers, ...warpManagers];
-  if (allManagers.length > 0) {
-    await refreshK8sResources(allManagers, K8sResourceType.SECRET, environment);
-    await refreshK8sResources(allManagers, K8sResourceType.POD, environment);
+  // Services get both secret and pod refresh
+  const serviceManagers = [...coreManagers, ...warpManagers];
+  // CronJobs only get secret refresh (they pick up new secrets on next scheduled run)
+  const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
+
+  if (allManagersForSecrets.length > 0) {
+    await refreshK8sResources(
+      allManagersForSecrets,
+      K8sResourceType.SECRET,
+      environment,
+    );
+  }
+  if (serviceManagers.length > 0) {
+    await refreshK8sResources(
+      serviceManagers,
+      K8sResourceType.POD,
+      environment,
+    );
   }
 }
 
@@ -407,6 +425,55 @@ async function selectWarpMonitors(
   });
 
   return warpMonitorManagers.filter((_, i) => selection.includes(i));
+}
+
+async function selectCronJobs(
+  environment: DeployEnvironment,
+): Promise<HelmManager<any>[]> {
+  const cronjobManagers: [string, HelmManager<any>][] = [];
+
+  try {
+    const keyFunder = KeyFunderHelmManager.forEnvironment(environment);
+    cronjobManagers.push(['Key Funder', keyFunder]);
+  } catch (e) {
+    // Environment may not have key funder configured
+  }
+
+  try {
+    const kathy = KathyHelmManager.forEnvironment(
+      environment,
+      Contexts.Hyperlane,
+    );
+    cronjobManagers.push(['Kathy', kathy]);
+  } catch (e) {
+    // Environment may not have kathy configured
+  }
+
+  if (cronjobManagers.length === 0) {
+    console.log('No CronJobs to refresh');
+    return [];
+  }
+
+  console.log(
+    `Found ${cronjobManagers.length} CronJobs (secrets only, no pod restart):`,
+  );
+  for (const [name, manager] of cronjobManagers) {
+    console.log(`  - ${manager.helmReleaseName} (${name})`);
+  }
+
+  const selection = await checkbox({
+    message:
+      'Select CronJobs to refresh secrets (pods pick up changes on next run)',
+    choices: cronjobManagers.map(([name, manager], i) => ({
+      name: `${manager.helmReleaseName} (${name})`,
+      value: i,
+      checked: true,
+    })),
+  });
+
+  return cronjobManagers
+    .map(([_, m]) => m)
+    .filter((_, i) => selection.includes(i));
 }
 
 /**
