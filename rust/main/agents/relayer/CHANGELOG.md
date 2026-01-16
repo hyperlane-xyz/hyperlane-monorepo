@@ -1,3 +1,7 @@
+## [2.1.0] - 2026-01-16
+
+* fix: Relayer OOM fix (#7782)
+
 ## [2.0.0] - 2026-01-06
 
 * chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)

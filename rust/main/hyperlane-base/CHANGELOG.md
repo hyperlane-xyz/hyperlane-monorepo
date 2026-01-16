@@ -1,3 +1,7 @@
+## [2.1.0] - 2026-01-16
+
+* feat: Set Lander as the default submitter for Aleo (#7741)
+
 ## [2.0.0] - 2026-01-06
 
 * feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
