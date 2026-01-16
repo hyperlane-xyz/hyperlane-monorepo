@@ -57,24 +57,17 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   createReader<T extends HookType>(
     type: T,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    switch (type) {
-      case AltVM.HookType.MERKLE_TREE:
-        return new RadixMerkleTreeHookReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
-        return new RadixIgpHookReader(
-          this.gateway,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported Hook type: ${type}`);
-    }
+    const readers: {
+      [K in HookType]: () => ArtifactReader<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      merkleTreeHook: () => new RadixMerkleTreeHookReader(this.gateway),
+      interchainGasPaymaster: () => new RadixIgpHookReader(this.gateway),
+    };
+
+    return readers[type]();
   }
 
   createWriter<T extends HookType>(
@@ -83,29 +76,28 @@ export class RadixHookArtifactManager implements IRawHookArtifactManager {
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const baseSigner = signer.getBaseSigner();
 
-    switch (type) {
-      case AltVM.HookType.MERKLE_TREE:
-        return new RadixMerkleTreeHookWriter(
+    const writers: {
+      [K in HookType]: () => ArtifactWriter<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      merkleTreeHook: () =>
+        new RadixMerkleTreeHookWriter(
           this.gateway,
           baseSigner,
           this.base,
           this.mailboxAddress,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
-        return new RadixIgpHookWriter(
+        ),
+      interchainGasPaymaster: () =>
+        new RadixIgpHookWriter(
           this.gateway,
           baseSigner,
           this.base,
           this.nativeTokenDenom,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported Hook type: ${type}`);
-    }
+        ),
+    };
+
+    return writers[type]();
   }
 }
