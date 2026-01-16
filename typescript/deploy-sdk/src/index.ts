@@ -13,8 +13,9 @@ export { createHookReader } from './hook/generic-hook.js';
 export { HookWriter, createHookWriter } from './hook/generic-hook-writer.js';
 export {
   hookConfigToArtifact,
+  hookArtifactToDerivedConfig,
   shouldDeployNewHook,
-} from './hook/hook-config-utils.js';
+} from '@hyperlane-xyz/provider-sdk/hook';
 export { createIsmReader } from './ism/generic-ism.js';
 export { IsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
 export {

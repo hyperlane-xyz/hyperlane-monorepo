@@ -6,6 +6,10 @@ import {
   DerivedHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import {
+  hookConfigToArtifact,
+  shouldDeployNewHook,
+} from '@hyperlane-xyz/provider-sdk/hook';
+import {
   DeployedIsmArtifact,
   DerivedIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -32,10 +36,6 @@ import {
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { createHookWriter } from './hook/generic-hook-writer.js';
-import {
-  hookConfigToArtifact,
-  shouldDeployNewHook,
-} from './hook/hook-config-utils.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
 import {
   ismConfigToArtifact,
