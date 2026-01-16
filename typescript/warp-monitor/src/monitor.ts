@@ -6,6 +6,7 @@ import {
   getSealevelAtaPayerBalance,
   getTokenBridgedBalance,
   getXERC20Info,
+  startMetricsServer,
 } from '@hyperlane-xyz/metrics';
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -28,7 +29,6 @@ import {
 
 import {
   metricsRegister,
-  startMetricsServer,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
   updateTokenBalanceMetrics,
