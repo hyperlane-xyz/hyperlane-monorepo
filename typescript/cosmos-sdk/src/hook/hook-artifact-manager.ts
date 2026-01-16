@@ -115,22 +115,18 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     type: T,
     query: CosmosHookQueryClient,
   ): ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    switch (type) {
-      case AltVM.HookType.MERKLE_TREE:
-        return new CosmosMerkleTreeHookReader(
-          query,
-        ) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
-        return new CosmosIgpHookReader(query) as unknown as ArtifactReader<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported Hook type: ${type}`);
-    }
+    const readers: {
+      [K in HookType]: () => ArtifactReader<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      [AltVM.HookType.MERKLE_TREE]: () => new CosmosMerkleTreeHookReader(query),
+      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
+        new CosmosIgpHookReader(query),
+    };
+
+    return readers[type]();
   }
 
   /**
@@ -177,8 +173,13 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
     query: CosmosHookQueryClient,
     signer: CosmosNativeSigner,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    switch (type) {
-      case AltVM.HookType.MERKLE_TREE:
+    const writers: {
+      [K in HookType]: () => ArtifactWriter<
+        RawHookArtifactConfigs[K],
+        DeployedHookAddress
+      >;
+    } = {
+      [AltVM.HookType.MERKLE_TREE]: () => {
         assert(
           this.config.mailboxAddress,
           `Mailbox needs to be defined to deploy a ${AltVM.HookType.MERKLE_TREE} hook`,
@@ -187,21 +188,17 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
           query,
           signer,
           this.config.mailboxAddress,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
+        );
+      },
+      [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () => {
         return new CosmosIgpHookWriter(
           query,
           signer,
           this.config.nativeTokenDenom,
-        ) as unknown as ArtifactWriter<
-          RawHookArtifactConfigs[T],
-          DeployedHookAddress
-        >;
-      default:
-        throw new Error(`Unsupported Hook type: ${type}`);
-    }
+        );
+      },
+    };
+
+    return writers[type]();
   }
 }
