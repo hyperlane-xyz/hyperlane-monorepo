@@ -641,8 +641,8 @@ describe('EvmHookModule', async () => {
         testChains.map((c) => [c, Math.floor(Math.random() * 100)]),
       );
 
-      // expect 1 tx to update the overheads
-      await expectTxsAndUpdate(hook, config, 1);
+      // expect 1 tx per domain to update the overheads (setDestinationGasOverhead is not batched)
+      await expectTxsAndUpdate(hook, config, testChains.length);
     });
 
     it('should update the oracle config in IGP', async () => {
