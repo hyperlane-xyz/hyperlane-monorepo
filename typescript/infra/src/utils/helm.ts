@@ -1,5 +1,6 @@
 import { execSync } from 'child_process';
 import fs from 'fs';
+import path from 'path';
 import tmp from 'tmp';
 
 import { rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
@@ -95,10 +96,42 @@ export function getDeployableHelmChartName(helmChartConfig: HelmChartConfig) {
   return helmChartConfig.name;
 }
 
+/**
+ * Checks if helm chart dependencies need to be rebuilt.
+ * Returns true if Chart.lock or charts/ directory is missing,
+ * or if Chart.yaml is newer than Chart.lock.
+ */
+function helmDependenciesNeedRebuild(chartPath: string): boolean {
+  const chartYamlPath = path.join(chartPath, 'Chart.yaml');
+  const chartLockPath = path.join(chartPath, 'Chart.lock');
+  const chartsDir = path.join(chartPath, 'charts');
+
+  if (!fs.existsSync(chartLockPath) || !fs.existsSync(chartsDir)) {
+    return true;
+  }
+
+  try {
+    const chartYamlStat = fs.statSync(chartYamlPath);
+    const chartLockStat = fs.statSync(chartLockPath);
+    return chartYamlStat.mtimeMs > chartLockStat.mtimeMs;
+  } catch (_) {
+    return true;
+  }
+}
+
 export function buildHelmChartDependencies(
   chartPath: string,
   updateRepoCache: boolean,
+  forceRebuild: boolean = false,
 ) {
+  // Skip rebuild if dependencies are up to date (optimization)
+  if (!forceRebuild && !helmDependenciesNeedRebuild(chartPath)) {
+    rootLogger.debug(
+      `Helm dependencies for ${chartPath} are up to date, skipping build`,
+    );
+    return Promise.resolve();
+  }
+
   const flags = updateRepoCache ? '' : '--skip-refresh';
   return execCmd(
     `cd ${chartPath} && helm dependency build ${flags}`,
