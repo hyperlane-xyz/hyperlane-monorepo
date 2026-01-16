@@ -1,5 +1,4 @@
 import {
-  AltVM,
   ChainMetadataForAltVM,
   getProtocolProvider,
 } from '@hyperlane-xyz/provider-sdk';
@@ -11,6 +10,7 @@ import {
   DerivedHookConfig,
   HookArtifactConfig,
   IRawHookArtifactManager,
+  hookArtifactToDerivedConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -41,67 +41,6 @@ export function createHookReader(
 }
 
 /**
- * Converts a DeployedHookArtifact to DerivedHookConfig format.
- * This handles the conversion between the new Artifact API and the old Config API.
- */
-function artifactToDerivedConfig(
-  artifact: DeployedHookArtifact,
-  chainLookup: ChainLookup,
-): DerivedHookConfig {
-  const config = artifact.config;
-  const address = artifact.deployed.address;
-
-  // For IGP hooks, convert domain IDs back to chain names
-  if (config.type === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER) {
-    const overhead: Record<string, number> = {};
-    const oracleConfig: Record<
-      string,
-      {
-        gasPrice: string;
-        tokenExchangeRate: string;
-        tokenDecimals?: number;
-      }
-    > = {};
-
-    for (const [domainIdStr, value] of Object.entries(config.overhead)) {
-      const domainId = parseInt(domainIdStr);
-      const chainName = chainLookup.getChainName(domainId);
-      if (!chainName) {
-        // Skip unknown domains (already warned during read if needed)
-        continue;
-      }
-      overhead[chainName] = value;
-    }
-
-    for (const [domainIdStr, value] of Object.entries(config.oracleConfig)) {
-      const domainId = parseInt(domainIdStr);
-      const chainName = chainLookup.getChainName(domainId);
-      if (!chainName) {
-        // Skip unknown domains
-        continue;
-      }
-      oracleConfig[chainName] = value;
-    }
-
-    return {
-      type: 'interchainGasPaymaster',
-      owner: config.owner,
-      beneficiary: config.beneficiary,
-      oracleKey: config.oracleKey,
-      overhead,
-      oracleConfig,
-      address,
-    };
-  }
-
-  // For other hook types (MerkleTree), just add the address
-  return {
-    ...config,
-    address,
-  };
-}
-
-/**
  * Generic Hook Reader that can read any hook type by detecting its type.
  * Unlike ISMs, hooks don't have composite/nested types, so no recursive expansion needed.
  */
@@ -128,6 +67,6 @@ export class HookReader
    */
   async deriveHookConfig(address: string): Promise<DerivedHookConfig> {
     const artifact = await this.read(address);
-    return artifactToDerivedConfig(artifact, this.chainLookup);
+    return hookArtifactToDerivedConfig(artifact, this.chainLookup);
   }
 }
