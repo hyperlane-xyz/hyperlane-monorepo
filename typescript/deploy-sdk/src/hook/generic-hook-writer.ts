@@ -132,7 +132,6 @@ export class HookWriter
         config.type,
         this.signer,
       );
-      // Type assertion is safe here because we've checked the type above
       return writer.update({ artifactState, config, deployed });
     }
 
