@@ -1,6 +1,6 @@
 pub use self::{
     delivery::*, interchain_gas::*, interchain_security_module::*, mailbox::*, merkle_tree_hook::*,
-    multisig_ism::*, provider::*, signers::*, trait_builder::*, validator_announce::*,
+    multisig_ism::*, provider::*, signers::*, trait_builder::*, types::*, validator_announce::*,
 };
 pub use types::{SimulateResult, SimulateReverted, SimulateSkipped, SimulateSuccess};
 

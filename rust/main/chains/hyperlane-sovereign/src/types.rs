@@ -98,13 +98,23 @@ pub enum TxStatus {
     Finalized,
 }
 
-/// Transaction info.
+/// Transaction info from status endpoint.
 #[derive(Deserialize, Debug)]
 pub struct TxInfo {
     /// A hash of the transaction.
     pub id: H256,
     /// Transaction status.
     pub status: TxStatus,
+}
+
+/// Transaction from sequencer endpoint (`/sequencer/txs/{txHash}`).
+/// This includes soft-confirmed transactions that haven't been processed yet.
+#[derive(Deserialize, Debug)]
+pub struct SequencerTx {
+    /// A hash of the transaction.
+    pub id: H256,
+    /// Transaction number in the sequencer.
+    pub tx_number: u64,
 }
 
 /// Response from the `/rollup/schema` endpoint.

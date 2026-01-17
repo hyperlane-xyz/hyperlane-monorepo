@@ -4,6 +4,7 @@ use crate::invariants::{
     RelayerTerminationInvariantParams, ScraperTerminationInvariantParams,
 };
 use crate::server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count};
+use hyperlane_core::SubmitterType;
 
 pub fn termination_invariants_met(
     config: &Config,
@@ -30,7 +31,7 @@ pub fn termination_invariants_met(
         non_matching_igp_message_count: 0,
         double_insertion_message_count: 0,
         skip_tx_id_indexing: true,
-        submitter_type: Default::default(),
+        submitter_type: SubmitterType::Lander,
     };
 
     if !relayer_termination_invariants_met(relayer_params)? {

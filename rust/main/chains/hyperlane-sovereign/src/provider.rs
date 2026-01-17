@@ -7,11 +7,13 @@ use hyperlane_core::{
 };
 
 mod client;
+mod lander;
 mod methods;
 mod transaction;
 
 use crate::{ConnectionConf, Signer};
 pub use client::SovereignClient;
+pub use lander::SovereignProviderForLander;
 
 /// A wrapper around a Sovereign provider to get generic blockchain information.
 #[derive(Debug, Clone)]
