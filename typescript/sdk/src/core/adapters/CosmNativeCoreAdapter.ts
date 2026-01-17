@@ -24,6 +24,13 @@ const MESSAGE_DISPATCH_EVENT_TYPES = [
 const MESSAGE_ATTRIBUTE_KEY = 'message';
 const MESSAGE_DESTINATION_ATTRIBUTE_KEY = 'destination';
 
+function stripWrappingQuotes(value: string): string {
+  if (value.startsWith('"') && value.endsWith('"')) {
+    return value.slice(1, -1);
+  }
+  return value;
+}
+
 export class CosmNativeCoreAdapter
   extends BaseCosmosAdapter
   implements ICoreAdapter
@@ -58,9 +65,12 @@ export class CosmNativeCoreAdapter
       assert(messageAttribute, 'No message attribute found in dispatch event');
       assert(destAttribute, 'No destination attribute found in dispatch event');
 
+      const messageValue = stripWrappingQuotes(messageAttribute.value);
+      const destinationValue = stripWrappingQuotes(destAttribute.value);
+
       return {
-        messageId: ensure0x(messageId(messageAttribute.value)),
-        destination: this.multiProvider.getChainName(destAttribute.value),
+        messageId: ensure0x(messageId(messageValue)),
+        destination: this.multiProvider.getChainName(destinationValue),
       };
     });
   }
