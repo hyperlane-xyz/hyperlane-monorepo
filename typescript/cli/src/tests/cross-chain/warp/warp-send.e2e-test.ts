@@ -1,6 +1,7 @@
 import * as chai from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet } from 'ethers';
+import fs from 'fs';
 import { type StartedTestContainer } from 'testcontainers';
 
 import {
@@ -18,7 +19,8 @@ import {
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL,
-  DEFAULT_E2E_TEST_TIMEOUT,
+  CROSS_CHAIN_E2E_TEST_TIMEOUT,
+  HYP_DEPLOYER_ADDRESS_BY_PROTOCOL,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
@@ -36,7 +38,7 @@ const expect = chai.expect;
 chai.should();
 
 describe('hyperlane warp send cross-chain e2e tests', async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(CROSS_CHAIN_E2E_TEST_TIMEOUT);
 
   let cosmosNativeDeployerAddress: Address;
   let cosmosNativeChain1CoreAddress: ChainAddresses;
@@ -58,18 +60,26 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   );
 
-  const WARP_CORE_PATH = getWarpCoreConfigPath(TEST_TOKEN_SYMBOL, [
+  let radixChain1CoreAddress: ChainAddresses;
+  const radixChain1Core = new HyperlaneE2ECoreTestCommands(
+    ProtocolType.Radix,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    REGISTRY_PATH,
+    CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL.radix,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.radix.CHAIN_NAME_1,
+  );
+
+  const warpChains = [
     TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
     TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-  ]);
-  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(TEST_TOKEN_SYMBOL, [
-    TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
-    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-  ]);
-  const WARP_ROUTE_ID = getWarpId(TEST_TOKEN_SYMBOL, [
-    TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
-    TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-  ]);
+    TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+  ];
+  const WARP_CORE_PATH = getWarpCoreConfigPath(TEST_TOKEN_SYMBOL, warpChains);
+  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(
+    TEST_TOKEN_SYMBOL,
+    warpChains,
+  );
+  const WARP_ROUTE_ID = getWarpId(TEST_TOKEN_SYMBOL, warpChains);
 
   const hyperlaneWarp = new HyperlaneE2EWarpTestCommands(
     ProtocolType.CosmosNative,
@@ -79,6 +89,8 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
 
   let cosmosNodeInstance: StartedTestContainer;
   let evmNodeInstance: StartedTestContainer;
+
+  let previousSkipWarpCleanup: string | undefined;
 
   before(async function () {
     cosmosNodeInstance = await runCosmosNode(
@@ -96,20 +108,31 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
 
     evmDeployerAddress = new Wallet(HYP_KEY_BY_PROTOCOL.ethereum).address;
 
-    [cosmosNativeChain1CoreAddress, evmChain1CoreAddress] = await Promise.all([
+    [
+      cosmosNativeChain1CoreAddress,
+      evmChain1CoreAddress,
+      radixChain1CoreAddress,
+    ] = await Promise.all([
       cosmosNativeChain1Core.deployOrUseExistingCore(
         HYP_KEY_BY_PROTOCOL.cosmosnative,
       ),
       evmChain1Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.ethereum),
+      radixChain1Core.deployOrUseExistingCore(HYP_KEY_BY_PROTOCOL.radix),
     ]);
 
     writeYamlOrJson(
       CORE_ADDRESSES_PATH_BY_PROTOCOL.sealevel.UNSUPPORTED_CHAIN,
       UNSUPPORTED_CHAIN_CORE_ADDRESSES,
     );
-  });
 
-  beforeEach(async function () {
+    previousSkipWarpCleanup = process.env.HYP_CROSSCHAIN_SKIP_WARP_CLEANUP;
+    process.env.HYP_CROSSCHAIN_SKIP_WARP_CLEANUP = 'true';
+
+    const deploymentPaths = `${REGISTRY_PATH}/deployments/warp_routes`;
+    if (fs.existsSync(deploymentPaths)) {
+      fs.rmSync(deploymentPaths, { recursive: true, force: true });
+    }
+
     const warpDeployConfig: WarpRouteDeployConfig = {
       [TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1]: {
         type: TokenType.collateral,
@@ -127,6 +150,18 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
         name: TEST_TOKEN_SYMBOL,
         symbol: TEST_TOKEN_SYMBOL,
         decimals: 6,
+        // Seed a minimal balance so EVM-origin sends can run without cross-VM delivery.
+        initialSupply: 10,
+      },
+      [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1]: {
+        type: TokenType.synthetic,
+        mailbox: radixChain1CoreAddress.mailbox,
+        owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+        name: TEST_TOKEN_SYMBOL,
+        symbol: TEST_TOKEN_SYMBOL,
+        decimals: 6,
+        // Seed a minimal balance so Radix-origin sends can run without cross-VM delivery.
+        initialSupply: 10,
       },
     };
 
@@ -142,6 +177,8 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
           HYP_KEY_BY_PROTOCOL.ethereum,
           `--key.${ProtocolType.CosmosNative}`,
           HYP_KEY_BY_PROTOCOL.cosmosnative,
+          `--key.${ProtocolType.Radix}`,
+          HYP_KEY_BY_PROTOCOL.radix,
         ],
       })
       .stdio('pipe')
@@ -151,63 +188,83 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
   });
 
   after(async () => {
+    if (previousSkipWarpCleanup === undefined) {
+      delete process.env.HYP_CROSSCHAIN_SKIP_WARP_CLEANUP;
+    } else {
+      process.env.HYP_CROSSCHAIN_SKIP_WARP_CLEANUP = previousSkipWarpCleanup;
+    }
+
+    const deploymentPaths = `${REGISTRY_PATH}/deployments/warp_routes`;
+    if (fs.existsSync(deploymentPaths)) {
+      fs.rmSync(deploymentPaths, { recursive: true, force: true });
+    }
+
     await Promise.all([cosmosNodeInstance?.stop(), evmNodeInstance?.stop()]);
   });
 
-  it('should send between EVM and CosmosNative with expected logs', async function () {
-    // First: Cosmos (collateral) → EVM (synthetic) - locks collateral, mints synthetic
-    // This must happen first so there's collateral to release for the reverse direction
-    const cosmosToEvm = await hyperlaneWarp
+  const sendKeys = [
+    `--key.${ProtocolType.Ethereum}`,
+    HYP_KEY_BY_PROTOCOL.ethereum,
+    `--key.${ProtocolType.CosmosNative}`,
+    HYP_KEY_BY_PROTOCOL.cosmosnative,
+    `--key.${ProtocolType.Radix}`,
+    HYP_KEY_BY_PROTOCOL.radix,
+  ];
+
+  // Generate all origin -> destination pairs (excluding same-chain sends)
+  const sendCases = warpChains
+    .flatMap((origin) =>
+      warpChains
+        .filter((dest) => dest !== origin)
+        .map((destination) => ({
+          origin,
+          destination,
+          // CosmosNative origins skip transfer validation
+          expectSkipValidationLog:
+            origin === TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
+        })),
+    )
+    .sort(
+      (a, b) =>
+        a.origin.localeCompare(b.origin) ||
+        a.destination.localeCompare(b.destination),
+    );
+
+  const sendAndAssert = async (testCase: (typeof sendCases)[number]) => {
+    const output = await hyperlaneWarp
       .sendRaw({
-        origin: TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
-        destination: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+        origin: testCase.origin,
+        destination: testCase.destination,
         warpRouteId: WARP_ROUTE_ID,
         amount: 1,
         quick: true,
-        extraArgs: [
-          `--key.${ProtocolType.Ethereum}`,
-          HYP_KEY_BY_PROTOCOL.ethereum,
-          `--key.${ProtocolType.CosmosNative}`,
-          HYP_KEY_BY_PROTOCOL.cosmosnative,
-        ],
+        extraArgs: sendKeys,
       })
       .stdio('pipe')
       .nothrow();
 
-    expect(cosmosToEvm.exitCode).to.eql(0);
-    const cosmosToEvmText = cosmosToEvm.text();
-    expect(cosmosToEvmText).to.include('Message ID:');
-    expect(cosmosToEvmText).to.include('Explorer Link:');
-    expect(cosmosToEvmText).to.include(
-      `Skipping transfer validation for ${TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1}`,
-    );
+    expect(output.exitCode).to.eql(0);
+    const outputText = output.text();
+    expect(outputText).to.include('Message ID:');
+    expect(outputText).to.include('Explorer Link:');
+    if (testCase.expectSkipValidationLog) {
+      expect(outputText).to.include(
+        `Skipping transfer validation for ${testCase.origin}`,
+      );
+    }
+  };
 
-    // Second: EVM (synthetic) → Cosmos (collateral) - burns synthetic, releases collateral
-    // Now there's locked collateral from the first transfer to release
-    const evmToCosmos = await hyperlaneWarp
-      .sendRaw({
-        origin: TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
-        destination: TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
-        warpRouteId: WARP_ROUTE_ID,
-        amount: 1,
-        relay: true,
-        quick: true,
-        extraArgs: [
-          `--key.${ProtocolType.Ethereum}`,
-          HYP_KEY_BY_PROTOCOL.ethereum,
-          `--key.${ProtocolType.CosmosNative}`,
-          HYP_KEY_BY_PROTOCOL.cosmosnative,
-        ],
-      })
-      .stdio('pipe')
-      .nothrow();
-
-    expect(evmToCosmos.exitCode).to.eql(0);
-    const evmToCosmosText = evmToCosmos.text();
-    expect(evmToCosmosText).to.include('Message ID:');
-    expect(evmToCosmosText).to.include('Explorer Link:');
-    expect(evmToCosmosText).to.include(
-      'Self-relay is only supported for EVM destinations.',
-    );
-  });
+  // NOTE: These tests validate that cross-VM send transactions succeed and
+  // produce message IDs. They intentionally skip delivery checks because the
+  // CLI relayer is EVM-only and cannot deliver messages that originate from or
+  // target non-EVM chains. To test relaying/delivery:
+  // - run the Rust relayer (binary `relayer`) with a multi-chain agent config
+  //   and keys for CosmosNative + Radix + EVM (see rust/main/utils/run-locally),
+  //   or wait for the CLI relayer to add non-EVM support.
+  // - remove `quick: true` so the send path waits for delivery.
+  for (const testCase of sendCases) {
+    it(`should send ${testCase.origin} -> ${testCase.destination}`, async function () {
+      await sendAndAssert(testCase);
+    });
+  }
 });
