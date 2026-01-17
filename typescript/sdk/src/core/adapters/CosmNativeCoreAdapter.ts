@@ -17,7 +17,10 @@ import { ChainName } from '../../types.js';
 
 import { ICoreAdapter } from './types.js';
 
-const MESSAGE_DISPATCH_EVENT_TYPE = 'hyperlane.core.v1.Dispatch';
+const MESSAGE_DISPATCH_EVENT_TYPES = [
+  'hyperlane.core.v1.Dispatch',
+  'hyperlane.core.v1.EventDispatch',
+];
 const MESSAGE_ATTRIBUTE_KEY = 'message';
 const MESSAGE_DESTINATION_ATTRIBUTE_KEY = 'destination';
 
@@ -41,8 +44,8 @@ export class CosmNativeCoreAdapter
       `Unsupported provider type for CosmNativeCoreAdapter ${sourceTx.type}`,
     );
 
-    const dispatchEvents = sourceTx.receipt.events.filter(
-      (e) => e.type === MESSAGE_DISPATCH_EVENT_TYPE,
+    const dispatchEvents = sourceTx.receipt.events.filter((e) =>
+      MESSAGE_DISPATCH_EVENT_TYPES.includes(e.type),
     );
 
     return dispatchEvents.map((event) => {
