@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { type StartedDockerComposeEnvironment } from 'testcontainers';
 
 import {
   deployHyperlaneRadixPackage,
@@ -23,6 +24,9 @@ let originalRadixTestMetadata:
   | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
   | undefined;
 
+// Store the Radix node instance to tear it down in the after hook
+let radixNodeInstance: StartedDockerComposeEnvironment;
+
 before(async function () {
   this.timeout(CROSS_CHAIN_E2E_TEST_TIMEOUT);
 
@@ -44,10 +48,13 @@ before(async function () {
   // Deep copy before mutating - the metadata object is shared across test files
   originalRadixTestMetadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
 
-  await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1, {
-    code: new Uint8Array(code),
-    packageDefinition: new Uint8Array(packageDefinition),
-  });
+  radixNodeInstance = await runRadixNode(
+    TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    {
+      code: new Uint8Array(code),
+      packageDefinition: new Uint8Array(packageDefinition),
+    },
+  );
 
   // Deploy Hyperlane packages and update metadata with the deployed addresses.
   // This mutates TEST_CHAIN_METADATA_BY_PROTOCOL and writes to metadata YAML files.
@@ -85,10 +92,12 @@ beforeEach(() => {
   }
 });
 
-// Restore original Radix metadata files after tests complete.
+// Restore original Radix metadata files and tear down the Radix node after tests.
 // This prevents subsequent test runs from using stale package addresses
 // that point to a Radix node that's no longer running.
-after(() => {
+after(async function () {
+  this.timeout(CROSS_CHAIN_E2E_TEST_TIMEOUT);
+
   for (const [chainName, originalMetadata] of Object.entries(
     originalRadixTestMetadata ?? {},
   )) {
@@ -98,5 +107,9 @@ after(() => {
       ];
 
     writeYamlOrJson(metadataPath, originalMetadata);
+  }
+
+  if (radixNodeInstance) {
+    await radixNodeInstance.down();
   }
 });
