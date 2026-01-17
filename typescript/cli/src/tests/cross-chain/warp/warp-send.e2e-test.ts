@@ -219,9 +219,6 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
         .map((destination) => ({
           origin,
           destination,
-          // CosmosNative origins skip transfer validation
-          expectSkipValidationLog:
-            origin === TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
         })),
     )
     .sort(
@@ -238,6 +235,10 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
         warpRouteId: WARP_ROUTE_ID,
         amount: 1,
         quick: true,
+        // Skip validation since these tests only verify send transactions succeed,
+        // not full delivery flow. Collateral/balance checks would fail without
+        // cross-VM message delivery which the CLI relayer doesn't support yet.
+        skipValidation: true,
         extraArgs: sendKeys,
       })
       .stdio('pipe')
@@ -247,11 +248,6 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
     const outputText = output.text();
     expect(outputText).to.include('Message ID:');
     expect(outputText).to.include('Explorer Link:');
-    if (testCase.expectSkipValidationLog) {
-      expect(outputText).to.include(
-        `Skipping transfer validation for ${testCase.origin}`,
-      );
-    }
   };
 
   // NOTE: These tests validate that cross-VM send transactions succeed and
