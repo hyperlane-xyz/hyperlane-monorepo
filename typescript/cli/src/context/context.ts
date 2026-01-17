@@ -16,6 +16,8 @@ import {
   ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
+  PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
+  type TypedProvider,
 } from '@hyperlane-xyz/sdk';
 import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -88,13 +90,26 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
   await Promise.all(
     altVmChains.map(async (chain) => {
-      const { altVmProviders, multiProvider } = argv.context;
+      const { altVmProviders, multiProvider, multiProtocolProvider } =
+        argv.context;
       const protocol = multiProvider.getProtocol(chain);
       const metadata = multiProvider.getChainMetadata(chain);
 
-      if (hasProtocol(protocol))
-        altVmProviders[chain] =
+      if (hasProtocol(protocol)) {
+        const provider =
           await getProtocolProvider(protocol).createProvider(metadata);
+        altVmProviders[chain] = provider;
+
+        // Also set on multiProtocolProvider so SDK validation can use it
+        const providerType =
+          PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol as ProtocolType];
+        if (providerType) {
+          multiProtocolProvider.setProvider(chain, {
+            type: providerType,
+            provider,
+          } as TypedProvider);
+        }
+      }
     }),
   );
 
