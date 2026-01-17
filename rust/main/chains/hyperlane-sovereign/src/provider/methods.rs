@@ -12,7 +12,7 @@ use serde::Deserialize;
 use serde_json::json;
 
 use super::client::SovereignClient;
-use crate::types::{Batch, SimulateResult, Slot, Tx, TxResult};
+use crate::types::{Batch, SequencerTx, SimulateResult, Slot, Tx, TxResult};
 use crate::Crypto;
 
 /// Build the JSON call message for mailbox.process
@@ -49,6 +49,20 @@ impl SovereignClient {
         let query = format!("/ledger/txs/{tx_id:?}?children=1");
 
         Ok(self.http_get::<Tx>(&query).await?)
+    }
+
+    /// Get transaction from the sequencer.
+    ///
+    /// This queries `/sequencer/txs/{txHash}` which returns data for ALL
+    /// transactions including soft-confirmed ones that haven't been processed yet.
+    /// Use this to check if a tx was accepted by the sequencer (soft confirmation)
+    /// when the ledger endpoint returns 404.
+    ///
+    /// Returns Ok if the tx exists in the sequencer, Err with 404 if not found.
+    pub async fn get_tx_from_sequencer(&self, tx_id: H256) -> ChainResult<SequencerTx> {
+        let query = format!("/sequencer/txs/{tx_id:?}");
+
+        Ok(self.http_get::<SequencerTx>(&query).await?)
     }
 
     /// Return the latest slot.

@@ -7250,6 +7250,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-radix",
  "hyperlane-sealevel",
+ "hyperlane-sovereign",
  "hyperlane-tron",
  "itertools 0.14.0",
  "mockall",

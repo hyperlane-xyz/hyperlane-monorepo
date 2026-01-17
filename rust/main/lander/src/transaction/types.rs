@@ -13,6 +13,7 @@ use crate::adapter::chains::AleoTxPrecursor;
 use crate::{
     adapter::chains::{
         tron::TronTxPrecursor, EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor,
+        SovereignTxPrecursor,
     },
     payload::PayloadDetails,
     LanderError,
@@ -173,6 +174,7 @@ pub enum VmSpecificTxData {
     CosmWasm,
     Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
+    Sovereign(Box<SovereignTxPrecursor>),
     Svm(Box<SealevelTxPrecursor>),
     Tron(Box<TronTxPrecursor>),
 }
