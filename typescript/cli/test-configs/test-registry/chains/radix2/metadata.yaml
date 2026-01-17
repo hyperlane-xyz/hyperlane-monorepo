@@ -16,7 +16,7 @@ gatewayUrls:
 name: radix2
 nativeToken:
   decimals: 18
-  denom: resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd
+  denom: resource_loc1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxvq32hv
   name: Radix
   symbol: XRD
 protocol: radix
