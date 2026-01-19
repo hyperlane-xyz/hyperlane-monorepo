@@ -63,7 +63,7 @@ before(async function () {
   ) as (keyof typeof TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix)[];
 
   for (const chain of chainKeys) {
-    const hyperlanePackageAddress = await deployHyperlaneRadixPackage(
+    const { packageAddress, xrdAddress } = await deployHyperlaneRadixPackage(
       TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain],
       {
         code: new Uint8Array(code),
@@ -74,7 +74,15 @@ before(async function () {
     const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
     const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
 
-    updatedMetadata.packageAddress = hyperlanePackageAddress;
+    updatedMetadata.packageAddress = packageAddress;
+
+    // Update the native token denom with the actual XRD resource address for this network.
+    // This is critical because the XRD address is derived from the network ID and must match
+    // the token used in the faucet for funding accounts and the IGP for gas payments.
+    if (updatedMetadata.nativeToken) {
+      updatedMetadata.nativeToken.denom = xrdAddress;
+    }
+
     writeYamlOrJson(metadataPath, updatedMetadata);
   }
 });
