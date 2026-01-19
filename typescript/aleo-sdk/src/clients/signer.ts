@@ -1,7 +1,7 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, isNullish, retryAsync } from '@hyperlane-xyz/utils';
 
-import { AleoProgram } from '../artifacts.js';
+import { type AleoProgram } from '../artifacts.js';
 import {
   RETRY_ATTEMPTS,
   RETRY_DELAY_MS,
@@ -13,9 +13,9 @@ import {
   programIdToPlaintext,
   toAleoAddress,
 } from '../utils/helper.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
-import { AnyProgramManager } from './base.js';
+import { type AnyProgramManager } from './base.js';
 import { AleoProvider } from './provider.js';
 
 export class AleoSigner
@@ -50,6 +50,21 @@ export class AleoSigner
   ) {
     super(rpcUrls, chainId);
     this.programManager = this.getProgramManager(privateKey);
+  }
+
+  async getIsmManager(): Promise<string> {
+    // Use the configured ISM manager program ID (from env or default)
+    const ismManagerProgramId = this.ismManager;
+
+    // Check if it's already deployed
+    const isDeployed = await this.isProgramDeployed(ismManagerProgramId);
+
+    if (!isDeployed) {
+      const suffix = getProgramSuffix(ismManagerProgramId);
+      await this.deployProgram('ism_manager', suffix);
+    }
+
+    return ismManagerProgramId;
   }
 
   private async isProgramDeployed(programId: string): Promise<boolean> {

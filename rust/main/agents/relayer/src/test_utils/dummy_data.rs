@@ -85,7 +85,7 @@ pub fn dummy_metadata_builder(
         Arc::new(core_metrics),
         cache,
         db.clone(),
-        IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![]),
+        IsmAwareAppContextClassifier::new(default_ism_getter.clone(), vec![].into()),
         IsmCachePolicyClassifier::new(default_ism_getter, Default::default()),
         None,
         false,

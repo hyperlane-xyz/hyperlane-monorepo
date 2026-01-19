@@ -3,8 +3,13 @@ import search from '@inquirer/search';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
-import { type ChainMap, type ChainMetadata } from '@hyperlane-xyz/sdk';
-import { toTitleCase } from '@hyperlane-xyz/utils';
+import {
+  type ChainMap,
+  type ChainMetadata,
+  ChainStatus,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { type ProtocolType, toTitleCase } from '@hyperlane-xyz/utils';
 
 import { log } from '../logger.js';
 
@@ -159,7 +164,7 @@ function getChainChoices(
       .map((c) => ({ name: c.name, value: c.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-  const chains = Object.values(chainMetadata);
+  const chains = Object.values(filterOutDisabledChains(chainMetadata));
   const filteredChains = chains.filter((c) =>
     networkType === 'mainnet' ? !c.isTestnet : !!c.isTestnet,
   );
@@ -185,6 +190,42 @@ function handleNewChain(chainNames: string[]) {
     );
     process.exit(0);
   }
+}
+
+export function filterChainMetadataByProtocol(
+  chainMetadata: ChainMap<ChainMetadata>,
+  multiProvider: MultiProvider,
+  protocol: ProtocolType,
+): ChainMap<ChainMetadata> {
+  return Object.fromEntries(
+    Object.entries(chainMetadata).filter(
+      ([chain]) => multiProvider.getProtocol(chain) === protocol,
+    ),
+  );
+}
+
+export function isDisabledChainMetadata(chainMetadata: ChainMetadata): boolean {
+  return chainMetadata.availability?.status === ChainStatus.Disabled;
+}
+
+export function filterOutDisabledChains(
+  chainMetadata: ChainMap<ChainMetadata>,
+): ChainMap<ChainMetadata> {
+  return Object.fromEntries(
+    Object.entries(chainMetadata).filter(
+      ([, metadata]) => !isDisabledChainMetadata(metadata),
+    ),
+  );
+}
+
+/**
+ * Returns the names of all chains that are not disabled.
+ * This is a convenience wrapper around filterOutDisabledChains.
+ */
+export function getActiveChainNames(
+  chainMetadata: ChainMap<ChainMetadata>,
+): string[] {
+  return Object.keys(filterOutDisabledChains(chainMetadata));
 }
 
 /**

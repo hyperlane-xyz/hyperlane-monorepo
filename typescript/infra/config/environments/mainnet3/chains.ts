@@ -50,7 +50,7 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
 // Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
 export const tokenPriceOverrides: ChainMap<string> = {
   incentiv: '0.003',
-  krown: '0.000125',
+  krown: '0.0015',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {

@@ -11,6 +11,8 @@ import {
 } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
+  type LinearFeeConfig,
+  type TokenFeeConfig,
   type TokenFeeConfigInput,
   TokenFeeType,
   TokenType,
@@ -337,7 +339,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
         )
       )[CHAIN_NAME_2];
 
-      expect(collateralConfig.tokenFee?.token).to.equal(tokenChain2.address);
+      expect(
+        (collateralConfig.tokenFee as TokenFeeConfig | undefined)?.token,
+      ).to.equal(tokenChain2.address);
     });
 
     for (const tokenFee of [
@@ -392,6 +396,55 @@ describe('hyperlane warp deploy e2e tests', async function () {
         );
       });
     }
+
+    it(`should deploy a synthetic token with LinearFee without specifying fee token (resolved to router)`, async () => {
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+          },
+        },
+      });
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const coreConfig: WarpCoreConfig = readYamlOrJson(
+        COMBINED_WARP_CORE_CONFIG_PATH,
+      );
+      const [syntheticTokenConfig] = coreConfig.tokens.filter(
+        (config) => config.chainName === CHAIN_NAME_3,
+      );
+
+      const syntheticConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_3,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_3];
+
+      expect(syntheticConfig.tokenFee).to.exist;
+      expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+      // For synthetic tokens, fee token should be resolved to the router address
+      expect(
+        (syntheticConfig.tokenFee as TokenFeeConfig | undefined)?.token,
+      ).to.equal(syntheticTokenConfig.addressOrDenom);
+    });
 
     it(`should deploy a native Routing Fee when providing maxFee and halfAmount only`, async () => {
       const warpConfig = WarpRouteDeployConfigSchema.parse({
@@ -509,6 +562,100 @@ describe('hyperlane warp deploy e2e tests', async function () {
       expect(outputAssetAddress).to.equal(
         addressToBytes32(expectedOutputAssetAddress),
       );
+    });
+
+    it('should deploy a collateral token with LinearFee using explicit maxFee/halfAmount (no bps)', async () => {
+      const explicitMaxFee = 10_000;
+      const explicitHalfAmount = 5_000;
+
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            maxFee: explicitMaxFee,
+            halfAmount: explicitHalfAmount,
+          },
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+        },
+      });
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const collateralConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_2,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_2];
+
+      expect(collateralConfig.tokenFee).to.exist;
+      expect(collateralConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+
+      const tokenFee = collateralConfig.tokenFee as LinearFeeConfig;
+      expect(BigInt(tokenFee.maxFee)).to.equal(BigInt(explicitMaxFee));
+      expect(BigInt(tokenFee.halfAmount)).to.equal(BigInt(explicitHalfAmount));
+      expect(tokenFee.bps).to.exist;
+    });
+
+    it('should deploy a synthetic token with LinearFee using only bps (computed path)', async () => {
+      const providedBps = 100n;
+
+      const warpConfig = WarpRouteDeployConfigSchema.parse({
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: tokenChain2.address,
+          owner: ownerAddress,
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          owner: ownerAddress,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: providedBps,
+          },
+        },
+      });
+
+      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+
+      const COMBINED_WARP_CORE_CONFIG_PATH =
+        GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
+          WARP_DEPLOY_OUTPUT_PATH,
+          await tokenChain2.symbol(),
+        );
+
+      const syntheticConfig = (
+        await readWarpConfig(
+          CHAIN_NAME_3,
+          COMBINED_WARP_CORE_CONFIG_PATH,
+          WARP_DEPLOY_OUTPUT_PATH,
+        )
+      )[CHAIN_NAME_3];
+
+      expect(syntheticConfig.tokenFee).to.exist;
+      expect(syntheticConfig.tokenFee?.type).to.equal(TokenFeeType.LinearFee);
+
+      const tokenFee = syntheticConfig.tokenFee as LinearFeeConfig;
+      expect(BigInt(tokenFee.bps)).to.equal(providedBps);
+      expect(tokenFee.maxFee).to.exist;
+      expect(tokenFee.halfAmount).to.exist;
+      expect(BigInt(tokenFee.maxFee) > 0n).to.be.true;
+      expect(BigInt(tokenFee.halfAmount) > 0n).to.be.true;
     });
   });
 });
