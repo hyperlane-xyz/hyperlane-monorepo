@@ -4,4 +4,4 @@
 '@hyperlane-xyz/sdk': major
 ---
 
-feat: tron nexus ui support
+feat: aleo nexus ui support
