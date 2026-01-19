@@ -101,7 +101,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
         const reader = this.createReaderWithQuery(type, query);
         return reader.read(address);
       },
-    } as ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress>;
+    } satisfies ArtifactReader<RawHookArtifactConfigs[T], DeployedHookAddress>;
   }
 
   /**
@@ -157,7 +157,7 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
         const writer = this.createWriterWithQuery(type, query, signer);
         return writer.update(artifact);
       },
-    } as ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress>;
+    } satisfies ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress>;
   }
 
   /**
