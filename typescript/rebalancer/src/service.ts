@@ -106,10 +106,7 @@ async function main(): Promise<void> {
     );
 
     // Apply RPC URL overrides from environment variables
-    const configuredChains = Object.keys(
-      rebalancerConfig.strategyConfig.chains,
-    );
-    applyRpcOverrides(chainMetadata, configuredChains);
+    applyRpcOverrides(chainMetadata);
 
     // Create MultiProvider with signer
     const multiProvider = new MultiProvider(chainMetadata);
@@ -152,17 +149,18 @@ async function main(): Promise<void> {
 
 /**
  * Applies RPC URL overrides from environment variables.
- * For each configured chain, checks for RPC_URL_<CHAIN> env var
- * (e.g., RPC_URL_ETHEREUM, RPC_URL_ARBITRUM) and overrides the registry URL.
+ * Checks ALL chains in metadata for RPC_URL_<CHAIN> env vars
+ * (e.g., RPC_URL_ETHEREUM, RPC_URL_PARADEX) and overrides the registry URL.
+ * This ensures warp route chains not in the rebalancing strategy still get
+ * private RPCs for monitoring.
  */
 function applyRpcOverrides(
   chainMetadata: Record<string, Partial<ChainMetadata>>,
-  configuredChains: string[],
 ): void {
-  for (const chain of configuredChains) {
+  for (const chain of Object.keys(chainMetadata)) {
     const envVarName = `RPC_URL_${chain.toUpperCase().replace(/-/g, '_')}`;
     const rpcUrl = process.env[envVarName];
-    if (rpcUrl && chainMetadata[chain]) {
+    if (rpcUrl) {
       rootLogger.debug(
         { chain, envVarName },
         'Using RPC from environment variable',
