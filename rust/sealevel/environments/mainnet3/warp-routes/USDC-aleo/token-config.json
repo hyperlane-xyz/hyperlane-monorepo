@@ -1,0 +1,58 @@
+{
+  "aleo": {
+    "type": "synthetic",
+    "decimals": 6,
+    "name": "USD Coin",
+    "symbol": "USDC",
+    "foreignDeployment": "aleo1txwxlgnmnvwualftnewhf8nyxhv5544dn0uaj9er0ktmx3ysvg9qcld8mx"
+  },
+  "arbitrum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "foreignDeployment": "0x1FdA66FA15A261F01F1E09228D41bD0A806d7529"
+  },
+  "avalanche": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "foreignDeployment": "0x1FdA66FA15A261F01F1E09228D41bD0A806d7529"
+  },
+  "base": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
+    "foreignDeployment": "0xB46930ca998587A95D9Ee000FA73A071ADD56B64"
+  },
+  "bsc": {
+    "type": "collateral",
+    "decimals": 18,
+    "token": "0x8AC76a51cc950d9822D68b83fE1Ad97B32Cd580d",
+    "foreignDeployment": "0x5284D803a4563DC5eE83feA80c688b096d70eb75"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "foreignDeployment": "0x78Ac7FECD1857f5BEEe98AB39096c9781F976D97"
+  },
+  "optimism": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "foreignDeployment": "0x1FdA66FA15A261F01F1E09228D41bD0A806d7529"
+  },
+  "polygon": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    "foreignDeployment": "0x1FdA66FA15A261F01F1E09228D41bD0A806d7529"
+  },
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 6,
+    "remoteDecimals": 18,
+    "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  }
+}
