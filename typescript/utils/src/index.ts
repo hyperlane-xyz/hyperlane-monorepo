@@ -77,13 +77,16 @@ export {
 } from './amount.js';
 export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
+  AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  mapAllSettled,
   pollAsync,
   raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
+  timedAsync,
   timeout,
 } from './async.js';
 export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './base58.js';

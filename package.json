@@ -58,7 +58,9 @@
     },
     "patchedDependencies": {
       "typechain@8.3.2": "patches/typechain@8.3.2.patch",
-      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch"
+      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
+      "bigint-buffer@1.1.5": "patches/bigint-buffer@1.1.5.patch",
+      "node-fetch@3.3.2": "patches/node-fetch@3.3.2.patch"
     }
   }
 }
