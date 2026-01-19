@@ -291,6 +291,9 @@ patchedDependencies:
   '@provablehq/sdk@0.9.14':
     hash: c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277
     path: patches/@provablehq__sdk@0.9.14.patch
+  bigint-buffer@1.1.5:
+    hash: cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2
+    path: patches/bigint-buffer@1.1.5.patch
   node-fetch@2.7.0:
     hash: 59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024
     path: patches/node-fetch@2.7.0.patch
@@ -23842,7 +23845,7 @@ snapshots:
     dependencies:
       '@solana/buffer-layout': 4.0.1
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      bigint-buffer: 1.1.5
+      bigint-buffer: 1.1.5(patch_hash=cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2)
       bignumber.js: 9.3.1
     transitivePeerDependencies:
       - bufferutil
@@ -28001,7 +28004,7 @@ snapshots:
 
   big.js@6.2.2: {}
 
-  bigint-buffer@1.1.5:
+  bigint-buffer@1.1.5(patch_hash=cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2):
     dependencies:
       bindings: 1.5.0
 
