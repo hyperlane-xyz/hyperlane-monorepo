@@ -249,7 +249,7 @@ export function useAleoTransactionFns(
       };
       return { hash: transactionHash, confirm };
     },
-    [switchNetwork],
+    [multiProvider],
   );
 
   const onMultiSendTx = useCallback(
