@@ -2,13 +2,16 @@ import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMDeployer,
-  AltVMHookModule,
   AltVMWarpModule,
+  createHookWriter,
   createIsmWriter,
   ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig as ProviderHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  HookConfig as ProviderHookConfig,
+  hookConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/hook';
 import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
@@ -355,19 +358,19 @@ async function createWarpHook({
     }
     default: {
       const signer = mustGet(altVmSigners, chain);
-      const hookModule = await AltVMHookModule.create({
-        chain,
-        chainLookup: multiProvider,
-        addresses: {
-          deployedHook: '',
-          mailbox: chainAddresses.mailbox,
-        },
-        // FIXME: not all Hook types are supported yet
-        config: hook as ProviderHookConfig | string,
-        signer,
+      const chainLookup = altVmChainLookup(multiProvider);
+      const metadata = multiProvider.getChainMetadata(chain);
+
+      // Deploy new hook using artifact writer with mailbox context
+      const writer = createHookWriter(metadata, chainLookup, signer, {
+        mailbox: chainAddresses.mailbox,
       });
-      const { deployedHook } = hookModule.serialize();
-      return deployedHook;
+      const artifact = hookConfigToArtifact(
+        hook as ProviderHookConfig,
+        multiProvider,
+      );
+      const [deployed] = await writer.create(artifact);
+      return deployed.deployed.address;
     }
   }
 }
