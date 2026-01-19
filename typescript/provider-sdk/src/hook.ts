@@ -23,6 +23,19 @@ export type HookType = keyof HookConfigs;
 export type HookConfig = HookConfigs[HookType];
 export type DerivedHookConfig = WithAddress<HookConfig>;
 
+export function altVmHookTypeToProviderHookType(
+  hookType: AltVM.HookType,
+): HookType {
+  switch (hookType) {
+    case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
+      return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
+    case AltVM.HookType.MERKLE_TREE:
+      return AltVM.HookType.MERKLE_TREE;
+    default:
+      throw new Error(`Unsupported hook type in provider API: ${hookType}`);
+  }
+}
+
 export const MUTABLE_HOOK_TYPE: HookType[] = [
   'interchainGasPaymaster',
   // 'protocolFee',
