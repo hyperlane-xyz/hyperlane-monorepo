@@ -12,6 +12,7 @@ import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
@@ -21,14 +22,14 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     using Message for bytes;
     using TypeCasts for bytes32;
+    using StorageSlot for bytes32;
 
     error MaxFeeTooHigh();
 
     event MaxFeeBpsSet(uint256 maxFeeBps);
 
-    // keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeeBps") - 1
     bytes32 private constant MAX_FEE_BPS_SLOT =
-        0x8df325e95a07fd04e2e01aede6cb28c378b5eae6ea0f4695c602eb0a716b1141;
+        keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeeBps");
 
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
     uint32 public immutable minFinalityThreshold;
@@ -56,12 +57,10 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     /**
      * @notice Returns the maximum fee in basis points.
-     * @return _maxFeeBps The maximum fee in basis points.
+     * @return The maximum fee in basis points.
      */
-    function maxFeeBps() public view returns (uint256 _maxFeeBps) {
-        assembly {
-            _maxFeeBps := sload(MAX_FEE_BPS_SLOT)
-        }
+    function maxFeeBps() public view returns (uint256) {
+        return MAX_FEE_BPS_SLOT.getUint256Slot().value;
     }
 
     /**
@@ -70,9 +69,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      */
     function setMaxFeeBps(uint256 _maxFeeBps) external onlyOwner {
         if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
-        assembly {
-            sstore(MAX_FEE_BPS_SLOT, _maxFeeBps)
-        }
+        MAX_FEE_BPS_SLOT.getUint256Slot().value = _maxFeeBps;
         emit MaxFeeBpsSet(_maxFeeBps);
     }
 
