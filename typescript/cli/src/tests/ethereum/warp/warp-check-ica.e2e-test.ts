@@ -16,7 +16,11 @@ import {
   TokenType,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, addressToBytes32 } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  addressToBytes32,
+  normalizeAddressEvm,
+} from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { writeYamlOrJson } from '../../../utils/files.js';
@@ -218,7 +222,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     expect(output.exitCode).to.equal(1);
     expect(output.text()).to.include('ACTUAL');
     expect(output.text()).to.include('EXPECTED');
-    expect(output.text()).to.include(expectedIcaAddress.toLowerCase());
+    expect(output.text()).to.include(normalizeAddressEvm(expectedIcaAddress));
   });
 
   it('should warn and skip when --destinations contains chains not in the warp config', async function () {
@@ -369,6 +373,6 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     expect(output.exitCode).to.equal(1);
     expect(output.text()).to.include('ACTUAL');
     expect(output.text()).to.include('EXPECTED');
-    expect(output.text()).to.include(nonConfigOwnerIca.toLowerCase());
+    expect(output.text()).to.include(normalizeAddressEvm(nonConfigOwnerIca));
   });
 });
