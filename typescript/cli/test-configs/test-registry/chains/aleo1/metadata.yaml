@@ -1,0 +1,24 @@
+blockExplorers:
+  - apiUrl: http://127.0.0.1:3030
+    family: other
+    name: Aleo Local Explorer
+    url: http://127.0.0.1:3030
+blocks:
+  confirmations: 0
+  estimateBlockTime: 5
+  reorgPeriod: 0
+chainId: 1
+displayName: Aleo1
+domainId: 1413831649
+name: aleo1
+nativeToken:
+  decimals: 6
+  denom: microcredits
+  name: Aleo Credits
+  symbol: ALEO
+protocol: aleo
+restPort: 3030
+rpcPort: 3030
+rpcUrls:
+  - http: http://127.0.0.1:3030
+technicalStack: other
