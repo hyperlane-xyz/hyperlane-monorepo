@@ -6,7 +6,7 @@ import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import GasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
-import { TRON_EMPTY_ADDRESS, decodeRevertReason } from '../utils/index.js';
+import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
@@ -37,46 +37,6 @@ export class TronSigner
     privateKey: string,
   ) {
     super(rpcUrls, chainId, privateKey);
-  }
-
-  protected async waitForTransaction(
-    txid: string,
-    timeout = 30000,
-  ): Promise<any> {
-    const start = Date.now();
-
-    while (Date.now() - start < timeout) {
-      const info = await this.tronweb.trx.getTransactionInfo(txid);
-
-      if (info && info.id) {
-        const result = info.receipt?.result;
-
-        if (result === 'SUCCESS') {
-          return info;
-        }
-
-        if (result === 'REVERT' || result === 'FAILED') {
-          let revertReason = 'Unknown Error';
-
-          if (info.resMessage) {
-            revertReason = this.tronweb.toUtf8(info.resMessage);
-          } else if (info.contractResult && info.contractResult[0]) {
-            revertReason = decodeRevertReason(
-              info.contractResult[0],
-              this.tronweb,
-            );
-          }
-
-          throw new Error(
-            `Tron Transaction Failed: ${revertReason} (txid: ${txid})`,
-          );
-        }
-      }
-
-      await new Promise((resolve) => setTimeout(resolve, 2000));
-    }
-
-    throw new Error(`Transaction timed out: ${txid}`);
   }
 
   getSignerAddress(): string {

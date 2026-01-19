@@ -30,22 +30,38 @@ const main = async () => {
   // console.log(addressToBytesTron(mailboxAddress));
   // console.log(bytesToAddressTron(addressToBytesTron(mailboxAddress)));
 
-  const tokenAddress = 'TLdadTL5GwUZCRXFuLeLrZRLeQDjtk6Dem';
+  const tokenAddress = 'TLzNG31BFMGVh3uXN1jeTAcgFA2uGguFxU';
+  const hookAddress = 'TFqVhGCcb5pdoKtBSH4RBJu3AgxGRXG4h7';
   const token = await signer.getToken({
     tokenAddress,
   });
   console.log('token', token);
+
+  // await signer.enrollRemoteRouter({
+  //   tokenAddress,
+  //   remoteRouter: {
+  //     receiverDomainId: 75898668,
+  //     receiverAddress:
+  //       '0x726f757465725f61707000000000000000000000000000020000000000000005',
+  //     gas: '50000',
+  //   },
+  // });
+
+  const igp = await signer.getInterchainGasPaymasterHook({
+    hookAddress,
+  });
+  console.log('igp', igp);
 
   const routers = await signer.getRemoteRouters({
     tokenAddress,
   });
   console.log('routers', routers);
 
-  // const quote = await signer.quoteRemoteTransfer({
-  //   tokenAddress,
-  //   destinationDomainId: 75898669,
-  // });
-  // console.log('quote', quote);
+  const quote = await signer.quoteRemoteTransfer({
+    tokenAddress,
+    destinationDomainId: 75898669,
+  });
+  console.log('quote', quote);
 };
 
 main();

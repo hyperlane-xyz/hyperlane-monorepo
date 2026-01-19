@@ -11,6 +11,7 @@ import { EvmCoreAdapter } from './adapters/EvmCoreAdapter.js';
 import { RadixCoreAdapter } from './adapters/RadixCoreAdapter.js';
 import { SealevelCoreAdapter } from './adapters/SealevelCoreAdapter.js';
 import { StarknetCoreAdapter } from './adapters/StarknetCoreAdapter.js';
+import { TronCoreAdapter } from './adapters/TronCoreAdapter.js';
 import { ICoreAdapter } from './adapters/types.js';
 import { CoreAddresses } from './contracts.js';
 
@@ -45,6 +46,7 @@ export class MultiProtocolCore extends MultiProtocolApp<
     if (protocol === ProtocolType.CosmosNative) return CosmNativeCoreAdapter;
     if (protocol === ProtocolType.Starknet) return StarknetCoreAdapter;
     if (protocol === ProtocolType.Radix) return RadixCoreAdapter;
+    if (protocol === ProtocolType.Tron) return TronCoreAdapter;
     throw new Error(`No adapter for protocol ${protocol}`);
   }
 

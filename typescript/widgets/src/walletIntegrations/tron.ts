@@ -145,14 +145,7 @@ export function useTronTransactionFns(
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {
-        let receipt: any = null;
-        while (!receipt) {
-          receipt =
-            await provider.provider['tronweb'].trx.getConfirmedTransaction(
-              txID,
-            );
-          if (!receipt) await new Promise((r) => setTimeout(r, 2000));
-        }
+        const receipt = await provider.provider['waitForTransaction'](txID);
 
         return {
           type: tx.type,

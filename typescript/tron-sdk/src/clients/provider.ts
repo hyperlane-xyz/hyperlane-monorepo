@@ -1,7 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
 import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
@@ -26,7 +26,7 @@ import {
   getNoopIsmConfig,
   getRoutingIsmConfig,
 } from '../ism/ism-query.js';
-import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
+import { TRON_EMPTY_ADDRESS, decodeRevertReason } from '../utils/index.js';
 import { IABI, TronTransaction } from '../utils/types.js';
 
 export class TronProvider implements AltVM.IProvider {
@@ -86,6 +86,46 @@ export class TronProvider implements AltVM.IProvider {
     return this.tronweb.transactionBuilder.createSmartContract(options, signer);
   }
 
+  protected async waitForTransaction(
+    txid: string,
+    timeout = 30000,
+  ): Promise<any> {
+    const start = Date.now();
+
+    while (Date.now() - start < timeout) {
+      const info = await this.tronweb.trx.getTransactionInfo(txid);
+
+      if (info && info.id) {
+        const result = info.receipt?.result;
+
+        if (result === 'SUCCESS') {
+          return info;
+        }
+
+        if (result === 'REVERT' || result === 'FAILED') {
+          let revertReason = 'Unknown Error';
+
+          if (info.resMessage) {
+            revertReason = this.tronweb.toUtf8(info.resMessage);
+          } else if (info.contractResult && info.contractResult[0]) {
+            revertReason = decodeRevertReason(
+              info.contractResult[0],
+              this.tronweb,
+            );
+          }
+
+          throw new Error(
+            `Tron Transaction Failed: ${revertReason} (txid: ${txid})`,
+          );
+        }
+      }
+
+      await new Promise((resolve) => setTimeout(resolve, 2000));
+    }
+
+    throw new Error(`Transaction timed out: ${txid}`);
+  }
+
   // ### QUERY BASE ###
 
   async isHealthy(): Promise<boolean> {
@@ -129,6 +169,7 @@ export class TronProvider implements AltVM.IProvider {
     const value = req.transaction.raw_data.contract[0].parameter.value;
     const contractAddress = value.contract_address;
     const issuerAddress = value.owner_address;
+    const callValue = value.call_value || 0;
 
     const { result, energy_required } =
       await this.tronweb.transactionBuilder.estimateEnergy(
@@ -136,6 +177,7 @@ export class TronProvider implements AltVM.IProvider {
         '',
         {
           input: value.data,
+          callValue,
         },
         [],
         issuerAddress,
@@ -447,8 +489,8 @@ export class TronProvider implements AltVM.IProvider {
     const { quotes } = await contract
       .quoteTransferRemote(
         req.destinationDomainId,
-        '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed',
-        0,
+        '0x726f757465725f61707000000000000000000000000000020000000000000005',
+        1000000,
       )
       .call();
 
@@ -911,7 +953,7 @@ export class TronProvider implements AltVM.IProvider {
           },
           {
             type: 'bytes32',
-            value: req.remoteRouter.receiverAddress,
+            value: ensure0x(req.remoteRouter.receiverAddress),
           },
         ],
         this.tronweb.address.toHex(req.signer),
@@ -996,7 +1038,7 @@ export class TronProvider implements AltVM.IProvider {
           },
           {
             type: 'bytes32',
-            value: req.recipient,
+            value: ensure0x(req.recipient),
           },
           {
             type: 'uint256',
