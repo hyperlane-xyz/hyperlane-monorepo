@@ -33,6 +33,7 @@ import {
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
   TxSubmitterType,
+  type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfigMailboxRequired,
@@ -61,7 +62,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { type TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
