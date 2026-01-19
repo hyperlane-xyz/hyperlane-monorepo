@@ -357,15 +357,11 @@ async function createWarpHook({
     }
     default: {
       const signer = mustGet(altVmSigners, chain);
+      const chainLookup = altVmChainLookup(multiProvider);
       const metadata = multiProvider.getChainMetadata(chain);
 
-      // If hook is an address reference, use it directly
-      if (typeof hook === 'string') {
-        return hook;
-      }
-
       // Deploy new hook using artifact writer with mailbox context
-      const writer = createHookWriter(metadata, multiProvider, signer, {
+      const writer = createHookWriter(metadata, chainLookup, signer, {
         mailbox: chainAddresses.mailbox,
       });
       const artifact = hookConfigToArtifact(
