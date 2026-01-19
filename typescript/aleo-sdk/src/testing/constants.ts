@@ -55,4 +55,5 @@ export const TEST_ALEO_CHAIN_METADATA: TestChainMetadata = {
   ],
   rpcPort: 3030,
   rpcUrl: 'http://127.0.0.1:3030',
+  restPort: 3030,
 };
