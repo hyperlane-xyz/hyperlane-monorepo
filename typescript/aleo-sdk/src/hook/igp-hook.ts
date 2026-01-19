@@ -65,6 +65,8 @@ export class AleoIgpHookReader
       config: {
         type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
         owner: hookConfig.owner,
+        // Aleo IGP doesn't have beneficiary and oracleKey in the same way as EVM
+        // Setting them to owner as a placeholder
         beneficiary: hookConfig.owner,
         oracleKey: hookConfig.owner,
         overhead,
