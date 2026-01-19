@@ -24,9 +24,14 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     error MaxFeeTooHigh();
 
+    event MaxFeeBpsSet(uint256 maxFeeBps);
+
+    // keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeeBps") - 1
+    bytes32 private constant MAX_FEE_BPS_SLOT =
+        0x8df325e95a07fd04e2e01aede6cb28c378b5eae6ea0f4695c602eb0a716b1141;
+
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
     uint32 public immutable minFinalityThreshold;
-    uint256 public immutable maxFeeBps;
 
     constructor(
         address _erc20,
@@ -44,8 +49,31 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         )
     {
         if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
-        maxFeeBps = _maxFeeBps;
         minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ External Functions ============
+
+    /**
+     * @notice Returns the maximum fee in basis points.
+     * @return _maxFeeBps The maximum fee in basis points.
+     */
+    function maxFeeBps() public view returns (uint256 _maxFeeBps) {
+        assembly {
+            _maxFeeBps := sload(MAX_FEE_BPS_SLOT)
+        }
+    }
+
+    /**
+     * @notice Sets the maximum fee in basis points.
+     * @param _maxFeeBps The new maximum fee in basis points (must be < 10_000).
+     */
+    function setMaxFeeBps(uint256 _maxFeeBps) external onlyOwner {
+        if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
+        assembly {
+            sstore(MAX_FEE_BPS_SLOT, _maxFeeBps)
+        }
+        emit MaxFeeBpsSet(_maxFeeBps);
     }
 
     // ============ TokenRouter overrides ============
@@ -82,11 +110,12 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     ) internal view override returns (uint256 feeAmount) {
         // round up because depositForBurn maxFee is an upper bound
         // enforced offchain by the Iris attestation service without precision loss
+        uint256 _maxFeeBps = maxFeeBps();
         return
             Math.mulDiv(
                 amount,
-                maxFeeBps,
-                10_000 - maxFeeBps,
+                _maxFeeBps,
+                10_000 - _maxFeeBps,
                 Math.Rounding.Up
             );
     }

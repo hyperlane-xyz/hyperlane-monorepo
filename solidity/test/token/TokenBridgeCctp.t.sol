@@ -1119,6 +1119,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 initData
             );
         tbOrigin = TokenBridgeCctpV2(address(proxyOrigin));
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(maxFee);
 
         TokenBridgeCctpV2 destinationImplementation = new TokenBridgeCctpV2(
             address(tokenDestination),
@@ -1136,6 +1137,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             );
 
         tbDestination = TokenBridgeCctpV2(address(proxyDestination));
+        TokenBridgeCctpV2(address(tbDestination)).setMaxFeeBps(maxFee);
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
     }
@@ -1243,7 +1245,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(deployer)
         );
 
-        return TokenBridgeCctpV2(address(deployer));
+        TokenBridgeCctpV2 v2 = TokenBridgeCctpV2(address(deployer));
+        v2.setMaxFeeBps(maxFee);
+        return v2;
     }
 
     function testFork_verify() public override {
@@ -1906,5 +1910,63 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
         vm.expectRevert();
         tbDestination.verify(metadata, message);
+    }
+
+    // ============ Mutable Fee Configuration Tests ============
+
+    function test_setMaxFeeBps() public {
+        uint256 newMaxFeeBps = 50; // 0.5%
+
+        vm.expectEmit(true, true, true, true);
+        emit TokenBridgeCctpV2.MaxFeeBpsSet(newMaxFeeBps);
+
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(newMaxFeeBps);
+
+        assertEq(
+            TokenBridgeCctpV2(address(tbOrigin)).maxFeeBps(),
+            newMaxFeeBps
+        );
+    }
+
+    function test_setMaxFeeBps_revertsWhen_notOwner() public {
+        vm.prank(user);
+        vm.expectRevert("Ownable: caller is not the owner");
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(50);
+    }
+
+    function test_setMaxFeeBps_revertsWhen_feeTooHigh() public {
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(10_000);
+
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(10_001);
+    }
+
+    function test_quoteTransferRemote_updatesAfterFeeChange() public {
+        uint256 newMaxFeeBps = 100; // 1%
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(newMaxFeeBps);
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        // Verify the external fee quote is updated
+        uint256 expectedFee = Math.mulDiv(
+            amount,
+            newMaxFeeBps,
+            10_000 - newMaxFeeBps,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+    }
+
+    function test_feeConfiguration_values() public {
+        assertEq(TokenBridgeCctpV2(address(tbOrigin)).maxFeeBps(), maxFee);
+        assertEq(
+            TokenBridgeCctpV2(address(tbOrigin)).minFinalityThreshold(),
+            minFinalityThreshold
+        );
     }
 }
