@@ -186,64 +186,71 @@ export function hookConfigToArtifact(
   config: HookConfig,
   chainLookup: ChainLookup,
 ): ArtifactNew<HookArtifactConfig> {
-  // Handle IGP hooks - need to convert chain names to domain IDs
-  if (config.type === 'interchainGasPaymaster') {
-    const overhead: Record<number, number> = {};
-    const oracleConfig: Record<
-      number,
-      {
-        gasPrice: string;
-        tokenExchangeRate: string;
-        tokenDecimals?: number;
-      }
-    > = {};
+  switch (config.type) {
+    case 'interchainGasPaymaster': {
+      // Handle IGP hooks - need to convert chain names to domain IDs
+      const overhead: Record<number, number> = {};
+      const oracleConfig: Record<
+        number,
+        {
+          gasPrice: string;
+          tokenExchangeRate: string;
+          tokenDecimals?: number;
+        }
+      > = {};
 
-    // Convert overhead map from chain names to domain IDs
-    for (const [chainName, value] of Object.entries(config.overhead)) {
-      const domainId = chainLookup.getDomainId(chainName);
-      if (domainId === null) {
-        logger.warn(
-          `Skipping overhead config for unknown chain: ${chainName}. ` +
-            `Chain not found in chain lookup.`,
-        );
-        continue;
+      // Convert overhead map from chain names to domain IDs
+      for (const [chainName, value] of Object.entries(config.overhead)) {
+        const domainId = chainLookup.getDomainId(chainName);
+        if (domainId === null) {
+          logger.warn(
+            `Skipping overhead config for unknown chain: ${chainName}. ` +
+              `Chain not found in chain lookup.`,
+          );
+          continue;
+        }
+        overhead[domainId] = value;
       }
-      overhead[domainId] = value;
+
+      // Convert oracleConfig map from chain names to domain IDs
+      for (const [chainName, value] of Object.entries(config.oracleConfig)) {
+        const domainId = chainLookup.getDomainId(chainName);
+        if (domainId === null) {
+          logger.warn(
+            `Skipping oracle config for unknown chain: ${chainName}. ` +
+              `Chain not found in chain lookup.`,
+          );
+          continue;
+        }
+        oracleConfig[domainId] = value;
+      }
+
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
+          owner: config.owner,
+          beneficiary: config.beneficiary,
+          oracleKey: config.oracleKey,
+          overhead,
+          oracleConfig,
+        },
+      };
     }
 
-    // Convert oracleConfig map from chain names to domain IDs
-    for (const [chainName, value] of Object.entries(config.oracleConfig)) {
-      const domainId = chainLookup.getDomainId(chainName);
-      if (domainId === null) {
-        logger.warn(
-          `Skipping oracle config for unknown chain: ${chainName}. ` +
-            `Chain not found in chain lookup.`,
-        );
-        continue;
-      }
-      oracleConfig[domainId] = value;
-    }
+    case 'merkleTreeHook':
+      // MerkleTree hooks have identical structure between Config API and Artifact API
+      return {
+        artifactState: ArtifactState.NEW,
+        config: {
+          type: AltVM.HookType.MERKLE_TREE,
+        },
+      };
 
-    return {
-      artifactState: ArtifactState.NEW,
-      config: {
-        type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
-        owner: config.owner,
-        beneficiary: config.beneficiary,
-        oracleKey: config.oracleKey,
-        overhead,
-        oracleConfig,
-      },
-    };
+    default: {
+      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+    }
   }
-
-  // MerkleTree hooks have identical structure between Config API and Artifact API
-  return {
-    artifactState: ArtifactState.NEW,
-    config: {
-      type: AltVM.HookType.MERKLE_TREE,
-    },
-  };
 }
 
 /**
@@ -265,11 +272,20 @@ export function shouldDeployNewHook(
   // Type changed - must deploy new
   if (actual.type !== expected.type) return true;
 
-  // MerkleTree hooks are immutable - must deploy new
-  if (expected.type === AltVM.HookType.MERKLE_TREE) return true;
+  // Check mutability based on hook type
+  switch (expected.type) {
+    case AltVM.HookType.MERKLE_TREE:
+      // MerkleTree hooks are immutable - must deploy new
+      return true;
 
-  // IGP hooks are mutable - can be updated
-  return false;
+    case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
+      // IGP hooks are mutable - can be updated
+      return false;
+
+    default: {
+      throw new Error(`Unhandled hook type: ${(expected as any).type}`);
+    }
+  }
 }
 
 /**
@@ -287,52 +303,59 @@ export function hookArtifactToDerivedConfig(
   const config = artifact.config;
   const address = artifact.deployed.address;
 
-  // For IGP hooks, convert domain IDs back to chain names
-  if (config.type === AltVM.HookType.INTERCHAIN_GAS_PAYMASTER) {
-    const overhead: Record<string, number> = {};
-    const oracleConfig: Record<
-      string,
-      {
-        gasPrice: string;
-        tokenExchangeRate: string;
-        tokenDecimals?: number;
-      }
-    > = {};
+  switch (config.type) {
+    case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER: {
+      // For IGP hooks, convert domain IDs back to chain names
+      const overhead: Record<string, number> = {};
+      const oracleConfig: Record<
+        string,
+        {
+          gasPrice: string;
+          tokenExchangeRate: string;
+          tokenDecimals?: number;
+        }
+      > = {};
 
-    for (const [domainIdStr, value] of Object.entries(config.overhead)) {
-      const domainId = parseInt(domainIdStr);
-      const chainName = chainLookup.getChainName(domainId);
-      if (!chainName) {
-        // Skip unknown domains (already warned during read if needed)
-        continue;
+      for (const [domainIdStr, value] of Object.entries(config.overhead)) {
+        const domainId = parseInt(domainIdStr);
+        const chainName = chainLookup.getChainName(domainId);
+        if (!chainName) {
+          // Skip unknown domains (already warned during read if needed)
+          continue;
+        }
+        overhead[chainName] = value;
       }
-      overhead[chainName] = value;
+
+      for (const [domainIdStr, value] of Object.entries(config.oracleConfig)) {
+        const domainId = parseInt(domainIdStr);
+        const chainName = chainLookup.getChainName(domainId);
+        if (!chainName) {
+          // Skip unknown domains
+          continue;
+        }
+        oracleConfig[chainName] = value;
+      }
+
+      return {
+        type: 'interchainGasPaymaster',
+        owner: config.owner,
+        beneficiary: config.beneficiary,
+        oracleKey: config.oracleKey,
+        overhead,
+        oracleConfig,
+        address,
+      };
     }
 
-    for (const [domainIdStr, value] of Object.entries(config.oracleConfig)) {
-      const domainId = parseInt(domainIdStr);
-      const chainName = chainLookup.getChainName(domainId);
-      if (!chainName) {
-        // Skip unknown domains
-        continue;
-      }
-      oracleConfig[chainName] = value;
-    }
+    case AltVM.HookType.MERKLE_TREE:
+      // For MerkleTree hooks, just add the address
+      return {
+        ...config,
+        address,
+      };
 
-    return {
-      type: 'interchainGasPaymaster',
-      owner: config.owner,
-      beneficiary: config.beneficiary,
-      oracleKey: config.oracleKey,
-      overhead,
-      oracleConfig,
-      address,
-    };
+    default: {
+      throw new Error(`Unhandled hook type: ${(config as any).type}`);
+    }
   }
-
-  // For other hook types (MerkleTree), just add the address
-  return {
-    ...config,
-    address,
-  };
 }
