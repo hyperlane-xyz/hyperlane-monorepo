@@ -102,8 +102,8 @@ export function useAleoWalletDetails() {
 }
 
 export function useAleoConnectFn(): () => void {
-  return () => {
-    getAdapter().connect(
+  return async () => {
+    await getAdapter().connect(
       Network.MAINNET,
       WalletDecryptPermission.AutoDecrypt,
       [],
