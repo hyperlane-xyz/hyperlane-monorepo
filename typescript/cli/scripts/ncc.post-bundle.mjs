@@ -9,7 +9,6 @@ const __dirname = path.dirname(__filename);
 const OUTPUT_FILE = path.join(__dirname, '..', 'cli-bundle', 'index.js');
 const SHEBANG = '#!/usr/bin/env node';
 
-// This shim runs before any other code and adds __dirname/__filename support for ESM
 const DIRNAME_SHIM = `
 import { fileURLToPath, pathToFileURL } from 'url';
 import path from 'path';
