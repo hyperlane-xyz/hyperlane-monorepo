@@ -1,14 +1,8 @@
 import { expect } from 'chai';
 
-import {
-  type CoreConfig,
-  HookType,
-  type IgpConfig,
-  IsmType,
-} from '@hyperlane-xyz/sdk';
+import { type CoreConfig, HookType, IsmType } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CORE_CONFIG_PATH_BY_PROTOCOL,
