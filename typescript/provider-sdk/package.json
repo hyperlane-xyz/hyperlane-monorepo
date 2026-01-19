@@ -17,6 +17,8 @@
     "./hook": "./dist/hook.js",
     "./ism": "./dist/ism.js",
     "./core": "./dist/core.js",
+    "./mailbox": "./dist/mailbox.js",
+    "./validator-announce": "./dist/validator-announce.js",
     "./warp": "./dist/warp.js",
     "./factory": "./dist/factory.js",
     "./submitter": "./dist/submitter.js",
