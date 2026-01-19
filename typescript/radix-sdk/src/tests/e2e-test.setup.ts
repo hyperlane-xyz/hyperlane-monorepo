@@ -29,15 +29,18 @@ before(async function () {
   // Start node
   radixNodeInstance = await runRadixNode(TEST_RADIX_CHAIN_METADATA, artifacts);
 
-  // Deploy Hyperlane package and get address
-  const packageAddress = await deployHyperlaneRadixPackage(
+  // Deploy Hyperlane package and get address and XRD resource address
+  const { packageAddress, xrdAddress } = await deployHyperlaneRadixPackage(
     TEST_RADIX_CHAIN_METADATA,
     artifacts,
   );
 
-  // Store metadata with package address for tests to use
+  // Store metadata with package address and correct XRD denom for tests to use
   DEPLOYED_TEST_CHAIN_METADATA = deepCopy(TEST_RADIX_CHAIN_METADATA);
   DEPLOYED_TEST_CHAIN_METADATA.packageAddress = packageAddress;
+  if (DEPLOYED_TEST_CHAIN_METADATA.nativeToken) {
+    DEPLOYED_TEST_CHAIN_METADATA.nativeToken.denom = xrdAddress;
+  }
 });
 
 after(async function () {

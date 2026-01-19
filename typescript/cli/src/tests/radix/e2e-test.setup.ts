@@ -1,4 +1,5 @@
 import fs from 'fs';
+import { type StartedDockerComposeEnvironment } from 'testcontainers';
 
 import {
   deployHyperlaneRadixPackage,
@@ -15,6 +16,9 @@ import {
   TEST_CHAIN_METADATA_PATH_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
+
+// Store the Radix node instance to tear it down in the after hook
+let radixNodeInstance: StartedDockerComposeEnvironment;
 
 let orginalRadixTestMentadata:
   | typeof TEST_CHAIN_METADATA_BY_PROTOCOL.radix
@@ -45,17 +49,20 @@ before(async function () {
   orginalRadixTestMentadata = deepCopy(TEST_CHAIN_METADATA_BY_PROTOCOL.radix);
 
   // Run only one node for now
-  await runRadixNode(TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1, {
-    code: new Uint8Array(code),
-    packageDefinition: new Uint8Array(packageDefinition),
-  });
+  radixNodeInstance = await runRadixNode(
+    TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    {
+      code: new Uint8Array(code),
+      packageDefinition: new Uint8Array(packageDefinition),
+    },
+  );
 
   const t = Object.keys(
     TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix,
   ) as (keyof typeof TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix)[];
 
   for (const chain of t) {
-    const hyperlanePackageAddress = await deployHyperlaneRadixPackage(
+    const { packageAddress, xrdAddress } = await deployHyperlaneRadixPackage(
       TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain],
       {
         code: new Uint8Array(code),
@@ -68,7 +75,15 @@ before(async function () {
     const metadataPath = TEST_CHAIN_METADATA_PATH_BY_PROTOCOL.radix[chain];
     const updatedMetadata = TEST_CHAIN_METADATA_BY_PROTOCOL.radix[chain];
 
-    updatedMetadata.packageAddress = hyperlanePackageAddress;
+    updatedMetadata.packageAddress = packageAddress;
+
+    // Update the native token denom with the actual XRD resource address for this network.
+    // This is critical because the XRD address is derived from the network ID and must match
+    // the token used in the faucet for funding accounts and the IGP for gas payments.
+    if (updatedMetadata.nativeToken) {
+      updatedMetadata.nativeToken.denom = xrdAddress;
+    }
+
     writeYamlOrJson(metadataPath, updatedMetadata);
   }
 });
@@ -82,7 +97,12 @@ beforeEach(() => {
   }
 });
 
-after(function () {
+// Restore original Radix metadata files and tear down the Radix node after tests.
+// This prevents subsequent test runs from using stale package addresses
+// that point to a Radix node that's no longer running.
+after(async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+
   // Restore the original test metadata
   for (const [chainName, originalMetadata] of Object.entries(
     orginalRadixTestMentadata ?? {},
@@ -93,5 +113,9 @@ after(function () {
       ];
 
     writeYamlOrJson(metadataPath, originalMetadata);
+  }
+
+  if (radixNodeInstance) {
+    await radixNodeInstance.down();
   }
 });

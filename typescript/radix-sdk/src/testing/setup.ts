@@ -45,14 +45,21 @@ export async function downloadRadixContracts(): Promise<RadixContractArtifacts> 
   return { code, packageDefinition };
 }
 
+export interface RadixPackageDeployment {
+  packageAddress: string;
+  xrdAddress: string;
+}
+
 /**
- * Deploys the Hyperlane Radix package to a test chain and adds it to the provided metadata
+ * Deploys the Hyperlane Radix package to a test chain and adds it to the provided metadata.
+ * Also returns the XRD resource address for the network, which should be used to update
+ * the chain metadata's nativeToken.denom.
  */
 export async function deployHyperlaneRadixPackage(
   chainMetadata: TestChainMetadata = TEST_RADIX_CHAIN_METADATA,
   hyperlanePackageArtifacts: RadixContractArtifacts,
   privateKey: string = TEST_RADIX_PRIVATE_KEY,
-): Promise<string> {
+): Promise<RadixPackageDeployment> {
   // Adding dummy package address to avoid the signer crashing because
   // no Hyperlane package is deployed on the new node
   const metadata: TestChainMetadata = {
@@ -66,6 +73,11 @@ export async function deployHyperlaneRadixPackage(
   const signer = (await RadixSigner.connectWithSigner(rpcUrls, privateKey, {
     metadata,
   })) as RadixSigner;
+
+  // Get the actual XRD resource address for this network
+  // This is dynamically derived based on the network ID and must be used
+  // in the chain metadata to ensure IGP and transfers use the correct token
+  const xrdAddress = await signer['base'].getXrdAddress();
 
   // Fund the account with the internal signer
   // Use retryAsync to handle transient errors (e.g., epoch expiry)
@@ -86,5 +98,5 @@ export async function deployHyperlaneRadixPackage(
 
   rootLogger.info(`Deployed Hyperlane package to: ${packageAddress}`);
 
-  return packageAddress;
+  return { packageAddress, xrdAddress };
 }
