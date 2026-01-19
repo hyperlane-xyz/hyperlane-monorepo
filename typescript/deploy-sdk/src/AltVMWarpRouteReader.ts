@@ -16,7 +16,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HookReader, createHookReader } from './hook/generic-hook.js';
+import { HookReader, createHookReader } from './hook/hook-reader.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {

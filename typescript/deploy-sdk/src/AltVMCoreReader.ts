@@ -10,7 +10,7 @@ import {
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HookReader, createHookReader } from './hook/generic-hook.js';
+import { HookReader, createHookReader } from './hook/hook-reader.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMCoreReader implements HypReader<CoreModuleType> {

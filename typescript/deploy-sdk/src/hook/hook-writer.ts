@@ -22,7 +22,7 @@ import {
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { HookReader } from './generic-hook.js';
+import { HookReader } from './hook-reader.js';
 
 /**
  * Deployment context for hooks that need environment information.

@@ -26,7 +26,7 @@ import {
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
-import { createHookWriter } from './hook/generic-hook-writer.js';
+import { createHookWriter } from './hook/hook-writer.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
 import {
   ismConfigToArtifact,
