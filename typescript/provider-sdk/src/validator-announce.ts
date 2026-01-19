@@ -32,6 +32,7 @@ export type DeployedValidatorAnnounceArtifact = ArtifactDeployed<
 export interface ValidatorAnnounceArtifactConfigs {
   validatorAnnounce: ValidatorAnnounceArtifactConfig;
 }
+}
 
 export type ValidatorAnnounceType = keyof ValidatorAnnounceArtifactConfigs;
 
