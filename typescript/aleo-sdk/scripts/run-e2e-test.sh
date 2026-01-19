@@ -1,25 +1,9 @@
 #!/usr/bin/env bash
 set -e
 
-function cleanup() {
-  docker compose down
-}
+echo "Running E2E tests (Docker container managed by testcontainers)"
 
-# Ensure cleanup runs even on error
-trap cleanup EXIT
-
-cleanup
-
-echo "Preparing E2E tests"
-docker compose up --detach --wait
-
-if [[ $? -ne 0 ]]; then
-  echo "Failure starting local aleo devnode"
-  exit 1
-fi
-
-echo "Running E2E tests"
-
+# Set environment variables for test configuration
 export ALEO_SKIP_PROOFS=true
 export ALEO_SKIP_SUFFIXES=false
 export ALEO_UPGRADE_AUTHORITY=""
@@ -29,7 +13,7 @@ export ALEO_WARP_SUFFIX="usdc"
 
 if [ -n "${ALEO_SDK_E2E_TEST}" ]; then
   echo "Running only ${ALEO_SDK_E2E_TEST} test"
-  pnpm mocha --extension ts --node-option import=tsx/esm "src/tests/${ALEO_SDK_E2E_TEST}.e2e-test.ts"
+  pnpm mocha --extension ts --node-option import=tsx/esm --file src/tests/e2e-test.setup.ts "src/tests/${ALEO_SDK_E2E_TEST}.e2e-test.ts"
 else
   pnpm mocha --config .mocharc-e2e.json
 fi

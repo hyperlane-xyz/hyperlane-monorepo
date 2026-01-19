@@ -49,6 +49,7 @@
     "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
     "prettier": "catalog:",
+    "testcontainers": "catalog:",
     "ts-node": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
