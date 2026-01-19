@@ -10,6 +10,8 @@ import {
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { DeployedHookArtifact } from '@hyperlane-xyz/provider-sdk/hook';
+import { DeployedIsmArtifact } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DerivedWarpConfig,
@@ -24,17 +26,19 @@ const TestProtocolType = 'test' as ProtocolType;
 
 // Mock ISM artifact manager
 const mockIsmArtifactManager = {
-  readIsm: async () => ({
-    artifactState: 'DEPLOYED',
-    config: { type: AltVM.IsmType.TEST_ISM },
-    deployed: { address: '0x1234' },
-  }),
-  createReader: () => ({
-    read: async () => ({
-      artifactState: 'DEPLOYED',
+  readIsm: async () =>
+    ({
+      artifactState: 'deployed' as const,
       config: { type: AltVM.IsmType.TEST_ISM },
       deployed: { address: '0x1234' },
-    }),
+    }) satisfies DeployedIsmArtifact,
+  createReader: () => ({
+    read: async () =>
+      ({
+        artifactState: 'deployed' as const,
+        config: { type: AltVM.IsmType.TEST_ISM },
+        deployed: { address: '0x1234' },
+      }) satisfies DeployedIsmArtifact,
   }),
   createWriter: (type: any, signer: any) => ({
     create: async (artifact: any) => {
@@ -58,10 +62,10 @@ const mockIsmArtifactManager = {
 
       return [
         {
-          artifactState: 'DEPLOYED',
+          artifactState: 'deployed' as const,
           config: artifact.config,
           deployed: { address: ismAddress },
-        },
+        } satisfies DeployedIsmArtifact,
         [], // No receipts for mock
       ];
     },
@@ -71,17 +75,19 @@ const mockIsmArtifactManager = {
 
 // Mock hook artifact manager
 const mockHookArtifactManager = {
-  readHook: async () => ({
-    artifactState: 'deployed' as const,
-    config: { type: AltVM.HookType.MERKLE_TREE },
-    deployed: { address: '0x5678' },
-  }),
-  createReader: () => ({
-    read: async () => ({
+  readHook: async () =>
+    ({
       artifactState: 'deployed' as const,
       config: { type: AltVM.HookType.MERKLE_TREE },
       deployed: { address: '0x5678' },
-    }),
+    }) satisfies DeployedHookArtifact,
+  createReader: () => ({
+    read: async () =>
+      ({
+        artifactState: 'deployed' as const,
+        config: { type: AltVM.HookType.MERKLE_TREE },
+        deployed: { address: '0x5678' },
+      }) satisfies DeployedHookArtifact,
   }),
   createWriter: (_type: any, _signer: any) => ({
     create: async (artifact: any) => {
@@ -91,15 +97,16 @@ const mockHookArtifactManager = {
           artifactState: 'deployed' as const,
           config: artifact.config,
           deployed: { address: hookAddress },
-        },
+        } satisfies DeployedHookArtifact,
         [],
       ];
     },
-    read: async () => ({
-      artifactState: 'deployed' as const,
-      config: { type: AltVM.HookType.MERKLE_TREE },
-      deployed: { address: '0x5678' },
-    }),
+    read: async () =>
+      ({
+        artifactState: 'deployed' as const,
+        config: { type: AltVM.HookType.MERKLE_TREE },
+        deployed: { address: '0x5678' },
+      }) satisfies DeployedHookArtifact,
     update: async () => [],
   }),
 };
