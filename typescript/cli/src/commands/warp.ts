@@ -385,7 +385,6 @@ export const check: CommandModuleWithContext<
       description:
         'Check that destination chain owners match expected ICA addresses derived from origin chain owner',
       default: false,
-      implies: 'origin',
     },
     origin: {
       type: 'string',
@@ -433,7 +432,9 @@ export const check: CommandModuleWithContext<
     ));
 
     // If --ica flag is set, run ICA owner check instead of the regular config check
-    if (ica && origin) {
+    if (ica) {
+      assert(origin, '--origin is required when using --ica');
+
       const destinationChains = destinations
         ? destinations.split(',').map((c) => c.trim())
         : undefined;
