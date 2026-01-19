@@ -1,0 +1,20 @@
+defaultHook:
+  beneficiary: aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px
+  oracleConfig:
+    aleo1:
+      gasPrice: '1'
+      tokenDecimals: 6
+      tokenExchangeRate: '10000000000'
+  oracleKey: aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px
+  overhead:
+    aleo1: 200000
+  owner: aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px
+  type: interchainGasPaymaster
+defaultIsm:
+  threshold: 1
+  type: merkleRootMultisigIsm
+  validators:
+    - '0x0c60e7eCd06429052223C78452F791AAb5C5CAc6'
+owner: aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px
+requiredHook:
+  type: merkleTreeHook
