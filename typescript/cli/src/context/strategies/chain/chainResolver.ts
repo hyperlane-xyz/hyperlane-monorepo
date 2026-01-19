@@ -10,7 +10,10 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
-import { runSingleChainSelectionStep } from '../../../utils/chains.js';
+import {
+  filterOutDisabledChains,
+  runSingleChainSelectionStep,
+} from '../../../utils/chains.js';
 import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
@@ -143,8 +146,9 @@ async function resolveWarpRebalancerChains(
 
 /**
  * Resolves chains for the 'send message' command.
- * If origin/destination are provided, return them (EVM-only).
- * If either is missing, return all EVM chains so interactive selection can work.
+ * Returns only explicitly provided chains (origin/destination).
+ * If either is missing, returns only the provided ones - signers for
+ * interactively selected chains will be created after selection.
  */
 async function resolveSendMessageChains(
   argv: Record<string, any>,
@@ -168,22 +172,15 @@ async function resolveSendMessageChains(
     }
   }
 
-  if (selectedChains.length === 2) {
-    return selectedChains;
-  }
-
-  return multiProvider
-    .getKnownChainNames()
-    .filter(
-      (chain: string) =>
-        ProtocolType.Ethereum === multiProvider.getProtocol(chain),
-    );
+  // Return only explicitly provided chains - signers for interactively
+  // selected chains will be created after selection
+  return selectedChains;
 }
 
 async function resolveRelayerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
+  const { multiProvider, chainMetadata } = argv.context;
   const chains = new Set<ChainName>();
 
   if (argv.origin) {
@@ -203,7 +200,7 @@ async function resolveRelayerChains(
 
   // If no destination is specified, return all EVM chains only
   if (!argv.destination) {
-    const chains = multiProvider.getKnownChainNames();
+    const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
     return chains.filter(
       (chain: string) =>
