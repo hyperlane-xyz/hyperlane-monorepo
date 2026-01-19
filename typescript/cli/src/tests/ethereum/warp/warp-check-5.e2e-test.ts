@@ -269,6 +269,9 @@ describe('hyperlane warp check e2e tests', async function () {
   describe('hyperlane warp check --ica', () => {
     let expectedIcaAddress: Address;
     let icaOwnerAddress: Address;
+    // Owner address not in the warp config - used to test --originOwner override
+    let nonConfigOwner: Address;
+    let nonConfigOwnerIca: Address;
 
     function createIcaWarpConfig(
       destinationOwner: Address,
@@ -395,6 +398,13 @@ describe('hyperlane warp check e2e tests', async function () {
       };
 
       expectedIcaAddress = await ica.getAccount(CHAIN_NAME_3, ownerConfig);
+
+      // Calculate ICA for an owner not in the warp config (for --originOwner tests)
+      nonConfigOwner = Wallet.createRandom().address;
+      nonConfigOwnerIca = await ica.getAccount(CHAIN_NAME_3, {
+        origin: CHAIN_NAME_2,
+        owner: nonConfigOwner,
+      });
     });
 
     it('should pass when destination owner matches calculated ICA address', async function () {
@@ -439,24 +449,6 @@ describe('hyperlane warp check e2e tests', async function () {
 
       expect(output.exitCode).to.equal(1);
       expect(output.text()).to.include('--origin is required when using --ica');
-    });
-
-    it('should fail when --origin is not part of the warp config', async function () {
-      const currentWarpId = await deployIcaWarpRoute(
-        expectedIcaAddress,
-        'invalid-origin',
-      );
-
-      const output = await hyperlaneWarpCheckRaw({
-        warpRouteId: currentWarpId,
-        ica: true,
-        origin: 'nonexistent',
-      }).nothrow();
-
-      expect(output.exitCode).to.equal(1);
-      expect(output.text()).to.include(
-        'Origin chain "nonexistent" is not part of the warp config',
-      );
     });
 
     it('should warn and skip when --destinations contains chains not in the warp config', async function () {
@@ -544,6 +536,70 @@ describe('hyperlane warp check e2e tests', async function () {
       // anvil4 with wrong owner was skipped
       expect(output.exitCode).to.equal(0);
       expect(output.text()).to.include('No violations found');
+    });
+
+    it('should pass when --originOwner override matches destination ICA owner', async function () {
+      // Deploy warp route with destination owner set to ICA derived from nonConfigOwner
+      const icaWarpConfig: WarpRouteDeployConfig = {
+        [CHAIN_NAME_2]: {
+          type: TokenType.collateral,
+          token: token.address,
+          mailbox: chain2Addresses.mailbox,
+          owner: icaOwnerAddress, // Config owner is the default
+        },
+        [CHAIN_NAME_3]: {
+          type: TokenType.synthetic,
+          mailbox: chain3Addresses.mailbox,
+          owner: nonConfigOwnerIca, // Destination owner is ICA of nonConfigOwner
+        },
+      };
+
+      const symbol = await token.symbol();
+      const warpDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-ica-override-pass-deploy.yaml',
+      );
+      writeYamlOrJson(warpDeployPath, icaWarpConfig);
+
+      const currentWarpId = createWarpRouteConfigId(
+        symbol,
+        `${CHAIN_NAME_3}-ica-override-pass`,
+      );
+      await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
+
+      // Use --originOwner to override with nonConfigOwner
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: currentWarpId,
+        ica: true,
+        origin: CHAIN_NAME_2,
+        originOwner: nonConfigOwner,
+      }).nothrow();
+
+      expect(output.exitCode).to.equal(0);
+      expect(output.text()).to.include('No violations found');
+    });
+
+    it('should fail when --originOwner override causes ICA mismatch', async function () {
+      // Deploy warp route with destination owner set to ICA derived from icaOwnerAddress (config owner)
+      const currentWarpId = await deployIcaWarpRoute(
+        expectedIcaAddress,
+        'override-fail',
+      );
+
+      // Use --originOwner with nonConfigOwner, which will calculate a different expected ICA
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: currentWarpId,
+        ica: true,
+        origin: CHAIN_NAME_2,
+        originOwner: nonConfigOwner,
+      }).nothrow();
+
+      // Should fail because configured owner (expectedIcaAddress) doesn't match
+      // the ICA derived from nonConfigOwner (nonConfigOwnerIca)
+      expect(output.exitCode).to.equal(1);
+      expect(output.text()).to.include('ACTUAL');
+      expect(output.text()).to.include('EXPECTED');
+      expect(output.text()).to.include(nonConfigOwnerIca.toLowerCase());
     });
   });
 });

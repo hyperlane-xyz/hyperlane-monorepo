@@ -363,6 +363,7 @@ export const check: CommandModuleWithContext<
   SelectWarpRouteBuilder & {
     ica?: boolean;
     origin?: string;
+    originOwner?: string;
     destinations?: string;
   }
 > = {
@@ -382,6 +383,12 @@ export const check: CommandModuleWithContext<
       description:
         'The origin chain to use for verification. Required when using --ica.',
     },
+    originOwner: {
+      type: 'string',
+      description:
+        'Override the origin owner address instead of reading from warp deploy config.',
+      implies: 'origin',
+    },
     destinations: {
       type: 'string',
       description:
@@ -396,6 +403,7 @@ export const check: CommandModuleWithContext<
     config,
     ica,
     origin,
+    originOwner,
     destinations,
   }) => {
     logCommandHeader('Hyperlane Warp Check');
@@ -423,6 +431,7 @@ export const check: CommandModuleWithContext<
         context,
         warpDeployConfig,
         origin,
+        originOwner,
         destinations: destinationChains,
       });
 

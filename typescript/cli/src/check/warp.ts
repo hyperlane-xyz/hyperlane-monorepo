@@ -110,11 +110,13 @@ export async function runWarpIcaOwnerCheck({
   context,
   warpDeployConfig,
   origin,
+  originOwner: originOwnerOverride,
   destinations,
 }: {
   context: CommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   origin?: string;
+  originOwner?: string;
   destinations?: string[];
 }): Promise<void> {
   const { registry, multiProvider } = context;
@@ -126,10 +128,10 @@ export async function runWarpIcaOwnerCheck({
     `Origin chain "${origin}" is not part of the warp config`,
   );
 
-  const originOwner = warpDeployConfig[origin].owner;
+  const originOwner = originOwnerOverride ?? warpDeployConfig[origin].owner;
   assert(
     originOwner,
-    `Origin chain "${origin}" does not have an owner configured`,
+    `Origin chain "${origin}" does not have an owner configured and --originOwner was not provided`,
   );
 
   // Filter destinations: must be in config, EVM, and not origin

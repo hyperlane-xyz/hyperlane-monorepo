@@ -204,6 +204,7 @@ export function hyperlaneWarpCheckRaw({
   warpRouteId,
   ica,
   origin,
+  originOwner,
   destinations,
 }: {
   symbol?: string;
@@ -212,6 +213,7 @@ export function hyperlaneWarpCheckRaw({
   warpRouteId?: string;
   ica?: boolean;
   origin?: string;
+  originOwner?: string;
   destinations?: string[];
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
@@ -223,6 +225,7 @@ export function hyperlaneWarpCheckRaw({
         ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
         ${ica ? ['--ica'] : []} \
         ${origin ? ['--origin', origin] : []} \
+        ${originOwner ? ['--originOwner', originOwner] : []} \
         ${destinations && destinations.length > 0 ? ['--destinations', destinations.join(',')] : []}`;
 }
 
