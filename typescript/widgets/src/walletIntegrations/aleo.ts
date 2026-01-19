@@ -44,9 +44,11 @@ const POLLING_DELAY_MS = 1000;
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  const [account, setAccount] = useState(getAdapter().account);
+  const [account, setAccount] =
+    useState<ShieldWalletAdapter['account']>(undefined);
 
   useEffect(() => {
+    // Only access adapter in useEffect to avoid SSR issues
     const adapterInstance = getAdapter();
     const handleAccountChange = () => {
       setAccount(adapterInstance.account);
@@ -55,6 +57,7 @@ export function useAleoAccount(
     adapterInstance.on('connect', handleAccountChange);
     adapterInstance.on('disconnect', handleAccountChange);
 
+    // Initialize account state
     handleAccountChange();
 
     return () => {
@@ -79,35 +82,32 @@ export function useAleoAccount(
 }
 
 export function useAleoWalletDetails() {
-  const adapterInstance = getAdapter();
-  const name = adapterInstance.name;
-  const logoUrl = adapterInstance.icon;
+  const [details, setDetails] = useState<WalletDetails>({
+    name: undefined,
+    logoUrl: undefined,
+  });
 
-  return useMemo<WalletDetails>(
-    () => ({
-      name,
-      logoUrl,
-    }),
-    [name, logoUrl],
-  );
+  useEffect(() => {
+    // Only access adapter in useEffect to avoid SSR issues
+    if (typeof window !== 'undefined') {
+      const adapterInstance = getAdapter();
+      setDetails({
+        name: adapterInstance.name,
+        logoUrl: adapterInstance.icon,
+      });
+    }
+  }, []);
+
+  return details;
 }
 
 export function useAleoConnectFn(): () => void {
   return () => {
-    getAdapter().connect(Network.MAINNET, WalletDecryptPermission.AutoDecrypt, [
-      'hyp_multisig_core.aleo',
-      'hyp_mailbox.aleo',
-      'hyp_ism_manager.aleo',
-      'hyp_hook_manager.aleo',
-      'hyp_dispatch_proxy.aleo',
-      'hyp_validator_announce.aleo',
-      'hyp_warp_token_btc.aleo',
-      'hyp_warp_token_eth.aleo',
-      'hyp_warp_token_sol.aleo',
-      'hyp_warp_token_usdt.aleo',
-      'hyp_warp_token_usdc.aleo',
-      'hyp_warp_token_credits.aleo',
-    ]);
+    getAdapter().connect(
+      Network.MAINNET,
+      WalletDecryptPermission.AutoDecrypt,
+      [],
+    );
   };
 }
 
