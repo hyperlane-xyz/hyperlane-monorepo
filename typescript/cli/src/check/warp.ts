@@ -127,14 +127,17 @@ export async function runWarpIcaOwnerCheck({
     `Origin chain "${origin}" does not have an owner configured and --originOwner was not provided`,
   );
 
-  // Filter destinations: must be in config and EVM
+  // Filter destinations: must be in config, EVM, and not the origin chain
   const chainsToCheck = (destinations ?? [...configChains]).filter((chain) => {
-    if (multiProvider.tryGetProtocol(chain) !== ProtocolType.Ethereum) {
-      warnYellow(`Skipping non-EVM destination chain "${chain}"`);
+    if (chain === origin) {
       return false;
     }
     if (!configChains.has(chain)) {
       warnYellow(`Chain "${chain}" is not part of the warp config, skipping`);
+      return false;
+    }
+    if (multiProvider.tryGetProtocol(chain) !== ProtocolType.Ethereum) {
+      warnYellow(`Skipping non-EVM destination chain "${chain}"`);
       return false;
     }
     return true;
