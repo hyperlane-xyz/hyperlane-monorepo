@@ -385,6 +385,7 @@ export const check: CommandModuleWithContext<
       description:
         'Check that destination chain owners match expected ICA addresses derived from origin chain owner',
       default: false,
+      implies: 'origin',
     },
     origin: {
       type: 'string',
