@@ -63,15 +63,15 @@ export class AleoTokenAdapter
 
     assert(
       name !== undefined,
-      `name on radix token ${this.tokenAddress} is undefined`,
+      `name on aleo token ${this.tokenAddress} is undefined`,
     );
     assert(
       symbol !== undefined,
-      `symbol on radix token ${this.tokenAddress} is undefined`,
+      `symbol on aleo token ${this.tokenAddress} is undefined`,
     );
     assert(
       decimals !== undefined,
-      `divisibility on radix token ${this.tokenAddress} is undefined`,
+      `divisibility on aleo token ${this.tokenAddress} is undefined`,
     );
 
     return {
@@ -252,7 +252,7 @@ export class AleoHypCollateralAdapter
 
     if (!params.interchainGas.igpQuote?.addressOrDenom) {
       throw new Error(
-        `Require denom for max fee, didn't receive and denom in the interchainGas quote`,
+        `Require denom for max fee, didn't receive a denom in the interchainGas quote`,
       );
     }
 

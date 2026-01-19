@@ -23,31 +23,43 @@ import {
   WatchAssetFns,
 } from './types.js';
 
-const adapter = new ShieldWalletAdapter();
+// Lazy initialization to avoid SSR issues with browser-only APIs
+let adapter: ShieldWalletAdapter | null = null;
+
+function getAdapter(): ShieldWalletAdapter {
+  if (!adapter) {
+    if (typeof window === 'undefined') {
+      throw new Error(
+        'ShieldWalletAdapter requires a browser environment and cannot be used during server-side rendering',
+      );
+    }
+    adapter = new ShieldWalletAdapter();
+  }
+  return adapter;
+}
+
+const MAX_POLLING_ATTEMPTS = 60;
+const POLLING_DELAY_MS = 1000;
 
 export function useAleoAccount(
   _multiProvider: MultiProtocolProvider,
 ): AccountInfo {
-  const [account, setAccount] = useState(adapter.account);
+  const [account, setAccount] = useState(getAdapter().account);
 
   useEffect(() => {
+    const adapterInstance = getAdapter();
     const handleAccountChange = () => {
-      setAccount(adapter.account);
+      setAccount(adapterInstance.account);
     };
 
-    adapter.on('connect', () => {
-      setAccount(adapter.account);
-    });
-
-    adapter.on('disconnect', () => {
-      setAccount(adapter.account);
-    });
+    adapterInstance.on('connect', handleAccountChange);
+    adapterInstance.on('disconnect', handleAccountChange);
 
     handleAccountChange();
 
     return () => {
-      adapter.off('connect', handleAccountChange);
-      adapter.off('disconnect', handleAccountChange);
+      adapterInstance.off('connect', handleAccountChange);
+      adapterInstance.off('disconnect', handleAccountChange);
     };
   }, []);
 
@@ -67,8 +79,9 @@ export function useAleoAccount(
 }
 
 export function useAleoWalletDetails() {
-  const name = adapter.name;
-  const logoUrl = adapter.icon;
+  const adapterInstance = getAdapter();
+  const name = adapterInstance.name;
+  const logoUrl = adapterInstance.icon;
 
   return useMemo<WalletDetails>(
     () => ({
@@ -81,7 +94,7 @@ export function useAleoWalletDetails() {
 
 export function useAleoConnectFn(): () => void {
   return () => {
-    adapter.connect(Network.MAINNET, WalletDecryptPermission.AutoDecrypt, [
+    getAdapter().connect(Network.MAINNET, WalletDecryptPermission.AutoDecrypt, [
       'hyp_multisig_core.aleo',
       'hyp_mailbox.aleo',
       'hyp_ism_manager.aleo',
@@ -100,7 +113,7 @@ export function useAleoConnectFn(): () => void {
 
 export function useAleoDisconnectFn(): () => Promise<void> {
   return async () => {
-    await adapter.disconnect();
+    await getAdapter().disconnect();
   };
 }
 
@@ -164,7 +177,8 @@ export function useAleoTransactionFns(
         transaction,
       });
 
-      const transactionResult = await adapter.executeTransaction({
+      const adapterInstance = getAdapter();
+      const transactionResult = await adapterInstance.executeTransaction({
         program: transaction.programName,
         function: transaction.functionName,
         fee: Number(fee),
@@ -178,11 +192,15 @@ export function useAleoTransactionFns(
 
       let transactionStatus = '';
       let transactionHash = '';
+      let attempts = 0;
 
-      while (!transactionHash) {
+      while (!transactionHash && attempts < MAX_POLLING_ATTEMPTS) {
+        await sleep(POLLING_DELAY_MS);
+        attempts++;
+
         try {
           const statusResponse = await retryAsync(() =>
-            adapter.transactionStatus(transactionResult.transactionId),
+            adapterInstance.transactionStatus(transactionResult.transactionId),
           );
           transactionStatus = statusResponse.status;
 
@@ -196,13 +214,19 @@ export function useAleoTransactionFns(
               `got no transaction id from ${transactionResult.transactionId}`,
             );
           }
-
-          await sleep(1000);
         } catch (err) {
-          throw new Error(
-            `failed to get transaction status from ${transactionResult.transactionId}`,
-          );
+          if (attempts >= MAX_POLLING_ATTEMPTS) {
+            throw new Error(
+              `Failed to get transaction status from ${transactionResult.transactionId} after ${MAX_POLLING_ATTEMPTS} attempts: ${err}`,
+            );
+          }
         }
+      }
+
+      if (!transactionHash) {
+        throw new Error(
+          `Transaction polling timeout after ${MAX_POLLING_ATTEMPTS} attempts (${(MAX_POLLING_ATTEMPTS * POLLING_DELAY_MS) / 1000}s) for ${transactionResult.transactionId}`,
+        );
       }
 
       const confirm = async (): Promise<TypedTransactionReceipt> => {

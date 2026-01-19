@@ -56,7 +56,7 @@
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "@provablehq/sdk": "^0.9.15",
+    "@provablehq/sdk": "0.9.15",
     "bignumber.js": "catalog:",
     "unzipper": "^0.12.3"
   }
