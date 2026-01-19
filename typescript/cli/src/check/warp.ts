@@ -18,6 +18,7 @@ import {
   diffObjMerge,
   eqAddress,
   keepOnlyDiffObjects,
+  normalizeAddressEvm,
 } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
@@ -176,8 +177,8 @@ export async function runWarpIcaOwnerCheck({
     if (!eqAddress(configuredOwner, expectedIcaAddress)) {
       violations[destination] = {
         owner: {
-          actual: configuredOwner.toLowerCase(),
-          expected: expectedIcaAddress.toLowerCase(),
+          actual: normalizeAddressEvm(configuredOwner),
+          expected: normalizeAddressEvm(expectedIcaAddress),
         },
       };
     }
