@@ -382,6 +382,7 @@ export const check: CommandModuleWithContext<
       type: 'string',
       description:
         'The origin chain to use for verification. Required when using --ica.',
+      implies: 'ica',
     },
     originOwner: {
       type: 'string',
@@ -393,6 +394,7 @@ export const check: CommandModuleWithContext<
       type: 'string',
       description:
         'Comma-separated list of destination chains to check. Defaults to all chains except origin when using --ica.',
+      implies: 'ica',
     },
   },
   handler: async ({
