@@ -13,7 +13,7 @@ domainId: 1413831649
 name: aleo1
 nativeToken:
   decimals: 6
-  denom: microcredits
+  denom: credits
   name: Aleo Credits
   symbol: ALEO
 protocol: aleo
