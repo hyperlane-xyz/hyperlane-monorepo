@@ -158,7 +158,7 @@ export async function runWarpIcaOwnerCheck({
       addresses?.interchainAccountRouter,
       `No interchainAccountRouter found for chain ${chain}`,
     );
-    chainAddresses[chain] = addresses as Record<string, string>;
+    chainAddresses[chain] = addresses;
   }
 
   const ica = InterchainAccount.fromAddressesMap(chainAddresses, multiProvider);
