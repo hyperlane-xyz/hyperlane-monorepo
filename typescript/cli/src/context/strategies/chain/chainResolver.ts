@@ -136,11 +136,8 @@ async function resolveWarpConfigChains(
 async function resolveWarpSendChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  if (argv.chains) {
-    return argv.chains
-      .split(',')
-      .map((chain: string) => chain.trim())
-      .filter(Boolean);
+  if (argv.chains?.length) {
+    return argv.chains;
   }
 
   const chains = [argv.origin, argv.destination].filter(Boolean) as ChainName[];
