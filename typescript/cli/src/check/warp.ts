@@ -115,40 +115,35 @@ export async function runWarpIcaOwnerCheck({
 }: {
   context: CommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
-  origin?: string;
+  origin: string;
   originOwner?: string;
   destinations?: string[];
 }): Promise<void> {
   const { registry, multiProvider } = context;
   const configChains = new Set(Object.keys(warpDeployConfig));
-
-  assert(origin, '--origin is required when using --ica');
-  assert(
-    configChains.has(origin),
-    `Origin chain "${origin}" is not part of the warp config`,
-  );
-
-  const originOwner = originOwnerOverride ?? warpDeployConfig[origin].owner;
+  const originOwner = originOwnerOverride ?? warpDeployConfig[origin]?.owner;
   assert(
     originOwner,
     `Origin chain "${origin}" does not have an owner configured and --originOwner was not provided`,
   );
 
-  // Filter destinations: must be in config, EVM, and not origin
+  // Filter destinations: must be in config and EVM
   const chainsToCheck = (destinations ?? [...configChains]).filter((chain) => {
+    if (multiProvider.tryGetProtocol(chain) !== ProtocolType.Ethereum) {
+      warnYellow(`Skipping non-EVM destination chain "${chain}"`);
+      return false;
+    }
     if (!configChains.has(chain)) {
       warnYellow(`Chain "${chain}" is not part of the warp config, skipping`);
       return false;
     }
-    if (chain === origin) return false;
-    if (multiProvider.tryGetProtocol(chain) !== ProtocolType.Ethereum) {
-      warnYellow(`Skipping non-EVM chain "${chain}"`);
-      return false;
-    }
     return true;
   });
-
   assert(chainsToCheck.length > 0, 'No EVM destination chains to check');
+  assert(
+    multiProvider.tryGetProtocol(origin) === ProtocolType.Ethereum,
+    `origin ${origin} must be EVM chain`,
+  );
 
   // Get ICA router addresses from registry
   const chainAddresses: Record<string, Record<string, string>> = {};

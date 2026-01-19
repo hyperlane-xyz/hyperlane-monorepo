@@ -424,7 +424,7 @@ export const check: CommandModuleWithContext<
     ));
 
     // If --ica flag is set, run ICA owner check instead of the regular config check
-    if (ica) {
+    if (ica && origin) {
       const destinationChains = destinations
         ? destinations.split(',').map((c) => c.trim())
         : undefined;
