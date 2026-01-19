@@ -160,8 +160,10 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
         name: TEST_TOKEN_SYMBOL,
         symbol: TEST_TOKEN_SYMBOL,
         decimals: 6,
-        // Seed a minimal balance so Radix-origin sends can run without cross-VM delivery.
-        initialSupply: 10,
+        // NOTE: initialSupply is not yet supported for Radix synthetic tokens.
+        // The Radix warp deployer doesn't mint initial supply, so Radix-origin
+        // sends are skipped in the test cases below. Radix can still receive
+        // tokens as a destination chain.
       },
     };
 
@@ -211,8 +213,14 @@ describe('hyperlane warp send cross-chain e2e tests', async function () {
     HYP_KEY_BY_PROTOCOL.radix,
   ];
 
-  // Generate all origin -> destination pairs (excluding same-chain sends)
+  // Generate all origin -> destination pairs (excluding same-chain sends).
+  // Radix-origin sends are excluded because the Radix warp deployer doesn't
+  // support initialSupply for synthetic tokens yet - the sender would have no
+  // token balance. Radix can still receive tokens as a destination.
   const sendCases = warpChains
+    .filter(
+      (origin) => origin !== TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    )
     .flatMap((origin) =>
       warpChains
         .filter((dest) => dest !== origin)
