@@ -5,6 +5,7 @@ import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
 import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
+import { EV5FileSubmitter } from '../../../submitters/EV5FileSubmitter.js';
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
@@ -202,6 +203,42 @@ describe('hyperlane submit', function () {
 
       const outputtedTransactions = readYamlOrJson(outputTransactionPath);
       expect(outputtedTransactions).to.deep.equal(transactions);
+    });
+
+    it('should serialize parallel writes to the same file', async () => {
+      const outputTransactionPath = `${TEMP_PATH}/transactions_${randomInt(0, 1_000_000)}.json`;
+      const submitterA = new EV5FileSubmitter({
+        chain: CHAIN_NAME_2,
+        filepath: outputTransactionPath,
+      });
+      const submitterB = new EV5FileSubmitter({
+        chain: CHAIN_NAME_3,
+        filepath: outputTransactionPath,
+      });
+
+      const chain2MintAmount = randomInt(1, 1000);
+      const chain3MintAmount = randomInt(1, 1000);
+      const [tx1, tx2] = await Promise.all([
+        getMintOnlyOwnerTransaction(
+          xerc20Chain2,
+          ALICE,
+          chain2MintAmount,
+          ANVIL2_CHAIN_ID,
+        ),
+        getMintOnlyOwnerTransaction(
+          xerc20Chain3,
+          BOB,
+          chain3MintAmount,
+          ANVIL3_CHAIN_ID,
+        ),
+      ]);
+
+      await Promise.all([submitterA.submit(tx1), submitterB.submit(tx2)]);
+
+      const outputtedTransactions = readYamlOrJson(outputTransactionPath);
+      expect(outputtedTransactions).to.have.length(2);
+      expect(outputtedTransactions).to.deep.include(tx1);
+      expect(outputtedTransactions).to.deep.include(tx2);
     });
 
     it('should overwrite a transactions file if it is malformed (not array)', async () => {

@@ -1,10 +1,9 @@
 import { expect } from 'chai';
-import { constants, ethers } from 'ethers';
+import { ethers } from 'ethers';
 
 import { assert } from '@hyperlane-xyz/utils';
 
 import { TokenFeeType } from '../fee/types.js';
-import { randomAddress } from '../test/testUtils.js';
 
 import { TokenType } from './config.js';
 import {
@@ -177,56 +176,112 @@ describe('WarpRouteDeployConfigSchema refine', () => {
     expect(warpConfig.optimism.collateralChainName).to.equal('arbitrum');
   });
 
-  for (const tokenFee of [
-    {
-      type: TokenFeeType.LinearFee,
-      maxFee: 100n,
-      halfAmount: 50n,
-      token: randomAddress(),
-    },
-    {
-      type: TokenFeeType.RoutingFee,
-      feeContracts: {
-        arbitrum: {
-          type: TokenFeeType.LinearFee,
-          maxFee: 100n,
-          halfAmount: 50n,
-          token: randomAddress(),
-        },
-      },
-    },
-  ]) {
-    it(`should throw if ${tokenFee.type} token does not match the warp route token`, async () => {
+  describe('tokenFee input schema', () => {
+    it('should accept LinearFee without token field', () => {
       const parseResults = WarpRouteDeployConfigSchema.safeParse({
         arbitrum: {
-          ...config.arbitrum,
-          tokenFee,
-        },
-      });
-
-      assert(!parseResults.success, 'must be false');
-      expect(parseResults.error.issues[0].message).to.include(
-        'must have the same token as warp route',
-      );
-    });
-    it(`should overwrite fee token address to address(0) if ${TokenType.native}`, async () => {
-      const parseResults = WarpRouteDeployConfigSchema.safeParse({
-        arbitrum: {
-          type: TokenType.native,
-          token: SOME_ADDRESS,
+          type: TokenType.synthetic,
           owner: SOME_ADDRESS,
           mailbox: SOME_ADDRESS,
-          tokenFee,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+          },
         },
       });
 
       assert(parseResults.success, 'must be true');
-      const warpConfig: WarpRouteDeployConfig = parseResults.data;
-      expect(warpConfig.arbitrum.tokenFee?.token).to.equal(
-        constants.AddressZero,
+      expect(parseResults.data.arbitrum.tokenFee?.type).to.equal(
+        TokenFeeType.LinearFee,
       );
     });
-  }
+
+    it('should accept RoutingFee without token field', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            feeContracts: {
+              ethereum: {
+                type: TokenFeeType.LinearFee,
+                bps: 100n,
+              },
+            },
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      expect(parseResults.data.arbitrum.tokenFee?.type).to.equal(
+        TokenFeeType.RoutingFee,
+      );
+    });
+
+    it('should accept tokenFee for collateral tokens', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        ethereum: {
+          type: TokenType.collateral,
+          token: SOME_ADDRESS,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      expect(parseResults.data.ethereum.tokenFee?.type).to.equal(
+        TokenFeeType.LinearFee,
+      );
+    });
+
+    it('should accept tokenFee for native tokens', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.native,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      expect(parseResults.data.arbitrum.tokenFee?.type).to.equal(
+        TokenFeeType.LinearFee,
+      );
+    });
+
+    it('should populate owner from token config if not specified', () => {
+      const parseResults = WarpRouteDeployConfigSchema.safeParse({
+        arbitrum: {
+          type: TokenType.synthetic,
+          owner: SOME_ADDRESS,
+          mailbox: SOME_ADDRESS,
+          name: 'Test Token',
+          symbol: 'TEST',
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            bps: 100n,
+          },
+        },
+      });
+
+      assert(parseResults.success, 'must be true');
+      expect(parseResults.data.arbitrum.tokenFee?.owner).to.equal(SOME_ADDRESS);
+    });
+  });
 
   describe('xERC20 validation', () => {
     it('should allow xERC20 with xERC20Lockbox', () => {

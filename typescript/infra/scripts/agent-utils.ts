@@ -212,6 +212,25 @@ export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withRegistryCommit<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'registryCommit',
+      'Registry version (commit, branch, or tag). If not provided, will prompt interactively.',
+    )
+    .string('registryCommit');
+}
+
+export function withWarpRouteIds<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteIds', 'warp route ids')
+    .array('warpRouteIds')
+    .coerce('warpRouteIds', (ids: string[] | undefined) =>
+      Array.isArray(ids) ? ids.map(String) : [],
+    )
+    .alias('w', 'warpRouteIds');
+}
+
 export function withMetrics<T>(args: Argv<T>) {
   return args
     .describe('metrics', 'metrics')
@@ -325,6 +344,13 @@ export function withConcurrentDeploy<T>(args: Argv<T>) {
     .describe('concurrentDeploy', 'If enabled, runs all deploys concurrently')
     .boolean('concurrentDeploy')
     .default('concurrentDeploy', false);
+}
+
+export function withWritePlan<T>(args: Argv<T>) {
+  return args
+    .describe('writePlan', 'Write deployment plan YAML files to disk')
+    .boolean('writePlan')
+    .default('writePlan', false);
 }
 
 export function withConcurrency<T>(args: Argv<T>) {
@@ -586,7 +612,7 @@ export async function getMultiProviderForRole(
   await promiseObjAll(
     objMap(
       supportedChainNames.reduce((acc, chain) => {
-        if (chainMetadata[chain]) {
+        if (chainMetadata[chain] && chain !== 'zeronetwork') {
           acc[chain] = chainMetadata[chain];
         }
         return acc;

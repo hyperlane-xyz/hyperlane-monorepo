@@ -1,5 +1,4 @@
 import { compareVersions } from 'compare-versions';
-import { constants } from 'ethers';
 import { z } from 'zod';
 
 import { CONTRACTS_PACKAGE_VERSION } from '@hyperlane-xyz/core';
@@ -354,39 +353,10 @@ export type HypTokenRouterConfigMailboxOptionalBase = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalBaseSchema
 >;
 
-export const HypTokenRouterConfigMailboxOptionalSchema = z
-  .preprocess(
-    preprocessWarpRouteDeployConfig,
-    HypTokenRouterConfigMailboxOptionalBaseSchema,
-  ) // Check that each tokenFee.token is the same as config.token
-  .transform((config, ctx) => {
-    if (!isCollateralTokenConfig(config) || !config.tokenFee) return config;
-
-    if (config.tokenFee.token !== config.token) {
-      ctx.addIssue({
-        code: z.ZodIssueCode.custom,
-        message: `${config.tokenFee.type} must have the same token as warp route`,
-      });
-    }
-
-    if (
-      config.tokenFee.type === TokenFeeType.RoutingFee &&
-      config.tokenFee.feeContracts
-    ) {
-      const hasSameTokens = Object.entries(config.tokenFee.feeContracts).every(
-        ([_, subFee]) => subFee.token === config.token,
-      );
-
-      if (!hasSameTokens) {
-        ctx.addIssue({
-          code: z.ZodIssueCode.custom,
-          message: `${TokenFeeType.RoutingFee} sub fees must have the same token as warp route`,
-        });
-      }
-    }
-
-    return config;
-  });
+export const HypTokenRouterConfigMailboxOptionalSchema = z.preprocess(
+  preprocessWarpRouteDeployConfig,
+  HypTokenRouterConfigMailboxOptionalBaseSchema,
+);
 
 export type HypTokenRouterConfigMailboxOptional = z.infer<
   typeof HypTokenRouterConfigMailboxOptionalSchema
@@ -394,31 +364,24 @@ export type HypTokenRouterConfigMailboxOptional = z.infer<
 
 function preprocessWarpRouteDeployConfig(value: unknown) {
   const mutatedConfig = value as HypTokenRouterConfigMailboxOptionalBase;
-  return populateTokenFeeOwners({
+  return populateFeeOwner({
     tokenConfig: mutatedConfig,
     feeConfig: mutatedConfig.tokenFee,
   });
 }
 
-function populateTokenFeeOwners(params: {
+function populateFeeOwner(params: {
   tokenConfig: HypTokenRouterConfigMailboxOptionalBase;
   feeConfig?: TokenFeeConfigInput;
 }) {
   const { tokenConfig, feeConfig } = params;
   if (!feeConfig) return tokenConfig;
 
-  if (isCollateralTokenConfig(tokenConfig))
-    // Default fee.token to the router token, if not specified
-    feeConfig.token = feeConfig.token ?? tokenConfig.token;
-  else if (isNativeTokenConfig(tokenConfig))
-    // This must be defined for contract deployment
-    feeConfig.token = constants.AddressZero;
-
   feeConfig.owner = feeConfig.owner ?? tokenConfig.owner;
 
   if (feeConfig.type === TokenFeeType.RoutingFee && feeConfig.feeContracts) {
     objMap(feeConfig.feeContracts, (_, innerConfig) => {
-      populateTokenFeeOwners({ tokenConfig, feeConfig: innerConfig });
+      populateFeeOwner({ tokenConfig, feeConfig: innerConfig });
     });
   }
   return tokenConfig;

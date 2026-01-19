@@ -5,6 +5,20 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 import {
+  getIsmType,
+  getMessageIdMultisigIsmConfig,
+  getRoutingIsmConfig,
+  getTestIsmConfig,
+} from '../ism/ism-query.js';
+import {
+  getCreateMessageIdMultisigIsmTx,
+  getCreateRoutingIsmTx,
+  getCreateTestIsmTx,
+  getRemoveRoutingIsmRouteTx,
+  getSetRoutingIsmOwnerTx,
+  getSetRoutingIsmRouteTx,
+} from '../ism/ism-tx.js';
+import {
   ALEO_NATIVE_DENOM,
   ALEO_NULL_ADDRESS,
   U128ToString,
@@ -24,7 +38,7 @@ import {
   AleoHookType,
   AleoIsmType,
   AleoTokenType,
-  AleoTransaction,
+  type AleoTransaction,
 } from '../utils/types.js';
 
 import { AleoBase } from './base.js';
@@ -180,11 +194,9 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
+    const aleoIsmType = await getIsmType(this.aleoClient, req.ismAddress);
 
-    const result = await this.queryMappingValue(programId, 'isms', address);
-
-    switch (result) {
+    switch (aleoIsmType) {
       case AleoIsmType.TEST_ISM:
         return AltVM.IsmType.TEST_ISM;
       case AleoIsmType.ROUTING:
@@ -201,20 +213,13 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getMessageIdMultisigIsm(
     req: AltVM.ReqMessageIdMultisigIsm,
   ): Promise<AltVM.ResMessageIdMultisigIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    const { validators, threshold } = await this.queryMappingValue(
-      programId,
-      'message_id_multisigs',
-      address,
-    );
+    const { address, threshold, validators } =
+      await getMessageIdMultisigIsmConfig(this.aleoClient, req.ismAddress);
 
     return {
-      address: req.ismAddress,
-      validators: validators
-        .map((v: any) => ensure0x(Buffer.from(v.bytes).toString('hex')))
-        .filter((v: any) => v !== '0x0000000000000000000000000000000000000000'),
-      threshold: threshold,
+      address,
+      validators,
+      threshold,
     };
   }
 
@@ -225,61 +230,23 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   async getRoutingIsm(req: AltVM.ReqRoutingIsm): Promise<AltVM.ResRoutingIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    const routes: { domainId: number; ismAddress: string }[] = [];
-
-    const ismData = await this.queryMappingValue(
-      programId,
-      'domain_routing_isms',
-      address,
+    const { owner, routes } = await getRoutingIsmConfig(
+      this.aleoClient,
+      req.ismAddress,
     );
-    const owner = ismData.ism_owner;
-
-    const routeLengthRes = await this.queryMappingValue(
-      programId,
-      'route_length',
-      address,
-    );
-
-    for (let i = 0; i < (routeLengthRes || 0); i++) {
-      const routeKey = await this.aleoClient.getProgramMappingPlaintext(
-        programId,
-        'route_iter',
-        `{ism:${address},index:${i}u32}`,
-      );
-
-      const ismAddress = await this.queryMappingValue(
-        programId,
-        'routes',
-        routeKey.toString(),
-      );
-
-      // This is necessary because `route_iter` maintains keys for all route entries,
-      // including those from domains that have already been removed. When a domain is
-      // deleted from the Routing ISM, its key remains in the map and `routes` simply returns null.
-      if (!ismAddress) continue;
-
-      routes.push({
-        ismAddress: `${this.ismManager}/${ismAddress}`,
-        domainId: routeKey.toObject().domain,
-      });
-    }
 
     return {
       address: req.ismAddress,
-      owner: owner,
-      routes: routes,
+      owner,
+      routes,
     };
   }
 
   async getNoopIsm(req: AltVM.ReqNoopIsm): Promise<AltVM.ResNoopIsm> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    await this.queryMappingValue(programId, 'isms', address);
+    const { address } = await getTestIsmConfig(this.aleoClient, req.ismAddress);
 
     return {
-      address: req.ismAddress,
+      address,
     };
   }
 
@@ -740,103 +707,40 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<AleoTransaction> {
-    const MAXIMUM_VALIDATORS = 6;
-
-    if (req.validators.length > MAXIMUM_VALIDATORS) {
-      throw new Error(`maximum ${MAXIMUM_VALIDATORS} validators allowed`);
-    }
-
-    const validators = fillArray(
-      req.validators.map((v) => ({
-        bytes: [...Buffer.from(strip0x(v), 'hex')].map((b) => `${b}u8`),
-      })),
-      MAXIMUM_VALIDATORS,
-      {
-        bytes: Array(20).fill(`0u8`),
-      },
-    );
-
-    return {
-      programName: this.ismManager,
-      functionName: 'init_message_id_multisig',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        JSON.stringify(validators).replaceAll('"', ''),
-        `${req.validators.length}u8`,
-        `${req.threshold}u8`,
-      ],
-    };
+    return getCreateMessageIdMultisigIsmTx(this.ismManager, {
+      validators: req.validators,
+      threshold: req.threshold,
+    });
   }
 
   async getCreateRoutingIsmTransaction(
     _req: AltVM.ReqCreateRoutingIsm,
   ): Promise<AleoTransaction> {
-    return {
-      programName: this.ismManager,
-      functionName: 'init_domain_routing',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [],
-    };
+    return getCreateRoutingIsmTx(this.ismManager);
   }
 
   async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    return {
-      programName: programId,
-      functionName: 'set_domain',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        address,
-        `${req.route.domainId}u32`,
-        fromAleoAddress(req.route.ismAddress).address,
-      ],
-    };
+    return getSetRoutingIsmRouteTx(req.ismAddress, req.route);
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    return {
-      programName: programId,
-      functionName: 'remove_domain',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, `${req.domainId}u32`],
-    };
+    return getRemoveRoutingIsmRouteTx(req.ismAddress, req.domainId);
   }
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<AleoTransaction> {
-    const { programId, address } = fromAleoAddress(req.ismAddress);
-
-    return {
-      programName: programId,
-      functionName: 'transfer_routing_ism_ownership',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [address, req.newOwner],
-    };
+    return getSetRoutingIsmOwnerTx(req.ismAddress, req.newOwner);
   }
 
   async getCreateNoopIsmTransaction(
     _req: AltVM.ReqCreateNoopIsm,
   ): Promise<AleoTransaction> {
-    return {
-      programName: this.ismManager,
-      functionName: 'init_noop',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [],
-    };
+    return getCreateTestIsmTx(this.ismManager);
   }
 
   async getCreateMerkleTreeHookTransaction(

@@ -13,12 +13,10 @@ import { normalizeConfig } from '../utils/ism.js';
 import { EvmTokenFeeDeployer } from './EvmTokenFeeDeployer.js';
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
-import { convertToBps } from './utils.js';
+import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
 
-export const MAX_FEE =
-  1157920892373161954235709850086879078532699846656405640394n;
-export const HALF_AMOUNT =
-  5789604461865809771178549250434395392663499233282028201970n;
+export const MAX_FEE = 115792089237316195423570985008687907853269n;
+export const HALF_AMOUNT = 578960446186580977117854925043439539266340n;
 export const BPS = convertToBps(MAX_FEE, HALF_AMOUNT);
 
 describe('EvmTokenFeeReader', () => {
@@ -97,20 +95,37 @@ describe('EvmTokenFeeReader', () => {
 
     it('should be able to convert bps to maxFee and halfAmount, and back', async () => {
       const bps = BigInt(randomInt(1, 10_000));
-      const config = {
-        type: TokenFeeType.LinearFee,
-        owner: signer.address,
-        token: token.address,
-        bps,
-      };
 
       const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
       const { maxFee: convertedMaxFee, halfAmount: convertedHalfAmount } =
-        await reader.convertFromBps(config.bps, config.token);
+        reader.convertFromBps(bps);
 
-      // Get bps using helper function
       const convertedBps = convertToBps(convertedMaxFee, convertedHalfAmount);
       expect(convertedBps).to.equal(bps);
+    });
+
+    it('should use constant divisor for consistent fee derivation', async () => {
+      const bps = 8n;
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const { maxFee, halfAmount } = reader.convertFromBps(bps);
+
+      expect(maxFee > 0n).to.be.true;
+      expect(halfAmount > 0n).to.be.true;
+
+      const expectedMaxFee =
+        BigInt(constants.MaxUint256.toString()) /
+        ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY;
+      expect(maxFee).to.equal(expectedMaxFee);
+
+      const convertedBps = convertToBps(maxFee, halfAmount);
+      expect(convertedBps).to.equal(bps);
+    });
+
+    it('should reject bps = 0 to prevent division by zero', () => {
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      expect(() => reader.convertFromBps(0n)).to.throw(
+        'bps must be > 0 to prevent division by zero',
+      );
     });
   });
 
@@ -164,6 +179,45 @@ describe('EvmTokenFeeReader', () => {
       expect(normalizeConfig(routingFee)).to.deep.equal(
         normalizeConfig(routingFeeConfig),
       );
+    });
+
+    it('should derive routing fee config without routingDestinations', async () => {
+      const routingFeeConfig = TokenFeeConfigSchema.parse({
+        type: TokenFeeType.RoutingFee,
+        owner: signer.address,
+        token: token.address,
+        feeContracts: {
+          [TestChainName.test2]: {
+            owner: signer.address,
+            token: token.address,
+            type: TokenFeeType.LinearFee,
+            maxFee: MAX_FEE,
+            halfAmount: HALF_AMOUNT,
+            bps: BPS,
+          },
+        },
+      });
+      const deployer = new EvmTokenFeeDeployer(
+        multiProvider,
+        TestChainName.test2,
+      );
+      const deployedContracts = await deployer.deploy({
+        [TestChainName.test2]: routingFeeConfig,
+      });
+
+      const reader = new EvmTokenFeeReader(multiProvider, TestChainName.test2);
+      const routingFee = await reader.deriveTokenFeeConfig({
+        address:
+          deployedContracts[TestChainName.test2][TokenFeeType.RoutingFee]
+            .address,
+      });
+
+      expect(routingFee.type).to.equal(TokenFeeType.RoutingFee);
+      expect(routingFee.owner).to.equal(signer.address);
+      expect(routingFee.token).to.equal(token.address);
+      expect(
+        Object.keys((routingFee as any).feeContracts ?? {}),
+      ).to.have.length(0);
     });
   });
 });

@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 import { $ } from 'zx';
 
+import { writeYamlOrJson } from '../../utils/files.js';
 import {
   KeyBoardKeys,
   SELECT_MAINNET_CHAIN_TYPE_STEP,
@@ -21,6 +22,7 @@ import {
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
+  TEMP_PATH,
 } from './consts.js';
 
 const TEST_REGISTRY_PATH = './test-configs/test-registry';
@@ -132,6 +134,45 @@ describe('hyperlane send message e2e tests', async function () {
       expect(finalOutput.text()).to.include(
         `Sent message from ${CHAIN_NAME_2}`,
       );
+    });
+  });
+
+  describe('strategy-based keys', () => {
+    it('should send message without --key when strategy provides a private key', async () => {
+      const strategyPath = `${TEMP_PATH}/send-message-strategy.yaml`;
+      const strategyConfig = {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: 'jsonRpc',
+            chain: CHAIN_NAME_2,
+            privateKey: ANVIL_KEY,
+          },
+        },
+        [CHAIN_NAME_3]: {
+          submitter: {
+            type: 'jsonRpc',
+            chain: CHAIN_NAME_3,
+            privateKey: ANVIL_KEY,
+          },
+        },
+      };
+
+      writeYamlOrJson(strategyPath, strategyConfig);
+
+      // Note: The strategy's privateKey takes precedence over HYP_KEY env var,
+      // so this test verifies strategy-based keys work even if HYP_KEY is set
+      const { exitCode, stdout, stderr } =
+        await $`${localTestRunCmdPrefix()} hyperlane send message \
+        --registry ${REGISTRY_PATH} \
+        --origin ${CHAIN_NAME_2} \
+        --destination ${CHAIN_NAME_3} \
+        --strategy ${strategyPath} \
+        --verbosity debug \
+        --quick \
+        --yes`.nothrow();
+
+      expect(exitCode).to.equal(0);
+      expect(stdout + stderr).to.include('Message ID:');
     });
   });
 });
