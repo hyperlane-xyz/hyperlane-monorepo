@@ -5,7 +5,7 @@ solidity/ @yorhodes @ltyu @larryob
 starknet/ @yorhodes @troykessler
 
 ## Agents
-rust/ @ameten @kamiyaa @yjamin
+rust/ @ameten @yjamin
 
 ## SDK
 typescript/utils @yorhodes @ltyu @paulbalaji @xaroz @xeno097 @antigremlin

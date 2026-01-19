@@ -65,7 +65,7 @@ export const getParadexUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     deploymentChains,
-    WarpRouteIds.MainnetCCTPV2Standard,
+    [WarpRouteIds.MainnetCCTPV2Standard],
   );
 
   return Object.fromEntries(

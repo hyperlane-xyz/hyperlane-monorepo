@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "20.1.0",
+  "version": "21.1.0",
   "description": "A command-line utility for common Hyperlane operations",
   "devDependencies": {
     "@aws-sdk/client-kms": "catalog:",
@@ -11,6 +11,7 @@
     "@ethersproject/abi": "*",
     "@ethersproject/constants": "*",
     "@ethersproject/providers": "*",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",

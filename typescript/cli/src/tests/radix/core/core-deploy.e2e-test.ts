@@ -1,12 +1,17 @@
 import { expect } from 'chai';
 
 import {
-  CoreConfig,
-  DerivedCoreConfig,
+  type CoreConfig,
+  type DerivedCoreConfig,
   HookType,
   IsmType,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, assert, objLength } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  objLength,
+} from '@hyperlane-xyz/utils';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';

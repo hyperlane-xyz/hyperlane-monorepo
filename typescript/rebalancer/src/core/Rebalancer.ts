@@ -1,23 +1,28 @@
-import { PopulatedTransaction } from 'ethers';
-import { Logger } from 'pino';
+import { type PopulatedTransaction } from 'ethers';
+import { type Logger } from 'pino';
 
 import {
   type ChainMap,
   type ChainMetadata,
   EvmMovableCollateralAdapter,
-  InterchainGasQuote,
+  type InterchainGasQuote,
   type MultiProvider,
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { eqAddress, toWei } from '@hyperlane-xyz/utils';
+import {
+  eqAddress,
+  isNullish,
+  mapAllSettled,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
   PreparedTransaction,
 } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
-import { Metrics } from '../metrics/Metrics.js';
+import { type Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfigWithOverride,
   getBridgeConfig,
@@ -101,17 +106,19 @@ export class Rebalancer implements IRebalancer {
       { numRoutes: routes.length },
       'Preparing all rebalance transactions.',
     );
-    const settledResults = await Promise.allSettled(
-      routes.map((route) => this.prepareTransaction(route)),
+    const { fulfilled, rejected } = await mapAllSettled(
+      routes,
+      (route) => this.prepareTransaction(route),
+      (_, i) => i,
     );
 
-    const preparedTransactions: PreparedTransaction[] = [];
-    for (const result of settledResults) {
-      if (result.status === 'fulfilled' && result.value) {
-        preparedTransactions.push(result.value);
-      }
-    }
-    const preparationFailures = routes.length - preparedTransactions.length;
+    // Filter out null results (validation failures logged internally)
+    const preparedTransactions = Array.from(fulfilled.values()).filter(
+      (tx): tx is PreparedTransaction => !isNullish(tx),
+    );
+    // Count rejections + null results as failures
+    const preparationFailures =
+      rejected.size + (fulfilled.size - preparedTransactions.length);
 
     return { preparedTransactions, preparationFailures };
   }
@@ -331,38 +338,35 @@ export class Rebalancer implements IRebalancer {
     );
 
     // 1. Estimate gas
-    const gasEstimateResults = await Promise.allSettled(
-      transactions.map(async (transaction) => {
+    const { fulfilled, rejected } = await mapAllSettled(
+      transactions,
+      async (transaction) => {
         await this.multiProvider.estimateGas(
           transaction.route.origin,
           transaction.populatedTx,
         );
         return transaction;
-      }),
+      },
+      (_, i) => i,
     );
 
     // 2. Filter out failed transactions and log errors
-    const validTransactions: PreparedTransaction[] = [];
-    let gasEstimationFailures = 0;
-    gasEstimateResults.forEach((result, i) => {
-      if (result.status === 'fulfilled') {
-        validTransactions.push(result.value);
-      } else {
-        gasEstimationFailures++;
-        const failedTransaction = transactions[i];
-        this.logger.error(
-          {
-            origin: failedTransaction.route.origin,
-            destination: failedTransaction.route.destination,
-            amount:
-              failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
-            tokenName: failedTransaction.originTokenAmount.token.name,
-            error: result.reason,
-          },
-          'Gas estimation failed for route.',
-        );
-      }
-    });
+    const validTransactions = Array.from(fulfilled.values());
+    const gasEstimationFailures = rejected.size;
+    for (const [i, error] of rejected) {
+      const failedTransaction = transactions[i];
+      this.logger.error(
+        {
+          origin: failedTransaction.route.origin,
+          destination: failedTransaction.route.destination,
+          amount:
+            failedTransaction.originTokenAmount.getDecimalFormattedAmount(),
+          tokenName: failedTransaction.originTokenAmount.token.name,
+          error,
+        },
+        'Gas estimation failed for route.',
+      );
+    }
 
     if (validTransactions.length === 0) {
       this.logger.info('No transactions to execute after gas estimation.');

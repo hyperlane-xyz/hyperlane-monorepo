@@ -56,6 +56,7 @@ import {
   withFork,
   withKnownWarpRouteId,
   withModule,
+  withWritePlan,
 } from './agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from './core-utils.js';
 
@@ -69,22 +70,31 @@ async function main() {
     chains,
     concurrentDeploy,
     warpRouteId,
+    writePlan,
   } = await withContext(
     withConcurrentDeploy(
-      withChains(
-        withModule(
-          withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
+      withWritePlan(
+        withChains(
+          withModule(
+            withFork(withKnownWarpRouteId(withBuildArtifactPath(getArgs()))),
+          ),
         ),
       ),
     ),
   ).argv;
   const envConfig = getEnvironmentConfig(environment);
 
+  const providerChains = chains?.length
+    ? chains.filter((chain) => !chainsToSkip.includes(chain))
+    : envConfig.supportedChainNames.filter(
+        (chain) => !chainsToSkip.includes(chain),
+      );
+
   let multiProvider = await envConfig.getMultiProvider(
     context,
     Role.Deployer,
     true,
-    chains,
+    providerChains,
   );
 
   const targetNetworks =
@@ -282,34 +292,36 @@ async function main() {
 
   // prompt for confirmation in production environments
   if (environment !== 'test' && !fork) {
-    const confirmConfig =
-      chains && chains.length > 0
-        ? objFilter(config, (chain, _): _ is unknown =>
-            (chains ?? []).includes(chain),
-          )
-        : config;
+    if (writePlan) {
+      const confirmConfig =
+        chains && chains.length > 0
+          ? objFilter(config, (chain, _): _ is unknown =>
+              (chains ?? []).includes(chain),
+            )
+          : config;
 
-    // Have to print plan per chain because full plan is too big
-    const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
-    if (!fs.existsSync(deploymentPlansDir)) {
-      fs.mkdirSync(deploymentPlansDir, { recursive: true });
+      // Have to print plan per chain because full plan is too big
+      const deploymentPlansDir = path.join(modulePath, 'deployment-plans');
+      if (!fs.existsSync(deploymentPlansDir)) {
+        fs.mkdirSync(deploymentPlansDir, { recursive: true });
+      }
+
+      Object.entries(confirmConfig).forEach(([chain, chainConfig]) => {
+        const chainDeployPlanPath = path.join(
+          deploymentPlansDir,
+          `${chain}.yaml`,
+        );
+        writeYaml(chainDeployPlanPath, chainConfig);
+        console.log(
+          `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
+        );
+      });
     }
-
-    Object.entries(confirmConfig).forEach(([chain, config]) => {
-      const chainDeployPlanPath = path.join(
-        deploymentPlansDir,
-        `${chain}.yaml`,
-      );
-      writeYaml(chainDeployPlanPath, config);
-      console.log(
-        `Deployment Plan for ${chain} written to ${chainDeployPlanPath}`,
-      );
-    });
 
     const { value: confirmed } = await prompts({
       type: 'confirm',
       name: 'value',
-      message: `Confirm you want to deploy this ${module} configuration to ${environment}?`,
+      message: `Confirm you want to deploy this ${module} configuration to ${environment}? (${Object.keys(config).length} chains)`,
       initial: false,
     });
     if (!confirmed) {

@@ -3,6 +3,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 import { KeyFunderConfig } from '../../../src/config/funding.js';
 import { Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 
 import desiredRebalancerBalances from './balances/desiredRebalancerBalances.json' with { type: 'json' };
 import desiredRelayerBalances from './balances/desiredRelayerBalances.json' with { type: 'json' };
@@ -35,8 +36,8 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof mainnet3SupportedChainNames
 > = {
   docker: {
-    repo: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-    tag: 'ff24bc3-20260104-175430',
+    repo: DockerImageRepos.MONOREPO,
+    tag: mainnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer/key funder key as mainnet2.
   // To minimize nonce clobbering we offset the key funder cron

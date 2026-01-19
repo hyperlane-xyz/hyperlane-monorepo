@@ -12,6 +12,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { difference, rootLogger } from '@hyperlane-xyz/utils';
 
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import {
   DEFAULT_REGISTRY_URI,
   getRegistry,
@@ -101,8 +102,8 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   async helmValues() {
     return {
       image: {
-        repository: 'gcr.io/abacus-labs-dev/hyperlane-warp-monitor',
-        tag: 'eda7b03-20251230-135200',
+        repository: DockerImageRepos.WARP_MONITOR,
+        tag: mainnetDockerTags.warpMonitor,
       },
       warpRouteId: this.warpRouteId,
       fullnameOverride: this.helmReleaseName,

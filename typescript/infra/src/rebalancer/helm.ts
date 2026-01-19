@@ -1,3 +1,4 @@
+import { confirm } from '@inquirer/prompts';
 import fs from 'fs';
 import path from 'path';
 import { fromZodError } from 'zod-validation-error';
@@ -7,13 +8,18 @@ import {
   RebalancerConfigSchema,
 } from '@hyperlane-xyz/rebalancer';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { isObjEmpty } from '@hyperlane-xyz/utils';
+import { isObjEmpty, rootLogger } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
+import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
-import { HelmManager, getHelmReleaseName } from '../utils/helm.js';
+import {
+  HelmManager,
+  getHelmReleaseName,
+  removeHelmRelease,
+} from '../utils/helm.js';
 import { getInfraPath } from '../utils/utils.js';
 
 export class RebalancerHelmManager extends HelmManager {
@@ -38,17 +44,7 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async runPreflightChecks(localConfigPath: string) {
-    const monitorReleaseName = getHelmReleaseName(
-      this.warpRouteId,
-      WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
-    );
-    if (
-      await HelmManager.doesHelmReleaseExist(monitorReleaseName, this.namespace)
-    ) {
-      throw new Error(
-        `Warp route monitor for ${this.warpRouteId} already exists. Only one of rebalancer or monitor is allowed.`,
-      );
-    }
+    await this.checkAndHandleExistingMonitor();
 
     const warpCoreConfig = getWarpCoreConfig(this.warpRouteId);
     if (!warpCoreConfig) {
@@ -83,13 +79,12 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   async helmValues() {
-    // Build registry URI with commit embedded in /tree/{commit} format
     const registryUri = `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
 
     return {
       image: {
-        repository: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
-        tag: 'be84fc0-20251229-194426',
+        repository: DockerImageRepos.REBALANCER,
+        tag: mainnetDockerTags.rebalancer,
       },
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
@@ -107,6 +102,35 @@ export class RebalancerHelmManager extends HelmManager {
       this.warpRouteId,
       RebalancerHelmManager.helmReleasePrefix,
     );
+  }
+
+  private async checkAndHandleExistingMonitor(): Promise<void> {
+    const monitorReleaseName = getHelmReleaseName(
+      this.warpRouteId,
+      WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+    );
+
+    if (
+      await HelmManager.doesHelmReleaseExist(monitorReleaseName, this.namespace)
+    ) {
+      const shouldReplace = await confirm({
+        message: `A warp route monitor exists for ${this.warpRouteId}. The rebalancer includes monitoring functionality. Would you like to replace the monitor with the rebalancer?`,
+      });
+
+      if (!shouldReplace) {
+        throw new Error(
+          `Deployment aborted: User chose not to replace existing monitor for ${this.warpRouteId}.`,
+        );
+      }
+
+      rootLogger.info(
+        `Uninstalling existing warp monitor: ${monitorReleaseName}`,
+      );
+      await removeHelmRelease(monitorReleaseName, this.namespace);
+      rootLogger.info(
+        `Successfully uninstalled warp monitor: ${monitorReleaseName}`,
+      );
+    }
   }
 
   // TODO: allow for a rebalancer to be uninstalled

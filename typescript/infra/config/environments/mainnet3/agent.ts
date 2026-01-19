@@ -37,6 +37,7 @@ import {
 import { BaseScraperConfig } from '../../../src/config/agent/scraper.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
+import { DockerImageRepos, mainnetDockerTags } from '../../docker.js';
 import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
@@ -57,8 +58,6 @@ import { WarpRouteIds } from './warp/warpIds.js';
 // const releaseCandidateHelloworldMatchingList = routerMatchingList(
 //   helloWorld[Contexts.ReleaseCandidate].addresses,
 // );
-
-const repo = 'gcr.io/abacus-labs-dev/hyperlane-agent';
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -112,7 +111,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: false, // chain in recovery mode
+    flowmainnet: true,
     fluence: true,
     forma: false, // relayer + scraper only
     fraxtal: true,
@@ -206,7 +205,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xlayer: true,
     xrplevm: true,
     zerogravity: true,
-    zeronetwork: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
     zksync: true,
@@ -255,7 +254,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: false,
+    flowmainnet: true,
     fluence: true,
     forma: true,
     fraxtal: true,
@@ -349,7 +348,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xlayer: true,
     xrplevm: true,
     zerogravity: true,
-    zeronetwork: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
     zksync: true,
@@ -398,7 +397,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     everclear: true,
     fantom: true,
     flare: true,
-    flowmainnet: false, // chain in recovery mode
+    flowmainnet: true,
     fluence: true,
     forma: true,
     fraxtal: true,
@@ -493,7 +492,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     xlayer: true,
     xrplevm: true,
     zerogravity: true,
-    zeronetwork: true,
+    zeronetwork: false,
     zetachain: true,
     zircuit: true,
     zksync: true,
@@ -894,8 +893,8 @@ const hyperlane: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: '28f67ad-20260103-234517',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayer,
     },
     blacklist,
     gasPaymentEnforcement: gasPaymentEnforcement,
@@ -914,8 +913,8 @@ const hyperlane: RootAgentConfig = {
   },
   validators: {
     docker: {
-      repo,
-      tag: '28f67ad-20260103-234517',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validator,
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.Hyperlane),
@@ -925,8 +924,8 @@ const hyperlane: RootAgentConfig = {
     scraperOnlyChains,
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: '28f67ad-20260103-234517',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.scraper,
     },
     resources: scraperResources,
   },
@@ -940,8 +939,8 @@ const releaseCandidate: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: '28f67ad-20260103-234517',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
     // We're temporarily (ab)using the RC relayer as a way to increase
@@ -963,8 +962,8 @@ const releaseCandidate: RootAgentConfig = {
   },
   validators: {
     docker: {
-      repo,
-      tag: '28f67ad-20260103-234517',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.validatorRC,
     },
     rpcConsensusType: RpcConsensusType.Quorum,
     chains: validatorChainConfig(Contexts.ReleaseCandidate),
@@ -984,8 +983,8 @@ const neutron: RootAgentConfig = {
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
-      repo,
-      tag: 'cd94774-20251217-100437',
+      repo: DockerImageRepos.AGENT,
+      tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
     gasPaymentEnforcement,

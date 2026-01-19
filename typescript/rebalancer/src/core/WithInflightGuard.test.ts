@@ -7,7 +7,7 @@ import Sinon from 'sinon';
 import { chainMetadata } from '@hyperlane-xyz/registry';
 import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
 
-import { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type RebalancingRoute } from '../interfaces/IStrategy.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 import { ExplorerClient } from '../utils/ExplorerClient.js';
 

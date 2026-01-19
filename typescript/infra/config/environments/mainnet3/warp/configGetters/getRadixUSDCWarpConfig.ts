@@ -28,7 +28,7 @@ export const getRadixUSDCWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfig = getUSDCRebalancingBridgesConfigFor(
     Object.keys(owners),
-    WarpRouteIds.MainnetCCTPV1,
+    [WarpRouteIds.MainnetCCTPV1],
   );
 
   const ethereum: HypTokenRouterConfig = {

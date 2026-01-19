@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "abigen"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "Inflector",
  "cainome",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "aleo-serialize"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "snarkvm",
@@ -2953,7 +2953,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "elliptic-curve 0.13.8",
  "hex 0.4.3",
@@ -4150,7 +4150,7 @@ dependencies = [
 [[package]]
 name = "ethers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "ethers-addressbook",
  "ethers-contract",
@@ -4164,7 +4164,7 @@ dependencies = [
 [[package]]
 name = "ethers-addressbook"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "ethers-core",
  "once_cell",
@@ -4175,7 +4175,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-contract-derive",
@@ -4193,7 +4193,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-abigen"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "Inflector",
  "cfg-if",
@@ -4217,7 +4217,7 @@ dependencies = [
 [[package]]
 name = "ethers-contract-derive"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "ethers-contract-abigen",
  "ethers-core",
@@ -4231,7 +4231,7 @@ dependencies = [
 [[package]]
 name = "ethers-core"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "arrayvec",
  "bytes",
@@ -4261,7 +4261,7 @@ dependencies = [
 [[package]]
 name = "ethers-etherscan"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "ethers-core",
  "getrandom 0.2.15",
@@ -4277,7 +4277,7 @@ dependencies = [
 [[package]]
 name = "ethers-middleware"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "async-trait",
  "auto_impl 0.5.0",
@@ -4303,7 +4303,7 @@ dependencies = [
 
 [[package]]
 name = "ethers-prometheus"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "abigen",
  "async-trait",
@@ -4328,7 +4328,7 @@ dependencies = [
 [[package]]
 name = "ethers-providers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "async-trait",
  "auto_impl 1.2.0",
@@ -4364,7 +4364,7 @@ dependencies = [
 [[package]]
 name = "ethers-signers"
 version = "1.0.2"
-source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2025-05-30#02d03c5f62cc5b34d44e34b0e2bc80c2bca83d6c"
+source = "git+https://github.com/hyperlane-xyz/ethers-rs?tag=2026-01-15#c7da47b76dc5ba0540dc26f509d5912fcfdf7a80"
 dependencies = [
  "async-trait",
  "coins-bip32 0.7.0",
@@ -5874,7 +5874,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-aleo"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "aleo-serialize",
  "aleo-serialize-macro",
@@ -5909,7 +5909,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-application"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "serde",
  "serde_json",
@@ -5918,7 +5918,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-base"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5954,7 +5954,7 @@ dependencies = [
  "hyperlane-sealevel",
  "hyperlane-starknet",
  "hyperlane-test",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "maplit",
  "mockall",
  "moka",
@@ -5987,7 +5987,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-core"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-rwlock",
  "async-trait",
@@ -6010,7 +6010,7 @@ dependencies = [
  "getrandom 0.2.15",
  "hex 0.4.3",
  "hyperlane-application",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "num 0.4.3",
  "num-derive 0.4.2",
  "num-traits",
@@ -6033,7 +6033,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-cosmos"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -6041,7 +6041,7 @@ dependencies = [
  "cometbft",
  "cometbft-rpc",
  "cosmrs",
- "cosmwasm-std 2.1.3",
+ "cosmwasm-std 1.5.7",
  "crypto",
  "derive-new",
  "futures",
@@ -6058,7 +6058,7 @@ dependencies = [
  "ibc-proto",
  "injective-protobuf",
  "injective-std",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "once_cell",
  "pin-project",
  "protobuf",
@@ -6071,7 +6071,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
- "tower 0.5.2",
+ "tower 0.4.13",
  "tracing",
  "tracing-futures",
  "url",
@@ -6114,7 +6114,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-ethereum"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "abigen",
  "async-trait",
@@ -6133,7 +6133,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "num 0.4.3",
  "num-traits",
  "reqwest 0.11.27",
@@ -6150,7 +6150,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-fuel"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "abigen",
  "anyhow",
@@ -6167,7 +6167,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-metric"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "derive-new",
@@ -6181,7 +6181,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-operation-verifier"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "hyperlane-application",
@@ -6373,7 +6373,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-starknet"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "abigen",
  "anyhow",
@@ -6398,7 +6398,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-test"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "hyperlane-core",
@@ -6407,7 +6407,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-warp-route"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "hyperlane-core",
 ]
@@ -7015,7 +7015,7 @@ dependencies = [
 
 [[package]]
 name = "lander"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7033,7 +7033,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-radix",
  "hyperlane-sealevel",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "mockall",
  "prometheus",
  "radix-common",
@@ -7377,7 +7377,7 @@ dependencies = [
 
 [[package]]
 name = "migration"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "sea-orm",
  "sea-orm-migration",
@@ -9389,7 +9389,7 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "relayer"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "axum 0.8.4",
@@ -9414,7 +9414,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-test",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "lander",
  "maplit",
  "mockall",
@@ -9434,7 +9434,7 @@ dependencies = [
  "tokio",
  "tokio-metrics",
  "tokio-test",
- "tower 0.5.2",
+ "tower 0.4.13",
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
@@ -9553,7 +9553,7 @@ dependencies = [
 
 [[package]]
 name = "reqwest-utils"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "reqwest 0.11.27",
  "thiserror 1.0.63",
@@ -9763,7 +9763,7 @@ dependencies = [
 
 [[package]]
 name = "run-locally"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "anyhow",
  "core-api-client",
@@ -10285,7 +10285,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scraper"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "config",
@@ -10299,7 +10299,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "migration",
  "num-bigint 0.4.6",
  "num-traits",
@@ -14642,7 +14642,7 @@ dependencies = [
 
 [[package]]
 name = "validator"
-version = "1.7.0"
+version = "2.0.0"
 dependencies = [
  "async-trait",
  "aws-config",
@@ -14662,7 +14662,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.14.0",
+ "itertools 0.10.5",
  "k256 0.13.4",
  "mockall",
  "prometheus",
@@ -14674,7 +14674,7 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-test",
- "tower 0.5.2",
+ "tower 0.4.13",
  "tracing",
  "tracing-futures",
  "tracing-test",

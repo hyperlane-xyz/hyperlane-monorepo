@@ -52,10 +52,9 @@ function tokenConfig(decimals: number) {
   };
 }
 
-const rebalancing = getUSDCRebalancingBridgesConfigFor(
-  Object.keys(owners),
+const rebalancing = getUSDCRebalancingBridgesConfigFor(Object.keys(owners), [
   WarpRouteIds.MainnetCCTPV1,
-);
+]);
 
 export async function getMatchainUSDCWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

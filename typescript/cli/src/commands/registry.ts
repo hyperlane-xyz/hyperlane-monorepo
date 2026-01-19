@@ -1,15 +1,19 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
-import { CommandContext, CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type CommandModuleWithContext,
+} from '../context/types.js';
 import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
+import { filterOutDisabledChains } from '../utils/chains.js';
 
 import {
   chainTargetsCommandOption,
   outputFileCommandOption,
 } from './options.js';
-import { ChainType, ChainTypes } from './types.js';
+import { type ChainType, ChainTypes } from './types.js';
 
 /**
  * Parent command
@@ -45,7 +49,9 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
     const logChainsForType = (type: ChainType) => {
       logBlue(`\nHyperlane ${type} chains:`);
       logGray('------------------------------');
-      const chains = Object.values(context.chainMetadata).filter((c) => {
+      const chains = Object.values(
+        filterOutDisabledChains(context.chainMetadata),
+      ).filter((c) => {
         if (type === 'mainnet') return !c.isTestnet;
         else return !!c.isTestnet;
       });

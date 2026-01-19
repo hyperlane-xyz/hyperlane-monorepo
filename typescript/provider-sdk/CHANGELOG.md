@@ -1,5 +1,27 @@
 # @hyperlane-xyz/provider-sdk
 
+## 1.1.0
+
+### Minor Changes
+
+- 57a2053: Added optional gasPrice field to `TestChainMetadata` type
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@21.1.0
+
+## 1.0.0
+
+### Minor Changes
+
+- 239e1a1: Migrate AltVm JsonSubmittor and FileSubmittor to deploy-sdk (from provider-sdk and cli, respectively)
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+
+### Patch Changes
+
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/utils@21.0.0
+
 ## 0.7.0
 
 ### Minor Changes
