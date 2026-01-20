@@ -86,9 +86,13 @@ jobs:
             fi
           done
 
-          # Create checksums file
-          sha256sum *.so > checksums.sha256
-          cat checksums.sha256
+          # Create checksums file (only if .so files exist)
+          if ls *.so 1> /dev/null 2>&1; then
+            sha256sum *.so > checksums.sha256
+            cat checksums.sha256
+          else
+            echo "No .so files found, skipping checksums"
+          fi
 
       - name: Upload program artifacts
         uses: actions/upload-artifact@v4
@@ -141,6 +145,8 @@ jobs:
         run: |
           echo "## Reproducibility Verification" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Program | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
 
           FAILED=0
           for so_file in ./first-build/*.so; do
