@@ -1,7 +1,8 @@
 #!/bin/bash
 # Analyzes a diff between two directories and validates changeset requirements
-# Usage: check-diff-changeset.sh <analysis-type> <base-dir> <head-dir>
+# Usage: check-diff-changeset.sh <analysis-type> <base-dir> <head-dir> <base-ref>
 # analysis-type: bytecode | storage
+# base-ref: git ref to compare changesets against (e.g., commit SHA)
 #
 # For bytecode: any change requires patch+
 # For storage: additions require minor+, removals require major
@@ -11,9 +12,10 @@ set -euo pipefail
 ANALYSIS_TYPE=${1:-}
 BASE_DIR=${2:-}
 HEAD_DIR=${3:-}
+BASE_REF=${4:-}
 
-if [ -z "$ANALYSIS_TYPE" ] || [ -z "$BASE_DIR" ] || [ -z "$HEAD_DIR" ]; then
-  echo "Usage: check-diff-changeset.sh <bytecode|storage> <base-dir> <head-dir>"
+if [ -z "$ANALYSIS_TYPE" ] || [ -z "$BASE_DIR" ] || [ -z "$HEAD_DIR" ] || [ -z "$BASE_REF" ]; then
+  echo "Usage: check-diff-changeset.sh <bytecode|storage> <base-dir> <head-dir> <base-ref>"
   exit 1
 fi
 
@@ -91,7 +93,7 @@ echo "$CHANGE_DESC detected."
 echo ""
 
 # Check for adequate changeset
-if "$SCRIPT_DIR/check-solidity-changeset.sh" "$REQUIRED_LEVEL"; then
+if "$SCRIPT_DIR/check-solidity-changeset.sh" "$REQUIRED_LEVEL" "$BASE_REF"; then
   echo ""
   echo "$CHANGE_DESC are permitted with the existing changeset."
   exit 0
