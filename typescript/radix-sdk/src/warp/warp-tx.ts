@@ -101,17 +101,17 @@ export async function getSetTokenIsmTx(
   fromAddress: string,
   {
     tokenAddress,
-    ism,
+    ismAddress,
   }: {
     tokenAddress: string;
-    ism: string;
+    ismAddress: string;
   },
 ): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     tokenAddress,
     'set_ism',
-    [enumeration(1, address(ism))],
+    [enumeration(1, address(ismAddress))],
   );
 }
 
@@ -120,21 +120,25 @@ export async function getEnrollRemoteRouterTx(
   fromAddress: string,
   {
     tokenAddress,
-    receiverDomain,
-    receiverAddress,
-    gas,
+    remoteDomainId,
+    remoteRouterAddress,
+    destinationGas,
   }: {
     tokenAddress: string;
-    receiverDomain: number;
-    receiverAddress: string;
-    gas: string;
+    remoteDomainId: number;
+    remoteRouterAddress: string;
+    destinationGas: string;
   },
 ): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     tokenAddress,
     'enroll_remote_router',
-    [u32(receiverDomain), bytes(strip0x(receiverAddress)), decimal(gas)],
+    [
+      u32(remoteDomainId),
+      bytes(strip0x(remoteRouterAddress)),
+      decimal(destinationGas),
+    ],
   );
 }
 
@@ -143,16 +147,16 @@ export async function getUnenrollRemoteRouterTx(
   fromAddress: string,
   {
     tokenAddress,
-    receiverDomain,
+    remoteDomainId,
   }: {
     tokenAddress: string;
-    receiverDomain: number;
+    remoteDomainId: number;
   },
 ): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     tokenAddress,
     'unroll_remote_router',
-    [u32(receiverDomain)],
+    [u32(remoteDomainId)],
   );
 }
