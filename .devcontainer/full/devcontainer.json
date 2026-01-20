@@ -2,7 +2,7 @@
   "name": "Hyperlane Full",
   "build": {
     "dockerfile": "Dockerfile",
-    "context": "..",
+    "context": ".",
     "args": {
       "TZ": "${localEnv:TZ:UTC}",
       "FOUNDRY_VERSION": "v1.5.0",
