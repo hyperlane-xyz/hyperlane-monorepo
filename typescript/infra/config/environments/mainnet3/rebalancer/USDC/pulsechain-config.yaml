@@ -5,7 +5,7 @@ strategy:
   chains:
     arbitrum:
       weighted:
-        weight: 8 # should have 8% of all the collateral in this route
+        weight: 15 # should have 15% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
@@ -13,7 +13,7 @@ strategy:
 
     avalanche:
       weighted:
-        weight: 8 # should have 8% of all the collateral in this route
+        weight: 9 # should have 9% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
@@ -21,7 +21,7 @@ strategy:
 
     base:
       weighted:
-        weight: 30 # should have 30% of all the collateral in this route
+        weight: 25 # should have 25% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
@@ -29,7 +29,7 @@ strategy:
 
     ethereum:
       weighted:
-        weight: 30 # should have 30% of all the collateral in this route
+        weight: 23 # should have 23% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
@@ -37,7 +37,7 @@ strategy:
 
     optimism:
       weighted:
-        weight: 8 # should have 8% of all the collateral in this route
+        weight: 11 # should have 11% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
@@ -45,7 +45,7 @@ strategy:
 
     polygon:
       weighted:
-        weight: 8 # should have 8% of all the collateral in this route
+        weight: 6 # should have 6% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500
@@ -53,7 +53,7 @@ strategy:
 
     unichain:
       weighted:
-        weight: 8 # should have 8% of all the collateral in this route
+        weight: 11 # should have 11% of all the collateral in this route
         tolerance: 5 # 5% deviation on the expected balance before triggering a rebalance
       bridgeLockTime: 1800 # 30 mins in seconds (required for CCTP latency)
       bridgeMinAcceptedAmount: 3500

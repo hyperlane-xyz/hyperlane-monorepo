@@ -515,23 +515,21 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       // Configure imbalance and set bridge on origin chain
       const config: RebalancerConfigFileInput = {
         warpRouteId,
-        strategy: [
-          {
-            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-            chains: {
-              [CHAIN_NAME_2]: {
-                weighted: { weight: '75', tolerance: '0' },
-                bridge: ethers.constants.AddressZero,
-                bridgeLockTime: 1,
-              },
-              [CHAIN_NAME_3]: {
-                weighted: { weight: '25', tolerance: '0' },
-                bridge: bridgeContract.address,
-                bridgeLockTime: 1,
-              },
+        strategy: {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            [CHAIN_NAME_2]: {
+              weighted: { weight: '75', tolerance: '0' },
+              bridge: ethers.constants.AddressZero,
+              bridgeLockTime: 1,
+            },
+            [CHAIN_NAME_3]: {
+              weighted: { weight: '25', tolerance: '0' },
+              bridge: bridgeContract.address,
+              bridgeLockTime: 1,
             },
           },
-        ],
+        },
       };
 
       writeYamlOrJson(REBALANCER_CONFIG_PATH, config);
