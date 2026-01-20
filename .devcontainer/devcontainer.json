@@ -4,6 +4,9 @@
     "dockerfile": "Dockerfile",
     "context": "."
   },
+  "features": {
+    "ghcr.io/devcontainers/features/sshd:1": {}
+  },
   "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
   "remoteUser": "node",
   "mounts": [
