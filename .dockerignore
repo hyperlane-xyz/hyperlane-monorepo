@@ -1,3 +1,10 @@
+# Git
+.git
+
+# Rust build artifacts
+**/target
+
+# Node
 node_modules
 test_deploy.env
 
