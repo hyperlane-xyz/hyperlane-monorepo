@@ -482,6 +482,8 @@ contract InterchainGasPaymaster is
 
     /**
      * @notice Sets the gas oracle and destination gas overhead for a remote domain.
+     * @dev Writes to both legacy destinationGasConfigs and new tokenGasOracles/destinationGasOverhead
+     *      storage for backward compatibility.
      * @param _remoteDomain The remote domain.
      * @param _gasOracle The gas oracle.
      * @param _gasOverhead The destination gas overhead.
