@@ -4,9 +4,6 @@ import { ethers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import { chainMetadata } from '@hyperlane-xyz/registry';
-import { ChainMetadataManager } from '@hyperlane-xyz/sdk';
-
 import { type RebalancingRoute } from '../interfaces/IStrategy.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 import { ExplorerClient } from '../utils/ExplorerClient.js';
@@ -16,6 +13,12 @@ import { WithInflightGuard } from './WithInflightGuard.js';
 chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
+
+// Test routersByDomain mapping (domain ID → router address)
+const testRoutersByDomain: Record<number, string> = {
+  1: '0x1111111111111111111111111111111111111111', // ethereum
+  42161: '0x2222222222222222222222222222222222222222', // arbitrum
+};
 
 describe('WithInflightGuard', () => {
   it('forwards empty routes without calling Explorer', async () => {
@@ -32,7 +35,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      testRoutersByDomain,
       testLogger,
     );
 
@@ -61,7 +64,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      testRoutersByDomain,
       testLogger,
     );
 
@@ -90,7 +93,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      testRoutersByDomain,
       testLogger,
     );
 
@@ -117,7 +120,7 @@ describe('WithInflightGuard', () => {
       rebalancer,
       explorer,
       ethers.Wallet.createRandom().address,
-      new ChainMetadataManager(chainMetadata as any),
+      testRoutersByDomain,
       testLogger,
     );
 

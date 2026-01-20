@@ -25,10 +25,9 @@ import type {
 } from './types.js';
 
 export interface ActionTrackerConfig {
-  routers: Address[]; // Warp route router addresses for user transfer queries
+  routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
-  domains: number[];
 }
 
 /**
@@ -53,10 +52,9 @@ export class ActionTracker implements IActionTracker {
     // Log config for debugging
     this.logger.debug(
       {
-        routers: this.config.routers,
+        routersByDomain: this.config.routersByDomain,
         bridges: this.config.bridges,
         rebalancerAddress: this.config.rebalancerAddress,
-        domains: this.config.domains,
       },
       'ActionTracker config',
     );
@@ -66,7 +64,7 @@ export class ActionTracker implements IActionTracker {
       await this.explorerClient.getInflightRebalanceActions(
         {
           bridges: this.config.bridges,
-          domains: this.config.domains,
+          routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
         },
         this.logger,
@@ -101,8 +99,7 @@ export class ActionTracker implements IActionTracker {
     // Query Explorer for inflight user transfers
     const inflightMessages = await this.explorerClient.getInflightUserTransfers(
       {
-        routers: this.config.routers,
-        domains: this.config.domains,
+        routersByDomain: this.config.routersByDomain,
         excludeTxSender: this.config.rebalancerAddress,
       },
       this.logger,
@@ -228,7 +225,7 @@ export class ActionTracker implements IActionTracker {
       await this.explorerClient.getInflightRebalanceActions(
         {
           bridges: this.config.bridges,
-          domains: this.config.domains,
+          routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
         },
         this.logger,
