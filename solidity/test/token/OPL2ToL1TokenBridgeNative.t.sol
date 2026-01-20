@@ -151,7 +151,7 @@ contract OPL2ToL1TokenBridgeNativeTest is Test {
         bytes32 messageId = bytes32(0);
         uint256 payment = igp.quoteGasPayment(0, gasLimit);
 
-        vm.expectEmit(false, true, true, true, address(igp));
+        vm.expectEmit(false, true, false, true, address(igp));
         emit IInterchainGasPaymaster.GasPayment(
             messageId,
             destination,

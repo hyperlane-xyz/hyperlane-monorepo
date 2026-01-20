@@ -103,6 +103,6 @@ export class HyperlaneIgp extends HyperlaneApp<IgpFactories> {
       originProvider,
     );
     const domainId = this.multiProvider.getDomainId(destination);
-    return igp.quoteGasPayment(domainId, gasAmount);
+    return igp['quoteGasPayment(uint32,uint256)'](domainId, gasAmount);
   }
 }
