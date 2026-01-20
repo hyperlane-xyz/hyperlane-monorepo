@@ -1,0 +1,22 @@
+{
+  "solanamainnet": {
+    "type": "collateral",
+    "decimals": 8,
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
+    "splTokenProgram": "token",
+    "token": "5XZw2LKTyrfvfiskJ78AMpackRjPcyCif1WhUsPDuVqQ"
+  },
+  "ethereum": {
+    "type": "collateral",
+    "decimals": 8,
+    "token": "0x2260fac5e5542a773aa44fbcfedf7c193bc2c599",
+    "foreignDeployment": "0xE0891f43050Eb6Db8AA353DBEBF5Bf4C27e30e67"
+  },
+  "optimism": {
+    "type": "synthetic",
+    "decimals": 8,
+    "foreignDeployment": "0xe6936C72Cd3Ce5a8Cac4C55AbD82B4Be1D5bCd18",
+    "name": "",
+    "symbol": ""
+  }
+}
