@@ -9,6 +9,7 @@ import {
   assert,
   eqAddress,
   isAddressEvm,
+  mapAllSettled,
 } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
@@ -81,8 +82,9 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   };
 
   // Deploy ICAs on each destination chain in parallel
-  const settledResults = await Promise.allSettled(
-    destinations.map(async (destination) => {
+  const { fulfilled, rejected } = await mapAllSettled(
+    destinations,
+    async (destination) => {
       // First, get the expected ICA address
       const expectedAccount = await ica.getAccount(destination, ownerConfig);
 
@@ -117,26 +119,22 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
         ica: deployedAccount,
         status: IcaDeployStatus.Deployed,
       };
-    }),
+    },
+    (destination) => destination,
   );
 
   // Process settled results
-  const results: IcaDeployResult[] = settledResults.map((result, index) => {
-    if (result.status === 'fulfilled') {
-      return result.value;
-    }
-    const destination = destinations[index];
-    const errorMessage =
-      result.reason instanceof Error
-        ? result.reason.message
-        : String(result.reason);
-    logRed(`Failed to deploy ICA on ${destination}: ${errorMessage}`);
-    return {
-      chain: destination,
-      status: IcaDeployStatus.Error,
-      error: errorMessage,
-    };
-  });
+  const results: IcaDeployResult[] = [
+    ...fulfilled.values(),
+    ...[...rejected.entries()].map(([destination, error]) => {
+      logRed(`Failed to deploy ICA on ${destination}: ${error.message}`);
+      return {
+        chain: destination,
+        status: IcaDeployStatus.Error,
+        error: error.message,
+      };
+    }),
+  ];
 
   // Display results table
   logBlue('\nICA Deployment Results:');

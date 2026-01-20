@@ -6,7 +6,7 @@ import { step } from 'mocha-steps';
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { bytes32ToAddress, isValidAddressEvm } from '@hyperlane-xyz/utils';
 
-import { createSigner } from './utils.js';
+import { createSigner } from '../testing/utils.js';
 
 describe('3. cosmos sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);

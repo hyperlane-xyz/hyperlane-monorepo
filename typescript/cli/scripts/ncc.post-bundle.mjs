@@ -53,12 +53,7 @@ async function patchCliExecutable() {
     );
   } catch (error) {
     console.error('✖ Failed to patch CLI executable:', error);
-    if (!content.includes(dirnameDef)) {
-      const [, executable] = content.split(shebang);
-      const newContent = `${shebang}\n${dirnameDef}\n${executable}`;
-      await writeFile(outputFile, newContent, 'utf8');
-      console.log('Adding missing __dirname definition to cli executable');
-    }
+    process.exit(1);
   }
 }
 

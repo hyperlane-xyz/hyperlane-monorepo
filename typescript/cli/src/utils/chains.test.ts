@@ -1,9 +1,18 @@
 import { expect } from 'chai';
 
-import { type ChainMetadata, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainDisabledReason,
+  type ChainMetadata,
+  ChainStatus,
+  MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { filterChainMetadataByProtocol } from './chains.js';
+import {
+  filterChainMetadataByProtocol,
+  filterOutDisabledChains,
+  getActiveChainNames,
+} from './chains.js';
 
 describe('filterChainMetadataByProtocol', () => {
   const mockEvmChain: ChainMetadata = {
@@ -111,5 +120,119 @@ describe('filterChainMetadataByProtocol', () => {
     expect(Object.keys(result)).to.have.lengthOf(2);
     expect(result).to.have.property('ethereum');
     expect(result).to.have.property('polygon');
+  });
+});
+
+describe('filterOutDisabledChains', () => {
+  const baseChain: Omit<ChainMetadata, 'name'> = {
+    chainId: 1,
+    domainId: 1,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+  };
+
+  const disabledChain: ChainMetadata = {
+    ...baseChain,
+    name: 'disabled',
+    availability: {
+      status: ChainStatus.Disabled,
+      reasons: [ChainDisabledReason.Deprecated],
+    },
+  };
+
+  const liveChain: ChainMetadata = {
+    ...baseChain,
+    name: 'live',
+    availability: {
+      status: ChainStatus.Live,
+    },
+  };
+
+  const defaultChain: ChainMetadata = {
+    ...baseChain,
+    name: 'default',
+  };
+
+  it('should drop chains with disabled status', () => {
+    const chainMetadata = {
+      disabled: disabledChain,
+      live: liveChain,
+      default: defaultChain,
+    };
+
+    const result = filterOutDisabledChains(chainMetadata);
+
+    expect(result).to.not.have.property('disabled');
+    expect(result).to.have.property('live');
+    expect(result).to.have.property('default');
+  });
+});
+
+describe('getActiveChainNames', () => {
+  const baseChain: Omit<ChainMetadata, 'name'> = {
+    chainId: 1,
+    domainId: 1,
+    protocol: ProtocolType.Ethereum,
+    rpcUrls: [{ http: 'http://localhost:8545' }],
+  };
+
+  const disabledChain: ChainMetadata = {
+    ...baseChain,
+    name: 'disabled',
+    availability: {
+      status: ChainStatus.Disabled,
+      reasons: [ChainDisabledReason.Deprecated],
+    },
+  };
+
+  const liveChain: ChainMetadata = {
+    ...baseChain,
+    name: 'live',
+    availability: {
+      status: ChainStatus.Live,
+    },
+  };
+
+  const defaultChain: ChainMetadata = {
+    ...baseChain,
+    name: 'default',
+  };
+
+  it('should return only names of non-disabled chains', () => {
+    const chainMetadata = {
+      disabled: disabledChain,
+      live: liveChain,
+      default: defaultChain,
+    };
+
+    const result = getActiveChainNames(chainMetadata);
+
+    expect(result).to.have.lengthOf(2);
+    expect(result).to.include('live');
+    expect(result).to.include('default');
+    expect(result).to.not.include('disabled');
+  });
+
+  it('should return empty array when all chains are disabled', () => {
+    const chainMetadata = {
+      disabled: disabledChain,
+    };
+
+    const result = getActiveChainNames(chainMetadata);
+
+    expect(result).to.have.lengthOf(0);
+  });
+
+  it('should return all names when no chains are disabled', () => {
+    const chainMetadata = {
+      live: liveChain,
+      default: defaultChain,
+    };
+
+    const result = getActiveChainNames(chainMetadata);
+
+    expect(result).to.have.lengthOf(2);
+    expect(result).to.include('live');
+    expect(result).to.include('default');
   });
 });

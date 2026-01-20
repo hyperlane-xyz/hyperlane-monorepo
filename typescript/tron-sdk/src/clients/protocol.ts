@@ -1,3 +1,5 @@
+import { TronWeb } from 'tronweb';
+
 import {
   type AltVM,
   type ChainMetadataForAltVM,
@@ -8,13 +10,15 @@ import {
   type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
-import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
+import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
+import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
+import { TronHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { TronIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
 import { TronProvider } from './provider.js';
@@ -55,7 +59,37 @@ export class TronProtocolProvider implements ProtocolProvider {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
 
-    return new TronIsmArtifactManager(rpcUrls);
+    const { privateKey } = new TronWeb({
+      fullHost: rpcUrls[0],
+    }).createRandom();
+
+    const tronweb = new TronWeb({
+      fullHost: rpcUrls[0],
+      privateKey: strip0x(privateKey),
+    });
+
+    return new TronIsmArtifactManager(tronweb);
+  }
+
+  createHookArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawHookArtifactManager {
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    const { privateKey } = new TronWeb({
+      fullHost: rpcUrls[0],
+    }).createRandom();
+
+    const tronweb = new TronWeb({
+      fullHost: rpcUrls[0],
+      privateKey: strip0x(privateKey),
+    });
+
+    const mailboxAddress = context?.mailbox;
+
+    return new TronHookArtifactManager(tronweb, mailboxAddress || '');
   }
 
   getMinGas(): MinimumRequiredGasByAction {

@@ -1,4 +1,5 @@
 import { assert } from 'chai';
+import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
@@ -6,6 +7,7 @@ import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import GasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import { getInitRoutingIsmTx } from '../ism/ism-tx.js';
 import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
@@ -41,6 +43,10 @@ export class TronSigner
 
   getSignerAddress(): string {
     return this.tronweb.defaultAddress.base58 || '';
+  }
+
+  getTronweb(): TronWeb {
+    return this.tronweb;
   }
 
   supportsTransactionBatching(): boolean {
@@ -225,32 +231,16 @@ export class TronSigner
 
     const ismAddress = this.tronweb.address.fromHex(receipt.contract_address);
 
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
+    const initTx = await getInitRoutingIsmTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      {
         ismAddress,
-        'initialize(address,uint32[],address[])',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: this.getSignerAddress(),
-          },
-          {
-            type: 'uint32[]',
-            value: req.routes.map((r) => r.domainId),
-          },
-          {
-            type: 'address[]',
-            value: req.routes.map((r) => r.ismAddress),
-          },
-        ],
-        this.tronweb.address.toHex(this.getSignerAddress()),
-      );
+        routes: req.routes,
+      },
+    );
 
-    await this.sendAndConfirmTransaction(transaction);
+    await this.sendAndConfirmTransaction(initTx);
 
     return {
       ismAddress,

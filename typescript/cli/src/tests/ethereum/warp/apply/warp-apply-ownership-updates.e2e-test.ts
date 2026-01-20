@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { TokenType, randomAddress } from '@hyperlane-xyz/sdk';
+import { TokenFeeType, TokenType, randomAddress } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   ProtocolType,
@@ -163,4 +163,46 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
       ).to.eq(normalizeAddress(expectedProxyAdminOwner));
     });
   }
+
+  it('should succeed on re-run after ownership transfer with tokenFee configured (idempotency)', async function () {
+    const newOwner = randomAddress();
+    const feeOwner = HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum;
+    const tokenFeeConfig = {
+      type: TokenFeeType.LinearFee as const,
+      owner: feeOwner,
+      bps: BigInt('100'),
+    };
+
+    const warpDeployConfig = fixture.getDeployConfig();
+    warpDeployConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+    ].tokenFee = tokenFeeConfig;
+    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    const configWithNewOwner = fixture.getDeployConfig();
+    configWithNewOwner[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+    ].owner = newOwner;
+    configWithNewOwner[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+    ].tokenFee = tokenFeeConfig;
+    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, configWithNewOwner);
+
+    await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    const secondApply = await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    expect(secondApply.exitCode).to.equal(0);
+  });
 });

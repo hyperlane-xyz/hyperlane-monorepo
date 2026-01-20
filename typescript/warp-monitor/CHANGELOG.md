@@ -1,5 +1,13 @@
 # @hyperlane-xyz/warp-monitor
 
+## 0.0.2
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@21.1.0
+- @hyperlane-xyz/utils@21.1.0
+- @hyperlane-xyz/core@10.1.5
+
 ## 0.0.1
 
 ### Patch Changes

@@ -28,6 +28,7 @@ COPY patches ./patches
 
 # Copy only the packages needed for warp-monitor
 COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
+COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
@@ -47,6 +48,7 @@ RUN pnpm install --frozen-lockfile
 # Copy source files
 COPY turbo.json ./
 COPY typescript/warp-monitor ./typescript/warp-monitor
+COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/sdk ./typescript/sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
@@ -60,6 +62,23 @@ COPY typescript/eslint-config ./typescript/eslint-config
 COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
+
+# Pre-download solc compiler to avoid flaky network issues during build.
+# Hardhat downloads this on-demand, but the network request can timeout in CI.
+#
+# To update when changing solidity version in solidity/rootHardhatConfig.cts:
+#   1. Find the commit hash: curl -s "https://binaries.soliditylang.org/linux-amd64/list.json" | jq '.releases["X.Y.Z"]'
+#   2. Update SOLC_VERSION and SOLC_COMMIT below
+ARG SOLC_VERSION=0.8.22
+ARG SOLC_COMMIT=4fc1097e
+RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
+    SOLC_LIST_URL="https://binaries.soliditylang.org/linux-amd64/list.json" && \
+    SOLC_BIN_URL="https://binaries.soliditylang.org/linux-amd64/${SOLC_BINARY}" && \
+    CACHE_DIR="/root/.cache/hardhat-nodejs/compilers-v2/linux-amd64" && \
+    mkdir -p "$CACHE_DIR" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_LIST_URL" -o "$CACHE_DIR/list.json" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
+    chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
 # Build and bundle the warp-monitor (ncc creates a single-file bundle with all deps)
 RUN pnpm turbo run bundle --filter=@hyperlane-xyz/warp-monitor

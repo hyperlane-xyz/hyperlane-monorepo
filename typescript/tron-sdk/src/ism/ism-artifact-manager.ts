@@ -12,19 +12,40 @@ import {
   type IsmType,
   type RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import {
-  type AnnotatedTx,
-  type TxReceipt,
-} from '@hyperlane-xyz/provider-sdk/module';
-import { strip0x } from '@hyperlane-xyz/utils';
 
-import { type TronIsmQueryClient, getIsmType } from './ism-query.js';
+import { TronSigner } from '../clients/signer.js';
+import { TronIsmTypes } from '../utils/types.js';
+
+import { getIsmType } from './ism-query.js';
 import {
   TronMerkleRootMultisigIsmReader,
+  TronMerkleRootMultisigIsmWriter,
   TronMessageIdMultisigIsmReader,
+  TronMessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
-import { TronRoutingIsmRawReader } from './routing-ism.js';
-import { TronTestIsmReader } from './test-ism.js';
+import {
+  TronRoutingIsmRawReader,
+  TronRoutingIsmRawWriter,
+} from './routing-ism.js';
+import { TronTestIsmReader, TronTestIsmWriter } from './test-ism.js';
+
+/**
+ * Maps Tron-specific ISM blueprint names to provider-sdk ISM types.
+ */
+function tronIsmTypeToProviderSdkType(tronType: TronIsmTypes): IsmType {
+  switch (tronType) {
+    case TronIsmTypes.MERKLE_ROOT_MULTISIG:
+      return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+    case TronIsmTypes.MESSAGE_ID_MULTISIG:
+      return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+    case TronIsmTypes.ROUTING_ISM:
+      return AltVM.IsmType.ROUTING;
+    case TronIsmTypes.NOOP_ISM:
+      return AltVM.IsmType.TEST_ISM;
+    default:
+      throw new Error(`Unknown Tron ISM type: ${tronType}`);
+  }
+}
 
 /**
  * Tron ISM Artifact Manager implementing IRawIsmArtifactManager.
@@ -38,34 +59,7 @@ import { TronTestIsmReader } from './test-ism.js';
  * deferring the async query client creation until actually needed.
  */
 export class TronIsmArtifactManager implements IRawIsmArtifactManager {
-  private queryPromise?: Promise<TronIsmQueryClient>;
-
-  constructor(private readonly rpcUrls: string[]) {}
-
-  /**
-   * Lazy initialization - creates query client on first use.
-   * Subsequent calls return the cached promise.
-   */
-  private async getQuery(): Promise<TronIsmQueryClient> {
-    if (!this.queryPromise) {
-      this.queryPromise = this.createQuery();
-    }
-    return this.queryPromise;
-  }
-
-  /**
-   * Creates a Tron query client with ISM extension.
-   */
-  private async createQuery(): Promise<TronIsmQueryClient> {
-    const { privateKey } = new TronWeb({
-      fullHost: this.rpcUrls[0],
-    }).createRandom();
-
-    return new TronWeb({
-      fullHost: this.rpcUrls[0],
-      privateKey: strip0x(privateKey),
-    });
-  }
+  constructor(private readonly tronweb: TronWeb) {}
 
   /**
    * Read an ISM of unknown type from the blockchain.
@@ -74,15 +68,9 @@ export class TronIsmArtifactManager implements IRawIsmArtifactManager {
    * @returns Deployed ISM artifact with configuration
    */
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
-    const query = await this.getQuery();
-    const altVMType = await getIsmType(query, address);
-    // Type assertion needed because getIsmType returns IsmType (union),
-    // but createReaderWithQuery expects a specific type T extends IsmType.
-    // The reader will return the correct artifact type at runtime.
-    const reader = this.createReaderWithQuery(
-      altVMType as keyof RawIsmArtifactConfigs,
-      query,
-    );
+    const tronIsmType = await getIsmType(this.tronweb, address);
+    const ismType = tronIsmTypeToProviderSdkType(tronIsmType);
+    const reader = this.createReader(ismType);
     return reader.read(address);
   }
 
@@ -96,49 +84,30 @@ export class TronIsmArtifactManager implements IRawIsmArtifactManager {
   createReader<T extends IsmType>(
     type: T,
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    // For synchronous createReader, we return a wrapper that will initialize lazily
-    return {
-      read: async (address: string) => {
-        const query = await this.getQuery();
-        const reader = this.createReaderWithQuery(type, query);
-        return reader.read(address);
-      },
-    } as ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress>;
-  }
-
-  /**
-   * Internal helper to create type-specific ISM readers with query client.
-   *
-   * @param type - ISM type to create reader for
-   * @param query - Query client to use for reading
-   * @returns Type-specific ISM reader
-   */
-  private createReaderWithQuery<T extends IsmType>(
-    type: T,
-    query: TronIsmQueryClient,
-  ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
-        return new TronTestIsmReader(query) as unknown as ArtifactReader<
+        return new TronTestIsmReader(this.tronweb) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
         return new TronMerkleRootMultisigIsmReader(
-          query,
+          this.tronweb,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
         return new TronMessageIdMultisigIsmReader(
-          query,
+          this.tronweb,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new TronRoutingIsmRawReader(query) as unknown as ArtifactReader<
+        return new TronRoutingIsmRawReader(
+          this.tronweb,
+        ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
@@ -147,21 +116,45 @@ export class TronIsmArtifactManager implements IRawIsmArtifactManager {
     }
   }
 
-  /**
-   * Factory method to create type-specific ISM writers.
-   * Currently not implemented - will be added in future work.
-   *
-   * @param type - ISM type to create writer for
-   * @param _signer - Signer to use for writing
-   * @returns Type-specific ISM writer
-   * @throws Error indicating writers are not yet implemented
-   */
   createWriter<T extends IsmType>(
     type: T,
-    _signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
+    signer: TronSigner,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
-    throw new Error(
-      `ISM writers not yet implemented for Tron (requested type: ${type})`,
-    );
+    switch (type) {
+      case AltVM.IsmType.TEST_ISM:
+        return new TronTestIsmWriter(
+          this.tronweb,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
+        return new TronMerkleRootMultisigIsmWriter(
+          this.tronweb,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MESSAGE_ID_MULTISIG:
+        return new TronMessageIdMultisigIsmWriter(
+          this.tronweb,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.ROUTING:
+        return new TronRoutingIsmRawWriter(
+          this.tronweb,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      default:
+        throw new Error(`Unsupported ISM type: ${type}`);
+    }
   }
 }

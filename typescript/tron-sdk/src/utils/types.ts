@@ -84,3 +84,15 @@ export interface IABI {
   bytecode: string;
   deployedBytecode: string;
 }
+
+export enum TronIsmTypes {
+  MERKLE_ROOT_MULTISIG = 'MerkleRootMultisigIsm',
+  MESSAGE_ID_MULTISIG = 'MessageIdMultisigIsm',
+  ROUTING_ISM = 'RoutingIsm',
+  NOOP_ISM = 'NoopIsm',
+}
+
+export enum TronHookTypes {
+  MERKLE_TREE = 'merkleTreeHook',
+  INTERCHAIN_GAS_PAYMASTER = 'interchainGasPaymaster',
+}

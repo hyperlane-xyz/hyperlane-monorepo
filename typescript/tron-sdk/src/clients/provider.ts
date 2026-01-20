@@ -3,22 +3,18 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
-import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
 import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
 import HypERC20Abi from '../abi/HypERC20.json' with { type: 'json' };
 import HypERC20CollateralAbi from '../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
 import IERC20Abi from '../abi/IERC20.json' with { type: 'json' };
-import IPostDispatchHookAbi from '../abi/IPostDispatchHook.json' with { type: 'json' };
 import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
-import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
 import PausableHookAbi from '../abi/PausableHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
-import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
-import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../abi/ValidatorAnnounce.json' with { type: 'json' };
+import { getHookType } from '../hook/hook-query.js';
 import {
   getIsmType,
   getMerkleRootMultisigIsmConfig,
@@ -26,8 +22,22 @@ import {
   getNoopIsmConfig,
   getRoutingIsmConfig,
 } from '../ism/ism-query.js';
+import {
+  getCreateMerkleRootMultisigIsmTx,
+  getCreateMessageIdMultisigIsmTx,
+  getCreateRoutingIsmTx,
+  getCreateTestIsmTx,
+  getRemoveRoutingIsmRouteTx,
+  getSetRoutingIsmOwnerTx,
+  getSetRoutingIsmRouteTx,
+} from '../ism/ism-tx.js';
 import { TRON_EMPTY_ADDRESS, decodeRevertReason } from '../utils/index.js';
-import { IABI, TronTransaction } from '../utils/types.js';
+import {
+  IABI,
+  TronHookTypes,
+  TronIsmTypes,
+  TronTransaction,
+} from '../utils/types.js';
 
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
@@ -245,7 +255,24 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getIsmType(req: AltVM.ReqGetIsmType): Promise<AltVM.IsmType> {
-    return getIsmType(this.tronweb, req.ismAddress);
+    const ismType = await getIsmType(this.tronweb, req.ismAddress);
+
+    switch (ismType) {
+      case TronIsmTypes.MERKLE_ROOT_MULTISIG: {
+        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+      }
+      case TronIsmTypes.MESSAGE_ID_MULTISIG: {
+        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+      }
+      case TronIsmTypes.ROUTING_ISM: {
+        return AltVM.IsmType.ROUTING;
+      }
+      case TronIsmTypes.NOOP_ISM: {
+        return AltVM.IsmType.TEST_ISM;
+      }
+      default:
+        throw new Error(`Unknown ISM ModuleType: ${ismType}`);
+    }
   }
 
   async getMessageIdMultisigIsm(
@@ -269,22 +296,17 @@ export class TronProvider implements AltVM.IProvider {
   }
 
   async getHookType(req: AltVM.ReqGetHookType): Promise<AltVM.HookType> {
-    const contract = this.tronweb.contract(
-      IPostDispatchHookAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = Number(await contract.hookType().call());
+    const hookType = await getHookType(this.tronweb, req.hookAddress);
 
     switch (hookType) {
-      case 3:
+      case TronHookTypes.MERKLE_TREE: {
         return AltVM.HookType.MERKLE_TREE;
-      case 4:
+      }
+      case TronHookTypes.INTERCHAIN_GAS_PAYMASTER: {
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
-      case 7:
-        return AltVM.HookType.PAUSABLE;
+      }
       default:
-        throw new Error(`Unknown Hook type for address: ${req.hookAddress}`);
+        throw new Error(`Unknown ISM ModuleType: ${hookType}`);
     }
   }
 
@@ -607,110 +629,58 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMerkleRootMultisigIsmTransaction(
     req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(
-      StorageMerkleRootMultisigIsmAbi,
-      req.signer,
-      [[], 0],
-    );
+    return getCreateMerkleRootMultisigIsmTx(this.tronweb, req.signer, {
+      validators: req.validators,
+      threshold: req.threshold,
+    });
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(
-      StorageMessageIdMultisigIsmAbi,
-      req.signer,
-      [req.validators, req.threshold],
-    );
+    return getCreateMessageIdMultisigIsmTx(this.tronweb, req.signer, {
+      validators: req.validators,
+      threshold: req.threshold,
+    });
   }
 
   async getCreateRoutingIsmTransaction(
     req: AltVM.ReqCreateRoutingIsm,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(
-      DomainRoutingIsmAbi,
-      req.signer,
-      [],
-    );
+    return getCreateRoutingIsmTx(this.tronweb, req.signer);
   }
 
   async getSetRoutingIsmRouteTransaction(
     req: AltVM.ReqSetRoutingIsmRoute,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.ismAddress,
-        'set(uint32,address)',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'uint32',
-            value: req.route.domainId,
-          },
-          {
-            type: 'address',
-            value: req.route.ismAddress,
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getSetRoutingIsmRouteTx(this.tronweb, req.signer, {
+      ismAddress: req.ismAddress,
+      domainIsm: req.route,
+    });
   }
 
   async getRemoveRoutingIsmRouteTransaction(
     req: AltVM.ReqRemoveRoutingIsmRoute,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.ismAddress,
-        'remove(uint32)',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'uint32',
-            value: req.domainId,
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getRemoveRoutingIsmRouteTx(this.tronweb, req.signer, {
+      ismAddress: req.ismAddress,
+      domainId: req.domainId,
+    });
   }
 
   async getSetRoutingIsmOwnerTransaction(
     req: AltVM.ReqSetRoutingIsmOwner,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.ismAddress,
-        'transferOwnership(address)',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: req.newOwner,
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getSetRoutingIsmOwnerTx(this.tronweb, req.signer, {
+      ismAddress: req.ismAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getCreateNoopIsmTransaction(
     req: AltVM.ReqCreateNoopIsm,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(NoopIsmAbi, req.signer, []);
+    return getCreateTestIsmTx(this.tronweb, req.signer);
   }
 
   async getCreateMerkleTreeHookTransaction(
