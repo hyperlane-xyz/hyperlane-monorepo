@@ -76,8 +76,11 @@ describe('hyperlane warp deploy (Aleo E2E tests)', async function () {
   let coreAddressByChain: ChainMap<ChainAddresses>;
 
   before(async function () {
-    await hyperlaneCore1.deploy(HYP_KEY_BY_PROTOCOL.aleo);
-    await hyperlaneCore2.deploy(HYP_KEY_BY_PROTOCOL.aleo);
+    // Deploy core contracts on both chains in parallel
+    await Promise.all([
+      hyperlaneCore1.deploy(HYP_KEY_BY_PROTOCOL.aleo),
+      hyperlaneCore2.deploy(HYP_KEY_BY_PROTOCOL.aleo),
+    ]);
 
     chain1CoreAddress = readYamlOrJson(
       `${REGISTRY_PATH}/chains/${TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1}/addresses.yaml`,

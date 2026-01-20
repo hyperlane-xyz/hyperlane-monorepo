@@ -10,7 +10,8 @@ import {
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
 
-let aleoNodeContainer: StartedTestContainer | undefined;
+let aleoNode1Container: StartedTestContainer | undefined;
+let aleoNode2Container: StartedTestContainer | undefined;
 
 before(async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
@@ -28,10 +29,11 @@ before(async function () {
     },
   );
 
-  // Run Aleo node (only need one node for all test chains)
-  aleoNodeContainer = await runAleoNode(
-    TEST_CHAIN_METADATA_BY_PROTOCOL.aleo.CHAIN_NAME_1,
-  );
+  // Run both Aleo nodes in parallel
+  [aleoNode1Container, aleoNode2Container] = await Promise.all([
+    runAleoNode(TEST_CHAIN_METADATA_BY_PROTOCOL.aleo.CHAIN_NAME_1),
+    runAleoNode(TEST_CHAIN_METADATA_BY_PROTOCOL.aleo.CHAIN_NAME_2),
+  ]);
 });
 
 // Reset the test registry for each test invocation
@@ -46,8 +48,8 @@ beforeEach(() => {
 after(async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
-  // Stop Aleo node
-  if (aleoNodeContainer) {
-    await aleoNodeContainer.stop();
-  }
+  // Stop both Aleo nodes
+  await Promise.all(
+    [aleoNode1Container?.stop(), aleoNode2Container?.stop()].filter(Boolean),
+  );
 });

@@ -1,8 +1,8 @@
 blockExplorers:
-  - apiUrl: http://127.0.0.1:3030
+  - apiUrl: http://127.0.0.1:3031
     family: other
     name: Aleo Local Explorer
-    url: http://127.0.0.1:3030
+    url: http://127.0.0.1:3031
 blocks:
   confirmations: 0
   estimateBlockTime: 5
@@ -17,8 +17,8 @@ nativeToken:
   name: Aleo Credits
   symbol: ALEO
 protocol: aleo
-restPort: 3030
-rpcPort: 3030
+restPort: 3031
+rpcPort: 3031
 rpcUrls:
-  - http: http://127.0.0.1:3030
+  - http: http://127.0.0.1:3031
 technicalStack: other
