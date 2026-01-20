@@ -371,7 +371,7 @@ export const check: CommandModuleWithContext<
     ica?: boolean;
     origin?: string;
     originOwner?: string;
-    destinations?: string[];
+    chains?: string[];
   }
 > = {
   command: 'check',
@@ -397,9 +397,9 @@ export const check: CommandModuleWithContext<
         'Override the origin owner address instead of reading from warp deploy config.',
       implies: 'origin',
     },
-    destinations: stringArrayOptionConfig({
+    chains: stringArrayOptionConfig({
       description:
-        'List of destination chains to check. Defaults to all chains except origin when using --ica.',
+        'List of chains to check. Defaults to all chains except origin when using --ica.',
       implies: 'ica',
     }),
   },
@@ -412,7 +412,7 @@ export const check: CommandModuleWithContext<
     ica,
     origin,
     originOwner,
-    destinations,
+    chains,
   }) => {
     logCommandHeader('Hyperlane Warp Check');
 
@@ -432,14 +432,14 @@ export const check: CommandModuleWithContext<
     // If --ica flag is set, run ICA owner check instead of the regular config check
     if (ica) {
       assert(origin, '--origin is required when using --ica');
-      const destinationChains = destinations?.length ? destinations : undefined;
+      const chainsToCheck = chains?.length ? chains : undefined;
 
       await runWarpIcaOwnerCheck({
         context,
         warpDeployConfig,
         origin,
         originOwner,
-        destinations: destinationChains,
+        chains: chainsToCheck,
       });
 
       process.exit(0);
