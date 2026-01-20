@@ -1,4 +1,4 @@
-import { type PopulatedTransaction } from 'ethers';
+import { type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
