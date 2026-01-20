@@ -316,7 +316,7 @@ const send: CommandModuleWithWriteContext<
     });
     const chainsToSend =
       chainsArg && chainsArg.length > 0
-        ? chainsArg.map((_) => _.trim())
+        ? chainsArg.map((_) => _.trim()).filter((_) => _.length > 0)
         : undefined;
     let chains = chainsToSend || [];
 
@@ -441,7 +441,7 @@ export const check: CommandModuleWithContext<
       assert(origin, '--origin is required when using --ica');
       const destinationChains =
         destinations && destinations.length > 0
-          ? destinations.map((c) => c.trim())
+          ? destinations.map((c) => c.trim()).filter((c) => c.length > 0)
           : undefined;
 
       await runWarpIcaOwnerCheck({
