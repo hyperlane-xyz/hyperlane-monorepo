@@ -1,0 +1,32 @@
+# Sealevel-specific dockerignore (replaces root .dockerignore for this Dockerfile)
+# Adds .git exclusion to save ~3GB context transfer
+
+.git
+
+# Rust build artifacts
+**/target
+
+# Node
+node_modules
+test_deploy.env
+
+typescript/hyperlane-deploy/.env
+**/.env
+**/tsconfig.tsbuildinfo
+**/tmp.*
+**/*.swp
+**/*.swo
+
+tmp.env
+.DS_STORE
+
+typescript/*/.env
+typescript/*/node_modules
+typescript/**/tsconfig.tsbuildinfo
+**/**/tsconfig.tsbuildinfo
+
+.yarn/install-state.gz
+.yarn/cache
+yarn-error.log
+
+.idea
