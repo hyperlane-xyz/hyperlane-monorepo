@@ -25,6 +25,7 @@ jobs:
     runs-on: ubuntu-latest
     outputs:
       version: ${{ steps.version.outputs.version }}
+      program_type: ${{ steps.version.outputs.program_type }}
 
     steps:
       - name: Checkout repository
@@ -125,7 +126,7 @@ jobs:
         run: |
           docker build \
             --platform linux/amd64 \
-            --build-arg PROGRAM_TYPE=all \
+            --build-arg PROGRAM_TYPE=${{ needs.build.outputs.program_type }} \
             -f rust/sealevel/docker/Dockerfile \
             -t sealevel-verify:local \
             --target builder \

@@ -22,12 +22,9 @@ ENV RUSTFLAGS="--cfg tokio_unstable"
 
 # Install Solana CLI v1.14.20
 # Download directly from GitHub releases (more reliable than release.solana.com)
+# Note: Platform is locked to linux/amd64 above, so we hardcode x86_64
 ENV SOLANA_VERSION=v1.14.20
-RUN ARCH=$(uname -m) && \
-    if [ "$ARCH" = "x86_64" ]; then TARGET="x86_64-unknown-linux-gnu"; \
-    elif [ "$ARCH" = "aarch64" ]; then TARGET="aarch64-unknown-linux-gnu"; \
-    else echo "Unsupported architecture: $ARCH" && exit 1; fi && \
-    curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-install-init-${TARGET}" -o /tmp/solana-install-init && \
+RUN curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-install-init-x86_64-unknown-linux-gnu" -o /tmp/solana-install-init && \
     chmod +x /tmp/solana-install-init && \
     /tmp/solana-install-init ${SOLANA_VERSION} && \
     rm /tmp/solana-install-init
