@@ -13,3 +13,4 @@ export { RadixProvider } from './clients/provider.js';
 export { RadixSigner } from './clients/signer.js';
 export { RadixIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export { RadixHookArtifactManager } from './hook/hook-artifact-manager.js';
+export { RadixMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
