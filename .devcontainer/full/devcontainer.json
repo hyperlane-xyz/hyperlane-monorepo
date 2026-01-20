@@ -1,0 +1,67 @@
+{
+  "name": "Hyperlane Full",
+  "build": {
+    "dockerfile": "Dockerfile",
+    "context": "..",
+    "args": {
+      "TZ": "${localEnv:TZ:UTC}",
+      "FOUNDRY_VERSION": "v1.5.0",
+      "RUST_VERSION": "1.88.0",
+      "GIT_DELTA_VERSION": "0.18.2",
+      "ZSH_IN_DOCKER_VERSION": "1.2.0"
+    }
+  },
+  "runArgs": ["--cap-add=NET_ADMIN", "--cap-add=NET_RAW"],
+  "customizations": {
+    "vscode": {
+      "extensions": [
+        "dbaeumer.vscode-eslint",
+        "esbenp.prettier-vscode",
+        "eamodio.gitlens",
+        "NomicFoundation.hardhat-solidity",
+        "rust-lang.rust-analyzer"
+      ],
+      "settings": {
+        "editor.formatOnSave": true,
+        "editor.defaultFormatter": "esbenp.prettier-vscode",
+        "editor.codeActionsOnSave": {
+          "source.fixAll.eslint": "explicit"
+        },
+        "terminal.integrated.defaultProfile.linux": "zsh",
+        "terminal.integrated.profiles.linux": {
+          "bash": {
+            "path": "bash",
+            "icon": "terminal-bash"
+          },
+          "zsh": {
+            "path": "zsh"
+          }
+        },
+        "[solidity]": {
+          "editor.defaultFormatter": "NomicFoundation.hardhat-solidity"
+        },
+        "[rust]": {
+          "editor.defaultFormatter": "rust-lang.rust-analyzer"
+        },
+        "rust-analyzer.cargo.features": "all"
+      }
+    }
+  },
+  "remoteUser": "node",
+  "mounts": [
+    "source=hyperlane-bashhistory-${devcontainerId},target=/commandhistory,type=volume",
+    "source=hyperlane-opencode-${devcontainerId},target=/home/node/.opencode,type=volume",
+    "source=hyperlane-cargo-${devcontainerId},target=/home/node/.cargo/registry,type=volume"
+  ],
+  "containerEnv": {
+    "NODE_OPTIONS": "--max-old-space-size=4096",
+    "OPENCODE_CONFIG_DIR": "/home/node/.opencode",
+    "CARGO_HOME": "/home/node/.cargo",
+    "RUSTUP_HOME": "/home/node/.rustup"
+  },
+  "workspaceMount": "source=${localWorkspaceFolder},target=/workspace,type=bind,consistency=delegated",
+  "workspaceFolder": "/workspace",
+  "postCreateCommand": "pnpm install",
+  "postStartCommand": "sudo /usr/local/bin/init-firewall.sh",
+  "waitFor": "postStartCommand"
+}

@@ -1,0 +1,74 @@
+# GitHub Codespaces Prebuild Workflow
+# Triggers prebuild of devcontainer images when configurations change
+# Note: Actual prebuilds must be enabled in repository settings:
+# Settings → Codespaces → Set up prebuild
+#
+# This workflow helps ensure the images build successfully before
+# developers try to use them.
+
+name: Codespaces Prebuild Check
+
+on:
+  push:
+    branches:
+      - main
+    paths:
+      - '.devcontainer/**'
+  pull_request:
+    paths:
+      - '.devcontainer/**'
+
+jobs:
+  build-typescript:
+    name: Build TypeScript Devcontainer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build TypeScript devcontainer
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer/typescript
+          file: .devcontainer/typescript/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-solidity:
+    name: Build Solidity Devcontainer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Solidity devcontainer
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer/solidity
+          file: .devcontainer/solidity/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+
+  build-full:
+    name: Build Full Devcontainer
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Build Full devcontainer
+        uses: docker/build-push-action@v6
+        with:
+          context: .devcontainer/full
+          file: .devcontainer/full/Dockerfile
+          push: false
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
