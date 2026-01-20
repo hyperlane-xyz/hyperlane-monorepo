@@ -34,7 +34,7 @@ use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
 use hyperlane_starknet::{self as h_starknet, StarknetProvider};
-use hyperlane_tron::{self as h_tron};
+use hyperlane_tron::{self as h_tron, TronProvider};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -339,7 +339,10 @@ impl ChainConf {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1531,6 +1534,24 @@ fn build_aleo_provider(
         locator.domain.clone(),
         signer,
         metrics.clone(),
+        middleware_metrics.chain.clone(),
+    )
+}
+
+fn build_tron_provider(
+    chain_conf: &ChainConf,
+    connection_conf: &h_tron::ConnectionConf,
+    metrics: &CoreMetrics,
+    locator: &ContractLocator,
+    signer: Option<h_tron::TronSigner>,
+) -> ChainResult<TronProvider> {
+    let middleware_metrics = chain_conf.metrics_conf();
+    let metrics = metrics.client_metrics();
+    TronProvider::new(
+        connection_conf,
+        locator,
+        signer,
+        metrics,
         middleware_metrics.chain.clone(),
     )
 }
