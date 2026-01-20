@@ -94,10 +94,6 @@ export const disableProxyCommandOption: Options = {
 
 /* Command-specific options */
 
-export const coreTargetsCommandOption: Options = stringArrayOptionConfig({
-  description: 'List of chain names to which contracts will be deployed',
-});
-
 export const agentTargetsCommandOption: Options = stringArrayOptionConfig({
   description: 'List of chains to relay between',
 });
