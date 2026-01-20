@@ -50,6 +50,7 @@ export function useAleoAccount(
   useEffect(() => {
     // Only access adapter in useEffect to avoid SSR issues
     const adapterInstance = getAdapter();
+
     const handleAccountChange = () => {
       setAccount(adapterInstance.account);
     };
@@ -130,7 +131,7 @@ export function useAleoDisconnectFn(): () => Promise<void> {
 export function useAleoActiveChain(
   _multiProvider: MultiProtocolProvider,
 ): ActiveChainInfo {
-  // Aleo doesn't has the concept of an active chain
+  // Aleo doesn't have the concept of an active chain
   return useMemo(() => ({}) as ActiveChainInfo, []);
 }
 
