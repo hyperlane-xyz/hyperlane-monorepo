@@ -61,5 +61,13 @@
     "@provablehq/sdk": "0.9.14",
     "bignumber.js": "catalog:",
     "unzipper": "^0.12.3"
+  },
+  "peerDependencies": {
+    "testcontainers": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "testcontainers": {
+      "optional": true
+    }
   }
 }
