@@ -98,7 +98,7 @@ RUN sh -c "$(wget -O- https://github.com/deluan/zsh-in-docker/releases/download/
     -x
 
 # Install OpenCode CLI
-RUN curl -fsSL https://opencode.ai/install | bash
+RUN npm install -g opencode-ai
 
 # Copy and set up firewall script
 COPY init-firewall.sh /usr/local/bin/
