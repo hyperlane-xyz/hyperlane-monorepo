@@ -29,6 +29,7 @@ COPY patches ./patches
 # Copy only the packages needed for ccip-server
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
+COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
@@ -57,6 +58,7 @@ RUN pnpm --filter @hyperlane-xyz/ccip-server prisma generate
 COPY turbo.json ./
 COPY typescript/ccip-server ./typescript/ccip-server
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
+COPY typescript/metrics ./typescript/metrics
 COPY typescript/sdk ./typescript/sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
 COPY typescript/utils ./typescript/utils

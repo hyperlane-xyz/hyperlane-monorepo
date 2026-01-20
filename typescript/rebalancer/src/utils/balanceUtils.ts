@@ -1,6 +1,6 @@
 import { type Logger } from 'pino';
 
-import { type ChainName, type Token } from '@hyperlane-xyz/sdk';
+import { type ChainName } from '@hyperlane-xyz/sdk';
 
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
 import { type RawBalances } from '../interfaces/IStrategy.js';
@@ -62,8 +62,4 @@ export function getRawBalances(
   }
 
   return balances;
-}
-
-export function formatBigInt(warpToken: Token, num: bigint): number {
-  return warpToken.amount(num).getDecimalFormattedAmount();
 }
