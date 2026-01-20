@@ -7,7 +7,6 @@ import {
   ArtifactOnChain,
   ArtifactState,
   IArtifactManager,
-  RawArtifact,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import type { DerivedHookConfig, HookConfig } from './hook.js';
