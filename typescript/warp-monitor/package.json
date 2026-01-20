@@ -22,6 +22,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
     "ethers": "catalog:",
     "pino": "catalog:",
     "prom-client": "catalog:"

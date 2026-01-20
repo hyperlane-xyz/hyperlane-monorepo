@@ -291,6 +291,7 @@ jobs:
           - warp-check-3
           - warp-check-4
           - warp-check-5
+          - warp-check-ica
           # other
           - warp-init
           - warp-read
@@ -483,11 +484,21 @@ jobs:
           job_name: 'Cosmos SDK E2E'
           result: ${{ needs.cosmos-sdk-e2e-run.result }}
 
-  aleo-sdk-e2e-run:
+  aleo-sdk-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
     timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - 1_interchain_security
+          - 2_core
+          - 3_post_dispatch
+          - 4_warp
+          - 5_ism_artifacts
+          - 6_hook_artifacts
     steps:
       - uses: actions/checkout@v6
         with:
@@ -497,12 +508,14 @@ jobs:
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
-      - name: Aleo SDK e2e tests
+      - name: Aleo SDK e2e tests (${{ matrix.test }})
         run: pnpm -C typescript/aleo-sdk test:e2e
+        env:
+          ALEO_SDK_E2E_TEST: ${{ matrix.test }}
 
   aleo-sdk-e2e:
     runs-on: ubuntu-latest
-    needs: [aleo-sdk-e2e-run]
+    needs: [aleo-sdk-e2e-matrix]
     if: always()
     steps:
       - uses: actions/checkout@v6
@@ -510,7 +523,7 @@ jobs:
         uses: ./.github/actions/check-job-status
         with:
           job_name: 'Aleo SDK E2E'
-          result: ${{ needs.aleo-sdk-e2e-run.result }}
+          result: ${{ needs.aleo-sdk-e2e-matrix.result }}
 
   radix-sdk-e2e-run:
     runs-on: depot-ubuntu-latest

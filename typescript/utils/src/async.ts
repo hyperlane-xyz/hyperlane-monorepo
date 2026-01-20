@@ -1,3 +1,5 @@
+import type { Logger } from 'pino';
+
 import { rootLogger } from './logging.js';
 import { assert } from './validation.js';
 
@@ -252,6 +254,26 @@ export async function mapAllSettled<T, R, K = number>(
   });
 
   return { fulfilled, rejected };
+}
+
+/**
+ * Wraps an async function and catches any errors, logging them instead of throwing.
+ * Useful for fire-and-forget operations where you want to log errors but not crash.
+ *
+ * @param fn - The async function to execute
+ * @param context - A description of the context for error logging
+ * @param logger - The logger instance to use for error logging
+ */
+export async function tryFn(
+  fn: () => Promise<void>,
+  context: string,
+  logger: Logger,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    logger.error({ context, err: error as Error }, `Error in ${context}`);
+  }
 }
 
 export async function timedAsync<T>(
