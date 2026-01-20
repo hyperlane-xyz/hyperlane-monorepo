@@ -1,6 +1,7 @@
 use std::time::Duration;
 
 use async_trait::async_trait;
+use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
@@ -142,8 +143,21 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
 
 impl ChainSigner for hyperlane_tron::TronSigner {
     fn address_string(&self) -> String {
-        // TODO:
-        ethers::signers::Signer::address(self).encode_hex()
+        let mut address_bytes = self.address_h256().to_fixed_bytes().to_vec();
+        if address_bytes.len() == 20 {
+            address_bytes.insert(0, 0x41);
+        }
+
+        let hash1 = Sha256::digest(&address_bytes);
+        let hash2 = Sha256::digest(hash1);
+
+        let checksum = &hash2[0..4];
+
+        let mut final_bytes = Vec::with_capacity(address_bytes.len().saturating_add(4));
+        final_bytes.extend_from_slice(&address_bytes);
+        final_bytes.extend_from_slice(checksum);
+
+        bs58::encode(final_bytes).into_string()
     }
     fn address_h256(&self) -> H256 {
         ethers::types::H256::from(ethers::signers::Signer::address(self)).into()
