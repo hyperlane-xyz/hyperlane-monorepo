@@ -11,6 +11,7 @@ import {
   type TransactionSubmitterConfig,
 } from '@hyperlane-xyz/provider-sdk';
 import { type IProvider } from '@hyperlane-xyz/provider-sdk/altvm';
+import { type IRawHookArtifactManager } from '@hyperlane-xyz/provider-sdk/hook';
 import { type IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   type AnnotatedTx,
@@ -18,6 +19,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import { AleoNetworkId } from '../utils/types.js';
 
@@ -71,6 +73,27 @@ export class AleoProtocolProvider implements ProtocolProvider {
         : new AleoTestnetNetworkClient(rpcUrl);
 
     return new AleoIsmArtifactManager(aleoClient);
+  }
+
+  createHookArtifactManager(
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
+  ): IRawHookArtifactManager {
+    const chainId = parseInt(chainMetadata.chainId.toString());
+    assert(
+      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      chainId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    return new AleoHookArtifactManager(aleoClient, context?.mailbox);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

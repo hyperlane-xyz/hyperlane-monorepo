@@ -129,6 +129,24 @@ export class AleoSigner
     return this.programManager.account!.address().to_string();
   }
 
+  getNetworkPrefix(): string {
+    return this.prefix;
+  }
+
+  /**
+   * Get the hook manager program ID for a given mailbox suffix.
+   * Deploys the hook_manager program if it's not already deployed.
+   *
+   * @param suffix - The mailbox suffix
+   * @returns The hook manager program ID
+   */
+  async getHookManager(suffix: string): Promise<string> {
+    const programs = await this.deployProgram('hook_manager', suffix);
+    const hookManagerProgramId = programs['hook_manager'];
+    assert(hookManagerProgramId, `hook_manager program not deployed`);
+    return hookManagerProgramId;
+  }
+
   supportsTransactionBatching(): boolean {
     return false;
   }
