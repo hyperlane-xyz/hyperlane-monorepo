@@ -1,7 +1,7 @@
 #!/usr/bin/env bash
 set -e
 
-echo "Running E2E tests (Docker container managed by testcontainers)"
+echo "Running E2E tests"
 
 # Set environment variables for test configuration
 export ALEO_SKIP_PROOFS=true

@@ -20,9 +20,7 @@ export async function createSigner(
   privateKey: string = TEST_ALEO_PRIVATE_KEY,
   chainMetadata: TestChainMetadata = TEST_ALEO_CHAIN_METADATA,
 ): Promise<AltVM.ISigner<AleoTransaction, AleoReceipt>> {
-  const rpcUrl = chainMetadata.rpcUrls?.[0]?.http || 'http://127.0.0.1:3030';
-
-  return AleoSigner.connectWithSigner([rpcUrl], privateKey, {
+  return AleoSigner.connectWithSigner([chainMetadata.rpcUrl], privateKey, {
     metadata: chainMetadata,
   });
 }

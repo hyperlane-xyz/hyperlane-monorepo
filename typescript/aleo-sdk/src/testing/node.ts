@@ -5,7 +5,6 @@ import {
 } from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { sleep } from '@hyperlane-xyz/utils';
 
 import {
   ALEO_DEVNODE_IMAGE,
@@ -22,22 +21,15 @@ import {
 export async function runAleoNode(
   chainMetadata: TestChainMetadata = TEST_ALEO_CHAIN_METADATA,
 ): Promise<StartedTestContainer> {
-  const rpcPort = chainMetadata.rpcPort || 3030;
-
   const container = await new GenericContainer(ALEO_DEVNODE_IMAGE)
     .withExposedPorts({
       container: 3030,
-      host: rpcPort,
+      host: chainMetadata.rpcPort,
     })
     .withEnvironment(TEST_ALEO_ENV)
     .withCommand(['leo', 'devnode', 'start', '--listener-addr', '0.0.0.0:3030'])
-    .withWaitStrategy(
-      Wait.forLogMessage(/Server running on/).withStartupTimeout(30_000),
-    )
+    .withWaitStrategy(Wait.forLogMessage(/connection is ready/))
     .start();
-
-  // Wait for devnode to be fully ready to accept connections
-  await sleep(5_000);
 
   return container;
 }
