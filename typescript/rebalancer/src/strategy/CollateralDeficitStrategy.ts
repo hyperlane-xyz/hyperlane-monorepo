@@ -142,7 +142,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   ): RebalancingRoute[] {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
-    const proposedRebalances = inflightContext?.proposedRebalances ?? [];
 
     this.logger.info(
       {
@@ -153,7 +152,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
         })),
         pendingRebalances: pendingRebalances.length,
         pendingTransfers: pendingTransfers.length,
-        proposedRebalances: proposedRebalances.length,
       },
       'Strategy evaluating',
     );
@@ -171,7 +169,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     const { surpluses, deficits } = this.getCategorizedBalances(
       effectiveBalances,
       pendingRebalances,
-      proposedRebalances,
     );
 
     this.logger.debug(
@@ -261,10 +258,6 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       { context: this.constructor.name, numberOfRoutes: routes.length },
       'Found rebalancing routes',
     );
-
-    for (const route of routes) {
-      this.metrics?.recordIntentCreated(route, this.name);
-    }
 
     const filteredRoutes = this.filterRebalances(routes, actualBalances);
 
