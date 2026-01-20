@@ -313,8 +313,7 @@ const send: CommandModuleWithWriteContext<
       warp,
       context,
     });
-    const chainsToSend =
-      chainsArg && chainsArg.length > 0 ? chainsArg : undefined;
+    const chainsToSend = chainsArg?.length ? chainsArg : undefined;
     let chains = chainsToSend || [];
 
     if (origin && destination) {
@@ -434,8 +433,7 @@ export const check: CommandModuleWithContext<
     // If --ica flag is set, run ICA owner check instead of the regular config check
     if (ica) {
       assert(origin, '--origin is required when using --ica');
-      const destinationChains =
-        destinations && destinations.length > 0 ? destinations : undefined;
+      const destinationChains = destinations?.length ? destinations : undefined;
 
       await runWarpIcaOwnerCheck({
         context,

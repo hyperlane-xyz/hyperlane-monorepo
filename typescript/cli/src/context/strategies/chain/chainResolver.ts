@@ -191,7 +191,7 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains && argv.chains.length > 0) {
+  if (argv.chains?.length) {
     return Array.from(new Set([...chains, ...argv.chains]));
   }
 

@@ -48,8 +48,7 @@ export const relayerCommand: CommandModuleWithContext<
       context.multiProvider,
     );
 
-    const chainsArray =
-      chains && chains.length > 0 ? chains : Object.keys(chainAddresses);
+    const chainsArray = chains?.length ? chains : Object.keys(chainAddresses);
 
     const whitelist: ChainMap<Address[]> = Object.fromEntries(
       chainsArray.map((chain) => [chain, []]),

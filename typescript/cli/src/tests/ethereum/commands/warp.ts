@@ -226,7 +226,7 @@ export function hyperlaneWarpCheckRaw({
         ${ica ? ['--ica'] : []} \
         ${origin ? ['--origin', origin] : []} \
         ${originOwner ? ['--originOwner', originOwner] : []} \
-        ${destinations && destinations.length > 0 ? destinations.flatMap((d) => ['--destinations', d]) : []}`;
+        ${destinations?.length ? destinations.flatMap((d) => ['--destinations', d]) : []}`;
 }
 
 export function hyperlaneWarpCheck(
@@ -268,7 +268,7 @@ export function hyperlaneWarpSendRelay({
         --verbosity debug \
         --yes \
         --amount ${value} \
-        ${chains && chains.length > 0 ? chains.flatMap((c) => ['--chains', c]) : []} \
+        ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
         ${roundTrip ? ['--round-trip'] : []} `;
 }
 
