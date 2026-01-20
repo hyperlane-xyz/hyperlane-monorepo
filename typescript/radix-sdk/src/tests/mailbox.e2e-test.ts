@@ -1,8 +1,8 @@
 import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { RawMailboxConfig } from '@hyperlane-xyz/provider-sdk/mailbox';
-import { assert } from '@hyperlane-xyz/utils';
+import { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
+import { ZERO_ADDRESS_HEX_32, assert } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
 import { RadixMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
@@ -56,7 +56,7 @@ describe('Radix Mailbox (e2e)', function () {
 
   describe('Mailbox Artifact Operations', () => {
     it('should create a mailbox with ISM and hooks', async () => {
-      const config: RawMailboxConfig = {
+      const config: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -86,8 +86,46 @@ describe('Radix Mailbox (e2e)', function () {
       expect(receipts.length).to.be.greaterThanOrEqual(4);
     });
 
+    it('should skip optional mailbox setters when zero addresses are provided', async () => {
+      const zeroAddressConfig: MailboxOnChain = {
+        owner: TEST_RADIX_DEPLOYER_ADDRESS,
+        defaultIsm: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+        },
+        defaultHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+        },
+        requiredHook: {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: ZERO_ADDRESS_HEX_32 },
+        },
+      };
+
+      const writer = artifactManager.createWriter('mailbox', radixSigner);
+      const [deployedMailbox, receipts] = await writer.create({
+        config: zeroAddressConfig,
+      });
+
+      expect(receipts).to.be.an('array').with.length(1);
+
+      const reader = artifactManager.createReader('mailbox');
+      const readMailbox = await reader.read(deployedMailbox.deployed.address);
+
+      expect(readMailbox.config.defaultIsm.deployed.address).to.equal(
+        ZERO_ADDRESS_HEX_32,
+      );
+      expect(readMailbox.config.defaultHook.deployed.address).to.equal(
+        ZERO_ADDRESS_HEX_32,
+      );
+      expect(readMailbox.config.requiredHook.deployed.address).to.equal(
+        ZERO_ADDRESS_HEX_32,
+      );
+    });
+
     it('should read a mailbox configuration from chain', async () => {
-      const config: RawMailboxConfig = {
+      const config: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -130,7 +168,7 @@ describe('Radix Mailbox (e2e)', function () {
 
     it('should update mailbox when ISM changes', async () => {
       // Create initial mailbox
-      const initialConfig: RawMailboxConfig = {
+      const initialConfig: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -151,7 +189,7 @@ describe('Radix Mailbox (e2e)', function () {
 
       // Update with new ISM address (use deployer address as different address)
       const newIsmAddress = TEST_RADIX_DEPLOYER_ADDRESS;
-      const updatedConfig: RawMailboxConfig = {
+      const updatedConfig: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -180,7 +218,7 @@ describe('Radix Mailbox (e2e)', function () {
 
     it('should update mailbox when owner changes', async () => {
       // Create initial mailbox
-      const initialConfig: RawMailboxConfig = {
+      const initialConfig: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -201,7 +239,7 @@ describe('Radix Mailbox (e2e)', function () {
 
       // Update with new owner
       const newOwner = TEST_RADIX_BURN_ADDRESS;
-      const updatedConfig: RawMailboxConfig = {
+      const updatedConfig: MailboxOnChain = {
         owner: newOwner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -230,7 +268,7 @@ describe('Radix Mailbox (e2e)', function () {
 
     it('should return no transactions when mailbox state matches desired state', async () => {
       // Create mailbox
-      const config: RawMailboxConfig = {
+      const config: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
@@ -257,7 +295,7 @@ describe('Radix Mailbox (e2e)', function () {
     });
 
     it('should use readMailbox convenience method', async () => {
-      const config: RawMailboxConfig = {
+      const config: MailboxOnChain = {
         owner: TEST_RADIX_DEPLOYER_ADDRESS,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,

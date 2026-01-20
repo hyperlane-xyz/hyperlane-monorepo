@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
-import { RawMailboxConfig } from '@hyperlane-xyz/provider-sdk/mailbox';
+import { MailboxOnChain } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { RawValidatorAnnounceConfig } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
@@ -56,7 +56,7 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
     );
 
     // Create a test mailbox for validator announce to reference
-    const mailboxConfig: RawMailboxConfig = {
+    const mailboxConfig: MailboxOnChain = {
       owner: TEST_RADIX_DEPLOYER_ADDRESS,
       defaultIsm: {
         artifactState: ArtifactState.UNDERIVED,

@@ -10,19 +10,23 @@ import {
   DeployedMailboxAddress,
   DeployedMailboxArtifact,
   IRawMailboxArtifactManager,
-  MailboxConfig,
+  MailboxOnChain,
   mailboxArtifactToDerivedCoreConfig,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from '../hook/hook-reader.js';
-import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
+import {
+  IsmReader,
+  createIsmReader,
+  ismArtifactToDerivedConfig,
+} from '../ism/generic-ism.js';
 
 /**
  * Core Artifact Reader - composite artifact reader that orchestrates mailbox, ISM, and hook readers.
  *
  * This implements the artifact API pattern at the "composite" level in deploy-sdk.
- * It takes a mailbox address and returns a fully expanded MailboxConfig artifact with
+ * It takes a mailbox address and returns a fully expanded MailboxOnChain artifact with
  * all nested ISM and hook configurations read from the chain.
  *
  * Architecture:
@@ -33,7 +37,7 @@ import { IsmReader, createIsmReader } from '../ism/generic-ism.js';
  * This composite reader expands them into full DEPLOYED artifacts with complete configs.
  */
 export class CoreArtifactReader
-  implements ArtifactReader<MailboxConfig, DeployedMailboxAddress>
+  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
 {
   protected readonly logger: Logger = rootLogger.child({
     module: CoreArtifactReader.name,
@@ -97,12 +101,6 @@ export class CoreArtifactReader
    */
   async deriveCoreConfig(mailboxAddress: string): Promise<DerivedCoreConfig> {
     const artifact = await this.read(mailboxAddress);
-
-    // Use the conversion functions - importing from deploy-sdk's ism module
-    // to avoid needing to export from provider-sdk
-    const { ismArtifactToDerivedConfig } = await import(
-      '../ism/generic-ism.js'
-    );
 
     return mailboxArtifactToDerivedCoreConfig(artifact, this.chainLookup, {
       ismArtifactToDerivedConfig,

@@ -8,10 +8,10 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedMailboxAddress,
-  RawMailboxConfig,
+  MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressRadix } from '@hyperlane-xyz/utils';
+import { ZERO_ADDRESS_HEX_32, eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -26,16 +26,9 @@ import {
   getSetMailboxRequiredHookTx,
 } from './mailbox-tx.js';
 
-/**
- * Helper to extract address from artifact reference (DEPLOYED or UNDERIVED)
- */
-function extractAddress(artifact: { deployed: { address: string } }): string {
-  return artifact.deployed.address;
-}
-
 export class RadixMailboxWriter
   extends RadixMailboxReader
-  implements ArtifactWriter<RawMailboxConfig, DeployedMailboxAddress>
+  implements ArtifactWriter<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
@@ -47,17 +40,17 @@ export class RadixMailboxWriter
   }
 
   async create(
-    artifact: ArtifactNew<RawMailboxConfig>,
+    artifact: ArtifactNew<MailboxOnChain>,
   ): Promise<
-    [ArtifactDeployed<RawMailboxConfig, DeployedMailboxAddress>, TxReceipt[]]
+    [ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>, TxReceipt[]]
   > {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
 
     // Extract addresses from artifact references
-    const defaultIsmAddress = extractAddress(config.defaultIsm);
-    const defaultHookAddress = extractAddress(config.defaultHook);
-    const requiredHookAddress = extractAddress(config.requiredHook);
+    const defaultIsmAddress = config.defaultIsm.deployed.address;
+    const defaultHookAddress = config.defaultHook.deployed.address;
+    const requiredHookAddress = config.requiredHook.deployed.address;
 
     // Create the mailbox (mailbox is created with signer as initial owner)
     const createTx = await getCreateMailboxTx(
@@ -70,43 +63,49 @@ export class RadixMailboxWriter
     const address = await this.base.getNewComponent(createReceipt);
     allReceipts.push(createReceipt);
 
-    // Set default ISM
-    const setIsmTx = await getSetMailboxDefaultIsmTx(
-      this.base,
-      this.signer.getAddress(),
-      {
-        mailboxAddress: address,
-        ismAddress: defaultIsmAddress,
-      },
-    );
-    const ismReceipt = await this.signer.signAndBroadcast(setIsmTx);
-    allReceipts.push(ismReceipt);
+    // Set default ISM (only if not zero address)
+    if (defaultIsmAddress !== ZERO_ADDRESS_HEX_32) {
+      const setIsmTx = await getSetMailboxDefaultIsmTx(
+        this.base,
+        this.signer.getAddress(),
+        {
+          mailboxAddress: address,
+          ismAddress: defaultIsmAddress,
+        },
+      );
+      const ismReceipt = await this.signer.signAndBroadcast(setIsmTx);
+      allReceipts.push(ismReceipt);
+    }
 
-    // Set default hook
-    const setDefaultHookTx = await getSetMailboxDefaultHookTx(
-      this.base,
-      this.signer.getAddress(),
-      {
-        mailboxAddress: address,
-        hookAddress: defaultHookAddress,
-      },
-    );
-    const defaultHookReceipt =
-      await this.signer.signAndBroadcast(setDefaultHookTx);
-    allReceipts.push(defaultHookReceipt);
+    // Set default hook (only if not zero address)
+    if (defaultHookAddress !== ZERO_ADDRESS_HEX_32) {
+      const setDefaultHookTx = await getSetMailboxDefaultHookTx(
+        this.base,
+        this.signer.getAddress(),
+        {
+          mailboxAddress: address,
+          hookAddress: defaultHookAddress,
+        },
+      );
+      const defaultHookReceipt =
+        await this.signer.signAndBroadcast(setDefaultHookTx);
+      allReceipts.push(defaultHookReceipt);
+    }
 
-    // Set required hook
-    const setRequiredHookTx = await getSetMailboxRequiredHookTx(
-      this.base,
-      this.signer.getAddress(),
-      {
-        mailboxAddress: address,
-        hookAddress: requiredHookAddress,
-      },
-    );
-    const requiredHookReceipt =
-      await this.signer.signAndBroadcast(setRequiredHookTx);
-    allReceipts.push(requiredHookReceipt);
+    // Set required hook (only if not zero address)
+    if (requiredHookAddress !== ZERO_ADDRESS_HEX_32) {
+      const setRequiredHookTx = await getSetMailboxRequiredHookTx(
+        this.base,
+        this.signer.getAddress(),
+        {
+          mailboxAddress: address,
+          hookAddress: requiredHookAddress,
+        },
+      );
+      const requiredHookReceipt =
+        await this.signer.signAndBroadcast(setRequiredHookTx);
+      allReceipts.push(requiredHookReceipt);
+    }
 
     // Transfer ownership if the configured owner is different from the signer
     if (!eqAddressRadix(this.signer.getAddress(), config.owner)) {
@@ -124,7 +123,7 @@ export class RadixMailboxWriter
     }
 
     const deployedArtifact: ArtifactDeployed<
-      RawMailboxConfig,
+      MailboxOnChain,
       DeployedMailboxAddress
     > = {
       artifactState: ArtifactState.DEPLOYED,
@@ -139,7 +138,7 @@ export class RadixMailboxWriter
   }
 
   async update(
-    artifact: ArtifactDeployed<RawMailboxConfig, DeployedMailboxAddress>,
+    artifact: ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     const { config, deployed } = artifact;
     const updateTxs: AnnotatedRadixTransaction[] = [];
@@ -148,20 +147,17 @@ export class RadixMailboxWriter
     const currentState = await this.read(deployed.address);
 
     // Extract addresses from artifact references
-    const defaultIsmAddress = extractAddress(config.defaultIsm);
-    const defaultHookAddress = extractAddress(config.defaultHook);
-    const requiredHookAddress = extractAddress(config.requiredHook);
+    const defaultIsmAddress = config.defaultIsm.deployed.address;
+    const defaultHookAddress = config.defaultHook.deployed.address;
+    const requiredHookAddress = config.requiredHook.deployed.address;
 
     // Extract addresses from current state
-    const currentDefaultIsmAddress = extractAddress(
-      currentState.config.defaultIsm,
-    );
-    const currentDefaultHookAddress = extractAddress(
-      currentState.config.defaultHook,
-    );
-    const currentRequiredHookAddress = extractAddress(
-      currentState.config.requiredHook,
-    );
+    const currentDefaultIsmAddress =
+      currentState.config.defaultIsm.deployed.address;
+    const currentDefaultHookAddress =
+      currentState.config.defaultHook.deployed.address;
+    const currentRequiredHookAddress =
+      currentState.config.requiredHook.deployed.address;
 
     // Update default ISM if changed
     if (!eqAddressRadix(currentDefaultIsmAddress, defaultIsmAddress)) {

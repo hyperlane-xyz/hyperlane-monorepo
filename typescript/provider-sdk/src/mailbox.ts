@@ -1,18 +1,20 @@
 import {
   Artifact,
   ArtifactDeployed,
+  ConfigOnChain,
   IArtifactManager,
-  RawArtifact,
   isArtifactDeployed,
 } from './artifact.js';
 import type { ChainLookup } from './chain.js';
 import type {
   DeployedHookAddress,
+  DeployedHookArtifact,
   DerivedHookConfig,
   HookArtifactConfig,
 } from './hook.js';
 import type {
   DeployedIsmAddress,
+  DeployedIsmArtifact,
   DerivedIsmConfig,
   IsmArtifactConfig,
 } from './ism.js';
@@ -43,7 +45,7 @@ export interface DeployedMailboxAddress {
  * Describes the configuration of a deployed mailbox
  */
 export type DeployedMailboxArtifact = ArtifactDeployed<
-  MailboxConfig,
+  ConfigOnChain<MailboxConfig>,
   DeployedMailboxAddress
 >;
 
@@ -75,16 +77,13 @@ export type IMailboxArtifactManager = IArtifactManager<
  * Raw mailbox config - uses ArtifactOnChain for nested artifacts instead of Artifact.
  * This is the format used by protocol implementations that work directly with on-chain state.
  */
-export type RawMailboxConfig = RawArtifact<
-  MailboxConfig,
-  DeployedMailboxAddress
->;
+export type MailboxOnChain = ConfigOnChain<MailboxArtifactConfig>;
 
 /**
  * Raw mailbox artifact configs map
  */
 export interface RawMailboxArtifactConfigs {
-  mailbox: RawMailboxConfig;
+  mailbox: MailboxOnChain;
 }
 
 /**
@@ -138,11 +137,11 @@ export function mailboxArtifactToDerivedCoreConfig(
   chainLookup: ChainLookup,
   converters: {
     ismArtifactToDerivedConfig: (
-      artifact: any,
+      artifact: DeployedIsmArtifact,
       chainLookup: ChainLookup,
     ) => DerivedIsmConfig;
     hookArtifactToDerivedConfig: (
-      artifact: any,
+      artifact: DeployedHookArtifact,
       chainLookup: ChainLookup,
     ) => DerivedHookConfig;
   },

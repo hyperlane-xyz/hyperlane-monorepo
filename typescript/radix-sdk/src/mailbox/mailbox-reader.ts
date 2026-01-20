@@ -7,19 +7,20 @@ import {
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedMailboxAddress,
-  RawMailboxConfig,
+  MailboxOnChain,
 } from '@hyperlane-xyz/provider-sdk/mailbox';
+import { ZERO_ADDRESS_HEX_32 } from '@hyperlane-xyz/utils';
 
 import { getMailboxConfig } from './mailbox-query.js';
 
 export class RadixMailboxReader
-  implements ArtifactReader<RawMailboxConfig, DeployedMailboxAddress>
+  implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
 {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
     address: string,
-  ): Promise<ArtifactDeployed<RawMailboxConfig, DeployedMailboxAddress>> {
+  ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
     const mailboxConfig = await getMailboxConfig(this.gateway, address);
 
     return {
@@ -28,15 +29,21 @@ export class RadixMailboxReader
         owner: mailboxConfig.owner,
         defaultIsm: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: mailboxConfig.defaultIsm },
+          deployed: {
+            address: mailboxConfig.defaultIsm || ZERO_ADDRESS_HEX_32,
+          },
         },
         defaultHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: mailboxConfig.defaultHook },
+          deployed: {
+            address: mailboxConfig.defaultHook || ZERO_ADDRESS_HEX_32,
+          },
         },
         requiredHook: {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: mailboxConfig.requiredHook },
+          deployed: {
+            address: mailboxConfig.requiredHook || ZERO_ADDRESS_HEX_32,
+          },
         },
       },
       deployed: {
