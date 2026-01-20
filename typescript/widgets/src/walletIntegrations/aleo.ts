@@ -56,8 +56,8 @@ export function useAleoAccount(
 
     adapterInstance.on('connect', handleAccountChange);
     adapterInstance.on('disconnect', handleAccountChange);
-    adapterInstance.on('accountChange', () => {
-      getAdapter().connect(
+    adapterInstance.on('accountChange', async () => {
+      await getAdapter().connect(
         Network.MAINNET,
         WalletDecryptPermission.AutoDecrypt,
         [],
