@@ -1,9 +1,16 @@
 # Hyperlane Development Container
-# Uses pre-built monorepo image from GCR as base
-FROM gcr.io/abacus-labs-dev/hyperlane-monorepo:latest
+# Uses Node.js base with Foundry pre-installed
+FROM ghcr.io/foundry-rs/foundry:latest AS foundry
 
-# Install dev tools not in base image
-USER root
+FROM node:22-bookworm
+
+# Copy Foundry binaries
+COPY --from=foundry /usr/local/bin/forge /usr/local/bin/
+COPY --from=foundry /usr/local/bin/cast /usr/local/bin/
+COPY --from=foundry /usr/local/bin/anvil /usr/local/bin/
+COPY --from=foundry /usr/local/bin/chisel /usr/local/bin/
+
+# Install system dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
     gh \
     zsh \
@@ -11,19 +18,24 @@ RUN apt-get update && apt-get install -y --no-install-recommends \
     sudo \
     vim \
     nano \
+    git \
+    curl \
+    jq \
     iptables \
     ipset \
     iproute2 \
     dnsutils \
     && apt-get clean && rm -rf /var/lib/apt/lists/*
 
-# Create node user if it doesn't exist and set up permissions
-RUN id -u node &>/dev/null || useradd -m -s /bin/zsh node \
-    && mkdir -p /home/node/.opencode /commandhistory \
+# Install pnpm
+RUN corepack enable && corepack prepare pnpm@latest --activate
+
+# Create node user home directories and permissions
+RUN mkdir -p /home/node/.opencode /commandhistory \
     && chown -R node:node /home/node /commandhistory \
     && echo "node ALL=(ALL) NOPASSWD:ALL" > /etc/sudoers.d/node
 
-# Install OpenCode CLI
+# Install OpenCode CLI globally
 RUN npm install -g opencode-ai
 
 # Copy firewall script
@@ -32,7 +44,7 @@ RUN chmod +x /usr/local/bin/init-firewall.sh
 
 # Switch to node user
 USER node
-WORKDIR /hyperlane-monorepo
+WORKDIR /workspaces/hyperlane-monorepo
 
 # Set shell to zsh
 ENV SHELL=/bin/zsh
