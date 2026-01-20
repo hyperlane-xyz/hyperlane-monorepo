@@ -58,6 +58,7 @@ import {
   forkCommandOptions,
   outputFileCommandOption,
   strategyCommandOption,
+  stringArrayOptionConfig,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -263,7 +264,7 @@ const send: CommandModuleWithWriteContext<
       router?: string;
       amount: string;
       recipient?: string;
-      chains?: string;
+      chains?: string[];
       skipValidation?: boolean;
     }
 > = {
@@ -281,12 +282,11 @@ const send: CommandModuleWithWriteContext<
       type: 'string',
       description: 'Token recipient address (defaults to sender)',
     },
-    chains: {
-      type: 'string',
-      description: 'Comma separated list of chains to send messages to',
+    chains: stringArrayOptionConfig({
+      description: 'List of chains to send messages to',
       demandOption: false,
       conflicts: ['origin', 'destination'],
-    },
+    }),
     'skip-validation': {
       type: 'boolean',
       description: 'Skip transfer validation (e.g., collateral checks)',
@@ -305,7 +305,7 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
     roundTrip,
-    chains: chainsAsString,
+    chains: chainsArg,
     skipValidation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
@@ -313,8 +313,7 @@ const send: CommandModuleWithWriteContext<
       warp,
       context,
     });
-    const chainsToSend = chainsAsString?.split(',').map((_) => _.trim());
-    let chains = chainsToSend || [];
+    let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {
       chains.push(origin);
@@ -329,7 +328,7 @@ const send: CommandModuleWithWriteContext<
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
     const unsupportedChains = difference(
-      new Set([...(chainsToSend || []), origin, destination].filter(Boolean)),
+      new Set([...(chainsArg || []), origin, destination].filter(Boolean)),
       supportedChains,
     );
     assert(
@@ -372,7 +371,7 @@ export const check: CommandModuleWithContext<
     ica?: boolean;
     origin?: string;
     originOwner?: string;
-    destinations?: string;
+    destinations?: string[];
   }
 > = {
   command: 'check',
@@ -398,12 +397,11 @@ export const check: CommandModuleWithContext<
         'Override the origin owner address instead of reading from warp deploy config.',
       implies: 'origin',
     },
-    destinations: {
-      type: 'string',
+    destinations: stringArrayOptionConfig({
       description:
-        'Comma-separated list of destination chains to check. Defaults to all chains except origin when using --ica.',
+        'List of destination chains to check. Defaults to all chains except origin when using --ica.',
       implies: 'ica',
-    },
+    }),
   },
   handler: async ({
     context,
@@ -434,10 +432,7 @@ export const check: CommandModuleWithContext<
     // If --ica flag is set, run ICA owner check instead of the regular config check
     if (ica) {
       assert(origin, '--origin is required when using --ica');
-
-      const destinationChains = destinations
-        ? destinations.split(',').map((c) => c.trim())
-        : undefined;
+      const destinationChains = destinations?.length ? destinations : undefined;
 
       await runWarpIcaOwnerCheck({
         context,
