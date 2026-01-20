@@ -182,7 +182,7 @@ const createAgentConfigCommand: CommandModuleWithContext<{
 
     let chainNames: string[] | undefined;
     if (chains && chains.length > 0) {
-      chainNames = chains.map((c) => c.trim()).filter((c) => c.length > 0);
+      chainNames = chains;
       const invalidChainNames = chainNames.filter(
         (chainName) => !multiProvider.hasChain(chainName),
       );

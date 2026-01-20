@@ -58,6 +58,7 @@ import {
   forkCommandOptions,
   outputFileCommandOption,
   strategyCommandOption,
+  stringArrayOptionConfig,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -281,13 +282,11 @@ const send: CommandModuleWithWriteContext<
       type: 'string',
       description: 'Token recipient address (defaults to sender)',
     },
-    chains: {
-      type: 'array',
-      string: true,
+    chains: stringArrayOptionConfig({
       description: 'List of chains to send messages to',
       demandOption: false,
       conflicts: ['origin', 'destination'],
-    },
+    }),
     'skip-validation': {
       type: 'boolean',
       description: 'Skip transfer validation (e.g., collateral checks)',
@@ -315,9 +314,7 @@ const send: CommandModuleWithWriteContext<
       context,
     });
     const chainsToSend =
-      chainsArg && chainsArg.length > 0
-        ? chainsArg.map((_) => _.trim()).filter((_) => _.length > 0)
-        : undefined;
+      chainsArg && chainsArg.length > 0 ? chainsArg : undefined;
     let chains = chainsToSend || [];
 
     if (origin && destination) {
@@ -402,13 +399,11 @@ export const check: CommandModuleWithContext<
         'Override the origin owner address instead of reading from warp deploy config.',
       implies: 'origin',
     },
-    destinations: {
-      type: 'array',
-      string: true,
+    destinations: stringArrayOptionConfig({
       description:
         'List of destination chains to check. Defaults to all chains except origin when using --ica.',
       implies: 'ica',
-    },
+    }),
   },
   handler: async ({
     context,
@@ -440,9 +435,7 @@ export const check: CommandModuleWithContext<
     if (ica) {
       assert(origin, '--origin is required when using --ica');
       const destinationChains =
-        destinations && destinations.length > 0
-          ? destinations.map((c) => c.trim()).filter((c) => c.length > 0)
-          : undefined;
+        destinations && destinations.length > 0 ? destinations : undefined;
 
       await runWarpIcaOwnerCheck({
         context,

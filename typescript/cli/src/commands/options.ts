@@ -6,6 +6,25 @@ import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../utils/env.js';
 
+/**
+ * Coerce function for string array options.
+ * Trims whitespace and filters out empty strings.
+ */
+export const coerceStringArray = (values: string[]): string[] =>
+  values.map((v) => v.trim()).filter((v) => v.length > 0);
+
+/**
+ * Creates a string array option with automatic trimming and empty string filtering.
+ */
+export const stringArrayOptionConfig = (
+  options: Omit<Options, 'type' | 'string' | 'coerce'>,
+): Options => ({
+  ...options,
+  type: 'array',
+  string: true,
+  coerce: coerceStringArray,
+});
+
 /* Global options */
 
 export const DEFAULT_LOCAL_REGISTRY = `${os.homedir()}/.hyperlane`;
@@ -75,17 +94,13 @@ export const disableProxyCommandOption: Options = {
 
 /* Command-specific options */
 
-export const coreTargetsCommandOption: Options = {
-  type: 'array',
-  string: true,
+export const coreTargetsCommandOption: Options = stringArrayOptionConfig({
   description: 'List of chain names to which contracts will be deployed',
-};
+});
 
-export const agentTargetsCommandOption: Options = {
-  type: 'array',
-  string: true,
+export const agentTargetsCommandOption: Options = stringArrayOptionConfig({
   description: 'List of chains to relay between',
-};
+});
 
 export const ismCommandOption: Options = {
   type: 'string',
@@ -119,12 +134,10 @@ export const warpCoreConfigCommandOption: Options = {
   alias: 'wc',
 };
 
-export const chainTargetsCommandOption: Options = {
-  type: 'array',
-  string: true,
+export const chainTargetsCommandOption: Options = stringArrayOptionConfig({
   description: 'List of chain names',
   alias: 'c',
-};
+});
 
 export const outputFileCommandOption = (
   defaultPath?: string,
@@ -172,12 +185,10 @@ export const symbolCommandOption: Options = {
   description: 'Token symbol (e.g. ETH, USDC)',
 };
 
-export const validatorCommandOption: Options = {
-  type: 'array',
-  string: true,
+export const validatorCommandOption: Options = stringArrayOptionConfig({
   description: 'List of validator addresses',
   demandOption: true,
-};
+});
 
 export const transactionsCommandOption: Options = {
   type: 'string',

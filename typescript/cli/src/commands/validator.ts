@@ -96,9 +96,7 @@ const preFlightCheckCommand: CommandModuleWithContext<{
     }
 
     // validate validators addresses
-    const validatorList = validators
-      .map((v) => v.trim())
-      .filter((v) => v.length > 0);
+    const validatorList = validators;
     const invalidAddresses: Set<Address> = new Set();
     const validAddresses: Set<Address> = new Set();
 

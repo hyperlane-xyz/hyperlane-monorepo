@@ -192,10 +192,7 @@ async function resolveRelayerChains(
   }
 
   if (argv.chains && argv.chains.length > 0) {
-    const additionalChains = argv.chains
-      .map((item: string) => item.trim())
-      .filter((item: string) => item.length > 0);
-    return Array.from(new Set([...chains, ...additionalChains]));
+    return Array.from(new Set([...chains, ...argv.chains]));
   }
 
   // If no destination is specified, return all EVM chains only
