@@ -486,7 +486,7 @@ export function addressToBytesAleo(address: Address): Uint8Array {
 
 export function addressToBytesTron(address: Address): Uint8Array {
   const decoded = bs58.decode(address);
-  const rawAddress = decoded.slice(0, -4);
+  const rawAddress = decoded.slice(1, -4);
 
   return new Uint8Array(rawAddress);
 }
