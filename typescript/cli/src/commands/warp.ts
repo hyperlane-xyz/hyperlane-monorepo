@@ -328,7 +328,7 @@ const send: CommandModuleWithWriteContext<
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
     const unsupportedChains = difference(
-      new Set([...(chainsToSend || []), origin, destination].filter(Boolean)),
+      new Set([...(chainsArg || []), origin, destination].filter(Boolean)),
       supportedChains,
     );
     assert(
