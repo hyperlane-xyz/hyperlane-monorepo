@@ -13,9 +13,9 @@ export ALEO_WARP_SUFFIX="usdc"
 
 if [ -n "${ALEO_SDK_E2E_TEST}" ]; then
   echo "Running only ${ALEO_SDK_E2E_TEST} test"
-  pnpm mocha --extension ts --node-option import=tsx/esm --file src/tests/e2e-test.setup.ts "src/tests/${ALEO_SDK_E2E_TEST}.e2e-test.ts"
+  pnpm mocha --config .mocharc-e2e.json "src/tests/${ALEO_SDK_E2E_TEST}.e2e-test.ts"
 else
-  pnpm mocha --config .mocharc-e2e.json
+  pnpm mocha --config .mocharc-e2e.json "src/tests/*.e2e-test.ts"
 fi
 
 echo "Completed E2E tests"

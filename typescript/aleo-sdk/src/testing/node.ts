@@ -5,6 +5,7 @@ import {
 } from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { sleep } from '@hyperlane-xyz/utils';
 
 import {
   ALEO_DEVNODE_IMAGE,
@@ -30,6 +31,9 @@ export async function runAleoNode(
     .withCommand(['leo', 'devnode', 'start', '--listener-addr', '0.0.0.0:3030'])
     .withWaitStrategy(Wait.forLogMessage(/connection is ready/))
     .start();
+
+  // Wait to give enough time to the node to start
+  await sleep(5000);
 
   return container;
 }
