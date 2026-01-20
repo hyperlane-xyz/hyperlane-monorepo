@@ -92,3 +92,58 @@ export function parseWarpRouteMessage(
     amount,
   };
 }
+
+// Match IGP's DEFAULT_GAS_USAGE so quote and execution use same gas
+const DEFAULT_GAS_LIMIT = 50000n;
+
+export type StandardHookMetadataParams = {
+  refundAddress?: Address;
+  msgValue?: bigint;
+  gasLimit?: bigint;
+};
+
+/**
+ * JS Implementation of solidity/contracts/hooks/libs/StandardHookMetadata.sol#formatMetadata
+ * @returns Hex string of the packed hook metadata
+ */
+export function formatStandardHookMetadata({
+  refundAddress = ethers.constants.AddressZero,
+  msgValue = 0n,
+  gasLimit = DEFAULT_GAS_LIMIT,
+}: StandardHookMetadataParams): HexString {
+  return ethers.utils.solidityPack(
+    ['uint16', 'uint256', 'uint256', 'address'],
+    [1, msgValue, gasLimit, refundAddress],
+  );
+}
+
+export function extractRefundAddressFromMetadata(
+  metadata?: HexString,
+): Address | null {
+  if (!metadata || metadata === '0x') return null;
+  if (!/^0x[0-9a-fA-F]*$/.test(metadata)) return null;
+  if (!metadata.startsWith('0x0001')) return null;
+
+  const HEX_PREFIX_LEN = 2;
+  const VARIANT_HEX_LEN = 4;
+  const UINT256_HEX_LEN = 64;
+  const ADDRESS_HEX_LEN = 40;
+  const REFUND_START = HEX_PREFIX_LEN + VARIANT_HEX_LEN + UINT256_HEX_LEN * 2;
+  const REFUND_END = REFUND_START + ADDRESS_HEX_LEN;
+  if (metadata.length < REFUND_END) return null;
+
+  const refundHex = '0x' + metadata.slice(REFUND_START, REFUND_END);
+  try {
+    return ethers.utils.getAddress(refundHex);
+  } catch {
+    return null;
+  }
+}
+
+export function hasValidRefundAddress(metadata?: HexString): boolean {
+  const refundAddress = extractRefundAddressFromMetadata(metadata);
+  return (
+    refundAddress !== null &&
+    refundAddress.toLowerCase() !== ethers.constants.AddressZero
+  );
+}

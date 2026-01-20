@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { BigNumber } from 'ethers';
 
 import {
   ChainName,
@@ -9,7 +10,11 @@ import {
   InterchainAccount,
   ViolationType,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  ProtocolType,
+  hasValidRefundAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { chainsToSkip } from '../config/chain.js';
 
@@ -225,11 +230,30 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
           combinedCallRemoteArgs,
         );
 
+        const shouldBuffer = hasValidRefundAddress(
+          combinedCallRemoteArgs.hookMetadata,
+        );
+        if (!shouldBuffer) {
+          rootLogger.warn(
+            {
+              chain,
+              destination: combinedCallRemoteArgs.destination,
+            },
+            'Skipping 2x gas buffer: hookMetadata missing valid refund address. Overpayment refunds may go to router contract.',
+          );
+        }
+
+        // Apply 2x buffer to quote to handle gas price fluctuations between tx creation and execution
+        // only when the hook metadata includes a refundable address.
+        const bufferedValue = callRemote.value
+          ? BigNumber.from(callRemote.value).mul(shouldBuffer ? 2 : 1)
+          : undefined;
+
         // Create a new combined call that represents all the grouped calls
         const combinedCall: AnnotatedCallData = {
           to: callRemote.to!,
           data: callRemote.data!,
-          value: callRemote.value,
+          value: bufferedValue,
           description: `Combined ${groupedCalls.length} ICA calls`,
           expandedDescription: `Combined calls: ${groupedCalls.map((c) => c.description).join(', ')}`,
           callRemoteArgs: combinedCallRemoteArgs,

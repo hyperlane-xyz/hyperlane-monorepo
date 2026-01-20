@@ -1,4 +1,4 @@
-import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { BigNumber, PopulatedTransaction, ethers, utils } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -26,6 +26,7 @@ import {
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
 
@@ -34,6 +35,9 @@ import {
   interchainAccountFactories,
 } from './contracts.js';
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
+
+const IGP_DEFAULT_GAS = BigNumber.from(50_000);
+const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -164,6 +168,82 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return destinationAccount;
   }
 
+  /**
+   * Encode the ICA message body for handle() call estimation.
+   * Mirrors solidity/contracts/middleware/libs/InterchainAccountMessage.sol#encode
+   */
+  private encodeIcaMessageBody(
+    owner: string,
+    ism: string,
+    calls: { to: string; value: BigNumber; data: string }[],
+    salt: string = ethers.constants.HashZero,
+  ): string {
+    const MESSAGE_TYPE_CALLS = 0;
+    const prefix = ethers.utils.solidityPack(
+      ['uint8', 'bytes32', 'bytes32', 'bytes32'],
+      [MESSAGE_TYPE_CALLS, owner, ism, salt],
+    );
+    const suffix = ethers.utils.defaultAbiCoder.encode(
+      ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+      [calls],
+    );
+    return ethers.utils.hexConcat([prefix, suffix]);
+  }
+
+  /**
+   * Estimate gas for ICA handle() execution on destination chain.
+   */
+  async estimateIcaHandleGas({
+    origin,
+    destination,
+    innerCalls,
+    config,
+  }: {
+    origin: string;
+    destination: string;
+    innerCalls: SdkCallData[];
+    config: AccountConfig;
+  }): Promise<BigNumber> {
+    const originDomain = this.multiProvider.getDomainId(origin);
+    const destinationRouter = this.router(this.contractsMap[destination]);
+
+    const localRouterAddress = config.localRouter
+      ? bytes32ToAddress(config.localRouter)
+      : this.routerAddress(origin);
+
+    const remoteIsm = addressToBytes32(
+      config.ismOverride ?? (await destinationRouter.isms(originDomain)),
+    );
+
+    const formattedCalls = innerCalls.map((call) => ({
+      to: addressToBytes32(call.to),
+      value: BigNumber.from(call.value ?? '0'),
+      data: call.data,
+    }));
+
+    const messageBody = this.encodeIcaMessageBody(
+      addressToBytes32(config.owner),
+      remoteIsm,
+      formattedCalls,
+    );
+
+    try {
+      const gasEstimate = await destinationRouter.estimateGas.handle(
+        originDomain,
+        addressToBytes32(localRouterAddress),
+        messageBody,
+        { from: await destinationRouter.mailbox() },
+      );
+      return addBufferToGasLimit(gasEstimate);
+    } catch (error) {
+      this.logger.warn(
+        { error, destination },
+        'Failed to estimate ICA handle gas, using default',
+      );
+      return ICA_HANDLE_GAS_FALLBACK;
+    }
+  }
+
   // meant for ICA governance to return the populatedTx
   async getCallRemote({
     chain,
@@ -179,7 +259,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         )
       : this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
-    const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
+
     const remoteRouter = addressToBytes32(
       config.routerOverride ?? this.routerAddress(destination),
     );
@@ -187,6 +267,24 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       config.ismOverride ??
         (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
     );
+
+    const resolvedHookMetadata = hookMetadata ?? '0x';
+
+    const gasLimitForQuote = hookMetadata
+      ? (this.extractGasLimitFromMetadata(hookMetadata) ?? IGP_DEFAULT_GAS)
+      : IGP_DEFAULT_GAS;
+
+    let quote: BigNumber;
+    try {
+      quote = await localRouter['quoteGasPayment(uint32,uint256)'](
+        remoteDomain,
+        gasLimitForQuote,
+      );
+    } catch {
+      // Legacy ICA routers only support quoteGasPayment(uint32).
+      quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
+    }
+
     const callEncoded = await localRouter.populateTransaction[
       'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
     ](
@@ -198,10 +296,34 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         value: call.value ?? BigNumber.from('0'),
         data: call.data,
       })),
-      hookMetadata ?? '0x',
+      resolvedHookMetadata,
       { value: quote },
     );
     return callEncoded;
+  }
+
+  /**
+   * Extract gasLimit from StandardHookMetadata bytes.
+   * Format: uint16 variant (2 bytes) + uint256 msgValue (32 bytes) + uint256 gasLimit (32 bytes) + ...
+   */
+  private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
+    const VARIANT_HEX_LEN = 4;
+    const UINT256_HEX_LEN = 64;
+    const HEX_PREFIX_LEN = 2;
+    const MIN_METADATA_LENGTH =
+      HEX_PREFIX_LEN + VARIANT_HEX_LEN + UINT256_HEX_LEN * 2;
+    const GAS_LIMIT_START = HEX_PREFIX_LEN + VARIANT_HEX_LEN + UINT256_HEX_LEN;
+    const GAS_LIMIT_END = GAS_LIMIT_START + UINT256_HEX_LEN;
+
+    try {
+      if (!/^0x[0-9a-fA-F]*$/.test(metadata)) return null;
+      if (metadata.length < MIN_METADATA_LENGTH) return null;
+      const gasLimitHex = '0x' + metadata.slice(GAS_LIMIT_START, GAS_LIMIT_END);
+      if (!/^0x[0-9a-fA-F]+$/.test(gasLimitHex)) return null;
+      return BigNumber.from(gasLimitHex);
+    } catch {
+      return null;
+    }
   }
 
   // general helper for different overloaded callRemote functions
