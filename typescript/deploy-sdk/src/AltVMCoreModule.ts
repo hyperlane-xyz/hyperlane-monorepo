@@ -1,4 +1,5 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   CoreConfig,
@@ -9,8 +10,13 @@ import {
 import {
   DerivedHookConfig,
   HookConfig,
+  hookConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  DeployedIsmArtifact,
+  DerivedIsmConfig,
+  IsmConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -20,8 +26,12 @@ import {
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
 import { AltVMCoreReader } from './AltVMCoreReader.js';
-import { AltVMHookModule } from './AltVMHookModule.js';
-import { AltVMIsmModule } from './AltVMIsmModule.js';
+import { createHookWriter } from './hook/hook-writer.js';
+import { createIsmWriter } from './ism/generic-ism-writer.js';
+import {
+  ismConfigToArtifact,
+  shouldDeployNewIsm,
+} from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
@@ -92,18 +102,18 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     // Validate ISM configuration before deployment
     validateIsmConfig(config.defaultIsm, chainName, 'core default ISM');
 
-    // 1. Deploy default ISM
-    const ismModule = await AltVMIsmModule.create({
-      chain: chainName,
-      config: config.defaultIsm,
-      addresses: {
-        mailbox: '',
-      },
-      chainLookup,
-      signer,
-    });
-
-    const { deployedIsm: defaultIsm } = ismModule.serialize();
+    // 1. Deploy default ISM using artifact writer
+    let defaultIsm: string;
+    if (typeof config.defaultIsm === 'string') {
+      // Address reference - use existing ISM
+      defaultIsm = config.defaultIsm;
+    } else {
+      // Deploy new ISM
+      const writer = createIsmWriter(metadata, chainLookup, signer);
+      const artifact = ismConfigToArtifact(config.defaultIsm, chainLookup);
+      const [deployed] = await writer.create(artifact);
+      defaultIsm = deployed.deployed.address;
+    }
 
     // 2. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
@@ -112,32 +122,34 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     });
 
     // 3. Deploy default hook
-    const defaultHookModule = await AltVMHookModule.create({
-      chain: chainName,
-      config: config.defaultHook,
-      addresses: {
-        deployedHook: '',
+    let defaultHook: string;
+    if (typeof config.defaultHook === 'string') {
+      // Address reference - use existing hook
+      defaultHook = config.defaultHook;
+    } else {
+      // Deploy new hook with mailbox context
+      const writer = createHookWriter(metadata, chainLookup, signer, {
         mailbox: mailbox.mailboxAddress,
-      },
-      chainLookup,
-      signer,
-    });
-
-    const { deployedHook: defaultHook } = defaultHookModule.serialize();
+      });
+      const artifact = hookConfigToArtifact(config.defaultHook, chainLookup);
+      const [deployed] = await writer.create(artifact);
+      defaultHook = deployed.deployed.address;
+    }
 
     // 4. Deploy required hook
-    const requiredHookModule = await AltVMHookModule.create({
-      chain: chainName,
-      config: config.requiredHook,
-      addresses: {
-        deployedHook: '',
+    let requiredHook: string;
+    if (typeof config.requiredHook === 'string') {
+      // Address reference - use existing hook
+      requiredHook = config.requiredHook;
+    } else {
+      // Deploy new hook with mailbox context
+      const writer = createHookWriter(metadata, chainLookup, signer, {
         mailbox: mailbox.mailboxAddress,
-      },
-      chainLookup,
-      signer,
-    });
-
-    const { deployedHook: requiredHook } = requiredHookModule.serialize();
+      });
+      const artifact = hookConfigToArtifact(config.requiredHook, chainLookup);
+      const [deployed] = await writer.create(artifact);
+      requiredHook = deployed.deployed.address;
+    }
 
     // 5. Update the configuration with the newly created hooks
     await signer.setDefaultIsm({
@@ -318,27 +330,57 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     deployedIsm: Address;
     ismUpdateTxs: AnnotatedTx[];
   }> {
-    const { mailbox } = this.serialize();
+    // If expected ISM is an address reference, use it directly
+    if (typeof expectDefaultIsmConfig === 'string') {
+      return {
+        deployedIsm: expectDefaultIsmConfig,
+        ismUpdateTxs: [],
+      };
+    }
 
-    const ismModule = new AltVMIsmModule(
+    const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createIsmWriter(
+      chainMetadata,
       this.chainLookup,
-      {
-        addresses: {
-          mailbox: mailbox,
-          deployedIsm: actualDefaultIsmConfig.address,
-        },
-        chain: this.chainName,
-        config: actualDefaultIsmConfig.address,
-      },
       this.signer,
     );
+
+    // Read actual ISM state
+    const actualArtifact = await writer.read(actualDefaultIsmConfig.address);
+
+    // Convert expected config to artifact format
+    const expectedArtifact = ismConfigToArtifact(
+      expectDefaultIsmConfig,
+      this.chainLookup,
+    );
+
     this.logger.info(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const ismUpdateTxs = await ismModule.update(expectDefaultIsmConfig);
-    const { deployedIsm } = ismModule.serialize();
 
-    return { deployedIsm, ismUpdateTxs };
+    // Decide: deploy new ISM or update existing one
+    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
+      // Deploy new ISM
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        ismUpdateTxs: [],
+      };
+    }
+
+    // Update existing ISM (only routing ISMs support updates)
+    const deployedArtifact: DeployedIsmArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config,
+      deployed: actualArtifact.deployed,
+    };
+    const ismUpdateTxs = await writer.update(deployedArtifact);
+
+    return {
+      deployedIsm: actualDefaultIsmConfig.address,
+      ismUpdateTxs,
+    };
   }
 
   /**
@@ -435,26 +477,37 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     deployedHook: Address;
     hookUpdateTxs: AnnotatedTx[];
   }> {
-    const { mailbox } = this.serialize();
+    // If expected hook is an address reference, use it directly
+    if (typeof expectHookConfig === 'string') {
+      return {
+        deployedHook: expectHookConfig,
+        hookUpdateTxs: [],
+      };
+    }
 
-    const hookModule = new AltVMHookModule(
+    const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createHookWriter(
+      chainMetadata,
       this.chainLookup,
-      {
-        addresses: {
-          mailbox: mailbox,
-          deployedHook: actualHookConfig.address,
-        },
-        chain: this.chainName,
-        config: actualHookConfig.address,
-      },
       this.signer,
+      {
+        mailbox: this.args.addresses.mailbox,
+      },
     );
+
     this.logger.info(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const hookUpdateTxs = await hookModule.update(expectHookConfig);
-    const { deployedHook } = hookModule.serialize();
 
-    return { deployedHook, hookUpdateTxs };
+    // Use the new deployOrUpdate method from HookWriter
+    const result = await writer.deployOrUpdate({
+      actualAddress: actualHookConfig.address,
+      expectedConfig: expectHookConfig,
+    });
+
+    return {
+      deployedHook: result.address,
+      hookUpdateTxs: result.transactions,
+    };
   }
 }

@@ -1,10 +1,17 @@
 import { Address } from '@arbitrum/sdk';
 import { expect } from 'chai';
+import { constants } from 'ethers';
 
+import { ResolvedRoutingFeeConfigInput, TokenFeeType } from '../fee/types.js';
 import { HookType } from '../hook/types.js';
 import { IsmType } from '../ism/types.js';
 
-import { transformConfigToCheck } from './configUtils.js';
+import { TokenType } from './config.js';
+import {
+  resolveTokenFeeAddress,
+  transformConfigToCheck,
+} from './configUtils.js';
+import { HypTokenConfig } from './types.js';
 
 describe('configUtils', () => {
   describe(transformConfigToCheck.name, () => {
@@ -189,5 +196,125 @@ describe('configUtils', () => {
         expect(transformedObj).to.eql(expected);
       });
     }
+  });
+
+  describe(resolveTokenFeeAddress.name, () => {
+    const ROUTER_ADDRESS = '0x1234567890123456789012345678901234567890';
+    const OWNER_ADDRESS = '0xabcdefabcdefabcdefabcdefabcdefabcdefabcd';
+    const COLLATERAL_TOKEN = '0x9999999999999999999999999999999999999999';
+
+    const syntheticConfig: HypTokenConfig = {
+      type: TokenType.synthetic,
+    };
+
+    const collateralConfig: HypTokenConfig = {
+      type: TokenType.collateral,
+      token: COLLATERAL_TOKEN,
+    };
+
+    const nativeConfig: HypTokenConfig = {
+      type: TokenType.native,
+    };
+
+    it('should resolve token to router address for synthetic tokens', () => {
+      const input = {
+        type: TokenFeeType.LinearFee as const,
+        owner: OWNER_ADDRESS,
+        bps: 100n,
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      );
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.owner).to.equal(OWNER_ADDRESS);
+    });
+
+    it('should resolve token to collateral address for collateral tokens', () => {
+      const input = {
+        type: TokenFeeType.LinearFee as const,
+        owner: OWNER_ADDRESS,
+        bps: 100n,
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        collateralConfig,
+      );
+
+      expect(result.token).to.equal(COLLATERAL_TOKEN);
+    });
+
+    it('should resolve token to AddressZero for native tokens', () => {
+      const input = {
+        type: TokenFeeType.LinearFee as const,
+        owner: OWNER_ADDRESS,
+        bps: 100n,
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        nativeConfig,
+      );
+
+      expect(result.token).to.equal(constants.AddressZero);
+    });
+
+    it('should resolve nested feeContracts tokens for RoutingFee', () => {
+      const input = {
+        type: TokenFeeType.RoutingFee as const,
+        owner: OWNER_ADDRESS,
+        feeContracts: {
+          ethereum: {
+            type: TokenFeeType.LinearFee as const,
+            owner: OWNER_ADDRESS,
+            bps: 100n,
+          },
+          arbitrum: {
+            type: TokenFeeType.LinearFee as const,
+            owner: OWNER_ADDRESS,
+            bps: 50n,
+          },
+        },
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      );
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.type).to.equal(TokenFeeType.RoutingFee);
+
+      const routingResult = result as ResolvedRoutingFeeConfigInput;
+      expect(routingResult.feeContracts?.ethereum?.token).to.equal(
+        ROUTER_ADDRESS,
+      );
+      expect(routingResult.feeContracts?.arbitrum?.token).to.equal(
+        ROUTER_ADDRESS,
+      );
+    });
+
+    it('should handle RoutingFee without feeContracts', () => {
+      const input = {
+        type: TokenFeeType.RoutingFee as const,
+        owner: OWNER_ADDRESS,
+      };
+
+      const result = resolveTokenFeeAddress(
+        input,
+        ROUTER_ADDRESS,
+        syntheticConfig,
+      );
+
+      expect(result.token).to.equal(ROUTER_ADDRESS);
+      expect(result.type).to.equal(TokenFeeType.RoutingFee);
+    });
   });
 });

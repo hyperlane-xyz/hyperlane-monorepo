@@ -5,7 +5,7 @@ import {
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
-import { AnyAleoNetworkClient } from '../clients/base.js';
+import { type AnyAleoNetworkClient } from '../clients/base.js';
 import {
   queryMappingValue,
   tryQueryMappingValue,

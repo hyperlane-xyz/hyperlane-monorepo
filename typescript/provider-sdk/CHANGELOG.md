@@ -1,5 +1,15 @@
 # @hyperlane-xyz/provider-sdk
 
+## 1.1.0
+
+### Minor Changes
+
+- 57a2053: Added optional gasPrice field to `TestChainMetadata` type
+
+### Patch Changes
+
+- @hyperlane-xyz/utils@21.1.0
+
 ## 1.0.0
 
 ### Minor Changes

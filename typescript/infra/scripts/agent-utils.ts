@@ -212,6 +212,25 @@ export function withWarpRouteId<T>(args: Argv<T>) {
   return args.describe('warpRouteId', 'warp route id').string('warpRouteId');
 }
 
+export function withRegistryCommit<T>(args: Argv<T>) {
+  return args
+    .describe(
+      'registryCommit',
+      'Registry version (commit, branch, or tag). If not provided, will prompt interactively.',
+    )
+    .string('registryCommit');
+}
+
+export function withWarpRouteIds<T>(args: Argv<T>) {
+  return args
+    .describe('warpRouteIds', 'warp route ids')
+    .array('warpRouteIds')
+    .coerce('warpRouteIds', (ids: string[] | undefined) =>
+      Array.isArray(ids) ? ids.map(String) : [],
+    )
+    .alias('w', 'warpRouteIds');
+}
+
 export function withMetrics<T>(args: Argv<T>) {
   return args
     .describe('metrics', 'metrics')

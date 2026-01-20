@@ -12,11 +12,15 @@ import {
 } from './utils.js';
 
 const SOLANA_OWNER = '9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf';
+const DEPLOYER = '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5';
 
 const deploymentChains = [
   'ethereum',
   'arbitrum',
   'base',
+  'optimism',
+  'polygon',
+  'unichain',
   'eclipsemainnet',
   'solanamainnet',
 ] as const;
@@ -28,9 +32,12 @@ const rebalanceableCollateralChains = [
   'ethereum',
   'arbitrum',
   'base',
+  'optimism',
+  'polygon',
+  'unichain',
 ] as const satisfies DeploymentChain[];
 
-const CONTRACT_VERSION = '9.0.13';
+const CONTRACT_VERSION = '10.1.4';
 
 const STAGING_PROGRAM_IDS = {
   eclipsemainnet: '6QSWUmEaEcE2KJrU5jq7T11tNRaVsgnG8XULezjg7JjL',
@@ -48,15 +55,16 @@ export const getEclipseUSDCSTAGEWarpConfig = async (
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
   const rebalancingConfigByChain = getUSDCRebalancingBridgesConfigFor(
     rebalanceableCollateralChains,
-    [WarpRouteIds.MainnetCCTPV1],
+    [WarpRouteIds.MainnetCCTPV2Standard, WarpRouteIds.MainnetCCTPV2Fast],
   );
 
-  // All EVM chains use the same owner (Safe)
-  const evmOwner: Address = '0x7fDFd78B278f88C1A1921B7AeC69aC509862C44f';
   const ownersByChain: ChainMap<Address> = {
-    ethereum: evmOwner,
-    arbitrum: evmOwner,
-    base: evmOwner,
+    ethereum: DEPLOYER,
+    arbitrum: DEPLOYER,
+    base: DEPLOYER,
+    optimism: DEPLOYER,
+    polygon: DEPLOYER,
+    unichain: DEPLOYER,
   };
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];

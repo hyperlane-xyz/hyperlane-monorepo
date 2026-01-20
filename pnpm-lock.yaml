@@ -285,14 +285,21 @@ overrides:
   undici: ^5.11
   '@babel/parser': ^7.22.7
   '@typechain/ethers-v5': 11.1.2
+  xmlhttprequest-ssl: 4.0.0
 
 patchedDependencies:
   '@provablehq/sdk@0.9.14':
     hash: c53a252e5d7b2f4acbe743daa3febb6f448ac3b131eaad95952c9e3995999277
     path: patches/@provablehq__sdk@0.9.14.patch
+  bigint-buffer@1.1.5:
+    hash: cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2
+    path: patches/bigint-buffer@1.1.5.patch
   node-fetch@2.7.0:
     hash: 59af5fd5e6879432f6c8aaafe72ade0e018951d8576db2aedda3d59e5a7bc024
     path: patches/node-fetch@2.7.0.patch
+  node-fetch@3.3.2:
+    hash: 9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9
+    path: patches/node-fetch@3.3.2.patch
   typechain@8.3.2:
     hash: fbb49bf3d1f71d8430767373c9ae33cd36e1aedd8ae9584d00dc90775f804950
     path: patches/typechain@8.3.2.patch
@@ -361,9 +368,6 @@ importers:
 
   solidity:
     dependencies:
-      '@hyperlane-xyz/utils':
-        specifier: workspace:*
-        version: link:../typescript/utils
       '@types/sinon-chai':
         specifier: '*'
         version: 3.2.12
@@ -377,6 +381,9 @@ importers:
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../typescript/tsconfig
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../typescript/utils
       '@matterlabs/hardhat-zksync-solc':
         specifier: 1.2.5
         version: 1.2.5(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@20.19.25)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
@@ -576,10 +583,13 @@ importers:
         version: 1.3.0
       node-fetch:
         specifier: ^3.3.2
-        version: 3.3.2
+        version: 3.3.2(patch_hash=9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9)
       prettier:
         specifier: 'catalog:'
         version: 3.5.3
+      testcontainers:
+        specifier: 'catalog:'
+        version: 11.7.0
       ts-node:
         specifier: 'catalog:'
         version: 10.9.2(@types/node@22.19.1)(typescript@5.8.3)
@@ -610,6 +620,9 @@ importers:
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
+      '@hyperlane-xyz/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
         version: 23.7.0
@@ -939,6 +952,9 @@ importers:
       '@types/chai':
         specifier: 'catalog:'
         version: 4.3.20
+      '@types/chai-as-promised':
+        specifier: 'catalog:'
+        version: 8.0.2
       '@types/mocha':
         specifier: 'catalog:'
         version: 10.0.10
@@ -951,6 +967,9 @@ importers:
       chai:
         specifier: 'catalog:'
         version: 4.5.0
+      chai-as-promised:
+        specifier: 'catalog:'
+        version: 8.0.2(chai@4.5.0)
       eslint:
         specifier: 'catalog:'
         version: 9.31.0(jiti@2.6.1)
@@ -1417,6 +1436,9 @@ importers:
       '@hyperlane-xyz/http-registry-server':
         specifier: workspace:*
         version: link:../http-registry-server
+      '@hyperlane-xyz/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@hyperlane-xyz/rebalancer':
         specifier: workspace:*
         version: link:../rebalancer
@@ -1611,6 +1633,67 @@ importers:
         specifier: 'catalog:'
         version: 5.8.3
 
+  typescript/metrics:
+    dependencies:
+      '@hyperlane-xyz/core':
+        specifier: workspace:*
+        version: link:../../solidity
+      '@hyperlane-xyz/sdk':
+        specifier: workspace:*
+        version: link:../sdk
+      '@hyperlane-xyz/utils':
+        specifier: workspace:*
+        version: link:../utils
+      ethers:
+        specifier: 'catalog:'
+        version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+      pino:
+        specifier: 'catalog:'
+        version: 8.21.0
+      prom-client:
+        specifier: 'catalog:'
+        version: 14.2.0
+    devDependencies:
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:^
+        version: link:../eslint-config
+      '@hyperlane-xyz/tsconfig':
+        specifier: workspace:^
+        version: link:../tsconfig
+      '@types/chai':
+        specifier: 'catalog:'
+        version: 4.3.20
+      '@types/mocha':
+        specifier: 'catalog:'
+        version: 10.0.10
+      '@types/node':
+        specifier: 'catalog:'
+        version: 20.19.25
+      '@types/sinon':
+        specifier: 'catalog:'
+        version: 17.0.4
+      chai:
+        specifier: 'catalog:'
+        version: 4.5.0
+      eslint:
+        specifier: 'catalog:'
+        version: 9.31.0(jiti@2.6.1)
+      mocha:
+        specifier: 'catalog:'
+        version: 11.7.5
+      prettier:
+        specifier: 'catalog:'
+        version: 3.5.3
+      sinon:
+        specifier: 'catalog:'
+        version: 13.0.2
+      tsx:
+        specifier: 'catalog:'
+        version: 4.19.1
+      typescript:
+        specifier: 'catalog:'
+        version: 5.8.3
+
   typescript/provider-sdk:
     dependencies:
       '@hyperlane-xyz/utils':
@@ -1735,6 +1818,9 @@ importers:
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
+      '@hyperlane-xyz/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
@@ -2145,6 +2231,9 @@ importers:
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
+      '@hyperlane-xyz/metrics':
+        specifier: workspace:*
+        version: link:../metrics
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
         version: 23.7.0
@@ -16461,13 +16550,9 @@ packages:
       utf-8-validate:
         optional: true
 
-  xmlhttprequest-ssl@2.1.2:
-    resolution: {integrity: sha512-TEU+nJVUUnA4CYJFLvK5X9AOeH4KvDvhIfm0vV1GaQRtchnG0hgK5p8hw/xjv8cunWYCsiPCSDzObPyhEwq3KQ==}
-    engines: {node: '>=0.4.0'}
-
-  xmlhttprequest-ssl@3.1.0:
-    resolution: {integrity: sha512-UsofFE/khRRAcM9c3FGDEUSwupaQQC3Kme1brtz+B3N+RZHXGbD6AG6QzgWcunHzszqtOSMiZoPNrmHEBB2DjA==}
-    engines: {node: '>=12.0.0'}
+  xmlhttprequest-ssl@4.0.0:
+    resolution: {integrity: sha512-b7DXzbCm8VWmII2mQiQHy5VG1L6YBUnNxuCooldWpMUXTwa08uXEz1q5Nv6wlULnSI5GiHuwBIq6pNJrqRh/8Q==}
+    engines: {node: '>=13.0.0'}
 
   xstream@11.14.0:
     resolution: {integrity: sha512-1bLb+kKKtKPbgTK6i/BaoAn03g47PpFstlbe1BA+y3pNS/LfvcaghS5BFf9+EE1J+KwSQsEpfJvFN5GqFtiNmw==}
@@ -21321,7 +21406,7 @@ snapshots:
       core-js: 3.47.0
       mime: 4.1.0
       sync-request: 6.1.0
-      xmlhttprequest-ssl: 3.1.0
+      xmlhttprequest-ssl: 4.0.0
 
   '@provablehq/wasm@0.9.14': {}
 
@@ -23845,7 +23930,7 @@ snapshots:
     dependencies:
       '@solana/buffer-layout': 4.0.1
       '@solana/web3.js': 1.98.4(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)
-      bigint-buffer: 1.1.5
+      bigint-buffer: 1.1.5(patch_hash=cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2)
       bignumber.js: 9.3.1
     transitivePeerDependencies:
       - bufferutil
@@ -28004,7 +28089,7 @@ snapshots:
 
   big.js@6.2.2: {}
 
-  bigint-buffer@1.1.5:
+  bigint-buffer@1.1.5(patch_hash=cd06d79b9cff13280e1a45a0f15abf67bc4ada4d7ad42bdfe120982ffa4340a2):
     dependencies:
       bindings: 1.5.0
 
@@ -29271,7 +29356,7 @@ snapshots:
       debug: 4.3.4
       engine.io-parser: 5.2.3
       ws: 8.17.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      xmlhttprequest-ssl: 2.1.2
+      xmlhttprequest-ssl: 4.0.0
     transitivePeerDependencies:
       - bufferutil
       - supports-color
@@ -33105,7 +33190,7 @@ snapshots:
     dependencies:
       whatwg-url: 5.0.0
 
-  node-fetch@3.3.2:
+  node-fetch@3.3.2(patch_hash=9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9):
     dependencies:
       data-uri-to-buffer: 4.0.1
       fetch-blob: 3.2.0
@@ -37193,9 +37278,7 @@ snapshots:
       bufferutil: 4.0.9
       utf-8-validate: 5.0.10
 
-  xmlhttprequest-ssl@2.1.2: {}
-
-  xmlhttprequest-ssl@3.1.0: {}
+  xmlhttprequest-ssl@4.0.0: {}
 
   xstream@11.14.0:
     dependencies:
