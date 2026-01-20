@@ -587,6 +587,9 @@ importers:
       prettier:
         specifier: 'catalog:'
         version: 3.5.3
+      testcontainers:
+        specifier: 'catalog:'
+        version: 11.7.0
       ts-node:
         specifier: 'catalog:'
         version: 10.9.2(@types/node@22.19.1)(typescript@5.8.3)
