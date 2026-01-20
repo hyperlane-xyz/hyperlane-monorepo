@@ -36,28 +36,18 @@ export function buildTestConfig(
     chains: baseChains,
   };
 
-  // If overrides has strategyConfig as an array, use it directly
-  // Otherwise, wrap single strategy in an array
-  let strategyConfig;
-  if (overrides.strategyConfig) {
-    if (Array.isArray(overrides.strategyConfig)) {
-      strategyConfig = overrides.strategyConfig;
-    } else {
-      // Single strategy override - merge with baseChains and wrap in array
-      const singleConfig = overrides.strategyConfig as any;
-      strategyConfig = [
-        {
-          ...singleConfig,
-          chains: {
-            ...baseChains,
-            ...singleConfig.chains,
-          },
-        },
-      ];
-    }
-  } else {
-    strategyConfig = [defaultStrategyConfig];
-  }
+  // Merge overrides with default strategy config
+  // If overrides.strategyConfig.chains is explicitly provided, use it directly (don't merge)
+  const strategyConfig = overrides.strategyConfig
+    ? {
+        ...defaultStrategyConfig,
+        ...overrides.strategyConfig,
+        chains:
+          (overrides.strategyConfig as any).chains !== undefined
+            ? (overrides.strategyConfig as any).chains
+            : baseChains,
+      }
+    : defaultStrategyConfig;
 
   // Destructure to exclude strategyConfig from overrides spread
   const { strategyConfig: _, ...restOverrides } = overrides;
