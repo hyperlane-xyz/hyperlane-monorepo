@@ -1,213 +1,132 @@
-# Hyperlane Development Containers
+# Hyperlane Development Container
 
-This directory contains devcontainer configurations for developing the Hyperlane monorepo in isolated, reproducible environments.
-
-## Available Variants
-
-| Variant        | Includes                   | Use Case                               |
-| -------------- | -------------------------- | -------------------------------------- |
-| **typescript** | Node.js 20, pnpm, OpenCode | SDK, CLI, infra work                   |
-| **solidity**   | Above + Foundry            | Solidity contracts + TypeScript        |
-| **full**       | Above + Rust 1.88.0        | Full development including Rust agents |
+A pre-configured development environment for the Hyperlane monorepo using GitHub Codespaces.
 
 ## Quick Start
 
-### VS Code (Local)
-
-1. Install [Docker](https://www.docker.com/products/docker-desktop) and [VS Code](https://code.visualstudio.com/)
-2. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
-3. Open the monorepo in VS Code
-4. Press `Cmd+Shift+P` (Mac) or `Ctrl+Shift+P` (Windows/Linux)
-5. Select **"Dev Containers: Reopen in Container"**
-6. Choose a variant (typescript, solidity, or full)
-
-### GitHub Codespaces
+### GitHub Codespaces (Recommended)
 
 **From GitHub UI:**
 
-1. Go to the [Hyperlane monorepo](https://github.com/hyperlane-xyz/hyperlane-monorepo)
+1. Go to [hyperlane-xyz/hyperlane-monorepo](https://github.com/hyperlane-xyz/hyperlane-monorepo)
 2. Click **Code** → **Codespaces** → **New codespace**
-3. Select your preferred variant from the devcontainer dropdown
 
 **From CLI:**
 
 ```bash
-# Create a new codespace with the typescript variant
-gh codespace create --repo hyperlane-xyz/hyperlane-monorepo \
-  --devcontainer-path .devcontainer/typescript/devcontainer.json
+# Create a new Codespace
+pnpm hyperagent
 
-# List your codespaces
-gh codespace list
-
-# Connect via SSH
-gh codespace ssh -c <codespace-name>
-
-# Open in VS Code
-gh codespace code -c <codespace-name>
+# Or manually with gh CLI
+gh codespace create --repo hyperlane-xyz/hyperlane-monorepo
 ```
 
-### JetBrains IDEs
+### Local Development (VS Code)
 
-JetBrains Gateway supports devcontainers. See [JetBrains documentation](https://www.jetbrains.com/help/idea/connect-to-devcontainer.html).
+1. Install [Docker](https://www.docker.com/products/docker-desktop) and [VS Code](https://code.visualstudio.com/)
+2. Install the [Dev Containers extension](https://marketplace.visualstudio.com/items?itemName=ms-vscode-remote.remote-containers)
+3. Open the monorepo in VS Code
+4. Press `Cmd+Shift+P` → **"Dev Containers: Reopen in Container"**
 
-### CLI Only
+## What's Included
+
+The devcontainer uses the pre-built `gcr.io/abacus-labs-dev/hyperlane-monorepo` image which includes:
+
+- **Node.js 20** with pnpm
+- **Foundry** (forge, cast, anvil)
+- **All dependencies pre-installed**
+- **TypeScript packages pre-built**
+
+Additional dev tools:
+
+- **OpenCode** - AI coding agent
+- **GitHub CLI** (`gh`)
+- **zsh** with fzf
+- Network firewall for security
+
+## Using HyperAgent (Cloud Sessions)
+
+HyperAgent lets you run OpenCode in a cloud Codespace and connect from your local machine.
 
 ```bash
-# Install devcontainer CLI
-npm install -g @devcontainers/cli
+# Create or connect to your Codespace
+pnpm hyperagent
 
-# Build and start
-devcontainer up --workspace-folder .
+# Connect to someone else's shared Codespace
+pnpm hyperagent --connect <codespace-name>
 
-# Execute commands
-devcontainer exec --workspace-folder . bash
+# List available Codespaces
+pnpm hyperagent --list
+
+# List sessions in connected Codespace
+pnpm hyperagent --sessions
+
+# Connect to specific session
+pnpm hyperagent --session <session-id>
 ```
 
-## Configuration
+### Sharing a Codespace
 
-### API Keys (Required for OpenCode)
+1. Create your Codespace: `pnpm hyperagent`
+2. Share the Codespace name with teammates (shown in output)
+3. Teammates connect: `pnpm hyperagent --connect <your-codespace-name>`
 
-Set your Anthropic API key as a Codespaces secret:
+Port visibility is set to `org` so only GitHub org members can connect.
 
-1. Go to [GitHub Settings → Codespaces → Secrets](https://github.com/settings/codespaces)
-2. Add `ANTHROPIC_API_KEY` with your API key
-3. Grant access to the hyperlane-monorepo
+## Firewall
 
-For local development, set the environment variable:
+The devcontainer includes a strict network firewall that only allows outbound connections to whitelisted domains:
 
-```bash
-export ANTHROPIC_API_KEY=your-api-key
-```
+- npm registry
+- GitHub
+- Hyperlane services
+- Google Cloud APIs
+- Notion & Linear APIs
 
-### Firewall Modes
-
-The devcontainer includes a strict firewall that only allows outbound connections to whitelisted domains. Two modes are available:
-
-| Mode                 | Description                                     | Use Case                             |
-| -------------------- | ----------------------------------------------- | ------------------------------------ |
-| **strict** (default) | Only essential domains (npm, GitHub, GCP, etc.) | Most development work                |
-| **relaxed**          | Adds RPC provider domains                       | Integration testing with real chains |
-
-To enable relaxed mode, set the environment variable before starting the container:
+To allow RPC provider access (for integration testing), set:
 
 ```bash
 export DEVCONTAINER_FIREWALL_MODE=relaxed
 ```
 
-Or in your `devcontainer.json`:
-
-```json
-{
-  "containerEnv": {
-    "DEVCONTAINER_FIREWALL_MODE": "relaxed"
-  }
-}
-```
-
-### Whitelisted Domains
-
-**Always allowed:**
-
-- `registry.npmjs.org` - npm packages
-- `github.com`, `api.github.com` - Git operations
-- `crates.io`, `static.crates.io` - Rust crates
-- `api.anthropic.com` - OpenCode/Claude API
-- `*.hyperlane.xyz` - Hyperlane services
-- `*.googleapis.com` - Google Cloud
-- `api.notion.com` - Notion API
-- `api.linear.app` - Linear API
-- VS Code marketplace domains
-
-**Relaxed mode only (RPC providers):**
-
-- `*.alchemyapi.io`, `*.alchemy.com`
-- `*.quiknode.pro`
-- `*.infura.io`
-- `rpc.ankr.com`
-- `*.llamarpc.com`
-- `*.drpc.org`
-
-## Tools Included
-
-All variants include:
-
-- **Node.js 20** with pnpm
-- **Git** with git-delta for better diffs
-- **ZSH** with fzf and productivity plugins
-- **GitHub CLI** (`gh`)
-- **Google Cloud SDK** (`gcloud`)
-- **OpenCode** CLI
-
-Additional tools by variant:
-
-- **solidity**: Foundry (forge, cast, anvil)
-- **full**: Rust 1.88.0 with clippy and rustfmt
-
 ## VS Code Extensions
 
-Extensions are automatically installed based on variant:
+Automatically installed:
 
-| Extension        | typescript | solidity | full |
-| ---------------- | ---------- | -------- | ---- |
-| ESLint           | ✓          | ✓        | ✓    |
-| Prettier         | ✓          | ✓        | ✓    |
-| GitLens          | ✓          | ✓        | ✓    |
-| Hardhat Solidity |            | ✓        | ✓    |
-| rust-analyzer    |            |          | ✓    |
+- ESLint
+- Prettier
+- GitLens
+- Hardhat Solidity
 
 ## Troubleshooting
 
+### Codespace takes a long time to start
+
+The base image is pre-built, so startup should be fast (~1-2 minutes). If it's slow:
+
+- Check if Codespace prebuilds are enabled
+- Try a fresh Codespace: `gh codespace delete -c <name> && pnpm hyperagent`
+
+### OpenCode server not running
+
+Check the server logs:
+
+```bash
+cat /tmp/opencode-server.log
+```
+
+Restart the server:
+
+```bash
+opencode serve --port 4096 --hostname 0.0.0.0 &
+```
+
 ### Firewall blocking a domain
 
-If you need to access a domain not in the whitelist:
-
-1. **Temporary**: Use relaxed mode
-2. **Permanent**: Add the domain to `shared/init-firewall.sh` and rebuild
-
-### Container build fails
-
-```bash
-# Clean Docker cache and rebuild
-docker system prune -a
-devcontainer build --workspace-folder . --no-cache
-```
-
-### Slow Codespaces startup
-
-Prebuilds should make startup fast (~30 seconds). If slow:
-
-1. Check if prebuilds are enabled for the repo
-2. Ensure you're using a pre-built branch (usually `main`)
-
-### Permission denied errors
-
-The container runs as the `node` user. If you encounter permission issues:
-
-```bash
-# Inside container
-sudo chown -R node:node /workspace
-```
-
-## Security Notes
-
-The firewall provides network isolation but is not a complete security boundary:
-
-- A malicious project could potentially exfiltrate data accessible within the container
-- Only use devcontainers with trusted repositories
-- Monitor OpenCode's activities when using `--dangerously-skip-permissions`
-
-## Contributing
-
-To modify devcontainer configurations:
-
-1. Edit files in `.devcontainer/<variant>/`
-2. Update `shared/init-firewall.sh` for firewall changes (then copy to each variant)
-3. Test locally with `devcontainer build`
-4. Submit a PR
+Temporarily disable or add the domain to `init-firewall.sh`.
 
 ## Resources
 
-- [VS Code Dev Containers docs](https://code.visualstudio.com/docs/devcontainers/containers)
-- [GitHub Codespaces docs](https://docs.github.com/en/codespaces)
-- [Devcontainer specification](https://containers.dev/)
-- [Claude Code devcontainer reference](https://github.com/anthropics/claude-code/tree/main/.devcontainer)
+- [VS Code Dev Containers](https://code.visualstudio.com/docs/devcontainers/containers)
+- [GitHub Codespaces](https://docs.github.com/en/codespaces)
+- [OpenCode Docs](https://opencode.ai/docs)
