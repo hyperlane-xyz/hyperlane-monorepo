@@ -109,7 +109,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
-        address _feeToken = feeHook() != address(0) ? token() : address(0);
+        address _feeToken = feeToken();
         quotes = new Quote[](3);
         quotes[0] = Quote({
             token: _feeToken, // address(0) for native, token() for ERC20 payments
@@ -167,7 +167,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _amount
     ) internal virtual returns (bytes32 messageId) {
         address _feeHook = feeHook();
-        address _feeToken = _feeHook != address(0) ? token() : address(0);
+        address _feeToken = feeToken();
 
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
@@ -309,7 +309,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint256 _messageDispatchValue,
         bytes memory _tokenMessage
     ) internal returns (bytes32 messageId) {
-        address _feeToken = feeHook() != address(0) ? token() : address(0);
+        address _feeToken = feeToken();
         return
             _emitAndDispatch(
                 _destination,
@@ -377,6 +377,14 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function feeHook() public view returns (address) {
         return FEE_HOOK_SLOT.getAddressSlot().value;
+    }
+
+    /**
+     * @notice Returns the fee token address for gas payments.
+     * @return The token address if a fee hook is configured, otherwise address(0) for native payments.
+     */
+    function feeToken() public view returns (address) {
+        return feeHook() != address(0) ? token() : address(0);
     }
 
     // To be overridden by derived contracts if they have additional fees
