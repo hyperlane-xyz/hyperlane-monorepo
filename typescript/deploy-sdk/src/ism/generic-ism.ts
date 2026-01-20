@@ -52,7 +52,7 @@ export function createIsmReader(
  * Converts a DeployedIsmArtifact to DerivedIsmConfig format.
  * This handles the conversion between the new Artifact API and the old Config API.
  */
-function artifactToDerivedConfig(
+export function ismArtifactToDerivedConfig(
   artifact: DeployedIsmArtifact,
   chainLookup: ChainLookup,
 ): DerivedIsmConfig {
@@ -73,7 +73,7 @@ function artifactToDerivedConfig(
       if (isArtifactUnderived(nestedArtifact)) {
         domains[chainName] = nestedArtifact.deployed.address;
       } else if (isArtifactDeployed(nestedArtifact)) {
-        domains[chainName] = artifactToDerivedConfig(
+        domains[chainName] = ismArtifactToDerivedConfig(
           nestedArtifact,
           chainLookup,
         );
@@ -179,6 +179,6 @@ export class IsmReader
    */
   async deriveIsmConfig(address: string): Promise<DerivedIsmConfig> {
     const artifact = await this.read(address);
-    return artifactToDerivedConfig(artifact, this.chainLookup);
+    return ismArtifactToDerivedConfig(artifact, this.chainLookup);
   }
 }

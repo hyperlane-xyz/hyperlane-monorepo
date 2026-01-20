@@ -9,6 +9,7 @@ export { AltVMWarpModule } from './AltVMWarpModule.js';
 export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
 export { coreModuleProvider } from './core-module.js';
+export { CoreArtifactReader } from './core/core-artifact-reader.js';
 export { createHookReader } from './hook/hook-reader.js';
 export { HookWriter, createHookWriter } from './hook/hook-writer.js';
 export { createIsmReader } from './ism/generic-ism.js';
