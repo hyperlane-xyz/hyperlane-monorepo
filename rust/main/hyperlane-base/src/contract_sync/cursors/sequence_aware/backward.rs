@@ -203,16 +203,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
 
         // Query the sequence range ending at the current_indexing_snapshot's sequence.
-        // We assume that chunk size is at least 1 so that the sequence 0 is indexed
-        // together with sequence 1. That's why we can compare the current sequence
-        // with the lowest sequence with <=.
-        if current_indexing_snapshot.sequence <= lowest_block_height_or_sequence {
-            // If the current indexing snapshot's sequence is less than or equal to the lowest sequence,
+        // When current sequence equals lowest sequence, we still need to index it
+        // (e.g., when there's only one message at sequence 0).
+        if current_indexing_snapshot.sequence < lowest_block_height_or_sequence {
+            // If the current indexing snapshot's sequence is less than the lowest sequence,
             // we don't want to index anything below the lowest sequence.
             info!(
                 current_indexing_snapshot=?current_indexing_snapshot,
                 lowest_sequence=lowest_block_height_or_sequence,
-                "Current indexing snapshot's sequence is less than or equal to the lowest sequence, \
+                "Current indexing snapshot's sequence is less than the lowest sequence, \
                 not indexing anything below the lowest sequence"
             );
             return None;
