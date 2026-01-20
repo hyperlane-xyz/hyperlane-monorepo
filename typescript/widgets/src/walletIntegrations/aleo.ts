@@ -54,15 +54,17 @@ export function useAleoAccount(
       setAccount(adapterInstance.account);
     };
 
-    adapterInstance.on('connect', handleAccountChange);
-    adapterInstance.on('disconnect', handleAccountChange);
-    adapterInstance.on('accountChange', async () => {
-      await getAdapter().connect(
+    const handleAccountSwitched = async () => {
+      await adapterInstance.connect(
         Network.MAINNET,
         WalletDecryptPermission.AutoDecrypt,
         [],
       );
-    });
+    };
+
+    adapterInstance.on('connect', handleAccountChange);
+    adapterInstance.on('disconnect', handleAccountChange);
+    adapterInstance.on('accountChange', handleAccountSwitched);
 
     // Initialize account state
     handleAccountChange();
@@ -70,7 +72,7 @@ export function useAleoAccount(
     return () => {
       adapterInstance.off('connect', handleAccountChange);
       adapterInstance.off('disconnect', handleAccountChange);
-      adapterInstance.off('accountChange', handleAccountChange);
+      adapterInstance.off('accountChange', handleAccountSwitched);
     };
   }, []);
 
