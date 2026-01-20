@@ -4,6 +4,8 @@
 
 # Pinned Rust 1.68.0 image (required for Solana 1.14.x)
 # This exact digest ensures reproducible builds across time
+# Platform is intentionally hardcoded for reproducibility (not a variable)
+# check=skip=FromPlatformFlagConstDisallowed
 FROM --platform=linux/amd64 rust@sha256:79892de83d1af9109c47a4566a24a0b240348bb8c088f1bccc52645c4c70ec39 AS builder
 
 # Install dependencies
