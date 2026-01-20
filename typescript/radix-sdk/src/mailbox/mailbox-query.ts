@@ -7,6 +7,7 @@ import {
   getComponentOwner,
   getComponentState,
   getFieldValueFromEntityState,
+  getOptionalFieldValueFromEntityState,
   getRadixComponentDetails,
 } from '../utils/base-query.js';
 import { READ_ACCOUNT_HEX_PUBLIC_KEY } from '../utils/constants.js';
@@ -20,9 +21,9 @@ export async function getMailboxConfig(
   owner: string;
   localDomain: number;
   nonce: number;
-  defaultIsm: string;
-  defaultHook: string;
-  requiredHook: string;
+  defaultIsm?: string;
+  defaultHook?: string;
+  requiredHook?: string;
 }> {
   const mailboxDetails = await getRadixComponentDetails(
     gateway,
@@ -52,19 +53,16 @@ export async function getMailboxConfig(
       mailboxState,
       (v) => parseInt(v, 10),
     ),
-    defaultIsm: getFieldValueFromEntityState(
+    defaultIsm: getOptionalFieldValueFromEntityState(
       'default_ism',
-      mailboxAddress,
       mailboxState,
     ),
-    defaultHook: getFieldValueFromEntityState(
+    defaultHook: getOptionalFieldValueFromEntityState(
       'default_hook',
-      mailboxAddress,
       mailboxState,
     ),
-    requiredHook: getFieldValueFromEntityState(
+    requiredHook: getOptionalFieldValueFromEntityState(
       'required_hook',
-      mailboxAddress,
       mailboxState,
     ),
   };

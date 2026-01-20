@@ -158,6 +158,21 @@ export type RawArtifact<C, D> = {
 };
 
 /**
+ * Utility type to convert a config type to its on-chain representation.
+ * Replaces Artifact<> types one level deep with ArtifactOnChain<> types.
+ * Unlike RawArtifact, preserves the nested deployment types.
+ */
+export type ConfigOnChain<C> = {
+  [K in keyof C]: C[K] extends Artifact<infer CC, infer DD>
+    ? ArtifactOnChain<CC, DD>
+    : C[K] extends Artifact<infer CC, infer DD>[]
+      ? ArtifactOnChain<CC, DD>[]
+      : C[K] extends { [L: string]: Artifact<infer CC, infer DD> }
+        ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> }
+        : C[K];
+};
+
+/**
  * Artifact Manager Interface
  *
  * Generic interface for managing artifact operations across different artifact types.

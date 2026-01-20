@@ -223,6 +223,50 @@ export function getFieldValueFromEntityState<T>(
 }
 
 /**
+ * Extracts an optional field value from a Radix component's entity state.
+ *
+ * Similar to getFieldValueFromEntityState, but returns undefined instead of throwing
+ * if the field is not found or if it's an Option::None variant.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @returns The field value as a string, or undefined if not found/None
+ */
+export function getOptionalFieldValueFromEntityState(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+): string | undefined;
+export function getOptionalFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter: (value: string) => T,
+): T | undefined;
+export function getOptionalFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter?: (value: string) => T,
+): T | string | undefined {
+  const field = entityState.fields.find((f) => f.field_name === fieldName);
+  if (
+    !field ||
+    (field.type_name === 'Option' && field.variant_name === 'None')
+  ) {
+    return undefined;
+  }
+
+  const value =
+    field.kind === 'Enum' && field.type_name === 'Option'
+      ? field.fields?.at(0)?.value
+      : field.value;
+
+  if (isNullish(value)) {
+    return undefined;
+  }
+
+  return formatter ? formatter(value) : value;
+}
+
+/**
  * Extracts field elements (array values) from a Radix component's entity state.
  *
  * Used for fields that contain arrays of elements, such as validator lists or
