@@ -33,6 +33,7 @@ import {
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
   TxSubmitterType,
+  type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfigMailboxRequired,
@@ -62,7 +63,6 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { type TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
@@ -666,8 +666,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, altVmProviders, altVmSigners, registry } =
-    params.context;
+  const { multiProvider, altVmSigners, registry } = params.context;
 
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
@@ -687,7 +686,6 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
   });
