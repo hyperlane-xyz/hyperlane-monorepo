@@ -149,7 +149,6 @@ describe('hyperlane warp deploy (Aleo E2E tests)', async function () {
   });
 
   it('should deploy and set the owner to the expected one in the config', async () => {
-    // Use a different owner address (not the burn address which is treated as empty by the SDK)
     const differentOwner =
       'aleo17m3l8a4hmf3wypzkf5lsausfdwq9etzyujd0vmqh35ledn2sgvqqzqkqal';
     warpDeployConfig[TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1].owner =

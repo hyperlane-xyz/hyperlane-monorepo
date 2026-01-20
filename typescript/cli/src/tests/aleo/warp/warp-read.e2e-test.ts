@@ -181,11 +181,10 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
         .stdio('pipe')
         .nothrow();
 
-      const warpReadResult: DerivedWarpRouteDeployConfig =
-        await hyperlaneWarp.readConfig(
-          TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
-          WARP_CORE_PATH,
-        );
+      const warpReadResult = await hyperlaneWarp.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
+        WARP_CORE_PATH,
+      );
 
       assertWarpRouteConfig(
         warpDeployConfig,

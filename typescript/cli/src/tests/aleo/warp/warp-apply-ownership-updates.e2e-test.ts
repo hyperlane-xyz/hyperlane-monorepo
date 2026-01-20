@@ -124,8 +124,6 @@ describe('hyperlane warp apply ownership (Aleo E2E tests)', async function () {
     );
   });
 
-  // Note: Using different valid addresses instead of burn address
-  // because Aleo SDK treats zero/burn addresses specially and returns empty string
   const alternativeOwnerAddress1 =
     'aleo17m3l8a4hmf3wypzkf5lsausfdwq9etzyujd0vmqh35ledn2sgvqqzqkqal';
   const alternativeOwnerAddress2 =

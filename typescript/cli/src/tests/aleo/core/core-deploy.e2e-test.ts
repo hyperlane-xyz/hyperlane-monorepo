@@ -161,7 +161,6 @@ describe('hyperlane core deploy (Aleo E2E tests)', async function () {
             defaultIsmConfig.type === IsmType.MESSAGE_ID_MULTISIG,
           `Expected defaultIsm in deploy config to be of type ${IsmType.MESSAGE_ID_MULTISIG}`,
         );
-        // Note: MessageIdMultisigIsm doesn't have an owner field like RoutingIsm does
 
         coreConfig.defaultHook = defaultHookConfig;
         coreConfig.defaultIsm = defaultIsmConfig;
