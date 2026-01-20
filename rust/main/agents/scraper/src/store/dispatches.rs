@@ -25,7 +25,7 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
         }
 
         // STEP 1: Store a raw message dispatches FIRST (zero RPC dependencies)
-        // This ensures CCTP can query transaction hashes even if RPC providers fail
+        // This ensures Offchain Lookup Server can query transaction hashes even if RPC providers fail
         let raw_messages = messages
             .iter()
             .map(|(message, meta)| StorableRawMessageDispatch {
