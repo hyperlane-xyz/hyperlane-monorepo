@@ -269,7 +269,6 @@ export class RebalancerContextFactory {
     const rebalancerAddress = await signer.getAddress();
 
     // 5. Build config from warpCore and strategy
-    const routers = this.warpCore.tokens.map((t) => t.addressOrDenom);
     const bridges = chainNames
       .map((chain) => {
         const config = getStrategyChainConfig(
@@ -279,15 +278,18 @@ export class RebalancerContextFactory {
         return config?.bridge;
       })
       .filter((bridge): bridge is string => bridge !== undefined);
-    const domains = chainNames.map((chain) =>
-      this.multiProvider.getDomainId(chain),
-    );
+
+    // Build router→domain mapping (source of truth for routers and domains)
+    const routersByDomain: Record<number, string> = {};
+    for (const token of this.warpCore.tokens) {
+      const domain = this.multiProvider.getDomainId(token.chainName);
+      routersByDomain[domain] = token.addressOrDenom;
+    }
 
     const trackerConfig: ActionTrackerConfig = {
-      routers,
+      routersByDomain,
       bridges,
       rebalancerAddress,
-      domains: Array.from(new Set(domains)),
     };
 
     // 6. Create ActionTracker
@@ -307,9 +309,9 @@ export class RebalancerContextFactory {
     this.logger.debug(
       {
         warpRouteId: this.config.warpRouteId,
-        routerCount: routers.length,
+        routerCount: Object.keys(routersByDomain).length,
         bridgeCount: bridges.length,
-        domainCount: domains.length,
+        domainCount: Object.keys(routersByDomain).length,
       },
       'ActionTracker created successfully',
     );
