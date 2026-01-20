@@ -432,7 +432,9 @@ jobs:
       matrix:
         test:
           # Core Commands
-          - core-apply
+          - core-apply-hooks
+          - core-apply-ism
+          - core-apply-mailbox
           - core-deploy
           - core-read
           # Warp Commands
