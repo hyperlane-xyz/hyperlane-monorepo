@@ -1051,7 +1051,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronInterchainSecurityModule::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1112,7 +1116,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronMultisigIsm::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn MultisigIsm>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1168,7 +1176,11 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronRoutingIsm::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn RoutingIsm>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1224,7 +1236,11 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 todo!("Radix aggregation ISM not yet implemented")
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let ism = h_tron::TronAggregationIsm::new(provider, &locator);
+                Ok(Box::new(ism) as Box<dyn AggregationIsm>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
