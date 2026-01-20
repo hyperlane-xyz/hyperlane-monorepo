@@ -1007,7 +1007,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         require(_router != bytes32(0), "no router specified for destination");
 
         // Check if ERC20 fee payment is requested via hookMetadata
-        address _feeToken = _hookMetadata.feeToken(address(0));
+        address _feeToken = _hookMetadata.feeToken();
         if (_feeToken != address(0)) {
             // Get gas limit from metadata and quote the fee
             uint256 _gasLimit = _hookMetadata.gasLimit();
@@ -1016,7 +1016,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
             // Pull fee tokens from caller and approve hook
             IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
-            IERC20(_feeToken).approve(address(_hook), _fee);
+            IERC20(_feeToken).forceApprove(address(_hook), _fee);
         }
 
         return
