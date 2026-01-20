@@ -42,7 +42,7 @@ export const TEST_ALEO_CHAIN_METADATA: TestChainMetadata = {
     decimals: 6,
     name: 'Aleo Credits',
     symbol: 'ALEO',
-    denom: 'microcredits',
+    denom: 'credits',
   },
   blocks: {
     confirmations: 0,
