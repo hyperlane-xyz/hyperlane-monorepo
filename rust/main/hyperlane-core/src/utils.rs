@@ -29,6 +29,11 @@ pub fn hex_or_base58_or_bech32_to_h256(string: &str) -> Result<H256> {
             H256::from_slice(padded.as_slice())
         } else {
             let bytes = bs58::decode(string).into_vec()?;
+            // Tron addresse
+            if bytes.len() == 25 {
+                // Drop the first byte (address type) and last 4 bytes (checksum)
+                return Ok(H160::from_slice(&bytes[1..21]).into());
+            }
             if bytes.len() != 32 {
                 eyre::bail!("Invalid length of base58 string")
             }

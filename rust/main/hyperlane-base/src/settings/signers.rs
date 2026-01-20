@@ -128,6 +128,29 @@ impl ChainSigner for hyperlane_ethereum::Signers {
 }
 
 #[async_trait]
+impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::HexKey { key } = conf {
+            let key = ethers::core::k256::SecretKey::from_be_bytes(key.as_bytes())?;
+            let wallet = ethers::core::k256::ecdsa::SigningKey::from(key);
+            Ok(hyperlane_tron::TronSigner::from(wallet))
+        } else {
+            bail!(format!("{conf:?} key is not supported by tron"));
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_tron::TronSigner {
+    fn address_string(&self) -> String {
+        // TODO:
+        ethers::signers::Signer::address(self).encode_hex()
+    }
+    fn address_h256(&self) -> H256 {
+        ethers::types::H256::from(ethers::signers::Signer::address(self)).into()
+    }
+}
+
+#[async_trait]
 impl BuildableWithSignerConf for fuels::prelude::WalletUnlocked {
     async fn build(conf: &SignerConf) -> Result<Self, Report> {
         if let SignerConf::HexKey { key } = conf {
