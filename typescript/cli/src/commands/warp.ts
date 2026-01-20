@@ -438,6 +438,7 @@ export const check: CommandModuleWithContext<
 
     // If --ica flag is set, run ICA owner check instead of the regular config check
     if (ica) {
+      assert(origin, '--origin is required when using --ica');
       const destinationChains =
         destinations && destinations.length > 0
           ? destinations.map((c) => c.trim())
