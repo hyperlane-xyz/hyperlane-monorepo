@@ -4,7 +4,11 @@ import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { runIcaDeploy } from '../deploy/ica.js';
 import { log, logCommandHeader } from '../logger.js';
 
-import { addressCommandOption, chainCommandOption } from './options.js';
+import {
+  addressCommandOption,
+  chainCommandOption,
+  stringArrayOptionConfig,
+} from './options.js';
 
 /**
  * Parent command
@@ -21,7 +25,7 @@ export const icaCommand: CommandModule = {
  */
 export const deploy: CommandModuleWithWriteContext<{
   origin: string;
-  destinations: string;
+  destinations: string[];
   owner: string;
 }> = {
   command: 'deploy',
@@ -35,10 +39,10 @@ export const deploy: CommandModuleWithWriteContext<{
       default: 'ethereum',
     },
     destinations: {
-      type: 'string',
-      description:
-        'Comma-separated list of destination chains for ICA deployment',
-      demandOption: true,
+      ...stringArrayOptionConfig({
+        description: 'List of destination chains for ICA deployment',
+        demandOption: true,
+      }),
     },
     owner: {
       ...addressCommandOption(
@@ -50,12 +54,10 @@ export const deploy: CommandModuleWithWriteContext<{
   handler: async ({ context, origin, destinations, owner }) => {
     logCommandHeader('Hyperlane ICA Deploy');
 
-    const destinationChains = destinations.split(',').map((c) => c.trim());
-
     await runIcaDeploy({
       context,
       origin,
-      destinations: destinationChains,
+      destinations,
       owner,
     });
 

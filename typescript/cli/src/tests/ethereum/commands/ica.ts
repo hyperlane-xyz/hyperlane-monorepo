@@ -32,7 +32,7 @@ export function hyperlaneIcaDeployRaw({
   } ${localTestRunCmdPrefix()} hyperlane ica deploy \
         --registry ${REGISTRY_PATH} \
         ${origin ? ['--origin', origin] : []} \
-        ${destinations && destinations.length > 0 ? ['--destinations', destinations.join(',')] : []} \
+        ${destinations?.length ? destinations.flatMap((d) => ['--destinations', d]) : []} \
         ${owner ? ['--owner', owner] : []} \
         ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
