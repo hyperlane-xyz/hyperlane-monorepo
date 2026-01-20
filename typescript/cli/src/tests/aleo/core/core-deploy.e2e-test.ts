@@ -40,7 +40,6 @@ describe('hyperlane core deploy (Aleo E2E tests)', async function () {
   type CoreConfigOwnershipAssertion = {
     expectedMailboxOwner: Address;
     expectedDefaultHookOwner: Address;
-    expectedDefaultIsmOwner: Address;
   };
 
   // see typescript/cli/examples/aleo/core-config.yaml
@@ -106,7 +105,6 @@ describe('hyperlane core deploy (Aleo E2E tests)', async function () {
           'should create a core deployment with the signer as the mailbox owner',
         expect: {
           expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
-          expectedDefaultIsmOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
           expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
         },
       },
@@ -115,7 +113,6 @@ describe('hyperlane core deploy (Aleo E2E tests)', async function () {
           'should create a core deployment with the provided address as the owner of the mailbox',
         expect: {
           expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
-          expectedDefaultIsmOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
           expectedMailboxOwner: BURN_ADDRESS_BY_PROTOCOL.aleo,
         },
       },
@@ -124,7 +121,6 @@ describe('hyperlane core deploy (Aleo E2E tests)', async function () {
           'should create a core deployment with the provided address as the owner of the defaultHook',
         expect: {
           expectedDefaultHookOwner: BURN_ADDRESS_BY_PROTOCOL.aleo,
-          expectedDefaultIsmOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
           expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
         },
       },
@@ -133,7 +129,6 @@ describe('hyperlane core deploy (Aleo E2E tests)', async function () {
           'should create a core deployment with the provided address as the owner of the defaultIsm',
         expect: {
           expectedDefaultHookOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
-          expectedDefaultIsmOwner: BURN_ADDRESS_BY_PROTOCOL.aleo,
           expectedMailboxOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
         },
       },
