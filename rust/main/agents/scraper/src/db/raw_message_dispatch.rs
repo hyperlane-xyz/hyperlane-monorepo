@@ -151,6 +151,7 @@ impl ScraperDb {
 
     /// Get the raw message dispatch by message ID.
     #[instrument(skip(self))]
+    #[cfg(test)]
     pub async fn retrieve_raw_message_dispatch_by_id(
         &self,
         message_id: &H256,
