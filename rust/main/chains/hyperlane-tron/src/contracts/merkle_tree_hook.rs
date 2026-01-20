@@ -4,10 +4,12 @@ use std::sync::Arc;
 use async_trait::async_trait;
 use hyperlane_core::accumulator::incremental::IncrementalMerkle;
 use hyperlane_core::rpc_clients::call_and_retry_indefinitely;
+use tracing::instrument;
 
 use hyperlane_core::{
-    ChainResult, ContractLocator, Indexed, Indexer, LogMeta, MerkleTreeInsertion,
-    SequenceAwareIndexer, H256, H512,
+    ChainResult, Checkpoint, CheckpointAtBlock, ContractLocator, HyperlaneChain, HyperlaneContract,
+    HyperlaneDomain, HyperlaneProvider, IncrementalMerkleAtBlock, Indexed, Indexer, LogMeta,
+    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SequenceAwareIndexer, H256, H512,
 };
 
 use crate::interfaces::merkle_tree_hook::{
@@ -116,5 +118,99 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TronMerkleTreeHookIndexer {
         let tip = self.get_finalized_block_number().await?;
         let sequence = self.contract.count().block(u64::from(tip)).call().await?;
         Ok((Some(sequence), tip))
+    }
+}
+
+/// A reference to a Mailbox contract on some Tron chain
+#[derive(Debug)]
+pub struct TronMerkleTreeHook {
+    contract: Arc<MerkleTreeHookContract<TronProvider>>,
+    domain: HyperlaneDomain,
+    provider: Arc<TronProvider>,
+}
+
+impl TronMerkleTreeHook {
+    /// Create a reference to a mailbox at a specific Tron address on some
+    /// chain
+    pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
+        let provider = Arc::new(provider);
+        Self {
+            contract: Arc::new(MerkleTreeHookContract::new(
+                locator.address,
+                provider.clone(),
+            )),
+            domain: locator.domain.clone(),
+            provider,
+        }
+    }
+}
+
+impl HyperlaneChain for TronMerkleTreeHook {
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(self.provider.clone())
+    }
+}
+
+impl HyperlaneContract for TronMerkleTreeHook {
+    fn address(&self) -> H256 {
+        self.contract.address().into()
+    }
+}
+
+#[async_trait]
+impl MerkleTreeHook for TronMerkleTreeHook {
+    #[instrument(skip(self))]
+    async fn latest_checkpoint(
+        &self,
+        reorg_period: &ReorgPeriod,
+    ) -> ChainResult<CheckpointAtBlock> {
+        let (root, index) = self.contract.latest_checkpoint().call().await?;
+        let checkpoint = Checkpoint {
+            merkle_tree_hook_address: self.address(),
+            mailbox_domain: self.domain.id(),
+            root: root.into(),
+            index,
+        };
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: None,
+        })
+    }
+
+    #[instrument(skip(self))]
+    async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        let (root, index) = self.contract.latest_checkpoint().call().await?;
+        let checkpoint = Checkpoint {
+            merkle_tree_hook_address: self.address(),
+            mailbox_domain: self.domain.id(),
+            root: root.into(),
+            index,
+        };
+        // TODO: figure out how to call at specific block height
+        Ok(CheckpointAtBlock {
+            checkpoint,
+            block_height: Some(height),
+        })
+    }
+
+    #[instrument(skip(self))]
+    #[allow(clippy::needless_range_loop)]
+    async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
+        let tree = self.contract.tree().call().await?;
+
+        Ok(IncrementalMerkleAtBlock {
+            tree: tree.into(),
+            block_height: None,
+        })
+    }
+
+    #[instrument(skip(self))]
+    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let count = self.contract.count().call().await?;
+        Ok(count)
     }
 }
