@@ -3,9 +3,19 @@ import {
   ArtifactDeployed,
   IArtifactManager,
   RawArtifact,
+  isArtifactDeployed,
 } from './artifact.js';
-import type { DeployedHookAddress, HookArtifactConfig } from './hook.js';
-import type { DeployedIsmAddress, IsmArtifactConfig } from './ism.js';
+import type { ChainLookup } from './chain.js';
+import type {
+  DeployedHookAddress,
+  DerivedHookConfig,
+  HookArtifactConfig,
+} from './hook.js';
+import type {
+  DeployedIsmAddress,
+  DerivedIsmConfig,
+  IsmArtifactConfig,
+} from './ism.js';
 
 // Artifact API types
 
@@ -108,4 +118,69 @@ export interface IRawMailboxArtifactManager
    * @returns The artifact configuration and deployment data
    */
   readMailbox(address: string): Promise<DeployedRawMailboxArtifact>;
+}
+
+/**
+ * Converts a DeployedMailboxArtifact (with fully expanded nested ISM/hook artifacts)
+ * to the DerivedCoreConfig format for backward compatibility.
+ *
+ * This function is used by CoreArtifactReader to provide the deriveCoreConfig() method
+ * that existing code expects. The conversion functions for ISM and Hook artifacts
+ * must be passed in to avoid circular dependencies.
+ *
+ * @param artifact The deployed mailbox artifact with expanded nested configs
+ * @param chainLookup Chain lookup for converting domain IDs to chain names
+ * @param converters Object containing ismArtifactToDerivedConfig and hookArtifactToDerivedConfig functions
+ * @returns DerivedCoreConfig in the legacy format (from core.ts)
+ */
+export function mailboxArtifactToDerivedCoreConfig(
+  artifact: DeployedMailboxArtifact,
+  chainLookup: ChainLookup,
+  converters: {
+    ismArtifactToDerivedConfig: (
+      artifact: any,
+      chainLookup: ChainLookup,
+    ) => DerivedIsmConfig;
+    hookArtifactToDerivedConfig: (
+      artifact: any,
+      chainLookup: ChainLookup,
+    ) => DerivedHookConfig;
+  },
+): {
+  owner: string;
+  defaultIsm: DerivedIsmConfig;
+  defaultHook: DerivedHookConfig;
+  requiredHook: DerivedHookConfig;
+} {
+  const { defaultIsm, defaultHook, requiredHook, owner } = artifact.config;
+
+  // All nested artifacts should be in DEPLOYED state after CoreArtifactReader.read()
+  if (!isArtifactDeployed(defaultIsm)) {
+    throw new Error(
+      'Expected defaultIsm to be DEPLOYED, got ' + defaultIsm.artifactState,
+    );
+  }
+  if (!isArtifactDeployed(defaultHook)) {
+    throw new Error(
+      'Expected defaultHook to be DEPLOYED, got ' + defaultHook.artifactState,
+    );
+  }
+  if (!isArtifactDeployed(requiredHook)) {
+    throw new Error(
+      'Expected requiredHook to be DEPLOYED, got ' + requiredHook.artifactState,
+    );
+  }
+
+  return {
+    owner,
+    defaultIsm: converters.ismArtifactToDerivedConfig(defaultIsm, chainLookup),
+    defaultHook: converters.hookArtifactToDerivedConfig(
+      defaultHook,
+      chainLookup,
+    ),
+    requiredHook: converters.hookArtifactToDerivedConfig(
+      requiredHook,
+      chainLookup,
+    ),
+  };
 }
