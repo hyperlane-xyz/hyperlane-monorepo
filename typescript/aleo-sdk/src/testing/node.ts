@@ -5,6 +5,7 @@ import {
 } from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { sleep } from '@hyperlane-xyz/utils';
 
 import {
   ALEO_DEVNODE_IMAGE,
