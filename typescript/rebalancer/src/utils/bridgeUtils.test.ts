@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { pino } from 'pino';
 
-import { ChainMap } from '@hyperlane-xyz/sdk';
+import { type ChainMap } from '@hyperlane-xyz/sdk';
 
 import {
   type BridgeConfigWithOverride,

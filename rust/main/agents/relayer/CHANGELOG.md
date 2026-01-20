@@ -1,3 +1,21 @@
+## [2.0.0] - 2026-01-06
+
+* chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)
+* feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
+* feat: Aleo HyperlaneProvider (#7344)
+* feat: ICA message body matching list and superswaps app context (#7711)
+* feat: Improve Transaction Drop Error Classification in InclusionStage (#7574)
+* feat: Lander Transaction Submission Observability (#7393)
+* feat: add relayer API endpoint to reset upper nonce for a given evm chain (#7372)
+* feat: always log metadata bytes as hex (#7566)
+* feat: crash loop even in the event `reorg_flag.json` is unparsable (#7464)
+* feat: include offchain lookup server response body in error when we fail to parse json (#7526)
+* feat: make refused to build metadata error easier to debug (#7539)
+* feat: rotate provider if eth_getTransactionReceipt returns JSON null (#7489)
+* fix: Clear link between message and payload for manual reprocessing (#7360)
+* refactor: OperationDisposition: Rename Confirm into PostSubmit and Remove Manual (#7384)
+* refactor: Remove duplication and move tests into separate files (#7357)
+
 ## [1.7.0] - 2025-11-10
 
 * fix: Add tests for functions identifying if messages are already submitted (#7346)

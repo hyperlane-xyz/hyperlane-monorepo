@@ -14,16 +14,15 @@
  * - WITH_METRICS: Enable Prometheus metrics (default: "true")
  * - MONITOR_ONLY: Run in monitor-only mode without executing transactions (default: "false")
  * - LOG_LEVEL: Logging level (default: "info") - supported by pino
+ * - REGISTRY_URI: Registry URI for chain metadata. Can include /tree/{commit} to pin version (default: GitHub registry)
  *
  * Usage:
  *   node dist/service.js
  *   REBALANCER_CONFIG_FILE=/config/rebalancer.yaml HYP_KEY=0x... node dist/service.js
  */
 import { Wallet } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
@@ -31,21 +30,8 @@ import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 import { RebalancerConfig } from './config/RebalancerConfig.js';
 import { RebalancerService } from './core/RebalancerService.js';
 
-function getVersion(): string {
-  try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '../package.json'), 'utf-8'),
-    );
-    return packageJson.version;
-  } catch (error) {
-    rootLogger.warn({ error }, 'Could not read version from package.json');
-    return 'unknown';
-  }
-}
-
 async function main(): Promise<void> {
-  const VERSION = getVersion();
+  const VERSION = process.env.SERVICE_VERSION || 'dev';
   // Validate required environment variables
   const configFile = process.env.REBALANCER_CONFIG_FILE;
   if (!configFile) {
@@ -98,13 +84,15 @@ async function main(): Promise<void> {
     const rebalancerConfig = RebalancerConfig.load(configFile);
     logger.info('✅ Loaded rebalancer configuration');
 
-    // Initialize registry (uses default registry URIs)
+    // Initialize registry (uses env var or defaults to GitHub registry)
+    // For GitHub registries, REGISTRY_URI can include /tree/{commit} to pin to a specific version
+    const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
     const registry = getRegistry({
-      registryUris: [],
-      enableProxy: false,
+      registryUris: [registryUri],
+      enableProxy: true,
       logger: rootLogger,
     });
-    logger.info('✅ Initialized registry');
+    logger.info({ registryUri }, '✅ Initialized registry');
 
     // Get chain metadata from registry
     const chainMetadata = await registry.getMetadata();
@@ -142,13 +130,18 @@ async function main(): Promise<void> {
     // Start the service
     await service.start();
   } catch (error) {
-    logger.error({ error }, 'Failed to start rebalancer service');
+    const err = error as Error;
+    logger.error(
+      { error: err.message, stack: err.stack },
+      'Failed to start rebalancer service',
+    );
     process.exit(1);
   }
 }
 
 // Run the service
 main().catch((error) => {
-  rootLogger.error({ error }, 'Fatal error');
+  const err = error as Error;
+  rootLogger.error({ error: err.message, stack: err.stack }, 'Fatal error');
   process.exit(1);
 });

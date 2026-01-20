@@ -61,7 +61,6 @@ contract TokenRouterIgpTest is Test {
     HypERC20 internal remoteRouter;
 
     // Events
-    event UseTokenFeesSet(bool useTokenFees);
     event FeeHookSet(address feeHook);
     event SentTransferRemote(
         uint32 indexed destination,
@@ -187,20 +186,6 @@ contract TokenRouterIgpTest is Test {
 
     // ============ Setter Tests ============
 
-    function test_setUseTokenFees() public {
-        vm.expectEmit(true, true, true, true);
-        emit UseTokenFeesSet(true);
-        collateralRouter.setUseTokenFees(true);
-
-        assertTrue(collateralRouter.useTokenFees());
-    }
-
-    function test_setUseTokenFees_revertsIfNotOwner() public {
-        vm.prank(ALICE);
-        vm.expectRevert("Ownable: caller is not the owner");
-        collateralRouter.setUseTokenFees(true);
-    }
-
     function test_setFeeHook() public {
         vm.expectEmit(true, true, true, true);
         emit FeeHookSet(address(igp));
@@ -221,8 +206,7 @@ contract TokenRouterIgpTest is Test {
         // Set up IGP gas config for collateralToken (which is token() for collateralRouter)
         _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
-        // Configure ERC20 IGP
-        collateralRouter.setUseTokenFees(true);
+        // Configure ERC20 IGP (setting feeHook enables token fees)
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
@@ -275,7 +259,7 @@ contract TokenRouterIgpTest is Test {
         // Use collateralToken as both collateral AND fee token (token() returns collateralToken)
         _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
-        collateralRouter.setUseTokenFees(true);
+        // Setting feeHook enables token fees
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
@@ -322,8 +306,7 @@ contract TokenRouterIgpTest is Test {
     // ============ HypERC20 (Synthetic) Tests ============
 
     function test_transferRemote_withERC20Igp_syntheticToken() public {
-        // Configure useTokenFees - for HypERC20, token() returns address(this)
-        syntheticRouter.setUseTokenFees(true);
+        // Setting feeHook enables token fees - for HypERC20, token() returns address(this)
         syntheticRouter.setFeeHook(address(igp));
         syntheticRouter.setHook(address(igp));
 
@@ -372,8 +355,8 @@ contract TokenRouterIgpTest is Test {
 
     // ============ Edge Cases ============
 
-    function test_transferRemote_nativeIgp_whenUseTokenFeesNotSet() public {
-        // Default: useTokenFees = false, feeHook = address(0)
+    function test_transferRemote_nativeIgp_whenFeeHookNotSet() public {
+        // Default: feeHook = address(0)
         // Should use native IGP (existing behavior)
 
         vm.startPrank(ALICE);
@@ -402,7 +385,7 @@ contract TokenRouterIgpTest is Test {
         // Set up IGP gas config for collateralToken
         _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
-        collateralRouter.setUseTokenFees(true);
+        // Setting feeHook enables token fees
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 
@@ -423,7 +406,7 @@ contract TokenRouterIgpTest is Test {
         // Set up IGP gas config for collateralToken
         _setTokenGasConfig(address(collateralToken), DESTINATION, gasOracle);
 
-        collateralRouter.setUseTokenFees(true);
+        // Setting feeHook enables token fees
         collateralRouter.setFeeHook(address(igp));
         collateralRouter.setHook(address(igp));
 

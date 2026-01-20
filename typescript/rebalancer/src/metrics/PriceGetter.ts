@@ -1,10 +1,10 @@
-import { Logger } from 'pino';
+import { type Logger } from 'pino';
 
 import {
-  ChainMap,
-  ChainMetadata,
+  type ChainMap,
+  type ChainMetadata,
   CoinGeckoTokenPriceGetter,
-  Token,
+  type Token,
 } from '@hyperlane-xyz/sdk';
 
 export class PriceGetter extends CoinGeckoTokenPriceGetter {

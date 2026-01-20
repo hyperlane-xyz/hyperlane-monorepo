@@ -1,4 +1,4 @@
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { type ChainMap, type ChainName } from '@hyperlane-xyz/sdk';
 
 export type RawBalances = ChainMap<bigint>;
 

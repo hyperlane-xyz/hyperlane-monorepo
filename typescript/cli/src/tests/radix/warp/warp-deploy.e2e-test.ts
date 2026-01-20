@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  DerivedWarpRouteDeployConfig,
+  type ChainMap,
+  type DerivedWarpRouteDeployConfig,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 

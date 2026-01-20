@@ -2,28 +2,30 @@ import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 import { Wallet, ethers } from 'ethers';
 import { rmSync } from 'fs';
-import { $, ProcessPromise } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
 import {
-  ERC20,
+  type ERC20,
   ERC20__factory,
   HypERC20Collateral__factory,
   MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
-import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 import {
-  ChainMetadata,
-  RebalancerConfigFileInput,
+  type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+} from '@hyperlane-xyz/rebalancer';
+import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
+import {
+  type ChainMetadata,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
-  Domain,
+  type Address,
+  type Domain,
   addressToBytes32,
   bytes32ToAddress,
   sleep,

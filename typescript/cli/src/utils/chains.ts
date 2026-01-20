@@ -3,13 +3,17 @@ import search from '@inquirer/search';
 import select from '@inquirer/select';
 import chalk from 'chalk';
 
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
-import { toTitleCase } from '@hyperlane-xyz/utils';
+import {
+  type ChainMap,
+  type ChainMetadata,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
+import { type ProtocolType, toTitleCase } from '@hyperlane-xyz/utils';
 
 import { log } from '../logger.js';
 
 import { calculatePageSize } from './cli-options.js';
-import { SearchableCheckboxChoice, searchableCheckBox } from './input.js';
+import { type SearchableCheckboxChoice, searchableCheckBox } from './input.js';
 
 // A special value marker to indicate user selected
 // a new chain in the list
@@ -185,6 +189,18 @@ function handleNewChain(chainNames: string[]) {
     );
     process.exit(0);
   }
+}
+
+export function filterChainMetadataByProtocol(
+  chainMetadata: ChainMap<ChainMetadata>,
+  multiProvider: MultiProvider,
+  protocol: ProtocolType,
+): ChainMap<ChainMetadata> {
+  return Object.fromEntries(
+    Object.entries(chainMetadata).filter(
+      ([chain]) => multiProvider.getProtocol(chain) === protocol,
+    ),
+  );
 }
 
 /**

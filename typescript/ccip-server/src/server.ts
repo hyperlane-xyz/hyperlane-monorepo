@@ -4,8 +4,6 @@ import { pinoHttp } from 'pino-http';
 
 import { createServiceLogger } from '@hyperlane-xyz/utils';
 
-import packageJson from '../package.json' with { type: 'json' };
-
 import { getEnabledModules } from './config.js';
 import { ServiceFactory } from './services/BaseService.js';
 import { CCTPService } from './services/CCTPService.js';
@@ -25,10 +23,12 @@ export const moduleRegistry: Record<string, ServiceFactory> = {
 };
 
 async function startServer() {
+  const VERSION = process.env.SERVICE_VERSION || 'dev';
+
   // Initialize logger first thing in startup
   const logger = await createServiceLogger({
     service: 'ccip-server',
-    version: packageJson.version,
+    version: VERSION,
   });
 
   const app = express();

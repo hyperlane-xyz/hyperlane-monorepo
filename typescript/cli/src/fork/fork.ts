@@ -1,32 +1,32 @@
-import { JsonRpcProvider, Log } from '@ethersproject/providers';
+import { JsonRpcProvider, type Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
 import { execa } from 'execa';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
-  ChainName,
-  EventAssertion,
+  type ChainMap,
+  type ChainMetadata,
+  type ChainName,
+  type EventAssertion,
   EventAssertionType,
-  ForkedChainConfig,
-  ForkedChainTransactionConfig,
-  MultiProvider,
-  RawForkedChainConfigByChain,
-  RevertAssertion,
+  type ForkedChainConfig,
+  type ForkedChainTransactionConfig,
+  type MultiProvider,
+  type RawForkedChainConfigByChain,
+  type RevertAssertion,
   TransactionDataType,
   forkedChainConfigByChainFromRaw,
 } from '@hyperlane-xyz/sdk';
 import {
-  Address,
+  type Address,
   ProtocolType,
   assert,
   deepEquals,
   retryAsync,
 } from '@hyperlane-xyz/utils';
 
-import { CommandContext } from '../context/types.js';
+import { type CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
 

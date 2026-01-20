@@ -64,12 +64,9 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     // breaking backwards compatibility of storage layout
     bytes32 private constant FEE_RECIPIENT_SLOT =
         keccak256("FungibleTokenRouter.feeRecipient");
-    bytes32 private constant USE_TOKEN_FEES_SLOT =
-        keccak256("TokenRouter.useTokenFees");
     bytes32 private constant FEE_HOOK_SLOT = keccak256("TokenRouter.feeHook");
 
     event FeeRecipientSet(address feeRecipient);
-    event UseTokenFeesSet(bool useTokenFees);
     event FeeHookSet(address feeHook);
 
     constructor(uint256 _scale, address _mailbox) GasRouter(_mailbox) {
@@ -112,11 +109,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) external view override returns (Quote[] memory quotes) {
-        address _feeToken = useTokenFees() ? token() : address(0);
+        address _feeToken = feeToken();
         quotes = new Quote[](3);
         quotes[0] = Quote({
             token: _feeToken, // address(0) for native, token() for ERC20 payments
-            amount: _quoteGasPayment(_destination, _recipient, _amount)
+            amount: _quoteGasPayment(
+                _destination,
+                _recipient,
+                _amount,
+                _feeToken
+            )
         });
         (, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -164,12 +166,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) internal virtual returns (bytes32 messageId) {
+        address _feeHook = feeHook();
+        address _feeToken = feeToken();
+
         // 1. Calculate the fee amounts, charge the sender and distribute to feeRecipient if necessary
         (, uint256 remainingNativeValue) = _calculateFeesAndCharge(
             _destination,
             _recipient,
             _amount,
-            msg.value
+            msg.value,
+            _feeHook
         );
 
         uint256 scaledAmount = _outboundAmount(_amount);
@@ -180,18 +186,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             scaledAmount
         );
 
-        // 3. Emit the SentTransferRemote event and 4. dispatch the message
-        emit SentTransferRemote(_destination, _recipient, scaledAmount);
-
-        // Generate hook metadata with feeToken if configured for ERC20 IGP
-        bytes memory _hookMetadata = _generateHookMetadata(_destination);
-
-        messageId = _Router_dispatch(
+        messageId = _emitAndDispatch(
             _destination,
+            _recipient,
+            scaledAmount,
             remainingNativeValue,
             _tokenMessage,
-            _hookMetadata,
-            address(hook)
+            _feeToken
         );
     }
 
@@ -203,7 +204,8 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
-        uint256 _msgValue
+        uint256 _msgValue,
+        address _feeHook
     ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
         (address _feeRecipient, uint256 feeAmount) = _feeRecipientAndAmount(
             _destination,
@@ -213,17 +215,16 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         externalFee = _externalFeeAmount(_destination, _recipient, _amount);
         uint256 charge = _amount + feeAmount + externalFee;
 
-        address _feeHook = feeHook();
+        address _token = token();
 
         // ERC20 fee hook: use token() for gas payments
-        if (useTokenFees() && _feeHook != address(0)) {
+        if (_feeHook != address(0)) {
             uint256 hookFee = _quoteGasPayment(
                 _destination,
                 _recipient,
-                _amount
+                _amount,
+                _token
             );
-
-            address _token = token();
 
             // For collateral routers (token() != address(this)), we can add hook fee to charge
             // because _transferFromSender pulls tokens TO the router.
@@ -254,19 +255,38 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
         }
 
         // Calculate remaining native value for other hooks
-        // Even with ERC20 fee payments, other hooks may still need native value
-        remainingNativeValue = token() != address(0)
+        // When token() is ERC20 (non-native), all native value is available for other hooks
+        // When token() is native (address(0)), subtract the charge from msg.value
+        remainingNativeValue = _token != address(0)
             ? _msgValue
             : _msgValue - charge;
     }
 
-    // Emits the SentTransferRemote event and dispatches the message.
+    // Convenience overload that computes feeHook() internally.
+    function _calculateFeesAndCharge(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _msgValue
+    ) internal returns (uint256 externalFee, uint256 remainingNativeValue) {
+        return
+            _calculateFeesAndCharge(
+                _destination,
+                _recipient,
+                _amount,
+                _msgValue,
+                feeHook()
+            );
+    }
+
+    // Emits the SentTransferRemote event and dispatches the message with explicit feeToken.
     function _emitAndDispatch(
         uint32 _destination,
         bytes32 _recipient,
         uint256 _amount,
         uint256 _messageDispatchValue,
-        bytes memory _tokenMessage
+        bytes memory _tokenMessage,
+        address _feeToken
     ) internal returns (bytes32 messageId) {
         // effects
         emit SentTransferRemote(_destination, _recipient, _amount);
@@ -276,9 +296,29 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
             _destination,
             _messageDispatchValue,
             _tokenMessage,
-            _generateHookMetadata(_destination),
+            _generateHookMetadata(_destination, _feeToken),
             address(hook)
         );
+    }
+
+    // Convenience overload that computes feeToken from feeHook().
+    function _emitAndDispatch(
+        uint32 _destination,
+        bytes32 _recipient,
+        uint256 _amount,
+        uint256 _messageDispatchValue,
+        bytes memory _tokenMessage
+    ) internal returns (bytes32 messageId) {
+        address _feeToken = feeToken();
+        return
+            _emitAndDispatch(
+                _destination,
+                _recipient,
+                _amount,
+                _messageDispatchValue,
+                _tokenMessage,
+                _feeToken
+            );
     }
 
     // ===========================
@@ -308,23 +348,10 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
 
     /**
      * @notice Initializes the TokenRouter with fee hook configuration.
-     * @param _useTokenFees Whether to use token() for fee payments.
      * @param _feeHook The fee hook contract address.
      */
-    function _TokenRouter_initialize(
-        bool _useTokenFees,
-        address _feeHook
-    ) internal {
-        _setUseTokenFees(_useTokenFees);
+    function _TokenRouter_initialize(address _feeHook) internal {
         _setFeeHook(_feeHook);
-    }
-
-    /**
-     * @notice Sets whether to use token() for fee payments.
-     * @param _useTokenFees True to pay fees in token(), false for native.
-     */
-    function setUseTokenFees(bool _useTokenFees) external onlyOwner {
-        _setUseTokenFees(_useTokenFees);
     }
 
     /**
@@ -333,15 +360,6 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
      */
     function setFeeHook(address _feeHook) external onlyOwner {
         _setFeeHook(_feeHook);
-    }
-
-    /**
-     * @notice Internal function to set useTokenFees.
-     * @param _useTokenFees Whether to use token() for fee payments.
-     */
-    function _setUseTokenFees(bool _useTokenFees) internal {
-        USE_TOKEN_FEES_SLOT.getBooleanSlot().value = _useTokenFees;
-        emit UseTokenFeesSet(_useTokenFees);
     }
 
     /**
@@ -354,19 +372,19 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     }
 
     /**
-     * @notice Returns whether token() is used for fee payments.
-     * @return True if fees are paid in token(), false for native.
-     */
-    function useTokenFees() public view returns (bool) {
-        return USE_TOKEN_FEES_SLOT.getBooleanSlot().value;
-    }
-
-    /**
      * @notice Returns the fee hook contract address.
      * @return The fee hook address.
      */
     function feeHook() public view returns (address) {
         return FEE_HOOK_SLOT.getAddressSlot().value;
+    }
+
+    /**
+     * @notice Returns the fee token address for gas payments.
+     * @return The token address if a fee hook is configured, otherwise address(0) for native payments.
+     */
+    function feeToken() public view returns (address) {
+        return feeHook() != address(0) ? token() : address(0);
     }
 
     // To be overridden by derived contracts if they have additional fees
@@ -439,13 +457,14 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     function _quoteGasPayment(
         uint32 _destination,
         bytes32 _recipient,
-        uint256 _amount
+        uint256 _amount,
+        address _feeToken
     ) internal view virtual returns (uint256) {
         return
             _Router_quoteDispatch(
                 _destination,
                 TokenMessage.format(_recipient, _amount),
-                _generateHookMetadata(_destination),
+                _generateHookMetadata(_destination, _feeToken),
                 address(hook)
             );
     }
@@ -453,12 +472,13 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     /**
      * @notice Generates hook metadata for dispatch, including feeToken if configured.
      * @param _destination The destination chain.
-     * @return Hook metadata with token() as feeToken if useTokenFees is enabled.
+     * @param _feeToken The fee token address (address(0) for native).
+     * @return Hook metadata with the specified feeToken.
      */
     function _generateHookMetadata(
-        uint32 _destination
+        uint32 _destination,
+        address _feeToken
     ) internal view returns (bytes memory) {
-        address _feeToken = useTokenFees() ? token() : address(0);
         uint256 gasLimit = destinationGas[_destination];
         return
             StandardHookMetadata.formatWithFeeToken(
