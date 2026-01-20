@@ -171,6 +171,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     innerCalls,
     config,
     hookMetadata,
+    quoteBuffer = 2,
   }: GetCallRemoteSettings): Promise<PopulatedTransaction> {
     const localRouter = config.localRouter
       ? InterchainAccountRouter__factory.connect(
@@ -180,6 +181,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       : this.router(this.contractsMap[chain]);
     const remoteDomain = this.multiProvider.getDomainId(destination);
     const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
+    // Apply buffer to quote to handle price fluctuations between tx creation and execution.
+    // Excess is refunded by the hook.
+    const bufferedQuote = quote.mul(quoteBuffer);
     const remoteRouter = addressToBytes32(
       config.routerOverride ?? this.routerAddress(destination),
     );
@@ -199,7 +203,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         data: call.data,
       })),
       hookMetadata ?? '0x',
-      { value: quote },
+      { value: bufferedQuote },
     );
     return callEncoded;
   }
