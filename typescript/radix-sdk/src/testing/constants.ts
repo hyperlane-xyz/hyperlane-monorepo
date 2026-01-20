@@ -35,7 +35,7 @@ export const TEST_RADIX_BURN_ADDRESS =
 /**
  * Default test chain metadata for Radix local network
  */
-export const TEST_RADIX_CHAIN_METADATA: TestChainMetadata = {
+export const TEST_RADIX_CHAIN_METADATA = {
   name: 'radixtest',
   protocol: ProtocolType.Radix,
   chainId: 240,
@@ -64,4 +64,4 @@ export const TEST_RADIX_CHAIN_METADATA: TestChainMetadata = {
   rpcPort: 3333,
   rpcUrl: 'http://127.0.0.1:3333',
   restPort: 3333,
-};
+} as const satisfies TestChainMetadata;

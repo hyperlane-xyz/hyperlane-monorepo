@@ -1,6 +1,6 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
-import { assert } from '@hyperlane-xyz/utils';
+import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   getComponentOwner,
@@ -126,7 +126,7 @@ export async function getWarpTokenRemoteRouters(
   const tokenState = getComponentState(tokenAddress, tokenDetails);
 
   const remote_routers_kv_address = getFieldValueFromEntityState(
-    'remote_routers',
+    'enrolled_routers',
     tokenAddress,
     tokenState,
   );
@@ -172,12 +172,15 @@ export async function getWarpTokenRemoteRouters(
 
     const routerFields = (rawRouter as EntityField).fields ?? [];
 
-    const receiverAddress =
-      routerFields.find((f) => f.field_name === 'receiver')?.value ?? '';
-    const gas =
-      routerFields.find((f) => f.field_name === 'destination_gas')?.value ?? '';
-
-    remoteRouters.push({ receiverDomainId, receiverAddress, gas });
+    remoteRouters.push({
+      receiverDomainId: parseInt(
+        routerFields.find((r) => r.field_name === 'domain')?.value ?? '',
+      ),
+      receiverAddress: ensure0x(
+        routerFields.find((r) => r.field_name === 'recipient')?.hex ?? '',
+      ),
+      gas: routerFields.find((r) => r.field_name === 'gas')?.value ?? '',
+    });
   }
 
   return remoteRouters;
