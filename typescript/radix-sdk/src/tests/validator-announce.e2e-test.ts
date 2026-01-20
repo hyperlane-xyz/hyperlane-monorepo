@@ -1,13 +1,16 @@
 import { expect } from 'chai';
 
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { RawMailboxConfig } from '@hyperlane-xyz/provider-sdk/mailbox';
 import { RawValidatorAnnounceConfig } from '@hyperlane-xyz/provider-sdk/validator-announce';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { RadixSigner } from '../clients/signer.js';
+import { RadixMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_RADIX_BURN_ADDRESS,
+  TEST_RADIX_DEPLOYER_ADDRESS,
   TEST_RADIX_PRIVATE_KEY,
 } from '../testing/constants.js';
 import { RadixValidatorAnnounceArtifactManager } from '../validator-announce/validator-announce-artifact-manager.js';
@@ -19,9 +22,12 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
 
   let radixSigner: RadixSigner;
   let artifactManager: RadixValidatorAnnounceArtifactManager;
+  let mailboxArtifactManager: RadixMailboxArtifactManager;
 
-  // Use burn address as test mailbox address
-  const TEST_MAILBOX_ADDRESS = TEST_RADIX_BURN_ADDRESS;
+  // Will be set after creating a test mailbox
+  let testMailboxAddress: string;
+
+  const TEST_DOMAIN_ID = 999998;
 
   before(async () => {
     const rpcUrls =
@@ -43,12 +49,43 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
     const gateway = (radixSigner as any).gateway;
     const base = (radixSigner as any).base;
     artifactManager = new RadixValidatorAnnounceArtifactManager(gateway, base);
+    mailboxArtifactManager = new RadixMailboxArtifactManager(
+      gateway,
+      base,
+      TEST_DOMAIN_ID,
+    );
+
+    // Create a test mailbox for validator announce to reference
+    const mailboxConfig: RawMailboxConfig = {
+      owner: TEST_RADIX_DEPLOYER_ADDRESS,
+      defaultIsm: {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: TEST_RADIX_BURN_ADDRESS },
+      },
+      defaultHook: {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: TEST_RADIX_BURN_ADDRESS },
+      },
+      requiredHook: {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: TEST_RADIX_BURN_ADDRESS },
+      },
+    };
+
+    const mailboxWriter = mailboxArtifactManager.createWriter(
+      'mailbox',
+      radixSigner,
+    );
+    const [deployedMailbox] = await mailboxWriter.create({
+      config: mailboxConfig,
+    });
+    testMailboxAddress = deployedMailbox.deployed.address;
   });
 
   describe('ValidatorAnnounce Artifact Operations', () => {
     it('should create a validator announce contract', async () => {
       const config: RawValidatorAnnounceConfig = {
-        mailboxAddress: TEST_MAILBOX_ADDRESS,
+        mailboxAddress: testMailboxAddress,
       };
 
       const writer = artifactManager.createWriter(
@@ -58,14 +95,14 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
       const [result, receipts] = await writer.create({ config });
 
       expect(result.artifactState).to.equal(ArtifactState.DEPLOYED);
-      expect(result.config.mailboxAddress).to.equal(TEST_MAILBOX_ADDRESS);
+      expect(result.config.mailboxAddress).to.equal(testMailboxAddress);
       expect(result.deployed.address).to.be.a('string').and.not.be.empty;
       expect(receipts).to.be.an('array').with.length(1);
     });
 
     it('should read a validator announce configuration from chain', async () => {
       const config: RawValidatorAnnounceConfig = {
-        mailboxAddress: TEST_MAILBOX_ADDRESS,
+        mailboxAddress: testMailboxAddress,
       };
 
       const writer = artifactManager.createWriter(
@@ -83,7 +120,7 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
         ArtifactState.DEPLOYED,
       );
       expect(readValidatorAnnounce.config.mailboxAddress).to.equal(
-        TEST_MAILBOX_ADDRESS,
+        testMailboxAddress,
       );
       expect(readValidatorAnnounce.deployed.address).to.equal(
         deployedValidatorAnnounce.deployed.address,
@@ -92,7 +129,7 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
 
     it('should return no transactions when calling update (immutable)', async () => {
       const config: RawValidatorAnnounceConfig = {
-        mailboxAddress: TEST_MAILBOX_ADDRESS,
+        mailboxAddress: testMailboxAddress,
       };
 
       const writer = artifactManager.createWriter(
@@ -108,7 +145,7 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
 
     it('should use readValidatorAnnounce convenience method', async () => {
       const config: RawValidatorAnnounceConfig = {
-        mailboxAddress: TEST_MAILBOX_ADDRESS,
+        mailboxAddress: testMailboxAddress,
       };
 
       const writer = artifactManager.createWriter(
@@ -126,20 +163,20 @@ describe('Radix ValidatorAnnounce (e2e)', function () {
         ArtifactState.DEPLOYED,
       );
       expect(readValidatorAnnounce.config.mailboxAddress).to.equal(
-        TEST_MAILBOX_ADDRESS,
+        testMailboxAddress,
       );
       expect(readValidatorAnnounce.deployed.address).to.equal(
         deployedValidatorAnnounce.deployed.address,
       );
     });
 
-    it('should create validator announce with different mailbox addresses', async () => {
+    it('should create validator announce with same mailbox address', async () => {
       const config1: RawValidatorAnnounceConfig = {
-        mailboxAddress: TEST_MAILBOX_ADDRESS,
+        mailboxAddress: testMailboxAddress,
       };
 
       const config2: RawValidatorAnnounceConfig = {
-        mailboxAddress: TEST_RADIX_BURN_ADDRESS, // Using same but demonstrating different configs
+        mailboxAddress: testMailboxAddress,
       };
 
       const writer = artifactManager.createWriter(
