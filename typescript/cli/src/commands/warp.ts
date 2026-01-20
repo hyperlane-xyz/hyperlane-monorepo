@@ -432,14 +432,13 @@ export const check: CommandModuleWithContext<
     // If --ica flag is set, run ICA owner check instead of the regular config check
     if (ica) {
       assert(origin, '--origin is required when using --ica');
-      const chainsToCheck = chains?.length ? chains : undefined;
 
       await runWarpIcaOwnerCheck({
         context,
         warpDeployConfig,
         origin,
         originOwner,
-        chains: chainsToCheck,
+        chains: chains?.length ? chains : undefined,
       });
 
       process.exit(0);

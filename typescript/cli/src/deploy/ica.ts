@@ -52,7 +52,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   }
 
   logBlue(`Deploying ICAs for owner ${owner} on ${origin}...`);
-  logBlue(`Destination chains: ${chains.join(', ')}`);
+  logBlue(`Target chains: ${chains.join(', ')}`);
 
   // Get chain addresses from the registry for all relevant chains
   const allChains = [origin, ...chains];
