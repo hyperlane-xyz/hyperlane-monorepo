@@ -313,8 +313,7 @@ const send: CommandModuleWithWriteContext<
       warp,
       context,
     });
-    const chainsToSend = chainsArg?.length ? chainsArg : undefined;
-    let chains = chainsToSend || [];
+    let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {
       chains.push(origin);
