@@ -24,7 +24,9 @@ ENV RUSTFLAGS="--cfg tokio_unstable"
 # Download directly from GitHub releases (more reliable than release.solana.com)
 # Note: Platform is locked to linux/amd64 above, so we hardcode x86_64
 ENV SOLANA_VERSION=v1.14.20
+ARG SOLANA_INSTALL_SHA256=bbe2b0c59ddde17b19c70212a2885cd05575e6531d77c51a71b4d8faab9939b3
 RUN curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-install-init-x86_64-unknown-linux-gnu" -o /tmp/solana-install-init && \
+    echo "${SOLANA_INSTALL_SHA256}  /tmp/solana-install-init" | sha256sum -c - && \
     chmod +x /tmp/solana-install-init && \
     /tmp/solana-install-init ${SOLANA_VERSION} && \
     rm /tmp/solana-install-init
