@@ -12,7 +12,7 @@ use tracing::debug;
 use crate::{
     aleo_args,
     provider::{AleoClient, FallbackHttpClient},
-    AleoEthAddress, AleoProvider, ConnectionConf, CurrentNetwork, HyperlaneAleoError,
+    AleoEthAddress, AleoProvider, AleoTxData, ConnectionConf, CurrentNetwork, HyperlaneAleoError,
     StorageLocationKey,
 };
 
@@ -188,7 +188,11 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
         announcement: SignedType<Announcement>,
     ) -> ChainResult<Vec<u8>> {
         let args = self.get_announcement_inputs(announcement)?;
-        let data = (&self.program, "announce", args);
+        let data = AleoTxData {
+            program_id: self.program.clone(),
+            function_name: "announce".to_string(),
+            inputs: args,
+        };
         serde_json::to_vec(&data).map_err(Into::into)
     }
 }

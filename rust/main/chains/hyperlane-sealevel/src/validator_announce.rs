@@ -11,7 +11,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
-use serde::{Deserialize, Serialize};
+
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -19,17 +19,6 @@ use solana_sdk::{
     system_program,
 };
 use tracing::{info, instrument};
-
-/// Serializable representation of a Solana instruction for Lander
-#[derive(Serialize, Deserialize, Debug)]
-struct SerializableInstruction {
-    /// Program ID as 32 bytes
-    program_id: [u8; 32],
-    /// Borsh-serialized instruction data
-    data: Vec<u8>,
-    /// Account metas: (pubkey bytes, is_signer, is_writable)
-    accounts: Vec<([u8; 32], bool, bool)>,
-}
 
 use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, TransactionSubmitter};
 
@@ -280,15 +269,12 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             .into_instruction_data()
             .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
 
-        let serializable = SerializableInstruction {
-            program_id: self.program_id.to_bytes(),
+        let instruction = Instruction {
+            program_id: self.program_id,
             data,
-            accounts: accounts
-                .into_iter()
-                .map(|a| (a.pubkey.to_bytes(), a.is_signer, a.is_writable))
-                .collect(),
+            accounts,
         };
 
-        serde_json::to_vec(&serializable).map_err(Into::into)
+        serde_json::to_vec(&instruction).map_err(Into::into)
     }
 }

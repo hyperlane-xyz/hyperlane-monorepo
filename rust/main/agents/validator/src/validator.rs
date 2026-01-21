@@ -229,8 +229,7 @@ impl BaseAgent for Validator {
         // Initialize Lander dispatcher if configured
         let (dispatcher_entrypoint, dispatcher) =
             if origin_chain_conf.submitter == SubmitterType::Lander {
-                let dispatcher_metrics = DispatcherMetrics::new(metrics.registry())
-                    .expect("Creating dispatcher metrics is infallible");
+                let dispatcher_metrics = DispatcherMetrics::new(metrics.registry())?;
                 let dispatcher_settings = DispatcherSettings {
                     chain_conf: origin_chain_conf.clone(),
                     raw_chain_conf: Default::default(),
