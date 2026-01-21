@@ -1,11 +1,16 @@
 import { assert } from 'chai';
+import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
-import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
-import GasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
-import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import {
+  getCreateOracleTx,
+  getInitIgpTx,
+  getSetOracleTx,
+  getSetRemoteGasTx,
+} from '../hook/hook-tx.js';
+import { getInitRoutingIsmTx } from '../ism/ism-tx.js';
 import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
@@ -41,6 +46,10 @@ export class TronSigner
 
   getSignerAddress(): string {
     return this.tronweb.defaultAddress.base58 || '';
+  }
+
+  getTronweb(): TronWeb {
+    return this.tronweb;
   }
 
   supportsTransactionBatching(): boolean {
@@ -225,32 +234,16 @@ export class TronSigner
 
     const ismAddress = this.tronweb.address.fromHex(receipt.contract_address);
 
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
+    const initTx = await getInitRoutingIsmTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      {
         ismAddress,
-        'initialize(address,uint32[],address[])',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: this.getSignerAddress(),
-          },
-          {
-            type: 'uint32[]',
-            value: req.routes.map((r) => r.domainId),
-          },
-          {
-            type: 'address[]',
-            value: req.routes.map((r) => r.ismAddress),
-          },
-        ],
-        this.tronweb.address.toHex(this.getSignerAddress()),
-      );
+        routes: req.routes,
+      },
+    );
 
-    await this.sendAndConfirmTransaction(transaction);
+    await this.sendAndConfirmTransaction(initTx);
 
     return {
       ismAddress,
@@ -344,33 +337,15 @@ export class TronSigner
 
     const hookAddress = this.tronweb.address.fromHex(receipt.contract_address);
 
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        hookAddress,
-        'initialize(address,address)',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: this.getSignerAddress(),
-          },
-          {
-            type: 'address',
-            value: this.getSignerAddress(),
-          },
-        ],
-        this.tronweb.address.toHex(this.getSignerAddress()),
-      );
+    const initTx = await getInitIgpTx(this.tronweb, this.getSignerAddress(), {
+      igpAddress: hookAddress,
+    });
 
-    await this.sendAndConfirmTransaction(transaction);
+    await this.sendAndConfirmTransaction(initTx);
 
-    const oracleTx = await this.createDeploymentTransaction(
-      StorageGasOracleAbi,
+    const oracleTx = await getCreateOracleTx(
+      this.tronweb,
       this.getSignerAddress(),
-      [],
     );
 
     const oracleReceipt = await this.sendAndConfirmTransaction(oracleTx);
@@ -379,22 +354,14 @@ export class TronSigner
       oracleReceipt.contract_address,
     );
 
-    const { transaction: setOracleTx } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        hookAddress,
-        'setGasOracle(address)',
-        {
-          feeLimit: 100_000_000,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: oracleAddress,
-          },
-        ],
-        this.tronweb.address.toHex(this.getSignerAddress()),
-      );
+    const setOracleTx = await getSetOracleTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      {
+        igpAddress: hookAddress,
+        oracleAddress,
+      },
+    );
 
     await this.sendAndConfirmTransaction(setOracleTx);
 
@@ -428,34 +395,25 @@ export class TronSigner
 
     await this.sendAndConfirmTransaction(tx);
 
-    const igp = this.tronweb.contract(
-      InterchainGasPaymasterAbi.abi,
-      req.hookAddress,
+    const setGasTx = await getSetRemoteGasTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      {
+        igpAddress: req.hookAddress,
+        destinationGasConfigs: [
+          {
+            remoteDomainId: req.destinationGasConfig.remoteDomainId,
+            gasOracle: {
+              tokenExchangeRate:
+                req.destinationGasConfig.gasOracle.tokenExchangeRate,
+              gasPrice: req.destinationGasConfig.gasOracle.gasPrice,
+            },
+          },
+        ],
+      },
     );
 
-    const hookType = await igp.hookType().call();
-    assert(
-      Number(hookType) === 4,
-      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
-    );
-
-    const gasOracleAddress = this.tronweb.address.fromHex(
-      await igp.gasOracle().call(),
-    );
-
-    const gasOracle = this.tronweb.contract(GasOracleAbi.abi, gasOracleAddress);
-
-    await gasOracle
-      .setRemoteGasData([
-        BigInt(req.destinationGasConfig.remoteDomainId),
-        BigInt(req.destinationGasConfig.gasOracle.tokenExchangeRate),
-        BigInt(req.destinationGasConfig.gasOracle.gasPrice),
-      ])
-      .send({
-        feeLimit: 100_000_000,
-        callValue: 0,
-        shouldPollResponse: true,
-      });
+    await this.sendAndConfirmTransaction(setGasTx);
 
     return {
       destinationGasConfig: req.destinationGasConfig,

@@ -47,7 +47,11 @@ export type EnvironmentConfig = {
   environment: DeployEnvironment;
   supportedChainNames: ChainName[];
   // Get the registry with or without environment-specific secrets.
-  getRegistry: (useSecrets?: boolean) => Promise<IRegistry>;
+  // Optionally filter to specific chains for performance optimization.
+  getRegistry: (
+    useSecrets?: boolean,
+    chains?: ChainName[],
+  ) => Promise<IRegistry>;
   // Each AgentConfig, keyed by the context
   agents: Partial<Record<Contexts, RootAgentConfig>>;
   core: ChainMap<CoreConfig>;

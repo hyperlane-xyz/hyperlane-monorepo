@@ -62,6 +62,46 @@ jobs:
       - name: Run command on target branch
         run: pnpm -C solidity interface base-interface
 
-      # Compare outputs (only fail on function removals)
-      - name: Compare outputs (fail on function removals)
-        run: pnpm -C solidity interface test-interface base-interface HEAD-interface
+      # Compare outputs and check for appropriate changeset
+      - name: Compare outputs
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: |
+          set +e
+          pnpm -C solidity interface test-interface base-interface HEAD-interface
+          EXIT_CODE=$?
+          set -e
+
+          if [ "$EXIT_CODE" -eq 0 ]; then
+            echo "No interface changes detected."
+            exit 0
+          elif [ "$EXIT_CODE" -eq 1 ]; then
+            # Removals detected - require major changeset
+            echo ""
+            if .github/scripts/check-solidity-changeset.sh major "$BASE_REF"; then
+              echo ""
+              echo "Interface removals are permitted with the existing changeset."
+              exit 0
+            else
+              echo ""
+              echo "ERROR: Interface removals (breaking changes) require a changeset for @hyperlane-xyz/core with a 'major' bump."
+              exit 1
+            fi
+          elif [ "$EXIT_CODE" -eq 2 ]; then
+            # Additions only - require minor changeset
+            echo ""
+            if .github/scripts/check-solidity-changeset.sh minor "$BASE_REF"; then
+              echo ""
+              echo "Interface additions are permitted with the existing changeset."
+              exit 0
+            else
+              echo ""
+              echo "ERROR: Interface additions require a changeset for @hyperlane-xyz/core with at least a 'minor' bump."
+              exit 1
+            fi
+          else
+            # Unexpected exit code - treat as error
+            echo ""
+            echo "ERROR: Interface check script failed with unexpected exit code: $EXIT_CODE"
+            exit 1
+          fi

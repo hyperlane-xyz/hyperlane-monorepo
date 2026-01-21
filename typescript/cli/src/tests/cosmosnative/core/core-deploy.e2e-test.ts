@@ -6,8 +6,10 @@ import { type AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   type ChainMetadata,
   type CoreConfig,
+  type DomainRoutingIsmConfig,
   HookType,
   type IgpConfig,
+  IsmType,
   type ProtocolReceipt,
   type ProtocolTransaction,
   randomCosmosAddress,
@@ -23,6 +25,7 @@ import {
   type TestPromptAction,
   handlePrompts,
 } from '../../commands/helpers.js';
+import { BURN_ADDRESS_BY_PROTOCOL } from '../../constants.js';
 import {
   CHAIN_1_METADATA_PATH,
   CHAIN_NAME_1,
@@ -270,6 +273,81 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
       expect((updatedConfig.defaultHook as IgpConfig).owner).to.equal(
         initialOwnerAddress,
       );
+    });
+
+    it('should create a core deployment with the provided address as the owner of the defaultHook', async () => {
+      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+
+      coreConfig.owner = initialOwnerAddress;
+
+      const defaultHookConfig = coreConfig.defaultHook;
+      assert(
+        typeof defaultHookConfig !== 'string' &&
+          defaultHookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+        `Expected defaultHook in deploy config to be of type ${HookType.INTERCHAIN_GAS_PAYMASTER}`,
+      );
+      defaultHookConfig.owner = BURN_ADDRESS_BY_PROTOCOL.cosmosnative;
+
+      coreConfig.defaultHook = defaultHookConfig;
+
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
+      hyperlaneCore.setCoreInputPath(CORE_READ_CONFIG_PATH_1);
+
+      await hyperlaneCore.deploy(HYP_KEY);
+
+      const derivedCoreConfig = await hyperlaneCore.readConfig();
+
+      expect(derivedCoreConfig.owner).to.equal(initialOwnerAddress);
+      expect((derivedCoreConfig.defaultHook as IgpConfig).owner).to.equal(
+        BURN_ADDRESS_BY_PROTOCOL.cosmosnative,
+      );
+    });
+
+    it('should create a core deployment with the provided address as the owner of the defaultIsm', async () => {
+      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+
+      coreConfig.owner = initialOwnerAddress;
+
+      const defaultHookConfig = coreConfig.defaultHook;
+      assert(
+        typeof defaultHookConfig !== 'string' &&
+          defaultHookConfig.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+        `Expected defaultHook in deploy config to be of type ${HookType.INTERCHAIN_GAS_PAYMASTER}`,
+      );
+      defaultHookConfig.owner = initialOwnerAddress;
+
+      // Replace the default multisig ISM with a routing ISM
+      const routingIsmConfig: DomainRoutingIsmConfig = {
+        type: IsmType.ROUTING,
+        owner: BURN_ADDRESS_BY_PROTOCOL.cosmosnative,
+        domains: {
+          // Keep the original multisig ISM as a domain route
+          hyp1: coreConfig.defaultIsm,
+        },
+      };
+
+      coreConfig.defaultHook = defaultHookConfig;
+      coreConfig.defaultIsm = routingIsmConfig;
+
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_1, coreConfig);
+      hyperlaneCore.setCoreInputPath(CORE_READ_CONFIG_PATH_1);
+
+      await hyperlaneCore.deploy(HYP_KEY);
+
+      const derivedCoreConfig = await hyperlaneCore.readConfig();
+
+      expect(derivedCoreConfig.owner).to.equal(initialOwnerAddress);
+      expect((derivedCoreConfig.defaultHook as IgpConfig).owner).to.equal(
+        initialOwnerAddress,
+      );
+      assert(
+        typeof derivedCoreConfig.defaultIsm !== 'string' &&
+          derivedCoreConfig.defaultIsm.type === IsmType.ROUTING,
+        `Expected deployed defaultIsm to be of type ${IsmType.ROUTING}`,
+      );
+      expect(
+        (derivedCoreConfig.defaultIsm as DomainRoutingIsmConfig).owner,
+      ).to.equal(BURN_ADDRESS_BY_PROTOCOL.cosmosnative);
     });
   });
 });

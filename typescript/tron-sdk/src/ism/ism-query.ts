@@ -1,6 +1,5 @@
 import { TronWeb } from 'tronweb';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert } from '@hyperlane-xyz/utils';
 
 import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
@@ -8,6 +7,7 @@ import IInterchainSecurityModuleAbi from '../abi/IInterchainSecurityModule.json'
 import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
 import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import { TronIsmTypes } from '../utils/types.js';
 
 /**
  * Type alias for query client with ISM extension.
@@ -26,7 +26,7 @@ export type TronIsmQueryClient = TronWeb;
 export async function getIsmType(
   query: TronIsmQueryClient,
   ismAddress: string,
-): Promise<AltVM.IsmType> {
+): Promise<TronIsmTypes> {
   try {
     const contract = query.contract(
       IInterchainSecurityModuleAbi.abi,
@@ -37,13 +37,13 @@ export async function getIsmType(
 
     switch (moduleType) {
       case 1:
-        return AltVM.IsmType.ROUTING;
+        return TronIsmTypes.ROUTING_ISM;
       case 4:
-        return AltVM.IsmType.MERKLE_ROOT_MULTISIG;
+        return TronIsmTypes.MERKLE_ROOT_MULTISIG;
       case 5:
-        return AltVM.IsmType.MESSAGE_ID_MULTISIG;
+        return TronIsmTypes.MESSAGE_ID_MULTISIG;
       case 6:
-        return AltVM.IsmType.TEST_ISM;
+        return TronIsmTypes.NOOP_ISM;
       default:
         throw new Error(`Unknown ISM type for address: ${ismAddress}`);
     }

@@ -1,5 +1,17 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 21.1.0
+
+### Minor Changes
+
+- 9c48ac8: Fixed aleo sdk e2e tests failing locally by marking type imports with the `type` keyword to preserve type imports when reading js files directly for local test runs
+
+### Patch Changes
+
+- Updated dependencies [57a2053]
+  - @hyperlane-xyz/provider-sdk@1.1.0
+  - @hyperlane-xyz/utils@21.1.0
+
 ## 21.0.0
 
 ### Major Changes

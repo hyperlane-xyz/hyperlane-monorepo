@@ -202,11 +202,19 @@ export function hyperlaneWarpCheckRaw({
   symbol,
   warpCoreConfigPath,
   warpRouteId,
+  ica,
+  origin,
+  originOwner,
+  destinations,
 }: {
   symbol?: string;
   warpDeployPath?: string;
   warpCoreConfigPath?: string;
   warpRouteId?: string;
+  ica?: boolean;
+  origin?: string;
+  originOwner?: string;
+  destinations?: string[];
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
@@ -214,7 +222,11 @@ export function hyperlaneWarpCheckRaw({
         --verbosity debug \
         ${warpDeployPath ? ['--config', warpDeployPath] : []} \
         ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []}`;
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${ica ? ['--ica'] : []} \
+        ${origin ? ['--origin', origin] : []} \
+        ${originOwner ? ['--originOwner', originOwner] : []} \
+        ${destinations && destinations.length > 0 ? ['--destinations', destinations.join(',')] : []}`;
 }
 
 export function hyperlaneWarpCheck(

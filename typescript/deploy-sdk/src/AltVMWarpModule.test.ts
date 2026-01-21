@@ -10,6 +10,8 @@ import {
   registerProtocol,
 } from '@hyperlane-xyz/provider-sdk';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { DeployedHookArtifact } from '@hyperlane-xyz/provider-sdk/hook';
+import { DeployedIsmArtifact } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DerivedWarpConfig,
@@ -24,21 +26,89 @@ const TestProtocolType = 'test' as ProtocolType;
 
 // Mock ISM artifact manager
 const mockIsmArtifactManager = {
-  readIsm: async () => ({
-    artifactState: 'DEPLOYED',
-    config: { type: AltVM.IsmType.TEST_ISM },
-    deployed: { address: '0x1234' },
-  }),
-  createReader: () => ({
-    read: async () => ({
-      artifactState: 'DEPLOYED',
+  readIsm: async () =>
+    ({
+      artifactState: 'deployed' as const,
       config: { type: AltVM.IsmType.TEST_ISM },
       deployed: { address: '0x1234' },
-    }),
+    }) satisfies DeployedIsmArtifact,
+  createReader: () => ({
+    read: async () =>
+      ({
+        artifactState: 'deployed' as const,
+        config: { type: AltVM.IsmType.TEST_ISM },
+        deployed: { address: '0x1234' },
+      }) satisfies DeployedIsmArtifact,
   }),
-  createWriter: () => {
-    throw new Error('Not implemented');
-  },
+  createWriter: (type: any, signer: any) => ({
+    create: async (artifact: any) => {
+      // Call the appropriate signer method based on ISM type
+      let ismAddress: string;
+      if (type === AltVM.IsmType.MESSAGE_ID_MULTISIG) {
+        const result = await signer.createMessageIdMultisigIsm({
+          validators: artifact.config.validators,
+          threshold: artifact.config.threshold,
+        });
+        ismAddress = result.ismAddress;
+      } else if (type === AltVM.IsmType.MERKLE_ROOT_MULTISIG) {
+        const result = await signer.createMerkleRootMultisigIsm({
+          validators: artifact.config.validators,
+          threshold: artifact.config.threshold,
+        });
+        ismAddress = result.ismAddress;
+      } else {
+        throw new Error(`Unsupported ISM type: ${type}`);
+      }
+
+      return [
+        {
+          artifactState: 'deployed' as const,
+          config: artifact.config,
+          deployed: { address: ismAddress },
+        } satisfies DeployedIsmArtifact,
+        [], // No receipts for mock
+      ];
+    },
+    update: async () => [],
+  }),
+};
+
+// Mock hook artifact manager
+const mockHookArtifactManager = {
+  readHook: async () =>
+    ({
+      artifactState: 'deployed' as const,
+      config: { type: AltVM.HookType.MERKLE_TREE },
+      deployed: { address: '0x5678' },
+    }) satisfies DeployedHookArtifact,
+  createReader: () => ({
+    read: async () =>
+      ({
+        artifactState: 'deployed' as const,
+        config: { type: AltVM.HookType.MERKLE_TREE },
+        deployed: { address: '0x5678' },
+      }) satisfies DeployedHookArtifact,
+  }),
+  createWriter: (_type: any, _signer: any) => ({
+    create: async (artifact: any) => {
+      const hookAddress = '0xHOOKADDRESS';
+      return [
+        {
+          artifactState: 'deployed' as const,
+          config: artifact.config,
+          deployed: { address: hookAddress },
+        } satisfies DeployedHookArtifact,
+        [],
+      ];
+    },
+    read: async () =>
+      ({
+        artifactState: 'deployed' as const,
+        config: { type: AltVM.HookType.MERKLE_TREE },
+        deployed: { address: '0x5678' },
+      }) satisfies DeployedHookArtifact,
+    update: async () => [],
+  }),
 };
 
 // Mock protocol provider
@@ -47,6 +117,7 @@ const mockProtocolProvider = {
   createSigner: async () => ({}),
   createSubmitter: async () => ({}),
   createIsmArtifactManager: () => mockIsmArtifactManager,
+  createHookArtifactManager: () => mockHookArtifactManager,
   getMinGas: () => ({
     CORE_DEPLOY_GAS: 0n,
     ISM_DEPLOY_GAS: 0n,

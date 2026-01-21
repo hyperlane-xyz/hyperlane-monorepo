@@ -1,0 +1,24 @@
+diff --git a/src/request.js b/src/request.js
+index af2ebc8e9b6f11783435d3c951eaef500fabbfdc..1872aaa6736392db85ce4d631fcb22ee89153f4d 100644
+--- a/src/request.js
++++ b/src/request.js
+@@ -7,7 +7,6 @@
+  */
+ 
+ import {format as formatUrl} from 'node:url';
+-import {deprecate} from 'node:util';
+ import Headers from './headers.js';
+ import Body, {clone, extractContentType, getTotalBytes} from './body.js';
+ import {isAbortSignal} from './utils/is.js';
+@@ -31,9 +30,8 @@ const isRequest = object => {
+ 	);
+ };
+ 
+-const doBadDataWarn = deprecate(() => {},
+-	'.data is not a valid RequestInit property, use .body instead',
+-	'https://github.com/node-fetch/node-fetch/issues/1000 (request)');
++// Silenced: .data deprecation warning (gaxios compatibility)
++const doBadDataWarn = () => {};
+ 
+ /**
+  * Request class

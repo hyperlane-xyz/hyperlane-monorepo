@@ -1,5 +1,19 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 1.1.0
+
+### Patch Changes
+
+- Updated dependencies [db857b5]
+- Updated dependencies [57a2053]
+- Updated dependencies [57a2053]
+- Updated dependencies [9c48ac8]
+  - @hyperlane-xyz/cosmos-sdk@21.1.0
+  - @hyperlane-xyz/provider-sdk@1.1.0
+  - @hyperlane-xyz/aleo-sdk@21.1.0
+  - @hyperlane-xyz/radix-sdk@21.1.0
+  - @hyperlane-xyz/utils@21.1.0
+
 ## 1.0.0
 
 ### Major Changes

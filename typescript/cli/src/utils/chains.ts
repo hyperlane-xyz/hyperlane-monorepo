@@ -6,6 +6,7 @@ import chalk from 'chalk';
 import {
   type ChainMap,
   type ChainMetadata,
+  ChainStatus,
   type MultiProvider,
 } from '@hyperlane-xyz/sdk';
 import { type ProtocolType, toTitleCase } from '@hyperlane-xyz/utils';
@@ -163,7 +164,7 @@ function getChainChoices(
       .map((c) => ({ name: c.name, value: c.name }))
       .sort((a, b) => a.name.localeCompare(b.name));
 
-  const chains = Object.values(chainMetadata);
+  const chains = Object.values(filterOutDisabledChains(chainMetadata));
   const filteredChains = chains.filter((c) =>
     networkType === 'mainnet' ? !c.isTestnet : !!c.isTestnet,
   );
@@ -201,6 +202,30 @@ export function filterChainMetadataByProtocol(
       ([chain]) => multiProvider.getProtocol(chain) === protocol,
     ),
   );
+}
+
+export function isDisabledChainMetadata(chainMetadata: ChainMetadata): boolean {
+  return chainMetadata.availability?.status === ChainStatus.Disabled;
+}
+
+export function filterOutDisabledChains(
+  chainMetadata: ChainMap<ChainMetadata>,
+): ChainMap<ChainMetadata> {
+  return Object.fromEntries(
+    Object.entries(chainMetadata).filter(
+      ([, metadata]) => !isDisabledChainMetadata(metadata),
+    ),
+  );
+}
+
+/**
+ * Returns the names of all chains that are not disabled.
+ * This is a convenience wrapper around filterOutDisabledChains.
+ */
+export function getActiveChainNames(
+  chainMetadata: ChainMap<ChainMetadata>,
+): string[] {
+  return Object.keys(filterOutDisabledChains(chainMetadata));
 }
 
 /**

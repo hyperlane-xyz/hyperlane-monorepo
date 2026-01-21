@@ -7,19 +7,20 @@ import { assert, objMap } from '@hyperlane-xyz/utils';
 
 import { getRegistry } from '../../config/registry.js';
 import { getWarpConfig, warpConfigGetterMap } from '../../config/warp.js';
-import { getArgs, withWarpRouteId } from '../agent-utils.js';
+import { getArgs, withWarpRouteIds } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
 // Writes the warp configs into the Registry
 async function main() {
-  const { environment, warpRouteId } = await withWarpRouteId(getArgs()).argv;
+  const { environment, warpRouteIds } = await withWarpRouteIds(getArgs()).argv;
   const { multiProvider } = await getHyperlaneCore(environment);
   const envConfig = getEnvironmentConfig(environment);
   const registry = getRegistry();
 
-  const warpIdsToCheck = warpRouteId
-    ? [warpRouteId]
-    : Object.keys(warpConfigGetterMap);
+  const warpIdsToCheck =
+    !warpRouteIds || warpRouteIds.length === 0
+      ? Object.keys(warpConfigGetterMap)
+      : warpRouteIds;
   const eslint = new ESLint({
     fix: true,
   });
