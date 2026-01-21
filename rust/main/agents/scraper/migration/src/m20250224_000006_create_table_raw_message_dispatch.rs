@@ -70,7 +70,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on msg_id for lookups
+        // Create an index on msg_id for lookups
         manager
             .create_index(
                 Index::create()
@@ -82,7 +82,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on origin_domain for filtering
+        // Create an index on origin_domain for filtering
         manager
             .create_index(
                 Index::create()
@@ -94,7 +94,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on destination_domain for filtering
+        // Create an index on destination_domain for filtering
         manager
             .create_index(
                 Index::create()
@@ -106,7 +106,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on origin_tx_hash for CCTP queries
+        // Create an index on origin_tx_hash for Offchain Lookup Server queries
         manager
             .create_index(
                 Index::create()
