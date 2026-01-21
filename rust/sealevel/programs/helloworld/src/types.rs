@@ -16,12 +16,8 @@ pub struct RemoteRouterConfig {
     pub router: Option<H256>,
 }
 
-impl From<hyperlane_sealevel_connection_client::router::RemoteRouterConfig>
-    for RemoteRouterConfig
-{
-    fn from(
-        config: hyperlane_sealevel_connection_client::router::RemoteRouterConfig,
-    ) -> Self {
+impl From<hyperlane_sealevel_connection_client::router::RemoteRouterConfig> for RemoteRouterConfig {
+    fn from(config: hyperlane_sealevel_connection_client::router::RemoteRouterConfig) -> Self {
         Self {
             domain: config.domain,
             router: config.router,
@@ -29,9 +25,7 @@ impl From<hyperlane_sealevel_connection_client::router::RemoteRouterConfig>
     }
 }
 
-impl From<RemoteRouterConfig>
-    for hyperlane_sealevel_connection_client::router::RemoteRouterConfig
-{
+impl From<RemoteRouterConfig> for hyperlane_sealevel_connection_client::router::RemoteRouterConfig {
     fn from(config: RemoteRouterConfig) -> Self {
         Self {
             domain: config.domain,
