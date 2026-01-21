@@ -182,6 +182,15 @@ impl<C: AleoClient> ValidatorAnnounce for AleoValidatorAnnounce<C> {
         let estimated_fee: U256 = estimate.total_fee.into();
         Some(estimated_fee.saturating_sub(balance))
     }
+
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        let args = self.get_announcement_inputs(announcement)?;
+        let data = (&self.program, "announce", args);
+        serde_json::to_vec(&data).map_err(Into::into)
+    }
 }
 
 #[cfg(test)]

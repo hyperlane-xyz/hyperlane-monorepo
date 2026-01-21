@@ -22,11 +22,16 @@ use hyperlane_base::{
     SequencedDataContractSync,
 };
 use hyperlane_core::{
-    rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement, ChainResult, HyperlaneChain,
-    HyperlaneContract, HyperlaneDomain, HyperlaneSigner, HyperlaneSignerExt, Mailbox,
-    MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, TxOutcome, ValidatorAnnounce, H256, U256,
+    identifiers::UniqueIdentifier, rpc_clients::RPC_RETRY_SLEEP_DURATION, Announcement,
+    ChainResult, HyperlaneChain, HyperlaneContract, HyperlaneDomain, HyperlaneSigner,
+    HyperlaneSignerExt, Mailbox, MerkleTreeHook, MerkleTreeInsertion, ReorgPeriod, SubmitterType,
+    TxOutcome, ValidatorAnnounce, H256, U256,
 };
 use hyperlane_ethereum::{Signers, SingletonSigner, SingletonSignerHandle};
+use lander::{
+    DatabaseOrPath, Dispatcher, DispatcherEntrypoint, DispatcherMetrics, DispatcherSettings,
+    Entrypoint, FullPayload,
+};
 
 use crate::reorg_reporter::{
     LatestCheckpointReorgReporter, LatestCheckpointReorgReporterWithStorageWriter, ReorgReporter,
@@ -40,7 +45,7 @@ use crate::{
 const CURSOR_INSTANTIATION_ATTEMPTS: usize = 10;
 
 /// A validator agent
-#[derive(Debug, AsRef)]
+#[derive(AsRef)]
 pub struct Validator {
     origin_chain: HyperlaneDomain,
     origin_chain_conf: ChainConf,
@@ -65,6 +70,29 @@ pub struct Validator {
     agent_metadata: ValidatorMetadata,
     max_sign_concurrency: usize,
     reorg_reporter: Arc<dyn ReorgReporter>,
+    /// Lander dispatcher entrypoint for transaction submission (if Lander is enabled)
+    dispatcher_entrypoint: Option<Arc<DispatcherEntrypoint>>,
+    /// Lander dispatcher for processing transactions (if Lander is enabled)
+    dispatcher: Option<Dispatcher>,
+}
+
+impl std::fmt::Debug for Validator {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("Validator")
+            .field("origin_chain", &self.origin_chain)
+            .field("origin_chain_conf", &self.origin_chain_conf)
+            .field("core", &self.core)
+            .field("db", &self.db)
+            .field("reorg_period", &self.reorg_period)
+            .field("interval", &self.interval)
+            .field("max_sign_concurrency", &self.max_sign_concurrency)
+            .field(
+                "dispatcher_entrypoint",
+                &self.dispatcher_entrypoint.as_ref().map(|_| "..."),
+            )
+            .field("dispatcher", &self.dispatcher.as_ref().map(|_| "..."))
+            .finish_non_exhaustive()
+    }
 }
 
 /// Metadata for `validator`
@@ -198,6 +226,41 @@ impl BaseAgent for Validator {
             )
             .await?;
 
+        // Initialize Lander dispatcher if configured
+        let (dispatcher_entrypoint, dispatcher) =
+            if origin_chain_conf.submitter == SubmitterType::Lander {
+                let dispatcher_metrics = DispatcherMetrics::new(metrics.registry())
+                    .expect("Creating dispatcher metrics is infallible");
+                let dispatcher_settings = DispatcherSettings {
+                    chain_conf: origin_chain_conf.clone(),
+                    raw_chain_conf: Default::default(),
+                    domain: settings.origin_chain.clone(),
+                    db: DatabaseOrPath::Path(settings.db.clone()),
+                    metrics: metrics.clone(),
+                };
+
+                let entrypoint = DispatcherEntrypoint::try_from_settings(
+                    dispatcher_settings.clone(),
+                    dispatcher_metrics.clone(),
+                )
+                .await?;
+
+                let dispatcher = Dispatcher::try_from_settings(
+                    dispatcher_settings,
+                    settings.origin_chain.to_string(),
+                    dispatcher_metrics,
+                )
+                .await?;
+
+                info!(
+                    origin_chain = %settings.origin_chain,
+                    "Lander dispatcher initialized for validator announcements"
+                );
+                (Some(Arc::new(entrypoint)), Some(dispatcher))
+            } else {
+                (None, None)
+            };
+
         Ok(Self {
             origin_chain: settings.origin_chain,
             origin_chain_conf,
@@ -220,6 +283,8 @@ impl BaseAgent for Validator {
             agent_metadata,
             max_sign_concurrency: settings.max_sign_concurrency,
             reorg_reporter,
+            dispatcher_entrypoint,
+            dispatcher,
         })
     }
 
@@ -260,6 +325,16 @@ impl BaseAgent for Validator {
                 }
                 .instrument(info_span!("SingletonSigner")),
             ));
+        }
+
+        // Spawn Lander dispatcher if configured
+        if let Some(dispatcher) = self.dispatcher.take() {
+            let dispatcher_task = dispatcher.spawn().await;
+            tasks.push(dispatcher_task);
+            info!(
+                origin_chain = %self.origin_chain,
+                "Lander dispatcher spawned for validator announcements"
+            );
         }
 
         let metrics_updater = match ChainSpecificMetricsUpdater::new(
@@ -535,11 +610,21 @@ impl Validator {
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
-                        let result = self
-                            .validator_announce
-                            .announce(signed_announcement.clone())
+                        // Use Lander if dispatcher entrypoint is available, otherwise use classic submission
+                        if let Some(ref entrypoint) = self.dispatcher_entrypoint {
+                            self.announce_via_lander(
+                                entrypoint,
+                                signed_announcement.clone(),
+                                &chain_signer_string,
+                            )
                             .await;
-                        Self::log_on_announce_failure(result, &chain_signer_string);
+                        } else {
+                            let result = self
+                                .validator_announce
+                                .announce(signed_announcement.clone())
+                                .await;
+                            Self::log_on_announce_failure(result, &chain_signer_string);
+                        }
                     }
                 } else {
                     warn!(origin_chain=%self.origin_chain, "Cannot announce validator without a signer; make sure a signer is set for the origin chain");
@@ -549,6 +634,60 @@ impl Validator {
             }
         }
         Ok(())
+    }
+
+    /// Submit validator announcement via Lander (fire-and-forget)
+    async fn announce_via_lander(
+        &self,
+        entrypoint: &Arc<DispatcherEntrypoint>,
+        signed_announcement: hyperlane_core::SignedType<Announcement>,
+        chain_signer_string: &str,
+    ) {
+        // Get the calldata for the announce transaction
+        let calldata = match self
+            .validator_announce
+            .announce_calldata(signed_announcement)
+            .await
+        {
+            Ok(data) => data,
+            Err(err) => {
+                error!(
+                    ?err,
+                    chain_signer = %chain_signer_string,
+                    "Failed to create announce calldata for Lander submission"
+                );
+                return;
+            }
+        };
+
+        // Create the payload for Lander
+        let payload_uuid = UniqueIdentifier::random();
+        let metadata = format!("validator-announce-{}", self.origin_chain.name());
+        let payload = FullPayload::new(
+            payload_uuid,
+            metadata,
+            calldata,
+            None, // No success criteria needed for announcements
+            self.validator_announce.address(),
+        );
+
+        // Submit to Lander (fire-and-forget)
+        match entrypoint.send_payload(&payload).await {
+            Ok(()) => {
+                info!(
+                    chain_signer = %chain_signer_string,
+                    payload_uuid = ?payload.uuid(),
+                    "Submitted validator announcement via Lander"
+                );
+            }
+            Err(err) => {
+                error!(
+                    ?err,
+                    chain_signer = %chain_signer_string,
+                    "Failed to submit validator announcement via Lander"
+                );
+            }
+        }
     }
 
     async fn report_latest_checkpoints_from_each_endpoint(

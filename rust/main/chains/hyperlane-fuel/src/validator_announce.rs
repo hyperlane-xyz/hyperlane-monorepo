@@ -45,4 +45,11 @@ impl ValidatorAnnounce for FuelValidatorAnnounce {
     ) -> Option<U256> {
         todo!()
     }
+
+    async fn announce_calldata(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        todo!()
+    }
 }

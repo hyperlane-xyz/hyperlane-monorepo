@@ -113,4 +113,20 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
         // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())
     }
+
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        let signer = self.provider.rpc().get_signer()?.address_string.to_owned();
+        let mailbox_address_hex = hex::encode(announcement.value.mailbox_address.to_vec());
+        let announce = MsgAnnounceValidator {
+            validator: announcement.value.validator.encode_hex(),
+            storage_location: announcement.value.storage_location.clone(),
+            signature: hex::encode(announcement.signature.to_vec()),
+            mailbox_id: format!("0x{mailbox_address_hex}"),
+            creator: signer,
+        };
+        Ok(announce.encode_to_vec())
+    }
 }

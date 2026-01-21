@@ -101,4 +101,13 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
         // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())
     }
+
+    async fn announce_calldata(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        Err(hyperlane_core::ChainCommunicationError::CustomError(
+            "announce_calldata not supported for Radix".to_string(),
+        ))
+    }
 }

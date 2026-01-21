@@ -105,4 +105,18 @@ impl ValidatorAnnounce for CwValidatorAnnounce {
         // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())
     }
+
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        let announce_request = AnnouncementRequest {
+            announce: AnnouncementRequestInner {
+                validator: hex::encode(announcement.value.validator),
+                storage_location: announcement.value.storage_location,
+                signature: hex::encode(announcement.signature.to_vec()),
+            },
+        };
+        serde_json::to_vec(&announce_request).map_err(Into::into)
+    }
 }

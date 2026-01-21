@@ -228,4 +228,13 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
             gas_price: U256::zero().try_into()?,
         })
     }
+
+    async fn announce_calldata(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        Err(ChainCommunicationError::CustomError(
+            "announce_calldata not supported for Sealevel".to_string(),
+        ))
+    }
 }
