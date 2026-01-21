@@ -123,7 +123,7 @@ jobs:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 2
 
-      - name: Delete previous security review comments
+      - name: Collapse previous security review comments
         uses: actions/github-script@v7
         with:
           script: |
@@ -135,11 +135,13 @@ jobs:
             });
             for (const comment of comments) {
               if (comment.body.includes('Security Review') &&
-                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot')) {
-                await github.rest.issues.deleteComment({
+                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot') &&
+                  !comment.body.startsWith('<details>')) {
+                await github.rest.issues.updateComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  comment_id: comment.id
+                  comment_id: comment.id,
+                  body: `<details>\n<summary>Previous Security Review</summary>\n\n${comment.body}\n</details>`
                 });
               }
             }
@@ -212,7 +214,7 @@ jobs:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
 
-      - name: Delete previous ToB security comments
+      - name: Collapse previous ToB security comments
         if: steps.solidity-changes.outputs.solidity == 'true'
         uses: actions/github-script@v7
         with:
@@ -225,11 +227,13 @@ jobs:
             });
             for (const comment of comments) {
               if (comment.body.includes('Trail of Bits') &&
-                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot')) {
-                await github.rest.issues.deleteComment({
+                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot') &&
+                  !comment.body.startsWith('<details>')) {
+                await github.rest.issues.updateComment({
                   owner: context.repo.owner,
                   repo: context.repo.repo,
-                  comment_id: comment.id
+                  comment_id: comment.id,
+                  body: `<details>\n<summary>Previous Trail of Bits Review</summary>\n\n${comment.body}\n</details>`
                 });
               }
             }
