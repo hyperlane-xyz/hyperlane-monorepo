@@ -30,7 +30,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Message::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(ColumnDef::new_with_type(Message::MsgId, Hash).not_null())
                     .col(ColumnDef::new(Message::Origin).unsigned().not_null())
