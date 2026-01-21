@@ -329,6 +329,206 @@ describe('Radix Warp Tokens (e2e)', function () {
         const txs = await writer.update(deployedToken);
         expect(txs).to.be.an('array').with.length(0);
       });
+
+      describe('Ism updates', function () {
+        it('should unset ISM when changed from address to undefined', async () => {
+          const initialConfig = getConfig();
+          const customIsmAddress = TEST_RADIX_BURN_ADDRESS;
+
+          // Create with ISM set
+          initialConfig.interchainSecurityModule = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: customIsmAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify ISM is set
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          expect(
+            eqAddressRadix(
+              readToken1.config.interchainSecurityModule?.deployed.address!,
+              customIsmAddress,
+            ),
+          ).to.be.true;
+
+          // Update to clear ISM (set to undefined)
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: undefined,
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify ISM is now unset
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          expect(readToken2.config.interchainSecurityModule).to.be.undefined;
+        });
+
+        it('should set ISM when changed from undefined to address', async () => {
+          const initialConfig = getConfig();
+          // Start with no ISM
+          initialConfig.interchainSecurityModule = undefined;
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify ISM is unset
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          expect(readToken1.config.interchainSecurityModule).to.be.undefined;
+
+          // Update to set ISM
+          const customIsmAddress = TEST_RADIX_BURN_ADDRESS;
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: customIsmAddress,
+                },
+              },
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify ISM is now set
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          expect(
+            eqAddressRadix(
+              readToken2.config.interchainSecurityModule?.deployed.address!,
+              customIsmAddress,
+            ),
+          ).to.be.true;
+        });
+
+        it('should change ISM when updated to different address', async () => {
+          const initialConfig = getConfig();
+          const firstIsmAddress = TEST_RADIX_BURN_ADDRESS;
+
+          // Create with first ISM
+          initialConfig.interchainSecurityModule = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: firstIsmAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify first ISM is set
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          expect(
+            eqAddressRadix(
+              readToken1.config.interchainSecurityModule?.deployed.address!,
+              firstIsmAddress,
+            ),
+          ).to.be.true;
+
+          // Update to second ISM
+          const secondIsmAddress = TEST_RADIX_DEPLOYER_ADDRESS;
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: secondIsmAddress,
+                },
+              },
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify ISM changed to second address
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          expect(
+            eqAddressRadix(
+              readToken2.config.interchainSecurityModule?.deployed.address!,
+              secondIsmAddress,
+            ),
+          ).to.be.true;
+        });
+
+        it('should not generate ISM update tx when ISM unchanged', async () => {
+          const initialConfig = getConfig();
+          const customIsmAddress = TEST_RADIX_BURN_ADDRESS;
+
+          // Create with ISM
+          initialConfig.interchainSecurityModule = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: customIsmAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Update with same ISM (no change)
+          const txs = await writer.update(deployedToken);
+
+          // Should have no transactions (ISM unchanged)
+          expect(txs).to.be.an('array').with.length(0);
+        });
+
+        it('should not generate ISM update tx when both undefined', async () => {
+          const initialConfig = getConfig();
+          // Create without ISM
+          initialConfig.interchainSecurityModule = undefined;
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Update with ISM still undefined (no change)
+          const txs = await writer.update(deployedToken);
+
+          // Should have no transactions (ISM still undefined)
+          expect(txs).to.be.an('array').with.length(0);
+        });
+      });
     });
   });
 

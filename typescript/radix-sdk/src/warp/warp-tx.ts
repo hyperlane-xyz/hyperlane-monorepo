@@ -14,7 +14,11 @@ import {
   DeployedWarpAddress,
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressRadix, strip0x } from '@hyperlane-xyz/utils';
+import {
+  eqAddressRadix,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import {
   getComponentOwnershipInfo,
@@ -113,14 +117,19 @@ export async function getSetTokenIsmTx(
     ismAddress,
   }: {
     tokenAddress: string;
-    ismAddress: string;
+    ismAddress?: string;
   },
 ): Promise<TransactionManifest> {
   return base.createCallMethodManifestWithOwner(
     fromAddress,
     tokenAddress,
     'set_ism',
-    [enumeration(1, address(ismAddress))],
+    [
+      // Set or unset the ism based on the input value
+      ismAddress || (ismAddress && !isZeroishAddress(ismAddress))
+        ? enumeration(1, address(ismAddress))
+        : enumeration(0),
+    ],
   );
 }
 
@@ -202,7 +211,7 @@ export async function getWarpTokenUpdateTxs<
   if (!eqAddressRadix(currentIsm ?? '', newIsm ?? '')) {
     const setIsmTx = await getSetTokenIsmTx(base, signerAddress, {
       tokenAddress: deployed.address,
-      ismAddress: newIsm ?? '',
+      ismAddress: newIsm,
     });
     updateTxs.push({
       annotation: 'Updating token ISM',

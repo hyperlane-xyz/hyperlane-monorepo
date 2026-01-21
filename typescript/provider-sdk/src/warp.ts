@@ -326,10 +326,12 @@ export function warpConfigToArtifact(
         },
       };
 
-    default:
+    default: {
+      const invalidValue: never = config;
       throw new Error(
-        `Unsupported warp token type for artifact API: ${(config as any).type}`,
+        `Unsupported warp token type for artifact API: ${(invalidValue as any).type}`,
       );
+    }
   }
 }
 
