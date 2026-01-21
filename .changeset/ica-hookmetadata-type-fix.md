@@ -2,4 +2,4 @@
 '@hyperlane-xyz/sdk': minor
 ---
 
-Removed `refundAddress` from `GetCallRemoteSettings` type. Callers should now build `hookMetadata` themselves using `formatStandardHookMetadata()` from `@hyperlane-xyz/utils` and pass it to `getCallRemote()`. Added `estimateIcaHandleGas()` as a public method for callers to estimate gas before building metadata.
+Added `estimateIcaHandleGas()` public method to estimate destination gas for ICA calls. `getCallRemote()` now extracts gasLimit from hookMetadata for accurate IGP quoting with the `quoteGasPayment(uint32,uint256)` overload. Fixed `hookMetadata` type from `BigNumber` to `string` in `GetCallRemoteSettings`.
