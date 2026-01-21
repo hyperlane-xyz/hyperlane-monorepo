@@ -37,6 +37,7 @@ mockall::mock! {
         async fn replace_tx(&self, _tx: &Transaction) -> Result<(), LanderError>;
         fn reprocess_txs_poll_rate(&self) -> Option<std::time::Duration>;
         async fn get_reprocess_txs(&self) -> Result<Vec<Transaction>, LanderError>;
+        async fn post_finalized(&self) -> Result<(), LanderError>;
     }
 }
 

@@ -132,6 +132,8 @@ async fn test_processing_finalized_txs() {
         .expect_reverted_payloads()
         .returning(|_| Ok(vec![]));
 
+    mock_adapter.expect_post_finalized().returning(|| Ok(()));
+
     let (txs_created, txs_received, tx_db, payload_db, pool, _) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized).await;
 
@@ -204,6 +206,9 @@ async fn test_processing_already_finalized_txs_does_not_call_tx_status() {
         .expect_reverted_payloads()
         .returning(|_| Ok(vec![]));
 
+    // post_finalized should still be called for already finalized txs
+    mock_adapter.expect_post_finalized().returning(|| Ok(()));
+
     let (txs_created, txs_received, tx_db, payload_db, pool, _) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized).await;
 
@@ -218,6 +223,71 @@ async fn test_processing_already_finalized_txs_does_not_call_tx_status() {
         TransactionStatus::Finalized,
     )
     .await;
+}
+
+#[tokio::test]
+async fn test_post_finalized_called_when_tx_finalized() {
+    const TXS_TO_PROCESS: usize = 3;
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+
+    // tx_status should not be called because txs are already finalized
+    mock_adapter.expect_tx_status().times(0);
+
+    mock_adapter
+        .expect_reverted_payloads()
+        .returning(|_| Ok(vec![]));
+
+    // post_finalized should be called for each finalized transaction
+    mock_adapter.expect_post_finalized().returning(|| Ok(()));
+
+    let (txs_created, _txs_received, tx_db, payload_db, pool, _) =
+        set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized).await;
+
+    // verify transactions were finalized and removed from pool
+    assert!(are_no_txs_in_pool(txs_created.clone(), &pool).await);
+
+    // verify transaction status in db is finalized
+    for tx in txs_created {
+        let tx_from_db = tx_db
+            .retrieve_transaction_by_uuid(&tx.uuid)
+            .await
+            .unwrap()
+            .unwrap();
+        assert_eq!(tx_from_db.status, TransactionStatus::Finalized);
+    }
+}
+
+#[tokio::test]
+async fn test_post_finalized_not_called_when_tx_not_finalized() {
+    const TXS_TO_PROCESS: usize = 3;
+
+    let mut mock_adapter = MockAdapter::new();
+    mock_adapter
+        .expect_estimated_block_time()
+        .return_const(Duration::from_millis(10));
+
+    // txs stay Included (not finalized yet)
+    mock_adapter
+        .expect_tx_status()
+        .returning(|_| Ok(TransactionStatus::Included));
+
+    mock_adapter
+        .expect_reverted_payloads()
+        .returning(|_| Ok(vec![]));
+
+    // post_finalized should NOT be called since txs are not finalized
+    mock_adapter.expect_post_finalized().times(0);
+
+    let (txs_created, txs_removed_from_pool, _, _, pool, _) =
+        set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Included).await;
+
+    // verify transactions remain in pool (not finalized)
+    assert_eq!(txs_removed_from_pool.len(), 0);
+    assert!(are_all_txs_in_pool(txs_created.clone(), &pool).await);
 }
 
 async fn set_up_test_and_run_stage(

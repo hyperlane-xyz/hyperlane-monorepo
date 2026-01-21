@@ -110,6 +110,12 @@ pub trait AdaptsChain: Send + Sync {
     /// Update any metrics related to sent transactions, such as gas price, nonce, etc.
     fn update_vm_specific_metrics(&self, _tx: &Transaction, _metrics: &DispatcherMetrics);
 
+    /// Run actions that need to be performed after a transaction has been finalized.
+    /// NOP as a default implementation.
+    async fn post_finalized(&self) -> Result<(), LanderError> {
+        Ok(())
+    }
+
     // methods below are excluded from the MVP
 
     /// Checks if a nonce gap exists in transactions submitted by the PayloadDispatcher via this adapter
