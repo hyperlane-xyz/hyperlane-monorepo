@@ -124,7 +124,7 @@ impl Indexer<H256> for TronMailboxIndexer {
 #[async_trait]
 impl SequenceAwareIndexer<H256> for TronMailboxIndexer {
     async fn latest_sequence_count_and_tip(&self) -> ChainResult<(Option<u32>, u32)> {
-        // A blanket implementation for this trait is fine for the EVM.
+        // A blanket implementation for this trait is fine for the TVM.
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
     }
