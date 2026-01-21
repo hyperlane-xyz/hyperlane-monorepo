@@ -167,6 +167,51 @@ export function getComponentState(
 }
 
 /**
+ * Tries to extracts a field value from a Radix component's entity state.
+ *
+ * Handles both regular fields and Radix Option enums. For Option enums, it automatically
+ * extracts the value from the Some variant.
+ *
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @returns The field value as a string or undefined if it was not found
+ *
+ *
+ * @overload
+ * @param fieldName - The name of the field to extract
+ * @param entityState - The component state containing the fields
+ * @param formatter - Function to transform the string value into a different type
+ * @returns The formatted field value or undefined if it was not found
+ */
+export function tryGetFieldValueFromEntityState(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+): string | undefined;
+export function tryGetFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter: (value: string) => T,
+): T | undefined;
+export function tryGetFieldValueFromEntityState<T>(
+  fieldName: string,
+  entityState: EntityDetails['state'],
+  formatter?: (value: string) => T,
+): T | string | undefined {
+  const [value]: string[] | undefined = entityState.fields
+    .filter((f) => f.field_name === fieldName)
+    .map((f) =>
+      // If the current value is an Option we need to extract
+      // its value otherwise we can use the .value property
+      // directly
+      f.kind === 'Enum' && f.type_name === 'Option'
+        ? f.fields?.at(0)?.value
+        : f.value,
+    );
+
+  return value && formatter ? formatter(value) : value;
+}
+
+/**
  * Extracts a field value from a Radix component's entity state.
  *
  * Handles both regular fields and Radix Option enums. For Option enums, it automatically
@@ -203,23 +248,16 @@ export function getFieldValueFromEntityState<T>(
   entityState: EntityDetails['state'],
   formatter?: (value: string) => T,
 ): T | string {
-  const [value]: string[] | undefined = entityState.fields
-    .filter((f) => f.field_name === fieldName)
-    .map((f) =>
-      // If the current value is an Option we need to extract
-      // its value otherwise we can use the .value property
-      // directly
-      f.kind === 'Enum' && f.type_name === 'Option'
-        ? f.fields?.at(0)?.value
-        : f.value,
-    );
+  const value = formatter
+    ? tryGetFieldValueFromEntityState(fieldName, entityState, formatter)
+    : tryGetFieldValueFromEntityState(fieldName, entityState);
 
   assert(
     !isNullish(value),
     `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
   );
 
-  return formatter ? formatter(value) : value;
+  return value;
 }
 
 /**
@@ -267,4 +305,32 @@ export function getFieldElementsFromEntityState<T>(
   );
 
   return formatter ? formatter(value) : value;
+}
+
+/**
+ * Extracts the resource address from a Radix component's entity state.
+ *
+ * Searches the component state fields for a ResourceAddress type and returns its value.
+ * Used for identifying token resources associated with warp route components.
+ *
+ * @param entityAddress - The on-chain address of the component (used for error messages)
+ * @param entityState - The component state containing the fields
+ * @returns The resource address as a string
+ *
+ * @throws {Error} If no ResourceAddress field is found in the component state
+ */
+export function getResourceAddress(
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+): string {
+  const origin_denom = entityState.fields.find(
+    (t) => t.type_name === 'ResourceAddress',
+  )?.value;
+
+  assert(
+    typeof origin_denom === 'string',
+    `Expected a resource address to be defined on the state of the component at address ${entityAddress}`,
+  );
+
+  return origin_denom;
 }

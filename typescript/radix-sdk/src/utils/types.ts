@@ -63,6 +63,42 @@ export enum RadixHookTypes {
   MERKLE_TREE = 'MerkleTreeHook',
 }
 
+export const RadixWarpTokenType = {
+  COLLATERAL: 'Collateral',
+  SYNTHETIC: 'Synthetic',
+} as const;
+
+export type RadixWarpTokenType =
+  (typeof RadixWarpTokenType)[keyof typeof RadixWarpTokenType];
+
+export interface BaseRadixWarpTokenConfig<TType extends RadixWarpTokenType> {
+  owner: string;
+  mailbox: string;
+  interchainSecurityModule?: string;
+  remoteRouters: Record<number, { address: string }>;
+  destinationGas: Record<number, string>;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
+  type: TType;
+}
+
+export interface RadixSyntheticWarpTokenConfig
+  extends BaseRadixWarpTokenConfig<'Synthetic'> {
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface RadixCollateralWarpTokenConfig
+  extends BaseRadixWarpTokenConfig<'Collateral'> {
+  token: string;
+}
+
+export type RadixWarpTokenConfig =
+  | RadixSyntheticWarpTokenConfig
+  | RadixCollateralWarpTokenConfig;
+
 export interface RadixElement {
   kind: string;
   type_name: string;
