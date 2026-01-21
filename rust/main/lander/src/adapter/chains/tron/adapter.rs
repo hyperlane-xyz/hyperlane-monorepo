@@ -163,7 +163,7 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
             .iter()
             .filter_map(|x| x.success_criteria.clone().map(|data| (data, x)));
 
-        let reverted = Vec::new();
+        let mut reverted = Vec::new();
 
         for (data, payload) in payloads {
             let precursor = TronTxPrecursor::from_data(&data);
