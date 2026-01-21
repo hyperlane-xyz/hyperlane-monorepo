@@ -14,22 +14,22 @@ use hyperlane_core::{
 };
 use num_traits::cast::FromPrimitive;
 
-use crate::interfaces::i_interchain_security_module::IInterchainSecurityModule as EthereumInterchainSecurityModuleInternal;
+use crate::interfaces::i_interchain_security_module::IInterchainSecurityModule as TronInterchainSecurityModuleInternal;
 use crate::TronProvider;
 
-/// A reference to an InterchainSecurityModule contract on some Ethereum chain
+/// A reference to an InterchainSecurityModule contract on some Tron chain
 #[derive(Debug)]
 pub struct TronInterchainSecurityModule {
-    contract: Arc<EthereumInterchainSecurityModuleInternal<TronProvider>>,
+    contract: Arc<TronInterchainSecurityModuleInternal<TronProvider>>,
     domain: HyperlaneDomain,
 }
 
 impl TronInterchainSecurityModule {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// Create a reference to a mailbox at a specific Tron address on some
     /// chain
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumInterchainSecurityModuleInternal::new(
+            contract: Arc::new(TronInterchainSecurityModuleInternal::new(
                 locator.address,
                 Arc::new(provider),
             )),

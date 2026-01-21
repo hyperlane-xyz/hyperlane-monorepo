@@ -12,26 +12,23 @@ use hyperlane_core::{
 };
 
 use crate::{
-    interfaces::i_aggregation_ism::IAggregationIsm as EthereumAggregationIsmInternal, TronProvider,
+    interfaces::i_aggregation_ism::IAggregationIsm as TronAggregationIsmInternal, TronProvider,
 };
 
-/// A reference to an AggregationIsm contract on some Ethereum chain
+/// A reference to an AggregationIsm contract on some Tron chain
 #[derive(Debug)]
 pub struct TronAggregationIsm {
-    contract: Arc<EthereumAggregationIsmInternal<TronProvider>>,
+    contract: Arc<TronAggregationIsmInternal<TronProvider>>,
     domain: HyperlaneDomain,
 }
 
 impl TronAggregationIsm {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// Create a reference to a mailbox at a specific Tron address on some
     /// chain
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         let provider = Arc::new(provider);
         Self {
-            contract: Arc::new(EthereumAggregationIsmInternal::new(
-                locator.address,
-                provider,
-            )),
+            contract: Arc::new(TronAggregationIsmInternal::new(locator.address, provider)),
             domain: locator.domain.clone(),
         }
     }
@@ -56,7 +53,6 @@ impl HyperlaneContract for TronAggregationIsm {
 #[async_trait]
 impl AggregationIsm for TronAggregationIsm {
     #[instrument(err, skip(self, message))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn modules_and_threshold(
         &self,
         message: &HyperlaneMessage,

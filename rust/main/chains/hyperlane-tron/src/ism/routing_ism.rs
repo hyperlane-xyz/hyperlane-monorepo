@@ -11,22 +11,22 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, RawHyperlaneMessage, RoutingIsm, H256,
 };
 
-use crate::interfaces::i_routing_ism::IRoutingIsm as EthereumRoutingIsmInternal;
+use crate::interfaces::i_routing_ism::IRoutingIsm as TronRoutingIsmInternal;
 use crate::TronProvider;
 
-/// A reference to an RoutingIsm contract on some Ethereum chain
+/// A reference to an RoutingIsm contract on some Tron chain
 #[derive(Debug)]
 pub struct TronRoutingIsm {
-    contract: Arc<EthereumRoutingIsmInternal<TronProvider>>,
+    contract: Arc<TronRoutingIsmInternal<TronProvider>>,
     domain: HyperlaneDomain,
 }
 
 impl TronRoutingIsm {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// Create a reference to a mailbox at a specific Tron address on some
     /// chain
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumRoutingIsmInternal::new(
+            contract: Arc::new(TronRoutingIsmInternal::new(
                 locator.address,
                 Arc::new(provider),
             )),

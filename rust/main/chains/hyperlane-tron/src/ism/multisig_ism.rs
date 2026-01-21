@@ -11,22 +11,22 @@ use hyperlane_core::{
     HyperlaneMessage, HyperlaneProvider, MultisigIsm, RawHyperlaneMessage, H256,
 };
 
-use crate::interfaces::i_multisig_ism::IMultisigIsm as EthereumMultisigIsmInternal;
+use crate::interfaces::i_multisig_ism::IMultisigIsm as TronMultisigIsmInternal;
 use crate::TronProvider;
 
-/// A reference to an MultisigIsm contract on some Ethereum chain
+/// A reference to an MultisigIsm contract on some Tron chain
 #[derive(Debug)]
 pub struct TronMultisigIsm {
-    contract: Arc<EthereumMultisigIsmInternal<TronProvider>>,
+    contract: Arc<TronMultisigIsmInternal<TronProvider>>,
     domain: HyperlaneDomain,
 }
 
 impl TronMultisigIsm {
-    /// Create a reference to a mailbox at a specific Ethereum address on some
+    /// Create a reference to a mailbox at a specific Tron address on some
     /// chain
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         Self {
-            contract: Arc::new(EthereumMultisigIsmInternal::new(
+            contract: Arc::new(TronMultisigIsmInternal::new(
                 locator.address,
                 Arc::new(provider),
             )),
@@ -54,7 +54,6 @@ impl HyperlaneContract for TronMultisigIsm {
 #[async_trait]
 impl MultisigIsm for TronMultisigIsm {
     #[instrument(err, skip(self, message))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn validators_and_threshold(
         &self,
         message: &HyperlaneMessage,
