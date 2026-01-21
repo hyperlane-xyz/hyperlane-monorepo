@@ -610,15 +610,21 @@ impl Validator {
                             "Please send tokens to your chain signer address to announce",
                         );
                     } else {
-                        // Use Lander if dispatcher entrypoint is available, otherwise use classic submission
-                        if let Some(ref entrypoint) = self.dispatcher_entrypoint {
-                            self.announce_via_lander(
-                                entrypoint,
-                                signed_announcement.clone(),
-                                &chain_signer_string,
-                            )
-                            .await;
+                        // Use Lander if dispatcher entrypoint is available
+                        // Fall back to classic submission if Lander fails or is not available
+                        let use_classic = if let Some(ref entrypoint) = self.dispatcher_entrypoint {
+                            !self
+                                .announce_via_lander(
+                                    entrypoint,
+                                    signed_announcement.clone(),
+                                    &chain_signer_string,
+                                )
+                                .await
                         } else {
+                            true
+                        };
+
+                        if use_classic {
                             let result = self
                                 .validator_announce
                                 .announce(signed_announcement.clone())
@@ -637,12 +643,13 @@ impl Validator {
     }
 
     /// Submit validator announcement via Lander (fire-and-forget)
+    /// Returns true if the submission was successful, false otherwise
     async fn announce_via_lander(
         &self,
         entrypoint: &Arc<DispatcherEntrypoint>,
         signed_announcement: hyperlane_core::SignedType<Announcement>,
         chain_signer_string: &str,
-    ) {
+    ) -> bool {
         // Get the calldata for the announce transaction
         let calldata = match self
             .validator_announce
@@ -651,12 +658,12 @@ impl Validator {
         {
             Ok(data) => data,
             Err(err) => {
-                error!(
+                warn!(
                     ?err,
                     chain_signer = %chain_signer_string,
-                    "Failed to create announce calldata for Lander submission"
+                    "Failed to create announce calldata for Lander submission, will fall back to classic announce"
                 );
-                return;
+                return false;
             }
         };
 
@@ -679,6 +686,7 @@ impl Validator {
                     payload_uuid = ?payload.uuid(),
                     "Submitted validator announcement via Lander"
                 );
+                true
             }
             Err(err) => {
                 error!(
@@ -686,6 +694,7 @@ impl Validator {
                     chain_signer = %chain_signer_string,
                     "Failed to submit validator announcement via Lander"
                 );
+                false
             }
         }
     }
