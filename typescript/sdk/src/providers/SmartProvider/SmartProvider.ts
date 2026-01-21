@@ -24,8 +24,48 @@ import {
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
+  RpcConfigWithConnectionInfo,
   SmartProviderOptions,
 } from './types.js';
+
+/**
+ * Parse custom_rpc_header query params from URL into headers object.
+ * Format: ?custom_rpc_header=HeaderName:HeaderValue (URL encoded)
+ * Multiple headers supported via multiple custom_rpc_header params.
+ * Returns cleaned URL (without custom_rpc_header params) and extracted headers.
+ */
+function parseCustomRpcHeaders(url: string): {
+  url: string;
+  headers: Record<string, string>;
+} {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { url, headers: {} };
+  }
+
+  const headers: Record<string, string> = {};
+  const retainedParams: [string, string][] = [];
+
+  for (const [key, value] of parsed.searchParams) {
+    if (key === 'custom_rpc_header') {
+      const colonIdx = value.indexOf(':');
+      if (colonIdx > 0) {
+        const headerName = value.slice(0, colonIdx);
+        const headerValue = value.slice(colonIdx + 1);
+        headers[headerName] = headerValue;
+      }
+    } else {
+      retainedParams.push([key, value]);
+    }
+  }
+
+  parsed.search = '';
+  retainedParams.forEach(([k, v]) => parsed.searchParams.append(k, v));
+
+  return { url: parsed.toString(), headers };
+}
 
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
@@ -121,7 +161,36 @@ export class HyperlaneSmartProvider
 
     if (rpcUrls?.length) {
       this.rpcProviders = rpcUrls.map((rpcConfig) => {
-        const newProvider = new HyperlaneJsonRpcProvider(rpcConfig, network);
+        // Parse custom_rpc_header query params from URL (matches Rust agent behavior)
+        const { url, headers } = parseCustomRpcHeaders(rpcConfig.http);
+        const existingConnection = (rpcConfig as RpcConfigWithConnectionInfo)
+          .connection;
+        const hasCustomHeaders = Object.keys(headers).length > 0;
+        let connection = existingConnection;
+        if (hasCustomHeaders) {
+          const baseConnection = existingConnection ?? { url };
+          const baseUrl =
+            existingConnection?.url === rpcConfig.http
+              ? url
+              : baseConnection.url;
+          connection = {
+            ...baseConnection,
+            url: baseUrl,
+            headers: {
+              ...(baseConnection.headers ?? {}),
+              ...headers,
+            },
+          };
+        }
+        const configWithHeaders: RpcConfigWithConnectionInfo = {
+          ...rpcConfig,
+          http: url,
+          connection,
+        };
+        const newProvider = new HyperlaneJsonRpcProvider(
+          configWithHeaders,
+          network,
+        );
         newProvider.supportedMethods.forEach((m) => supportedMethods.add(m));
         return newProvider;
       });

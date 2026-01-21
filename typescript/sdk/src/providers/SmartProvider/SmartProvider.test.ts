@@ -110,6 +110,68 @@ describe('SmartProvider', () => {
     provider = new TestableSmartProvider([MockProvider.success('success')]);
   });
 
+  describe('custom_rpc_header handling', () => {
+    it('merges custom headers into existing connection and preserves fields', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:token&foo=bar';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [
+          {
+            http: rawUrl,
+            connection: {
+              url: rawUrl,
+              timeout: 1234,
+              headers: { 'X-Test': 'abc' },
+            },
+          } as any,
+        ],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+      const expectedUrl = new URL('http://example.com/path?foo=bar').toString();
+
+      expect(rpcConfig.http).to.equal(expectedUrl);
+      expect(rpcConfig.connection?.url).to.equal(expectedUrl);
+      expect(rpcConfig.connection?.timeout).to.equal(1234);
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        'X-Test': 'abc',
+        Authorization: 'token',
+      });
+    });
+
+    it('preserves existing connection url when different and merges headers', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:new';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [
+          {
+            http: rawUrl,
+            connection: {
+              url: 'http://other.example.com/path',
+              timeout: 5678,
+              headers: { Authorization: 'old', 'X-Test': 'abc' },
+            },
+          } as any,
+        ],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.connection?.url).to.equal(
+        'http://other.example.com/path',
+      );
+      expect(rpcConfig.connection?.timeout).to.equal(5678);
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        Authorization: 'new',
+        'X-Test': 'abc',
+      });
+    });
+  });
+
   describe('getCombinedProviderError', () => {
     const blockchainErrorTestCases = [
       {
