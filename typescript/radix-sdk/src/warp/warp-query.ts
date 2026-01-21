@@ -19,6 +19,8 @@ import {
   BaseRadixWarpTokenConfig,
   EntityDetails,
   EntityField,
+  RADIX_COMPONENT_NAMES,
+  RADIX_WARP_TOKEN_FIELD_NAMES,
   RadixCollateralWarpTokenConfig,
   RadixSyntheticWarpTokenConfig,
   RadixWarpTokenConfig,
@@ -65,7 +67,7 @@ export async function getCollateralWarpTokenConfig(
   );
 
   const tokenTypeFields: EntityField[] = getFieldPropertyFromEntityState(
-    'token_type',
+    RADIX_WARP_TOKEN_FIELD_NAMES.TOKEN_TYPE,
     tokenAddress,
     tokenState,
     'fields',
@@ -105,8 +107,9 @@ export async function getSyntheticWarpTokenConfig(
   );
 
   const resourceManagerFields =
-    tokenState.fields.find((f) => f.field_name === 'resource_manager')
-      ?.fields ?? [];
+    tokenState.fields.find(
+      (f) => f.field_name === RADIX_WARP_TOKEN_FIELD_NAMES.RESOURCE_MANAGER,
+    )?.fields ?? [];
   const collateralTokenAddress = getResourceAddress(tokenAddress, {
     fields: resourceManagerFields,
   });
@@ -132,17 +135,17 @@ async function getRawWarpTokenData(
   const tokenDetails = await getRadixComponentDetails(
     gateway,
     tokenAddress,
-    'HypToken',
+    RADIX_COMPONENT_NAMES.HYP_TOKEN,
   );
 
   assert(
-    tokenDetails.blueprint_name === 'HypToken',
+    tokenDetails.blueprint_name === RADIX_COMPONENT_NAMES.HYP_TOKEN,
     `Expected component at address ${tokenAddress} to be "HypToken" but got ${tokenDetails.blueprint_name}`,
   );
 
   const tokenState = getComponentState(tokenAddress, tokenDetails);
   const tokenType = getFieldPropertyFromEntityState(
-    'token_type',
+    RADIX_WARP_TOKEN_FIELD_NAMES.TOKEN_TYPE,
     tokenAddress,
     tokenState,
     'variant_name',
@@ -174,9 +177,12 @@ async function getWarpTokenConfig(
   const owner = await getComponentOwner(gateway, tokenAddress, tokenDetails);
   const tokenState = getComponentState(tokenAddress, tokenDetails);
 
-  const ismAddress = tryGetFieldValueFromEntityState('ism', tokenState);
+  const ismAddress = tryGetFieldValueFromEntityState(
+    RADIX_WARP_TOKEN_FIELD_NAMES.ISM,
+    tokenState,
+  );
   const mailboxAddress = getFieldValueFromEntityState(
-    'mailbox',
+    RADIX_WARP_TOKEN_FIELD_NAMES.MAILBOX,
     tokenAddress,
     tokenState,
   );
@@ -206,7 +212,7 @@ async function getWarpTokenRemoteRoutersConfig(
   const remoteRouters: RadixWarpTokenConfig['remoteRouters'] = {};
 
   const remote_routers_kv_address = getFieldValueFromEntityState(
-    'enrolled_routers',
+    RADIX_WARP_TOKEN_FIELD_NAMES.ENROLLED_ROUTERS,
     tokenAddress,
     tokenState,
   );
@@ -242,7 +248,7 @@ async function getWarpTokenRemoteRoutersConfig(
 
     const routerFields = (rawRouter as EntityField).fields ?? [];
     const remoteAddress = getFieldHexValueFromEntityState(
-      'recipient',
+      RADIX_WARP_TOKEN_FIELD_NAMES.RECIPIENT,
       tokenAddress,
       {
         fields: routerFields,
@@ -250,7 +256,9 @@ async function getWarpTokenRemoteRoutersConfig(
       ensure0x,
     );
     const gas =
-      tryGetFieldValueFromEntityState('gas', { fields: routerFields }) ?? '0';
+      tryGetFieldValueFromEntityState(RADIX_WARP_TOKEN_FIELD_NAMES.GAS, {
+        fields: routerFields,
+      }) ?? '0';
 
     destinationGas[domainId] = gas;
     remoteRouters[domainId] = {

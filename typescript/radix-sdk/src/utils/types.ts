@@ -63,6 +63,20 @@ export enum RadixHookTypes {
   MERKLE_TREE = 'MerkleTreeHook',
 }
 
+export const RADIX_COMPONENT_NAMES = {
+  HYP_TOKEN: 'HypToken',
+} as const;
+
+export const RADIX_WARP_TOKEN_FIELD_NAMES = {
+  TOKEN_TYPE: 'token_type',
+  MAILBOX: 'mailbox',
+  ISM: 'ism',
+  ENROLLED_ROUTERS: 'enrolled_routers',
+  RESOURCE_MANAGER: 'resource_manager',
+  RECIPIENT: 'recipient',
+  GAS: 'gas',
+} as const;
+
 export const RadixWarpTokenType = {
   COLLATERAL: 'Collateral',
   SYNTHETIC: 'Synthetic',

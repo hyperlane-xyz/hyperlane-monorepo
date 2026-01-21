@@ -25,7 +25,7 @@ import {
   getEnrollRemoteRouterTx,
   getSetTokenIsmTx,
   getSetTokenOwnerTx,
-  getUnenrollRemoteRouterTx,
+  getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
 export class RadixCollateralTokenReader
@@ -191,111 +191,15 @@ export class RadixCollateralTokenWriter
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedRadixTransaction[]> {
-    const { config, deployed } = artifact;
-    const updateTxs: AnnotatedRadixTransaction[] = [];
-
     // Read current state
-    const currentState = await this.read(deployed.address);
+    const currentArtifactState = await this.read(artifact.deployed.address);
 
-    // Update ISM if changed
-    const currentIsm =
-      currentState.config.interchainSecurityModule?.deployed.address;
-    const newIsm = config.interchainSecurityModule?.deployed.address;
-
-    if (currentIsm !== newIsm) {
-      const setIsmTx = await getSetTokenIsmTx(
-        this.base,
-        this.signer.getAddress(),
-        {
-          tokenAddress: deployed.address,
-          ismAddress: newIsm || '',
-        },
-      );
-      updateTxs.push({
-        annotation: 'Updating token ISM',
-        networkId: this.base.getNetworkId(),
-        manifest: setIsmTx,
-      });
-    }
-
-    // Get current and desired remote routers
-    const currentRouters = new Set(
-      Object.keys(currentState.config.remoteRouters).map((k) => parseInt(k)),
+    return getWarpTokenUpdateTxs(
+      artifact,
+      currentArtifactState,
+      this.base,
+      this.gateway,
+      this.signer.getAddress(),
     );
-    const desiredRouters = new Set(
-      Object.keys(config.remoteRouters).map((k) => parseInt(k)),
-    );
-
-    // Unenroll removed routers
-    for (const domainId of currentRouters) {
-      if (!desiredRouters.has(domainId)) {
-        const unenrollTx = await getUnenrollRemoteRouterTx(
-          this.base,
-          this.signer.getAddress(),
-          {
-            tokenAddress: deployed.address,
-            remoteDomainId: domainId,
-          },
-        );
-        updateTxs.push({
-          annotation: `Unenrolling router for domain ${domainId}`,
-          networkId: this.base.getNetworkId(),
-          manifest: unenrollTx,
-        });
-      }
-    }
-
-    // Enroll or update routers
-    for (const [domainIdStr, remoteRouter] of Object.entries(
-      config.remoteRouters,
-    )) {
-      const domainId = parseInt(domainIdStr);
-      const gas = config.destinationGas[domainId] || '0';
-      const currentRouter = currentState.config.remoteRouters[domainId];
-      const currentGas = currentState.config.destinationGas[domainId] || '0';
-
-      const needsUpdate =
-        !currentRouter ||
-        currentRouter.address !== remoteRouter.address ||
-        currentGas !== gas;
-
-      if (needsUpdate) {
-        const enrollTx = await getEnrollRemoteRouterTx(
-          this.base,
-          this.signer.getAddress(),
-          {
-            tokenAddress: deployed.address,
-            remoteDomainId: domainId,
-            remoteRouterAddress: remoteRouter.address,
-            destinationGas: gas,
-          },
-        );
-        updateTxs.push({
-          annotation: `Enrolling/updating router for domain ${domainId}`,
-          networkId: this.base.getNetworkId(),
-          manifest: enrollTx,
-        });
-      }
-    }
-
-    // Owner transfer must be last transaction as the current owner executes all updates
-    if (!eqAddressRadix(currentState.config.owner, config.owner)) {
-      const setOwnerTx = await getSetTokenOwnerTx(
-        this.base,
-        this.gateway,
-        this.signer.getAddress(),
-        {
-          tokenAddress: deployed.address,
-          newOwner: config.owner,
-        },
-      );
-      updateTxs.push({
-        annotation: 'Setting new token owner',
-        networkId: this.base.getNetworkId(),
-        manifest: setOwnerTx,
-      });
-    }
-
-    return updateTxs;
   }
 }
