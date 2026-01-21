@@ -156,9 +156,19 @@ export class WarpTokenWriter
    *
    * @param artifact The desired warp token state (must include deployed address)
    * @returns Array of transactions needed to perform the update
+   * @throws Error if the token type cannot be changed (e.g., collateral -> synthetic)
    */
   async update(artifact: DeployedWarpArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
+
+    // Read current on-chain state to verify token type hasn't changed
+    const currentArtifact = await this.read(deployed.address);
+    if (currentArtifact.config.type !== config.type) {
+      throw new Error(
+        `Cannot change warp token type from '${currentArtifact.config.type}' to '${config.type}'. ` +
+          `Token type is immutable after deployment.`,
+      );
+    }
 
     // Deploy ISM if configured as a NEW artifact, otherwise extract address
     let rawIsmArtifact:
