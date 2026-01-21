@@ -84,7 +84,8 @@ impl ScraperDb {
         let models: Vec<raw_message_dispatch::ActiveModel> = messages
             .map(|storable| raw_message_dispatch::ActiveModel {
                 id: NotSet,
-                time_created: Set(date_time::now()),
+                time_created: NotSet,
+                time_updated: Set(date_time::now()),
                 msg_id: Unchanged(h256_to_bytes(&storable.msg.id())),
                 origin_tx_hash: Set(h512_to_bytes(&storable.meta.transaction_id)),
                 origin_block_hash: Set(h256_to_bytes(&storable.meta.block_hash)),
@@ -120,7 +121,7 @@ impl ScraperDb {
                             .on_conflict(
                                 OnConflict::column(raw_message_dispatch::Column::MsgId)
                                     .update_columns([
-                                        raw_message_dispatch::Column::TimeCreated,
+                                        raw_message_dispatch::Column::TimeUpdated,
                                         raw_message_dispatch::Column::OriginTxHash,
                                         raw_message_dispatch::Column::OriginBlockHash,
                                         raw_message_dispatch::Column::OriginBlockHeight,

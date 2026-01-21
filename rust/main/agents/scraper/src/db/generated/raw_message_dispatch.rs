@@ -15,6 +15,7 @@ impl EntityName for Entity {
 pub struct Model {
     pub id: i64,
     pub time_created: TimeDateTime,
+    pub time_updated: TimeDateTime,
     pub msg_id: Vec<u8>,
     pub origin_tx_hash: Vec<u8>,
     pub origin_block_hash: Vec<u8>,
@@ -31,6 +32,7 @@ pub struct Model {
 pub enum Column {
     Id,
     TimeCreated,
+    TimeUpdated,
     MsgId,
     OriginTxHash,
     OriginBlockHash,
@@ -67,6 +69,7 @@ impl ColumnTrait for Column {
         match self {
             Self::Id => ColumnType::BigInteger.def(),
             Self::TimeCreated => ColumnType::DateTime.def(),
+            Self::TimeUpdated => ColumnType::DateTime.def(),
             Self::MsgId => ColumnType::VarBinary(StringLen::None).def().unique(),
             Self::OriginTxHash => ColumnType::VarBinary(StringLen::None).def(),
             Self::OriginBlockHash => ColumnType::VarBinary(StringLen::None).def(),

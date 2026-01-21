@@ -27,6 +27,12 @@ impl MigrationTrait for Migration {
                             .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(
+                        ColumnDef::new(RawMessageDispatch::TimeUpdated)
+                            .timestamp()
+                            .not_null()
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
+                    )
+                    .col(
                         ColumnDef::new_with_type(RawMessageDispatch::MsgId, Hash)
                             .unique_key()
                             .not_null(),
@@ -124,6 +130,8 @@ pub enum RawMessageDispatch {
     Id,
     /// Time of record creation
     TimeCreated,
+    /// Time of last update
+    TimeUpdated,
     /// Message ID (keccak256 hash of message)
     MsgId,
     /// Origin transaction hash (from LogMeta - no RPC required!)
