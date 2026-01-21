@@ -144,17 +144,15 @@ impl BuildableWithSignerConf for hyperlane_tron::TronSigner {
 impl ChainSigner for hyperlane_tron::TronSigner {
     fn address_string(&self) -> String {
         let mut address_bytes = self.address_h256().to_fixed_bytes().to_vec();
-        if address_bytes.len() == 20 {
-            address_bytes.insert(0, 0x41);
-        }
+        address_bytes[11] = 0x41; // Tron address prefix
 
-        let hash1 = Sha256::digest(&address_bytes);
+        let hash1 = Sha256::digest(&address_bytes[11..]);
         let hash2 = Sha256::digest(hash1);
 
         let checksum = &hash2[0..4];
 
-        let mut final_bytes = Vec::with_capacity(address_bytes.len().saturating_add(4));
-        final_bytes.extend_from_slice(&address_bytes);
+        let mut final_bytes = Vec::with_capacity(25);
+        final_bytes.extend_from_slice(&address_bytes[11..]);
         final_bytes.extend_from_slice(checksum);
 
         bs58::encode(final_bytes).into_string()
@@ -315,7 +313,7 @@ mod tests {
     use ethers::{signers::LocalWallet, utils::hex};
     use hyperlane_core::{AccountAddressType, Encode, H256};
 
-    use crate::settings::ChainSigner;
+    use crate::settings::{ChainSigner, SignerConf};
 
     #[test]
     fn address_h256_ethereum() {
@@ -405,5 +403,34 @@ mod tests {
                 .as_slice(),
         );
         assert_eq!(chain_signer.address_h256(), address_h256);
+    }
+
+    #[tokio::test]
+    async fn address_h256_tron() {
+        use crate::settings::signers::BuildableWithSignerConf;
+
+        const PRIVATE_KEY: &str =
+            "b2752a4539917a795c79caaa0e99d8111078574f381ca3f7598c6ff1ea6b6e3c";
+        let address =
+            hex::decode("000000000000000000000000e304de1cb42ac734b97bd6ae767942e00d751f8a")
+                .unwrap();
+
+        let signer_confg = SignerConf::HexKey {
+            key: H256::from_slice(
+                hex::decode(PRIVATE_KEY)
+                    .expect("Failed to decode private key")
+                    .as_slice(),
+            ),
+        };
+
+        let tron_signer = hyperlane_tron::TronSigner::build(&signer_confg)
+            .await
+            .expect("Failed to build tron signer");
+
+        assert_eq!(H256::from_slice(&address), tron_signer.address_h256());
+        assert_eq!(
+            "TWfaDp7My62uVWnxPiohWau4HyanfDG31N",
+            tron_signer.address_string()
+        );
     }
 }

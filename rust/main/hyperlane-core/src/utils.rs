@@ -254,3 +254,23 @@ macro_rules! unwrap_or_none_result {
         };
     };
 }
+
+#[cfg(test)]
+mod test {
+    use super::*;
+
+    #[test]
+    fn test_hex_or_base58_or_bech32_to_h256_tron() {
+        // Test Tron address (base58, 25 bytes with type byte and checksum)
+        // TRX address example: TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t (USDT on Tron)
+        let tron_addr = "TR7NHqjeKQxGTCi8q8ZY4pL8otSzgjLj6t";
+        let expected = hex::decode("a614f803b6fd780986a42c78ec9c7f77e6ded13c").unwrap();
+        let result = hex_or_base58_or_bech32_to_h256(tron_addr);
+        assert!(result.is_ok());
+
+        let h256 = result.unwrap();
+        // Should have leading zeros since it's converted from H160
+        assert_eq!(&h256.0[0..12], &[0u8; 12]);
+        assert_eq!(&h256.0[12..32], &expected);
+    }
+}
