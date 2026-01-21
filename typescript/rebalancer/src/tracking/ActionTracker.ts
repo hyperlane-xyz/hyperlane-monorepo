@@ -25,6 +25,7 @@ import type {
   IRebalanceActionStore,
   IRebalanceIntentStore,
   ITransferStore,
+  PartialInventoryIntent,
   RebalanceAction,
   RebalanceIntent,
   Transfer,
@@ -213,11 +214,12 @@ export class ActionTracker implements IActionTracker {
   async syncRebalanceIntents(): Promise<void> {
     this.logger.debug('Syncing rebalance intents');
 
-    // Check in_progress intents for completion
+    // Check in_progress intents for completion by deriving from action states
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
     for (const intent of inProgressIntents) {
-      if (intent.fulfilledAmount >= intent.amount) {
+      const completedAmount = await this.getCompletedAmountForIntent(intent.id);
+      if (completedAmount >= intent.amount) {
         await this.rebalanceIntentStore.update(intent.id, {
           status: 'complete',
         });
@@ -348,7 +350,6 @@ export class ActionTracker implements IActionTracker {
       origin: params.origin,
       destination: params.destination,
       amount: params.amount,
-      fulfilledAmount: 0n,
       bridge: params.bridge,
       priority: params.priority,
       strategyType: params.strategyType,
@@ -438,40 +439,47 @@ export class ActionTracker implements IActionTracker {
 
     await this.rebalanceActionStore.update(id, { status: 'complete' });
 
-    // Update parent intent's fulfilledAmount
-    const intent = await this.rebalanceIntentStore.get(action.intentId);
-    if (intent) {
-      // Only count actions that actually deposit collateral as fulfillment.
-      // inventory_movement is just a bridge transit - the follow-up transferRemote
-      // (inventory_deposit) is what actually fulfills the intent.
-      const countsTowardFulfillment =
-        action.type === 'inventory_deposit' ||
-        action.type === 'rebalance_message';
-
-      const newFulfilledAmount = countsTowardFulfillment
-        ? intent.fulfilledAmount + action.amount
-        : intent.fulfilledAmount;
-
-      const updates: Partial<RebalanceIntent> = {
-        fulfilledAmount: newFulfilledAmount,
-      };
-
-      // Check if intent is now complete
-      if (newFulfilledAmount >= intent.amount) {
-        updates.status = 'complete';
-        this.logger.debug(
-          { intentId: intent.id, actionType: action.type },
-          'RebalanceIntent fully fulfilled',
-        );
-      }
-
-      await this.rebalanceIntentStore.update(intent.id, updates);
-    }
+    // Check if parent intent is now complete (derive from action states)
+    await this.checkAndCompleteIntent(action.intentId);
 
     this.logger.info(
       { id, intentId: action.intentId, type: action.type },
       'Action completed',
     );
+  }
+
+  /**
+   * Check if an intent is fully fulfilled based on completed action amounts.
+   * Only `inventory_deposit` and `rebalance_message` actions count toward fulfillment.
+   */
+  private async checkAndCompleteIntent(intentId: string): Promise<void> {
+    const intent = await this.rebalanceIntentStore.get(intentId);
+    if (!intent || intent.status === 'complete') return;
+
+    const completedAmount = await this.getCompletedAmountForIntent(intentId);
+
+    if (completedAmount >= intent.amount) {
+      await this.rebalanceIntentStore.update(intentId, { status: 'complete' });
+      this.logger.debug(
+        { intentId, completedAmount: completedAmount.toString() },
+        'RebalanceIntent fully fulfilled',
+      );
+    }
+  }
+
+  /**
+   * Get the total completed amount for an intent from its actions.
+   * Only `inventory_deposit` and `rebalance_message` actions count.
+   */
+  private async getCompletedAmountForIntent(intentId: string): Promise<bigint> {
+    const actions = await this.getActionsForIntent(intentId);
+    return actions
+      .filter(
+        (a) =>
+          a.status === 'complete' &&
+          (a.type === 'inventory_deposit' || a.type === 'rebalance_message'),
+      )
+      .reduce((sum, a) => sum + a.amount, 0n);
   }
 
   async failRebalanceAction(id: string): Promise<void> {
@@ -504,26 +512,55 @@ export class ActionTracker implements IActionTracker {
   /**
    * Get inventory intents that are in_progress but not fully fulfilled,
    * and have no in-flight actions (safe to continue).
+   * Returns enriched data with computed values derived from action states.
    */
-  async getPartiallyFulfilledInventoryIntents(): Promise<RebalanceIntent[]> {
+  async getPartiallyFulfilledInventoryIntents(): Promise<
+    PartialInventoryIntent[]
+  > {
     const inProgressIntents =
       await this.rebalanceIntentStore.getByStatus('in_progress');
 
-    const partialIntents: RebalanceIntent[] = [];
+    const partialIntents: PartialInventoryIntent[] = [];
 
     for (const intent of inProgressIntents) {
       // Only inventory execution method
       if (intent.executionMethod !== 'inventory') continue;
 
-      // Must have remaining amount
-      if (intent.fulfilledAmount >= intent.amount) continue;
-
-      // Check for in-flight actions (don't continue if action is pending)
       const actions = await this.getActionsForIntent(intent.id);
-      const hasInflightAction = actions.some((a) => a.status === 'in_progress');
-      if (hasInflightAction) continue;
 
-      partialIntents.push(intent);
+      // Check for in-flight inventory_movement actions
+      // Skip intents that have a bridge in progress - wait for it to complete
+      const hasInflightMovement = actions.some(
+        (a) => a.status === 'in_progress' && a.type === 'inventory_movement',
+      );
+
+      if (hasInflightMovement) {
+        this.logger.debug(
+          { intentId: intent.id },
+          'Skipping partial intent - has in-flight inventory movement',
+        );
+        continue;
+      }
+
+      // Compute amounts from action states
+      const completedAmount = actions
+        .filter(
+          (a) => a.status === 'complete' && a.type === 'inventory_deposit',
+        )
+        .reduce((sum, a) => sum + a.amount, 0n);
+
+      const inflightAmount = actions
+        .filter(
+          (a) => a.status === 'in_progress' && a.type === 'inventory_deposit',
+        )
+        .reduce((sum, a) => sum + a.amount, 0n);
+
+      const remaining = intent.amount - completedAmount - inflightAmount;
+
+      // Safe to continue if: remaining > 0 AND no in-flight inventory_deposit
+      if (remaining > 0n && inflightAmount === 0n) {
+        partialIntents.push({ intent, completedAmount, remaining });
+      }
     }
 
     return partialIntents;
@@ -793,7 +830,6 @@ export class ActionTracker implements IActionTracker {
         origin: msg.origin_domain_id,
         destination: msg.destination_domain_id,
         amount,
-        fulfilledAmount: 0n,
         priority: undefined,
         strategyType: undefined,
         createdAt: Date.now(),

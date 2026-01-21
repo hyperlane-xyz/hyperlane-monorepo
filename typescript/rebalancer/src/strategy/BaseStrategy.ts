@@ -342,11 +342,17 @@ export abstract class BaseStrategy implements IStrategy {
   }
 
   /**
-   * Simulate pending rebalances by adding to destination balances.
+   * Simulate pending rebalances based on execution method.
    *
-   * Only adds to destination - does NOT subtract from origin because:
-   * - pendingRebalances only contains in_progress intents (origin tx confirmed)
-   * - Origin balance is already deducted on-chain
+   * For **movable_collateral** (default):
+   * - Add full amount to destination (origin already deducted on-chain)
+   *
+   * For **inventory**:
+   * - Simulate the eventual final state as if the entire intent will be fulfilled
+   * - Destination: add unfulfilled amount (total - delivered - awaiting)
+   *   This is what's NOT yet reflected in on-chain balance
+   * - Origin: subtract pending amount (total - delivered)
+   *   This is what WILL decrease when all messages deliver
    *
    * @param rawBalances - Current balances (may already have collateral reserved)
    * @param pendingRebalances - In-flight rebalance operations (in_progress only)
@@ -363,19 +369,59 @@ export abstract class BaseStrategy implements IStrategy {
     const simulated = { ...rawBalances };
 
     for (const rebalance of pendingRebalances) {
-      // Only add to destination - origin is already deducted on-chain
-      // (pendingRebalances only contains in_progress intents with confirmed origin tx)
-      simulated[rebalance.destination] =
-        (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
+      if (rebalance.executionMethod === 'inventory') {
+        // Inventory: simulate eventual final state
+        const total = rebalance.amount;
+        const delivered = rebalance.deliveredAmount ?? 0n;
+        const awaiting = rebalance.awaitingDeliveryAmount ?? 0n;
 
-      this.logger.debug(
-        {
-          context: this.constructor.name,
-          destination: rebalance.destination,
-          amount: rebalance.amount.toString(),
-        },
-        'Simulated pending rebalance (destination increase)',
-      );
+        // Destination: add unfulfilled amount (total - delivered - awaiting)
+        // This is what's NOT yet reflected in on-chain balance
+        const destinationAdjustment = total - delivered - awaiting;
+        if (destinationAdjustment > 0n) {
+          simulated[rebalance.destination] =
+            (simulated[rebalance.destination] ?? 0n) + destinationAdjustment;
+
+          this.logger.debug(
+            {
+              context: this.constructor.name,
+              destination: rebalance.destination,
+              destinationAdjustment: destinationAdjustment.toString(),
+            },
+            'Simulated inventory rebalance (destination increase for unfulfilled)',
+          );
+        }
+
+        // Origin: subtract pending amount (total - delivered)
+        // This is what WILL decrease when all messages deliver
+        const originAdjustment = total - delivered;
+        if (originAdjustment > 0n) {
+          simulated[rebalance.origin] =
+            (simulated[rebalance.origin] ?? 0n) - originAdjustment;
+
+          this.logger.debug(
+            {
+              context: this.constructor.name,
+              origin: rebalance.origin,
+              originAdjustment: originAdjustment.toString(),
+            },
+            'Simulated inventory rebalance (origin decrease for pending)',
+          );
+        }
+      } else {
+        // Movable collateral: origin already deducted on-chain, add to destination
+        simulated[rebalance.destination] =
+          (simulated[rebalance.destination] ?? 0n) + rebalance.amount;
+
+        this.logger.debug(
+          {
+            context: this.constructor.name,
+            destination: rebalance.destination,
+            amount: rebalance.amount.toString(),
+          },
+          'Simulated movable collateral rebalance (destination increase)',
+        );
+      }
     }
 
     this.logger.info(
@@ -384,6 +430,9 @@ export abstract class BaseStrategy implements IStrategy {
           from: r.origin,
           to: r.destination,
           amount: r.amount.toString(),
+          executionMethod: r.executionMethod ?? 'movable_collateral',
+          deliveredAmount: r.deliveredAmount?.toString() ?? '0',
+          awaitingDeliveryAmount: r.awaitingDeliveryAmount?.toString() ?? '0',
         })),
       },
       'Simulated pending rebalances',

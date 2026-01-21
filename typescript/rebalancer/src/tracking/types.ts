@@ -68,7 +68,6 @@ export interface Transfer extends TrackedActionBase {
 
 export interface RebalanceIntent extends TrackedActionBase {
   status: RebalanceIntentStatus;
-  fulfilledAmount: bigint;
   bridge?: Address; // Optional - bridge contract used (missing for recovered intents)
   priority?: number; // Optional - missing for recovered intents
   strategyType?: string; // Optional - missing for recovered intents
@@ -98,3 +97,17 @@ export type IRebalanceActionStore = IStore<
   RebalanceAction,
   RebalanceActionStatus
 >;
+
+// === Derived Types ===
+
+/**
+ * Represents an inventory intent that has been partially fulfilled
+ * and can continue execution. Values are derived from action states.
+ */
+export interface PartialInventoryIntent {
+  intent: RebalanceIntent;
+  /** Sum of complete inventory_deposit action amounts */
+  completedAmount: bigint;
+  /** Amount remaining to fulfill: intent.amount - completedAmount - inflightAmount */
+  remaining: bigint;
+}

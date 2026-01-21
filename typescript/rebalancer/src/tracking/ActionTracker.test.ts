@@ -271,18 +271,32 @@ describe('ActionTracker', () => {
 
   describe('syncRebalanceIntents', () => {
     it('should mark intents as complete when fully fulfilled', async () => {
+      // Intent derives completion from action states, so we need a complete action
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'complete',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
 
       await tracker.syncRebalanceIntents();
 
@@ -291,18 +305,32 @@ describe('ActionTracker', () => {
     });
 
     it('should not mark intents as complete if not fully fulfilled', async () => {
+      // Intent with only partial completion via actions
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 50n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        type: 'rebalance_message',
+        status: 'complete',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 50n, // Only partial
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
 
       await tracker.syncRebalanceIntents();
 
@@ -319,7 +347,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -348,9 +375,8 @@ describe('ActionTracker', () => {
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
 
-      // Intent should be updated and complete
+      // Intent should be complete (derived from completed action amounts)
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.fulfilledAmount).to.equal(100n);
       expect(updatedIntent?.status).to.equal('complete');
     });
 
@@ -421,7 +447,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -432,7 +457,6 @@ describe('ActionTracker', () => {
         origin: 2,
         destination: 3,
         amount: 200n,
-        fulfilledAmount: 50n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -443,7 +467,6 @@ describe('ActionTracker', () => {
         origin: 3,
         destination: 1,
         amount: 300n,
-        fulfilledAmount: 300n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       });
@@ -470,7 +493,6 @@ describe('ActionTracker', () => {
       expect(result.origin).to.equal(1);
       expect(result.destination).to.equal(2);
       expect(result.amount).to.equal(100n);
-      expect(result.fulfilledAmount).to.equal(0n);
       expect(result.priority).to.equal(1);
       expect(result.strategyType).to.equal('MinAmountStrategy');
 
@@ -487,7 +509,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -519,7 +540,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 50n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -538,19 +558,17 @@ describe('ActionTracker', () => {
 
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
       expect(updatedIntent?.status).to.equal('in_progress');
-      expect(updatedIntent?.fulfilledAmount).to.equal(50n); // Should not change
     });
   });
 
   describe('completeRebalanceAction', () => {
-    it('should mark action as complete and update parent intent fulfilledAmount', async () => {
+    it('should mark action as complete and mark parent intent complete if fully fulfilled', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
@@ -576,8 +594,8 @@ describe('ActionTracker', () => {
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
 
+      // Intent should be complete (derived from completed action amounts)
       const updatedIntent = await rebalanceIntentStore.get('intent-1');
-      expect(updatedIntent?.fulfilledAmount).to.equal(100n);
       expect(updatedIntent?.status).to.equal('complete');
     });
 
@@ -596,7 +614,6 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };

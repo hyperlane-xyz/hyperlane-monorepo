@@ -54,7 +54,6 @@ describe('InventoryRebalancer E2E', () => {
     inventoryMonitor = {
       getBalances: Sinon.stub(),
       getAvailableInventory: Sinon.stub(),
-      getInflightFromChain: Sinon.stub(),
       refresh: Sinon.stub(),
     } as SinonStubbedInstance<IInventoryMonitor>;
 
@@ -123,11 +122,17 @@ describe('InventoryRebalancer E2E', () => {
       },
     };
 
-    // Mock provider with getFeeData for gas estimation
+    // Mock provider with getFeeData for gas estimation, estimateGas for actual gas estimation,
+    // and waitForTransaction for confirmations
     const mockProvider = {
       getFeeData: Sinon.stub().resolves({
         maxFeePerGas: 10000000000n, // 10 gwei
         gasPrice: 10000000000n,
+      }),
+      estimateGas: Sinon.stub().resolves(300000n), // Mock gas estimate for transferRemote
+      waitForTransaction: Sinon.stub().resolves({
+        blockNumber: 100,
+        status: 1,
       }),
     };
 
@@ -142,6 +147,9 @@ describe('InventoryRebalancer E2E', () => {
         if (domain === ARBITRUM_DOMAIN) return ARBITRUM_CHAIN;
         if (domain === SOLANA_DOMAIN) return SOLANA_CHAIN;
         return 'unknown';
+      }),
+      getChainMetadata: Sinon.stub().returns({
+        blocks: { reorgPeriod: 1 }, // Quick confirmations for tests
       }),
       getProvider: Sinon.stub().returns(mockProvider),
       sendTransaction: Sinon.stub().resolves({
@@ -188,7 +196,6 @@ describe('InventoryRebalancer E2E', () => {
       origin: ARBITRUM_DOMAIN,
       destination: SOLANA_DOMAIN,
       amount: 10000000000n,
-      fulfilledAmount: 0n,
       executionMethod: 'inventory',
       createdAt: now,
       updatedAt: now,
@@ -485,12 +492,18 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   describe('Native Token IGP Reservation', () => {
-    // Gas estimation: 10 gwei × 300,000 gas = 3,000,000,000,000 wei
+    // Gas estimation: 10 gwei × 300,000 gas = 3,000,000,000,000,000 wei (0.003 ETH)
     // IGP quote: 1,000,000 wei
-    // Total reservation: 3,000,001,000,000 wei
-    const GAS_COST = 10000000000n * 300000n; // 10 gwei × 300k gas = 3,000,000,000,000
+    // Base cost: IGP + gas ≈ 3,000,001,000,000,000 wei
+    // Safety buffer (20%): 600,000,200,000,000 wei
+    // Total reservation: 3,600,001,200,000,000 wei (0.0036 ETH)
+    // Min viable transfer (2x base cost): 6,000,002,000,000,000 wei (0.006 ETH)
+    const GAS_COST = 10000000000n * 300000n; // 10 gwei × 300k gas
     const IGP_COST = 1000000n;
-    const TOTAL_RESERVATION = GAS_COST + IGP_COST;
+    const BASE_COST = GAS_COST + IGP_COST;
+    const SAFETY_BUFFER = (BASE_COST * 20n) / 100n; // 20% safety buffer
+    const TOTAL_RESERVATION = BASE_COST + SAFETY_BUFFER;
+    // Note: MIN_VIABLE_TRANSFER = BASE_COST * 2n = ~6e15 wei (0.006 ETH)
 
     it('reserves IGP and gas cost when transferring native tokens', async () => {
       // Setup: Native token on DESTINATION (solana) where IGP and gas must be reserved
@@ -545,9 +558,13 @@ describe('InventoryRebalancer E2E', () => {
       };
       warpCore.tokens = [arbitrumToken, solanaToken];
 
-      const requestedAmount = 10000000000000000n; // 0.01 ETH
-      // Only have enough for reservation + small amount
-      const availableInventory = TOTAL_RESERVATION + 5000000000000000n; // Costs + 0.005 ETH
+      // Request more than we have available
+      const requestedAmount = 20000000000000000n; // 0.02 ETH
+      // Have enough for costs + partial transfer that exceeds min viable threshold
+      // availableInventory = TOTAL_RESERVATION + partialAmount
+      // where partialAmount >= MIN_VIABLE_TRANSFER (2x base cost)
+      const partialAmount = 7000000000000000n; // 0.007 ETH (> MIN_VIABLE_TRANSFER of ~0.006 ETH)
+      const availableInventory = TOTAL_RESERVATION + partialAmount;
 
       const route = createTestRoute({ amount: requestedAmount });
       const intent = createTestIntent({ amount: requestedAmount });
@@ -565,9 +582,14 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
 
       // Verify: transferRemote was called with reduced amount (inventory - costs)
+      // Note: populateTransferRemoteTx is called multiple times:
+      // - First in estimateTransferRemoteGas (for calculateMaxTransferable)
+      // - Second in estimateTransferRemoteGas (for calculateMinViableTransfer)
+      // - Third in executeTransferRemote (the actual transfer)
+      // We check the last call which is the actual execution
       const populateParams =
-        adapterStub.populateTransferRemoteTx.firstCall.args[0];
-      expect(populateParams.weiAmountOrId).to.equal(5000000000000000n);
+        adapterStub.populateTransferRemoteTx.lastCall.args[0];
+      expect(populateParams.weiAmountOrId).to.equal(partialAmount);
     });
 
     it('returns failure when inventory cannot cover costs', async () => {
@@ -603,8 +625,10 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('No inventory available');
 
-      // Verify: No transferRemote attempted
-      expect(adapterStub.populateTransferRemoteTx.called).to.be.false;
+      // Verify: No actual transferRemote executed (only gas estimation calls allowed)
+      // Note: With gas estimation, populateTransferRemoteTx IS called for estimation,
+      // so we can't check that it wasn't called at all. Instead, verify no action was created.
+      expect(actionTracker.createRebalanceAction.called).to.be.false;
     });
 
     it('does not reserve IGP for non-native tokens', async () => {

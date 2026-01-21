@@ -391,7 +391,6 @@ export class RebalancerContextFactory {
         inventoryChains,
       },
       this.warpCore,
-      actionTracker,
       this.logger,
     );
 

@@ -6,6 +6,7 @@ import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
   ActionType,
   ExecutionMethod,
+  PartialInventoryIntent,
   RebalanceAction,
   RebalanceIntent,
   Transfer,
@@ -109,8 +110,9 @@ export interface IActionTracker {
   /**
    * Get inventory intents that are in_progress but not fully fulfilled,
    * and have no in-flight actions (safe to continue).
+   * Returns enriched data with computed values derived from action states.
    */
-  getPartiallyFulfilledInventoryIntents(): Promise<RebalanceIntent[]>;
+  getPartiallyFulfilledInventoryIntents(): Promise<PartialInventoryIntent[]>;
 
   // === RebalanceIntent Management ===
 
@@ -176,7 +178,7 @@ export interface IActionTracker {
 
   /**
    * Mark a rebalance action as complete.
-   * Updates parent intent's fulfilledAmount.
+   * Checks if parent intent is now fully fulfilled and marks it complete if so.
    */
   completeRebalanceAction(id: string): Promise<void>;
 

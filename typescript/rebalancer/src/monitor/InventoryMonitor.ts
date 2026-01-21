@@ -7,7 +7,6 @@ import type {
   InventoryBalance,
   InventoryBalances,
 } from '../interfaces/IInventoryMonitor.js';
-import type { IActionTracker } from '../tracking/IActionTracker.js';
 
 /**
  * Configuration for the InventoryMonitor.
@@ -24,8 +23,12 @@ export interface InventoryMonitorConfig {
  *
  * The InventoryMonitor:
  * - Reads token balances of the inventory signer EOA on each inventory chain
- * - Uses ActionTracker to account for inflight inventory movements
- * - Provides available inventory (balance - inflight outbound)
+ * - Provides available inventory (equal to balance - on-chain state is source of truth)
+ *
+ * Note: Inflight tracking is no longer done here because on-chain balance already
+ * reflects confirmed transactions. Within-cycle protection is provided by
+ * consumedInventory in InventoryRebalancer, and cross-cycle protection is
+ * provided by intent/action tracking in ActionTracker.
  *
  * Token addresses are obtained from the WarpCore tokens, which already know
  * which token is deployed on each chain.
@@ -34,7 +37,6 @@ export class InventoryMonitor implements IInventoryMonitor {
   private readonly logger: Logger;
   private readonly config: InventoryMonitorConfig;
   private readonly warpCore: WarpCore;
-  private readonly actionTracker: IActionTracker;
 
   /** Cached balances from last refresh */
   private cachedBalances: InventoryBalances = new Map();
@@ -42,12 +44,10 @@ export class InventoryMonitor implements IInventoryMonitor {
   constructor(
     config: InventoryMonitorConfig,
     warpCore: WarpCore,
-    actionTracker: IActionTracker,
     logger: Logger,
   ) {
     this.config = config;
     this.warpCore = warpCore;
-    this.actionTracker = actionTracker;
     this.logger = logger;
 
     this.logger.info(
@@ -109,7 +109,7 @@ export class InventoryMonitor implements IInventoryMonitor {
 
   /**
    * Get the available inventory balance on a specific chain.
-   * Available = current balance - inflight outbound movements
+   * Available equals the on-chain balance (source of truth).
    *
    * @param chain - Chain name to check
    * @returns Available balance, or 0n if chain is not monitored
@@ -120,24 +120,6 @@ export class InventoryMonitor implements IInventoryMonitor {
       return 0n;
     }
     return balance.available;
-  }
-
-  /**
-   * Get the total inflight inventory movements from a chain.
-   * This is the sum of all pending inventory_movement actions originating from this chain.
-   *
-   * @param chain - Chain name to check
-   * @returns Total inflight amount from this chain
-   */
-  async getInflightFromChain(chain: ChainName): Promise<bigint> {
-    // Get domain ID for the chain
-    const domainId = this.warpCore.multiProvider.getDomainId(chain);
-
-    // Query ActionTracker for inflight inventory movements from this chain
-    const inflightMovements =
-      await this.actionTracker.getInflightInventoryMovements(domainId);
-
-    return inflightMovements;
   }
 
   /**
@@ -166,17 +148,14 @@ export class InventoryMonitor implements IInventoryMonitor {
 
     const results = await Promise.all(readPromises);
 
-    // Get inflight amounts for each chain
+    // Set balances - available equals balance (on-chain state is source of truth)
     for (const { chainName, balance } of results) {
       if (balance === undefined) continue;
-
-      const inflight = await this.getInflightFromChain(chainName);
-      const available = balance > inflight ? balance - inflight : 0n;
 
       const inventoryBalance: InventoryBalance = {
         chainName,
         balance,
-        available,
+        available: balance, // On-chain balance is the source of truth
       };
 
       newBalances.set(chainName, inventoryBalance);
@@ -185,8 +164,7 @@ export class InventoryMonitor implements IInventoryMonitor {
         {
           chain: chainName,
           balance: balance.toString(),
-          inflight: inflight.toString(),
-          available: available.toString(),
+          available: balance.toString(),
         },
         'Inventory balance updated',
       );
@@ -194,14 +172,21 @@ export class InventoryMonitor implements IInventoryMonitor {
 
     this.cachedBalances = newBalances;
 
+    // Log per-chain balances for visibility
+    const balancesByChain = Array.from(newBalances.entries()).map(
+      ([chain, b]) => ({
+        chain,
+        balance: b.balance.toString(),
+        balanceEth: (Number(b.balance) / 1e18).toFixed(6),
+      }),
+    );
+
     this.logger.info(
       {
         chainsMonitored: newBalances.size,
+        balances: balancesByChain,
         totalBalance: Array.from(newBalances.values())
           .reduce((sum, b) => sum + b.balance, 0n)
-          .toString(),
-        totalAvailable: Array.from(newBalances.values())
-          .reduce((sum, b) => sum + b.available, 0n)
           .toString(),
       },
       'Inventory balances refreshed',
