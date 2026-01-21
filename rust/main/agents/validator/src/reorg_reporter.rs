@@ -150,9 +150,17 @@ impl LatestCheckpointReorgReporter {
     ) -> Vec<(Url, ValidatorSettings)> {
         #[cfg(feature = "aleo")]
         use ChainConnectionConf::Aleo;
-        use ChainConnectionConf::{
-            Cosmos, CosmosNative, Ethereum, Fuel, Radix, Sealevel, Starknet,
-        };
+        use ChainConnectionConf::Ethereum;
+        #[cfg(feature = "fuel")]
+        use ChainConnectionConf::Fuel;
+        #[cfg(feature = "radix")]
+        use ChainConnectionConf::Radix;
+        #[cfg(feature = "sealevel")]
+        use ChainConnectionConf::Sealevel;
+        #[cfg(feature = "starknet")]
+        use ChainConnectionConf::Starknet;
+        #[cfg(feature = "cosmos")]
+        use ChainConnectionConf::{Cosmos, CosmosNative};
 
         let chain_conf = settings
             .chains
@@ -166,7 +174,9 @@ impl LatestCheckpointReorgReporter {
                 updated_conn.rpc_connection = RpcConnectionConf::Http { url };
                 Ethereum(updated_conn)
             }),
+            #[cfg(feature = "fuel")]
             Fuel(_) => todo!("Fuel connection not implemented"),
+            #[cfg(feature = "sealevel")]
             Sealevel(conn) => {
                 Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
@@ -175,6 +185,7 @@ impl LatestCheckpointReorgReporter {
                 })
             }
             // We need only gRPC URLs for Cosmos and CosmosNative to create MerkleTreeHook
+            #[cfg(feature = "cosmos")]
             Cosmos(conn) => {
                 Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
@@ -182,6 +193,7 @@ impl LatestCheckpointReorgReporter {
                     Cosmos(updated_conn)
                 })
             }
+            #[cfg(feature = "cosmos")]
             CosmosNative(conn) => {
                 Self::map_urls_to_connections(conn.grpc_urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
@@ -189,6 +201,7 @@ impl LatestCheckpointReorgReporter {
                     CosmosNative(updated_conn)
                 })
             }
+            #[cfg(feature = "starknet")]
             Starknet(conn) => {
                 Self::map_urls_to_connections(conn.urls.clone(), conn, |conn, url| {
                     let mut updated_conn = conn.clone();
@@ -196,6 +209,7 @@ impl LatestCheckpointReorgReporter {
                     Starknet(updated_conn)
                 })
             }
+            #[cfg(feature = "radix")]
             Radix(conn) => Self::map_urls_to_connections(conn.core.clone(), conn, |conn, url| {
                 let mut updated_conn = conn.clone();
                 updated_conn.core = vec![url];

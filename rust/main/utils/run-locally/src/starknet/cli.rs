@@ -59,7 +59,7 @@ impl StarknetCLI {
             .run_with_output()
             .join();
 
-        println!("declare result: {:?}", run_result);
+        println!("declare result: {run_result:?}");
 
         DeclareResponse {
             class_hash: run_result.first().unwrap().to_string(),
@@ -79,7 +79,7 @@ impl StarknetCLI {
             .run_with_output()
             .join();
 
-        println!("deploy result: {:?}", run_result);
+        println!("deploy result: {run_result:?}");
 
         run_result.first().unwrap().to_string()
     }
@@ -97,7 +97,7 @@ impl StarknetCLI {
             .run_with_output()
             .join();
 
-        println!("invoke result: {:?}", run_result);
+        println!("invoke result: {run_result:?}");
     }
 
     pub fn send_tx(&self, contract_address: String, function_name: String, args: Vec<String>) {
@@ -113,6 +113,6 @@ impl StarknetCLI {
             .run_with_output()
             .join();
 
-        println!("send-tx result: {:?}", run_result);
+        println!("send-tx result: {run_result:?}");
     }
 }
