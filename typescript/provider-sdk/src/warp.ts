@@ -1,4 +1,4 @@
-import { type Logger, assert } from '@hyperlane-xyz/utils';
+import { type Logger, assert, isNullish } from '@hyperlane-xyz/utils';
 
 import {
   Artifact,
@@ -172,6 +172,14 @@ export type IWarpArtifactManager = IArtifactManager<
   DeployedWarpAddress
 >;
 
+/**
+ * Raw warp token config used by protocol-specific artifact implementations.
+ *
+ * This wraps WarpArtifactConfig to use the "Raw" artifact format where nested artifacts are converted
+ * to the `ArtifactOnChain` type
+ *
+ * @template T - The WarpArtifactConfig type
+ */
 type RawWarpTokenConfig<T extends WarpArtifactConfig> = RawArtifact<
   Omit<T, 'interchainSecurityModule'> & {
     interchainSecurityModule?: ArtifactOnChain<
@@ -248,7 +256,7 @@ export function warpConfigToArtifact(
   if (config.remoteRouters) {
     for (const [chainName, router] of Object.entries(config.remoteRouters)) {
       const domainId = chainLookup.getDomainId(chainName);
-      if (domainId === null) {
+      if (isNullish(domainId)) {
         logger?.warn(
           `Skipping remote router for unknown chain: ${chainName}. ` +
             `Chain not found in chain lookup.`,
@@ -264,7 +272,7 @@ export function warpConfigToArtifact(
   if (config.destinationGas) {
     for (const [chainName, gas] of Object.entries(config.destinationGas)) {
       const domainId = chainLookup.getDomainId(chainName);
-      if (domainId === null) {
+      if (isNullish(domainId)) {
         logger?.warn(
           `Skipping destination gas for unknown chain: ${chainName}. ` +
             `Chain not found in chain lookup.`,
