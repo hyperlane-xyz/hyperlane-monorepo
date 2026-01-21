@@ -240,9 +240,33 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     } catch (error) {
       this.logger.warn(
         { error, destination },
-        'Failed to estimate ICA handle gas, using default',
+        'Failed to estimate ICA handle gas, trying individual call estimation',
       );
-      return ICA_HANDLE_GAS_FALLBACK;
+
+      try {
+        const individualEstimates = await Promise.all(
+          formattedCalls.map((call) =>
+            this.estimateIndividualCallGas(destination, call),
+          ),
+        );
+        const totalGas = individualEstimates.reduce(
+          (sum, gas) => sum.add(gas),
+          BigNumber.from(0),
+        );
+        // Overhead: ICA deployment check + multicall dispatch + message decoding
+        const ICA_OVERHEAD = BigNumber.from(50_000);
+        const PER_CALL_OVERHEAD = BigNumber.from(5_000);
+        const overhead = ICA_OVERHEAD.add(
+          PER_CALL_OVERHEAD.mul(formattedCalls.length),
+        );
+        return addBufferToGasLimit(totalGas.add(overhead));
+      } catch (fallbackError) {
+        this.logger.warn(
+          { error: fallbackError, destination },
+          'Individual call estimation also failed, using static fallback',
+        );
+        return ICA_HANDLE_GAS_FALLBACK;
+      }
     }
   }
 
@@ -325,6 +349,27 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
     const parsed = parseStandardHookMetadata(metadata);
     return parsed ? BigNumber.from(parsed.gasLimit) : null;
+  }
+
+  /**
+   * Estimate gas for a single call on the destination chain.
+   * Used as fallback when full handle() estimation fails.
+   */
+  private async estimateIndividualCallGas(
+    destination: string,
+    call: { to: string; value: BigNumber; data: string },
+  ): Promise<BigNumber> {
+    const provider = this.multiProvider.getProvider(destination);
+    const PER_CALL_FALLBACK = BigNumber.from(50_000);
+    try {
+      return await provider.estimateGas({
+        to: bytes32ToAddress(call.to),
+        data: call.data,
+        value: call.value,
+      });
+    } catch {
+      return PER_CALL_FALLBACK;
+    }
   }
 
   // general helper for different overloaded callRemote functions
