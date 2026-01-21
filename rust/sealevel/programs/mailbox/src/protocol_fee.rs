@@ -1,10 +1,11 @@
 //! Data structures for the protocol fee configuration.
 
 use borsh::{BorshDeserialize, BorshSerialize};
+use shank::ShankType;
 use solana_program::pubkey::Pubkey;
 
 /// The Protocol Fee configuration.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Eq, Clone, Default, ShankType)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct ProtocolFee {

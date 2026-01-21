@@ -2428,7 +2428,7 @@ dependencies = [
  "getrandom 0.2.15",
  "hex",
  "hyperlane-application",
- "itertools 0.10.5",
+ "itertools 0.13.0",
  "num 0.4.3",
  "num-derive 0.4.2",
  "num-traits",
@@ -2506,6 +2506,7 @@ dependencies = [
  "hyperlane-sealevel-message-recipient-interface",
  "hyperlane-test-utils",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -2525,6 +2526,7 @@ dependencies = [
  "num-traits",
  "serde",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror",
 ]
@@ -2574,6 +2576,7 @@ dependencies = [
  "proc-macro-crate 1.2.1",
  "serde",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "spl-noop",
  "thiserror",
@@ -2636,6 +2639,7 @@ dependencies = [
  "num-traits",
  "rand 0.8.5",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -2653,6 +2657,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-test-transaction-utils",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -2692,6 +2697,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -2720,6 +2726,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -2772,6 +2779,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -2792,6 +2800,7 @@ dependencies = [
  "hyperlane-sealevel-mailbox",
  "hyperlane-test-utils",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "solana-program-test",
  "solana-sdk",
@@ -4884,6 +4893,52 @@ checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest 0.10.7",
  "keccak",
+]
+
+[[package]]
+name = "shank"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae936f51a1ab23dd7f8a81b0b13ab4af3fc71f1c56438a07cb54a0f7eb5436fd"
+dependencies = [
+ "shank_macro",
+]
+
+[[package]]
+name = "shank_macro"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db4463f65133e69fe6c69d5c30e9cc6d2bde50e0fac61db1c2fb6a43fc499b67"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "shank_macro_impl",
+ "shank_render",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "shank_macro_impl"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c08958b4ba24f8289481c0d8b377c63a8205fc037b59fc80643c491ec1f487"
+dependencies = [
+ "anyhow",
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "serde",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "shank_render"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ed873b8e62792442e944dc94c4ebbfab63e5c46eac09b7dcf3a2e274dde1524"
+dependencies = [
+ "proc-macro2 1.0.86",
+ "quote 1.0.37",
+ "shank_macro_impl",
 ]
 
 [[package]]

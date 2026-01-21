@@ -2,6 +2,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
+use shank::{ShankInstruction, ShankType};
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     keccak,
@@ -12,11 +13,34 @@ use solana_program::{
 use crate::validator_announce_pda_seeds;
 
 /// Instructions for the ValidatorAnnounce program.
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankInstruction)]
 pub enum Instruction {
     /// Initializes the program.
+    #[account(0, signer, name = "payer", desc = "Payer account")]
+    #[account(1, name = "system_program", desc = "System program")]
+    #[account(
+        2,
+        writable,
+        name = "validator_announce",
+        desc = "ValidatorAnnounce PDA"
+    )]
     Init(InitInstruction),
     /// Announces a validator's storage location.
+    #[account(0, signer, name = "payer", desc = "Payer account")]
+    #[account(1, name = "system_program", desc = "System program")]
+    #[account(2, name = "validator_announce", desc = "ValidatorAnnounce PDA")]
+    #[account(
+        3,
+        writable,
+        name = "validator_storage_locations",
+        desc = "Validator-specific storage locations PDA"
+    )]
+    #[account(
+        4,
+        writable,
+        name = "replay_protection",
+        desc = "Replay protection PDA"
+    )]
     Announce(AnnounceInstruction),
 }
 
@@ -34,7 +58,7 @@ impl Instruction {
 }
 
 /// Init data.
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankType)]
 pub struct InitInstruction {
     /// The local Mailbox program.
     pub mailbox: Pubkey,
@@ -43,9 +67,10 @@ pub struct InitInstruction {
 }
 
 /// Announcement data.
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankType)]
 pub struct AnnounceInstruction {
     /// The validator's address.
+    #[idl_type("[u8; 20]")]
     pub validator: H160,
     /// The validator's storage location.
     pub storage_location: String,

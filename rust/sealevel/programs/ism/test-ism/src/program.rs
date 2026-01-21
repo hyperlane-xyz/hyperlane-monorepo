@@ -4,6 +4,7 @@ use account_utils::{create_pda_account, AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
+use shank::{ShankAccount, ShankInstruction};
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     entrypoint::ProgramResult,
@@ -45,7 +46,7 @@ macro_rules! test_ism_storage_pda_seeds {
 pub type TestIsmStorageAccount = AccountData<TestIsmStorage>;
 
 /// The storage account's data.
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Default, ShankAccount)]
 pub struct TestIsmStorage {
     /// Whether messages should be accepted / verified.
     pub accept: bool,
@@ -59,11 +60,16 @@ impl SizedData for TestIsmStorage {
 }
 
 /// Instructions for the program.
-#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, ShankInstruction)]
+#[rustfmt::skip]
 pub enum TestIsmInstruction {
     /// Initializes the program.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, signer, name = "payer", desc = "Payer")]
+    #[account(2, writable, name = "storage_pda", desc = "Storage PDA")]
     Init,
     /// Sets whether messages should be accepted / verified.
+    #[account(0, writable, name = "storage_pda", desc = "Storage PDA")]
     SetAccept(bool),
 }
 

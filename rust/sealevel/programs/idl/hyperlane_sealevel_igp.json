@@ -1,0 +1,821 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_igp",
+  "instructions": [
+    {
+      "name": "Init",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "programData",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Program data PDA"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "InitIgp",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "igp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP account to initialize"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "initIgp",
+          "type": {
+            "defined": "InitIgp"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "InitOverheadIgp",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "overheadIgp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Overhead IGP account to initialize"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "initOverheadIgp",
+          "type": {
+            "defined": "InitOverheadIgp"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    },
+    {
+      "name": "PayForGas",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "programData",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP program data"
+          ]
+        },
+        {
+          "name": "uniqueGasPaymentAccount",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Unique gas payment account"
+          ]
+        },
+        {
+          "name": "gasPaymentPda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Gas payment PDA"
+          ]
+        },
+        {
+          "name": "igp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP account"
+          ]
+        },
+        {
+          "name": "overheadIgp",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Overhead IGP account (optional)"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "payForGas",
+          "type": {
+            "defined": "PayForGas"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      }
+    },
+    {
+      "name": "QuoteGasPayment",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "igp",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "IGP account"
+          ]
+        },
+        {
+          "name": "overheadIgp",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Overhead IGP account (optional)"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "quoteGasPayment",
+          "type": {
+            "defined": "QuoteGasPayment"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 4
+      }
+    },
+    {
+      "name": "TransferIgpOwnership",
+      "accounts": [
+        {
+          "name": "igp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP account"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Current owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 5
+      }
+    },
+    {
+      "name": "TransferOverheadIgpOwnership",
+      "accounts": [
+        {
+          "name": "overheadIgp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Overhead IGP account"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Current owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 6
+      }
+    },
+    {
+      "name": "SetIgpBeneficiary",
+      "accounts": [
+        {
+          "name": "igp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP account"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "IGP owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pubkey",
+          "type": "publicKey"
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 7
+      }
+    },
+    {
+      "name": "SetDestinationGasOverheads",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "overheadIgp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Overhead IGP account"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Overhead IGP owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "vec": {
+              "defined": "GasOverheadConfig"
+            }
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 8
+      }
+    },
+    {
+      "name": "SetGasOracleConfigs",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "igp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP account"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "IGP owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "vec": {
+              "defined": "GasOracleConfig"
+            }
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 9
+      }
+    },
+    {
+      "name": "Claim",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "igp",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP account"
+          ]
+        },
+        {
+          "name": "beneficiary",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "IGP beneficiary"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 10
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ProgramData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "paymentCount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "OverheadIgp",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "salt",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "inner",
+            "type": "publicKey"
+          },
+          {
+            "name": "gasOverheads",
+            "type": {
+              "hashMap": [
+                "u32",
+                "u64"
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "Igp",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "salt",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "beneficiary",
+            "type": "publicKey"
+          },
+          {
+            "name": "gasOracles",
+            "type": {
+              "hashMap": [
+                "u32",
+                {
+                  "defined": "GasOracle"
+                }
+              ]
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "GasPaymentData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sequenceNumber",
+            "type": "u64"
+          },
+          {
+            "name": "igp",
+            "type": "publicKey"
+          },
+          {
+            "name": "destinationDomain",
+            "type": "u32"
+          },
+          {
+            "name": "messageId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "gasAmount",
+            "type": "u64"
+          },
+          {
+            "name": "payment",
+            "type": "u64"
+          },
+          {
+            "name": "uniqueGasPaymentPubkey",
+            "type": "publicKey"
+          },
+          {
+            "name": "slot",
+            "type": "u64",
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "RemoteGasData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "tokenExchangeRate",
+            "type": "u128"
+          },
+          {
+            "name": "gasPrice",
+            "type": "u128"
+          },
+          {
+            "name": "tokenDecimals",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitIgp",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "salt",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "beneficiary",
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InitOverheadIgp",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "salt",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "inner",
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "PayForGas",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "messageId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "destinationDomain",
+            "type": "u32"
+          },
+          {
+            "name": "gasAmount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "QuoteGasPayment",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destinationDomain",
+            "type": "u32"
+          },
+          {
+            "name": "gasAmount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "GasOverheadConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destinationDomain",
+            "type": "u32"
+          },
+          {
+            "name": "gasOverhead",
+            "type": {
+              "option": "u64"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "GasOracleConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "gasOracle",
+            "type": {
+              "option": {
+                "defined": "GasOracle"
+              }
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "InterchainGasPaymasterType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Igp",
+            "fields": [
+              "publicKey"
+            ]
+          },
+          {
+            "name": "OverheadIgp",
+            "fields": [
+              "publicKey"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "GasOracle",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "RemoteGasData",
+            "fields": [
+              {
+                "defined": "RemoteGasData"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 1,
+      "name": "NoGasOracleSetForDestinationDomain",
+      "msg": "No gas oracle set for destination domain"
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneIGP1111111111111111111111111111111111"
+  }
+}

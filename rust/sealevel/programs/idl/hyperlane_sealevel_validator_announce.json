@@ -1,0 +1,213 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_validator_announce",
+  "instructions": [
+    {
+      "name": "Init",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "validatorAnnounce",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "ValidatorAnnounce PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "initInstruction",
+          "type": {
+            "defined": "InitInstruction"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "Announce",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "validatorAnnounce",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "ValidatorAnnounce PDA"
+          ]
+        },
+        {
+          "name": "validatorStorageLocations",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Validator-specific storage locations PDA"
+          ]
+        },
+        {
+          "name": "replayProtection",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Replay protection PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "announceInstruction",
+          "type": {
+            "defined": "AnnounceInstruction"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "ValidatorAnnounce",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "mailbox",
+            "type": "publicKey"
+          },
+          {
+            "name": "localDomain",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ValidatorStorageLocations",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "storageLocations",
+            "type": {
+              "vec": "string"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "ReplayProtection",
+      "type": {
+        "kind": "struct",
+        "fields": []
+      }
+    },
+    {
+      "name": "InitInstruction",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mailbox",
+            "type": "publicKey"
+          },
+          {
+            "name": "localDomain",
+            "type": "u32"
+          }
+        ]
+      }
+    },
+    {
+      "name": "AnnounceInstruction",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validator",
+            "type": {
+              "array": [
+                "u8",
+                20
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "storageLocation",
+            "type": "string"
+          },
+          {
+            "name": "signature",
+            "type": "bytes"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 1,
+      "name": "SignatureError",
+      "msg": "Signature error"
+    },
+    {
+      "code": 2,
+      "name": "SignerMismatch",
+      "msg": "Signer mismatch"
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneValidatorAnnounce1111111111111111111"
+  }
+}

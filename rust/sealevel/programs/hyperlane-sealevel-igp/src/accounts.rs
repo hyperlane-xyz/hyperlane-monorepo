@@ -5,6 +5,7 @@ use std::{cmp::Ordering, collections::HashMap};
 use access_control::AccessControl;
 use account_utils::{AccountData, DiscriminatorData, DiscriminatorPrefixed, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
+use shank::{ShankAccount, ShankType};
 use solana_program::{clock::Slot, program_error::ProgramError, pubkey::Pubkey};
 
 use hyperlane_core::{H256, U256};
@@ -17,7 +18,7 @@ pub const TOKEN_EXCHANGE_RATE_SCALE: u128 = 10u128.pow(19);
 /// The number of decimals for the native SOL token.
 pub const SOL_DECIMALS: u8 = 9;
 
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, ShankType)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 /// Types of IGPs that exist.
@@ -39,7 +40,7 @@ impl InterchainGasPaymasterType {
 }
 
 /// A gas oracle that provides gas data for a remote chain.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Clone, ShankType)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(tag = "type", rename_all = "camelCase"))]
 pub enum GasOracle {
@@ -62,7 +63,7 @@ impl DiscriminatorData for ProgramData {
 }
 
 /// A singleton account that stores the program's global data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct ProgramData {
     /// The bump seed for the program data PDA.
     pub bump_seed: u8,
@@ -87,11 +88,12 @@ impl DiscriminatorData for OverheadIgp {
 
 /// Overhead IGP account data, intended to be configured with gas overheads
 /// to impose on application-specified gas payment amounts.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct OverheadIgp {
     /// The bump seed for the overhead IGP PDA.
     pub bump_seed: u8,
     /// The salt used to derive the overhead IGP PDA.
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the overhead IGP.
     pub owner: Option<Pubkey>,
@@ -155,11 +157,12 @@ impl DiscriminatorData for Igp {
 }
 
 /// IGP account data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct Igp {
     /// The bump seed for the IGP PDA.
     pub bump_seed: u8,
     /// The salt used to derive the IGP PDA.
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the IGP.
     pub owner: Option<Pubkey>,
@@ -228,7 +231,7 @@ impl AccessControl for Igp {
 }
 
 /// Remote gas data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, Clone, ShankType)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct RemoteGasData {
@@ -259,7 +262,7 @@ impl DiscriminatorData for GasPaymentData {
 }
 
 /// Gas payment account data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct GasPaymentData {
     /// The sequence number of the gas payment.
     pub sequence_number: u64,
@@ -268,6 +271,7 @@ pub struct GasPaymentData {
     /// The destination domain of the gas payment.
     pub destination_domain: u32,
     /// The message ID of the gas payment.
+    #[idl_type("[u8; 32]")]
     pub message_id: H256,
     /// The amount of gas provided.
     pub gas_amount: u64,
@@ -276,6 +280,7 @@ pub struct GasPaymentData {
     /// The unique gas payment pubkey.
     pub unique_gas_payment_pubkey: Pubkey,
     /// The slot of the gas payment.
+    #[idl_type(u64)]
     pub slot: Slot,
 }
 

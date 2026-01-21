@@ -1,0 +1,81 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_test_ism",
+  "instructions": [
+    {
+      "name": "Init",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer"
+          ]
+        },
+        {
+          "name": "storagePda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Storage PDA"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "SetAccept",
+      "accounts": [
+        {
+          "name": "storagePda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Storage PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": "bool"
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "TestIsmStorage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "accept",
+            "type": "bool"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneTestIsm1111111111111111111111111111"
+  }
+}

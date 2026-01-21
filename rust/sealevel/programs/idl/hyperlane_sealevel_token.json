@@ -1,0 +1,31 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_token",
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "SyntheticPlugin",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "mintBump",
+            "type": "u8"
+          },
+          {
+            "name": "ataPayerBump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneToken111111111111111111111111111111"
+  }
+}

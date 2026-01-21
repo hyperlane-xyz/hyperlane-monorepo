@@ -5954,7 +5954,7 @@ dependencies = [
  "hyperlane-sealevel",
  "hyperlane-starknet",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "maplit",
  "mockall",
  "moka",
@@ -6010,7 +6010,7 @@ dependencies = [
  "getrandom 0.2.15",
  "hex 0.4.3",
  "hyperlane-application",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "num 0.4.3",
  "num-derive 0.4.2",
  "num-traits",
@@ -6041,7 +6041,7 @@ dependencies = [
  "cometbft",
  "cometbft-rpc",
  "cosmrs",
- "cosmwasm-std 1.5.7",
+ "cosmwasm-std 2.1.3",
  "crypto",
  "derive-new",
  "futures",
@@ -6058,7 +6058,7 @@ dependencies = [
  "ibc-proto",
  "injective-protobuf",
  "injective-std",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "once_cell",
  "pin-project",
  "protobuf",
@@ -6071,7 +6071,7 @@ dependencies = [
  "time",
  "tokio",
  "tonic 0.12.3",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "url",
@@ -6133,7 +6133,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-warp-route",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "num 0.4.3",
  "num-traits",
  "reqwest 0.11.27",
@@ -6293,6 +6293,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror 1.0.63",
 ]
@@ -6322,6 +6323,7 @@ dependencies = [
  "num-traits",
  "proc-macro-crate 1.2.1",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "spl-noop",
  "thiserror 1.0.63",
@@ -6353,6 +6355,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror 1.0.63",
 ]
@@ -6367,6 +6370,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror 1.0.63",
 ]
@@ -7033,7 +7037,7 @@ dependencies = [
  "hyperlane-ethereum",
  "hyperlane-radix",
  "hyperlane-sealevel",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "mockall",
  "prometheus",
  "radix-common",
@@ -9414,7 +9418,7 @@ dependencies = [
  "hyperlane-metric",
  "hyperlane-operation-verifier",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "lander",
  "maplit",
  "mockall",
@@ -9434,7 +9438,7 @@ dependencies = [
  "tokio",
  "tokio-metrics",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "tracing-subscriber",
@@ -10299,7 +10303,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "migration",
  "num-bigint 0.4.6",
  "num-traits",
@@ -10958,6 +10962,52 @@ checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest 0.10.7",
  "keccak",
+]
+
+[[package]]
+name = "shank"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "ae936f51a1ab23dd7f8a81b0b13ab4af3fc71f1c56438a07cb54a0f7eb5436fd"
+dependencies = [
+ "shank_macro",
+]
+
+[[package]]
+name = "shank_macro"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "db4463f65133e69fe6c69d5c30e9cc6d2bde50e0fac61db1c2fb6a43fc499b67"
+dependencies = [
+ "proc-macro2 1.0.93",
+ "quote 1.0.42",
+ "shank_macro_impl",
+ "shank_render",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "shank_macro_impl"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "d7c08958b4ba24f8289481c0d8b377c63a8205fc037b59fc80643c491ec1f487"
+dependencies = [
+ "anyhow",
+ "proc-macro2 1.0.93",
+ "quote 1.0.42",
+ "serde",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "shank_render"
+version = "0.4.6"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "4ed873b8e62792442e944dc94c4ebbfab63e5c46eac09b7dcf3a2e274dde1524"
+dependencies = [
+ "proc-macro2 1.0.93",
+ "quote 1.0.42",
+ "shank_macro_impl",
 ]
 
 [[package]]
@@ -14662,7 +14712,7 @@ dependencies = [
  "hyperlane-cosmos",
  "hyperlane-ethereum",
  "hyperlane-test",
- "itertools 0.10.5",
+ "itertools 0.14.0",
  "k256 0.13.4",
  "mockall",
  "prometheus",
@@ -14674,7 +14724,7 @@ dependencies = [
  "thiserror 1.0.63",
  "tokio",
  "tokio-test",
- "tower 0.4.13",
+ "tower 0.5.2",
  "tracing",
  "tracing-futures",
  "tracing-test",
