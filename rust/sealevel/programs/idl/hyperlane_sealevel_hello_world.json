@@ -352,6 +352,32 @@
           }
         ]
       }
+    },
+    {
+      "name": "RemoteRouterConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "router",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
     }
   ],
   "metadata": {

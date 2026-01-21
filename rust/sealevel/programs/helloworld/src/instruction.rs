@@ -1,7 +1,8 @@
 //! HelloWorld instructions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+
+use crate::types::RemoteRouterConfig;
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use shank::{ShankInstruction, ShankType};
 use solana_program::{

@@ -6,7 +6,9 @@ use std::io::Read;
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
+use hyperlane_core::H256;
+
+use crate::types::MerkleTree;
 use shank::ShankAccount;
 use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,

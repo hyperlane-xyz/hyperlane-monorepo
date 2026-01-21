@@ -5,9 +5,14 @@ use account_utils::{create_pda_account, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 
 use hyperlane_sealevel_connection_client::{
-    router::{HyperlaneRouterAccessControl, HyperlaneRouterDispatch, RemoteRouterConfig},
+    router::{
+        HyperlaneRouterAccessControl, HyperlaneRouterDispatch,
+        RemoteRouterConfig as ConnectionClientRemoteRouterConfig,
+    },
     HyperlaneConnectionClient,
 };
+
+use crate::types::RemoteRouterConfig;
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use hyperlane_sealevel_mailbox::{
     mailbox_message_dispatch_authority_pda_seeds, mailbox_process_authority_pda_seeds,
@@ -528,7 +533,11 @@ fn enroll_remote_routers(
         storage.received_from.entry(config.domain).or_insert(0);
     }
 
-    storage.enroll_remote_routers_only_owner(owner_info, configs)?;
+    // Convert from wrapper type to connection-client type
+    let connection_client_configs: Vec<ConnectionClientRemoteRouterConfig> =
+        configs.into_iter().map(Into::into).collect();
+
+    storage.enroll_remote_routers_only_owner(owner_info, connection_client_configs)?;
 
     // Store it, & realloc if needed
     HelloWorldStorageAccount::from(storage).store_with_rent_exempt_realloc(
