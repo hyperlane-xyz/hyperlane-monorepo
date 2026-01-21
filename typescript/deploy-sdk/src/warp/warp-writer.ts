@@ -151,11 +151,54 @@ export class WarpTokenWriter
    * Warp tokens are mutable - supports remote router enrollment/unenrollment,
    * ISM updates, and owner changes.
    *
+   * The protocol-specific writer will read the current on-chain state and compare
+   * with the expected config to generate the necessary update transactions.
+   *
    * @param artifact The desired warp token state (must include deployed address)
    * @returns Array of transactions needed to perform the update
    */
-  async update(_artifact: DeployedWarpArtifact): Promise<AnnotatedTx[]> {
-    // TODO: Implement in Commit 3
-    throw new Error('update() not yet implemented');
+  async update(artifact: DeployedWarpArtifact): Promise<AnnotatedTx[]> {
+    const { config, deployed } = artifact;
+
+    // Deploy ISM if configured as a NEW artifact, otherwise extract address
+    let rawIsmArtifact:
+      | { artifactState: 'underived'; deployed: { address: string } }
+      | undefined;
+
+    if (config.interchainSecurityModule) {
+      if (isArtifactNew(config.interchainSecurityModule)) {
+        const [deployedIsm] = await this.ismWriter.create(
+          config.interchainSecurityModule,
+        );
+
+        rawIsmArtifact = {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: deployedIsm.deployed.address },
+        };
+      } else {
+        rawIsmArtifact = {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: config.interchainSecurityModule.deployed.address,
+          },
+        };
+      }
+    }
+
+    // Build raw artifact with flattened ISM reference
+    const rawConfig = {
+      ...config,
+      interchainSecurityModule: rawIsmArtifact,
+    };
+
+    const rawArtifact = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: rawConfig,
+      deployed,
+    };
+
+    // Delegate to protocol-specific writer which will read current state and compare
+    const writer = this.artifactManager.createWriter(config.type, this.signer);
+    return writer.update(rawArtifact);
   }
 }
