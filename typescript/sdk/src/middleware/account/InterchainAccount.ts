@@ -13,6 +13,7 @@ import {
   arrayToObject,
   bytes32ToAddress,
   eqAddress,
+  formatStandardHookMetadata,
   isZeroishAddress,
   objFilter,
   objMap,
@@ -173,7 +174,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
    * Encode the ICA message body for handle() call estimation.
    * Mirrors solidity/contracts/middleware/libs/InterchainAccountMessage.sol#encode
    */
-  private encodeIcaMessageBody(
+  encodeIcaMessageBody(
     owner: string,
     ism: string,
     calls: { to: string; value: BigNumber; data: string }[],
@@ -269,11 +270,29 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
     );
 
-    const resolvedHookMetadata = hookMetadata ?? '0x';
+    // Handle both string and object hookMetadata formats
+    const resolvedHookMetadata =
+      typeof hookMetadata === 'string'
+        ? hookMetadata
+        : hookMetadata
+          ? formatStandardHookMetadata({
+              msgValue: hookMetadata.msgValue
+                ? BigInt(hookMetadata.msgValue)
+                : undefined,
+              gasLimit: hookMetadata.gasLimit
+                ? BigInt(hookMetadata.gasLimit)
+                : undefined,
+              refundAddress: hookMetadata.refundAddress,
+            })
+          : '0x';
 
-    const gasLimitForQuote = hookMetadata
-      ? (this.extractGasLimitFromMetadata(hookMetadata) ?? IGP_DEFAULT_GAS)
-      : IGP_DEFAULT_GAS;
+    const gasLimitForQuote =
+      typeof hookMetadata === 'object' && hookMetadata?.gasLimit
+        ? BigNumber.from(hookMetadata.gasLimit)
+        : resolvedHookMetadata !== '0x'
+          ? (this.extractGasLimitFromMetadata(resolvedHookMetadata) ??
+            IGP_DEFAULT_GAS)
+          : IGP_DEFAULT_GAS;
 
     let quote: BigNumber;
     try {

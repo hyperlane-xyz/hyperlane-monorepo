@@ -148,6 +148,10 @@ const icaInterfaceWithHookMetadata = new ethers.utils.Interface([
   'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
 ]);
 
+// Function selector for callRemoteWithOverrides with hookMetadata (5 params)
+const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
+  icaInterfaceWithHookMetadata.getSighash('callRemoteWithOverrides');
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -1145,21 +1149,19 @@ export class GovernTransactionReader {
     const icaInterface =
       interchainAccountFactories.interchainAccountRouter.interface;
 
-    // Try parsing with hookMetadata interface first, fall back to standard interface
-    let decoded: ethers.utils.TransactionDescription;
-    let hasHookMetadata = false;
-    try {
-      decoded = icaInterfaceWithHookMetadata.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-      hasHookMetadata = true;
-    } catch {
-      decoded = icaInterface.parseTransaction({
-        data: tx.data,
-        value: tx.value,
-      });
-    }
+    // Check selector to determine which interface to use
+    const hasHookMetadata = tx.data.startsWith(
+      CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR,
+    );
+    const decoded = hasHookMetadata
+      ? icaInterfaceWithHookMetadata.parseTransaction({
+          data: tx.data,
+          value: tx.value,
+        })
+      : icaInterface.parseTransaction({
+          data: tx.data,
+          value: tx.value,
+        });
 
     const args = formatFunctionFragmentArgs(
       decoded.args,
@@ -1186,7 +1188,7 @@ export class GovernTransactionReader {
         args,
       );
     } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
-      prettyArgs = await this.readIcaRemoteCall(chain, args, hasHookMetadata);
+      prettyArgs = await this.readIcaRemoteCall(chain, args);
     } else if (decoded.signature === 'transferOwnership(address)') {
       const ownableTx = await this.readOwnableTransaction(chain, tx);
       return {
@@ -1196,15 +1198,13 @@ export class GovernTransactionReader {
       };
     }
 
-    const routerAddress = this.isLegacyEthIcaRouter(tx)
+    const isLegacy = this.isLegacyEthIcaRouter(tx);
+    const routerAddress = isLegacy
       ? legacyEthIcaRouter
       : this.chainAddresses[chain].interchainAccountRouter;
-    const routerLabel = this.isLegacyEthIcaRouter(tx)
-      ? 'ICA Router (Legacy)'
-      : 'ICA Router';
 
     return {
-      to: `${routerLabel} (${chain} ${routerAddress})`,
+      to: `ICA Router${isLegacy ? ' (Legacy)' : ''} (${chain} ${routerAddress})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -1452,7 +1452,6 @@ export class GovernTransactionReader {
   private async readIcaRemoteCall(
     chain: ChainName,
     args: Record<string, any>,
-    hasHookMetadata: boolean = false,
   ): Promise<IcaRemoteCallInsight> {
     const {
       _destination: destination,
@@ -1537,10 +1536,9 @@ export class GovernTransactionReader {
       }),
     );
 
-    const hookMetadataInsight =
-      hasHookMetadata && hookMetadataRaw
-        ? this.parseHookMetadata(hookMetadataRaw)
-        : undefined;
+    const hookMetadataInsight = hookMetadataRaw
+      ? this.parseHookMetadata(hookMetadataRaw)
+      : undefined;
 
     return {
       destination: {
