@@ -271,7 +271,7 @@ async fn assert_successful_announcement(
     let replay_protection =
         ReplayProtectionAccount::fetch_data(&mut &validator_storage_locations_account.data[..])
             .unwrap();
-    assert_eq!(replay_protection, Some(Box::new(ReplayProtection(()))),);
+    assert_eq!(replay_protection, Some(Box::new(ReplayProtection {})),);
 }
 
 #[tokio::test]

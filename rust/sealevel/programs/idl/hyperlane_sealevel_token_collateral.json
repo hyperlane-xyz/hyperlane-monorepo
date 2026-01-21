@@ -1,0 +1,39 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_token_collateral",
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "CollateralPlugin",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "splTokenProgram",
+            "type": "publicKey"
+          },
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "escrow",
+            "type": "publicKey"
+          },
+          {
+            "name": "escrowBump",
+            "type": "u8"
+          },
+          {
+            "name": "ataPayerBump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "G8t1qe3YnYvhi1zS9ioUXuVFkwhBgvfHaLJt5X6PF18z"
+  }
+}

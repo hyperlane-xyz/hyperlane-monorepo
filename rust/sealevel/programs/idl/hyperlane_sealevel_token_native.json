@@ -1,0 +1,23 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_token_native",
+  "instructions": [],
+  "accounts": [
+    {
+      "name": "NativePlugin",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "nativeCollateralBump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HypNat1veTokenWarpRoute111111111111111111111"
+  }
+}

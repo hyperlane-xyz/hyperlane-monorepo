@@ -157,7 +157,7 @@ pub fn process_instruction(
         Instruction::Initialize => initialize(program_id, accounts),
         // Sets the validators and threshold for a given domain.
         Instruction::SetValidatorsAndThreshold(config) => {
-            set_validators_and_threshold(program_id, accounts, config)
+            set_validators_and_threshold(program_id, accounts, config.into())
         }
         // Gets the owner of this program from the access control account.
         Instruction::GetOwner => get_owner(program_id, accounts),

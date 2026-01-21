@@ -7,6 +7,7 @@ use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
+use shank::ShankAccount;
 use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
@@ -17,7 +18,7 @@ use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, protocol_fee::Pro
 pub type InboxAccount = AccountData<Inbox>;
 
 /// The Inbox account data, which is used when processing messages.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq, ShankAccount)]
 pub struct Inbox {
     /// The local domain.
     pub local_domain: u32,
@@ -90,7 +91,7 @@ impl Inbox {
 pub type OutboxAccount = AccountData<Outbox>;
 
 /// The Outbox account data, which is used when dispatching messages.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq, ShankAccount)]
 pub struct Outbox {
     /// The local domain.
     pub local_domain: u32,
@@ -160,7 +161,7 @@ pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
 /// A dispatched message.
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq, ShankAccount)]
 pub struct DispatchedMessage {
     /// The discriminator, intended to be set to `DISPATCHED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
@@ -256,7 +257,7 @@ pub type ProcessedMessageAccount = AccountData<ProcessedMessage>;
 pub const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
 
 /// A processed message.
-#[derive(Debug, Default, Eq, PartialEq, BorshSerialize)]
+#[derive(Debug, Default, Eq, PartialEq, BorshSerialize, ShankAccount)]
 pub struct ProcessedMessage {
     /// The discriminator, intended to be set to `PROCESSED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
@@ -264,6 +265,7 @@ pub struct ProcessedMessage {
     /// This way, we can easily index processed messages.
     pub sequence: u64,
     /// The message ID of the processed message.
+    #[idl_type("bytes")]
     pub message_id: H256,
     /// The slot in which the message was processed.
     pub slot: Slot,

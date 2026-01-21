@@ -9,6 +9,7 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::SerializableAccountMeta;
+use shank::ShankAccount;
 #[cfg(not(target_arch = "sbf"))]
 use solana_program::program_pack::Pack as _;
 use solana_program::{
@@ -54,7 +55,7 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// A plugin for the Hyperlane token program that mints synthetic
 /// tokens upon receiving a transfer from a remote chain, and burns
 /// synthetic tokens when transferring out to a remote chain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct SyntheticPlugin {
     /// The mint / mint authority PDA account.
     pub mint: Pubkey,

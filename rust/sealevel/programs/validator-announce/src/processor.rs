@@ -321,7 +321,7 @@ fn create_replay_protection_account<'a>(
     replay_id: [u8; 32],
     replay_protection_bump_seed: u8,
 ) -> Result<(), ProgramError> {
-    let replay_protection_account = ReplayProtectionAccount::from(ReplayProtection(()));
+    let replay_protection_account = ReplayProtectionAccount::from(ReplayProtection {});
     let replay_protection_account_size = replay_protection_account.size();
 
     // Create the account.
