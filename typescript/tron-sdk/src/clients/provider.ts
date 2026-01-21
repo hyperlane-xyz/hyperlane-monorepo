@@ -15,6 +15,7 @@ import PausableHookAbi from '../abi/PausableHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../abi/ValidatorAnnounce.json' with { type: 'json' };
 import { getHookType } from '../hook/hook-query.js';
+import { getSetIgpDestinationGasConfigTx } from '../hook/hook-tx.js';
 import {
   getIsmType,
   getMerkleRootMultisigIsmConfig,
@@ -727,45 +728,15 @@ export class TronProvider implements AltVM.IProvider {
   async getSetDestinationGasConfigTransaction(
     req: AltVM.ReqSetDestinationGasConfig,
   ): Promise<TronTransaction> {
-    const igp = this.tronweb.contract(
-      InterchainGasPaymasterAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = await igp.hookType().call();
-    assert(
-      Number(hookType) === 4,
-      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
-    );
-
-    const gasOracle = await igp.gasOracle().call();
-
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.hookAddress,
-        'setDestinationGasConfigs((uint32,(address,uint96))[])',
+    return getSetIgpDestinationGasConfigTx(this.tronweb, req.signer, {
+      igpAddress: req.hookAddress,
+      destinationGasConfigs: [
         {
-          feeLimit: 100_000_000,
-          callValue: 0,
+          remoteDomainId: req.destinationGasConfig.remoteDomainId,
+          gasOverhead: req.destinationGasConfig.gasOverhead,
         },
-        [
-          {
-            type: 'tuple(uint32 remoteDomain, tuple(address gasOracle, uint96 gasOverhead) config)[]',
-            value: [
-              {
-                remoteDomain: Number(req.destinationGasConfig.remoteDomainId),
-                config: {
-                  gasOracle: gasOracle.replace('41', '0x'),
-                  gasOverhead: req.destinationGasConfig.gasOverhead.toString(),
-                },
-              },
-            ],
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+      ],
+    });
   }
 
   async getRemoveDestinationGasConfigTransaction(

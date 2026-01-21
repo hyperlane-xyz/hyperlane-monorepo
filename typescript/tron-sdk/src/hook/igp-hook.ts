@@ -19,8 +19,12 @@ import { TronReceipt } from '../utils/types.js';
 import { type TronHookQueryClient, getIgpHookConfig } from './hook-query.js';
 import {
   getCreateIgpTx,
+  getCreateOracleTx,
+  getInitIgpTx,
   getSetIgpDestinationGasConfigTx,
   getSetIgpOwnerTx,
+  getSetOracleTx,
+  getSetRemoteGasTx,
 } from './hook-tx.js';
 
 /**
@@ -99,10 +103,12 @@ export class TronIgpHookWriter
     const { config } = artifact;
     const receipts: TronReceipt[] = [];
 
+    const deployerAddress = this.signer.getSignerAddress();
+
     // Create the IGP hook
     const createTx = await getCreateIgpTx(
       this.signer.getTronweb(),
-      this.signer.getSignerAddress(),
+      deployerAddress,
     );
 
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
@@ -110,34 +116,87 @@ export class TronIgpHookWriter
       .getTronweb()
       .address.fromHex(createReceipt.contract_address);
     receipts.push(createReceipt);
+    console.log('created igp');
 
-    // Set destination gas configs for each domain
-    for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
-      const parsedDomainId = parseInt(domainId);
+    const initTx = await getInitIgpTx(
+      this.signer.getTronweb(),
+      deployerAddress,
+      {
+        igpAddress,
+      },
+    );
+    const initReceipt = await this.signer.sendAndConfirmTransaction(initTx);
+    receipts.push(initReceipt);
+    console.log('initted igp');
 
-      const setConfigTx = await getSetIgpDestinationGasConfigTx(
-        this.signer.getTronweb(),
-        this.signer.getSignerAddress(),
-        {
-          igpAddress,
-          destinationGasConfig: {
-            remoteDomainId: parsedDomainId,
+    // Create the Storage Gas Oracle
+    const createOracleTx = await getCreateOracleTx(
+      this.signer.getTronweb(),
+      deployerAddress,
+    );
+
+    const createOracleReceipt =
+      await this.signer.sendAndConfirmTransaction(createOracleTx);
+    const oracleAddress = this.signer
+      .getTronweb()
+      .address.fromHex(createOracleReceipt.contract_address);
+    receipts.push(createOracleReceipt);
+    console.log('created oracle');
+
+    const setOracleTx = await getSetOracleTx(
+      this.signer.getTronweb(),
+      deployerAddress,
+      {
+        igpAddress,
+        oracleAddress,
+      },
+    );
+    const setOracleReceipt =
+      await this.signer.sendAndConfirmTransaction(setOracleTx);
+    receipts.push(setOracleReceipt);
+    console.log('setted oracle');
+
+    const setGasTx = await getSetRemoteGasTx(
+      this.signer.getTronweb(),
+      deployerAddress,
+      {
+        igpAddress,
+        destinationGasConfigs: Object.keys(config.oracleConfig).map(
+          (domainId) => ({
+            remoteDomainId: parseInt(domainId),
             gasOracle: {
-              tokenExchangeRate: gasConfig.tokenExchangeRate,
-              gasPrice: gasConfig.gasPrice,
+              tokenExchangeRate:
+                config.oracleConfig[+domainId].tokenExchangeRate,
+              gasPrice: config.oracleConfig[+domainId].gasPrice,
             },
-            gasOverhead: config.overhead[parsedDomainId]?.toString() || '0',
-          },
-        },
-      );
+          }),
+        ),
+      },
+    );
 
-      const configReceipt =
-        await this.signer.sendAndConfirmTransaction(setConfigTx);
-      receipts.push(configReceipt);
-    }
+    const gasReceipt = await this.signer.sendAndConfirmTransaction(setGasTx);
+    receipts.push(gasReceipt);
+    console.log('setted remote gas');
+
+    const setConfigTx = await getSetIgpDestinationGasConfigTx(
+      this.signer.getTronweb(),
+      deployerAddress,
+      {
+        igpAddress,
+        destinationGasConfigs: Object.keys(config.overhead).map((domainId) => ({
+          remoteDomainId: parseInt(domainId),
+          gasOverhead: config.overhead[+domainId]?.toString() ?? '0',
+        })),
+      },
+    );
+
+    const configReceipt =
+      await this.signer.sendAndConfirmTransaction(setConfigTx);
+    receipts.push(configReceipt);
+
+    console.log('setted destination config');
 
     // Transfer ownership if needed (deployer is initial owner)
-    const deployerAddress = this.signer.getSignerAddress();
     if (!eqAddressTron(artifact.config.owner, deployerAddress)) {
       const ownerTx = await getSetIgpOwnerTx(
         this.signer.getTronweb(),
@@ -188,19 +247,41 @@ export class TronIgpHookWriter
           config.overhead[parsedDomainId];
 
       if (needsUpdate) {
+        const setGasTx = await getSetRemoteGasTx(
+          this.signer.getTronweb(),
+          this.signer.getSignerAddress(),
+          {
+            igpAddress: deployed.address,
+            destinationGasConfigs: [
+              {
+                remoteDomainId: parsedDomainId,
+                gasOracle: {
+                  tokenExchangeRate: gasConfig.tokenExchangeRate,
+                  gasPrice: gasConfig.gasPrice,
+                },
+              },
+            ],
+          },
+        );
+
+        const gasReceipt =
+          await this.signer.sendAndConfirmTransaction(setGasTx);
+        updateTxs.push({
+          annotation: `Setting remote gas config for domain ${domainId}`,
+          ...gasReceipt,
+        });
+
         const setConfigTx = await getSetIgpDestinationGasConfigTx(
           this.signer.getTronweb(),
           this.signer.getSignerAddress(),
           {
             igpAddress: deployed.address,
-            destinationGasConfig: {
-              remoteDomainId: parsedDomainId,
-              gasOracle: {
-                tokenExchangeRate: gasConfig.tokenExchangeRate,
-                gasPrice: gasConfig.gasPrice,
+            destinationGasConfigs: [
+              {
+                remoteDomainId: parsedDomainId,
+                gasOverhead: config.overhead[parsedDomainId]?.toString() || '0',
               },
-              gasOverhead: config.overhead[parsedDomainId]?.toString() || '0',
-            },
+            ],
           },
         );
 
