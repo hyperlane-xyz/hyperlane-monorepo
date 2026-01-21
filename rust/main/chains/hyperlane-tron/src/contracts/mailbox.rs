@@ -174,17 +174,6 @@ impl TronMailbox {
         }
         Ok(tx)
     }
-
-    /// Returns a ContractCall that processes the provided message.
-    async fn process_contract_call(
-        &self,
-        message: &HyperlaneMessage,
-        metadata: &[u8],
-        tx_gas_estimate: Option<U256>,
-    ) -> ChainResult<ContractCall<TronProvider, ()>> {
-        let tx = self.contract_call(message, metadata, tx_gas_estimate)?;
-        Ok(tx)
-    }
 }
 
 impl HyperlaneChain for TronMailbox {
@@ -238,9 +227,7 @@ impl Mailbox for TronMailbox {
         metadata: &Metadata,
         tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
-        let contract_call = self
-            .process_contract_call(message, metadata, tx_gas_limit)
-            .await?;
+        let contract_call = self.contract_call(message, metadata, tx_gas_limit)?;
         self.provider.send_and_wait(&contract_call).await
     }
 
@@ -251,8 +238,7 @@ impl Mailbox for TronMailbox {
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let gas_limit = self
-            .process_contract_call(message, metadata, None)
-            .await?
+            .contract_call(message, metadata, None)?
             .estimate_gas()
             .await?;
 
