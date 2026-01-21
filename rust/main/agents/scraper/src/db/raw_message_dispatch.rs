@@ -272,6 +272,7 @@ mod tests {
         raw_message_dispatch::Model {
             id,
             time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(0:00)),
+            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(0:00)),
             msg_id: vec![0u8; 32],
             origin_tx_hash: vec![0u8; 64],
             origin_block_hash: vec![0u8; 32],
@@ -399,6 +400,7 @@ mod tests {
         let mock_model = raw_message_dispatch::Model {
             id: 1,
             time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
+            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
             msg_id: h256_to_bytes(&msg_id),
             origin_tx_hash: vec![0u8; 64],
             origin_block_hash: vec![0u8; 32],
@@ -581,6 +583,7 @@ mod tests {
         let mock_model = raw_message_dispatch::Model {
             id: 1,
             time_created: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
+            time_updated: PrimitiveDateTime::new(date!(2024 - 01 - 01), time!(12:00)),
             msg_id: h256_to_bytes(&msg.id()),
             origin_tx_hash: h512_to_bytes(&tx_hash),
             origin_block_hash: h256_to_bytes(&meta.block_hash),
