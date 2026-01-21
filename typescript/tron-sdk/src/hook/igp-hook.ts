@@ -116,7 +116,6 @@ export class TronIgpHookWriter
       .getTronweb()
       .address.fromHex(createReceipt.contract_address);
     receipts.push(createReceipt);
-    console.log('created igp');
 
     const initTx = await getInitIgpTx(
       this.signer.getTronweb(),
@@ -127,7 +126,6 @@ export class TronIgpHookWriter
     );
     const initReceipt = await this.signer.sendAndConfirmTransaction(initTx);
     receipts.push(initReceipt);
-    console.log('initted igp');
 
     // Create the Storage Gas Oracle
     const createOracleTx = await getCreateOracleTx(
@@ -141,7 +139,6 @@ export class TronIgpHookWriter
       .getTronweb()
       .address.fromHex(createOracleReceipt.contract_address);
     receipts.push(createOracleReceipt);
-    console.log('created oracle');
 
     const setOracleTx = await getSetOracleTx(
       this.signer.getTronweb(),
@@ -154,7 +151,6 @@ export class TronIgpHookWriter
     const setOracleReceipt =
       await this.signer.sendAndConfirmTransaction(setOracleTx);
     receipts.push(setOracleReceipt);
-    console.log('setted oracle');
 
     const setGasTx = await getSetRemoteGasTx(
       this.signer.getTronweb(),
@@ -176,7 +172,6 @@ export class TronIgpHookWriter
 
     const gasReceipt = await this.signer.sendAndConfirmTransaction(setGasTx);
     receipts.push(gasReceipt);
-    console.log('setted remote gas');
 
     const setConfigTx = await getSetIgpDestinationGasConfigTx(
       this.signer.getTronweb(),
@@ -193,8 +188,6 @@ export class TronIgpHookWriter
     const configReceipt =
       await this.signer.sendAndConfirmTransaction(setConfigTx);
     receipts.push(configReceipt);
-
-    console.log('setted destination config');
 
     // Transfer ownership if needed (deployer is initial owner)
     if (!eqAddressTron(artifact.config.owner, deployerAddress)) {
