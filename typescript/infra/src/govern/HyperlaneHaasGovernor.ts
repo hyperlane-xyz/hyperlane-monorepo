@@ -13,6 +13,7 @@ import {
 import {
   ProtocolType,
   hasValidRefundAddress,
+  isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -230,9 +231,12 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
           combinedCallRemoteArgs,
         );
 
-        const shouldBuffer = hasValidRefundAddress(
-          combinedCallRemoteArgs.hookMetadata,
-        );
+        const hookMetadata = combinedCallRemoteArgs.hookMetadata;
+        const shouldBuffer =
+          typeof hookMetadata === 'string'
+            ? hasValidRefundAddress(hookMetadata)
+            : hookMetadata?.refundAddress &&
+              !isZeroishAddress(hookMetadata.refundAddress);
         if (!shouldBuffer) {
           rootLogger.warn(
             {
