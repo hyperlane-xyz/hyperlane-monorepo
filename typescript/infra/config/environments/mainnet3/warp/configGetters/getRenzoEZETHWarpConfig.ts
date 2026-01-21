@@ -145,7 +145,7 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   monad: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   xlayer: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   stable: '0x2416092f143378750bb29b79eD961ab195CcEea5',
-  megaeth: '0x2027478984f367e98DD2f7919F14E36580812985',
+  megaeth: '0x09601A65e7de7BC8A19813D263dD9E98bFdC3c57',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
