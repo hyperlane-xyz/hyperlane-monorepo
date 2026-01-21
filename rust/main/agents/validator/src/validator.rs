@@ -163,7 +163,7 @@ impl BaseAgent for Validator {
         }
 
         let db = DB::from_path(&settings.db)?;
-        let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db);
+        let msg_db = HyperlaneRocksDB::new(&settings.origin_chain, db.clone());
 
         let raw_signer: Signers = settings.validator.build().await?;
 
@@ -235,7 +235,7 @@ impl BaseAgent for Validator {
                     chain_conf: origin_chain_conf.clone(),
                     raw_chain_conf: Default::default(),
                     domain: settings.origin_chain.clone(),
-                    db: DatabaseOrPath::Path(settings.db.clone()),
+                    db: DatabaseOrPath::Database(db.clone()),
                     metrics: metrics.clone(),
                 };
 
