@@ -14,7 +14,7 @@ dependencies = [
 
 [[package]]
 name = "abigen"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "Inflector",
  "cainome",
@@ -131,7 +131,7 @@ dependencies = [
 
 [[package]]
 name = "aleo-serialize"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "anyhow",
  "snarkvm",
@@ -2953,7 +2953,7 @@ checksum = "7a81dae078cea95a014a339291cec439d2f232ebe854a9d672b796c6afafa9b7"
 
 [[package]]
 name = "crypto"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "elliptic-curve 0.13.8",
  "hex 0.4.3",
@@ -4303,7 +4303,7 @@ dependencies = [
 
 [[package]]
 name = "ethers-prometheus"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "abigen",
  "async-trait",
@@ -5874,7 +5874,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-aleo"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "aleo-serialize",
  "aleo-serialize-macro",
@@ -5909,7 +5909,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-application"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "serde",
  "serde_json",
@@ -5918,7 +5918,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-base"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "anyhow",
  "async-trait",
@@ -5987,7 +5987,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-core"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-rwlock",
  "async-trait",
@@ -6033,7 +6033,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-cosmos"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "base64 0.21.7",
@@ -6114,7 +6114,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-ethereum"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "abigen",
  "async-trait",
@@ -6150,7 +6150,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-fuel"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "abigen",
  "anyhow",
@@ -6167,7 +6167,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-metric"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "derive-new",
@@ -6181,7 +6181,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-operation-verifier"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "hyperlane-application",
@@ -6373,7 +6373,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-starknet"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "abigen",
  "anyhow",
@@ -6398,7 +6398,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-test"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "hyperlane-core",
@@ -6407,7 +6407,7 @@ dependencies = [
 
 [[package]]
 name = "hyperlane-warp-route"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "hyperlane-core",
 ]
@@ -7015,7 +7015,7 @@ dependencies = [
 
 [[package]]
 name = "lander"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "chrono",
@@ -7377,7 +7377,7 @@ dependencies = [
 
 [[package]]
 name = "migration"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "sea-orm",
  "sea-orm-migration",
@@ -9389,7 +9389,7 @@ checksum = "ba39f3699c378cd8970968dcbff9c43159ea4cfbd88d43c00b22f2ef10a435d2"
 
 [[package]]
 name = "relayer"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "axum 0.8.4",
@@ -9553,7 +9553,7 @@ dependencies = [
 
 [[package]]
 name = "reqwest-utils"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "reqwest 0.11.27",
  "thiserror 1.0.63",
@@ -9763,7 +9763,7 @@ dependencies = [
 
 [[package]]
 name = "run-locally"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "anyhow",
  "core-api-client",
@@ -10285,7 +10285,7 @@ checksum = "94143f37725109f92c262ed2cf5e59bce7498c01bcc1502d7b9afe439a4e9f49"
 
 [[package]]
 name = "scraper"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "config",
@@ -14642,7 +14642,7 @@ dependencies = [
 
 [[package]]
 name = "validator"
-version = "2.0.0"
+version = "2.0.1"
 dependencies = [
  "async-trait",
  "aws-config",
