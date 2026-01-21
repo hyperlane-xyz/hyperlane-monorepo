@@ -185,9 +185,10 @@ impl TronProvider {
         }
 
         // NOTE: Tron addresses need to be prefixed with a byte 0x41
+        const ADDRESS_PREFIX: u8 = 0x41;
         TriggerSmartContract {
-            owner_address: [&[0x41u8], owner.as_bytes()].concat(),
-            contract_address: [&[0x41u8], to.as_bytes()].concat(),
+            owner_address: [&[ADDRESS_PREFIX], owner.as_bytes()].concat(),
+            contract_address: [&[ADDRESS_PREFIX], to.as_bytes()].concat(),
             call_value: value.as_u64() as i64,
             data: data.to_vec(),
             call_token_value: 0,
