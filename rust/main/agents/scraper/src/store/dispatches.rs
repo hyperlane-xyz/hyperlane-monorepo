@@ -45,7 +45,8 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
         }
 
         // STEP 2: Store full messages (requires RPC calls for block/transaction data)
-        // If RPC fails here, raw messages are already stored and CCTP can still function
+        // If RPC fails here, raw messages are already stored and Offchain Lookup Server can still
+        // function
         let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?
