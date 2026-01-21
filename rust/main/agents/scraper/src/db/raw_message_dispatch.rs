@@ -563,6 +563,94 @@ mod tests {
         Ok(())
     }
 
+    // ==================== Upsert Behavior Tests ====================
+
+    /// Test that verifies time_created is preserved while time_updated changes on upsert.
+    /// This is the key behavioral change from commit bb13eb89:
+    /// - Before: time_created was updated on conflict (wrong semantics)
+    /// - After: time_created is preserved, time_updated is refreshed
+    #[tokio::test]
+    async fn test_upsert_preserves_time_created_updates_time_updated() -> eyre::Result<()> {
+        // Start a Postgres container
+        let postgres_container = Postgres::default().start().await.unwrap();
+        let host_port = postgres_container.get_host_port_ipv4(5432).await.unwrap();
+        let postgres_url = format!("postgresql://postgres:postgres@127.0.0.1:{host_port}/postgres");
+
+        // Connect and run migrations
+        let db = Database::connect(&postgres_url).await?;
+        migration::Migrator::up(&db, None).await?;
+
+        let scraper_db = ScraperDb::with_connection(Database::connect(&postgres_url).await?);
+
+        // Create a test message
+        let msg = create_test_message(42, 1, 2);
+        let meta = create_test_meta(1000, 1, 0);
+        let msg_id = msg.id();
+
+        // First insert
+        let storables = vec![StorableRawMessageDispatch {
+            msg: &msg,
+            meta: &meta,
+        }];
+        scraper_db
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
+            .await?;
+
+        // Retrieve and record original timestamps
+        let first_model = scraper_db
+            .retrieve_raw_message_dispatch_by_id(&msg_id)
+            .await?
+            .expect("Message should exist after first insert");
+
+        let original_time_created = first_model.time_created;
+        let original_time_updated = first_model.time_updated;
+
+        // Wait to ensure timestamp difference is measurable
+        tokio::time::sleep(tokio::time::Duration::from_millis(50)).await;
+
+        // Second insert (same msg_id triggers ON CONFLICT UPDATE)
+        let meta_updated = create_test_meta(2000, 2, 1); // Different block/tx
+        let storables = vec![StorableRawMessageDispatch {
+            msg: &msg,
+            meta: &meta_updated,
+        }];
+        scraper_db
+            .store_raw_message_dispatches(1, &H256::from_low_u64_be(999), storables.into_iter())
+            .await?;
+
+        // Retrieve after upsert
+        let updated_model = scraper_db
+            .retrieve_raw_message_dispatch_by_id(&msg_id)
+            .await?
+            .expect("Message should still exist after upsert");
+
+        // CRITICAL ASSERTIONS: This is what commit bb13eb89 fixed
+        // time_created should be preserved (not overwritten)
+        assert_eq!(
+            updated_model.time_created, original_time_created,
+            "time_created should be preserved on upsert, not overwritten"
+        );
+
+        // time_updated should be refreshed (newer than original)
+        assert!(
+            updated_model.time_updated >= original_time_updated,
+            "time_updated should be refreshed on upsert: {:?} should be >= {:?}",
+            updated_model.time_updated,
+            original_time_updated
+        );
+
+        // Also, verify the other updated columns changed correctly
+        assert_eq!(
+            updated_model.origin_block_height, 2000,
+            "origin_block_height should be updated on conflict"
+        );
+
+        // Clean up
+        migration::Migrator::down(&db, None).await?;
+
+        Ok(())
+    }
+
     // ==================== CCTP-specific Scenario Tests ====================
 
     /// Test that verifies the key CCTP use case: retrieving tx_hash by message ID
