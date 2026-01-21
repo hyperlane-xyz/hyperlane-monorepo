@@ -17,7 +17,6 @@ fn classify_tron_error(err: ChainCommunicationError) -> LanderError {
     // Check for retryable errors (temporary conditions)
     if err_str.contains("SERVER_BUSY")
         || err_str.contains("NOT_ENOUGH_EFFECTIVE_CONNECTION")
-        || err_str.contains("OTHER_ERROR")
         || err_str.contains("NO_CONNECTION")
         || err_str.contains("BLOCK_UNSOLIDIFIED")
         || err_str.contains("OTHER_ERROR")
@@ -35,7 +34,6 @@ fn classify_tron_error(err: ChainCommunicationError) -> LanderError {
 
     // Check for non-retryable errors (permanent failures)
     if err_str.contains("SIGERROR")
-        || err_str.contains("DUP_TRANSACTION_ERROR")
         || err_str.contains("TAPOS_ERROR")
         || err_str.contains("TOO_BIG_TRANSACTION_ERROR")
         || err_str.contains("TRANSACTION_EXPIRATION_ERROR")

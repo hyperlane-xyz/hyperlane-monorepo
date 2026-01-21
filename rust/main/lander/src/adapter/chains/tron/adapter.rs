@@ -4,7 +4,6 @@ use crate::adapter::chains::tron::{
     conf::create_signer, precursor::Precursor, submit::submit_transaction,
 };
 use async_trait::async_trait;
-use ethers::{contract::decode_function_data, providers::Middleware};
 use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use hyperlane_core::{ContractLocator, H256, H512};
 use hyperlane_tron::{TronProvider, TronProviderForLander};
@@ -173,7 +172,7 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
                 .call::<bool>(&precursor.tx, &precursor.function)
                 .await?;
             if !success {
-                return Ok(vec![payload.clone()]);
+                reverted.push(payload.clone());
             }
         }
 
