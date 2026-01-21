@@ -42,7 +42,8 @@ export async function resolveChains(
     case CommandType.WARP_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
-      return resolveWarpApplyChains(argv);
+    case CommandType.WARP_CHECK:
+      return resolveWarpConfigChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
 
@@ -108,7 +109,7 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
   return chains;
 }
 
-async function resolveWarpApplyChains(
+async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({

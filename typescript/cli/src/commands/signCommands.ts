@@ -38,6 +38,7 @@ export enum CommandType {
   WARP_READ = 'warp:read',
   WARP_SEND = 'warp:send',
   WARP_APPLY = 'warp:apply',
+  WARP_CHECK = 'warp:check',
   WARP_REBALANCER = 'warp:rebalancer',
   SEND_MESSAGE = 'send:message',
   STATUS = 'status:',
