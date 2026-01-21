@@ -1,24 +1,25 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
+import { TransactionManifest } from '@radixdlt/radix-engine-toolkit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
-  ArtifactState,
-  ArtifactUnderived,
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  BaseRoutingIsmRawReader,
+  BaseRoutingIsmRawWriter,
   DeployedIsmAddress,
   RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { eqAddressRadix, isNullish } from '@hyperlane-xyz/utils';
+import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
-import { AnnotatedRadixTransaction } from '../utils/types.js';
+import {
+  AnnotatedRadixTransaction,
+  type RadixSDKReceipt,
+} from '../utils/types.js';
 
 import { getDomainRoutingIsmConfig } from './ism-query.js';
 import {
@@ -28,189 +29,101 @@ import {
   getSetRoutingIsmOwnerTx,
 } from './ism-tx.js';
 
-export class RadixRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
-{
-  constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
-
-  async read(
-    address: string,
-  ): Promise<
-    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
-  > {
-    const ismConfig = await getDomainRoutingIsmConfig(this.gateway, address);
-
-    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
-    for (const route of ismConfig.routes) {
-      domains[route.domainId] = {
-        deployed: {
-          address: route.ismAddress,
-        },
-        artifactState: ArtifactState.UNDERIVED,
-      };
-    }
-
-    return {
-      artifactState: ArtifactState.DEPLOYED,
-      config: {
-        type: IsmType.ROUTING,
-        owner: ismConfig.owner,
-        domains,
-      },
-      deployed: {
-        address: ismConfig.address,
-      },
-    };
+export class RadixRoutingIsmRawReader extends BaseRoutingIsmRawReader<GatewayApiClient> {
+  constructor(gateway: Readonly<GatewayApiClient>) {
+    super(gateway, (client, address) =>
+      getDomainRoutingIsmConfig(client, address),
+    );
   }
 }
 
 export class RadixRoutingIsmRawWriter
-  extends RadixRoutingIsmRawReader
+  extends BaseRoutingIsmRawWriter<
+    GatewayApiClient,
+    TransactionManifest,
+    RadixSDKReceipt
+  >
   implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
     gateway: Readonly<GatewayApiClient>,
-    private readonly signer: RadixBaseSigner,
+    signer: RadixBaseSigner,
     private readonly base: RadixBase,
   ) {
-    super(gateway);
-  }
-
-  async create(
-    artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
-  ): Promise<
-    [
-      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-      TxReceipt[],
-    ]
-  > {
-    const { config } = artifact;
-    const receipts: TxReceipt[] = [];
-
-    const routes = Object.entries(config.domains).map(
-      ([domainId, ismAddress]) => ({
-        domainId: parseInt(domainId),
-        ismAddress: ismAddress.deployed.address,
-      }),
-    );
-
-    const transactionManifest = await getCreateRoutingIsmTx(
-      this.base,
-      this.signer.getAddress(),
-      routes,
-    );
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-    receipts.push(receipt);
-    const address = await this.base.getNewComponent(receipt);
-
-    // Transfer ownership if config.owner differs from signer
-    if (!eqAddressRadix(config.owner, this.signer.getAddress())) {
-      const ownerTransferTx = await getSetRoutingIsmOwnerTx(
-        this.base,
-        this.gateway,
-        this.signer.getAddress(),
-        {
-          ismAddress: address,
-          newOwner: config.owner,
-        },
-      );
-
-      const ownerReceipt = await this.signer.signAndBroadcast(ownerTransferTx);
-      receipts.push(ownerReceipt);
-    }
-
-    const deployedArtifact: ArtifactDeployed<
-      RawRoutingIsmArtifactConfig,
-      DeployedIsmAddress
-    > = {
-      artifactState: ArtifactState.DEPLOYED,
-      config: artifact.config,
-      deployed: {
-        address,
+    super(
+      gateway,
+      (client, address) => getDomainRoutingIsmConfig(client, address),
+      eqAddressRadix,
+      {
+        create: async (signerAddress, routes) =>
+          getCreateRoutingIsmTx(base, signerAddress, routes),
+        setRoute: async (signerAddress, config) =>
+          getSetRoutingIsmDomainIsmTx(base, signerAddress, config),
+        removeRoute: async (signerAddress, config) =>
+          getRemoveRoutingIsmDomainIsmTx(base, signerAddress, config),
+        setOwner: async (signerAddress, config) =>
+          getSetRoutingIsmOwnerTx(base, gateway, signerAddress, config),
       },
-    };
-
-    return [deployedArtifact, receipts];
+      async (receipt) => base.getNewComponent(receipt),
+      () => signer.getAddress(),
+      async (tx) => signer.signAndBroadcast(tx),
+    );
   }
 
+  /**
+   * Override update to add Radix-specific annotations
+   */
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);
 
-    const transactions: AnnotatedRadixTransaction[] = [];
+    // Get base transactions
+    const baseTxs = await this.updateBase(artifact);
 
-    // Find domains to add
+    // Add annotations
+    const transactions: AnnotatedRadixTransaction[] = [];
+    let txIndex = 0;
+
+    // Annotate add/update transactions
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
       const currentIsmAddress = currentConfig.config.domains[domain]
         ? currentConfig.config.domains[domain].deployed.address
         : undefined;
-
       const expectedIsmAddress = expectedIsm.deployed.address;
 
       if (
-        isNullish(currentIsmAddress) ||
+        !currentIsmAddress ||
         !eqAddressRadix(currentIsmAddress, expectedIsmAddress)
       ) {
-        const transactionManifest = await getSetRoutingIsmDomainIsmTx(
-          this.base,
-          this.signer.getAddress(),
-          {
-            ismAddress: deployed.address,
-            domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
-          },
-        );
-
         transactions.push({
           annotation: `Set ism for domain ${domain} to ISM ${expectedIsmAddress} on ${IsmType.ROUTING}`,
           networkId: this.base.getNetworkId(),
-          manifest: transactionManifest,
+          manifest: baseTxs[txIndex++],
         });
       }
     }
 
-    // Find domains to remove
+    // Annotate remove transactions
     for (const domainId of Object.keys(currentConfig.config.domains)) {
       const domain = parseInt(domainId);
-      const desiredIsmAddress = config.domains[domain];
-
-      if (isNullish(desiredIsmAddress)) {
-        const transactionManifest = await getRemoveRoutingIsmDomainIsmTx(
-          this.base,
-          this.signer.getAddress(),
-          {
-            ismAddress: deployed.address,
-            domainId: domain,
-          },
-        );
-
+      if (!config.domains[domain]) {
         transactions.push({
           annotation: `Remove ism for domain ${domain} on ${IsmType.ROUTING}`,
           networkId: this.base.getNetworkId(),
-          manifest: transactionManifest,
+          manifest: baseTxs[txIndex++],
         });
       }
     }
 
-    // Owner transfer must be last transaction as the current owner executes all updates
+    // Annotate ownership transfer if present
     if (!eqAddressRadix(config.owner, currentConfig.config.owner)) {
-      const transactionManifest = await getSetRoutingIsmOwnerTx(
-        this.base,
-        this.gateway,
-        this.signer.getAddress(),
-        {
-          ismAddress: deployed.address,
-          newOwner: config.owner,
-        },
-      );
-
       transactions.push({
         annotation: `Transfer ownership of ${IsmType.ROUTING} from ${currentConfig.config.owner} to ${config.owner}`,
         networkId: this.base.getNetworkId(),
-        manifest: transactionManifest,
+        manifest: baseTxs[txIndex++],
       });
     }
 
