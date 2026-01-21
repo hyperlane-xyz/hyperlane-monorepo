@@ -100,6 +100,14 @@ interface SetDefaultIsmInsight {
   insight: string;
 }
 
+interface HookMetadataInsight {
+  raw: string;
+  msgValue: string;
+  gasLimit: string;
+  refundAddress: string;
+  insight: string;
+}
+
 interface IcaRemoteCallInsight {
   destination: {
     domain: number;
@@ -117,6 +125,7 @@ interface IcaRemoteCallInsight {
     address: string;
     insight: string;
   };
+  hookMetadata?: HookMetadataInsight;
   calls: GovernTransaction[];
 }
 
@@ -132,10 +141,9 @@ const ownableFunctionSelectors = [
   'transferOwnership(address)',
 ].map((func) => ethers.utils.id(func).substring(0, 10));
 
-// Legacy ETH ICA router interface - has different callRemoteWithOverrides signature
-// Legacy: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
-// Current: callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
-const legacyIcaInterface = new ethers.utils.Interface([
+// ICA router interface with hookMetadata parameter
+// This overload is used by the SDK when building ICA calls with custom hook metadata
+const icaInterfaceWithHookMetadata = new ethers.utils.Interface([
   'function callRemoteWithOverrides(uint32 _destination, bytes32 _router, bytes32 _ism, tuple(bytes32,uint256,bytes)[] _calls, bytes _hookMetadata) payable returns (bytes32)',
 ]);
 
@@ -1129,21 +1137,28 @@ export class GovernTransactionReader {
     chain: ChainName,
     tx: AnnotatedEV5Transaction,
   ): Promise<GovernTransaction> {
-    // Route to legacy handler if using legacy ETH ICA router
-    if (this.isLegacyEthIcaRouter(tx)) {
-      return this.readLegacyEthIcaTransaction(chain, tx);
-    }
-
     if (!tx.data) {
       throw new Error('No data in ICA transaction');
     }
     const { symbol } = await this.multiProvider.getNativeToken(chain);
     const icaInterface =
       interchainAccountFactories.interchainAccountRouter.interface;
-    const decoded = icaInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
+
+    // Try parsing with hookMetadata interface first, fall back to standard interface
+    let decoded: ethers.utils.TransactionDescription;
+    let hasHookMetadata = false;
+    try {
+      decoded = icaInterfaceWithHookMetadata.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+      hasHookMetadata = true;
+    } catch {
+      decoded = icaInterface.parseTransaction({
+        data: tx.data,
+        value: tx.value,
+      });
+    }
 
     const args = formatFunctionFragmentArgs(
       decoded.args,
@@ -1169,15 +1184,9 @@ export class GovernTransactionReader {
         'interchainAccountRouter',
         args,
       );
-    } else if (
-      decoded.functionFragment.name ===
-      icaInterface.functions[
-        'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])'
-      ].name
-    ) {
-      prettyArgs = await this.readIcaRemoteCall(chain, args);
+    } else if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
+      prettyArgs = await this.readIcaRemoteCall(chain, args, hasHookMetadata);
     } else if (decoded.signature === 'transferOwnership(address)') {
-      // Fallback to ownable transaction handling for unknown functions
       const ownableTx = await this.readOwnableTransaction(chain, tx);
       return {
         ...ownableTx,
@@ -1186,47 +1195,15 @@ export class GovernTransactionReader {
       };
     }
 
-    return {
-      to: `ICA Router (${chain} ${this.chainAddresses[chain].interchainAccountRouter})`,
-      value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
-      signature: decoded.signature,
-      args: prettyArgs,
-      chain,
-    };
-  }
-
-  /**
-   * Reads a legacy ETH ICA router transaction.
-   * The legacy router uses a different function signature:
-   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)
-   * vs the current router's:
-   * callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[])
-   */
-  private async readLegacyEthIcaTransaction(
-    chain: ChainName,
-    tx: AnnotatedEV5Transaction,
-  ): Promise<GovernTransaction> {
-    if (!tx.data) {
-      throw new Error('No data in legacy ICA transaction');
-    }
-    const { symbol } = await this.multiProvider.getNativeToken(chain);
-    const decoded = legacyIcaInterface.parseTransaction({
-      data: tx.data,
-      value: tx.value,
-    });
-
-    const args = formatFunctionFragmentArgs(
-      decoded.args,
-      decoded.functionFragment,
-    );
-    let prettyArgs = args;
-
-    if (decoded.functionFragment.name === 'callRemoteWithOverrides') {
-      prettyArgs = await this.readIcaRemoteCall(chain, args);
-    }
+    const routerAddress = this.isLegacyEthIcaRouter(tx)
+      ? legacyEthIcaRouter
+      : this.chainAddresses[chain].interchainAccountRouter;
+    const routerLabel = this.isLegacyEthIcaRouter(tx)
+      ? 'ICA Router (Legacy)'
+      : 'ICA Router';
 
     return {
-      to: `ICA Router (Legacy) (${chain} ${legacyEthIcaRouter})`,
+      to: `${routerLabel} (${chain} ${routerAddress})`,
       value: `${ethers.utils.formatEther(decoded.value)} ${symbol}`,
       signature: decoded.signature,
       args: prettyArgs,
@@ -1474,12 +1451,14 @@ export class GovernTransactionReader {
   private async readIcaRemoteCall(
     chain: ChainName,
     args: Record<string, any>,
+    hasHookMetadata: boolean = false,
   ): Promise<IcaRemoteCallInsight> {
     const {
       _destination: destination,
       _router: router,
       _ism: ism,
       _calls: calls,
+      _hookMetadata: hookMetadataRaw,
     } = args;
     const remoteChainName = this.multiProvider.getChainName(destination);
 
@@ -1557,6 +1536,11 @@ export class GovernTransactionReader {
       }),
     );
 
+    const hookMetadataInsight =
+      hasHookMetadata && hookMetadataRaw
+        ? this.parseHookMetadata(hookMetadataRaw)
+        : undefined;
+
     return {
       destination: {
         domain: destination,
@@ -1574,8 +1558,62 @@ export class GovernTransactionReader {
         address: remoteIcaAddress,
         insight: remoteIcaInsight,
       },
+      ...(hookMetadataInsight && { hookMetadata: hookMetadataInsight }),
       calls: decodedCalls,
     };
+  }
+
+  private parseHookMetadata(metadata: string): HookMetadataInsight {
+    const HEX_PREFIX_LEN = 2;
+    const VARIANT_HEX_LEN = 4;
+    const UINT256_HEX_LEN = 64;
+    const ADDRESS_HEX_LEN = 40;
+
+    const msgValueStart = HEX_PREFIX_LEN + VARIANT_HEX_LEN;
+    const gasLimitStart = msgValueStart + UINT256_HEX_LEN;
+    const refundStart = gasLimitStart + UINT256_HEX_LEN;
+
+    try {
+      const msgValue = BigNumber.from(
+        '0x' + metadata.slice(msgValueStart, gasLimitStart),
+      );
+      const gasLimit = BigNumber.from(
+        '0x' + metadata.slice(gasLimitStart, refundStart),
+      );
+      const refundAddress = ethers.utils.getAddress(
+        '0x' + metadata.slice(refundStart, refundStart + ADDRESS_HEX_LEN),
+      );
+
+      const isZeroAddress = refundAddress === ethers.constants.AddressZero;
+      const isRefundToSafe = Object.values(this.safes).some(
+        (safe) => safe && eqAddress(safe, refundAddress),
+      );
+
+      let insight: string;
+      if (isZeroAddress) {
+        insight = '⚠️ refund to zero address (excess goes to msg.sender)';
+      } else if (isRefundToSafe) {
+        insight = '✅ refund to Safe';
+      } else {
+        insight = `⚠️ refund to unknown address`;
+      }
+
+      return {
+        raw: metadata,
+        msgValue: msgValue.toString(),
+        gasLimit: gasLimit.toString(),
+        refundAddress,
+        insight,
+      };
+    } catch (e) {
+      return {
+        raw: metadata,
+        msgValue: 'parse error',
+        gasLimit: 'parse error',
+        refundAddress: 'parse error',
+        insight: '❌ failed to parse hookMetadata',
+      };
+    }
   }
 
   private async readMultisendTransaction(
