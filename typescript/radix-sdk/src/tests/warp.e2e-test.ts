@@ -254,6 +254,62 @@ describe('Radix Warp Tokens (e2e)', function () {
         expect(readToken.config.remoteRouters[DOMAIN_2]).to.be.undefined;
       });
 
+      it('should update when only destination gas changes', async () => {
+        const initialConfig = getConfig();
+        const routerAddress =
+          '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4';
+
+        // Create with initial gas value
+        initialConfig.remoteRouters = {
+          [DOMAIN_1]: { address: routerAddress },
+        };
+        initialConfig.destinationGas = {
+          [DOMAIN_1]: '100000',
+        };
+
+        const writer = artifactManager.createWriter(type, radixSigner);
+        const [deployedToken] = await writer.create({
+          config: initialConfig,
+        });
+
+        // Verify initial gas value
+        const reader = artifactManager.createReader(type);
+        const readToken1 = await reader.read(deployedToken.deployed.address);
+        expect(readToken1.config.destinationGas[DOMAIN_1]).to.equal('100000');
+
+        // Update only gas (router address unchanged)
+        const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+          ...deployedToken,
+          config: {
+            ...deployedToken.config,
+            remoteRouters: {
+              [DOMAIN_1]: { address: routerAddress }, // Same address
+            },
+            destinationGas: {
+              [DOMAIN_1]: '200000', // Changed gas
+            },
+          },
+        };
+
+        const txs = await writer.update(updatedConfig);
+        expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+        // Execute update
+        for (const tx of txs) {
+          await providerSdkSigner.sendAndConfirmTransaction(tx);
+        }
+
+        // Verify gas changed
+        const readToken2 = await reader.read(deployedToken.deployed.address);
+        expect(readToken2.config.destinationGas[DOMAIN_1]).to.equal('200000');
+        expect(
+          eqAddressRadix(
+            readToken2.config.remoteRouters[DOMAIN_1].address,
+            routerAddress,
+          ),
+        ).to.be.true;
+      });
+
       it('should transfer ownership via update (ownership last)', async () => {
         const initialConfig = getConfig();
 
