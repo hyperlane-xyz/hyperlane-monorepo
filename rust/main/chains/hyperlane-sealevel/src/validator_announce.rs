@@ -11,6 +11,7 @@ use hyperlane_sealevel_validator_announce::{
     replay_protection_pda_seeds, validator_announce_pda_seeds,
     validator_storage_locations_pda_seeds,
 };
+use serde::{Deserialize, Serialize};
 use solana_sdk::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
@@ -18,6 +19,17 @@ use solana_sdk::{
     system_program,
 };
 use tracing::{info, instrument};
+
+/// Serializable representation of a Solana instruction for Lander
+#[derive(Serialize, Deserialize, Debug)]
+struct SerializableInstruction {
+    /// Program ID as 32 bytes
+    program_id: [u8; 32],
+    /// Borsh-serialized instruction data
+    data: Vec<u8>,
+    /// Account metas: (pubkey bytes, is_signer, is_writable)
+    accounts: Vec<([u8; 32], bool, bool)>,
+}
 
 use crate::{ConnectionConf, SealevelKeypair, SealevelProvider, TransactionSubmitter};
 
@@ -231,10 +243,52 @@ impl ValidatorAnnounce for SealevelValidatorAnnounce {
 
     async fn announce_calldata(
         &self,
-        _announcement: SignedType<Announcement>,
+        announcement: SignedType<Announcement>,
     ) -> ChainResult<Vec<u8>> {
-        Err(ChainCommunicationError::CustomError(
-            "announce_calldata not supported for Sealevel".to_string(),
-        ))
+        let payer = self.get_signer()?;
+
+        let announce_instruction = AnnounceInstruction {
+            validator: announcement.value.validator,
+            storage_location: announcement.value.storage_location.clone(),
+            signature: announcement.signature.to_vec(),
+        };
+
+        let (validator_announce_account, _validator_announce_bump) =
+            Pubkey::find_program_address(validator_announce_pda_seeds!(), &self.program_id);
+
+        let (validator_storage_locations_key, _validator_storage_locations_bump_seed) =
+            Pubkey::find_program_address(
+                validator_storage_locations_pda_seeds!(announce_instruction.validator),
+                &self.program_id,
+            );
+
+        let replay_id = announce_instruction.replay_id();
+        let (replay_protection_pda_key, _replay_protection_bump_seed) =
+            Pubkey::find_program_address(replay_protection_pda_seeds!(replay_id), &self.program_id);
+
+        let ixn = ValidatorAnnounceInstruction::Announce(announce_instruction);
+
+        let accounts = vec![
+            AccountMeta::new(payer.pubkey(), true),
+            AccountMeta::new_readonly(system_program::id(), false),
+            AccountMeta::new_readonly(validator_announce_account, false),
+            AccountMeta::new(validator_storage_locations_key, false),
+            AccountMeta::new(replay_protection_pda_key, false),
+        ];
+
+        let data = ixn
+            .into_instruction_data()
+            .map_err(|e| ChainCommunicationError::CustomError(e.to_string()))?;
+
+        let serializable = SerializableInstruction {
+            program_id: self.program_id.to_bytes(),
+            data,
+            accounts: accounts
+                .into_iter()
+                .map(|a| (a.pubkey.to_bytes(), a.is_signer, a.is_writable))
+                .collect(),
+        };
+
+        serde_json::to_vec(&serializable).map_err(Into::into)
     }
 }
