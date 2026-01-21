@@ -66,6 +66,48 @@ function parseCustomRpcHeaders(url: string): {
   return { url: parsed.toString(), headers, redactedHeaders };
 }
 
+function buildRpcConnections(
+  rawUrl: string,
+  existingConnection?: utils.ConnectionInfo,
+): {
+  url: string;
+  connection?: utils.ConnectionInfo;
+  redactedConnection?: utils.ConnectionInfo;
+} {
+  const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
+  if (Object.keys(headers).length === 0) {
+    return {
+      url,
+      connection: existingConnection,
+      redactedConnection: existingConnection,
+    };
+  }
+
+  const baseConnection = existingConnection ?? { url };
+  const baseUrl = baseConnection.url === rawUrl ? url : baseConnection.url;
+  const baseHeaders = baseConnection.headers ?? {};
+
+  return {
+    url,
+    connection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...headers,
+      },
+    },
+    redactedConnection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...redactedHeaders,
+      },
+    },
+  };
+}
+
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
 }
@@ -160,37 +202,12 @@ export class HyperlaneSmartProvider
 
     if (rpcUrls?.length) {
       this.rpcProviders = rpcUrls.map((rpcConfig) => {
-        const { url, headers, redactedHeaders } = parseCustomRpcHeaders(
-          rpcConfig.http,
-        );
         const existingConnection = (rpcConfig as RpcConfigWithConnectionInfo)
           .connection;
-        const hasCustomHeaders = Object.keys(headers).length > 0;
-        let connection = existingConnection;
-        let redactedConnection = existingConnection;
-        if (hasCustomHeaders) {
-          const baseConnection = existingConnection ?? { url };
-          const baseUrl =
-            existingConnection?.url === rpcConfig.http
-              ? url
-              : baseConnection.url;
-          connection = {
-            ...baseConnection,
-            url: baseUrl,
-            headers: {
-              ...(baseConnection.headers ?? {}),
-              ...headers,
-            },
-          };
-          redactedConnection = {
-            ...baseConnection,
-            url: baseUrl,
-            headers: {
-              ...(baseConnection.headers ?? {}),
-              ...redactedHeaders,
-            },
-          };
-        }
+        const { url, connection, redactedConnection } = buildRpcConnections(
+          rpcConfig.http,
+          existingConnection,
+        );
         const configWithRedactedHeaders: RpcConfigWithConnectionInfo = {
           ...rpcConfig,
           http: url,
