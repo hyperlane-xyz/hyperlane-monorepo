@@ -2,11 +2,11 @@ use std::collections::HashMap;
 
 use async_trait::async_trait;
 use eyre::Result;
-
 use hyperlane_core::{
     unwrap_or_none_result, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
 };
+use tracing::warn;
 
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
@@ -35,7 +35,14 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
         let raw_stored = self
             .db
             .store_raw_message_dispatches(self.domain.id(), &self.mailbox_address, raw_messages)
-            .await?;
+            .await
+            .unwrap_or_else(|e| {
+                warn!(
+                    ?e,
+                    "Failed to store raw message dispatches, continuing with enriched storage"
+                );
+                0
+            });
 
         // Track raw message dispatches in metrics for E2E verification
         if let Some(metric) = self.stored_events_metric() {
