@@ -56,6 +56,8 @@ export async function resolveChains(
     case CommandType.CORE_READ:
     case CommandType.CORE_CHECK:
       return resolveChain(argv);
+    case CommandType.ICA_DEPLOY:
+      return resolveIcaDeployChains(argv);
     default:
       return resolveRelayerChains(argv);
   }
@@ -284,4 +286,14 @@ async function resolveCoreDeployChains(
       cause: error,
     });
   }
+}
+
+async function resolveIcaDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
+  assert(chains.size > 0, 'No chains provided for ICA deploy');
+  return Array.from(chains);
 }
