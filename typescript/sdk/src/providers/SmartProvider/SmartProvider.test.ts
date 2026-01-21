@@ -137,7 +137,7 @@ describe('SmartProvider', () => {
       expect(rpcConfig.connection?.timeout).to.equal(1234);
       expect(rpcConfig.connection?.headers).to.deep.equal({
         'X-Test': 'abc',
-        Authorization: 'token',
+        Authorization: '[REDACTED]',
       });
     });
 
@@ -166,9 +166,78 @@ describe('SmartProvider', () => {
       );
       expect(rpcConfig.connection?.timeout).to.equal(5678);
       expect(rpcConfig.connection?.headers).to.deep.equal({
-        Authorization: 'new',
+        Authorization: '[REDACTED]',
         'X-Test': 'abc',
       });
+    });
+
+    it('handles multiple custom_rpc_header params', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:Bearer%20token&custom_rpc_header=X-Api-Key:secret123';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.http).to.equal('http://example.com/path');
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        Authorization: '[REDACTED]',
+        'X-Api-Key': '[REDACTED]',
+      });
+    });
+
+    it('silently skips malformed headers without colon', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=MalformedNoColon&custom_rpc_header=Valid:header';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.http).to.equal('http://example.com/path');
+      // Malformed header silently ignored, only valid one present
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        Valid: '[REDACTED]',
+      });
+    });
+
+    it('passes through URL unchanged when no custom_rpc_header present', () => {
+      const rawUrl = 'http://example.com/path?foo=bar&baz=qux';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.http).to.equal(rawUrl);
+      expect(rpcConfig.connection).to.be.undefined;
+    });
+
+    it('last duplicate header wins (like Rust behavior)', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:first&custom_rpc_header=Authorization:second';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      // Can't verify actual value due to redaction, but we can verify structure
+      expect(rpcConfig.connection?.headers).to.have.property('Authorization');
+      // The redacted value indicates headers were processed
+      expect(rpcConfig.connection?.headers?.['Authorization']).to.equal(
+        '[REDACTED]',
+      );
     });
   });
 

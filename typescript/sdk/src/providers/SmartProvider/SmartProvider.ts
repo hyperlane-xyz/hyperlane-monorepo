@@ -28,24 +28,22 @@ import {
   SmartProviderOptions,
 } from './types.js';
 
-/**
- * Parse custom_rpc_header query params from URL into headers object.
- * Format: ?custom_rpc_header=HeaderName:HeaderValue (URL encoded)
- * Multiple headers supported via multiple custom_rpc_header params.
- * Returns cleaned URL (without custom_rpc_header params) and extracted headers.
- */
+const REDACTED = '[REDACTED]';
+
 function parseCustomRpcHeaders(url: string): {
   url: string;
   headers: Record<string, string>;
+  redactedHeaders: Record<string, string>;
 } {
   let parsed: URL;
   try {
     parsed = new URL(url);
   } catch {
-    return { url, headers: {} };
+    return { url, headers: {}, redactedHeaders: {} };
   }
 
   const headers: Record<string, string> = {};
+  const redactedHeaders: Record<string, string> = {};
   const retainedParams: [string, string][] = [];
 
   for (const [key, value] of parsed.searchParams) {
@@ -55,6 +53,7 @@ function parseCustomRpcHeaders(url: string): {
         const headerName = value.slice(0, colonIdx);
         const headerValue = value.slice(colonIdx + 1);
         headers[headerName] = headerValue;
+        redactedHeaders[headerName] = REDACTED;
       }
     } else {
       retainedParams.push([key, value]);
@@ -64,7 +63,7 @@ function parseCustomRpcHeaders(url: string): {
   parsed.search = '';
   retainedParams.forEach(([k, v]) => parsed.searchParams.append(k, v));
 
-  return { url: parsed.toString(), headers };
+  return { url: parsed.toString(), headers, redactedHeaders };
 }
 
 export function getSmartProviderErrorMessage(errorMsg: string): string {
@@ -161,12 +160,14 @@ export class HyperlaneSmartProvider
 
     if (rpcUrls?.length) {
       this.rpcProviders = rpcUrls.map((rpcConfig) => {
-        // Parse custom_rpc_header query params from URL (matches Rust agent behavior)
-        const { url, headers } = parseCustomRpcHeaders(rpcConfig.http);
+        const { url, headers, redactedHeaders } = parseCustomRpcHeaders(
+          rpcConfig.http,
+        );
         const existingConnection = (rpcConfig as RpcConfigWithConnectionInfo)
           .connection;
         const hasCustomHeaders = Object.keys(headers).length > 0;
         let connection = existingConnection;
+        let redactedConnection = existingConnection;
         if (hasCustomHeaders) {
           const baseConnection = existingConnection ?? { url };
           const baseUrl =
@@ -181,15 +182,25 @@ export class HyperlaneSmartProvider
               ...headers,
             },
           };
+          redactedConnection = {
+            ...baseConnection,
+            url: baseUrl,
+            headers: {
+              ...(baseConnection.headers ?? {}),
+              ...redactedHeaders,
+            },
+          };
         }
-        const configWithHeaders: RpcConfigWithConnectionInfo = {
+        const configWithRedactedHeaders: RpcConfigWithConnectionInfo = {
           ...rpcConfig,
           http: url,
-          connection,
+          connection: redactedConnection,
         };
         const newProvider = new HyperlaneJsonRpcProvider(
-          configWithHeaders,
+          configWithRedactedHeaders,
           network,
+          undefined,
+          connection,
         );
         newProvider.supportedMethods.forEach((m) => supportedMethods.add(m));
         return newProvider;
