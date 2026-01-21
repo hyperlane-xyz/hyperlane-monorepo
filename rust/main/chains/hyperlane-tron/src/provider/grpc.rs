@@ -6,14 +6,13 @@ use tonic::async_trait;
 use tonic::transport::{Channel, Endpoint};
 use tron_rs::tron::protocol::wallet_solidity_client::WalletSolidityClient;
 use tron_rs::tron::protocol::EmptyMessage;
+use url::Url;
 
 use hyperlane_core::rpc_clients::{BlockNumberGetter, FallbackProvider};
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 use hyperlane_metric::prometheus_metric::{
     ChainInfo, ClientConnectionType, PrometheusClientMetrics, PrometheusConfig,
 };
-
-use url::Url;
 
 use crate::{HyperlaneTronError, MetricsChannel};
 

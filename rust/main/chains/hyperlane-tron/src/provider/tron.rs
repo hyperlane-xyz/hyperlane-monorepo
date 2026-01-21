@@ -378,7 +378,7 @@ impl Middleware for TronProvider {
     ) -> Result<ethers::types::U256, Self::Error> {
         let call = self.parse_tx(tx);
 
-        let esimate = self
+        let estimate = self
             .grpc
             .call(|provider| {
                 let call = call.clone();
@@ -396,7 +396,7 @@ impl Middleware for TronProvider {
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
-        Ok(ethers::types::U256::from(esimate.energy_required as u64))
+        Ok(ethers::types::U256::from(estimate.energy_required as u64))
     }
 }
 

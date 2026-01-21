@@ -1,6 +1,6 @@
 use hyperlane_core::ChainCommunicationError;
 
-/// Errors from the crates specific to the hyperlane-ethereum
+/// Errors from the crates specific to the hyperlane-tron
 /// implementation.
 /// This error can then be converted into the broader error type
 /// in hyperlane-core using the `From` trait impl
