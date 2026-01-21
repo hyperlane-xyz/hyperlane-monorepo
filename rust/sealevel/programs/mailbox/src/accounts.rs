@@ -168,6 +168,7 @@ pub struct DispatchedMessage {
     /// The nonce of the message.
     pub nonce: u32,
     /// The slot in which the message was dispatched.
+    #[idl_type(u64)]
     pub slot: Slot,
     /// The unique message pubkey used when the message was dispatched.
     pub unique_message_pubkey: Pubkey,
@@ -265,9 +266,10 @@ pub struct ProcessedMessage {
     /// This way, we can easily index processed messages.
     pub sequence: u64,
     /// The message ID of the processed message.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub message_id: H256,
     /// The slot in which the message was processed.
+    #[idl_type(u64)]
     pub slot: Slot,
 }
 

@@ -479,7 +479,10 @@
           {
             "name": "salt",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"
@@ -519,7 +522,10 @@
           {
             "name": "salt",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"
@@ -569,7 +575,10 @@
           {
             "name": "messageId",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"
@@ -589,9 +598,10 @@
           },
           {
             "name": "slot",
-            "type": {
-              "defined": "Slot"
-            }
+            "type": "u64",
+            "attrs": [
+              "idl-type"
+            ]
           }
         ]
       }
@@ -626,7 +636,10 @@
           {
             "name": "salt",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"
@@ -653,7 +666,10 @@
           {
             "name": "salt",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"
@@ -680,7 +696,10 @@
           {
             "name": "messageId",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"

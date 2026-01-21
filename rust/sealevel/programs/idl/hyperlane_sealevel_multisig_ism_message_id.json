@@ -180,18 +180,7 @@
       "name": "Domained",
       "type": {
         "kind": "struct",
-        "fields": [
-          {
-            "name": "domain",
-            "type": "u32"
-          },
-          {
-            "name": "data",
-            "type": {
-              "defined": "T"
-            }
-          }
-        ]
+        "fields": []
       }
     },
     {
@@ -203,7 +192,10 @@
             "name": "validators",
             "type": {
               "vec": {
-                "defined": "bytes"
+                "array": [
+                  "u8",
+                  20
+                ]
               }
             },
             "attrs": [

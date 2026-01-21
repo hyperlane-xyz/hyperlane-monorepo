@@ -138,6 +138,7 @@ pub struct OutboxDispatch {
     /// The destination domain of the message.
     pub destination_domain: u32,
     /// The remote recipient of the message.
+    #[idl_type("[u8; 32]")]
     pub recipient: H256,
     /// The message body.
     pub message_body: Vec<u8>,

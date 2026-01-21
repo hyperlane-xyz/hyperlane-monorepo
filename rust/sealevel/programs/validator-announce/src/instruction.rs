@@ -70,6 +70,7 @@ pub struct InitInstruction {
 #[derive(BorshSerialize, BorshDeserialize, PartialEq, Debug, Clone, ShankType)]
 pub struct AnnounceInstruction {
     /// The validator's address.
+    #[idl_type("[u8; 20]")]
     pub validator: H160,
     /// The validator's storage location.
     pub storage_location: String,

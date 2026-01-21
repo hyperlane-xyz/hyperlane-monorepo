@@ -93,7 +93,7 @@ pub struct OverheadIgp {
     /// The bump seed for the overhead IGP PDA.
     pub bump_seed: u8,
     /// The salt used to derive the overhead IGP PDA.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the overhead IGP.
     pub owner: Option<Pubkey>,
@@ -162,7 +162,7 @@ pub struct Igp {
     /// The bump seed for the IGP PDA.
     pub bump_seed: u8,
     /// The salt used to derive the IGP PDA.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the IGP.
     pub owner: Option<Pubkey>,
@@ -271,7 +271,7 @@ pub struct GasPaymentData {
     /// The destination domain of the gas payment.
     pub destination_domain: u32,
     /// The message ID of the gas payment.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub message_id: H256,
     /// The amount of gas provided.
     pub gas_amount: u64,
@@ -280,6 +280,7 @@ pub struct GasPaymentData {
     /// The unique gas payment pubkey.
     pub unique_gas_payment_pubkey: Pubkey,
     /// The slot of the gas payment.
+    #[idl_type(u64)]
     pub slot: Slot,
 }
 

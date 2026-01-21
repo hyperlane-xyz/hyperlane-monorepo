@@ -499,9 +499,10 @@
           },
           {
             "name": "slot",
-            "type": {
-              "defined": "Slot"
-            }
+            "type": "u64",
+            "attrs": [
+              "idl-type"
+            ]
           },
           {
             "name": "uniqueMessagePubkey",
@@ -535,7 +536,10 @@
           {
             "name": "messageId",
             "type": {
-              "defined": "bytes"
+              "array": [
+                "u8",
+                32
+              ]
             },
             "attrs": [
               "idl-type"
@@ -543,9 +547,10 @@
           },
           {
             "name": "slot",
-            "type": {
-              "defined": "Slot"
-            }
+            "type": "u64",
+            "attrs": [
+              "idl-type"
+            ]
           }
         ]
       }
@@ -594,8 +599,14 @@
           {
             "name": "recipient",
             "type": {
-              "defined": "H256"
-            }
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
           },
           {
             "name": "messageBody",

@@ -173,8 +173,14 @@
           {
             "name": "validator",
             "type": {
-              "defined": "H160"
-            }
+              "array": [
+                "u8",
+                20
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
           },
           {
             "name": "storageLocation",

@@ -41,7 +41,7 @@ pub struct HelloWorldStorage {
     /// by this contract from the domain.
     pub received_from: HashMap<u32, u64>,
     /// Keyed by domain, the router for the remote domain.
-    #[idl_type("HashMap<u32, bytes>")]
+    #[idl_type("HashMap<u32, [u8; 32]>")]
     pub routers: HashMap<u32, H256>,
 }
 

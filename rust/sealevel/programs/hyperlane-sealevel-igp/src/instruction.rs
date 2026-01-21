@@ -113,7 +113,7 @@ impl Instruction {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct InitIgp {
     /// A salt used for deriving the IGP PDA.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the IGP.
     pub owner: Option<Pubkey>,
@@ -125,7 +125,7 @@ pub struct InitIgp {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct InitOverheadIgp {
     /// A salt used for deriving the overhead IGP PDA.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the overhead IGP.
     pub owner: Option<Pubkey>,
@@ -137,7 +137,7 @@ pub struct InitOverheadIgp {
 #[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct PayForGas {
     /// The message ID.
-    #[idl_type("bytes")]
+    #[idl_type("[u8; 32]")]
     pub message_id: H256,
     /// The destination domain.
     pub destination_domain: u32,

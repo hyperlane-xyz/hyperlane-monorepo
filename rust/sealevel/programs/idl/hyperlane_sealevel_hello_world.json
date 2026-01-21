@@ -280,7 +280,10 @@
               "hashMap": [
                 "u32",
                 {
-                  "defined": "bytes"
+                  "array": [
+                    "u8",
+                    32
+                  ]
                 }
               ]
             },
