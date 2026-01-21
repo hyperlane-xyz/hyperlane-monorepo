@@ -262,7 +262,7 @@ export class HyperlaneHaasGovernor extends HyperlaneAppGovernor<
         };
 
         newCalls.push(combinedCall);
-        console.log(
+        rootLogger.info(
           `Combined ${groupedCalls.length} calls into single ICA transaction for chain ${chain}`,
         );
       }
