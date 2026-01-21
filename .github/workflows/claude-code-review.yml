@@ -74,6 +74,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.prompt.outputs.content }}
           track_progress: true
+          use_sticky_comment: true
           claude_args: |
             --model claude-opus-4-5
             --max-turns 30
@@ -121,6 +122,27 @@ jobs:
         with:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 2
+
+      - name: Delete previous security review comments
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number || context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            for (const comment of comments) {
+              if (comment.body.includes('Security Review') &&
+                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id
+                });
+              }
+            }
 
       - name: Run Claude Security Review
         uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
@@ -190,6 +212,28 @@ jobs:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
 
+      - name: Delete previous ToB security comments
+        if: steps.solidity-changes.outputs.solidity == 'true'
+        uses: actions/github-script@v7
+        with:
+          script: |
+            const prNumber = context.issue.number || context.payload.pull_request.number;
+            const { data: comments } = await github.rest.issues.listComments({
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              issue_number: prNumber
+            });
+            for (const comment of comments) {
+              if (comment.body.includes('Trail of Bits') &&
+                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot')) {
+                await github.rest.issues.deleteComment({
+                  owner: context.repo.owner,
+                  repo: context.repo.repo,
+                  comment_id: comment.id
+                });
+              }
+            }
+
       - name: Read ToB security skills prompt
         if: steps.solidity-changes.outputs.solidity == 'true'
         id: tob-prompt
@@ -207,6 +251,7 @@ jobs:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           prompt: ${{ steps.tob-prompt.outputs.content }}
           track_progress: true
+          use_sticky_comment: true
           claude_args: |
             --model claude-opus-4-5
             --max-turns 25
@@ -243,6 +288,7 @@ jobs:
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
           track_progress: true
+          use_sticky_comment: true
           claude_args: |
             --model claude-sonnet-4-5
             --max-turns 20
