@@ -4,10 +4,12 @@ import { stringify as yamlStringify } from 'yaml';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMJsonRpcSubmitter,
-  AltVMWarpModule,
+  createWarpTokenWriter,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVMFileSubmitter } from '@hyperlane-xyz/deploy-sdk/AltVMFileSubmitter';
 import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { warpConfigToArtifact } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   type AddWarpRouteConfigOptions,
   BaseRegistry,
@@ -735,19 +737,23 @@ async function updateExistingWarpRoute(
               chain,
             );
 
-            const warpModule = new AltVMWarpModule(
-              altVmChainLookup(multiProvider),
+            const chainMetadata = multiProvider.getChainMetadata(chain);
+            const chainLookup = altVmChainLookup(multiProvider);
+            const writer = createWarpTokenWriter(
+              chainMetadata,
+              chainLookup,
               signer,
-              {
-                config: validatedConfig,
-                chain,
-                addresses: {
-                  deployedTokenRoute,
-                },
-              },
             );
 
-            const transactions = await warpModule.update(validatedConfig);
+            // Convert config to artifact format
+            const artifact = warpConfigToArtifact(validatedConfig, chainLookup);
+            const deployedArtifact = {
+              artifactState: ArtifactState.DEPLOYED,
+              config: artifact.config,
+              deployed: { address: deployedTokenRoute },
+            };
+
+            const transactions = await writer.update(deployedArtifact);
             updateTransactions[chain] = transactions;
             break;
           }
