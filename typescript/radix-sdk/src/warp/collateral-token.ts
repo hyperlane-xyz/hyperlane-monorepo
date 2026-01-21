@@ -19,7 +19,7 @@ import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
 import { AnnotatedRadixTransaction } from '../utils/types.js';
 
-import { getWarpTokenConfig, getWarpTokenRemoteRouters } from './warp-query.js';
+import { getCollateralWarpTokenConfig } from './warp-query.js';
 import {
   getCreateCollateralTokenTx,
   getEnrollRemoteRouterTx,
@@ -43,38 +43,27 @@ export class RadixCollateralTokenReader
     ArtifactDeployed<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
   > {
     // Fetch token info
-    const token = await getWarpTokenConfig(this.gateway, this.base, address);
-    const remoteRoutersList = await getWarpTokenRemoteRouters(
+    const token = await getCollateralWarpTokenConfig(
       this.gateway,
+      this.base,
       address,
     );
-
-    // Map remote routers list to Record<number, { address: string }>
-    const remoteRouters: Record<number, { address: string }> = {};
-    const destinationGas: Record<number, string> = {};
-
-    for (const router of remoteRoutersList) {
-      remoteRouters[router.receiverDomainId] = {
-        address: router.receiverAddress,
-      };
-      destinationGas[router.receiverDomainId] = router.gas;
-    }
 
     const config: RawCollateralWarpArtifactConfig = {
       type: AltVM.TokenType.collateral,
       owner: token.owner,
-      mailbox: token.mailboxAddress,
-      interchainSecurityModule: token.ismAddress
+      mailbox: token.mailbox,
+      interchainSecurityModule: token.interchainSecurityModule
         ? {
             artifactState: ArtifactState.UNDERIVED,
             deployed: {
-              address: token.ismAddress,
+              address: token.interchainSecurityModule,
             },
           }
         : undefined,
-      remoteRouters,
-      destinationGas,
-      token: token.denom,
+      remoteRouters: token.remoteRouters,
+      destinationGas: token.destinationGas,
+      token: token.token,
       name: token.name,
       symbol: token.symbol,
       decimals: token.decimals,
@@ -84,7 +73,7 @@ export class RadixCollateralTokenReader
       artifactState: ArtifactState.DEPLOYED,
       config,
       deployed: {
-        address: token.address,
+        address,
       },
     };
   }

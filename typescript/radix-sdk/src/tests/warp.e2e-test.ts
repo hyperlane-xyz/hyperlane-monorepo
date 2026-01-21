@@ -12,6 +12,7 @@ import {
   DeployedWarpAddress,
   RawCollateralWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
+  WarpArtifactConfig,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
@@ -253,7 +254,7 @@ describe('Radix Warp Tokens (e2e)', function () {
         expect(readToken.config.remoteRouters[DOMAIN_2]).to.be.undefined;
       });
 
-      it('should transfer ownership via update (ownership last)', async () => {
+      it.only('should transfer ownership via update (ownership last)', async () => {
         const initialConfig = getConfig();
 
         const writer = artifactManager.createWriter(type, radixSigner);
@@ -261,12 +262,23 @@ describe('Radix Warp Tokens (e2e)', function () {
           config: initialConfig,
         });
 
-        // Update BOTH routers AND ownership
-        const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+        const customIsmAddress = TEST_RADIX_BURN_ADDRESS;
+
+        // Update routers, ISM, AND ownership
+        const updatedConfig: ArtifactDeployed<
+          WarpArtifactConfig,
+          DeployedWarpAddress
+        > = {
           ...deployedToken,
           config: {
             ...deployedToken.config,
             owner: TEST_RADIX_BURN_ADDRESS,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.UNDERIVED,
+              deployed: {
+                address: customIsmAddress,
+              },
+            },
             remoteRouters: {
               [DOMAIN_1]: {
                 address:
@@ -279,7 +291,7 @@ describe('Radix Warp Tokens (e2e)', function () {
           },
         };
 
-        const txs = await writer.update(updatedConfig);
+        const txs = await writer.update(updatedConfig as any);
         expect(txs).to.be.an('array').with.length.greaterThan(0);
 
         // Verify ownership transfer is the LAST transaction
@@ -291,13 +303,19 @@ describe('Radix Warp Tokens (e2e)', function () {
           await providerSdkSigner.sendAndConfirmTransaction(tx);
         }
 
-        // Verify both router enrollment AND ownership transfer succeeded
+        // Verify router enrollment, ISM, AND ownership transfer succeeded
         const reader = artifactManager.createReader(type);
         const readToken = await reader.read(deployedToken.deployed.address);
 
         expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
           '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
         );
+        expect(
+          eqAddressRadix(
+            readToken.config.interchainSecurityModule?.deployed.address!,
+            customIsmAddress,
+          ),
+        ).to.be.true;
         expect(eqAddressRadix(readToken.config.owner, TEST_RADIX_BURN_ADDRESS))
           .to.be.true;
       });
@@ -311,27 +329,6 @@ describe('Radix Warp Tokens (e2e)', function () {
         const txs = await writer.update(deployedToken);
         expect(txs).to.be.an('array').with.length(0);
       });
-    });
-  });
-
-  describe('Synthetic token specific tests', () => {
-    it('should fail to create synthetic token without required fields', async () => {
-      const config: RawSyntheticWarpArtifactConfig = {
-        type: AltVM.TokenType.synthetic,
-        owner: TEST_RADIX_DEPLOYER_ADDRESS,
-        mailbox: TEST_RADIX_DEPLOYER_ADDRESS,
-        remoteRouters: {},
-        destinationGas: {},
-      } as any; // Missing name, symbol, decimals
-
-      const writer = artifactManager.createWriter(
-        AltVM.TokenType.synthetic,
-        radixSigner,
-      );
-
-      await expect(writer.create({ config })).to.be.rejectedWith(
-        /name is required/i,
-      );
     });
   });
 

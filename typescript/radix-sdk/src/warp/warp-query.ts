@@ -1,37 +1,134 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert, ensure0x } from '@hyperlane-xyz/utils';
 
 import {
   getComponentOwner,
   getComponentState,
+  getFieldHexValueFromEntityState,
+  getFieldPropertyFromEntityState,
   getFieldValueFromEntityState,
   getKeysFromKvStore,
   getRadixComponentDetails,
+  getResourceAddress,
+  tryGetFieldValueFromEntityState,
 } from '../utils/base-query.js';
 import { RadixBase } from '../utils/base.js';
-import { EntityField } from '../utils/types.js';
+import {
+  BaseRadixWarpTokenConfig,
+  EntityDetails,
+  EntityField,
+  RadixCollateralWarpTokenConfig,
+  RadixSyntheticWarpTokenConfig,
+  RadixWarpTokenConfig,
+  RadixWarpTokenType,
+} from '../utils/types.js';
 
-/**
- * Gets token configuration from chain.
- * Helper function for artifact readers.
- */
-export async function getWarpTokenConfig(
+export function providerWarpTokenTypeFromRadixTokenType(
+  tokenType: RadixWarpTokenType,
+): TokenType {
+  switch (tokenType) {
+    case RadixWarpTokenType.COLLATERAL:
+      return 'collateral';
+    case RadixWarpTokenType.SYNTHETIC:
+      return 'synthetic';
+    default: {
+      const invalidValue: never = tokenType;
+      throw new Error(`Unknown warp token type: ${invalidValue}`);
+    }
+  }
+}
+
+export async function getRadixWarpTokenType(
+  gateway: Readonly<GatewayApiClient>,
+  tokenAddress: string,
+): Promise<RadixWarpTokenType> {
+  const { tokenType } = await getRawWarpTokenData(gateway, tokenAddress);
+
+  return tokenType;
+}
+
+export async function getCollateralWarpTokenConfig(
   gateway: Readonly<GatewayApiClient>,
   base: Readonly<RadixBase>,
   tokenAddress: string,
-): Promise<{
-  address: string;
-  owner: string;
-  tokenType: 'Collateral' | 'Synthetic';
-  mailboxAddress: string;
-  ismAddress: string;
-  denom: string;
-  name: string;
-  symbol: string;
-  description: string;
-  decimals: number;
-}> {
+): Promise<RadixCollateralWarpTokenConfig> {
+  const [tokenState, baseTokenData] = await getWarpTokenConfig(
+    gateway,
+    tokenAddress,
+  );
+
+  assert(
+    baseTokenData.type === RadixWarpTokenType.COLLATERAL,
+    `Expected token at address ${tokenAddress} to be of type ${RadixWarpTokenType.COLLATERAL} but got ${baseTokenData.type}`,
+  );
+
+  const tokenTypeFields: EntityField[] = getFieldPropertyFromEntityState(
+    'token_type',
+    tokenAddress,
+    tokenState,
+    'fields',
+  );
+  const collateralTokenAddress = getResourceAddress(tokenAddress, {
+    fields: tokenTypeFields,
+  });
+  const metadata = await base.getMetadata({ resource: collateralTokenAddress });
+
+  return {
+    mailbox: baseTokenData.mailbox,
+    owner: baseTokenData.owner,
+    token: collateralTokenAddress,
+    type: RadixWarpTokenType.COLLATERAL,
+    destinationGas: baseTokenData.destinationGas,
+    interchainSecurityModule: baseTokenData.interchainSecurityModule,
+    remoteRouters: baseTokenData.remoteRouters,
+    decimals: metadata.decimals,
+    name: metadata.name,
+    symbol: metadata.symbol,
+  };
+}
+
+export async function getSyntheticWarpTokenConfig(
+  gateway: Readonly<GatewayApiClient>,
+  base: Readonly<RadixBase>,
+  tokenAddress: string,
+): Promise<RadixSyntheticWarpTokenConfig> {
+  const [tokenState, baseTokenData] = await getWarpTokenConfig(
+    gateway,
+    tokenAddress,
+  );
+
+  assert(
+    baseTokenData.type === RadixWarpTokenType.SYNTHETIC,
+    `Expected token at address ${tokenAddress} to be of type ${RadixWarpTokenType.SYNTHETIC} but got ${baseTokenData.type}`,
+  );
+
+  const resourceManagerFields =
+    tokenState.fields.find((f) => f.field_name === 'resource_manager')
+      ?.fields ?? [];
+  const collateralTokenAddress = getResourceAddress(tokenAddress, {
+    fields: resourceManagerFields,
+  });
+  const metadata = await base.getMetadata({ resource: collateralTokenAddress });
+
+  return {
+    mailbox: baseTokenData.mailbox,
+    owner: baseTokenData.owner,
+    type: RadixWarpTokenType.SYNTHETIC,
+    destinationGas: baseTokenData.destinationGas,
+    interchainSecurityModule: baseTokenData.interchainSecurityModule,
+    remoteRouters: baseTokenData.remoteRouters,
+    decimals: metadata.decimals,
+    name: metadata.name,
+    symbol: metadata.symbol,
+  };
+}
+
+async function getRawWarpTokenData(
+  gateway: Readonly<GatewayApiClient>,
+  tokenAddress: string,
+) {
   const tokenDetails = await getRadixComponentDetails(
     gateway,
     tokenAddress,
@@ -43,87 +140,70 @@ export async function getWarpTokenConfig(
     `Expected component at address ${tokenAddress} to be "HypToken" but got ${tokenDetails.blueprint_name}`,
   );
 
+  const tokenState = getComponentState(tokenAddress, tokenDetails);
+  const tokenType = getFieldPropertyFromEntityState(
+    'token_type',
+    tokenAddress,
+    tokenState,
+    'variant_name',
+  );
+
+  assert(
+    tokenType === RadixWarpTokenType.COLLATERAL ||
+      tokenType === RadixWarpTokenType.SYNTHETIC,
+    `Unknown token type: ${tokenType}`,
+  );
+
+  return {
+    tokenType,
+    tokenDetails,
+  };
+}
+
+async function getWarpTokenConfig(
+  gateway: Readonly<GatewayApiClient>,
+  tokenAddress: string,
+): Promise<
+  [EntityDetails['state'], BaseRadixWarpTokenConfig<RadixWarpTokenType>]
+> {
+  const { tokenDetails, tokenType } = await getRawWarpTokenData(
+    gateway,
+    tokenAddress,
+  );
+
   const owner = await getComponentOwner(gateway, tokenAddress, tokenDetails);
   const tokenState = getComponentState(tokenAddress, tokenDetails);
 
-  const token_type = tokenState.fields.find(
-    (f) => f.field_name === 'token_type',
-  )?.variant_name;
-
-  assert(
-    token_type === 'Collateral' || token_type === 'Synthetic',
-    `Unknown token type: ${token_type}`,
-  );
-
-  const ismFields =
-    tokenState.fields.find((f) => f.field_name === 'ism')?.fields ?? [];
-  const ismAddress = ismFields[0]?.value ?? '';
-
+  const ismAddress = tryGetFieldValueFromEntityState('ism', tokenState);
   const mailboxAddress = getFieldValueFromEntityState(
     'mailbox',
     tokenAddress,
     tokenState,
   );
 
-  const tokenTypeFields =
-    tokenState.fields.find((f) => f.field_name === 'token_type')?.fields ?? [];
+  const { destinationGas, remoteRouters } =
+    await getWarpTokenRemoteRoutersConfig(gateway, tokenAddress, tokenState);
 
-  let origin_denom: string;
-  let metadata = {
-    name: '',
-    symbol: '',
-    description: '',
-    decimals: 0,
-  };
-
-  if (token_type === 'Collateral') {
-    origin_denom =
-      tokenTypeFields.find((t) => t.type_name === 'ResourceAddress')?.value ??
-      '';
-    metadata = await base.getMetadata({ resource: origin_denom });
-  } else {
-    // Synthetic
-    const resourceManagerFields =
-      tokenState.fields.find((f) => f.field_name === 'resource_manager')
-        ?.fields ?? [];
-    origin_denom =
-      resourceManagerFields.find((r) => r.type_name === 'ResourceAddress')
-        ?.value ?? '';
-    metadata = await base.getMetadata({ resource: origin_denom });
-  }
-
-  return {
-    address: tokenAddress,
-    owner,
-    tokenType: token_type,
-    mailboxAddress,
-    ismAddress,
-    denom: origin_denom,
-    ...metadata,
-  };
+  return [
+    tokenState,
+    {
+      type: tokenType,
+      mailbox: mailboxAddress,
+      owner,
+      destinationGas,
+      interchainSecurityModule: ismAddress,
+      remoteRouters,
+    },
+  ];
 }
 
-/**
- * Gets remote routers configuration from chain.
- * Helper function for artifact readers.
- */
-export async function getWarpTokenRemoteRouters(
+async function getWarpTokenRemoteRoutersConfig(
   gateway: Readonly<GatewayApiClient>,
   tokenAddress: string,
-): Promise<
-  {
-    receiverDomainId: number;
-    receiverAddress: string;
-    gas: string;
-  }[]
-> {
-  const tokenDetails = await getRadixComponentDetails(
-    gateway,
-    tokenAddress,
-    'HypToken',
-  );
-
-  const tokenState = getComponentState(tokenAddress, tokenDetails);
+  tokenState: EntityDetails['state'],
+): Promise<Pick<RadixWarpTokenConfig, 'destinationGas' | 'remoteRouters'>> {
+  const destinationGas: RadixWarpTokenConfig['destinationGas'] = {};
+  const remoteRouters: RadixWarpTokenConfig['remoteRouters'] = {};
 
   const remote_routers_kv_address = getFieldValueFromEntityState(
     'enrolled_routers',
@@ -132,13 +212,6 @@ export async function getWarpTokenRemoteRouters(
   );
 
   const keys = await getKeysFromKvStore(gateway, remote_routers_kv_address);
-
-  const remoteRouters: {
-    receiverDomainId: number;
-    receiverAddress: string;
-    gas: string;
-  }[] = [];
-
   for (const key of keys) {
     const { entries } = await gateway.state.innerClient.keyValueStoreData({
       stateKeyValueStoreDataRequest: {
@@ -148,40 +221,45 @@ export async function getWarpTokenRemoteRouters(
     });
 
     const rawRemoteDomain = key.programmatic_json;
-
     assert(
       rawRemoteDomain.kind === 'U32',
       `Expected domain id to be stored as a number on warp token at address ${tokenAddress}`,
     );
 
-    const receiverDomainId = parseInt(rawRemoteDomain.value);
+    const domainId = parseInt(rawRemoteDomain.value);
 
     const [entry] = entries;
-
     assert(
       entry,
-      `Expected to find at least one entry with key ${receiverDomainId} on warp token at address ${tokenAddress}`,
+      `Expected to find at least one entry with key ${domainId} on warp token at address ${tokenAddress}`,
     );
 
     const rawRouter = entry.value.programmatic_json;
-
     assert(
       rawRouter.kind === 'Tuple',
       `Expected router to be an object on warp token at address ${tokenAddress}`,
     );
 
     const routerFields = (rawRouter as EntityField).fields ?? [];
+    const remoteAddress = getFieldHexValueFromEntityState(
+      'recipient',
+      tokenAddress,
+      {
+        fields: routerFields,
+      },
+      ensure0x,
+    );
+    const gas =
+      tryGetFieldValueFromEntityState('gas', { fields: routerFields }) ?? '0';
 
-    remoteRouters.push({
-      receiverDomainId: parseInt(
-        routerFields.find((r) => r.field_name === 'domain')?.value ?? '',
-      ),
-      receiverAddress: ensure0x(
-        routerFields.find((r) => r.field_name === 'recipient')?.hex ?? '',
-      ),
-      gas: routerFields.find((r) => r.field_name === 'gas')?.value ?? '',
-    });
+    destinationGas[domainId] = gas;
+    remoteRouters[domainId] = {
+      address: remoteAddress,
+    };
   }
 
-  return remoteRouters;
+  return {
+    destinationGas,
+    remoteRouters,
+  };
 }

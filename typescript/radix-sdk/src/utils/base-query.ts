@@ -7,7 +7,7 @@ import {
 
 import { assert, isNullish, sleep } from '@hyperlane-xyz/utils';
 
-import { EntityDetails, RadixElement } from './types.js';
+import { EntityDetails, EntityField, RadixElement } from './types.js';
 
 type RadixComponentDetails = Extract<
   StateEntityDetailsResponseItemDetails,
@@ -181,7 +181,7 @@ export function getComponentState(
 function tryGetFieldPropertyFromEntityState<T>(
   fieldName: string,
   entityState: EntityDetails['state'],
-  property: 'value' | 'hex',
+  property: keyof EntityField,
   formatter?: (value: string) => T,
 ): T | string | undefined {
   const [result]: string[] | undefined = entityState.fields
@@ -195,6 +195,34 @@ function tryGetFieldPropertyFromEntityState<T>(
     );
 
   return result && formatter ? formatter(result) : result;
+}
+
+export function getFieldPropertyFromEntityState<
+  TKey extends keyof EntityField,
+  T,
+>(
+  fieldName: string,
+  entityAddress: string,
+  entityState: EntityDetails['state'],
+  property: TKey,
+  formatter?: (value: NonNullable<EntityField[TKey]>) => T,
+): T | NonNullable<EntityField[TKey]> {
+  const [result] = entityState.fields
+    .filter((f) => f.field_name === fieldName)
+    .map((f) =>
+      // If the current value is an Option we need to extract
+      // its property otherwise we can use the property directly
+      f.kind === 'Enum' && f.type_name === 'Option'
+        ? f.fields?.at(0)?.[property]
+        : f[property],
+    );
+
+  assert(
+    !isNullish(result),
+    `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
+  );
+
+  return formatter ? formatter(result) : result;
 }
 
 /**

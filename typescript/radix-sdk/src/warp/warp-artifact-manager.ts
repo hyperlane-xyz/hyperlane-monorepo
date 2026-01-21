@@ -23,27 +23,10 @@ import {
   RadixSyntheticTokenReader,
   RadixSyntheticTokenWriter,
 } from './synthetic-token.js';
-import { getWarpTokenConfig } from './warp-query.js';
-
-/**
- * Gets the warp token type from the chain by querying the token contract.
- */
-async function getWarpTokenType(
-  gateway: GatewayApiClient,
-  base: RadixBase,
-  address: string,
-): Promise<WarpType> {
-  const token = await getWarpTokenConfig(gateway, base, address);
-
-  switch (token.tokenType) {
-    case 'Collateral':
-      return 'collateral';
-    case 'Synthetic':
-      return 'synthetic';
-    default:
-      throw new Error(`Unknown warp token type: ${token.tokenType}`);
-  }
-}
+import {
+  getRadixWarpTokenType,
+  providerWarpTokenTypeFromRadixTokenType,
+} from './warp-query.js';
 
 export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
@@ -53,10 +36,12 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
 
   async readWarpToken(address: string): Promise<DeployedWarpArtifact> {
     // Detect warp token type first
-    const warpType = await getWarpTokenType(this.gateway, this.base, address);
+    const warpType = await getRadixWarpTokenType(this.gateway, address);
 
     // Get the appropriate reader and read the token
-    const reader = this.createReader(warpType);
+    const reader = this.createReader(
+      providerWarpTokenTypeFromRadixTokenType(warpType),
+    );
     return reader.read(address);
   }
 
