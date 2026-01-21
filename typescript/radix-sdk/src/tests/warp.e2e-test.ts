@@ -528,6 +528,61 @@ describe('Radix Warp Tokens (e2e)', function () {
           // Should have no transactions (ISM still undefined)
           expect(txs).to.be.an('array').with.length(0);
         });
+
+        it('should unset ISM when changed to zero address', async () => {
+          const initialConfig = getConfig();
+          const customIsmAddress = TEST_RADIX_BURN_ADDRESS;
+
+          // Create with ISM set
+          initialConfig.interchainSecurityModule = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: customIsmAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify ISM is set
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          expect(
+            eqAddressRadix(
+              readToken1.config.interchainSecurityModule?.deployed.address!,
+              customIsmAddress,
+            ),
+          ).to.be.true;
+
+          // Update to zero address (should unset ISM)
+          const zeroAddress = '0000000000000000000000000000000000000000';
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: zeroAddress,
+                },
+              },
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify ISM is now unset (zero address treated as unset)
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          expect(readToken2.config.interchainSecurityModule).to.be.undefined;
+        });
       });
     });
   });

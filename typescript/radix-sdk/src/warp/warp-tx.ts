@@ -126,7 +126,8 @@ export async function getSetTokenIsmTx(
     'set_ism',
     [
       // Set or unset the ism based on the input value
-      ismAddress || (ismAddress && !isZeroishAddress(ismAddress))
+      // undefined or zero address → unset (use default ISM)
+      ismAddress && !isZeroishAddress(ismAddress)
         ? enumeration(1, address(ismAddress))
         : enumeration(0),
     ],
@@ -254,8 +255,8 @@ export async function getWarpTokenUpdateTxs<
 
     const needsUpdate =
       !currentRouter ||
-      !eqAddressRadix(currentRouter.address, remoteRouter.address);
-    currentGas !== gas;
+      !eqAddressRadix(currentRouter.address, remoteRouter.address) ||
+      currentGas !== gas;
 
     if (needsUpdate) {
       const enrollTx = await getEnrollRemoteRouterTx(base, signerAddress, {
