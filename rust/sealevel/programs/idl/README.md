@@ -48,41 +48,74 @@ Each IDL contains:
 - **Discriminators**: IGP and some account types use 8-byte discriminators
 - **No seeds**: PDA seeds use existing `pda_seeds!()` macros, not IDL-based generation
 
-## Next Steps for TypeScript Integration
+## TypeScript Client Generation
 
-To generate TypeScript clients from these IDLs:
+TypeScript clients have been generated from these IDLs using [Codama](https://github.com/codama-idl/codama).
 
-1. **Install Codama** in `typescript/sdk`:
-   ```bash
-   cd typescript/sdk
-   pnpm add -D codama
-   ```
+### Generated Clients
 
-2. **Create Codama config** (`typescript/sdk/codama.config.js`):
-   ```javascript
-   const { Codama } = require('codama');
+Location: `typescript/sdk/src/providers/sealevel/generated/`
 
-   const codama = new Codama({
-     idls: [
-       '../../rust/sealevel/programs/idl/hyperlane_sealevel_mailbox.json',
-       '../../rust/sealevel/programs/idl/hyperlane_sealevel_igp.json',
-       // ... rest of IDLs
-     ],
-     outputDir: 'src/providers/sealevel/generated',
-   });
+Each program has its own directory containing:
+- **instructions/** - Typed instruction builders
+- **accounts/** - Account codecs for serialization/deserialization
+- **types/** - Custom type definitions
+- **programs/** - Program metadata and addresses
+- **errors/** - Error code definitions
 
-   codama.render();
-   ```
+### Regenerating Clients
 
-3. **Generate TypeScript clients**:
-   ```bash
-   node codama.config.js
-   ```
+After updating Rust program code or regenerating IDLs:
 
-4. **Integrate with existing Sealevel providers**:
-   - Import generated instruction builders in `SealevelCoreAdapter.ts`
-   - Replace manual transaction building with generated builders
-   - Use generated account codecs for deserialization
+```bash
+# Regenerate IDLs
+cd rust/sealevel
+./generate-idls.sh
+
+# Regenerate TypeScript clients
+cd ../../typescript/sdk
+pnpm codama
+
+# Or clean and regenerate
+pnpm codama:clean
+```
+
+### Using Generated Clients
+
+```typescript
+// Import instruction builders
+import { getInboxProcessInstruction } from './providers/sealevel/generated/hyperlane_sealevel_mailbox/instructions';
+import { getQuoteGasPaymentInstruction } from './providers/sealevel/generated/hyperlane_sealevel_igp/instructions';
+
+// Import account codecs
+import { decodeInbox } from './providers/sealevel/generated/hyperlane_sealevel_mailbox/accounts';
+
+// Build instructions with type-safe parameters
+const instruction = getInboxProcessInstruction({
+  payer: payerAddress,
+  inbox: inboxPda,
+  processedMessage: processedMessagePda,
+  // ... other accounts
+  metadata: metadataBytes,
+  message: messageBytes,
+});
+
+// Decode accounts
+const inbox = decodeInbox(encodedAccount);
+console.log(inbox.localDomain, inbox.processedCount);
+```
+
+### Integration Status
+
+**Phase 4 (Codama Integration): ✅ Complete**
+- Codama packages installed
+- Generation script created (`typescript/sdk/codama.mjs`)
+- All 9 programs have generated TypeScript clients
+
+**Phase 5 (Adapter Integration): ⏳ Pending**
+- Current adapters use `@solana/web3.js` + manual Borsh serialization
+- Generated clients use `@solana/kit` (modern Solana library)
+- Integration requires refactoring existing adapters to use generated instruction builders and account codecs
 
 ## Notes
 
