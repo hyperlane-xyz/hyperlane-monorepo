@@ -2,4 +2,4 @@
 '@hyperlane-xyz/utils': minor
 ---
 
-Added StandardHookMetadata utilities: `formatStandardHookMetadata()` for building hook metadata, `extractRefundAddressFromMetadata()` and `hasValidRefundAddress()` for parsing refund addresses from metadata bytes.
+Added StandardHookMetadata utilities: `formatStandardHookMetadata()` for building hook metadata, `parseStandardHookMetadata()` for parsing all fields, `extractRefundAddressFromMetadata()` and `hasValidRefundAddress()` for refund address helpers.

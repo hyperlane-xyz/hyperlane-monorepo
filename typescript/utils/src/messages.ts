@@ -117,27 +117,49 @@ export function formatStandardHookMetadata({
   );
 }
 
-export function extractRefundAddressFromMetadata(
+// Offsets for StandardHookMetadata parsing
+// Format: uint16 variant (2 bytes) + uint256 msgValue (32 bytes) + uint256 gasLimit (32 bytes) + address refundAddress (20 bytes)
+const HEX_PREFIX_LEN = 2;
+const VARIANT_HEX_LEN = 4;
+const UINT256_HEX_LEN = 64;
+const ADDRESS_HEX_LEN = 40;
+const MSG_VALUE_START = HEX_PREFIX_LEN + VARIANT_HEX_LEN;
+const GAS_LIMIT_START = MSG_VALUE_START + UINT256_HEX_LEN;
+const REFUND_START = GAS_LIMIT_START + UINT256_HEX_LEN;
+const REFUND_END = REFUND_START + ADDRESS_HEX_LEN;
+
+/**
+ * Parse StandardHookMetadata bytes into its components.
+ * @returns Parsed metadata or null if invalid
+ */
+export function parseStandardHookMetadata(
   metadata?: HexString,
-): Address | null {
+): Required<StandardHookMetadataParams> | null {
   if (!metadata || metadata === '0x') return null;
   if (!/^0x[0-9a-fA-F]*$/.test(metadata)) return null;
   if (!metadata.startsWith('0x0001')) return null;
-
-  const HEX_PREFIX_LEN = 2;
-  const VARIANT_HEX_LEN = 4;
-  const UINT256_HEX_LEN = 64;
-  const ADDRESS_HEX_LEN = 40;
-  const REFUND_START = HEX_PREFIX_LEN + VARIANT_HEX_LEN + UINT256_HEX_LEN * 2;
-  const REFUND_END = REFUND_START + ADDRESS_HEX_LEN;
   if (metadata.length < REFUND_END) return null;
 
-  const refundHex = '0x' + metadata.slice(REFUND_START, REFUND_END);
   try {
-    return ethers.utils.getAddress(refundHex);
+    const msgValue = BigInt(
+      '0x' + metadata.slice(MSG_VALUE_START, GAS_LIMIT_START),
+    );
+    const gasLimit = BigInt(
+      '0x' + metadata.slice(GAS_LIMIT_START, REFUND_START),
+    );
+    const refundAddress = ethers.utils.getAddress(
+      '0x' + metadata.slice(REFUND_START, REFUND_END),
+    );
+    return { msgValue, gasLimit, refundAddress };
   } catch {
     return null;
   }
+}
+
+export function extractRefundAddressFromMetadata(
+  metadata?: HexString,
+): Address | null {
+  return parseStandardHookMetadata(metadata)?.refundAddress ?? null;
 }
 
 export function hasValidRefundAddress(metadata?: HexString): boolean {

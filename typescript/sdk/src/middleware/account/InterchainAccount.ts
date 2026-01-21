@@ -16,6 +16,7 @@ import {
   isZeroishAddress,
   objFilter,
   objMap,
+  parseStandardHookMetadata,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
@@ -302,28 +303,9 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return callEncoded;
   }
 
-  /**
-   * Extract gasLimit from StandardHookMetadata bytes.
-   * Format: uint16 variant (2 bytes) + uint256 msgValue (32 bytes) + uint256 gasLimit (32 bytes) + ...
-   */
   private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
-    const VARIANT_HEX_LEN = 4;
-    const UINT256_HEX_LEN = 64;
-    const HEX_PREFIX_LEN = 2;
-    const MIN_METADATA_LENGTH =
-      HEX_PREFIX_LEN + VARIANT_HEX_LEN + UINT256_HEX_LEN * 2;
-    const GAS_LIMIT_START = HEX_PREFIX_LEN + VARIANT_HEX_LEN + UINT256_HEX_LEN;
-    const GAS_LIMIT_END = GAS_LIMIT_START + UINT256_HEX_LEN;
-
-    try {
-      if (!/^0x[0-9a-fA-F]*$/.test(metadata)) return null;
-      if (metadata.length < MIN_METADATA_LENGTH) return null;
-      const gasLimitHex = '0x' + metadata.slice(GAS_LIMIT_START, GAS_LIMIT_END);
-      if (!/^0x[0-9a-fA-F]+$/.test(gasLimitHex)) return null;
-      return BigNumber.from(gasLimitHex);
-    } catch {
-      return null;
-    }
+    const parsed = parseStandardHookMetadata(metadata);
+    return parsed ? BigNumber.from(parsed.gasLimit) : null;
   }
 
   // general helper for different overloaded callRemote functions

@@ -49,6 +49,7 @@ import {
   deepEquals,
   eqAddress,
   isZeroishAddress,
+  parseStandardHookMetadata,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -1564,48 +1565,8 @@ export class GovernTransactionReader {
   }
 
   private parseHookMetadata(metadata: string): HookMetadataInsight {
-    const HEX_PREFIX_LEN = 2;
-    const VARIANT_HEX_LEN = 4;
-    const UINT256_HEX_LEN = 64;
-    const ADDRESS_HEX_LEN = 40;
-
-    const msgValueStart = HEX_PREFIX_LEN + VARIANT_HEX_LEN;
-    const gasLimitStart = msgValueStart + UINT256_HEX_LEN;
-    const refundStart = gasLimitStart + UINT256_HEX_LEN;
-
-    try {
-      const msgValue = BigNumber.from(
-        '0x' + metadata.slice(msgValueStart, gasLimitStart),
-      );
-      const gasLimit = BigNumber.from(
-        '0x' + metadata.slice(gasLimitStart, refundStart),
-      );
-      const refundAddress = ethers.utils.getAddress(
-        '0x' + metadata.slice(refundStart, refundStart + ADDRESS_HEX_LEN),
-      );
-
-      const isZeroAddress = refundAddress === ethers.constants.AddressZero;
-      const isRefundToSafe = Object.values(this.safes).some(
-        (safe) => safe && eqAddress(safe, refundAddress),
-      );
-
-      let insight: string;
-      if (isZeroAddress) {
-        insight = '⚠️ refund to zero address (excess goes to msg.sender)';
-      } else if (isRefundToSafe) {
-        insight = '✅ refund to Safe';
-      } else {
-        insight = `⚠️ refund to unknown address`;
-      }
-
-      return {
-        raw: metadata,
-        msgValue: msgValue.toString(),
-        gasLimit: gasLimit.toString(),
-        refundAddress,
-        insight,
-      };
-    } catch (e) {
+    const parsed = parseStandardHookMetadata(metadata);
+    if (!parsed) {
       return {
         raw: metadata,
         msgValue: 'parse error',
@@ -1614,6 +1575,29 @@ export class GovernTransactionReader {
         insight: '❌ failed to parse hookMetadata',
       };
     }
+
+    const { msgValue, gasLimit, refundAddress } = parsed;
+    const isZeroAddress = refundAddress === ethers.constants.AddressZero;
+    const isRefundToSafe = Object.values(this.safes).some(
+      (safe) => safe && eqAddress(safe, refundAddress),
+    );
+
+    let insight: string;
+    if (isZeroAddress) {
+      insight = '⚠️ refund to zero address (excess goes to msg.sender)';
+    } else if (isRefundToSafe) {
+      insight = '✅ refund to Safe';
+    } else {
+      insight = `⚠️ refund to unknown address`;
+    }
+
+    return {
+      raw: metadata,
+      msgValue: msgValue.toString(),
+      gasLimit: gasLimit.toString(),
+      refundAddress,
+      insight,
+    };
   }
 
   private async readMultisendTransaction(

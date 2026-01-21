@@ -132,6 +132,7 @@ export {
   hasValidRefundAddress,
   messageId,
   parseMessage,
+  parseStandardHookMetadata,
   parseWarpRouteMessage,
 } from './messages.js';
 export type { StandardHookMetadataParams } from './messages.js';
