@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
     outputs:
       version: ${{ steps.version.outputs.version }}
       program_type: ${{ steps.version.outputs.program_type }}
@@ -31,8 +31,8 @@ jobs:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
 
       - name: Extract version from tag
         id: version
@@ -48,8 +48,9 @@ jobs:
           fi
 
       - name: Build Solana programs
-        uses: docker/build-push-action@v5
+        uses: depot/build-push-action@v1
         with:
+          project: czmkmn2km1
           context: .
           file: rust/sealevel/docker/Dockerfile
           platforms: linux/amd64
@@ -109,14 +110,14 @@ jobs:
 
   verify-reproducibility:
     needs: build
-    runs-on: buildjet-8vcpu-ubuntu-2204
+    runs-on: depot-ubuntu-24.04-8
 
     steps:
       - name: Checkout repository
         uses: actions/checkout@v4
 
-      - name: Set up Docker Buildx
-        uses: docker/setup-buildx-action@v3
+      - name: Set up Depot CLI
+        uses: depot/setup-action@v1
 
       - name: Download first build artifacts
         uses: actions/download-artifact@v4
@@ -126,12 +127,14 @@ jobs:
 
       - name: Rebuild to verify reproducibility
         run: |
-          docker build \
+          depot build \
+            --project czmkmn2km1 \
             --platform linux/amd64 \
             --build-arg PROGRAM_TYPE=${{ needs.build.outputs.program_type }} \
             -f rust/sealevel/docker/Dockerfile \
             -t sealevel-verify:local \
             --target builder \
+            --load \
             .
 
           mkdir -p ./second-build

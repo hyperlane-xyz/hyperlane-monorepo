@@ -23,15 +23,17 @@ ENV CARGO_INCREMENTAL=0
 ENV RUSTFLAGS="--cfg tokio_unstable"
 
 # Install Solana CLI v1.14.20
-# Download directly from GitHub releases (more reliable than release.solana.com)
+# Download release tarball directly and verify SHA256 for full reproducibility
 # Note: Platform is locked to linux/amd64 above, so we hardcode x86_64
 ENV SOLANA_VERSION=v1.14.20
-ARG SOLANA_INSTALL_SHA256=bbe2b0c59ddde17b19c70212a2885cd05575e6531d77c51a71b4d8faab9939b3
-RUN curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-install-init-x86_64-unknown-linux-gnu" -o /tmp/solana-install-init && \
-    echo "${SOLANA_INSTALL_SHA256}  /tmp/solana-install-init" | sha256sum -c - && \
-    chmod +x /tmp/solana-install-init && \
-    /tmp/solana-install-init ${SOLANA_VERSION} && \
-    rm /tmp/solana-install-init
+ARG SOLANA_RELEASE_SHA256=8d9feed221bf352a544b15b7a7e74fed877da7c4aa0458b9a33fd7ce3099ad54
+RUN SOLANA_INSTALL_DIR="/root/.local/share/solana/install/releases/${SOLANA_VERSION}" && \
+    mkdir -p "$SOLANA_INSTALL_DIR" && \
+    curl -sSfL "https://github.com/solana-labs/solana/releases/download/${SOLANA_VERSION}/solana-release-x86_64-unknown-linux-gnu.tar.bz2" -o /tmp/solana-release.tar.bz2 && \
+    echo "${SOLANA_RELEASE_SHA256}  /tmp/solana-release.tar.bz2" | sha256sum -c - && \
+    tar -xjf /tmp/solana-release.tar.bz2 -C "$SOLANA_INSTALL_DIR" --strip-components=1 && \
+    rm /tmp/solana-release.tar.bz2 && \
+    ln -sf "$SOLANA_INSTALL_DIR" /root/.local/share/solana/install/active_release
 
 # Add Solana to PATH
 ENV PATH="/root/.local/share/solana/install/active_release/bin:${PATH}"
@@ -65,9 +67,8 @@ WORKDIR /build
 # .dockerignore excludes **/target so build artifacts won't be copied
 COPY rust rust
 
-# Use shallow git clones to reduce memory usage when fetching large repos (like solana.git)
+# Use git CLI for fetching to avoid libgit2 memory issues with large repos
 ENV CARGO_NET_GIT_FETCH_WITH_CLI=true
-RUN git config --global fetch.depth 1
 
 # Fetch all dependencies first with --locked to ensure reproducibility
 # This pre-populates the cargo cache so cargo-build-sbf doesn't try to update
