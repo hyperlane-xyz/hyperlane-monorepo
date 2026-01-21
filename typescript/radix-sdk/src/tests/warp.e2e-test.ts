@@ -254,7 +254,7 @@ describe('Radix Warp Tokens (e2e)', function () {
         expect(readToken.config.remoteRouters[DOMAIN_2]).to.be.undefined;
       });
 
-      it.only('should transfer ownership via update (ownership last)', async () => {
+      it('should transfer ownership via update (ownership last)', async () => {
         const initialConfig = getConfig();
 
         const writer = artifactManager.createWriter(type, radixSigner);
