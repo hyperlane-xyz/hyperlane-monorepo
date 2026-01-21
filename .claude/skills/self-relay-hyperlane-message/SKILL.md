@@ -11,7 +11,7 @@ Manually deliver a Hyperlane message using the CLI's `status --relay` command.
 
 | Parameter       | Required | Default                                                         | Description                                                     |
 | --------------- | -------- | --------------------------------------------------------------- | --------------------------------------------------------------- |
-| `origin_chain`  | Yes      | -                                                               | Name of the origin chain the message was sent from              |
+| `origin_chain`  | No       | Derived from Explorer API                                       | Name of the origin chain (auto-derived if not provided)         |
 | `dispatch_tx`   | No\*     | -                                                               | Transaction hash of the dispatch (when message was sent)        |
 | `message_id`    | No\*     | -                                                               | The Hyperlane message ID (alternative to dispatch_tx)           |
 | `registry_path` | No       | CLI default                                                     | Path to a local registry (overridden if `private_rpcs` is true) |
@@ -34,10 +34,10 @@ Store this path as `MONOREPO_ROOT`. All subsequent commands must be prefixed wit
 
 ### Step 1: Validate Inputs
 
-1. Ensure `origin_chain` is provided. If missing, use `AskUserQuestion`.
-2. **Validate dispatch_tx / message_id:**
-   - If NEITHER `dispatch_tx` nor `message_id` is provided → **Error:** "Must provide either dispatch_tx or message_id"
-   - If BOTH `dispatch_tx` and `message_id` are provided → **Error:** "Provide only one of dispatch_tx or message_id, not both"
+**Validate dispatch_tx / message_id:**
+
+- If NEITHER `dispatch_tx` nor `message_id` is provided → **Error:** "Must provide either dispatch_tx or message_id"
+- If BOTH `dispatch_tx` and `message_id` are provided → **Error:** "Provide only one of dispatch_tx or message_id, not both"
 
 ### Step 2: Start Private RPC Registry (if needed)
 
@@ -46,29 +46,48 @@ If `private_rpcs` is `true`:
 1. **Force override** `registry_path` to `http://localhost:3333`
 2. **Start the http-registry** with /start-http-registry
 
-### Step 3: Resolve Message ID to Dispatch TX (if needed)
+### Step 3: Query Explorer API for Missing Data
 
-If `message_id` was provided instead of `dispatch_tx`:
+Query the Hyperlane Explorer GraphQL API to resolve any missing values (`dispatch_tx`, `origin_chain`).
 
-1. Query the Hyperlane Explorer GraphQL API to find the origin transaction:
+**If `message_id` was provided:**
 
-   ```graphql
-   query {
-     message_view(
-       where: { msg_id: { _eq: "\\x<message_id_without_0x>" } }
-       limit: 1
-     ) {
-       origin_tx_hash
-     }
-   }
-   ```
+```graphql
+query {
+  message_view(
+    where: { msg_id: { _eq: "\\x<message_id_without_0x>" } }
+    limit: 1
+  ) {
+    origin_tx_hash
+    origin_domain
+    is_delivered
+  }
+}
+```
 
-   Use the `mcp__hyperlane-explorer__query-graphql` tool.
+**If `dispatch_tx` was provided but `origin_chain` is missing:**
 
-   Note: The `msg_id` is bytea type, so prefix with `\\x` and remove the `0x` from the message ID.
+```graphql
+query {
+  message_view(
+    where: { origin_tx_hash: { _eq: "\\x<dispatch_tx_without_0x>" } }
+    limit: 1
+  ) {
+    origin_domain
+    is_delivered
+  }
+}
+```
 
-2. Extract `origin_tx_hash` from the response (format: `\\x...`), convert to `0x...` format, and set `dispatch_tx` to that value.
-3. If no message is found, **Error:** "Message ID not found in Hyperlane Explorer"
+Use the `mcp__hyperlane-explorer__query-graphql` tool. Note: bytea fields use `\\x` prefix without `0x`.
+
+**Extract values:**
+
+- `origin_tx_hash` → convert `\\x...` to `0x...` format → set as `dispatch_tx`
+- `origin_domain` → set as `origin_chain` (e.g., "ethereum", "citrea")
+- `is_delivered` → if `true`, inform user message is already delivered (no relay needed)
+
+**If no message found:** Error "Message not found in Hyperlane Explorer"
 
 ### Step 4: Determine the Key Value
 
@@ -111,15 +130,16 @@ LOG_FORMAT=pretty LOG_LEVEL=debug HYP_KEY="$(HYPERLANE_MONOREPO=$(git rev-parse 
 pnpm -C typescript/cli hyperlane status --relay --origin ethereum --dispatchTx 0xabc123...
 ```
 
-### Example 2: Using message_id with private RPCs
+### Example 2: Using message_id only (origin_chain auto-derived)
 
 1. Find monorepo root: `MONOREPO_ROOT=$(git rev-parse --show-toplevel)`
 2. Start http-registry in background via /start-http-registry
-3. Query GraphQL for message `0xdef456...` → get `origin_tx_hash`
-4. Run:
+3. Query GraphQL for message `0xdef456...` → get `origin_tx_hash` and `origin_domain`
+4. Check `is_delivered` - if already delivered, inform user and skip relay
+5. Run:
    ```bash
    cd $MONOREPO_ROOT && \
    LOG_FORMAT=pretty LOG_LEVEL=debug HYP_KEY="$(HYPERLANE_MONOREPO=$(git rev-parse --show-toplevel) hypkey)" \
-   pnpm -C typescript/cli hyperlane status --relay --origin ethereum --dispatchTx <resolved_tx> --registry http://localhost:3333
+   pnpm -C typescript/cli hyperlane status --relay --origin <origin_domain> --dispatchTx <origin_tx_hash> --registry http://localhost:3333
    ```
-5. Kill http-registry process
+6. Kill http-registry process
