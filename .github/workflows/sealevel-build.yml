@@ -58,8 +58,6 @@ jobs:
           target: builder
           load: true
           tags: sealevel-build:local
-          cache-from: type=buildjet
-          cache-to: type=buildjet,mode=max
 
       - name: Extract built programs
         run: |
