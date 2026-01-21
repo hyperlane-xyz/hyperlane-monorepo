@@ -85,7 +85,6 @@ impl ValidatorAnnounce for TronValidatorAnnounce {
             )
             .call()
             .await?;
-        println!("Storage locations: {:?}", storage_locations);
         Ok(storage_locations)
     }
 
