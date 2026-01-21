@@ -12,7 +12,7 @@ pub use {
     contracts::TronMailboxIndexer, contracts::TronMerkleTreeHook,
     contracts::TronMerkleTreeHookIndexer, contracts::TronValidatorAnnounce,
     ism::TronAggregationIsm, ism::TronInterchainSecurityModule, ism::TronMultisigIsm,
-    ism::TronRoutingIsm, provider::TronProvider,
+    ism::TronRoutingIsm, provider::TronProvider, provider::TronProviderForLander,
 };
 
 mod config;

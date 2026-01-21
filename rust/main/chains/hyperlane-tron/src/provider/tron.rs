@@ -229,25 +229,7 @@ impl TronProvider {
         &self,
         call: &ContractCall<Self, R>,
     ) -> ChainResult<TxOutcome> {
-        let energy_price = self.jsonrpc.get_gas_price().await?;
-        let energy_estimate = self.estimate_gas(&call.tx, None).await?;
-
-        let fee_limit = energy_estimate.saturating_mul(energy_price).as_u64();
-        let fee_limit = (fee_limit as f64 * self.energy_multiplier)
-            .to_u64()
-            .unwrap_or(u64::MAX);
-
-        let block = self.get_current_block().await?;
-        let tron_call = self.parse_tx(&call.tx);
-        let (mut tx, hash) = Self::build_tx(&tron_call, &block, fee_limit)?;
-
-        let signer = self.get_signer()?;
-        let signature = signer.sign_hash(hash.into());
-
-        // Set the signature
-        tx.signature = vec![signature.to_vec()];
-
-        self.broadcast_transaction(tx).await?;
+        let hash = self.submit_tx(&call.tx).await?;
 
         // Timeout delay is the total amount of seconds to wait before we call a timeout
         const TIMEOUT_DELAY: u64 = 30;
@@ -277,6 +259,33 @@ impl TronProvider {
         Ok(receipt.into())
     }
 
+    /// Send transaction
+    pub async fn submit_tx(&self, tx: &TypedTransaction) -> ChainResult<H256> {
+        let energy_price = self.jsonrpc.get_gas_price().await?;
+        let energy_estimate = match tx.gas() {
+            Some(gas) => gas,
+            None => &self.estimate_gas(tx, None).await?,
+        };
+        let fee_limit = energy_estimate.saturating_mul(energy_price).as_u64();
+        let fee_limit = (fee_limit as f64 * self.energy_multiplier)
+            .to_u64()
+            .unwrap_or(u64::MAX);
+
+        let block = self.get_current_block().await?;
+        let tron_call = self.parse_tx(tx);
+        let (mut tx, hash) = Self::build_tx(&tron_call, &block, fee_limit)?;
+
+        let signer = self.get_signer()?;
+        let signature = signer.sign_hash(hash.into());
+
+        // Set the signature
+        tx.signature = vec![signature.to_vec()];
+
+        self.broadcast_transaction(tx).await?;
+
+        Ok(hash)
+    }
+
     /// Broadcast transaction
     pub async fn broadcast_transaction(&self, tx: Transaction) -> ChainResult<()> {
         let result = self
@@ -301,7 +310,7 @@ impl TronProvider {
             _ => {
                 let message = format!(
                     "Failed to broadcast transaction: code={:?}, message={}",
-                    result.code(),
+                    result.code().as_str_name(),
                     String::from_utf8_lossy(&result.message)
                 );
                 Err(HyperlaneTronError::BroadcastTransactionError(message).into())

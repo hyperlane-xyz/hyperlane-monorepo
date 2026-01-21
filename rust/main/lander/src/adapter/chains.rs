@@ -4,6 +4,7 @@ pub use ethereum::EthereumTxPrecursor;
 pub use factory::AdapterFactory;
 pub use radix::RadixTxPrecursor;
 pub use sealevel::SealevelTxPrecursor;
+pub use tron::TronTxPrecursor;
 
 mod factory;
 
@@ -14,6 +15,7 @@ mod cosmos;
 pub mod ethereum;
 pub mod radix;
 pub mod sealevel;
+pub mod tron;
 
 #[cfg(all(test, feature = "aleo"))]
 pub use aleo::AleoAdapter;
