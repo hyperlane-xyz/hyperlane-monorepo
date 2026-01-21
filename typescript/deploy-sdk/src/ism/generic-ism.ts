@@ -52,7 +52,7 @@ export function createIsmReader(
  * Converts a DeployedIsmArtifact to DerivedIsmConfig format.
  * This handles the conversion between the new Artifact API and the old Config API.
  */
-function artifactToDerivedConfig(
+export function artifactToDerivedConfig(
   artifact: DeployedIsmArtifact,
   chainLookup: ChainLookup,
 ): DerivedIsmConfig {
