@@ -54,7 +54,6 @@ impl HyperlaneContract for TronRoutingIsm {
 #[async_trait]
 impl RoutingIsm for TronRoutingIsm {
     #[instrument(err, skip(self, message))]
-    #[allow(clippy::blocks_in_conditions)] // TODO: `rustc` 1.80.1 clippy issue
     async fn route(&self, message: &HyperlaneMessage) -> ChainResult<H256> {
         let ism = self
             .contract
