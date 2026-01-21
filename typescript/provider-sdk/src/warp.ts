@@ -1,4 +1,4 @@
-import type { Logger } from '@hyperlane-xyz/utils';
+import { type Logger, assert } from '@hyperlane-xyz/utils';
 
 import {
   Artifact,
@@ -119,28 +119,25 @@ interface BaseWarpArtifactConfig {
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
   remoteRouters: Record<number, { address: string }>;
   destinationGas: Record<number, string>;
+  name?: string;
+  symbol?: string;
+  decimals?: number;
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
   type: 'collateral';
   token: string;
-  name?: string;
-  symbol?: string;
-  decimals?: number;
 }
 
 export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
   type: 'synthetic';
-  name?: string;
-  symbol?: string;
-  decimals?: number;
+  name: string;
+  symbol: string;
+  decimals: number;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
   type: 'native';
-  name?: string;
-  symbol?: string;
-  decimals?: number;
 }
 
 export interface WarpArtifactConfigs {
@@ -298,6 +295,17 @@ export function warpConfigToArtifact(
       };
 
     case 'synthetic':
+      // Validate required fields for synthetic token
+      assert(config.name, 'name is required for synthetic token deployment');
+      assert(
+        config.symbol,
+        'symbol is required for synthetic token deployment',
+      );
+      assert(
+        config.decimals !== undefined,
+        'decimals is required for synthetic token deployment',
+      );
+
       return {
         artifactState: ArtifactState.NEW,
         config: {

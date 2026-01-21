@@ -13,7 +13,7 @@ import {
   DeployedWarpAddress,
   RawSyntheticWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
+import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -110,14 +110,6 @@ export class RadixSyntheticTokenWriter
   > {
     const { config } = artifact;
     const allReceipts: TxReceipt[] = [];
-
-    // Validate required fields for synthetic token
-    assert(config.name, 'name is required for synthetic token deployment');
-    assert(config.symbol, 'symbol is required for synthetic token deployment');
-    assert(
-      config.decimals !== undefined,
-      'decimals is required for synthetic token deployment',
-    );
 
     // Create the synthetic token
     const transactionManifest = await getCreateSyntheticTokenTx(
