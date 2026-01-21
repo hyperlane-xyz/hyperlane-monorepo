@@ -62,13 +62,27 @@ jobs:
 
       - name: Extract built programs
         run: |
+          set -euo pipefail
           mkdir -p ./artifacts
           CONTAINER_ID=$(docker create sealevel-build:local)
-          docker cp "${CONTAINER_ID}:/build/rust/sealevel/target/deploy/." ./artifacts/ || true
+
+          if ! docker cp "${CONTAINER_ID}:/build/rust/sealevel/target/deploy/." ./artifacts/; then
+            echo "ERROR: Failed to copy from /build/rust/sealevel/target/deploy/"
+            echo "The deploy directory may not exist or there may be a permission problem."
+            docker rm "${CONTAINER_ID}"
+            exit 1
+          fi
           docker rm "${CONTAINER_ID}"
 
           echo "Built programs:"
-          ls -la ./artifacts/*.so 2>/dev/null || echo "No .so files found"
+          ls -la ./artifacts/*.so
+
+          # Validate at least one .so file was copied
+          if ! ls ./artifacts/*.so 1>/dev/null 2>&1; then
+            echo "ERROR: No .so files found in artifacts directory after docker cp"
+            echo "Build may have failed silently or deploy directory was empty."
+            exit 1
+          fi
 
       - name: Compute program hashes
         run: |
@@ -127,6 +141,7 @@ jobs:
 
       - name: Rebuild to verify reproducibility
         run: |
+          # Use --no-cache to ensure we're not using cached layers that could mask nondeterminism
           depot build \
             --project czmkmn2km1 \
             --platform linux/amd64 \
@@ -135,6 +150,7 @@ jobs:
             -t sealevel-verify:local \
             --target builder \
             --load \
+            --no-cache \
             .
 
           mkdir -p ./second-build

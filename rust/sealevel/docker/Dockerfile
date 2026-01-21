@@ -8,11 +8,11 @@
 # check=skip=FromPlatformFlagConstDisallowed
 FROM --platform=linux/amd64 rust@sha256:79892de83d1af9109c47a4566a24a0b240348bb8c088f1bccc52645c4c70ec39 AS builder
 
-# Install dependencies
-RUN apt-get update && apt-get install -y \
-    git \
-    gnutls-bin \
-    curl \
+# Install dependencies with pinned versions for reproducibility
+# Note: git and curl are pre-installed in the pinned base image.
+# Only gnutls-bin needs to be installed. Version from Debian 11 bullseye main repo.
+RUN apt-get update && apt-get install -y --no-install-recommends \
+    gnutls-bin=3.7.1-5+deb11u5 \
     && rm -rf /var/lib/apt/lists/*
 
 # Reproducibility environment variables
