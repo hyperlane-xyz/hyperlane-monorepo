@@ -135,20 +135,6 @@ describe('Radix Warp Tokens (e2e)', function () {
         expect(readToken.deployed.address).to.equal(result.deployed.address);
       });
 
-      it('should create token with different owner', async () => {
-        const config = getConfig();
-        config.owner = TEST_RADIX_BURN_ADDRESS;
-
-        const writer = artifactManager.createWriter(type, radixSigner);
-        const [deployedToken] = await writer.create({ config });
-
-        const reader = artifactManager.createReader(type);
-        const readToken = await reader.read(deployedToken.deployed.address);
-
-        expect(eqAddressRadix(readToken.config.owner, TEST_RADIX_BURN_ADDRESS))
-          .to.be.true;
-      });
-
       it('should enroll remote routers', async () => {
         const initialConfig = getConfig();
 

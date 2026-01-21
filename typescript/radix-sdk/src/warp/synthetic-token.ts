@@ -13,7 +13,6 @@ import {
   DeployedWarpAddress,
   RawSyntheticWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -24,7 +23,6 @@ import {
   getCreateSyntheticTokenTx,
   getEnrollRemoteRouterTx,
   getSetTokenIsmTx,
-  getSetTokenOwnerTx,
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
@@ -155,21 +153,8 @@ export class RadixSyntheticTokenWriter
       allReceipts.push(enrollReceipt);
     }
 
-    // Transfer ownership if the configured owner is different from the signer
-    if (!eqAddressRadix(this.signer.getAddress(), config.owner)) {
-      const setOwnerTx = await getSetTokenOwnerTx(
-        this.base,
-        this.gateway,
-        this.signer.getAddress(),
-        {
-          tokenAddress: address,
-          newOwner: config.owner,
-        },
-      );
-
-      const ownerReceipt = await this.signer.signAndBroadcast(setOwnerTx);
-      allReceipts.push(ownerReceipt);
-    }
+    // We don't transfer ownership here because after deployment the token needs to be
+    // enrolled with the other tokens deployed and only the owner can
 
     const deployedArtifact: ArtifactDeployed<
       RawSyntheticWarpArtifactConfig,
