@@ -70,18 +70,6 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create an index on msg_id for lookups
-        manager
-            .create_index(
-                Index::create()
-                    .table(RawMessageDispatch::Table)
-                    .name("raw_message_dispatch_msg_id_idx")
-                    .col(RawMessageDispatch::MsgId)
-                    .index_type(IndexType::Hash)
-                    .to_owned(),
-            )
-            .await?;
-
         // Create an index on origin_domain for filtering
         manager
             .create_index(
