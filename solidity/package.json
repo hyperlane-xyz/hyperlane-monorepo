@@ -35,7 +35,12 @@
     "tsx": "catalog:",
     "typechain": "catalog:",
     "typescript": "catalog:",
-    "zksync-ethers": "catalog:"
+    "zksync-ethers": "catalog:",
+    "@arbitrum/nitro-contracts": "1.2.1",
+    "@chainlink/contracts-ccip": "1.5.0",
+    "@openzeppelin/contracts": "4.9.3",
+    "@openzeppelin/contracts-upgradeable": "4.9.3",
+    "tronbox": "^4.4.0"
   },
   "directories": {
     "test": "test"
@@ -69,6 +74,7 @@
     "deps:soldeer": "forge soldeer install --quiet",
     "build": "pnpm version:update && pnpm hardhat-esm compile && tsc && ./exportBuildArtifact.sh",
     "build:zk": "pnpm hardhat-zk compile && tsc && node generate-artifact-exports.mjs && ZKSYNC=true ./exportBuildArtifact.sh",
+    "build:tron": "node tronbox-preprocess.mjs",
     "prepublishOnly": "pnpm build && pnpm build:zk",
     "lint": "solhint contracts/**/*.sol && eslint -c ./eslint.config.mjs",
     "clean": "pnpm hardhat-esm clean && pnpm hardhat-zk clean && rm -rf ./dist ./cache ./cache-zk ./types ./coverage ./out ./forge-cache ./fixtures",

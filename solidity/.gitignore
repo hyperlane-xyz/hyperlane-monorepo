@@ -31,3 +31,7 @@ typechain/
 bytecode/
 # interface dumps
 interface/
+
+# Tron build temp directory
+.tronbox-build
+artifacts-tron/
