@@ -492,18 +492,20 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   describe('Native Token IGP Reservation', () => {
-    // Gas estimation: 10 gwei × 300,000 gas = 3,000,000,000,000,000 wei (0.003 ETH)
+    // Gas estimation: 300,000 gas × 10 gwei = 3,000,000,000,000 wei
+    // Buffered gas limit (10%): 330,000 gas
+    // Buffered gas cost: 330,000 × 10 gwei = 3,300,000,000,000 wei
     // IGP quote: 1,000,000 wei
-    // Base cost: IGP + gas ≈ 3,000,001,000,000,000 wei
-    // Safety buffer (20%): 600,000,200,000,000 wei
-    // Total reservation: 3,600,001,200,000,000 wei (0.0036 ETH)
-    // Min viable transfer (2x base cost): 6,000,002,000,000,000 wei (0.006 ETH)
-    const GAS_COST = 10000000000n * 300000n; // 10 gwei × 300k gas
+    // Total reservation: IGP + buffered gas = 3,300,001,000,000 wei (~0.0033 ETH)
+    // Total cost (for min viable): IGP + buffered gas = 3,300,001,000,000 wei
+    // Min viable transfer (2x total cost): 6,600,002,000,000 wei (~0.0066 ETH)
+    const GAS_LIMIT = 300000n;
+    const BUFFERED_GAS_LIMIT = (GAS_LIMIT * 110n) / 100n; // 10% buffer
+    const GAS_PRICE = 10000000000n; // 10 gwei
+    const BUFFERED_GAS_COST = GAS_PRICE * BUFFERED_GAS_LIMIT;
     const IGP_COST = 1000000n;
-    const BASE_COST = GAS_COST + IGP_COST;
-    const SAFETY_BUFFER = (BASE_COST * 20n) / 100n; // 20% safety buffer
-    const TOTAL_RESERVATION = BASE_COST + SAFETY_BUFFER;
-    // Note: MIN_VIABLE_TRANSFER = BASE_COST * 2n = ~6e15 wei (0.006 ETH)
+    const TOTAL_RESERVATION = IGP_COST + BUFFERED_GAS_COST;
+    // Note: MIN_VIABLE_TRANSFER = TOTAL_COST * 2n = ~6.6e12 wei (~0.0066 ETH)
 
     it('reserves IGP and gas cost when transferring native tokens', async () => {
       // Setup: Native token on DESTINATION (solana) where IGP and gas must be reserved
@@ -539,8 +541,11 @@ describe('InventoryRebalancer E2E', () => {
       expect(results[0].success).to.be.true;
 
       // Verify: transferRemote was called with full amount (costs are separate)
+      // Note: populateTransferRemoteTx is called multiple times:
+      // - First calls: gas estimation with minimal amount (1n)
+      // - Last call: actual transfer with requested amount
       const populateParams =
-        adapterStub.populateTransferRemoteTx.firstCall.args[0];
+        adapterStub.populateTransferRemoteTx.lastCall.args[0];
       expect(populateParams.weiAmountOrId).to.equal(requestedAmount);
     });
 

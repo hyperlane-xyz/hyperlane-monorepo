@@ -1,3 +1,4 @@
+import { BigNumber } from 'ethers';
 import type { Logger } from 'pino';
 
 import {
@@ -9,7 +10,7 @@ import {
   TokenStandard,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import { sleep } from '@hyperlane-xyz/utils';
+import { addBufferToGasLimit, sleep } from '@hyperlane-xyz/utils';
 
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
@@ -34,16 +35,27 @@ const NATIVE_TOKEN_ADDRESS = '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE';
 const FALLBACK_TRANSFER_REMOTE_GAS_LIMIT = 300_000n;
 
 /**
- * Safety buffer percentage applied to cost calculations.
- * Protects against gas price fluctuations between estimation and execution.
- */
-const SAFETY_BUFFER_PERCENT = 20n;
-
-/**
  * Cost multiplier for minimum viable transfer.
  * A transfer must be worth at least this multiple of its cost to be worthwhile.
  */
 const MIN_VIABLE_COST_MULTIPLIER = 2n;
+
+/**
+ * Transfer cost estimate for native token transfers.
+ * Contains all cost components needed for transfer decisions.
+ */
+interface TransferCostEstimate {
+  /** IGP cost for the Hyperlane message */
+  igpCost: bigint;
+  /** Estimated gas cost for the transferRemote transaction (with buffer) */
+  gasCost: bigint;
+  /** Total cost = igpCost + gasCost */
+  totalCost: bigint;
+  /** Maximum transferable amount after reserving costs (availableInventory - totalCost) */
+  maxTransferable: bigint;
+  /** Minimum viable transfer (totalCost * MIN_VIABLE_COST_MULTIPLIER) */
+  minViableTransfer: bigint;
+}
 
 /**
  * Configuration for the InventoryRebalancer.
@@ -205,13 +217,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         amount,
       });
 
-      // Populate the transferRemote transaction
+      // Populate with minimal amount for gas estimation
+      // Gas cost is independent of transfer size (just a require check in _transferFromSender),
+      // and using minimal amount prevents eth_estimateGas from failing when account balance < requested amount
       // Note: getHypAdapter returns IHypTokenAdapter<unknown> for protocol-agnostic support.
       // For EVM chains (which inventory rebalancing uses), the actual type is AnnotatedEV5Transaction.
       const populatedTx = (await adapter.populateTransferRemoteTx({
         destination: destinationDomain,
         recipient: this.config.inventorySigner,
-        weiAmountOrId: amount,
+        weiAmountOrId: 1n,
         interchainGas: gasQuote,
       })) as AnnotatedEV5Transaction;
 
@@ -283,66 +297,84 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   }
 
   /**
-   * Calculate the maximum transferable amount after reserving IGP and gas costs.
-   * For native tokens, both IGP and transaction gas must be paid from the same balance.
-   * Uses actual gas estimation via eth_estimateGas with a safety buffer.
+   * Calculate all transfer costs for a transferRemote operation.
+   * Consolidates IGP costs, gas costs, and derived values (max transferable, min viable).
    *
-   * @param originChain - Chain to transfer from
-   * @param destinationChain - Chain to transfer to
+   * @param originChain - Chain to transfer from (where transferRemote is called)
+   * @param destinationChain - Chain to transfer to (Hyperlane message destination)
    * @param availableInventory - Available token balance on origin chain
    * @param requestedAmount - Requested transfer amount
-   * @returns Maximum amount that can be transferred after reserving costs
+   * @returns Cost estimate with all components and derived values
    */
-  private async calculateMaxTransferable(
+  private async calculateTransferCosts(
     originChain: ChainName,
     destinationChain: ChainName,
     availableInventory: bigint,
     requestedAmount: bigint,
-  ): Promise<bigint> {
+  ): Promise<TransferCostEstimate> {
     const originToken = this.getTokenForChain(originChain);
     if (!originToken) {
       throw new Error(`No token found for origin chain: ${originChain}`);
     }
 
-    // For non-native tokens, no IGP/gas reservation needed from token balance
+    // For non-native tokens, no cost reservation needed from token balance
     if (!this.isNativeTokenStandard(originToken.standard)) {
-      return availableInventory < requestedAmount
-        ? availableInventory
-        : requestedAmount;
+      return {
+        igpCost: 0n,
+        gasCost: 0n,
+        totalCost: 0n,
+        maxTransferable:
+          availableInventory < requestedAmount
+            ? availableInventory
+            : requestedAmount,
+        minViableTransfer: 0n,
+      };
     }
 
-    // For native tokens, we need to reserve funds for IGP AND transaction gas
+    // For native tokens, calculate costs
     const destinationDomain = this.multiProvider.getDomainId(destinationChain);
     const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
 
-    // Quote IGP for the requested amount (IGP cost doesn't vary significantly with amount)
+    // Quote IGP
     const gasQuote = await adapter.quoteTransferRemoteGas({
       destination: destinationDomain,
       sender: this.config.inventorySigner,
       recipient: this.config.inventorySigner,
       amount: requestedAmount,
     });
-
     const igpCost = gasQuote.igpQuote.amount;
 
-    // Estimate gas using actual eth_estimateGas instead of hardcoded value
+    // Estimate gas with buffer
     const estimatedGasLimit = await this.estimateTransferRemoteGas(
       originChain,
       destinationChain,
       requestedAmount,
     );
+    const bufferedGasLimit = addBufferToGasLimit(
+      BigNumber.from(estimatedGasLimit.toString()),
+    );
 
+    // Get gas price and calculate cost
     const provider = this.multiProvider.getProvider(originChain);
     const feeData = await provider.getFeeData();
     const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
-    const estimatedGasCost = BigInt(gasPrice.toString()) * estimatedGasLimit;
+    const gasCost = bufferedGasLimit.toBigInt() * BigInt(gasPrice.toString());
 
-    // Calculate base cost (IGP + gas)
-    const baseCost = igpCost + estimatedGasCost;
+    const totalCost = igpCost + gasCost;
 
-    // Apply safety buffer to protect against gas price fluctuations
-    const safetyBuffer = (baseCost * SAFETY_BUFFER_PERCENT) / 100n;
-    const totalReservation = baseCost + safetyBuffer;
+    // Calculate derived values
+    let maxTransferable: bigint;
+    if (availableInventory <= totalCost) {
+      maxTransferable = 0n;
+    } else {
+      const maxAfterReservation = availableInventory - totalCost;
+      maxTransferable =
+        maxAfterReservation < requestedAmount
+          ? maxAfterReservation
+          : requestedAmount;
+    }
+
+    const minViableTransfer = totalCost * MIN_VIABLE_COST_MULTIPLIER;
 
     this.logger.debug(
       {
@@ -351,126 +383,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         availableInventory: availableInventory.toString(),
         requestedAmount: requestedAmount.toString(),
         igpCost: igpCost.toString(),
-        estimatedGasLimit: estimatedGasLimit.toString(),
-        estimatedGasCost: estimatedGasCost.toString(),
-        baseCost: baseCost.toString(),
-        safetyBuffer: safetyBuffer.toString(),
-        totalReservation: totalReservation.toString(),
-        safetyBufferPercent: SAFETY_BUFFER_PERCENT.toString(),
-        tokenStandard: originToken.standard,
+        gasCost: gasCost.toString(),
+        totalCost: totalCost.toString(),
+        maxTransferable: maxTransferable.toString(),
+        minViableTransfer: minViableTransfer.toString(),
       },
-      'Calculating max transferable for native token with actual gas estimation',
+      'Calculated transfer costs for native token',
     );
 
-    // Reserve total costs from available inventory
-    if (availableInventory <= totalReservation) {
-      this.logger.warn(
-        {
-          originChain,
-          availableInventory: availableInventory.toString(),
-          igpCost: igpCost.toString(),
-          estimatedGasCost: estimatedGasCost.toString(),
-          safetyBuffer: safetyBuffer.toString(),
-          totalReservation: totalReservation.toString(),
-        },
-        'Insufficient inventory to cover IGP, gas costs, and safety buffer',
-      );
-      return 0n;
-    }
-
-    const maxAfterReservation = availableInventory - totalReservation;
-    return maxAfterReservation < requestedAmount
-      ? maxAfterReservation
-      : requestedAmount;
-  }
-
-  /**
-   * Calculate the minimum viable transfer amount based on transaction costs.
-   * A transfer must be worth at least MIN_VIABLE_COST_MULTIPLIER times its cost to be worthwhile.
-   *
-   * This replaces the hardcoded MIN_INVENTORY_FOR_TRANSFER (0.001 ETH) with a dynamic
-   * calculation based on actual IGP and gas costs.
-   *
-   * @param originChain - Chain where transferRemote will be called
-   * @param destinationChain - Chain where the Hyperlane message goes
-   * @param amount - Requested transfer amount (used for gas estimation)
-   * @returns Minimum amount that makes the transfer worthwhile
-   */
-  private async calculateMinViableTransfer(
-    originChain: ChainName,
-    destinationChain: ChainName,
-    amount: bigint,
-  ): Promise<bigint> {
-    const originToken = this.getTokenForChain(originChain);
-    if (!originToken) {
-      // If we can't determine token, return 0 (allow any transfer)
-      return 0n;
-    }
-
-    // For non-native tokens, the token balance is separate from gas
-    // Set minimum to 0 since gas is paid from native balance
-    if (!this.isNativeTokenStandard(originToken.standard)) {
-      return 0n;
-    }
-
-    // For native tokens, calculate cost-based minimum
-    const destinationDomain = this.multiProvider.getDomainId(destinationChain);
-    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
-    try {
-      // Quote IGP
-      const gasQuote = await adapter.quoteTransferRemoteGas({
-        destination: destinationDomain,
-        sender: this.config.inventorySigner,
-        recipient: this.config.inventorySigner,
-        amount,
-      });
-
-      const igpCost = gasQuote.igpQuote.amount;
-
-      // Estimate gas
-      const estimatedGasLimit = await this.estimateTransferRemoteGas(
-        originChain,
-        destinationChain,
-        amount,
-      );
-
-      const provider = this.multiProvider.getProvider(originChain);
-      const feeData = await provider.getFeeData();
-      const gasPrice = feeData.maxFeePerGas ?? feeData.gasPrice ?? 0n;
-      const estimatedGasCost = BigInt(gasPrice.toString()) * estimatedGasLimit;
-
-      // Total cost = IGP + gas
-      const totalCost = igpCost + estimatedGasCost;
-
-      // Minimum viable transfer = cost * multiplier
-      const minViable = totalCost * MIN_VIABLE_COST_MULTIPLIER;
-
-      this.logger.debug(
-        {
-          originChain,
-          destinationChain,
-          igpCost: igpCost.toString(),
-          estimatedGasCost: estimatedGasCost.toString(),
-          totalCost: totalCost.toString(),
-          costMultiplier: MIN_VIABLE_COST_MULTIPLIER.toString(),
-          minViableTransfer: minViable.toString(),
-        },
-        'Calculated minimum viable transfer based on cost',
-      );
-
-      return minViable;
-    } catch (error) {
-      this.logger.warn(
-        {
-          originChain,
-          destinationChain,
-          error: (error as Error).message,
-        },
-        'Failed to calculate min viable transfer, returning 0',
-      );
-      return 0n;
-    }
+    return { igpCost, gasCost, totalCost, maxTransferable, minViableTransfer };
   }
 
   /**
@@ -589,22 +510,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Checking effective inventory on destination (deficit) chain',
     );
 
-    // Calculate max transferable after reserving IGP costs for native tokens
+    // Calculate transfer costs including max transferable and min viable amounts
     // transferRemote is called FROM destination TO origin (swapped direction)
-    const maxTransferable = await this.calculateMaxTransferable(
+    const costs = await this.calculateTransferCosts(
       destination, // FROM chain (where transferRemote is called)
       origin, // TO chain (where Hyperlane message goes)
       availableInventory,
       amount,
     );
-
-    // Calculate minimum viable transfer based on cost
-    // A transfer must be worth at least MIN_VIABLE_COST_MULTIPLIER times its cost
-    const minViableTransfer = await this.calculateMinViableTransfer(
-      destination,
-      origin,
-      amount,
-    );
+    const { maxTransferable, minViableTransfer } = costs;
 
     this.logger.info(
       {
@@ -690,110 +604,112 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         };
       }
 
+      // TODO: this seems completely wrong out of place, we may be able to do this sooner
+      // commenting out for now
       // Check if we can actually afford to bridge minViableTransfer
       // If the remaining amount is tiny and we can't bridge enough to make it worthwhile,
       // accept the small loss and complete the intent to prevent infinite loops
-      if (amount < minViableTransfer) {
-        // We need to bridge at least minViableTransfer for the final transferRemote to work
-        // Check if source chain has enough inventory to cover bridge costs for minViableTransfer
-        const effectiveAmountToBridge = minViableTransfer;
+      // if (amount < minViableTransfer) {
+      //   // We need to bridge at least minViableTransfer for the final transferRemote to work
+      //   // Check if source chain has enough inventory to cover bridge costs for minViableTransfer
+      //   const effectiveAmountToBridge = minViableTransfer;
 
-        try {
-          // Get chain IDs for bridge quote
-          const sourceChainId = Number(
-            this.multiProvider.getChainId(sourceInfo.chain),
-          );
-          const targetChainId = Number(
-            this.multiProvider.getChainId(destination),
-          );
+      //   try {
+      //     // Get chain IDs for bridge quote
+      //     const sourceChainId = Number(
+      //       this.multiProvider.getChainId(sourceInfo.chain),
+      //     );
+      //     const targetChainId = Number(
+      //       this.multiProvider.getChainId(destination),
+      //     );
 
-          // Get token addresses for the quote
-          const sourceToken = this.getTokenForChain(sourceInfo.chain);
-          const targetToken = this.getTokenForChain(destination);
+      //     // Get token addresses for the quote
+      //     const sourceToken = this.getTokenForChain(sourceInfo.chain);
+      //     const targetToken = this.getTokenForChain(destination);
 
-          if (!sourceToken || !targetToken) {
-            throw new Error('Missing token info for bridge quote');
-          }
+      //     if (!sourceToken || !targetToken) {
+      //       throw new Error('Missing token info for bridge quote');
+      //     }
 
-          const fromTokenAddress = this.isNativeTokenStandard(
-            sourceToken.standard,
-          )
-            ? NATIVE_TOKEN_ADDRESS
-            : sourceToken.addressOrDenom;
+      //     const fromTokenAddress = this.isNativeTokenStandard(
+      //       sourceToken.standard,
+      //     )
+      //       ? NATIVE_TOKEN_ADDRESS
+      //       : sourceToken.addressOrDenom;
 
-          const toTokenAddress = this.isNativeTokenStandard(
-            targetToken.standard,
-          )
-            ? NATIVE_TOKEN_ADDRESS
-            : targetToken.addressOrDenom;
+      //     const toTokenAddress = this.isNativeTokenStandard(
+      //       targetToken.standard,
+      //     )
+      //       ? NATIVE_TOKEN_ADDRESS
+      //       : targetToken.addressOrDenom;
 
-          // Quote how much we need to send to get minViableTransfer on destination
-          const testQuote = await this._bridge.quote({
-            fromChain: sourceChainId,
-            toChain: targetChainId,
-            fromToken: fromTokenAddress,
-            toToken: toTokenAddress,
-            toAmount: effectiveAmountToBridge,
-            fromAddress: this.config.inventorySigner,
-            toAddress: this.config.inventorySigner,
-          });
+      //     // Quote how much we need to send to get minViableTransfer on destination
+      //     const testQuote = await this._bridge.quote({
+      //       fromChain: sourceChainId,
+      //       toChain: targetChainId,
+      //       fromToken: fromTokenAddress,
+      //       toToken: toTokenAddress,
+      //       toAmount: effectiveAmountToBridge,
+      //       fromAddress: this.config.inventorySigner,
+      //       toAddress: this.config.inventorySigner,
+      //     });
 
-          // Check if source has enough inventory for this bridge
-          if (testQuote.fromAmount > sourceInfo.availableAmount) {
-            // Cannot afford to bridge minViableTransfer - accept the loss
-            this.logger.info(
-              {
-                intentId: intent.id,
-                remaining: amount.toString(),
-                remainingEth: (Number(amount) / 1e18).toFixed(6),
-                minViableTransfer: minViableTransfer.toString(),
-                minViableTransferEth: (
-                  Number(minViableTransfer) / 1e18
-                ).toFixed(6),
-                sourceChain: sourceInfo.chain,
-                sourceInventory: sourceInfo.availableAmount.toString(),
-                sourceInventoryEth: (
-                  Number(sourceInfo.availableAmount) / 1e18
-                ).toFixed(6),
-                requiredForBridge: testQuote.fromAmount.toString(),
-                requiredForBridgeEth: (
-                  Number(testQuote.fromAmount) / 1e18
-                ).toFixed(6),
-              },
-              'Cannot afford bridge for minViable amount, completing intent with small loss',
-            );
+      //     // Check if source has enough inventory for this bridge
+      //     if (testQuote.fromAmount > sourceInfo.availableAmount) {
+      //       // Cannot afford to bridge minViableTransfer - accept the loss
+      //       this.logger.info(
+      //         {
+      //           intentId: intent.id,
+      //           remaining: amount.toString(),
+      //           remainingEth: (Number(amount) / 1e18).toFixed(6),
+      //           minViableTransfer: minViableTransfer.toString(),
+      //           minViableTransferEth: (
+      //             Number(minViableTransfer) / 1e18
+      //           ).toFixed(6),
+      //           sourceChain: sourceInfo.chain,
+      //           sourceInventory: sourceInfo.availableAmount.toString(),
+      //           sourceInventoryEth: (
+      //             Number(sourceInfo.availableAmount) / 1e18
+      //           ).toFixed(6),
+      //           requiredForBridge: testQuote.fromAmount.toString(),
+      //           requiredForBridgeEth: (
+      //             Number(testQuote.fromAmount) / 1e18
+      //           ).toFixed(6),
+      //         },
+      //         'Cannot afford bridge for minViable amount, completing intent with small loss',
+      //       );
 
-            await this.actionTracker.completeRebalanceIntent(intent.id);
-            return {
-              route,
-              intent,
-              success: true,
-              reason: 'completed_with_acceptable_loss',
-            };
-          }
-        } catch (quoteError) {
-          // Quote failed - this likely means we can't complete the bridge
-          // Accept the loss to prevent getting stuck
-          this.logger.info(
-            {
-              intentId: intent.id,
-              remaining: amount.toString(),
-              remainingEth: (Number(amount) / 1e18).toFixed(6),
-              minViableTransfer: minViableTransfer.toString(),
-              error: (quoteError as Error).message,
-            },
-            'Failed to quote minViable bridge, completing intent with small loss',
-          );
+      //       await this.actionTracker.completeRebalanceIntent(intent.id);
+      //       return {
+      //         route,
+      //         intent,
+      //         success: true,
+      //         reason: 'completed_with_acceptable_loss',
+      //       };
+      //     }
+      //   } catch (quoteError) {
+      //     // Quote failed - this likely means we can't complete the bridge
+      //     // Accept the loss to prevent getting stuck
+      //     this.logger.info(
+      //       {
+      //         intentId: intent.id,
+      //         remaining: amount.toString(),
+      //         remainingEth: (Number(amount) / 1e18).toFixed(6),
+      //         minViableTransfer: minViableTransfer.toString(),
+      //         error: (quoteError as Error).message,
+      //       },
+      //       'Failed to quote minViable bridge, completing intent with small loss',
+      //     );
 
-          await this.actionTracker.completeRebalanceIntent(intent.id);
-          return {
-            route,
-            intent,
-            success: true,
-            reason: 'completed_with_acceptable_loss',
-          };
-        }
-      }
+      //     await this.actionTracker.completeRebalanceIntent(intent.id);
+      //     return {
+      //       route,
+      //       intent,
+      //       success: true,
+      //       reason: 'completed_with_acceptable_loss',
+      //     };
+      //   }
+      // }
 
       // Determine amount to move (limited by available inventory)
       const moveAmount =
@@ -1116,14 +1032,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Resolved token addresses for LiFi bridge',
     );
 
+    // TODO: lets think of a better way to avoid very small bridges
     // Calculate minViableTransfer for the target chain
     // If bridging less than this, the received amount won't be enough to execute transferRemote
     // So we over-bridge to ensure we can complete the intent in the next cycle
-    const minViableTransfer = await this.calculateMinViableTransfer(
+    const costs = await this.calculateTransferCosts(
       targetChain, // FROM chain for transferRemote (the target of this bridge)
       sourceChain, // TO chain for transferRemote (Hyperlane message destination)
-      amount,
+      amount, // availableInventory (not used for minViableTransfer calculation)
+      amount, // requestedAmount
     );
+    const { minViableTransfer } = costs;
 
     // If the requested amount is below minViableTransfer, adjust it up
     // This ensures we bridge enough to actually complete the final transferRemote
