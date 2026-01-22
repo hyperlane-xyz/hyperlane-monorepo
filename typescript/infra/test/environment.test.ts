@@ -41,6 +41,10 @@ describe('Environment', () => {
           if (chain === 'rometestnet2') {
             continue;
           }
+          // Skip eden as it has limited connectivity (only connected to celestia)
+          if (chain === 'eden') {
+            continue;
+          }
 
           const defaultIsm = core[chain].defaultIsm;
           const chainMetadata = multiProvider.getChainMetadata(chain);
