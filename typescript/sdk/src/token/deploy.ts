@@ -40,6 +40,7 @@ import { ChainMap, ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
+import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
   HypERC20contracts,
@@ -190,9 +191,12 @@ abstract class TokenDeployer<
             config.tokenMessenger,
           ];
         case 'V2':
-          assert(config.maxFeeBps, 'maxFeeBps is undefined for CCTP V2 config');
           assert(
-            config.minFinalityThreshold,
+            config.maxFeeBps !== undefined,
+            'maxFeeBps is undefined for CCTP V2 config',
+          );
+          assert(
+            config.minFinalityThreshold !== undefined,
             'minFinalityThreshold is undefined for CCTP V2 config',
           );
           return [
@@ -770,9 +774,16 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           return;
         }
 
+        const router = this.router(deployedContractsMap[chain]);
+        const resolvedFeeInput = resolveTokenFeeAddress(
+          tokenFeeInput,
+          router.address,
+          config,
+        );
+
         this.logger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({
-          config: tokenFeeInput,
+          config: resolvedFeeInput,
           multiProvider: this.multiProvider,
           chainName: chain,
         });
@@ -782,7 +793,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           config: processedTokenFee,
         });
 
-        const router = this.router(deployedContractsMap[chain]);
         const { deployedFee } = module.serialize();
         const tx = await router.setFeeRecipient(deployedFee);
         await this.multiProvider.handleTx(chain, tx);

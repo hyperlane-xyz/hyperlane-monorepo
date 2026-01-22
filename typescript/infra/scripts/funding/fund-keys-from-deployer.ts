@@ -5,6 +5,10 @@ import { Registry } from 'prom-client';
 import { format } from 'util';
 
 import {
+  createWalletBalanceGauge,
+  submitMetrics,
+} from '@hyperlane-xyz/metrics';
+import {
   ChainMap,
   ChainName,
   HyperlaneIgp,
@@ -35,10 +39,6 @@ import {
   validateSweepConfig,
 } from '../../src/config/funding.js';
 import { FundableRole, Role } from '../../src/roles.js';
-import {
-  getWalletBalanceGauge,
-  submitMetrics,
-} from '../../src/utils/metrics.js';
 import {
   assertContext,
   assertFundableRole,
@@ -83,7 +83,7 @@ const constMetricLabels = {
 
 const metricsRegister = new Registry();
 
-const walletBalanceGauge = getWalletBalanceGauge(
+const walletBalanceGauge = createWalletBalanceGauge(
   metricsRegister,
   Object.keys(constMetricLabels),
 );

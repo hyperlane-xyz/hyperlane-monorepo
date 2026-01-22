@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/infra",
   "description": "Infrastructure utilities for the Hyperlane Network",
-  "version": "20.1.0",
+  "version": "21.1.0",
   "dependencies": {
     "@anthropic-ai/claude-agent-sdk": "catalog:",
     "@arbitrum/sdk": "catalog:",
@@ -19,6 +19,7 @@
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/helloworld": "workspace:*",
     "@hyperlane-xyz/http-registry-server": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
@@ -76,6 +77,7 @@
     "@types/yargs": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
+    "cli-table3": "0.6.5",
     "ethereum-waffle": "catalog:",
     "ethers": "catalog:",
     "hardhat": "catalog:",

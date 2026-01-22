@@ -29,12 +29,14 @@ COPY patches ./patches
 # Copy only the packages needed for ccip-server
 COPY typescript/ccip-server/package.json ./typescript/ccip-server/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
+COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/sdk/package.json ./typescript/sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
 COPY typescript/cosmos-types/package.json ./typescript/cosmos-types/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
+COPY typescript/aleo-sdk/package.json ./typescript/aleo-sdk/
 COPY typescript/tsconfig/package.json ./typescript/tsconfig/
 COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY solidity/package.json ./solidity/
@@ -56,17 +58,36 @@ RUN pnpm --filter @hyperlane-xyz/ccip-server prisma generate
 COPY turbo.json ./
 COPY typescript/ccip-server ./typescript/ccip-server
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
+COPY typescript/metrics ./typescript/metrics
 COPY typescript/sdk ./typescript/sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
 COPY typescript/utils ./typescript/utils
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
 COPY typescript/cosmos-types ./typescript/cosmos-types
 COPY typescript/radix-sdk ./typescript/radix-sdk
+COPY typescript/aleo-sdk ./typescript/aleo-sdk
 COPY typescript/tsconfig ./typescript/tsconfig
 COPY typescript/eslint-config ./typescript/eslint-config
 COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
+
+# Pre-download solc compiler to avoid flaky network issues during build.
+# Hardhat downloads this on-demand, but the network request can timeout in CI.
+#
+# To update when changing solidity version in solidity/rootHardhatConfig.cts:
+#   1. Find the commit hash: curl -s "https://binaries.soliditylang.org/linux-amd64/list.json" | jq '.releases["X.Y.Z"]'
+#   2. Update SOLC_VERSION and SOLC_COMMIT below
+ARG SOLC_VERSION=0.8.22
+ARG SOLC_COMMIT=4fc1097e
+RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
+    SOLC_LIST_URL="https://binaries.soliditylang.org/linux-amd64/list.json" && \
+    SOLC_BIN_URL="https://binaries.soliditylang.org/linux-amd64/${SOLC_BINARY}" && \
+    CACHE_DIR="/root/.cache/hardhat-nodejs/compilers-v2/linux-amd64" && \
+    mkdir -p "$CACHE_DIR" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_LIST_URL" -o "$CACHE_DIR/list.json" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
+    chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
 # Build the ccip-server
 RUN pnpm turbo run build --filter=@hyperlane-xyz/ccip-server

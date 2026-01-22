@@ -472,6 +472,52 @@ fn parse_transaction_submitter_config(
     }
 }
 
+pub fn build_tron_connection_conf(
+    rpcs: &[Url],
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+    _operation_batch: OpSubmissionConfig,
+) -> Option<ChainConnectionConf> {
+    let mut local_err = ConfigParsingError::default();
+    let grpc_urls = parse_base_and_override_urls(
+        chain,
+        "grpcUrls",
+        "customGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+
+    let solidity_grpc_urls = parse_base_and_override_urls(
+        chain,
+        "solidityGrpcUrls",
+        "customSolidityGrpcUrls",
+        "http",
+        &mut local_err,
+        false,
+    );
+
+    let fee_multiplier = chain
+        .chain(err)
+        .get_opt_key("feeMultiplier")
+        .parse_f64()
+        .end();
+
+    if !local_err.is_ok() {
+        err.merge(local_err);
+        None
+    } else {
+        Some(ChainConnectionConf::Tron(
+            hyperlane_tron::ConnectionConf::new(
+                rpcs.to_vec(),
+                grpc_urls,
+                solidity_grpc_urls,
+                fee_multiplier,
+            ),
+        ))
+    }
+}
+
 pub fn build_radix_connection_conf(
     rpcs: &[Url],
     chain: &ValueParser,
@@ -666,6 +712,9 @@ pub fn build_connection_conf(
         HyperlaneDomainProtocol::Radix => {
             build_radix_connection_conf(rpcs, chain, err, operation_batch)
         }
+        HyperlaneDomainProtocol::Tron => {
+            build_tron_connection_conf(rpcs, chain, err, operation_batch)
+        }
         #[cfg(feature = "aleo")]
         HyperlaneDomainProtocol::Aleo => {
             build_aleo_connection_conf(rpcs, chain, err, operation_batch)
@@ -680,7 +729,7 @@ pub fn build_connection_conf(
 pub fn is_protocol_supported(protocol: HyperlaneDomainProtocol) -> bool {
     use HyperlaneDomainProtocol::*;
     match protocol {
-        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix => true,
+        Ethereum | Fuel | Sealevel | Cosmos | CosmosNative | Starknet | Radix | Tron => true,
         // Aleo is feature-gated - only supported when the "aleo" feature is enabled
         Aleo => cfg!(feature = "aleo"),
     }

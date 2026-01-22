@@ -7,18 +7,18 @@ import { Contexts } from '../../config/contexts.js';
 import { getGovernanceSigners } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
-import {
-  getArgs,
-  withChainRequired,
-  withSafeHomeUrlRequired,
-  withThreshold,
-} from '../agent-utils.js';
+import { getArgs, withChainRequired, withThreshold } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+
+const DEFAULT_SAFE_HOME_URL = 'https://app.safe.global';
 
 async function main() {
   const { chain, safeHomeUrl, threshold, governanceType } =
     await withGovernanceType(
-      withThreshold(withSafeHomeUrlRequired(withChainRequired(getArgs()))),
+      withThreshold(withChainRequired(getArgs()))
+        .string('safeHomeUrl')
+        .describe('safeHomeUrl', 'Safe web UI base URL')
+        .default('safeHomeUrl', DEFAULT_SAFE_HOME_URL),
     ).argv;
 
   const envConfig = getEnvironmentConfig('mainnet3');

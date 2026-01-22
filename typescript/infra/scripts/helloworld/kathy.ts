@@ -5,6 +5,10 @@ import { format } from 'util';
 
 import { HelloMultiProtocolApp } from '@hyperlane-xyz/helloworld';
 import {
+  createWalletBalanceGauge,
+  startMetricsServer,
+} from '@hyperlane-xyz/metrics';
+import {
   ChainMap,
   ChainName,
   HyperlaneIgp,
@@ -35,10 +39,6 @@ import { owners } from '../../config/environments/testnet4/owners.js';
 import { CloudAgentKey } from '../../src/agents/keys.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { Role } from '../../src/roles.js';
-import {
-  getWalletBalanceGauge,
-  startMetricsServer,
-} from '../../src/utils/metrics.js';
 import { assertChain, diagonalize } from '../../src/utils/utils.js';
 import { getArgs, withContext } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
@@ -73,7 +73,7 @@ const messageReceiptSeconds = new Counter({
   registers: [metricsRegister],
   labelNames: ['origin', 'remote'],
 });
-const walletBalance = getWalletBalanceGauge(metricsRegister);
+const walletBalance = createWalletBalanceGauge(metricsRegister);
 
 /** The maximum number of messages we will allow to get queued up if we are sending too slowly. */
 const MAX_MESSAGES_ALLOWED_TO_SEND = 5;

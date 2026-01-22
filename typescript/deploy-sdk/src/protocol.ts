@@ -28,6 +28,13 @@ export async function loadProtocolProviders(
         registerProtocol(protocol, () => new RadixProtocolProvider());
         break;
       }
+      case ProtocolType.Aleo: {
+        const { AleoProtocolProvider } = await import(
+          '@hyperlane-xyz/aleo-sdk'
+        );
+        registerProtocol(protocol, () => new AleoProtocolProvider());
+        break;
+      }
     }
   }
 }

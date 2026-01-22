@@ -33,6 +33,7 @@ import {
   type TrustedRelayerIsmConfig,
   type TxSubmitterBuilder,
   TxSubmitterType,
+  type TypedAnnotatedTransaction,
   type WarpCoreConfig,
   WarpCoreConfigSchema,
   type WarpRouteDeployConfigMailboxRequired,
@@ -53,6 +54,7 @@ import {
 import {
   type Address,
   assert,
+  mapAllSettled,
   mustGet,
   objFilter,
   objMap,
@@ -61,10 +63,10 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { type TypedAnnotatedTransaction } from '../../../sdk/dist/providers/ProviderType.js';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
+  errorRed,
   log,
   logBlue,
   logGray,
@@ -168,13 +170,62 @@ export async function runWarpRouteDeploy({
     deployedContracts,
   );
 
-  for (const chain of Object.keys(enrollTxs)) {
+  // Group chains by protocol type for appropriate parallelization
+  // EVM chains can run in parallel (each chain has an independent nonce)
+  // Non-EVM chains (e.g., Cosmos) must run sequentially because when the same
+  // private key is used across multiple chains, parallel tx submission causes
+  // sequence number conflicts (both txs query sequence N, one succeeds with N,
+  // the other fails expecting N+1)
+  const enrollChains = Object.keys(enrollTxs);
+  const evmChains = enrollChains.filter(
+    (chain) => multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const nonEvmChains = enrollChains.filter(
+    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  const enrollFailures: string[] = [];
+
+  // Helper function to submit enrollment for a single chain
+  const submitEnrollment = async (chain: string): Promise<void> => {
     log(`Enrolling routers for chain ${chain}`);
     const { submitter } = await getSubmitterByStrategy({
       chain,
       context: context,
     });
     await submitter.submit(...(enrollTxs[chain] as any[]));
+  };
+
+  // Submit EVM chains in parallel (they have independent signers)
+  if (evmChains.length > 0) {
+    const { rejected } = await mapAllSettled(
+      evmChains,
+      (chain) => submitEnrollment(chain),
+      (chain) => chain,
+    );
+
+    for (const [chain, error] of rejected) {
+      errorRed(`Failed to enroll routers for chain ${chain}: ${error.message}`);
+      enrollFailures.push(chain);
+    }
+  }
+
+  // Submit non-EVM chains sequentially (they may share signers)
+  for (const chain of nonEvmChains) {
+    try {
+      await submitEnrollment(chain);
+    } catch (error) {
+      const errorMessage =
+        error instanceof Error ? error.message : String(error);
+      errorRed(`Failed to enroll routers for chain ${chain}: ${errorMessage}`);
+      enrollFailures.push(chain);
+    }
+  }
+
+  if (enrollFailures.length > 0) {
+    throw new Error(
+      `Router enrollment failed for chain(s): ${enrollFailures.join(', ')}`,
+    );
   }
 
   const { warpCoreConfig, addWarpRouteOptions } = await getWarpCoreConfig(
@@ -595,6 +646,22 @@ export async function extendWarpRoute(
   // to get the proper remote routers and gas config works as expected
   updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
 
+  // Preserve metadata fields from existing config that generateTokenConfigs doesn't include
+  // (e.g. logoURI, coinGeckoId, igpTokenAddressOrDenom, scale).
+  // Spread order ensures generated fields (address, decimals, connections) take precedence.
+  updatedWarpCoreConfig.tokens = updatedWarpCoreConfig.tokens.map((token) => {
+    const existingToken = warpCoreConfigByChain[token.chainName];
+    return existingToken ? { ...existingToken, ...token } : token;
+  });
+
+  // Preserve top-level options if no updates
+  if (warpCoreConfig.options) {
+    updatedWarpCoreConfig.options = {
+      ...warpCoreConfig.options,
+      ...updatedWarpCoreConfig.options,
+    };
+  }
+
   // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
@@ -615,8 +682,7 @@ async function updateExistingWarpRoute(
   warpCoreConfig: WarpCoreConfig,
 ): Promise<ChainMap<TypedAnnotatedTransaction[]>> {
   logBlue('Updating deployed Warp Routes');
-  const { multiProvider, altVmProviders, altVmSigners, registry } =
-    params.context;
+  const { multiProvider, altVmSigners, registry } = params.context;
 
   const registryAddresses =
     (await registry.getAddresses()) as ChainMap<ChainAddresses>;
@@ -636,7 +702,6 @@ async function updateExistingWarpRoute(
 
   const expandedWarpDeployConfig = await expandWarpDeployConfig({
     multiProvider,
-    altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
   });
@@ -905,6 +970,74 @@ function transformIsmConfigForDisplay(ismConfig: IsmDisplayConfig): any[] {
 }
 
 /**
+ * Submits transactions for a single chain and handles receipts/self-relay
+ */
+async function submitChainTransactions(
+  params: WarpApplyParams,
+  chain: ChainName,
+  transactions: TypedAnnotatedTransaction[],
+  isExtendedChain: boolean,
+): Promise<void> {
+  const protocol = params.context.multiProvider.getProtocol(chain);
+
+  await retryAsync(
+    async () => {
+      const { submitter, config } = await getSubmitterByStrategy({
+        chain,
+        context: params.context,
+        strategyUrl: params.strategyUrl,
+        isExtendedChain,
+      });
+      const transactionReceipts = await submitter.submit(
+        ...(transactions as any[]),
+      );
+
+      if (protocol !== ProtocolType.Ethereum) {
+        return;
+      }
+
+      if (transactionReceipts) {
+        const receiptPath = `${params.receiptsDir}/${chain}-${
+          submitter.txSubmitterType
+        }-${Date.now()}-receipts.json`;
+        writeYamlOrJson(receiptPath, transactionReceipts);
+        logGreen(
+          `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+        );
+      }
+
+      const canRelay = canSelfRelay(
+        params.selfRelay ?? false,
+        config,
+        transactionReceipts,
+      );
+
+      if (!canRelay.relay) {
+        return;
+      }
+
+      // if self relaying does not work (possibly because metadata cannot be built yet)
+      // we don't want to rerun the complete code block as this will result in
+      // the update transactions being sent multiple times
+      try {
+        await retryAsync(() =>
+          runSelfRelay({
+            txReceipt: canRelay.txReceipt,
+            multiProvider: params.context.multiProvider,
+            registry: params.context.registry,
+            successMessage: WarpSendLogs.SUCCESS,
+          }),
+        );
+      } catch (error) {
+        warnYellow(`Error when self-relaying Warp transaction`, error);
+      }
+    },
+    5, // attempts
+    100, // baseRetryMs
+  );
+}
+
+/**
  * Submits a set of transactions to the specified chain and outputs transaction receipts
  */
 async function submitWarpApplyTransactions(
@@ -916,71 +1049,74 @@ async function submitWarpApplyTransactions(
     params.warpDeployConfig,
   );
 
-  for (const [chain, transactions] of Object.entries(updateTransactions)) {
+  // Group chains by protocol type for appropriate parallelization
+  // EVM chains can run in parallel (each chain has an independent nonce)
+  // Non-EVM chains (e.g., Cosmos) must run sequentially because when the same
+  // private key is used across multiple chains, parallel tx submission causes
+  // sequence number conflicts (both txs query sequence N, one succeeds with N,
+  // the other fails expecting N+1)
+  const chains = Object.keys(updateTransactions);
+  const evmChains = chains.filter(
+    (chain) =>
+      params.context.multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
+  );
+  const nonEvmChains = chains.filter(
+    (chain) =>
+      params.context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+  );
+
+  const failures: string[] = [];
+  const isExtended = (chain: string) => extendedChains.includes(chain);
+
+  // Submit EVM chains in parallel (they have independent signers)
+  if (evmChains.length > 0) {
+    const { rejected } = await mapAllSettled(
+      evmChains,
+      (chain) =>
+        submitChainTransactions(
+          params,
+          chain,
+          updateTransactions[chain],
+          isExtended(chain),
+        ),
+      (chain) => chain,
+    );
+
+    for (const [chain, error] of rejected) {
+      rootLogger.debug(
+        `Error in submitWarpApplyTransactions for ${chain}`,
+        error,
+      );
+      errorRed(
+        `Failed to submit warp apply transactions for ${chain}: ${error.message}`,
+      );
+      failures.push(chain);
+    }
+  }
+
+  // Submit non-EVM chains sequentially (they may share signers)
+  for (const chain of nonEvmChains) {
     try {
-      const protocol = params.context.multiProvider.getProtocol(chain);
-
-      await retryAsync(
-        async () => {
-          const isExtendedChain = extendedChains.includes(chain);
-          const { submitter, config } = await getSubmitterByStrategy({
-            chain,
-            context: params.context,
-            strategyUrl: params.strategyUrl,
-            isExtendedChain,
-          });
-          const transactionReceipts = await submitter.submit(
-            ...(transactions as any[]),
-          );
-
-          if (protocol !== ProtocolType.Ethereum) {
-            return;
-          }
-
-          if (transactionReceipts) {
-            const receiptPath = `${params.receiptsDir}/${chain}-${
-              submitter.txSubmitterType
-            }-${Date.now()}-receipts.json`;
-            writeYamlOrJson(receiptPath, transactionReceipts);
-            logGreen(
-              `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
-            );
-          }
-
-          const canRelay = canSelfRelay(
-            params.selfRelay ?? false,
-            config,
-            transactionReceipts,
-          );
-
-          if (!canRelay.relay) {
-            return;
-          }
-
-          // if self relaying does not work (possibly because metadata cannot be built yet)
-          // we don't want to rerun the complete code block as this will result in
-          // the update transactions being sent multiple times
-          try {
-            await retryAsync(() =>
-              runSelfRelay({
-                txReceipt: canRelay.txReceipt,
-                multiProvider: params.context.multiProvider,
-                registry: params.context.registry,
-                successMessage: WarpSendLogs.SUCCESS,
-              }),
-            );
-          } catch (error) {
-            warnYellow(`Error when self-relaying Warp transaction`, error);
-          }
-        },
-        5, // attempts
-        100, // baseRetryMs
+      await submitChainTransactions(
+        params,
+        chain,
+        updateTransactions[chain],
+        isExtended(chain),
       );
     } catch (e) {
-      rootLogger.debug('Error in submitWarpApplyTransactions', e);
-      logBlue(`Error in submitWarpApplyTransactions`, e);
-      console.dir(transactions);
+      const errorMessage = e instanceof Error ? e.message : String(e);
+      rootLogger.debug(`Error in submitWarpApplyTransactions for ${chain}`, e);
+      errorRed(
+        `Failed to submit warp apply transactions for ${chain}: ${errorMessage}`,
+      );
+      failures.push(chain);
     }
+  }
+
+  if (failures.length > 0) {
+    throw new Error(
+      `Warp apply transaction submission failed for chain(s): ${failures.join(', ')}`,
+    );
   }
 }
 

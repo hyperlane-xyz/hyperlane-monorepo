@@ -790,6 +790,14 @@ impl AdaptsChain for EthereumAdapter {
         metrics.set_post_inclusion_metrics(&metrics_source, self.domain.as_ref());
     }
 
+    async fn post_finalized(&self) -> Result<(), LanderError> {
+        self.nonce_manager
+            .nonce_updater
+            .update_boundaries()
+            .await
+            .map_err(Into::into)
+    }
+
     async fn run_command(&self, action: AdaptsChainAction) -> Result<(), LanderError> {
         match action {
             AdaptsChainAction::OverwriteUpperNonce { nonce } => {
