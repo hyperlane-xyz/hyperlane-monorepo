@@ -11,7 +11,18 @@ pub fn get_escrow_address(pub_keys: Vec<&str>, required_signatures: u8, env: &st
     };
     let pub_keys = pub_keys
         .iter()
-        .map(|s| PublicKey::from_str(s).unwrap())
+        .enumerate()
+        .map(|(i, s)| {
+            PublicKey::from_str(s).unwrap_or_else(|e| {
+                panic!(
+                    "invalid public key at position {} (0-indexed): '{}' (len={}): {}",
+                    i,
+                    s,
+                    s.len(),
+                    e
+                )
+            })
+        })
         .collect::<Vec<_>>();
     let e = EscrowPublic::from_pubs(pub_keys, prefix, required_signatures);
     e.addr.to_string()
