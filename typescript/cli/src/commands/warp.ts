@@ -399,8 +399,7 @@ export const check: CommandModuleWithContext<
     },
     chains: stringArrayOptionConfig({
       description:
-        'List of chains to check. Defaults to all chains except origin when using --ica.',
-      implies: 'ica',
+        'List of chains to check. Defaults to all chains in config (excluding origin when using --ica).',
     }),
   },
   handler: async ({
@@ -424,9 +423,16 @@ export const check: CommandModuleWithContext<
       warpCoreConfigPath: warp,
     });
 
+    // For ICA mode, always include origin in the filter to preserve owner lookup
+    const chainsToFilter =
+      ica && origin && chains?.length
+        ? [...new Set([origin, ...chains])]
+        : chains;
+
     ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
       warpDeployConfig,
       warpCoreConfig,
+      chainsToFilter,
     ));
 
     // If --ica flag is set, run ICA owner check instead of the regular config check
@@ -438,7 +444,6 @@ export const check: CommandModuleWithContext<
         warpDeployConfig,
         origin,
         originOwner,
-        chains: chains?.length ? chains : undefined,
       });
 
       process.exit(0);
