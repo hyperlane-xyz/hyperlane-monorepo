@@ -506,7 +506,7 @@ impl Validator {
         tasks
     }
 
-    fn log_on_announce_failure(result: ChainResult<TxOutcome>, chain_signer: &String) {
+    fn log_on_announce_result(&self, result: &ChainResult<TxOutcome>, chain_signer: &String) {
         match result {
             Ok(outcome) => {
                 if outcome.executed {
@@ -515,6 +515,10 @@ impl Validator {
                         ?chain_signer,
                         "Successfully announced validator",
                     );
+                    self.core_metrics
+                        .validator_announce_count()
+                        .with_label_values(&[self.origin_chain.name(), "classic", "success"])
+                        .inc();
                 } else {
                     error!(
                         txid=?outcome.transaction_id,
@@ -523,6 +527,10 @@ impl Validator {
                         ?chain_signer,
                         "Transaction attempting to announce validator reverted. Make sure you have enough funds in your account to pay for transaction fees."
                     );
+                    self.core_metrics
+                        .validator_announce_count()
+                        .with_label_values(&[self.origin_chain.name(), "classic", "failure"])
+                        .inc();
                 }
             }
             Err(err) => {
@@ -531,6 +539,10 @@ impl Validator {
                     ?chain_signer,
                     "Failed to announce validator. Make sure you have enough funds in your account to pay for gas."
                 );
+                self.core_metrics
+                    .validator_announce_count()
+                    .with_label_values(&[self.origin_chain.name(), "classic", "failure"])
+                    .inc();
             }
         }
     }
@@ -628,7 +640,7 @@ impl Validator {
                                 .validator_announce
                                 .announce(signed_announcement.clone())
                                 .await;
-                            Self::log_on_announce_failure(result, &chain_signer_string);
+                            self.log_on_announce_result(&result, &chain_signer_string);
                         }
                     }
                 } else {
@@ -662,6 +674,10 @@ impl Validator {
                     chain_signer = %chain_signer_string,
                     "Failed to create announce calldata for Lander submission, will fall back to classic announce"
                 );
+                self.core_metrics
+                    .validator_announce_count()
+                    .with_label_values(&[self.origin_chain.name(), "lander", "failure"])
+                    .inc();
                 return false;
             }
         };
@@ -685,6 +701,10 @@ impl Validator {
                     payload_uuid = ?payload.uuid(),
                     "Submitted validator announcement via Lander"
                 );
+                self.core_metrics
+                    .validator_announce_count()
+                    .with_label_values(&[self.origin_chain.name(), "lander", "success"])
+                    .inc();
                 true
             }
             Err(err) => {
@@ -693,6 +713,10 @@ impl Validator {
                     chain_signer = %chain_signer_string,
                     "Failed to submit validator announcement via Lander"
                 );
+                self.core_metrics
+                    .validator_announce_count()
+                    .with_label_values(&[self.origin_chain.name(), "lander", "failure"])
+                    .inc();
                 false
             }
         }

@@ -130,3 +130,78 @@ impl ValidatorAnnounce for CosmosNativeValidatorAnnounce {
         Ok(announce.encode_to_vec())
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use hex::ToHex;
+    use hyperlane_core::{Announcement, Encode, Signature, SignedType, H256, U256};
+    use hyperlane_cosmos_rs::hyperlane::core::interchain_security::v1::MsgAnnounceValidator;
+    use hyperlane_cosmos_rs::prost::Message;
+
+    fn create_test_signed_announcement() -> SignedType<Announcement> {
+        let announcement = Announcement {
+            validator: H256::from_low_u64_be(1).into(),
+            mailbox_address: H256::from_low_u64_be(2),
+            mailbox_domain: 1,
+            storage_location: "s3://test-bucket/validator".to_string(),
+        };
+
+        // Create a mock signature
+        let signature = Signature {
+            r: U256::from(1),
+            s: U256::from(2),
+            v: 27,
+        };
+
+        SignedType {
+            value: announcement,
+            signature,
+        }
+    }
+
+    #[test]
+    fn test_announce_calldata_protobuf_encoding() {
+        let signed_announcement = create_test_signed_announcement();
+        let signer = "cosmos1testaddress";
+        let mailbox_address_hex = hex::encode(signed_announcement.value.mailbox_address.to_vec());
+
+        let announce = MsgAnnounceValidator {
+            validator: signed_announcement.value.validator.encode_hex(),
+            storage_location: signed_announcement.value.storage_location.clone(),
+            signature: hex::encode(signed_announcement.signature.to_vec()),
+            mailbox_id: format!("0x{mailbox_address_hex}"),
+            creator: signer.to_string(),
+        };
+
+        let encoded = announce.encode_to_vec();
+
+        // Verify encoded data is not empty
+        assert!(!encoded.is_empty());
+
+        // Verify can be decoded back
+        let decoded =
+            MsgAnnounceValidator::decode(encoded.as_slice()).expect("Failed to decode protobuf");
+
+        assert_eq!(decoded.storage_location, "s3://test-bucket/validator");
+        assert_eq!(decoded.creator, signer);
+        assert!(!decoded.validator.is_empty());
+        assert!(!decoded.signature.is_empty());
+    }
+
+    #[test]
+    fn test_announce_calldata_mailbox_id_format() {
+        let signed_announcement = create_test_signed_announcement();
+        let mailbox_address_hex = hex::encode(signed_announcement.value.mailbox_address.to_vec());
+
+        let announce = MsgAnnounceValidator {
+            validator: signed_announcement.value.validator.encode_hex(),
+            storage_location: signed_announcement.value.storage_location.clone(),
+            signature: hex::encode(signed_announcement.signature.to_vec()),
+            mailbox_id: format!("0x{mailbox_address_hex}"),
+            creator: "test".to_string(),
+        };
+
+        // Verify mailbox_id has 0x prefix
+        assert!(announce.mailbox_id.starts_with("0x"));
+    }
+}

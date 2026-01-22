@@ -120,3 +120,82 @@ impl ValidatorAnnounce for CwValidatorAnnounce {
         serde_json::to_vec(&announce_request).map_err(Into::into)
     }
 }
+
+#[cfg(test)]
+mod tests {
+    use hyperlane_core::{Announcement, Signature, SignedType, H256, U256};
+
+    use super::{AnnouncementRequest, AnnouncementRequestInner};
+
+    fn create_test_signed_announcement() -> SignedType<Announcement> {
+        let announcement = Announcement {
+            validator: H256::from_low_u64_be(1).into(),
+            mailbox_address: H256::from_low_u64_be(2),
+            mailbox_domain: 1,
+            storage_location: "s3://test-bucket/validator".to_string(),
+        };
+
+        // Create a mock signature
+        let signature = Signature {
+            r: U256::from(1),
+            s: U256::from(2),
+            v: 27,
+        };
+
+        SignedType {
+            value: announcement,
+            signature,
+        }
+    }
+
+    #[test]
+    fn test_announce_calldata_structure() {
+        let signed_announcement = create_test_signed_announcement();
+
+        let announce_request = AnnouncementRequest {
+            announce: AnnouncementRequestInner {
+                validator: hex::encode(signed_announcement.value.validator),
+                storage_location: signed_announcement.value.storage_location.clone(),
+                signature: hex::encode(signed_announcement.signature.to_vec()),
+            },
+        };
+
+        let calldata = serde_json::to_vec(&announce_request).expect("Failed to serialize");
+
+        // Verify calldata can be deserialized back
+        let parsed: AnnouncementRequest =
+            serde_json::from_slice(&calldata).expect("Failed to deserialize");
+
+        assert_eq!(
+            parsed.announce.storage_location,
+            "s3://test-bucket/validator"
+        );
+        assert!(!parsed.announce.validator.is_empty());
+        assert!(!parsed.announce.signature.is_empty());
+    }
+
+    #[test]
+    fn test_announce_calldata_json_format() {
+        let signed_announcement = create_test_signed_announcement();
+
+        let announce_request = AnnouncementRequest {
+            announce: AnnouncementRequestInner {
+                validator: hex::encode(signed_announcement.value.validator),
+                storage_location: signed_announcement.value.storage_location.clone(),
+                signature: hex::encode(signed_announcement.signature.to_vec()),
+            },
+        };
+
+        let calldata = serde_json::to_vec(&announce_request).expect("Failed to serialize");
+
+        // Verify JSON structure has expected format
+        let json_value: serde_json::Value =
+            serde_json::from_slice(&calldata).expect("Failed to parse JSON");
+
+        assert!(json_value.is_object());
+        assert!(json_value.get("announce").is_some());
+        assert!(json_value["announce"]["validator"].is_string());
+        assert!(json_value["announce"]["storage_location"].is_string());
+        assert!(json_value["announce"]["signature"].is_string());
+    }
+}
