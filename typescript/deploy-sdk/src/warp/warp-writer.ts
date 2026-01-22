@@ -168,7 +168,7 @@ export class WarpTokenWriter
     // Read current on-chain state to verify token type hasn't changed
     const currentArtifact = await this.read(deployed.address);
     assert(
-      currentArtifact.config.type !== config.type,
+      currentArtifact.config.type === config.type,
       `Cannot change warp token type from '${currentArtifact.config.type}' to '${config.type}'. ` +
         `Token type is immutable after deployment.`,
     );
