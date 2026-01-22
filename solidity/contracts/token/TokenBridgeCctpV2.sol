@@ -31,6 +31,8 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     bytes32 private constant MAX_FEE_BPS_SLOT =
         keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeeBps");
 
+    uint256 private constant MAX_FEE_DENOMINATOR = 1_000_000;
+
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
     uint32 public immutable minFinalityThreshold;
 
@@ -39,7 +41,6 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         address _mailbox,
         IMessageTransmitterV2 _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger,
-        uint256 _maxFeeBps,
         uint32 _minFinalityThreshold
     )
         TokenBridgeCctpBase(
@@ -49,26 +50,33 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
-        if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
         minFinalityThreshold = _minFinalityThreshold;
     }
 
     // ============ External Functions ============
 
     /**
-     * @notice Returns the maximum fee in basis points.
-     * @return The maximum fee in basis points.
+     * @notice Returns the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @return The maximum fee rate in ppm.
      */
     function maxFeeBps() public view returns (uint256) {
         return MAX_FEE_BPS_SLOT.getUint256Slot().value;
     }
 
     /**
-     * @notice Sets the maximum fee in basis points.
-     * @param _maxFeeBps The new maximum fee in basis points (must be < 10_000).
+     * @notice Sets the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @param _maxFeeBps The new maximum fee in ppm (must be < 1_000_000).
      */
     function setMaxFeeBps(uint256 _maxFeeBps) external onlyOwner {
-        if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
+        if (_maxFeeBps >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
         MAX_FEE_BPS_SLOT.getUint256Slot().value = _maxFeeBps;
         emit MaxFeeBpsSet(_maxFeeBps);
     }
@@ -91,14 +99,17 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      * The formula solves for the fee needed such that after Circle takes their percentage,
      * the recipient receives exactly `amount`:
      *
-     *   (amount + fee) * (10_000 - maxFeeBps) / 10_000 = amount
+     *   (amount + fee) * (MAX_FEE_DENOMINATOR - maxFeeBps) / MAX_FEE_DENOMINATOR = amount
      *
      * Solving for fee:
-     *   fee = (amount * maxFeeBps) / (10_000 - maxFeeBps)
+     *   fee = (amount * maxFeeBps) / (MAX_FEE_DENOMINATOR - maxFeeBps)
      *
-     * Example: If amount = 100 USDC and maxFeeBps = 10 (0.1%):
-     *   fee = (100 * 10) / (10_000 - 10) = 1000 / 9990 ≈ 0.1001 USDC
-     *   We deposit 100.1001 USDC, Circle takes 0.1001 USDC, recipient gets exactly 100 USDC.
+     * Example: If amount = 100 USDC and maxFeeBps = 130 (1.3 bps = 0.013%):
+     *   fee = (100 * 130) / (1_000_000 - 130) = 13000 / 999870 ≈ 0.013 USDC
+     *   We deposit 100.013 USDC, Circle takes up to 0.013 USDC, recipient gets exactly 100 USDC.
+     *
+     * Note: maxFeeBps is stored in parts per million (ppm), where 100 ppm = 1 bps = 0.01%.
+     * This precision allows representing fractional basis points like Circle's 1.3 bps fees.
      */
     function _externalFeeAmount(
         uint32,
@@ -112,7 +123,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             Math.mulDiv(
                 amount,
                 _maxFeeBps,
-                10_000 - _maxFeeBps,
+                MAX_FEE_DENOMINATOR - _maxFeeBps,
                 Math.Rounding.Up
             );
     }
