@@ -42,4 +42,12 @@ export interface IInventoryMonitor {
    * Call this at the start of each rebalancing cycle.
    */
   refresh(): Promise<void>;
+
+  /**
+   * Get total inventory across all monitored chains, optionally excluding specific chains.
+   *
+   * @param excludeChains - Optional chain names to exclude from the total
+   * @returns Total available inventory
+   */
+  getTotalInventory(excludeChains?: ChainName[]): Promise<bigint>;
 }

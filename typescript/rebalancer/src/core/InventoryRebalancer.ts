@@ -41,6 +41,18 @@ const FALLBACK_TRANSFER_REMOTE_GAS_LIMIT = 300_000n;
 const MIN_VIABLE_COST_MULTIPLIER = 2n;
 
 /**
+ * Minimum percentage of requested amount required for partial transfer.
+ * If available inventory is below this threshold, trigger inventory movement instead.
+ */
+const PARTIAL_TRANSFER_THRESHOLD_PERCENT = 90n;
+
+/**
+ * Buffer percentage to add when bridging inventory.
+ * Bridges (amount * (100 + BRIDGE_BUFFER_PERCENT)) / 100 to account for slippage.
+ */
+const BRIDGE_BUFFER_PERCENT = 5n;
+
+/**
  * Transfer cost estimate for native token transfers.
  * Contains all cost components needed for transfer decisions.
  */
@@ -55,6 +67,10 @@ interface TransferCostEstimate {
   maxTransferable: bigint;
   /** Minimum viable transfer (totalCost * MIN_VIABLE_COST_MULTIPLIER) */
   minViableTransfer: bigint;
+  /** Gas quote from adapter (for passing to executeTransferRemote) */
+  gasQuote?: {
+    igpQuote: { amount: bigint };
+  };
 }
 
 /**
@@ -317,6 +333,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       throw new Error(`No token found for origin chain: ${originChain}`);
     }
 
+    const destinationDomain = this.multiProvider.getDomainId(destinationChain);
+    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
+
+    // Always quote IGP for the gas quote (needed for populateTransferRemoteTx)
+    const gasQuote = await adapter.quoteTransferRemoteGas({
+      destination: destinationDomain,
+      sender: this.config.inventorySigner,
+      recipient: this.config.inventorySigner,
+      amount: requestedAmount,
+    });
+
     // For non-native tokens, no cost reservation needed from token balance
     if (!this.isNativeTokenStandard(originToken.standard)) {
       return {
@@ -328,20 +355,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             ? availableInventory
             : requestedAmount,
         minViableTransfer: 0n,
+        gasQuote,
       };
     }
 
     // For native tokens, calculate costs
-    const destinationDomain = this.multiProvider.getDomainId(destinationChain);
-    const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
-    // Quote IGP
-    const gasQuote = await adapter.quoteTransferRemoteGas({
-      destination: destinationDomain,
-      sender: this.config.inventorySigner,
-      recipient: this.config.inventorySigner,
-      amount: requestedAmount,
-    });
     const igpCost = gasQuote.igpQuote.amount;
 
     // Estimate gas with buffer
@@ -391,7 +409,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       'Calculated transfer costs for native token',
     );
 
-    return { igpCost, gasCost, totalCost, maxTransferable, minViableTransfer };
+    return {
+      igpCost,
+      gasCost,
+      totalCost,
+      maxTransferable,
+      minViableTransfer,
+      gasQuote,
+    };
   }
 
   /**
@@ -520,6 +545,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
     const { maxTransferable, minViableTransfer } = costs;
 
+    // Calculate total inventory across all chains (excluding origin which is surplus chain)
+    // Note: consumedInventory tracking is handled separately within this cycle
+    const totalInventory = await this.inventoryMonitor.getTotalInventory([
+      origin,
+    ]);
+
     this.logger.info(
       {
         fromChain: destination,
@@ -528,11 +559,34 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         requestedAmountEth: (Number(amount) / 1e18).toFixed(6),
         maxTransferableEth: (Number(maxTransferable) / 1e18).toFixed(6),
         minViableTransferEth: (Number(minViableTransfer) / 1e18).toFixed(6),
+        totalInventoryEth: (Number(totalInventory) / 1e18).toFixed(6),
         canFullyFulfill: maxTransferable >= amount,
         canPartialFulfill: maxTransferable >= minViableTransfer,
       },
       'Calculated max transferable amount with cost-based threshold',
     );
+
+    // Early exit: If remaining amount is below minViableTransfer, complete the intent
+    // This prevents infinite loops when the remaining amount is too small to economically bridge
+    if (amount < minViableTransfer) {
+      this.logger.info(
+        {
+          intentId: intent.id,
+          amount: amount.toString(),
+          minViableTransfer: minViableTransfer.toString(),
+        },
+        'Remaining amount below minViableTransfer, completing intent with acceptable loss',
+      );
+
+      await this.actionTracker.completeRebalanceIntent(intent.id);
+
+      return {
+        route,
+        intent,
+        success: true,
+        reason: 'completed_with_acceptable_loss',
+      };
+    }
 
     // Swap the route for executeTransferRemote: destination → origin
     // This ensures transferRemote is called FROM destination, ADDING collateral there
@@ -544,27 +598,36 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     if (maxTransferable >= amount) {
       // Sufficient inventory on destination - execute transferRemote directly
-      const result = await this.executeTransferRemote(swappedRoute, intent);
+      const result = await this.executeTransferRemote(
+        swappedRoute,
+        intent,
+        costs.gasQuote!,
+      );
       // Return original strategy route in result (not the swapped execution route)
       return { ...result, route };
-    } else if (maxTransferable > 0n && maxTransferable >= minViableTransfer) {
-      // Partial inventory available above cost-based threshold - execute what we can
-      // Note: We require maxTransferable > 0n to avoid attempting 0-amount transfers
+    } else if (
+      amount > totalInventory && // Need looping - not enough total inventory
+      maxTransferable >=
+        (totalInventory * PARTIAL_TRANSFER_THRESHOLD_PERCENT) / 100n // 90% consolidated
+    ) {
+      // Partial transfer: Only when looping is required AND 90%+ of total inventory
+      // is consolidated on the current (destination) chain
       const partialSwappedRoute = { ...swappedRoute, amount: maxTransferable };
       const result = await this.executeTransferRemote(
         partialSwappedRoute,
         intent,
+        costs.gasQuote!,
       );
 
-      // Note: The intent remains in_progress since it's not fully fulfilled
-      // The remaining amount will be handled in future cycles once more inventory is available
       this.logger.info(
         {
           intentId: intent.id,
           partialAmount: maxTransferable.toString(),
+          totalInventory: totalInventory.toString(),
+          consolidationRatio: `${(maxTransferable * 100n) / totalInventory}%`,
           remainingAmount: (amount - maxTransferable).toString(),
         },
-        'Executed partial inventory deposit, remaining will be handled in future cycles',
+        'Executed partial inventory deposit (90%+ consolidated), remaining will be handled in future cycles',
       );
 
       // Return original strategy route in result (not the swapped execution route)
@@ -582,10 +645,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Inventory below cost-based threshold on destination, triggering LiFi movement',
       );
 
-      // Find source chain to bridge FROM (to destination)
-      const sourceInfo = await this.selectSourceChain(destination, amount);
+      // Get all available source chains for parallel bridging
+      const allSources = await this.selectAllSourceChains(destination);
 
-      if (!sourceInfo) {
+      if (allSources.length === 0) {
         this.logger.warn(
           {
             origin,
@@ -604,156 +667,104 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         };
       }
 
-      // TODO: this seems completely wrong out of place, we may be able to do this sooner
-      // commenting out for now
-      // Check if we can actually afford to bridge minViableTransfer
-      // If the remaining amount is tiny and we can't bridge enough to make it worthwhile,
-      // accept the small loss and complete the intent to prevent infinite loops
-      // if (amount < minViableTransfer) {
-      //   // We need to bridge at least minViableTransfer for the final transferRemote to work
-      //   // Check if source chain has enough inventory to cover bridge costs for minViableTransfer
-      //   const effectiveAmountToBridge = minViableTransfer;
+      // Pre-compute bridge amounts from each source
+      // Apply 5% buffer: bridge (100 + BRIDGE_BUFFER_PERCENT)% of needed
+      const targetWithBuffer = (amount * (100n + BRIDGE_BUFFER_PERCENT)) / 100n;
 
-      //   try {
-      //     // Get chain IDs for bridge quote
-      //     const sourceChainId = Number(
-      //       this.multiProvider.getChainId(sourceInfo.chain),
-      //     );
-      //     const targetChainId = Number(
-      //       this.multiProvider.getChainId(destination),
-      //     );
+      const bridgePlans: Array<{ chain: ChainName; amount: bigint }> = [];
+      let totalPlanned = 0n;
 
-      //     // Get token addresses for the quote
-      //     const sourceToken = this.getTokenForChain(sourceInfo.chain);
-      //     const targetToken = this.getTokenForChain(destination);
+      for (const source of allSources) {
+        if (totalPlanned >= targetWithBuffer) break;
 
-      //     if (!sourceToken || !targetToken) {
-      //       throw new Error('Missing token info for bridge quote');
-      //     }
+        const remaining = targetWithBuffer - totalPlanned;
+        const amountFromSource =
+          source.availableAmount >= remaining
+            ? remaining
+            : source.availableAmount;
 
-      //     const fromTokenAddress = this.isNativeTokenStandard(
-      //       sourceToken.standard,
-      //     )
-      //       ? NATIVE_TOKEN_ADDRESS
-      //       : sourceToken.addressOrDenom;
+        bridgePlans.push({ chain: source.chain, amount: amountFromSource });
+        totalPlanned += amountFromSource;
+      }
 
-      //     const toTokenAddress = this.isNativeTokenStandard(
-      //       targetToken.standard,
-      //     )
-      //       ? NATIVE_TOKEN_ADDRESS
-      //       : targetToken.addressOrDenom;
-
-      //     // Quote how much we need to send to get minViableTransfer on destination
-      //     const testQuote = await this._bridge.quote({
-      //       fromChain: sourceChainId,
-      //       toChain: targetChainId,
-      //       fromToken: fromTokenAddress,
-      //       toToken: toTokenAddress,
-      //       toAmount: effectiveAmountToBridge,
-      //       fromAddress: this.config.inventorySigner,
-      //       toAddress: this.config.inventorySigner,
-      //     });
-
-      //     // Check if source has enough inventory for this bridge
-      //     if (testQuote.fromAmount > sourceInfo.availableAmount) {
-      //       // Cannot afford to bridge minViableTransfer - accept the loss
-      //       this.logger.info(
-      //         {
-      //           intentId: intent.id,
-      //           remaining: amount.toString(),
-      //           remainingEth: (Number(amount) / 1e18).toFixed(6),
-      //           minViableTransfer: minViableTransfer.toString(),
-      //           minViableTransferEth: (
-      //             Number(minViableTransfer) / 1e18
-      //           ).toFixed(6),
-      //           sourceChain: sourceInfo.chain,
-      //           sourceInventory: sourceInfo.availableAmount.toString(),
-      //           sourceInventoryEth: (
-      //             Number(sourceInfo.availableAmount) / 1e18
-      //           ).toFixed(6),
-      //           requiredForBridge: testQuote.fromAmount.toString(),
-      //           requiredForBridgeEth: (
-      //             Number(testQuote.fromAmount) / 1e18
-      //           ).toFixed(6),
-      //         },
-      //         'Cannot afford bridge for minViable amount, completing intent with small loss',
-      //       );
-
-      //       await this.actionTracker.completeRebalanceIntent(intent.id);
-      //       return {
-      //         route,
-      //         intent,
-      //         success: true,
-      //         reason: 'completed_with_acceptable_loss',
-      //       };
-      //     }
-      //   } catch (quoteError) {
-      //     // Quote failed - this likely means we can't complete the bridge
-      //     // Accept the loss to prevent getting stuck
-      //     this.logger.info(
-      //       {
-      //         intentId: intent.id,
-      //         remaining: amount.toString(),
-      //         remainingEth: (Number(amount) / 1e18).toFixed(6),
-      //         minViableTransfer: minViableTransfer.toString(),
-      //         error: (quoteError as Error).message,
-      //       },
-      //       'Failed to quote minViable bridge, completing intent with small loss',
-      //     );
-
-      //     await this.actionTracker.completeRebalanceIntent(intent.id);
-      //     return {
-      //       route,
-      //       intent,
-      //       success: true,
-      //       reason: 'completed_with_acceptable_loss',
-      //     };
-      //   }
-      // }
-
-      // Determine amount to move (limited by available inventory)
-      const moveAmount =
-        amount > sourceInfo.availableAmount
-          ? sourceInfo.availableAmount
-          : amount;
-
-      // Execute inventory movement from source chain TO destination chain
-      // (destination is where we need inventory to call transferRemote FROM)
-      const movementResult = await this.executeInventoryMovement(
-        sourceInfo.chain,
-        destination, // Bridge TO destination (deficit chain)
-        moveAmount,
-        intent,
+      this.logger.info(
+        {
+          targetChain: destination,
+          bridgePlans: bridgePlans.map((p) => ({
+            chain: p.chain,
+            amount: p.amount.toString(),
+          })),
+          totalPlanned: totalPlanned.toString(),
+          targetWithBuffer: targetWithBuffer.toString(),
+          intentId: intent.id,
+        },
+        'Initiating parallel inventory movements from multiple sources',
       );
 
-      if (!movementResult.success) {
+      // Execute all bridges in parallel
+      const bridgeResults = await Promise.allSettled(
+        bridgePlans.map((plan) =>
+          this.executeInventoryMovement(
+            plan.chain,
+            destination,
+            plan.amount,
+            intent,
+          ),
+        ),
+      );
+
+      // Process results
+      let successCount = 0;
+      let totalBridged = 0n;
+
+      for (let i = 0; i < bridgeResults.length; i++) {
+        const result = bridgeResults[i];
+        const plan = bridgePlans[i];
+
+        if (result.status === 'fulfilled' && result.value.success) {
+          successCount++;
+          totalBridged += plan.amount;
+          this.logger.info(
+            {
+              sourceChain: plan.chain,
+              amount: plan.amount.toString(),
+              txHash: result.value.txHash,
+            },
+            'Inventory movement succeeded',
+          );
+        } else {
+          const error =
+            result.status === 'rejected'
+              ? result.reason?.message
+              : result.value.error;
+          this.logger.warn(
+            { sourceChain: plan.chain, amount: plan.amount.toString(), error },
+            'Inventory movement failed',
+          );
+        }
+      }
+
+      if (successCount === 0) {
         return {
           route,
           intent,
           success: false,
-          error: `Inventory movement failed: ${movementResult.error}`,
+          error: 'All inventory movements failed',
         };
       }
 
-      // Note: The actual transferRemote will happen in a future cycle
-      // after the inventory_movement completes and inventory is available on destination
       this.logger.info(
         {
-          sourceChain: sourceInfo.chain,
           targetChain: destination,
-          strategyOrigin: origin,
-          amount: moveAmount.toString(),
+          successCount,
+          totalBridged: totalBridged.toString(),
+          targetAmount: amount.toString(),
           intentId: intent.id,
-          txHash: movementResult.txHash,
         },
-        'Inventory movement initiated, transferRemote will execute after bridge completes',
+        'Parallel inventory movements completed, transferRemote will execute after bridges complete',
       );
 
-      return {
-        route,
-        intent,
-        success: true,
-      };
+      return { route, intent, success: true };
     }
   }
 
@@ -767,10 +778,15 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * transferRemote mechanics:
    * - Calls _transferFromSender() which ADDS collateral to route.origin
    * - Sends Hyperlane message to route.destination to RELEASE collateral
+   *
+   * @param route - The transfer route (swapped direction)
+   * @param intent - The rebalance intent being executed
+   * @param gasQuote - Pre-calculated gas quote from calculateTransferCosts
    */
   private async executeTransferRemote(
     route: InventoryRoute,
     intent: RebalanceIntent,
+    gasQuote: { igpQuote: { amount: bigint } },
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
 
@@ -782,16 +798,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const destinationDomain = this.multiProvider.getDomainId(destination);
 
     // Get the hyperlane adapter for the token
-    // Use warpCore.multiProvider which is a MultiProtocolProvider
     const adapter = originToken.getHypAdapter(this.warpCore.multiProvider);
-
-    // Quote the transfer remote gas
-    const gasQuote = await adapter.quoteTransferRemoteGas({
-      destination: destinationDomain,
-      sender: this.config.inventorySigner,
-      recipient: this.config.inventorySigner,
-      amount,
-    });
 
     this.logger.debug(
       {
@@ -802,7 +809,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           igpQuote: gasQuote.igpQuote.amount.toString(),
         },
       },
-      'Quoted transferRemote gas',
+      'Using pre-calculated gas quote for transferRemote',
     );
 
     // Populate the transferRemote transaction
@@ -902,66 +909,31 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   }
 
   /**
-   * Select the best source chain for inventory movement.
-   * Prefers a chain with sufficient balance, otherwise returns the chain with highest available.
-   *
-   * @param targetChain - Chain that needs inventory
-   * @param requiredAmount - Amount needed
-   * @returns Source chain info or null if no inventory available anywhere
+   * Select all source chains with available inventory for bridging.
+   * Returns sources sorted by available amount (highest first).
    */
-  private async selectSourceChain(
+  private async selectAllSourceChains(
     targetChain: ChainName,
-    requiredAmount: bigint,
-  ): Promise<{ chain: ChainName; availableAmount: bigint } | null> {
+  ): Promise<Array<{ chain: ChainName; availableAmount: bigint }>> {
     const balances = await this.inventoryMonitor.getBalances();
-    let bestSource: { chain: ChainName; availableAmount: bigint } | null = null;
+    const sources: Array<{ chain: ChainName; availableAmount: bigint }> = [];
 
     for (const [chainName, balance] of balances) {
-      // Skip the target chain itself
       if (chainName === targetChain) continue;
 
-      // Calculate effective available inventory accounting for consumed amounts
       const consumed = this.consumedInventory.get(chainName) ?? 0n;
       const effectiveAvailable =
         balance.available > consumed ? balance.available - consumed : 0n;
 
-      // If this chain has sufficient effective balance, use it immediately
-      if (effectiveAvailable >= requiredAmount) {
-        this.logger.debug(
-          {
-            sourceChain: chainName,
-            targetChain,
-            cachedBalance: balance.available.toString(),
-            consumed: consumed.toString(),
-            effectiveAvailable: effectiveAvailable.toString(),
-            required: requiredAmount.toString(),
-          },
-          'Found source chain with sufficient effective inventory',
-        );
-        return { chain: chainName, availableAmount: effectiveAvailable };
-      }
-
-      // Track the chain with highest effective balance as fallback
-      if (!bestSource || effectiveAvailable > bestSource.availableAmount) {
-        bestSource = { chain: chainName, availableAmount: effectiveAvailable };
+      if (effectiveAvailable > 0n) {
+        sources.push({ chain: chainName, availableAmount: effectiveAvailable });
       }
     }
 
-    // Return best source if it has any effective balance
-    if (bestSource && bestSource.availableAmount > 0n) {
-      this.logger.debug(
-        {
-          sourceChain: bestSource.chain,
-          targetChain,
-          effectiveAvailable: bestSource.availableAmount.toString(),
-          required: requiredAmount.toString(),
-        },
-        'Selected source chain with partial effective inventory',
-      );
-      return bestSource;
-    }
-
-    return null;
+    // Sort by available amount descending (bridge from largest sources first)
+    return sources.sort((a, b) =>
+      a.availableAmount > b.availableAmount ? -1 : 1,
+    );
   }
 
   /**

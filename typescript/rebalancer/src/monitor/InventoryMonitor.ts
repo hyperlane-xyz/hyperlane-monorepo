@@ -192,4 +192,19 @@ export class InventoryMonitor implements IInventoryMonitor {
       'Inventory balances refreshed',
     );
   }
+
+  /**
+   * Get total inventory across all monitored chains, optionally excluding specific chains.
+   */
+  async getTotalInventory(excludeChains?: ChainName[]): Promise<bigint> {
+    const excludeSet = new Set(excludeChains ?? []);
+    let total = 0n;
+
+    for (const [chainName, balance] of this.cachedBalances) {
+      if (excludeSet.has(chainName)) continue;
+      total += balance.available;
+    }
+
+    return total;
+  }
 }
