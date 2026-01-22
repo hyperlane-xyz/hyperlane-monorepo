@@ -1,0 +1,23 @@
+[package]
+name = "hyperlane-tron"
+documentation.workspace = true
+edition.workspace = true
+homepage.workspace = true
+license-file.workspace = true
+publish.workspace = true
+version.workspace = true
+
+[dependencies]
+derive-new.workspace = true
+ethers-signers.workspace = true
+url.workspace = true
+
+[build-dependencies]
+abigen = { path = "../../utils/abigen", features = ["ethers"] }
+
+[dev-dependencies]
+tracing-test.workspace = true
+
+[features]
+default = []
+test-utils = []

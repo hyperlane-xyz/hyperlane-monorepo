@@ -205,7 +205,7 @@ export function hyperlaneWarpCheckRaw({
   ica,
   origin,
   originOwner,
-  destinations,
+  chains,
 }: {
   symbol?: string;
   warpDeployPath?: string;
@@ -214,7 +214,7 @@ export function hyperlaneWarpCheckRaw({
   ica?: boolean;
   origin?: string;
   originOwner?: string;
-  destinations?: string[];
+  chains?: string[];
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
@@ -226,7 +226,7 @@ export function hyperlaneWarpCheckRaw({
         ${ica ? ['--ica'] : []} \
         ${origin ? ['--origin', origin] : []} \
         ${originOwner ? ['--originOwner', originOwner] : []} \
-        ${destinations && destinations.length > 0 ? ['--destinations', destinations.join(',')] : []}`;
+        ${chains?.length ? chains.flatMap((d) => ['--chains', d]) : []}`;
 }
 
 export function hyperlaneWarpCheck(
@@ -255,7 +255,7 @@ export function hyperlaneWarpSendRelay({
   warpCorePath: string;
   relay?: boolean;
   value?: number | string;
-  chains?: string;
+  chains?: string[];
   roundTrip?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
@@ -268,7 +268,7 @@ export function hyperlaneWarpSendRelay({
         --verbosity debug \
         --yes \
         --amount ${value} \
-        ${chains ? ['--chains', chains] : []} \
+        ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
         ${roundTrip ? ['--round-trip'] : []} `;
 }
 

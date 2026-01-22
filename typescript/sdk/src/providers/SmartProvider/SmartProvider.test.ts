@@ -110,6 +110,138 @@ describe('SmartProvider', () => {
     provider = new TestableSmartProvider([MockProvider.success('success')]);
   });
 
+  describe('custom_rpc_header handling', () => {
+    it('merges custom headers into existing connection and preserves fields', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:token&foo=bar';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [
+          {
+            http: rawUrl,
+            connection: {
+              url: rawUrl,
+              timeout: 1234,
+              headers: { 'X-Test': 'abc' },
+            },
+          } as any,
+        ],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+      const expectedUrl = new URL('http://example.com/path?foo=bar').toString();
+
+      expect(rpcConfig.http).to.equal(expectedUrl);
+      expect(rpcConfig.connection?.url).to.equal(expectedUrl);
+      expect(rpcConfig.connection?.timeout).to.equal(1234);
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        'X-Test': 'abc',
+        Authorization: '[REDACTED]',
+      });
+    });
+
+    it('preserves existing connection url when different and merges headers', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:new';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [
+          {
+            http: rawUrl,
+            connection: {
+              url: 'http://other.example.com/path',
+              timeout: 5678,
+              headers: { Authorization: 'old', 'X-Test': 'abc' },
+            },
+          } as any,
+        ],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.connection?.url).to.equal(
+        'http://other.example.com/path',
+      );
+      expect(rpcConfig.connection?.timeout).to.equal(5678);
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        Authorization: '[REDACTED]',
+        'X-Test': 'abc',
+      });
+    });
+
+    it('handles multiple custom_rpc_header params', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:Bearer%20token&custom_rpc_header=X-Api-Key:secret123';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.http).to.equal('http://example.com/path');
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        Authorization: '[REDACTED]',
+        'X-Api-Key': '[REDACTED]',
+      });
+    });
+
+    it('silently skips malformed headers without colon', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=MalformedNoColon&custom_rpc_header=Valid:header';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.http).to.equal('http://example.com/path');
+      // Malformed header silently ignored, only valid one present
+      expect(rpcConfig.connection?.headers).to.deep.equal({
+        Valid: '[REDACTED]',
+      });
+    });
+
+    it('passes through URL unchanged when no custom_rpc_header present', () => {
+      const rawUrl = 'http://example.com/path?foo=bar&baz=qux';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+
+      expect(rpcConfig.http).to.equal(rawUrl);
+      expect(rpcConfig.connection).to.be.undefined;
+    });
+
+    it('last duplicate header wins (like Rust behavior)', () => {
+      const rawUrl =
+        'http://example.com/path?custom_rpc_header=Authorization:first&custom_rpc_header=Authorization:second';
+      const provider = new HyperlaneSmartProvider(
+        { chainId: 1, name: 'test' },
+        [{ http: rawUrl }],
+        [],
+      );
+
+      const rpcConfig = provider.rpcProviders[0].rpcConfig;
+      // rpcConfig has redacted headers for logging safety
+      expect(rpcConfig.connection?.headers?.['Authorization']).to.equal(
+        '[REDACTED]',
+      );
+
+      // Actual connection (used for requests) has real value - last duplicate wins
+      const actualConnection = provider.rpcProviders[0].connection;
+      expect(actualConnection.headers?.['Authorization']).to.equal('second');
+    });
+  });
+
   describe('getCombinedProviderError', () => {
     const blockchainErrorTestCases = [
       {

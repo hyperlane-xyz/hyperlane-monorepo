@@ -225,7 +225,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     expect(output.text()).to.include(normalizeAddressEvm(expectedIcaAddress));
   });
 
-  it('should warn and skip when --destinations contains chains not in the warp config', async function () {
+  it('should warn and skip when --chains contains chains not in the warp config', async function () {
     const currentWarpId = await deployIcaWarpRoute(
       expectedIcaAddress,
       'invalid-dest',
@@ -235,7 +235,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
       warpRouteId: currentWarpId,
       ica: true,
       origin: CHAIN_NAME_2,
-      destinations: ['nonexistent'],
+      chains: ['nonexistent'],
     }).nothrow();
 
     expect(output.exitCode).to.equal(1);
@@ -243,7 +243,7 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     expect(output.text()).to.include('No EVM destination chains to check');
   });
 
-  it('should only check specified destinations when --destinations is provided', async function () {
+  it('should only check specified chains when --chains is provided', async function () {
     const currentWarpId = await deployIcaWarpRoute(
       expectedIcaAddress,
       'filter-dest',
@@ -253,14 +253,14 @@ describe('hyperlane warp check --ica e2e tests', async function () {
       warpRouteId: currentWarpId,
       ica: true,
       origin: CHAIN_NAME_2,
-      destinations: [CHAIN_NAME_3],
+      chains: [CHAIN_NAME_3],
     }).nothrow();
 
     expect(output.exitCode).to.equal(0);
     expect(output.text()).to.include('No violations found');
   });
 
-  it('should only check ICA ownership on specified destinations when using --destinations with mixed ICA/EOA owners', async function () {
+  it('should only check ICA ownership on specified chains when using --chains with mixed ICA/EOA owners', async function () {
     // Create 3-chain warp config with mixed ownership:
     // - anvil2 (origin): ICA owner
     // - anvil3: correct ICA address (should pass)
@@ -298,12 +298,12 @@ describe('hyperlane warp check --ica e2e tests', async function () {
 
     await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
 
-    // Run check with --destinations to only check anvil3 (ICA), skipping anvil4 (EOA)
+    // Run check with --chains to only check anvil3 (ICA), skipping anvil4 (EOA)
     const output = await hyperlaneWarpCheckRaw({
       warpRouteId: currentWarpId,
       ica: true,
       origin: CHAIN_NAME_2,
-      destinations: [CHAIN_NAME_3],
+      chains: [CHAIN_NAME_3],
     }).nothrow();
 
     // Should pass because we only checked anvil3 which has correct ICA owner

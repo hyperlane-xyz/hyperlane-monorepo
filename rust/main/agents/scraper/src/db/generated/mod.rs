@@ -8,4 +8,5 @@ pub mod delivered_message;
 pub mod domain;
 pub mod gas_payment;
 pub mod message;
+pub mod raw_message_dispatch;
 pub mod transaction;

@@ -14,14 +14,14 @@ $.verbose = true;
  */
 export function hyperlaneIcaDeployRaw({
   origin,
-  destinations,
+  chains,
   owner,
   privateKey,
   hypKey,
   skipConfirmationPrompts,
 }: {
   origin?: ChainName;
-  destinations?: ChainName[];
+  chains?: ChainName[];
   owner?: Address;
   privateKey?: string;
   hypKey?: string;
@@ -32,7 +32,7 @@ export function hyperlaneIcaDeployRaw({
   } ${localTestRunCmdPrefix()} hyperlane ica deploy \
         --registry ${REGISTRY_PATH} \
         ${origin ? ['--origin', origin] : []} \
-        ${destinations && destinations.length > 0 ? ['--destinations', destinations.join(',')] : []} \
+        ${chains?.length ? chains.flatMap((d) => ['--chains', d]) : []} \
         ${owner ? ['--owner', owner] : []} \
         ${privateKey ? ['--key', privateKey] : []} \
         --verbosity debug \
@@ -44,12 +44,12 @@ export function hyperlaneIcaDeployRaw({
  */
 export function hyperlaneIcaDeploy(
   origin: ChainName,
-  destinations: ChainName[],
+  chains: ChainName[],
   owner: Address,
 ): ProcessPromise {
   return hyperlaneIcaDeployRaw({
     origin,
-    destinations,
+    chains,
     owner,
     privateKey: ANVIL_KEY,
     skipConfirmationPrompts: true,

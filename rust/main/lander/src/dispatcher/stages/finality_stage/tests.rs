@@ -244,7 +244,7 @@ async fn test_post_finalized_called_when_tx_finalized() {
     // post_finalized should be called for each finalized transaction
     mock_adapter.expect_post_finalized().returning(|| Ok(()));
 
-    let (txs_created, _txs_received, tx_db, payload_db, pool, _) =
+    let (txs_created, _txs_received, tx_db, _payload_db, pool, _building_stage_queue) =
         set_up_test_and_run_stage(mock_adapter, TXS_TO_PROCESS, TransactionStatus::Finalized).await;
 
     // verify transactions were finalized and removed from pool
