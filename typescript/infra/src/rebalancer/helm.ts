@@ -69,11 +69,9 @@ export class RebalancerHelmManager extends HelmManager {
     }
 
     // Store chains for helm values (used for private RPC secrets)
-    // Include BOTH strategy chains AND all warp route chains (for monitoring)
-    const strategyChains = Object.keys(chains);
-    const warpRouteChains = warpCoreConfig.tokens.map((t) => t.chainName);
+    // Warp core config includes all strategy chains
     this.rebalancerChains = [
-      ...new Set([...strategyChains, ...warpRouteChains]),
+      ...new Set(warpCoreConfig.tokens.map((t) => t.chainName)),
     ];
 
     // Store the config file content for helm values
