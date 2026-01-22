@@ -71,7 +71,7 @@ export class AleoTokenAdapter
     );
     assert(
       decimals !== undefined,
-      `divisibility on aleo token ${this.tokenAddress} is undefined`,
+      `decimals on aleo token ${this.tokenAddress} is undefined`,
     );
 
     return {
