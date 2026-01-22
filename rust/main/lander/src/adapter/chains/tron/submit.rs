@@ -61,6 +61,8 @@ pub async fn submit_transaction<P: TronProviderForLander>(
         .await
         .map_err(classify_tron_error)?;
 
+    tx.last_submission_attempt = Some(chrono::Utc::now());
+
     // Store transaction hash
     if !tx.tx_hashes.contains(&tx_hash.into()) {
         tx.tx_hashes.push(tx_hash.into());

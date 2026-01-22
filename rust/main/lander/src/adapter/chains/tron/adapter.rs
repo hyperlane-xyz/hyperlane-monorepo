@@ -179,6 +179,17 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
         Ok(reverted)
     }
 
+    /// Return true if the transaction can be resubmitted (such as by escalating the gas price). Called in the Inclusion Stage (PayloadDispatcher).
+    /// Defaults to true, since most chains don't have special rules for tx resubmission.
+    async fn tx_ready_for_resubmission(&self, tx: &Transaction) -> bool {
+        let last_attempt = tx.last_submission_attempt.unwrap_or(tx.creation_timestamp);
+        let elapsed = chrono::Utc::now()
+            .signed_duration_since(last_attempt)
+            .num_seconds();
+
+        elapsed >= self.estimated_block_time.as_secs() as i64 * 18 // approx. 18 blocks for finality
+    }
+
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
     fn estimated_block_time(&self) -> &Duration {
         &self.estimated_block_time
