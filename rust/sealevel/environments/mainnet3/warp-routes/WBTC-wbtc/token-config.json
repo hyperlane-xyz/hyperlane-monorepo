@@ -16,7 +16,7 @@
     "type": "synthetic",
     "decimals": 8,
     "foreignDeployment": "0xe6936C72Cd3Ce5a8Cac4C55AbD82B4Be1D5bCd18",
-    "name": "",
-    "symbol": ""
+    "name": "Hyperlane WBTC",
+    "symbol": "HWBTC"
   }
 }
