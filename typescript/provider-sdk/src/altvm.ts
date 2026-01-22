@@ -620,9 +620,12 @@ export interface ISigner<T, R> extends IProvider<T> {
 
   transactionToPrintableJson(transaction: T): Promise<object>;
 
-  sendAndConfirmTransaction(transaction: T): Promise<R>;
+  sendAndConfirmTransaction(transaction: T, confirmations?: number): Promise<R>;
 
-  sendAndConfirmBatchTransactions(transactions: T[]): Promise<R>;
+  sendAndConfirmBatchTransactions(
+    transactions: T[],
+    confirmations?: number,
+  ): Promise<R>;
 
   // ### TX CORE ###
 

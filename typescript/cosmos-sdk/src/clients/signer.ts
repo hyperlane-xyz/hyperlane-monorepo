@@ -16,7 +16,7 @@ import {
 import { type CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
 import { type AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, isUrl, strip0x } from '@hyperlane-xyz/utils';
+import { assert, isUrl, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
 import { getProtoConverter } from '../utils/base.js';
@@ -162,6 +162,7 @@ export class CosmosNativeSigner
 
   async sendAndConfirmTransaction(
     transaction: EncodeObject,
+    confirmations?: number,
   ): Promise<DeliverTxResponse> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
@@ -171,11 +172,21 @@ export class CosmosNativeSigner
     );
     assertIsDeliverTxSuccess(receipt);
 
+    if (!confirmations) {
+      return receipt;
+    }
+
+    const targetHeight = receipt.height + confirmations;
+    while ((await this.getHeight()) < targetHeight) {
+      await sleep(2000);
+    }
+
     return receipt;
   }
 
   async sendAndConfirmBatchTransactions(
     transactions: EncodeObject[],
+    confirmations?: number,
   ): Promise<DeliverTxResponse> {
     const receipt = await this.signer.signAndBroadcast(
       this.account.address,
@@ -184,6 +195,15 @@ export class CosmosNativeSigner
       this.options.memo,
     );
     assertIsDeliverTxSuccess(receipt);
+
+    if (!confirmations) {
+      return receipt;
+    }
+
+    const targetHeight = receipt.height + confirmations;
+    while ((await this.getHeight()) < targetHeight) {
+      await sleep(2000);
+    }
 
     return receipt;
   }
