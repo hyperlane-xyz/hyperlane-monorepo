@@ -22,7 +22,6 @@ nativeToken:
 protocol: radix
 restPort: 3333
 rpcPort: 3333
-rpcUrl: http://127.0.0.1:3333/core
 rpcUrls:
   - http: http://127.0.0.1:3333/core
 technicalStack: other
