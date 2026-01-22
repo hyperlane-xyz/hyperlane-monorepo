@@ -1,7 +1,6 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  AltVMDeployer,
   createHookWriter,
   createIsmWriter,
   createWarpTokenWriter,
@@ -152,17 +151,26 @@ export async function executeWarpDeploy(
         break;
       }
       default: {
-        const signersMap = objMap(protocolSpecificConfig, (chain, _) =>
-          mustGet(altVmSigners, chain),
-        );
+        const chainLookup = altVmChainLookup(multiProvider);
 
-        const deployer = new AltVMDeployer(signersMap);
-        deployedContracts = {
-          ...deployedContracts,
-          ...(await deployer.deploy(
-            protocolSpecificConfig as Record<string, ProviderWarpConfig>,
-          )),
-        };
+        for (const [chain, config] of Object.entries(protocolSpecificConfig)) {
+          const signer = mustGet(altVmSigners, chain);
+          const chainMetadata = multiProvider.getChainMetadata(chain);
+          const writer = createWarpTokenWriter(
+            chainMetadata,
+            chainLookup,
+            signer,
+          );
+
+          // Convert config to artifact format
+          const artifact = warpConfigToArtifact(
+            config as ProviderWarpConfig,
+            chainLookup,
+          );
+
+          const [deployed] = await writer.create(artifact);
+          deployedContracts[chain] = deployed.deployed.address;
+        }
 
         break;
       }
