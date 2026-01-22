@@ -34,6 +34,7 @@ use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
 use hyperlane_starknet::{self as h_starknet, StarknetProvider};
+use hyperlane_tron::{self as h_tron};
 
 use crate::{
     metrics::AgentMetricsConf,
@@ -182,6 +183,8 @@ pub enum ChainConnectionConf {
     /// Aleo configuration
     #[cfg(feature = "aleo")]
     Aleo(h_aleo::ConnectionConf),
+    /// Tron configuration
+    Tron(h_tron::ConnectionConf),
 }
 
 impl ChainConnectionConf {
@@ -195,6 +198,7 @@ impl ChainConnectionConf {
             Self::Starknet(_) => HyperlaneDomainProtocol::Starknet,
             Self::CosmosNative(_) => HyperlaneDomainProtocol::CosmosNative,
             Self::Radix(_) => HyperlaneDomainProtocol::Radix,
+            Self::Tron(_) => HyperlaneDomainProtocol::Tron,
             #[cfg(feature = "aleo")]
             Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
         }
@@ -252,6 +256,10 @@ impl ChainConf {
         let locator = self.locator(H256::zero());
         let result: Result<Box<dyn ApplicationOperationVerifier>, Report> = match &self.connection {
             ChainConnectionConf::Ethereum(_conf) => Ok(Box::new(
+                h_eth::application::EthereumApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Tron(_conf) => Ok(Box::new(
                 h_eth::application::EthereumApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
@@ -331,6 +339,7 @@ impl ChainConf {
                 let provider = build_radix_provider(self, conf, metrics, &locator, None)?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -404,6 +413,7 @@ impl ChainConf {
                 let mailbox = h_radix::RadixMailbox::new(provider, &locator, conf)?;
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let signer = self.aleo_signer().await?;
@@ -466,6 +476,7 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -549,6 +560,7 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -628,6 +640,7 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -699,6 +712,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn InterchainGasPaymaster>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -774,6 +788,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -857,6 +872,7 @@ impl ChainConf {
                 )?);
                 Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -938,6 +954,7 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let signer = self.aleo_signer().await?;
@@ -1008,6 +1025,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1068,6 +1086,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1123,6 +1142,7 @@ impl ChainConf {
                 let ism = h_radix::RadixIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -1178,6 +1198,7 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 todo!("Radix aggregation ISM not yet implemented")
             }
+            ChainConnectionConf::Tron(_) => todo!(),
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
@@ -1217,6 +1238,9 @@ impl ChainConf {
             ChainConnectionConf::Radix(_) => {
                 Err(eyre!("Radix does not support CCIP read ISM yet")).context(ctx)
             }
+            ChainConnectionConf::Tron(_) => {
+                Err(eyre!("Tron does not support CCIP read ISM yet")).context(ctx)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
         }
@@ -1252,6 +1276,7 @@ impl ChainConf {
                 ChainConnectionConf::Radix(_) => {
                     Box::new(conf.build::<h_radix::RadixSigner>().await?)
                 }
+                ChainConnectionConf::Tron(_) => Box::new(conf.build::<h_tron::TronSigner>().await?),
                 #[cfg(feature = "aleo")]
                 ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
             };
