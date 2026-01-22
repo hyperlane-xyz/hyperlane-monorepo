@@ -231,13 +231,14 @@ describe('SmartProvider', () => {
       );
 
       const rpcConfig = provider.rpcProviders[0].rpcConfig;
-
-      // Can't verify actual value due to redaction, but we can verify structure
-      expect(rpcConfig.connection?.headers).to.have.property('Authorization');
-      // The redacted value indicates headers were processed
+      // rpcConfig has redacted headers for logging safety
       expect(rpcConfig.connection?.headers?.['Authorization']).to.equal(
         '[REDACTED]',
       );
+
+      // Actual connection (used for requests) has real value - last duplicate wins
+      const actualConnection = provider.rpcProviders[0].connection;
+      expect(actualConnection.headers?.['Authorization']).to.equal('second');
     });
   });
 

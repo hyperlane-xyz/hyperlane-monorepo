@@ -2,6 +2,7 @@ import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { Logger, pino } from 'pino';
 
 import {
+  isObjEmpty,
   raceWithContext,
   retryAsync,
   rootLogger,
@@ -53,6 +54,7 @@ function parseCustomRpcHeaders(url: string): {
 
   for (const [key, value] of parsed.searchParams) {
     if (key === 'custom_rpc_header') {
+      // Use indexOf instead of split - header values can contain colons (e.g., "Bearer:token:with:colons")
       const colonIdx = value.indexOf(':');
       if (colonIdx > 0) {
         const headerName = value.slice(0, colonIdx);
@@ -80,7 +82,7 @@ function buildRpcConnections(
   redactedConnection?: utils.ConnectionInfo;
 } {
   const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
-  if (Object.keys(headers).length === 0) {
+  if (isObjEmpty(headers)) {
     return {
       url,
       connection: existingConnection,
