@@ -1,0 +1,109 @@
+import { strip0x } from '@hyperlane-xyz/utils';
+
+import {
+  arrayToPlaintext,
+  fillArray,
+  fromAleoAddress,
+} from '../utils/helper.js';
+import type { AleoTransaction } from '../utils/types.js';
+
+/**
+ * Create transaction for initializing a native token
+ */
+export function getCreateNativeTokenTx(): AleoTransaction {
+  return {
+    programName: '',
+    functionName: 'init',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [`0u8`],
+  };
+}
+
+/**
+ * Create transaction for setting token owner
+ */
+export function getSetTokenOwnerTx(
+  tokenAddress: string,
+  newOwner: string,
+): AleoTransaction {
+  return {
+    programName: fromAleoAddress(tokenAddress).programId,
+    functionName: 'set_owner',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [newOwner],
+  };
+}
+
+/**
+ * Create transaction for setting token ISM
+ */
+export function getSetTokenIsmTx(
+  tokenAddress: string,
+  ismAddress: string,
+): AleoTransaction {
+  return {
+    programName: fromAleoAddress(tokenAddress).programId,
+    functionName: 'set_custom_ism',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [fromAleoAddress(ismAddress).address],
+  };
+}
+
+/**
+ * Create transaction for setting token hook
+ */
+export function getSetTokenHookTx(
+  tokenAddress: string,
+  hookAddress: string,
+): AleoTransaction {
+  return {
+    programName: fromAleoAddress(tokenAddress).programId,
+    functionName: 'set_custom_hook',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [fromAleoAddress(hookAddress).address],
+  };
+}
+
+/**
+ * Create transaction for enrolling a remote router
+ */
+export function getEnrollRemoteRouterTx(
+  tokenAddress: string,
+  domainId: number,
+  routerAddress: string,
+  gas: string,
+): AleoTransaction {
+  const bytes = fillArray(
+    [...Buffer.from(strip0x(routerAddress), 'hex')].map((b) => `${b}u8`),
+    32,
+    `0u8`,
+  );
+
+  return {
+    programName: fromAleoAddress(tokenAddress).programId,
+    functionName: 'enroll_remote_router',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [`${domainId}u32`, arrayToPlaintext(bytes), `${gas}u128`],
+  };
+}
+
+/**
+ * Create transaction for unenrolling a remote router
+ */
+export function getUnenrollRemoteRouterTx(
+  tokenAddress: string,
+  domainId: number,
+): AleoTransaction {
+  return {
+    programName: fromAleoAddress(tokenAddress).programId,
+    functionName: 'unroll_remote_router',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [`${domainId}u32`],
+  };
+}
