@@ -26,7 +26,6 @@ import {
   eqAddress,
   isNullish,
   isObjEmpty,
-  isZeroishAddress,
   normalizeAddressEvm,
   objDiff,
   objFilter,
@@ -1079,10 +1078,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
   }> {
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
-    if (
-      typeof expectedConfig.interchainSecurityModule === 'string' &&
-      isZeroishAddress(expectedConfig.interchainSecurityModule)
-    ) {
+    // If ISM is specified as an address, use it directly without deployment
+    if (typeof expectedConfig.interchainSecurityModule === 'string') {
+      this.logger.info(
+        `Using existing ISM at ${expectedConfig.interchainSecurityModule}`,
+      );
       return {
         deployedIsm: expectedConfig.interchainSecurityModule,
         updateTransactions: [],
