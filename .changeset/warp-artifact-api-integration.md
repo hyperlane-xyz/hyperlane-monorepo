@@ -1,10 +1,13 @@
 ---
+"@hyperlane-xyz/provider-sdk": minor
 "@hyperlane-xyz/deploy-sdk": major
 "@hyperlane-xyz/cli": patch
 "@hyperlane-xyz/sdk": patch
 ---
 
 Integrated warp artifact API to replace module abstraction. WarpTokenReader and WarpTokenWriter provide unified interface for reading and deploying warp tokens across all protocols. The artifact API implementation follows ISM and Hook patterns for consistency.
+
+Moved ISM utility functions (`ismConfigToArtifact` and `shouldDeployNewIsm`) from deploy-sdk to provider-sdk for consistency with hook and warp utility functions. These are now exported from `@hyperlane-xyz/provider-sdk/ism` alongside `hookConfigToArtifact` and `warpConfigToArtifact`.
 
 **Breaking changes in @hyperlane-xyz/deploy-sdk:**
 - Removed `AltVMWarpModule` - use `createWarpTokenWriter()` instead
