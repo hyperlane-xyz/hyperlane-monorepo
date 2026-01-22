@@ -20,6 +20,7 @@ use hyperlane_core::{
 #[serde(rename_all = "camelCase")]
 pub struct KaspaValidatorEscrow {
     pub host: String,
+    #[serde(alias = "escrowpub")]
     pub escrow_pub: String,
 }
 
@@ -34,6 +35,7 @@ pub struct KaspaValidatorEscrow {
 #[serde(rename_all = "camelCase")]
 pub struct KaspaValidatorIsm {
     pub host: String,
+    #[serde(alias = "ismaddress")]
     pub ism_address: String,
 }
 
