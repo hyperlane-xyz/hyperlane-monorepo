@@ -205,7 +205,7 @@ export function hyperlaneWarpCheckRaw({
   ica,
   origin,
   originOwner,
-  destinations,
+  chains,
 }: {
   symbol?: string;
   warpDeployPath?: string;
@@ -214,7 +214,7 @@ export function hyperlaneWarpCheckRaw({
   ica?: boolean;
   origin?: string;
   originOwner?: string;
-  destinations?: string[];
+  chains?: string[];
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
@@ -226,7 +226,7 @@ export function hyperlaneWarpCheckRaw({
         ${ica ? ['--ica'] : []} \
         ${origin ? ['--origin', origin] : []} \
         ${originOwner ? ['--originOwner', originOwner] : []} \
-        ${destinations?.length ? destinations.flatMap((d) => ['--destinations', d]) : []}`;
+        ${chains?.length ? chains.flatMap((d) => ['--chains', d]) : []}`;
 }
 
 export function hyperlaneWarpCheck(

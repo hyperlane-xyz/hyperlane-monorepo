@@ -25,7 +25,7 @@ export const icaCommand: CommandModule = {
  */
 export const deploy: CommandModuleWithWriteContext<{
   origin: string;
-  destinations: string[];
+  chains: string[];
   owner: string;
 }> = {
   command: 'deploy',
@@ -38,9 +38,9 @@ export const deploy: CommandModuleWithWriteContext<{
         'The origin chain where the owner address lives. Ethereum is used by default',
       default: 'ethereum',
     },
-    destinations: {
+    chains: {
       ...stringArrayOptionConfig({
-        description: 'List of destination chains for ICA deployment',
+        description: 'List of chains for ICA deployment',
         demandOption: true,
       }),
     },
@@ -51,13 +51,13 @@ export const deploy: CommandModuleWithWriteContext<{
       demandOption: true,
     },
   },
-  handler: async ({ context, origin, destinations, owner }) => {
+  handler: async ({ context, origin, chains, owner }) => {
     logCommandHeader('Hyperlane ICA Deploy');
 
     await runIcaDeploy({
       context,
       origin,
-      destinations,
+      chains,
       owner,
     });
 
