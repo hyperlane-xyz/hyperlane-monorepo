@@ -23,7 +23,7 @@ import { getOverhead } from '../../../src/config/gas-oracle.js';
 
 import { DEPLOYER } from './owners.js';
 
-export const EDEN_CONNECTED_CHAINS: ChainName[] = ['celestia'];
+export const EDEN_CONNECTED_CHAINS = ['celestia'];
 
 export function getEdenIgpConfig(
   owner: OwnableConfig,
