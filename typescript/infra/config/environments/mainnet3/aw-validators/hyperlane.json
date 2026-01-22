@@ -395,9 +395,6 @@
   "zerogravity": {
     "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
   },
-  "zeronetwork": {
-    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
-  },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]
   },
@@ -409,5 +406,8 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
+  },
+  "eden": {
+    "validators": ["0x1c61e6379443e2842d3e9db28e962b6c717fdab1"]
   }
 }
