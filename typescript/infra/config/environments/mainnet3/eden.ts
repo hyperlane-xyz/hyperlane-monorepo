@@ -17,7 +17,7 @@ import {
   defaultMultisigConfigs,
   multisigConfigToIsmConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { assert } from '@hyperlane-xyz/utils';
 
 import { getOverhead } from '../../../src/config/gas-oracle.js';
 
@@ -46,10 +46,11 @@ export function getEdenIgpConfig(
       ]),
     ),
     oracleConfig: Object.fromEntries(
-      EDEN_CONNECTED_CHAINS.map((remote) => [
-        remote,
-        storageGasOracleConfig['eden'][remote],
-      ]),
+      EDEN_CONNECTED_CHAINS.map((remote) => {
+        const config = storageGasOracleConfig['eden'][remote];
+        assert(config, `Missing gas oracle config for eden -> ${remote}`);
+        return [remote, config];
+      }),
     ),
   };
 }
@@ -78,7 +79,7 @@ export function getEdenCoreConfig(
           type: IsmType.AGGREGATION,
           modules: [messageIdIsm, merkleRoot],
           threshold: 1,
-        } as AggregationIsmConfig,
+        },
       ]),
     ),
     ...owner,
@@ -129,7 +130,7 @@ export function getEdenCoreConfig(
     type: HookType.PROTOCOL_FEE,
     maxProtocolFee: ethers.utils.parseUnits('1', 'gwei').toString(),
     protocolFee: BigNumber.from(0).toString(),
-    beneficiary: owner.owner as Address,
+    beneficiary: owner.owner,
     ...owner,
   };
 
