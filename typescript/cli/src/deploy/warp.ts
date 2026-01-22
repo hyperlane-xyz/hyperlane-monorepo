@@ -654,9 +654,12 @@ export async function extendWarpRoute(
     return existingToken ? { ...existingToken, ...token } : token;
   });
 
-  // Preserve top-level options (fee constants, route blacklist)
+  // Preserve top-level options if no updates
   if (warpCoreConfig.options) {
-    updatedWarpCoreConfig.options = warpCoreConfig.options;
+    updatedWarpCoreConfig.options = {
+      ...warpCoreConfig.options,
+      ...updatedWarpCoreConfig.options,
+    };
   }
 
   // Write the updated artifacts
