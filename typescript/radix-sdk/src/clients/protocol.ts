@@ -163,7 +163,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
   createWarpArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    _context?: { mailbox?: string },
   ): IRawWarpArtifactManager {
     assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
 
