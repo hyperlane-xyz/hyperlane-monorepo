@@ -22,7 +22,7 @@ concurrency:
 
 jobs:
   build:
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: buildjet-8vcpu-ubuntu-2204
     outputs:
       version: ${{ steps.version.outputs.version }}
       program_type: ${{ steps.version.outputs.program_type }}
@@ -124,7 +124,7 @@ jobs:
 
   verify-reproducibility:
     needs: build
-    runs-on: depot-ubuntu-24.04-8
+    runs-on: buildjet-8vcpu-ubuntu-2204
 
     steps:
       - name: Checkout repository
