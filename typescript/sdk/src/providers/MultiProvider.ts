@@ -48,6 +48,14 @@ export interface MultiProviderOptions {
   signers?: ChainMap<Signer>;
 }
 
+export interface SendTransactionOptions {
+  /**
+   * Number of confirmations to wait for, or a block tag like "finalized" or "safe".
+   * If not provided, uses chain metadata's blocks.confirmations (default: 1).
+   */
+  waitConfirmations?: number | string;
+}
+
 /**
  * A utility class to create and manage providers and signers for multiple chains
  * @typeParam MetaExt - Extra metadata fields for chains (such as contract addresses)
@@ -379,22 +387,71 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
   /**
    * Wait for given tx to be confirmed
+   * @param waitConfirmations - Optional override for confirmation count or block tag (e.g., "finalized", "safe")
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async handleTx(
     chainNameOrId: ChainNameOrId,
     tx: ContractTransaction | Promise<ContractTransaction>,
+    waitConfirmations?: number | string,
   ): Promise<ContractReceipt> {
-    const confirmations =
-      this.getChainMetadata(chainNameOrId).blocks?.confirmations ?? 1;
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
+
+    // Use provided waitConfirmations, or fall back to chain metadata confirmations
+    const confirmations =
+      waitConfirmations ??
+      this.getChainMetadata(chainNameOrId).blocks?.confirmations ??
+      1;
+
+    // Handle string block tags (e.g., "finalized", "safe")
+    if (typeof confirmations === 'string') {
+      this.logger.info(
+        `Pending ${txUrl || response.hash} (waiting for ${confirmations} block)`,
+      );
+      return this.waitForBlockTag(chainNameOrId, response, confirmations);
+    }
+
+    // Handle numeric confirmations
     this.logger.info(
-      `Pending ${
-        txUrl || response.hash
-      } (waiting ${confirmations} blocks for confirmation)`,
+      `Pending ${txUrl || response.hash} (waiting ${confirmations} blocks for confirmation)`,
     );
     return response.wait(confirmations);
+  }
+
+  /**
+   * Wait for a transaction to be included in a block with the given tag (e.g., "finalized", "safe").
+   * Polls until the tagged block number >= transaction block number.
+   * @internal - Prefer using handleTx with waitConfirmations parameter.
+   */
+  async waitForBlockTag(
+    chainNameOrId: ChainNameOrId,
+    response: ContractTransaction,
+    blockTag: string,
+  ): Promise<ContractReceipt> {
+    const provider = this.getProvider(chainNameOrId);
+    const receipt = await response.wait(1); // Wait for initial inclusion
+    const txBlock = receipt.blockNumber;
+
+    const POLL_INTERVAL_MS = 2000;
+    const MAX_WAIT_MS = 60000; // 1 minute timeout
+    const startTime = Date.now();
+
+    while (Date.now() - startTime < MAX_WAIT_MS) {
+      const taggedBlock = await provider.getBlock(blockTag);
+      if (taggedBlock && taggedBlock.number >= txBlock) {
+        this.logger.info(
+          `Transaction ${response.hash} confirmed at ${blockTag} block ${taggedBlock.number}`,
+        );
+        return receipt;
+      }
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
+    }
+
+    this.logger.warn(
+      `Timeout waiting for ${blockTag} block for tx ${response.hash}, proceeding anyway`,
+    );
+    return receipt;
   }
 
   /**
@@ -438,11 +495,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
   /**
    * Send a transaction and wait for confirmation
+   * @param options - Optional configuration including waitConfirmations
    * @throws if chain's metadata or signer has not been set or tx fails
    */
   async sendTransaction(
     chainNameOrId: ChainNameOrId,
     txProm: AnnotatedEV5Transaction | Promise<AnnotatedEV5Transaction>,
+    options?: SendTransactionOptions,
   ): Promise<ContractReceipt> {
     const { annotation, ...tx } = await txProm;
     if (annotation) {
@@ -452,7 +511,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
-    return this.handleTx(chainNameOrId, response);
+    return this.handleTx(chainNameOrId, response, options?.waitConfirmations);
   }
 
   /**
