@@ -75,7 +75,10 @@ impl RouterDeployer<HelloWorldConfig> for HelloWorldDeployer {
         payer: Pubkey,
         router_configs: Vec<RemoteRouterConfig>,
     ) -> Instruction {
-        enroll_remote_routers_instruction(program_id, payer, router_configs).unwrap()
+        // Convert from connection-client type to helloworld wrapper type
+        let wrapper_configs: Vec<hyperlane_sealevel_hello_world::types::RemoteRouterConfig> =
+            router_configs.into_iter().map(Into::into).collect();
+        enroll_remote_routers_instruction(program_id, payer, wrapper_configs).unwrap()
     }
 
     fn get_routers(&self, client: &RpcClient, program_id: &Pubkey) -> HashMap<u32, H256> {

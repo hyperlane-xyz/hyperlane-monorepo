@@ -3,10 +3,7 @@
 use access_control::AccessControl;
 use account_utils::{verify_rent_exempt, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{
-    accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
-    H256,
-};
+use hyperlane_core::{Decode, Encode, HyperlaneMessage, H256};
 #[cfg(not(feature = "no-entrypoint"))]
 use solana_program::entrypoint;
 use solana_program::{
@@ -21,6 +18,7 @@ use solana_program::{
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
 
+use crate::types::MerkleTree;
 use account_utils::{create_pda_account, verify_account_uninitialized};
 use hyperlane_sealevel_interchain_security_module_interface::{
     InterchainSecurityModuleInstruction, VerifyInstruction,
@@ -647,7 +645,7 @@ fn outbox_dispatch(
 
     let count = outbox
         .tree
-        .count()
+        .count
         .try_into()
         .expect("Too many messages in outbox tree");
 
@@ -743,7 +741,7 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
 
     let count: u32 = outbox
         .tree
-        .count()
+        .count
         .try_into()
         .expect("Too many messages in outbox tree");
     // Wrap it in the SimulationReturnData because serialized `count.to_le_bytes()`
@@ -774,7 +772,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     let root = outbox.tree.root();
     let count: u32 = outbox
         .tree
-        .count()
+        .count
         .try_into()
         .expect("Too many messages in outbox tree");
 

@@ -85,7 +85,7 @@ impl TryFrom<&[u8]> for Instruction {
 }
 
 /// Holds data relating to a specific domain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone, ShankType)]
 pub struct Domained<T> {
     #[skip]
     pub domain: u32,
