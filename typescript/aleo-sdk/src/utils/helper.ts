@@ -1,8 +1,11 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
 import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
+
+import { AleoTokenType } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
@@ -308,4 +311,20 @@ export function getBalanceKey(address: string, denom: string): string {
       Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
     )
     .toString();
+}
+
+/**
+ * Convert AleoTokenType to provider-sdk TokenType
+ */
+export function aleoTokenTypeToWarpType(aleoType: AleoTokenType): TokenType {
+  switch (aleoType) {
+    case AleoTokenType.NATIVE:
+      return TokenType.native;
+    case AleoTokenType.SYNTHETIC:
+      return TokenType.synthetic;
+    case AleoTokenType.COLLATERAL:
+      return TokenType.collateral;
+    default:
+      throw new Error(`Unknown AleoTokenType: ${aleoType}`);
+  }
 }
