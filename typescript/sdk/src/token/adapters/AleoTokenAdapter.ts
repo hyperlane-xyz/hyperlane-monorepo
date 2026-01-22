@@ -146,7 +146,7 @@ export class AleoNativeTokenAdapter
   }
 }
 
-export class AleoHypCollateralAdapter
+export class BaseAleoHypTokenAdapter
   extends AleoTokenAdapter
   implements IHypTokenAdapter<AleoTransaction>
 {
@@ -257,7 +257,7 @@ export class AleoHypCollateralAdapter
     }
 
     return this.provider.getRemoteTransferTransaction({
-      signer: params.fromAccountOwner!,
+      signer: params.fromAccountOwner,
       tokenAddress: this.tokenAddress,
       destinationDomainId: params.destination,
       recipient: strip0x(addressToBytes32(params.recipient)),
@@ -272,10 +272,11 @@ export class AleoHypCollateralAdapter
   }
 }
 
-export class AleoHypSyntheticAdapter extends AleoHypCollateralAdapter {}
+export class AleoHypCollateralAdapter extends BaseAleoHypTokenAdapter {}
+export class AleoHypSyntheticAdapter extends BaseAleoHypTokenAdapter {}
 
 export class AleoHypNativeAdapter
-  extends AleoHypCollateralAdapter
+  extends BaseAleoHypTokenAdapter
   implements ITokenAdapter<AleoTransaction>
 {
   override async getDenom(): Promise<string> {
