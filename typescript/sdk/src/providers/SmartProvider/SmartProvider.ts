@@ -42,6 +42,11 @@ function parseCustomRpcHeaders(url: string): {
     return { url, headers: {}, redactedHeaders: {} };
   }
 
+  // Quick check: if no custom_rpc_header params exist, return original URL unchanged
+  if (!parsed.searchParams.has('custom_rpc_header')) {
+    return { url, headers: {}, redactedHeaders: {} };
+  }
+
   const headers: Record<string, string> = {};
   const redactedHeaders: Record<string, string> = {};
   const retainedParams: [string, string][] = [];
