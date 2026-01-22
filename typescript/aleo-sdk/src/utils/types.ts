@@ -39,3 +39,46 @@ export const AleoNetworkId = {
 } as const;
 
 export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
+
+/**
+ * Internal Aleo-specific warp token configuration types.
+ * These are used by query and transaction functions, and converted to/from
+ * provider-sdk artifact types by reader/writer implementations.
+ */
+
+interface BaseAleoWarpTokenConfig {
+  owner: string;
+  mailbox: string;
+  ism?: string; // ISM address or undefined if not set
+  remoteRouters: Record<
+    number,
+    {
+      address: string;
+      gas: string;
+    }
+  >;
+}
+
+export interface AleoNativeWarpTokenConfig extends BaseAleoWarpTokenConfig {
+  type: AleoTokenType.NATIVE;
+}
+
+export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {
+  type: AleoTokenType.COLLATERAL;
+  token: string; // collateral token ID
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export interface AleoSyntheticWarpTokenConfig extends BaseAleoWarpTokenConfig {
+  type: AleoTokenType.SYNTHETIC;
+  name: string;
+  symbol: string;
+  decimals: number;
+}
+
+export type AleoWarpTokenConfig =
+  | AleoNativeWarpTokenConfig
+  | AleoCollateralWarpTokenConfig
+  | AleoSyntheticWarpTokenConfig;
