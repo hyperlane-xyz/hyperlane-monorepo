@@ -66,7 +66,8 @@ export async function sendTestTransfer({
     if (multiProvider.getProtocol(hopOrigin) !== ProtocolType.Ethereum) {
       throw new Error(
         `'hyperlane warp send' requires EVM origin chains. '${hopOrigin}' is ${multiProvider.getProtocol(hopOrigin)}. ` +
-          `Non-EVM chains can only be the final destination.`,
+          `Non-EVM chains can only be the final destination. ` +
+          `When using --chains, list EVM chains first (e.g., --chains ethereum,solana).`,
       );
     }
   }
@@ -74,9 +75,19 @@ export async function sendTestTransfer({
     throw new Error('At least two chains are required to send a warp transfer');
   }
 
+  // Include final destination in preflight if self-relaying to EVM
+  const signerChains = new Set(hopOrigins);
+  const finalDestination = chains[chains.length - 1];
+  if (
+    selfRelay &&
+    multiProvider.getProtocol(finalDestination) === ProtocolType.Ethereum
+  ) {
+    signerChains.add(finalDestination);
+  }
+
   await runPreflightChecksForChains({
     context,
-    chains: Array.from(hopOrigins),
+    chains: Array.from(signerChains),
     minGas: GasAction.TEST_SEND_GAS,
   });
 
@@ -143,6 +154,9 @@ async function executeDelivery({
 
   // Default recipient to sender for EVM destinations.
   const recipientAddress = recipient ?? signerAddress;
+  if (!recipient && isEvmDestination) {
+    logBlue(`No recipient specified, defaulting to sender: ${signerAddress}`);
+  }
 
   const chainAddresses = await registry.getAddresses();
 
