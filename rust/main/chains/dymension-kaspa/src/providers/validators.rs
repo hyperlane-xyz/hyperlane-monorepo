@@ -61,24 +61,33 @@ impl ValidatorsClient {
         &self.relayer_stuff().validators_ism
     }
 
-    fn hosts_escrow(&self) -> Vec<String> {
+    /// Returns (original_index, host) pairs for escrow validators with non-empty hosts.
+    /// Original indices are preserved for correct signature/address correlation.
+    fn hosts_escrow(&self) -> Vec<(usize, String)> {
         self.validators_escrow()
             .iter()
-            .map(|v| v.host.clone())
+            .enumerate()
+            .filter(|(_, v)| !v.host.is_empty())
+            .map(|(i, v)| (i, v.host.clone()))
             .collect()
     }
 
-    fn hosts_ism(&self) -> Vec<String> {
+    /// Returns (original_index, host) pairs for ISM validators with non-empty hosts.
+    /// Original indices are preserved for correct signature/address correlation.
+    fn hosts_ism(&self) -> Vec<(usize, String)> {
         self.validators_ism()
             .iter()
-            .map(|v| v.host.clone())
+            .enumerate()
+            .filter(|(_, v)| !v.host.is_empty())
+            .map(|(i, v)| (i, v.host.clone()))
             .collect()
     }
 
     /// Collects responses from validators until threshold is met.
+    /// Takes (original_index, host) pairs to preserve index correlation after filtering empty hosts.
     /// Returns (validator_index, response) pairs sorted by validator index.
     async fn collect_with_threshold<T, F, V>(
-        hosts: Vec<String>,
+        indexed_hosts: Vec<(usize, String)>,
         metrics: Option<prometheus::HistogramVec>,
         request_type: &str,
         threshold: usize,
@@ -93,10 +102,10 @@ impl ValidatorsClient {
             + 'static,
         V: Fn(usize, &String, &T) -> bool + Send + Sync + 'static,
     {
-        let mut futures: FuturesUnordered<_> = hosts
+        let mut futures: FuturesUnordered<_> = indexed_hosts
             .iter()
-            .enumerate()
             .map(|(index, host)| {
+                let index = *index;
                 let host = host.clone();
                 let request_type = request_type.to_string();
                 let start = Instant::now();
@@ -182,11 +191,11 @@ impl ValidatorsClient {
         }
 
         Err(ChainCommunicationError::from_other_str(&format!(
-            "collect {}: threshold={} but got only {} successes from {} validators",
+            "collect {}: threshold={} but got only {} successes from {} validators (with non-empty hosts)",
             request_type,
             threshold,
             successes.len(),
-            hosts.len()
+            indexed_hosts.len()
         )))
     }
 
