@@ -30,11 +30,7 @@ tokio-metrics.workspace = true
 tracing = { workspace = true }
 tracing-futures = { workspace = true }
 async-trait = { workspace = true }
-snarkvm = { workspace = true, features = [
-    "async",
-    "test_targets",
-    "test_consensus_heights",
-] }
+snarkvm = { workspace = true, features = ["async"] }
 snarkvm-algorithms.workspace = true
 snarkvm-console-account.workspace = true
 aleo-std.workspace = true
@@ -46,5 +42,5 @@ url.workspace = true
 num-traits.workspace = true
 derive-new = { workspace = true }
 hex.workspace = true
-indexmap = "2.0"
+indexmap.workspace = true
 rand_chacha = { version = "0.3.0" }
