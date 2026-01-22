@@ -7,9 +7,12 @@ import {
   ArtifactNew,
   ArtifactState,
   ArtifactWriter,
+  isArtifactDeployed,
   isArtifactNew,
+  isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
+import { mergeIsmArtifacts } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DeployedWarpAddress,
@@ -18,6 +21,7 @@ import {
   RawWarpArtifactConfig,
   WarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
+import { assert, isNullish } from '@hyperlane-xyz/utils';
 
 import { IsmWriter, createIsmWriter } from '../ism/generic-ism-writer.js';
 
@@ -163,52 +167,73 @@ export class WarpTokenWriter
 
     // Read current on-chain state to verify token type hasn't changed
     const currentArtifact = await this.read(deployed.address);
-    if (currentArtifact.config.type !== config.type) {
-      throw new Error(
-        `Cannot change warp token type from '${currentArtifact.config.type}' to '${config.type}'. ` +
-          `Token type is immutable after deployment.`,
-      );
-    }
+    assert(
+      currentArtifact.config.type !== config.type,
+      `Cannot change warp token type from '${currentArtifact.config.type}' to '${config.type}'. ` +
+        `Token type is immutable after deployment.`,
+    );
 
-    // Deploy ISM if configured as a NEW artifact, otherwise extract address
+    assert(
+      isNullish(currentArtifact.config.interchainSecurityModule) ||
+        isArtifactDeployed(currentArtifact.config.interchainSecurityModule),
+      `Expected Warp Reader to expand the ISM config`,
+    );
+
+    const updateTxs: AnnotatedTx[] = [];
+
+    // Resolve ISM updates
+    const expectedIsm = config.interchainSecurityModule;
+    const currentIsm = currentArtifact.config.interchainSecurityModule;
+
     let rawIsmArtifact:
-      | { artifactState: 'underived'; deployed: { address: string } }
+      | {
+          artifactState: typeof ArtifactState.UNDERIVED;
+          deployed: { address: string };
+        }
       | undefined;
 
-    if (config.interchainSecurityModule) {
-      if (isArtifactNew(config.interchainSecurityModule)) {
-        const [deployedIsm] = await this.ismWriter.create(
-          config.interchainSecurityModule,
-        );
+    if (expectedIsm && !isArtifactUnderived(expectedIsm)) {
+      // NEW or DEPLOYED: Merge with current and decide deploy vs update
+      const mergedIsmConfig = mergeIsmArtifacts(currentIsm, expectedIsm);
+
+      if (isArtifactNew(mergedIsmConfig)) {
+        // Deploy new ISM
+        const [deployed] = await this.ismWriter.create(mergedIsmConfig);
 
         rawIsmArtifact = {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: deployedIsm.deployed.address },
+          deployed: { address: deployed.deployed.address },
         };
-      } else {
+      } else if (isArtifactDeployed(mergedIsmConfig)) {
+        // DEPLOYED: update existing ISM (or reuse if unchanged)
+        const txs = await this.ismWriter.update(mergedIsmConfig);
+
+        updateTxs.push(...txs);
         rawIsmArtifact = {
           artifactState: ArtifactState.UNDERIVED,
-          deployed: {
-            address: config.interchainSecurityModule.deployed.address,
-          },
+          deployed: { address: mergedIsmConfig.deployed.address },
         };
       }
+    } else {
+      rawIsmArtifact = expectedIsm;
     }
 
     // Build raw artifact with flattened ISM reference
-    const rawConfig = {
-      ...config,
-      interchainSecurityModule: rawIsmArtifact,
-    };
-
     const rawArtifact = {
       artifactState: ArtifactState.DEPLOYED,
-      config: rawConfig,
+      config: {
+        ...config,
+        interchainSecurityModule: rawIsmArtifact,
+      },
       deployed,
     };
 
     // Delegate to protocol-specific writer which will read current state and compare
     const writer = this.artifactManager.createWriter(config.type, this.signer);
-    return writer.update(rawArtifact);
+
+    const warpUpdateTxs = await writer.update(rawArtifact);
+    updateTxs.push(...warpUpdateTxs);
+
+    return updateTxs;
   }
 }
