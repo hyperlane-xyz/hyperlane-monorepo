@@ -133,6 +133,28 @@ async function resolveWarpConfigChains(
   return argv.context.chains;
 }
 
+async function resolveWarpSendChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  if (argv.chains?.length) {
+    return argv.chains;
+  }
+
+  const chains = [argv.origin, argv.destination].filter(Boolean) as ChainName[];
+  if (chains.length > 0) {
+    return chains;
+  }
+
+  const warpCoreConfig = await getWarpCoreConfigOrExit({
+    context: argv.context,
+    symbol: argv.symbol,
+    warp: argv.warp,
+    warpRouteId: argv.warpRouteId,
+  });
+  argv.context.warpCoreConfig = warpCoreConfig;
+  return warpCoreConfig.tokens.map((token) => token.chainName);
+}
+
 async function resolveWarpRebalancerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
@@ -211,36 +233,6 @@ async function resolveRelayerChains(
 
   chains.add(argv.destination);
   return Array.from(chains);
-}
-
-/**
- * Resolves chains for warp send - returns all EVM chains for signer creation.
- * Non-EVM chains don't need signers (we can only submit txs on EVM origins,
- * and the Rust relayer handles delivery to non-EVM destinations).
- */
-async function resolveWarpSendChains(
-  argv: Record<string, any>,
-): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
-
-  // Validate origin is EVM if specified
-  if (
-    argv.origin &&
-    multiProvider.getProtocol(argv.origin) !== ProtocolType.Ethereum
-  ) {
-    throw new Error(
-      `'hyperlane warp send' requires an EVM origin chain. '${argv.origin}' is ${multiProvider.getProtocol(argv.origin)}`,
-    );
-  }
-
-  // Return all EVM chains - we may need signers for origin, destination
-  // (for default recipient derivation), or multi-hop intermediaries
-  return multiProvider
-    .getKnownChainNames()
-    .filter(
-      (chain: string) =>
-        multiProvider.getProtocol(chain) === ProtocolType.Ethereum,
-    );
 }
 
 async function resolveCoreApplyChains(

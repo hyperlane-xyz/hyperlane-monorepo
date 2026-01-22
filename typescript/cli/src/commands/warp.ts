@@ -310,12 +310,14 @@ const send: CommandModuleWithWriteContext<
     chains: chainsArg,
     skipValidation,
   }) => {
-    const warpCoreConfig = await getWarpCoreConfigOrExit({
-      symbol,
-      warp,
-      warpRouteId,
-      context,
-    });
+    const warpCoreConfig =
+      context.warpCoreConfig ??
+      (await getWarpCoreConfigOrExit({
+        symbol,
+        warp,
+        warpRouteId,
+        context,
+      }));
     let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {
