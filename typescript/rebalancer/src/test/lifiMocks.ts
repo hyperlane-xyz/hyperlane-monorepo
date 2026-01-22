@@ -130,6 +130,8 @@ export function createMockBridgeQuote(
     toAmount: 9950000000n,
     toAmountMin: 9900000000n,
     executionDuration: 300,
+    gasCosts: 50000000n, // Default mock gas costs
+    feeCosts: 0n, // Default mock fee costs
     route: {
       action: { fromChainId: 42161, toChainId: 1399811149 },
     },

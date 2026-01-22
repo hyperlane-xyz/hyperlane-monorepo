@@ -24,6 +24,8 @@ export interface InventoryExecutionResult {
   /** Actual amount sent (may differ from route.amount for partial executions) */
   amountSent?: bigint;
   error?: string;
+  /** Reason for completion (e.g., 'completed_with_acceptable_loss' when small remaining is forgiven) */
+  reason?: string;
 }
 
 /**

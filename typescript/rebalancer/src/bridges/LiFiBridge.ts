@@ -24,6 +24,47 @@ import type {
 } from '../interfaces/IExternalBridge.js';
 
 /**
+ * LiFi API base URL for REST endpoints.
+ * The SDK doesn't support toAmount quotes, so we use REST API directly.
+ */
+const LIFI_API_BASE = 'https://li.quest/v1';
+
+/**
+ * LiFi quote response structure (partial, only fields we need).
+ */
+interface LiFiQuoteResponse {
+  id: string;
+  tool: string;
+  action: {
+    fromAmount: string;
+    toAmount?: string;
+  };
+  estimate: {
+    fromAmount: string;
+    toAmount: string;
+    toAmountMin: string;
+    executionDuration: number;
+    gasCosts?: Array<{
+      type: string;
+      amount: string;
+      token: {
+        address: string;
+        symbol: string;
+      };
+    }>;
+    feeCosts?: Array<{
+      name: string;
+      amount: string;
+      included: boolean;
+      token: {
+        address: string;
+        symbol: string;
+      };
+    }>;
+  };
+}
+
+/**
  * Known chains for viem - add more as needed.
  * TODO: can we think of a cleaner way to do this?
  */
@@ -98,18 +139,48 @@ export class LiFiBridge implements IExternalBridge {
 
   /**
    * Get a quote for bridging tokens.
+   * Supports two modes:
+   * - fromAmount: "I'm sending X, what do I get?" (uses SDK)
+   * - toAmount: "I want X, how much do I send?" (uses REST API)
+   *
    * Returns route data ready for execution.
    */
   async quote(params: BridgeQuoteParams): Promise<BridgeQuote> {
     this.initialize();
-    this.logger.debug({ params }, 'Requesting LiFi quote');
+
+    // Validate that exactly one of fromAmount or toAmount is provided
+    if (params.fromAmount !== undefined && params.toAmount !== undefined) {
+      throw new Error(
+        'Cannot specify both fromAmount and toAmount - provide exactly one',
+      );
+    }
+    if (params.fromAmount === undefined && params.toAmount === undefined) {
+      throw new Error('Must specify either fromAmount or toAmount');
+    }
+
+    // Dispatch to appropriate quote method
+    if (params.toAmount !== undefined) {
+      return this.quoteByReceivingAmount(params);
+    } else {
+      return this.quoteBySpendingAmount(params);
+    }
+  }
+
+  /**
+   * Get a quote by specifying the amount to send (standard quote).
+   * Uses the LiFi SDK.
+   */
+  private async quoteBySpendingAmount(
+    params: BridgeQuoteParams,
+  ): Promise<BridgeQuote> {
+    this.logger.debug({ params }, 'Requesting LiFi quote by spending amount');
 
     const quote = await getQuote({
       fromChain: params.fromChain,
       toChain: params.toChain,
       fromToken: params.fromToken,
       toToken: params.toToken,
-      fromAmount: params.fromAmount.toString(),
+      fromAmount: params.fromAmount!.toString(),
       fromAddress: params.fromAddress,
       toAddress: params.toAddress ?? params.fromAddress,
       slippage: params.slippage ?? this.config.defaultSlippage ?? 0.005,
@@ -117,15 +188,22 @@ export class LiFiBridge implements IExternalBridge {
       order: 'FASTEST',
     });
 
+    const { gasCosts, feeCosts } = this.extractCosts(
+      quote as unknown as LiFiQuoteResponse,
+    );
+
     this.logger.info(
       {
         quoteId: quote.id,
         tool: quote.tool,
+        fromAmount: quote.action.fromAmount,
         toAmount: quote.estimate.toAmount,
         toAmountMin: quote.estimate.toAmountMin,
         executionDuration: quote.estimate.executionDuration,
+        gasCosts: gasCosts.toString(),
+        feeCosts: feeCosts.toString(),
       },
-      'LiFi quote received',
+      'LiFi quote received (fromAmount)',
     );
 
     return {
@@ -135,8 +213,114 @@ export class LiFiBridge implements IExternalBridge {
       toAmount: BigInt(quote.estimate.toAmount),
       toAmountMin: BigInt(quote.estimate.toAmountMin),
       executionDuration: quote.estimate.executionDuration,
+      gasCosts,
+      feeCosts,
       route: quote, // Store full quote for conversion to route
     };
+  }
+
+  /**
+   * Get a quote by specifying the amount to receive (reverse quote).
+   * Uses the LiFi REST API directly since the SDK doesn't support toAmount.
+   */
+  private async quoteByReceivingAmount(
+    params: BridgeQuoteParams,
+  ): Promise<BridgeQuote> {
+    this.logger.debug({ params }, 'Requesting LiFi quote by receiving amount');
+
+    const queryParams = new URLSearchParams({
+      fromChain: params.fromChain.toString(),
+      toChain: params.toChain.toString(),
+      fromToken: params.fromToken,
+      toToken: params.toToken,
+      toAmount: params.toAmount!.toString(),
+      fromAddress: params.fromAddress,
+      toAddress: params.toAddress ?? params.fromAddress,
+      slippage: (params.slippage ?? this.config.defaultSlippage ?? 0.005)
+        .toFixed(4)
+        .replace(/\.?0+$/, ''),
+      order: 'FASTEST',
+      integrator: this.config.integrator,
+    });
+
+    if (this.config.apiKey) {
+      queryParams.set('apiKey', this.config.apiKey);
+    }
+
+    const url = `${LIFI_API_BASE}/quote/toAmount?${queryParams.toString()}`;
+    this.logger.debug(
+      { url: url.replace(/apiKey=[^&]+/, 'apiKey=***') },
+      'Fetching LiFi toAmount quote',
+    );
+
+    const response = await fetch(url);
+    if (!response.ok) {
+      const errorBody = await response.text();
+      throw new Error(
+        `LiFi toAmount quote failed: ${response.status} ${response.statusText} - ${errorBody}`,
+      );
+    }
+
+    const quote: LiFiQuoteResponse = await response.json();
+    const { gasCosts, feeCosts } = this.extractCosts(quote);
+
+    this.logger.info(
+      {
+        quoteId: quote.id,
+        tool: quote.tool,
+        fromAmount: quote.action.fromAmount,
+        toAmount: quote.estimate.toAmount,
+        toAmountMin: quote.estimate.toAmountMin,
+        executionDuration: quote.estimate.executionDuration,
+        gasCosts: gasCosts.toString(),
+        feeCosts: feeCosts.toString(),
+      },
+      'LiFi quote received (toAmount)',
+    );
+
+    return {
+      id: quote.id,
+      tool: quote.tool,
+      fromAmount: BigInt(quote.action.fromAmount),
+      toAmount: BigInt(quote.estimate.toAmount),
+      toAmountMin: BigInt(quote.estimate.toAmountMin),
+      executionDuration: quote.estimate.executionDuration,
+      gasCosts,
+      feeCosts,
+      route: quote, // Store full quote for conversion to route
+    };
+  }
+
+  /**
+   * Extract gas and fee costs from a LiFi quote response.
+   * - gasCosts: Sum of all gas costs (transaction fees)
+   * - feeCosts: Sum of non-included fee costs (protocol fees not deducted from amount)
+   */
+  private extractCosts(quote: LiFiQuoteResponse): {
+    gasCosts: bigint;
+    feeCosts: bigint;
+  } {
+    let gasCosts = 0n;
+    let feeCosts = 0n;
+
+    // Sum up gas costs
+    if (quote.estimate.gasCosts) {
+      for (const cost of quote.estimate.gasCosts) {
+        gasCosts += BigInt(cost.amount);
+      }
+    }
+
+    // Sum up non-included fee costs
+    // (included fees are already deducted from toAmount, so we only count non-included)
+    if (quote.estimate.feeCosts) {
+      for (const cost of quote.estimate.feeCosts) {
+        if (!cost.included) {
+          feeCosts += BigInt(cost.amount);
+        }
+      }
+    }
+
+    return { gasCosts, feeCosts };
   }
 
   /**

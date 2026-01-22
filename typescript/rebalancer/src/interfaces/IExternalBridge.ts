@@ -11,13 +11,17 @@ export interface ExternalBridgeConfig {
 
 /**
  * Parameters for requesting a bridge quote.
+ * Either fromAmount OR toAmount must be provided (mutually exclusive).
+ * - fromAmount: "I'm sending X, what do I get?" (standard quote)
+ * - toAmount: "I want X on destination, how much do I send?" (reverse quote)
  */
 export interface BridgeQuoteParams {
   fromChain: number; // Source chain ID
   toChain: number; // Destination chain ID
   fromToken: string; // Source token address
   toToken: string; // Destination token address
-  fromAmount: bigint; // Amount to bridge (in token decimals)
+  fromAmount?: bigint; // Amount to send (in token decimals) - use for "I'm sending X"
+  toAmount?: bigint; // Amount to receive (in token decimals) - use for "I want X"
   fromAddress: string; // Sender address
   toAddress?: string; // Recipient address (defaults to fromAddress)
   slippage?: number; // Slippage tolerance (overrides default)
@@ -29,10 +33,12 @@ export interface BridgeQuoteParams {
 export interface BridgeQuote {
   id: string; // Unique quote identifier
   tool: string; // Bridge/DEX tool used (e.g., 'stargate', 'across')
-  fromAmount: bigint; // Amount being sent
+  fromAmount: bigint; // Amount being sent (input required)
   toAmount: bigint; // Expected amount to receive
   toAmountMin: bigint; // Minimum amount to receive (after slippage)
   executionDuration: number; // Estimated execution time in seconds
+  gasCosts: bigint; // Sum of gas costs for the bridge operation
+  feeCosts: bigint; // Sum of non-included fee costs (protocol fees, etc.)
   route: unknown; // Bridge-specific route data for execution
 }
 
