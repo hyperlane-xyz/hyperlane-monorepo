@@ -8,6 +8,7 @@ use ethers::providers::{Middleware, ProviderError};
 use ethers::types::transaction::eip2718::TypedTransaction;
 use ethers::types::{BlockId, Bytes, H160};
 use ethers_signers::Signer;
+use num::ToPrimitive;
 use prost_types::Any;
 use time::OffsetDateTime;
 use tonic::async_trait;
@@ -232,7 +233,9 @@ impl TronProvider {
         let energy_estimate = self.estimate_gas(&call.tx, None).await?;
 
         let fee_limit = energy_estimate.saturating_mul(energy_price).as_u64();
-        let fee_limit = (fee_limit as f64 * self.energy_multiplier) as u64;
+        let fee_limit = (fee_limit as f64 * self.energy_multiplier)
+            .to_u64()
+            .unwrap_or(u64::MAX);
 
         let block = self.get_current_block().await?;
         let tron_call = self.parse_tx(&call.tx);
@@ -318,7 +321,7 @@ impl TronProvider {
 
         Ok(BlockInfo {
             hash: H256::from_slice(&block.blockid),
-            timestamp: raw_data.timestamp as u64, // TODO: double check timestamp unit
+            timestamp: raw_data.timestamp.checked_div(1000).unwrap_or_default() as u64,
             number: raw_data.number as u64,
         })
     }

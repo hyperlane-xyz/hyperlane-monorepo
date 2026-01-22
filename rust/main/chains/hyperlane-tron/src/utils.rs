@@ -24,7 +24,7 @@ pub(crate) fn calculate_ref_block_bytes(number: i64) -> Vec<u8> {
     let last_2_bytes = (number & 0xFFFF) as u16;
     last_2_bytes.to_be_bytes().into()
 }
-/// Get bytes 8..24 of the blockid more info here: https://developers.tron.network/docs/faq#19-how-to-set-reference-block-information-for-a-transaction
+/// Get bytes 8..16 of the blockid more info here: https://developers.tron.network/docs/faq#19-how-to-set-reference-block-information-for-a-transaction
 pub(crate) fn calculate_ref_block_hash(hash: &[u8]) -> Vec<u8> {
     hash[8..16].into()
 }

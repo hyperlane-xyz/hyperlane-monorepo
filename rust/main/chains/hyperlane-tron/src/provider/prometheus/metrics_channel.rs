@@ -18,7 +18,7 @@ pub struct MetricsChannel<T> {
 
 impl<T> MetricsChannel<T> {
     /// Wrap a channel so that sending RPCs over it increments gRPC client
-    /// Prometeus metrics.
+    /// Prometheus metrics.
     pub fn new(
         inner: T,
         metrics: PrometheusClientMetrics,
