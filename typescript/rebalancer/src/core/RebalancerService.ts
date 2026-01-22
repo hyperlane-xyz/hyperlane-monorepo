@@ -374,9 +374,6 @@ export class RebalancerService {
       await this.inventoryMonitor.refresh();
     }
 
-    // Continue any partially-fulfilled inventory intents before processing new routes
-    await this.continuePartialInventoryIntents();
-
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
       event,
@@ -400,6 +397,8 @@ export class RebalancerService {
       rawBalances,
       inflightContext,
     );
+
+    await this.continuePartialInventoryIntents();
 
     if (strategyRoutes.length > 0) {
       this.logger.info(
