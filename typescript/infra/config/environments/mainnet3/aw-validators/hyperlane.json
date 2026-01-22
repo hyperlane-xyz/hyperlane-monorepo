@@ -104,6 +104,9 @@
   "eclipsemainnet": {
     "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
   },
+  "eden": {
+    "validators": ["0x1c61e6379443e2842d3e9db28e962b6c717fdab1"]
+  },
   "electroneum": {
     "validators": ["0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83"]
   },
@@ -406,8 +409,5 @@
   },
   "zoramainnet": {
     "validators": ["0x35130945b625bb69b28aee902a3b9a76fa67125f"]
-  },
-  "eden": {
-    "validators": ["0x1c61e6379443e2842d3e9db28e962b6c717fdab1"]
   }
 }
