@@ -314,7 +314,11 @@ async function refreshDependentK8sResourcesInteractive(
     );
   }
   if (serviceManagers.length > 0) {
-    await refreshK8sResources(serviceManagers, K8sResourceType.POD, environment);
+    await refreshK8sResources(
+      serviceManagers,
+      K8sResourceType.POD,
+      environment,
+    );
   }
 }
 
