@@ -9577,7 +9577,8 @@
       "validatorAnnounce": "0x7082e975Fde8D85B0C56B4512b437efFb46F0a09",
       "index": {
         "from": 4943181
-      }
+      },
+      "interchainAccountRouter": "0xF7af65596A16740b16CF755F3A43206C96285da0"
     }
   }
 }
