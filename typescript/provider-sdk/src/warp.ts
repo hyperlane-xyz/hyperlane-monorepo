@@ -11,11 +11,12 @@ import {
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import type { DerivedHookConfig, HookConfig } from './hook.js';
-import type {
-  DeployedIsmAddress,
-  DerivedIsmConfig,
-  IsmArtifactConfig,
-  IsmConfig,
+import {
+  type DeployedIsmAddress,
+  type DerivedIsmConfig,
+  type IsmArtifactConfig,
+  type IsmConfig,
+  ismConfigToArtifact,
 } from './ism.js';
 
 export type TokenRouterModuleType = {
@@ -237,20 +238,37 @@ export interface IRawWarpArtifactManager
  *
  * Key transformations:
  * - String chain names → numeric domain IDs for remoteRouters/destinationGas keys
- * - ISM config → ISM artifact (handled by caller, passed through here)
+ * - ISM config → ISM artifact (converted internally)
+ * - ISM address strings → UNDERIVED ISM artifacts
  *
  * @param config The warp configuration using Config API format
  * @param chainLookup Chain lookup interface for resolving chain names to domain IDs
- * @param ismArtifact Optional ISM artifact if ISM is configured
  * @param logger Logger for warnings
  * @returns Artifact wrapper around WarpArtifactConfig suitable for artifact writers
  */
 export function warpConfigToArtifact(
   config: WarpConfig,
   chainLookup: ChainLookup,
-  ismArtifact?: Artifact<IsmArtifactConfig, DeployedIsmAddress>,
   logger?: Logger,
 ): ArtifactNew<WarpArtifactConfig> {
+  // Convert ISM config to artifact if present
+  let ismArtifact: Artifact<IsmArtifactConfig, DeployedIsmAddress> | undefined;
+  if (config.interchainSecurityModule) {
+    if (typeof config.interchainSecurityModule === 'string') {
+      // Address reference - create UNDERIVED artifact
+      ismArtifact = {
+        artifactState: ArtifactState.UNDERIVED,
+        deployed: { address: config.interchainSecurityModule },
+      };
+    } else {
+      // ISM config - convert using ismConfigToArtifact
+      ismArtifact = ismConfigToArtifact(
+        config.interchainSecurityModule,
+        chainLookup,
+      );
+    }
+  }
+
   // Convert remoteRouters from chain names to domain IDs
   const remoteRouters: Record<number, { address: string }> = {};
   if (config.remoteRouters) {

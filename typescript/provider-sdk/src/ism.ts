@@ -1,4 +1,9 @@
-import { WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  deepEquals,
+  normalizeConfig,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { IsmType as AltVMIsmType } from './altvm.js';
 import {
@@ -250,9 +255,9 @@ export function ismConfigToArtifact(
  * Determines if a new ISM should be deployed instead of updating the existing one.
  * Deploy new ISM if:
  * - ISM type changed
- * - ISM is static/immutable (multisig types, testIsm)
+ * - ISM config changed (for static/immutable ISMs: multisig, testIsm)
  *
- * Only routing ISMs are mutable and support updates (owner changes, domain modifications).
+ * For routing ISMs, compares config to determine if update is sufficient or redeploy needed.
  *
  * @param actual The current deployed ISM configuration
  * @param expected The desired ISM configuration
@@ -265,8 +270,148 @@ export function shouldDeployNewIsm(
   // Type changed - must deploy new
   if (actual.type !== expected.type) return true;
 
-  // Static ISM types are immutable - must deploy new
-  if (STATIC_ISM_TYPES.includes(expected.type)) return true;
+  // Normalize and compare configs (handles address casing, validator order, etc.)
+  const normalizedActual = normalizeConfig(actual);
+  const normalizedExpected = normalizeConfig(expected);
 
-  return false;
+  // For static ISM types, they're immutable - must redeploy if config differs
+  if (STATIC_ISM_TYPES.includes(expected.type)) {
+    return !deepEquals(normalizedActual, normalizedExpected);
+  }
+
+  // For routing ISMs, check if config changed (owner, domains)
+  // If unchanged, can update in-place; if changed, need to decide deploy vs update
+  return !deepEquals(normalizedActual, normalizedExpected);
+}
+
+/**
+ * Merges current and expected ISM artifacts to produce an artifact ready for deployment/update.
+ *
+ * Return NEW artifact only if:
+ * - No current ISM exists, OR
+ * - Type changed, OR
+ * - ISM is immutable (static) AND config changed
+ *
+ * Return DEPLOYED artifact for all other cases:
+ * - Static ISM with unchanged config (reuse existing address)
+ * - Routing ISM (will update in-place, recursively merge domains)
+ *
+ * @param currentArtifact Currently deployed ISM (undefined if none exists)
+ * @param expectedArtifact Desired ISM configuration (NEW or DEPLOYED artifact)
+ * @returns Merged artifact (NEW for deploy, DEPLOYED for reuse/update)
+ */
+export function mergeIsmArtifacts(
+  currentArtifact: DeployedIsmArtifact | undefined,
+  expectedArtifact: ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact,
+): ArtifactNew<IsmArtifactConfig> | DeployedIsmArtifact {
+  const expectedConfig = expectedArtifact.config;
+
+  // No current ISM - return expected as-is
+  if (!currentArtifact) {
+    return expectedArtifact;
+  }
+
+  const currentConfig = currentArtifact.config;
+
+  // Type changed - must deploy new
+  if (currentConfig.type !== expectedConfig.type) {
+    // Return NEW to trigger redeployment
+    return {
+      artifactState: ArtifactState.NEW,
+      config: expectedConfig,
+    };
+  }
+
+  // For static ISMs, check if config changed
+  if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
+    const configChanged = shouldDeployNewIsm(currentConfig, expectedConfig);
+    if (configChanged) {
+      // Config changed - return NEW to trigger redeployment
+      return {
+        artifactState: ArtifactState.NEW,
+        config: expectedConfig,
+      };
+    }
+
+    // Config unchanged - return DEPLOYED (reuse existing address)
+    const deployedAddress =
+      expectedArtifact.artifactState === ArtifactState.DEPLOYED
+        ? expectedArtifact.deployed
+        : currentArtifact.deployed;
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedConfig,
+      deployed: deployedAddress,
+    };
+  }
+
+  // Routing ISM - recursively merge domains
+  if (
+    currentConfig.type !== 'domainRoutingIsm' ||
+    expectedConfig.type !== 'domainRoutingIsm'
+  ) {
+    // Shouldn't happen - already checked type match above
+    const deployedAddress =
+      expectedArtifact.artifactState === ArtifactState.DEPLOYED
+        ? expectedArtifact.deployed
+        : currentArtifact.deployed;
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedConfig,
+      deployed: deployedAddress,
+    };
+  }
+
+  // Merge domain ISMs recursively
+  const mergedDomains: Record<
+    number,
+    Artifact<IsmArtifactConfig, DeployedIsmAddress>
+  > = {};
+
+  for (const [domainIdStr, expectedDomainIsm] of Object.entries(
+    expectedConfig.domains,
+  )) {
+    const domainId = parseInt(domainIdStr);
+    const currentDomainIsm = currentConfig.domains[domainId];
+
+    // Determine current domain ISM artifact type
+    let currentDeployedIsm: DeployedIsmArtifact | undefined;
+    if (
+      currentDomainIsm &&
+      currentDomainIsm.artifactState === ArtifactState.DEPLOYED
+    ) {
+      currentDeployedIsm = currentDomainIsm;
+    }
+
+    // Recursively merge domain ISMs (handles both NEW and DEPLOYED)
+    if (
+      expectedDomainIsm.artifactState === ArtifactState.NEW ||
+      expectedDomainIsm.artifactState === ArtifactState.DEPLOYED
+    ) {
+      mergedDomains[domainId] = mergeIsmArtifacts(
+        currentDeployedIsm,
+        expectedDomainIsm,
+      );
+    } else {
+      // UNDERIVED - use as-is
+      mergedDomains[domainId] = expectedDomainIsm;
+    }
+  }
+
+  // Return DEPLOYED routing ISM with merged domains
+  const deployedAddress =
+    expectedArtifact.artifactState === ArtifactState.DEPLOYED
+      ? expectedArtifact.deployed
+      : currentArtifact.deployed;
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: {
+      type: 'domainRoutingIsm',
+      owner: expectedConfig.owner,
+      domains: mergedDomains,
+    },
+    deployed: deployedAddress,
+  };
 }
