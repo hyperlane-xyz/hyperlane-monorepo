@@ -5,8 +5,6 @@
 export { AltVMJsonRpcSubmitter } from './AltVMJsonRpcSubmitter.js';
 export { AltVMCoreModule } from './AltVMCoreModule.js';
 export { AltVMCoreReader } from './AltVMCoreReader.js';
-export { AltVMWarpModule } from './AltVMWarpModule.js';
-export { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 export { AltVMDeployer } from './AltVMWarpDeployer.js';
 export { coreModuleProvider } from './core-module.js';
 export { createHookReader } from './hook/hook-reader.js';
@@ -19,7 +17,6 @@ export {
   ismConfigToArtifact,
   shouldDeployNewIsm,
 } from './ism/ism-config-utils.js';
-export { warpModuleProvider } from './warp-module.js';
 export {
   validateIsmConfig,
   validateIsmType,
