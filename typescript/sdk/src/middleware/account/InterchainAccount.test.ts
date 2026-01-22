@@ -130,6 +130,30 @@ describe('InterchainAccount.getCallRemote', () => {
 
     sinon.assert.calledOnce(mockLocalRouter['quoteGasPayment(uint32)']);
   });
+
+  it('calls isms() with origin domain when ismOverride not provided', async () => {
+    const mockDestRouter = {
+      isms: sandbox.stub().resolves(randomAddress()),
+    };
+    sandbox.stub(app, 'router').returns(mockDestRouter as any);
+
+    const configWithoutIsmOverride = {
+      origin: chain,
+      owner: randomAddress(),
+      localRouter: randomAddress(),
+      routerOverride: randomAddress(),
+    };
+
+    await app.getCallRemote({
+      chain,
+      destination,
+      innerCalls: baseCalls,
+      config: configWithoutIsmOverride,
+    });
+
+    const originDomain = multiProvider.getDomainId(chain);
+    sinon.assert.calledWith(mockDestRouter.isms, originDomain);
+  });
 });
 
 describe('InterchainAccount.estimateIcaHandleGas', () => {

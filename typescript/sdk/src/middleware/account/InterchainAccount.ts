@@ -284,14 +284,16 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           this.multiProvider.getSigner(chain),
         )
       : this.router(this.contractsMap[chain]);
+    const originDomain = this.multiProvider.getDomainId(chain);
     const remoteDomain = this.multiProvider.getDomainId(destination);
 
     const remoteRouter = addressToBytes32(
       config.routerOverride ?? this.routerAddress(destination),
     );
+    // ISMs are indexed by origin domain (where messages come FROM)
     const remoteIsm = addressToBytes32(
       config.ismOverride ??
-        (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
+        (await this.router(this.contractsMap[destination]).isms(originDomain)),
     );
 
     // Handle both string and object hookMetadata formats
