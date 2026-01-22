@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:24-slim AS builder
 
 WORKDIR /hyperlane-monorepo
 
@@ -84,7 +84,7 @@ RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
 RUN pnpm turbo run bundle --filter=@hyperlane-xyz/rebalancer
 
 # Production stage - minimal Alpine image with just the bundled code
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
