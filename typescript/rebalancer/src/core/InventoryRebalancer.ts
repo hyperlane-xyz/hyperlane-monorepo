@@ -53,6 +53,15 @@ const PARTIAL_TRANSFER_THRESHOLD_PERCENT = 90n;
 const BRIDGE_BUFFER_PERCENT = 5n;
 
 /**
+ * Percentage of native token balance to reserve for gas when bridging.
+ * For example, 2n means reserve 2%, bridge 98%.
+ *
+ * This ensures sufficient native token remains to pay bridge transaction gas costs.
+ * Conservative estimate: typical bridge gas is 0.5-1.5% at moderate gas prices.
+ */
+const NATIVE_TOKEN_GAS_RESERVE_PERCENT = 2n;
+
+/**
  * Transfer cost estimate for native token transfers.
  * Contains all cost components needed for transfer decisions.
  */
@@ -974,14 +983,39 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
 
     // Get effective available inventory on source chain (accounting for prior consumption this cycle)
-    const availableInventory =
+    const rawAvailableInventory =
       await this.getEffectiveAvailableInventory(sourceChain);
 
-    if (availableInventory === 0n) {
+    if (rawAvailableInventory === 0n) {
       return {
         success: false,
         error: `No inventory available on ${sourceChain}`,
       };
+    }
+
+    // For native tokens, reserve 2% for gas costs
+    // This ensures we have enough native token to pay for the bridge transaction
+    const isNative = this.isNativeTokenStandard(sourceToken.standard);
+    const availableInventory = isNative
+      ? (rawAvailableInventory * (100n - NATIVE_TOKEN_GAS_RESERVE_PERCENT)) /
+        100n // Reserve 2% for gas
+      : rawAvailableInventory; // ERC20s don't need gas reservation
+
+    if (isNative && availableInventory !== rawAvailableInventory) {
+      const reserved = rawAvailableInventory - availableInventory;
+      this.logger.info(
+        {
+          sourceChain,
+          rawBalance: rawAvailableInventory.toString(),
+          rawBalanceEth: (Number(rawAvailableInventory) / 1e18).toFixed(6),
+          availableForBridge: availableInventory.toString(),
+          availableForBridgeEth: (Number(availableInventory) / 1e18).toFixed(6),
+          gasReserved: reserved.toString(),
+          gasReservedEth: (Number(reserved) / 1e18).toFixed(6),
+          reservationPercent: NATIVE_TOKEN_GAS_RESERVE_PERCENT.toString() + '%',
+        },
+        'Reserved gas for native token bridge',
+      );
     }
 
     // Convert HypNative token addresses to LiFi's native ETH representation
