@@ -19,7 +19,7 @@ use crate::HyperlaneTronError;
 
 const HTTP_CLIENT_TIMEOUT: Duration = Duration::from_secs(60);
 
-/// Returns the ref block bytes accoring to the specification here: https://developers.tron.network/docs/faq#19-how-to-set-reference-block-information-for-a-transaction
+/// Returns the ref block bytes according to the specification here: https://developers.tron.network/docs/faq#19-how-to-set-reference-block-information-for-a-transaction
 pub(crate) fn calculate_ref_block_bytes(number: i64) -> Vec<u8> {
     let last_2_bytes = (number & 0xFFFF) as u16;
     last_2_bytes.to_be_bytes().into()
