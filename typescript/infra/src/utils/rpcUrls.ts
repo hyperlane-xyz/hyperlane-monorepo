@@ -21,6 +21,7 @@ import {
 import { DeployEnvironment } from '../config/environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
 import { KathyHelmManager } from '../helloworld/kathy.js';
+import { RebalancerHelmManager } from '../rebalancer/helm.js';
 import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
 import { disableGCPSecretVersion } from './gcloud.js';
@@ -273,7 +274,7 @@ async function updateSecretAndDisablePrevious(
 
 /**
  * Interactively refreshes dependent k8s resources for the given chain in the given environment.
- * Prompts for core infrastructure, warp monitors, and CronJobs separately, then executes refreshes.
+ * Prompts for core infrastructure, warp monitors, rebalancers, and CronJobs separately.
  * CronJobs only get secret refresh (no pod restart) - they pick up new secrets on next run.
  * @param environment The environment to refresh resources in
  * @param chain The chain to refresh resources for
@@ -293,10 +294,15 @@ async function refreshDependentK8sResourcesInteractive(
   // Collect selections from all prompts
   const coreManagers = await selectCoreInfrastructure(environment, chain);
   const warpManagers = await selectWarpMonitors(environment, chain);
+  const rebalancerManagers = await selectRebalancers(environment, chain);
   const cronjobManagers = await selectCronJobs(environment);
 
   // Services get both secret and pod refresh
-  const serviceManagers = [...coreManagers, ...warpManagers];
+  const serviceManagers = [
+    ...coreManagers,
+    ...warpManagers,
+    ...rebalancerManagers,
+  ];
   // CronJobs only get secret refresh (they pick up new secrets on next scheduled run)
   const allManagersForSecrets = [...serviceManagers, ...cronjobManagers];
 
@@ -363,7 +369,7 @@ async function selectCoreInfrastructure(
     .filter((_, i) => selection.includes(i));
 }
 
-enum WarpMonitorRefreshChoice {
+enum RefreshChoice {
   ALL = 'all',
   SELECT = 'select',
   SKIP = 'skip',
@@ -393,25 +399,25 @@ async function selectWarpMonitors(
     choices: [
       {
         name: `Yes, refresh all ${warpMonitorManagers.length} monitors`,
-        value: WarpMonitorRefreshChoice.ALL,
+        value: RefreshChoice.ALL,
       },
       {
         name: 'Yes, let me select which ones',
-        value: WarpMonitorRefreshChoice.SELECT,
+        value: RefreshChoice.SELECT,
       },
       {
         name: 'No, skip warp monitors',
-        value: WarpMonitorRefreshChoice.SKIP,
+        value: RefreshChoice.SKIP,
       },
     ],
   });
 
-  if (choice === WarpMonitorRefreshChoice.SKIP) {
+  if (choice === RefreshChoice.SKIP) {
     console.log('Skipping warp monitor refresh');
     return [];
   }
 
-  if (choice === WarpMonitorRefreshChoice.ALL) {
+  if (choice === RefreshChoice.ALL) {
     return warpMonitorManagers;
   }
 
@@ -425,6 +431,66 @@ async function selectWarpMonitors(
   });
 
   return warpMonitorManagers.filter((_, i) => selection.includes(i));
+}
+
+async function selectRebalancers(
+  environment: DeployEnvironment,
+  chain: string,
+): Promise<RebalancerHelmManager[]> {
+  const rebalancerManagers = await RebalancerHelmManager.getManagersForChain(
+    environment,
+    chain,
+  );
+
+  if (rebalancerManagers.length === 0) {
+    console.log(`No rebalancers found for ${chain}`);
+    return [];
+  }
+
+  console.log(
+    `Found ${rebalancerManagers.length} rebalancers that include ${chain}:`,
+  );
+  for (const manager of rebalancerManagers) {
+    console.log(`  - ${manager.helmReleaseName} (${manager.warpRouteId})`);
+  }
+
+  const choice = await select({
+    message: `Refresh rebalancers?`,
+    choices: [
+      {
+        name: `Yes, refresh all ${rebalancerManagers.length} rebalancers`,
+        value: RefreshChoice.ALL,
+      },
+      {
+        name: 'Yes, let me select which ones',
+        value: RefreshChoice.SELECT,
+      },
+      {
+        name: 'No, skip rebalancers',
+        value: RefreshChoice.SKIP,
+      },
+    ],
+  });
+
+  if (choice === RefreshChoice.SKIP) {
+    console.log('Skipping rebalancer refresh');
+    return [];
+  }
+
+  if (choice === RefreshChoice.ALL) {
+    return rebalancerManagers;
+  }
+
+  const selection = await checkbox({
+    message: 'Select rebalancers to refresh',
+    choices: rebalancerManagers.map((manager, i) => ({
+      name: manager.helmReleaseName,
+      value: i,
+      checked: true,
+    })),
+  });
+
+  return rebalancerManagers.filter((_, i) => selection.includes(i));
 }
 
 async function selectCronJobs(
@@ -476,12 +542,6 @@ async function selectCronJobs(
     .filter((_, i) => selection.includes(i));
 }
 
-/**
- * Test the provider at the given URL, returning false if the provider is unhealthy
- * or related to a different chain. No-op for non-Ethereum chains.
- * @param chain The chain to test the provider for
- * @param url The URL of the provider
- */
 async function testProvider(chain: ChainName, url: string): Promise<boolean> {
   const chainMetadata = getChain(chain);
   if (chainMetadata.protocol !== ProtocolType.Ethereum) {
