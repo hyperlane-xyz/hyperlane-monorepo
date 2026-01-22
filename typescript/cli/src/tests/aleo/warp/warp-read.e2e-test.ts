@@ -146,8 +146,7 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
           skipConfirmationPrompts: true,
           privateKey: HYP_KEY_BY_PROTOCOL.aleo,
         })
-        .stdio('pipe')
-        .nothrow();
+        .stdio('pipe');
 
       const output = await hyperlaneWarp
         .readRaw({
@@ -181,8 +180,7 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
           skipConfirmationPrompts: true,
           privateKey: HYP_KEY_BY_PROTOCOL.aleo,
         })
-        .stdio('pipe')
-        .nothrow();
+        .stdio('pipe');
 
       const warpReadResult = await hyperlaneWarp.readConfig(
         TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
