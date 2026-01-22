@@ -11,7 +11,7 @@ import {
   getSetRemoteGasTx,
 } from '../hook/hook-tx.js';
 import { getInitRoutingIsmTx } from '../ism/ism-tx.js';
-import { TRON_EMPTY_ADDRESS } from '../utils/index.js';
+import { TRON_EMPTY_ADDRESS, TRON_MAX_FEE } from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
@@ -94,14 +94,14 @@ export class TronSigner
       receipt.contract_address,
     );
 
-    // TODO: TRON
-    // include default hook and required hook in create mailbox altvm interface too
+    // init mailbox with own mailbox address as placeholder. the sdk
+    // will treat the mailbox address as a null address
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         mailboxAddress,
         'initialize(address,address,address,address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -486,7 +486,7 @@ export class TronSigner
         tokenAddress,
         'initialize(address,address,address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -530,7 +530,7 @@ export class TronSigner
         tokenAddress,
         'initialize(address,address,address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -574,7 +574,7 @@ export class TronSigner
         tokenAddress,
         'initialize(uint256,string,string,address,address,address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -676,7 +676,7 @@ export class TronSigner
         req.remoteRouter.gas,
       )
       .send({
-        feeLimit: 100_000_000,
+        feeLimit: TRON_MAX_FEE,
         callValue: 0,
         shouldPollResponse: true,
       });

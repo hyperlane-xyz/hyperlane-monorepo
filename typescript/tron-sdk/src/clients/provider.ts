@@ -32,7 +32,11 @@ import {
   getSetRoutingIsmOwnerTx,
   getSetRoutingIsmRouteTx,
 } from '../ism/ism-tx.js';
-import { TRON_EMPTY_ADDRESS, decodeRevertReason } from '../utils/index.js';
+import {
+  TRON_EMPTY_ADDRESS,
+  TRON_MAX_FEE,
+  decodeRevertReason,
+} from '../utils/index.js';
 import {
   IABI,
   TronHookTypes,
@@ -543,7 +547,7 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'setDefaultIsm(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -566,7 +570,7 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'setDefaultHook(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -589,7 +593,7 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'setRequiredHook(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -612,7 +616,7 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'transferOwnership(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -710,7 +714,7 @@ export class TronProvider implements AltVM.IProvider {
         req.hookAddress,
         'transferOwnership(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -747,7 +751,7 @@ export class TronProvider implements AltVM.IProvider {
         req.hookAddress,
         'removeDestinationGasConfigs(uint32[])',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -815,7 +819,7 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'transferOwnership(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -838,7 +842,7 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'setInterchainSecurityModule(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -861,7 +865,7 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'setHook(address)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -884,7 +888,7 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'enrollRemoteRouter(uint32,bytes32)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -911,7 +915,7 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'unenrollRemoteRouter(uint32)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -935,7 +939,7 @@ export class TronProvider implements AltVM.IProvider {
           req.denom,
           'transfer(address,uint256)',
           {
-            feeLimit: 100_000_000,
+            feeLimit: TRON_MAX_FEE,
             callValue: 0,
           },
           [
@@ -969,7 +973,7 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'transferRemote(uint32,bytes32,uint256)',
         {
-          feeLimit: 100_000_000,
+          feeLimit: TRON_MAX_FEE,
           callValue: Number(req.amount),
         },
         [
