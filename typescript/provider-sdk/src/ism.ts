@@ -7,6 +7,7 @@ import {
   IArtifactManager,
   RawArtifact,
 } from './artifact.js';
+import { IIsmSigner } from './common/interfaces/ism/ism-signer.js';
 
 export type IsmModuleType = {
   config: IsmConfig;
@@ -85,7 +86,8 @@ export type DeployedIsmArtifact = ArtifactDeployed<
 export type IIsmArtifactManager = IArtifactManager<
   IsmType,
   IsmArtifactConfigs,
-  DeployedIsmAddress
+  DeployedIsmAddress,
+  IIsmSigner
 >;
 
 export interface RoutingIsmArtifactConfig {
@@ -125,7 +127,12 @@ export type DeployedRawIsmArtifact = ArtifactDeployed<
  * ISMs on chain
  */
 export interface IRawIsmArtifactManager
-  extends IArtifactManager<IsmType, RawIsmArtifactConfigs, DeployedIsmAddress> {
+  extends IArtifactManager<
+    IsmType,
+    RawIsmArtifactConfigs,
+    DeployedIsmAddress,
+    IIsmSigner
+  > {
   /**
    * Read any ISM by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading ISMs of unknown types.

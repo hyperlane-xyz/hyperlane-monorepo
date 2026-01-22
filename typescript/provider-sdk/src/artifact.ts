@@ -1,4 +1,3 @@
-import { ISigner } from './altvm.js';
 import { AnnotatedTx, TxReceipt } from './module.js';
 
 export const ArtifactState = {
@@ -170,11 +169,12 @@ export interface IArtifactManager<
   TypeKey extends string,
   ConfigMap extends Record<TypeKey, any>,
   D,
+  S,
 > {
   createReader<T extends TypeKey>(type: T): ArtifactReader<ConfigMap[T], D>;
 
   createWriter<T extends TypeKey>(
     type: T,
-    signer: ISigner<AnnotatedTx, TxReceipt>,
+    signer: S,
   ): ArtifactWriter<ConfigMap[T], D>;
 }
