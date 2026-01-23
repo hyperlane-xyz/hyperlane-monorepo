@@ -98,15 +98,14 @@ pub async fn validate_confirmed_withdrawals(
         // Validate that this transaction creates the current outpoint
         escrow_outpoint_in_outputs(&tx, o, src_escrow, dst_escrow)?;
 
-        let p = tx
-            .payload
-            .clone()
-            .ok_or(ValidationError::MissingTransactionPayload)?;
-
-        let message_ids =
-            MessageIDs::from_tx_payload(&p).map_err(|e| ValidationError::PayloadParseError {
-                reason: format!("Failed to parse message IDs: {}", e),
-            })?;
+        let message_ids = match tx.payload.clone() {
+            Some(p) => {
+                MessageIDs::from_tx_payload(&p).map_err(|e| ValidationError::PayloadParseError {
+                    reason: format!("Failed to parse message IDs: {}", e),
+                })?
+            }
+            None => MessageIDs::new(vec![]),
+        };
 
         // If the last TX in sequence is final then the others must be too
         if i == outpoint_sequence.len() - 1 {

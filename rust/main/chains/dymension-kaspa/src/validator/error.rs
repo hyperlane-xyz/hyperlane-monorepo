@@ -56,9 +56,6 @@ pub enum ValidationError {
     #[error("Previous transaction not found in inputs")]
     PreviousTransactionNotFound,
 
-    #[error("Transaction has no payload")]
-    MissingTransactionPayload,
-
     #[error("Transaction inputs not found")]
     MissingTransactionInputs,
 

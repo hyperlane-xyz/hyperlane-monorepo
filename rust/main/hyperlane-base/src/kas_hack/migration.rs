@@ -8,7 +8,6 @@ use tracing::{error, info};
 
 use super::ensure_hub_synced;
 
-const MAX_ATTEMPTS: u32 = 10;
 const SYNC_DELAY_SECS: u64 = 10;
 const RETRY_DELAY_SECS: u64 = 60;
 
@@ -17,6 +16,8 @@ const RETRY_DELAY_SECS: u64 = 60;
 /// Handles two scenarios:
 /// 1. Fresh migration: executes TX, waits for confirmation, syncs hub
 /// 2. Resumed after prior migration: detects new escrow has funds, skips TX, syncs hub
+///
+/// Retries indefinitely until success.
 pub async fn run_migration_with_sync<F>(
     provider: &KaspaProvider,
     hub_mailbox: &CosmosNativeMailbox,
@@ -34,82 +35,74 @@ where
     let new_escrow = new_escrow_address.to_string();
 
     // Step 1: Attempt migration (may be skipped if already done)
-    let tx_ids = execute_or_detect_migration(provider, &target_addr, &new_escrow).await?;
+    let tx_ids = execute_or_detect_migration(provider, &target_addr, &new_escrow).await;
 
-    // Step 2: Wait for TX confirmation then sync hub with retries
+    // Step 2: Wait for TX confirmation then sync hub
     info!(delay_secs = SYNC_DELAY_SECS, "Waiting for TX confirmation before hub sync");
     tokio::time::sleep(Duration::from_secs(SYNC_DELAY_SECS)).await;
 
-    sync_hub_with_retries(provider, hub_mailbox, &old_escrow, &new_escrow, &format_signatures).await?;
+    sync_hub(provider, hub_mailbox, &old_escrow, &new_escrow, &format_signatures).await;
 
     Ok(tx_ids)
 }
 
 /// Attempts migration. If old escrow is empty but new escrow has funds,
 /// concludes migration already happened and returns success.
+/// Retries indefinitely.
 async fn execute_or_detect_migration(
     provider: &KaspaProvider,
     target_addr: &dymension_kaspa::KaspaAddress,
     new_escrow: &str,
-) -> Result<Vec<String>> {
-    for attempt in 1..=MAX_ATTEMPTS {
-        info!(attempt, max_attempts = MAX_ATTEMPTS, "Migration attempt");
+) -> Vec<String> {
+    let mut attempt: u64 = 0;
+    loop {
+        attempt += 1;
+        info!(attempt, "Migration attempt");
 
         match execute_migration(provider, target_addr).await {
             Ok(tx_ids) => {
                 info!(tx_count = tx_ids.len(), "Migration transactions submitted");
-                return Ok(tx_ids.into_iter().map(|h| h.to_string()).collect());
+                return tx_ids.into_iter().map(|h| h.to_string()).collect();
             }
             Err(e) => {
-                // Check if migration already happened (old empty, new has funds)
                 if new_escrow_has_funds(provider, new_escrow).await {
                     info!("Migration already completed (new escrow has funds), proceeding to sync");
-                    return Ok(vec![]);
+                    return vec![];
                 }
 
                 error!(error = ?e, attempt, "Migration failed, will retry");
-
-                if attempt >= MAX_ATTEMPTS {
-                    return Err(eyre::eyre!("Migration failed after {} attempts: {}", MAX_ATTEMPTS, e));
-                }
-
                 tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
             }
         }
     }
-    unreachable!()
 }
 
-/// Retries hub sync until success or max attempts exhausted.
-async fn sync_hub_with_retries<F>(
+/// Retries hub sync indefinitely until success.
+async fn sync_hub<F>(
     provider: &KaspaProvider,
     hub_mailbox: &CosmosNativeMailbox,
     old_escrow: &str,
     new_escrow: &str,
     format_signatures: &F,
-) -> Result<()>
+)
 where
     F: Fn(&mut Vec<Signature>) -> ChainResult<Vec<u8>>,
 {
-    for attempt in 1..=MAX_ATTEMPTS {
+    let mut attempt: u64 = 0;
+    loop {
+        attempt += 1;
         match ensure_hub_synced(provider, hub_mailbox, old_escrow, new_escrow, format_signatures).await {
             Ok(_) => {
                 info!("Post-migration hub sync completed");
-                return Ok(());
+                return;
             }
             Err(e) => {
                 error!(error = ?e, attempt, "Post-migration sync failed");
-
-                if attempt >= MAX_ATTEMPTS {
-                    return Err(eyre::eyre!("Post-migration sync failed after {} attempts: {}", MAX_ATTEMPTS, e));
-                }
-
                 info!(delay_secs = RETRY_DELAY_SECS, "Waiting before sync retry");
                 tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
             }
         }
     }
-    unreachable!()
 }
 
 /// Check if the new escrow address has any UTXOs (indicating migration already happened).
