@@ -28,6 +28,7 @@ import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import {
   ChainMetadata,
   ChainTechnicalStack,
+  EthJsonRpcBlockParameterTag,
 } from '../metadata/chainMetadataTypes.js';
 import { ChainMap, ChainName, ChainNameOrId } from '../types.js';
 import { ZKSyncDeployer } from '../zksync/ZKSyncDeployer.js';
@@ -53,7 +54,12 @@ export interface SendTransactionOptions {
    * Number of confirmations to wait for, or a block tag like "finalized" or "safe".
    * If not provided, uses chain metadata's blocks.confirmations (default: 1).
    */
-  waitConfirmations?: number | string;
+  waitConfirmations?: number | EthJsonRpcBlockParameterTag;
+  /**
+   * Timeout in ms when waiting for a block tag (default: 300000 = 5 min).
+   * Only applies when waitConfirmations is a block tag.
+   */
+  timeoutMs?: number;
 }
 
 /**
@@ -387,20 +393,20 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
   /**
    * Wait for given tx to be confirmed
-   * @param waitConfirmations - Optional override for confirmation count or block tag (e.g., "finalized", "safe")
-   * @throws if chain's metadata or signer has not been set or tx fails
+   * @param options - Optional configuration including waitConfirmations and timeoutMs
+   * @throws if chain's metadata or signer has not been set, tx fails, block tag unsupported, or timeout exceeded
    */
   async handleTx(
     chainNameOrId: ChainNameOrId,
     tx: ContractTransaction | Promise<ContractTransaction>,
-    waitConfirmations?: number | string,
+    options?: SendTransactionOptions,
   ): Promise<ContractReceipt> {
     const response = await tx;
     const txUrl = this.tryGetExplorerTxUrl(chainNameOrId, response);
 
     // Use provided waitConfirmations, or fall back to chain metadata confirmations
     const confirmations =
-      waitConfirmations ??
+      options?.waitConfirmations ??
       this.getChainMetadata(chainNameOrId).blocks?.confirmations ??
       1;
 
@@ -409,7 +415,12 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       this.logger.info(
         `Pending ${txUrl || response.hash} (waiting for ${confirmations} block)`,
       );
-      return this.waitForBlockTag(chainNameOrId, response, confirmations);
+      return this.waitForBlockTag(
+        chainNameOrId,
+        response,
+        confirmations,
+        options?.timeoutMs,
+      );
     }
 
     // Handle numeric confirmations
@@ -422,22 +433,41 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
   /**
    * Wait for a transaction to be included in a block with the given tag (e.g., "finalized", "safe").
    * Polls until the tagged block number >= transaction block number.
+   * @param timeoutMs - Timeout in ms (default: 300000 = 5 min)
+   * @throws if block tag is unsupported by the RPC provider or timeout exceeded
    * @internal - Prefer using handleTx with waitConfirmations parameter.
    */
   async waitForBlockTag(
     chainNameOrId: ChainNameOrId,
     response: ContractTransaction,
-    blockTag: string,
+    blockTag: EthJsonRpcBlockParameterTag,
+    timeoutMs = 300000,
   ): Promise<ContractReceipt> {
     const provider = this.getProvider(chainNameOrId);
     const receipt = await response.wait(1); // Wait for initial inclusion
     const txBlock = receipt.blockNumber;
 
+    // Check if block tag is supported on first call
+    const initialTaggedBlock = await provider.getBlock(blockTag);
+    if (initialTaggedBlock === null) {
+      throw new Error(
+        `Block tag "${blockTag}" not supported by RPC provider for chain ${chainNameOrId}`,
+      );
+    }
+
+    // Check if already confirmed
+    if (initialTaggedBlock.number >= txBlock) {
+      this.logger.info(
+        `Transaction ${response.hash} confirmed at ${blockTag} block ${initialTaggedBlock.number}`,
+      );
+      return receipt;
+    }
+
     const POLL_INTERVAL_MS = 2000;
-    const MAX_WAIT_MS = 60000; // 1 minute timeout
     const startTime = Date.now();
 
-    while (Date.now() - startTime < MAX_WAIT_MS) {
+    while (Date.now() - startTime < timeoutMs) {
+      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
       const taggedBlock = await provider.getBlock(blockTag);
       if (taggedBlock && taggedBlock.number >= txBlock) {
         this.logger.info(
@@ -445,13 +475,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         );
         return receipt;
       }
-      await new Promise((resolve) => setTimeout(resolve, POLL_INTERVAL_MS));
     }
 
-    this.logger.warn(
-      `Timeout waiting for ${blockTag} block for tx ${response.hash}, proceeding anyway`,
+    throw new Error(
+      `Timeout (${timeoutMs}ms) waiting for ${blockTag} block for tx ${response.hash}`,
     );
-    return receipt;
   }
 
   /**
@@ -511,7 +539,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     const signer = this.getSigner(chainNameOrId);
     const response = await signer.sendTransaction(txReq);
     this.logger.info(`Sent tx ${response.hash}`);
-    return this.handleTx(chainNameOrId, response, options?.waitConfirmations);
+    return this.handleTx(chainNameOrId, response, options);
   }
 
   /**
