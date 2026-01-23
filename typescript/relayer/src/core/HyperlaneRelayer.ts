@@ -306,26 +306,26 @@ export class HyperlaneRelayer {
       return this.core.getProcessedReceipt(message);
     }
 
-    this.logger.debug({ message }, `Simulating recipient message handling`);
-    await this.core.estimateHandle(message);
-
-    const [ism, hook] = await Promise.all([
-      this.getRecipientIsmConfig(message),
-      this.getSenderHookConfig(message),
-    ]);
-    this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
-
-    const metadata = await this.metadataBuilder.build({
-      message,
-      ism,
-      hook,
-      dispatchTx,
-    });
-
     const startTime = Date.now();
-    this.logger.info(`Relaying message ${message.id}`);
-
     try {
+      this.logger.debug({ message }, `Simulating recipient message handling`);
+      await this.core.estimateHandle(message);
+
+      const [ism, hook] = await Promise.all([
+        this.getRecipientIsmConfig(message),
+        this.getSenderHookConfig(message),
+      ]);
+      this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
+
+      const metadata = await this.metadataBuilder.build({
+        message,
+        ism,
+        hook,
+        dispatchTx,
+      });
+
+      this.logger.info(`Relaying message ${message.id}`);
+
       const receipt = await this.core.deliver(message, metadata);
       const durationMs = Date.now() - startTime;
       this.eventCallbacks.onMessageRelayed?.(

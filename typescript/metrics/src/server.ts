@@ -16,7 +16,8 @@ export function startMetricsServer(
   register: Registry,
   logger?: Logger,
 ): http.Server {
-  return http
+  const port = parseInt(process.env['PROMETHEUS_PORT'] || '9090');
+  const server = http
     .createServer((req, res) => {
       if (req.url !== '/metrics') {
         res.writeHead(404, 'Invalid url').end();
@@ -43,5 +44,23 @@ export function startMetricsServer(
             .end('Internal Server Error');
         });
     })
-    .listen(parseInt(process.env['PROMETHEUS_PORT'] || '9090'));
+    .on('error', (err: NodeJS.ErrnoException) => {
+      if (err.code === 'EADDRINUSE') {
+        const msg = `Metrics server port ${port} already in use. Set PROMETHEUS_PORT to use a different port.`;
+        if (logger) {
+          logger.error(msg);
+        } else {
+          console.error(msg);
+        }
+      } else {
+        if (logger) {
+          logger.error(err, 'Metrics server error');
+        } else {
+          console.error('Metrics server error:', err);
+        }
+      }
+    })
+    .listen(port);
+
+  return server;
 }
