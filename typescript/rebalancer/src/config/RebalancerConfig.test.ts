@@ -408,4 +408,92 @@ describe('RebalancerConfig', () => {
       );
     });
   });
+
+  describe('composite strategy validation', () => {
+    it('should throw if CollateralDeficitStrategy is not first in composite', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              chain1: {
+                weighted: { weight: 100, tolerance: 0 },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+              chain2: {
+                weighted: { weight: 100, tolerance: 0 },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+          },
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
+            chains: {
+              chain1: {
+                buffer: 1000,
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+              chain2: {
+                buffer: 1000,
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+          },
+        ],
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.throw(
+        'CollateralDeficitStrategy must be first when used in composite strategy',
+      );
+    });
+
+    it('should allow CollateralDeficitStrategy first in composite', () => {
+      data = {
+        warpRouteId: 'warpRouteId',
+        strategy: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
+            chains: {
+              chain1: {
+                buffer: 1000,
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+              chain2: {
+                buffer: 1000,
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+          },
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              chain1: {
+                weighted: { weight: 100, tolerance: 0 },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+              chain2: {
+                weighted: { weight: 100, tolerance: 0 },
+                bridge: ethers.constants.AddressZero,
+                bridgeLockTime: 1,
+              },
+            },
+          },
+        ],
+      };
+
+      writeYamlOrJson(TEST_CONFIG_PATH, data);
+
+      expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.not.throw();
+    });
+  });
 });
