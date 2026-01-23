@@ -250,6 +250,14 @@ export function withDryRun<T>(args: Argv<T>) {
     .default('dryRun', false);
 }
 
+export function withYes<T>(args: Argv<T>) {
+  return args
+    .describe('yes', 'Skip confirmations and use defaults')
+    .boolean('yes')
+    .alias('y', 'yes')
+    .default('yes', false);
+}
+
 export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
   return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }

@@ -25,6 +25,7 @@ import {
   getMultiProtocolProvider,
   withRegistryCommit,
   withWarpRouteId,
+  withYes,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -34,7 +35,8 @@ async function main() {
     environment,
     warpRouteId,
     registryCommit: registryCommitArg,
-  } = await withRegistryCommit(withWarpRouteId(getArgs())).argv;
+    yes: skipConfirmation,
+  } = await withYes(withRegistryCommit(withWarpRouteId(getArgs()))).argv;
   await timedAsync('assertCorrectKubeContext', () =>
     assertCorrectKubeContext(getEnvironmentConfig(environment)),
   );
@@ -123,10 +125,19 @@ async function main() {
           warpRouteId,
           environment,
         );
-      registryCommit = await input({
-        message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
-        default: defaultRegistryCommit,
-      });
+
+      if (skipConfirmation && defaultRegistryCommit) {
+        registryCommit = defaultRegistryCommit;
+      } else if (skipConfirmation) {
+        throw new Error(
+          `No existing registry commit found for ${warpRouteId}. Cannot use --yes without --registry-commit.`,
+        );
+      } else {
+        registryCommit = await input({
+          message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
+          default: defaultRegistryCommit,
+        });
+      }
     }
 
     if (!validatedCommits.has(registryCommit)) {

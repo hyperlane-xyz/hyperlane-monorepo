@@ -23,6 +23,7 @@ import {
   withMetrics,
   withRegistryCommit,
   withWarpRouteId,
+  withYes,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -37,7 +38,10 @@ async function main() {
     warpRouteId,
     metrics,
     registryCommit: registryCommitArg,
-  } = await withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))).parse();
+    yes: skipConfirmation,
+  } = await withYes(
+    withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))),
+  ).parse();
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
@@ -96,7 +100,6 @@ async function main() {
   const validatedCommits = new Set<string>();
 
   const deployRebalancer = async (warpRouteId: string) => {
-    // Get registry commit for this specific rebalancer
     let registryCommit: string;
     if (registryCommitArg) {
       registryCommit = registryCommitArg;
@@ -106,10 +109,19 @@ async function main() {
           warpRouteId,
           environment,
         );
-      registryCommit = await input({
-        message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
-        default: defaultRegistryCommit,
-      });
+
+      if (skipConfirmation && defaultRegistryCommit) {
+        registryCommit = defaultRegistryCommit;
+      } else if (skipConfirmation) {
+        throw new Error(
+          `No existing registry commit found for ${warpRouteId}. Cannot use --yes without --registry-commit.`,
+        );
+      } else {
+        registryCommit = await input({
+          message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
+          default: defaultRegistryCommit,
+        });
+      }
     }
 
     if (!validatedCommits.has(registryCommit)) {
