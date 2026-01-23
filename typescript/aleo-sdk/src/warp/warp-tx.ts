@@ -4,19 +4,22 @@ import {
   arrayToPlaintext,
   fillArray,
   fromAleoAddress,
+  programIdToPlaintext,
 } from '../utils/helper.js';
 import type { AleoTransaction } from '../utils/types.js';
 
 /**
  * Create transaction for initializing a native token
  */
-export function getCreateNativeTokenTx(): AleoTransaction {
+export function getCreateNativeTokenTx(
+  tokenProgramId: string,
+): AleoTransaction {
   return {
-    programName: '',
+    programName: tokenProgramId,
     functionName: 'init',
     priorityFee: 0,
     privateFee: false,
-    inputs: [`0u8`],
+    inputs: [programIdToPlaintext(tokenProgramId), `0u8`],
   };
 }
 
