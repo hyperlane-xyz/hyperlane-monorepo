@@ -136,12 +136,12 @@ pub async fn execute_migration(
     inputs.extend(relayer_inputs);
     let num_inputs = inputs.len();
 
-    // 7. Build placeholder outputs to calculate mass (amounts don't affect mass)
+    // 7. Build placeholder outputs to estimate mass (storage mass divides by output amount)
     let new_escrow_script = pay_to_address_script(new_escrow_address);
     let relayer_change_script = pay_to_address_script(&relayer_addr);
     let placeholder_outputs = vec![
         TransactionOutput::new(escrow_sum, new_escrow_script.clone()),
-        TransactionOutput::new(0, relayer_change_script.clone()), // placeholder
+        TransactionOutput::new(relayer_sum, relayer_change_script.clone()),
     ];
 
     // 8. Calculate actual mass using Kaspa's mass calculator
