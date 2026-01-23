@@ -185,7 +185,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       staticAggregationIsmFactory: '',
       staticMessageIdMultisigIsmFactory: '',
       staticMessageIdWeightedMultisigIsmFactory: '',
-      validatorAnnounce: validatorAnnounce.validatorAnnounceId,
+      validatorAnnounce: validatorAnnounce.validatorAnnounceAddress,
       testRecipient: '',
       interchainAccountRouter: '',
       domainRoutingIsmFactory: '',

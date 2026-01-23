@@ -587,6 +587,7 @@ describe('AltVMWarpModule', () => {
     const createIsm = Sinon.stub(signer, 'createMessageIdMultisigIsm').resolves(
       {
         ismAddress: newIsmAddress,
+        receipts: [],
       },
     );
     const updateIsm = Sinon.stub(
@@ -661,6 +662,7 @@ describe('AltVMWarpModule', () => {
       'createMerkleRootMultisigIsm',
     ).resolves({
       ismAddress: newIsmAddress,
+      receipts: [],
     });
     const updateIsm = Sinon.stub(
       signer,
