@@ -93,6 +93,7 @@ export class RebalancerHelmManager extends HelmManager {
         repository: DockerImageRepos.REBALANCER,
         tag: mainnetDockerTags.rebalancer,
       },
+      warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
@@ -187,6 +188,39 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   // TODO: allow for a rebalancer to be uninstalled
+
+  /**
+   * Get the registry commit from a deployed rebalancer's helm values.
+   * Returns undefined if the release doesn't exist or has no registry commit.
+   */
+  static async getDeployedRegistryCommit(
+    warpRouteId: string,
+    environment: DeployEnvironment,
+  ): Promise<string | undefined> {
+    const helmReleaseName = getHelmReleaseName(
+      warpRouteId,
+      RebalancerHelmManager.helmReleasePrefix,
+    );
+    try {
+      const values = await execCmdAndParseJson(
+        `helm get values ${helmReleaseName} --namespace ${environment} -o json`,
+      );
+
+      // Standalone image: registryUri contains /tree/{commit}
+      const registryUri = values?.hyperlane?.registryUri;
+      if (registryUri) {
+        const match = registryUri.match(/\/tree\/(.+)$/);
+        if (match?.[1]) return match[1];
+      }
+
+      // Legacy monorepo image: REGISTRY_COMMIT in env config
+      const registryCommit = values?.hyperlane?.registryCommit;
+      if (registryCommit) return registryCommit;
+    } catch {
+      // Release doesn't exist
+    }
+    return undefined;
+  }
 }
 
 export interface RebalancerPodInfo {
@@ -236,6 +270,23 @@ export async function getDeployedRebalancerWarpRouteIds(
       if (warpRouteIdArgIndex !== -1 && allArgs[warpRouteIdArgIndex + 1]) {
         warpRouteId = allArgs[warpRouteIdArgIndex + 1];
         break;
+      }
+    }
+
+    // Fallback: parse warpRouteId from configmap (for existing deployments without env var)
+    if (!warpRouteId) {
+      try {
+        const configMapName = `${helmReleaseName}-config`;
+        const cm = await execCmdAndParseJson(
+          `kubectl get configmap ${configMapName} -n ${namespace} -o json`,
+        );
+        const configYaml = cm.data?.['rebalancer-config.yaml'];
+        if (configYaml) {
+          const match = configYaml.match(/^warpRouteId:\s*(.+)$/m);
+          warpRouteId = match?.[1]?.trim();
+        }
+      } catch {
+        // ConfigMap not found or other error
       }
     }
 

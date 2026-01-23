@@ -58,11 +58,21 @@ async function main() {
     `Loading secrets for ${chainsNeeded.length} chains: ${chainsNeeded.join(', ')}`,
   );
 
+  let defaultRegistryCommit: string | undefined;
+  if (!registryCommitArg && warpRouteIds.length > 0) {
+    defaultRegistryCommit =
+      await WarpRouteMonitorHelmManager.getDeployedRegistryCommit(
+        warpRouteIds[0],
+        environment,
+      );
+  }
+
   const registryCommit =
     registryCommitArg ??
     (await input({
       message:
         'Enter the registry version to use (can be a commit, branch or tag):',
+      default: defaultRegistryCommit,
     }));
 
   // Only fetch secrets for the chains in the warp routes (optimization)

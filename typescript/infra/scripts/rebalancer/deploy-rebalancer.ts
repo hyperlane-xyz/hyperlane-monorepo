@@ -44,11 +44,21 @@ async function main() {
     warpRouteIds = await getWarpRouteIdsInteractive(environment);
   }
 
+  let defaultRegistryCommit: string | undefined;
+  if (!registryCommitArg && warpRouteIds.length > 0) {
+    defaultRegistryCommit =
+      await RebalancerHelmManager.getDeployedRegistryCommit(
+        warpRouteIds[0],
+        environment,
+      );
+  }
+
   const registryCommit =
     registryCommitArg ??
     (await input({
       message:
         'Enter the registry version to use (can be a commit, branch or tag):',
+      default: defaultRegistryCommit,
     }));
   await validateRegistryCommit(registryCommit);
 
