@@ -1,0 +1,71 @@
+# Rebalancer configuration for mainnet CCTP USDC warp route fork tests
+# This config uses the MinAmount strategy with absolute thresholds
+
+warpRouteId: "USDC/mainnet-cctp"
+
+strategy:
+  rebalanceStrategy: minAmount
+  chains:
+    ethereum:
+      minAmount:
+        min: "5000000000"      # 5000 USDC (6 decimals)
+        target: "10000000000"  # 10000 USDC
+        type: "absolute"
+      # Bridge is the warp route contract itself for CCTP
+      bridge: "0xedCBAa585FD0F80f20073F9958246476466205b8"
+      bridgeLockTime: 1800  # 30 minutes
+      bridgeMinAcceptedAmount: "1000000000"  # 1000 USDC minimum transfer
+
+    arbitrum:
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: "absolute"
+      bridge: "0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+
+    avalanche:
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: "absolute"
+      bridge: "0x0E8Bc62865F539889fe7d8537F2ed6db5aa0F677"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+
+    base:
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: "absolute"
+      bridge: "0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+
+    optimism:
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: "absolute"
+      bridge: "0xfB7681ECB05F85c383A5ce4439C7dF5ED12c77DE"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+
+    polygon:
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: "absolute"
+      bridge: "0xa62F45662809f5F6535b58bae9A572a2EC4A1f84"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+
+    unichain:
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: "absolute"
+      bridge: "0x296aF86bff91b23cF980f6a443bc15A3A5d30682"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"

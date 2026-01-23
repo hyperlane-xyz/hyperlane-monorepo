@@ -1,0 +1,25 @@
+# Fork configuration for mainnet CCTP USDC warp route
+# Used by rebalancer fork tests to configure chain forking
+
+# Chains from USDC/mainnet-cctp warp route
+ethereum:
+  impersonateAccounts: []
+  # Owner addresses will be fetched from contracts at runtime
+
+arbitrum:
+  impersonateAccounts: []
+
+avalanche:
+  impersonateAccounts: []
+
+base:
+  impersonateAccounts: []
+
+optimism:
+  impersonateAccounts: []
+
+polygon:
+  impersonateAccounts: []
+
+unichain:
+  impersonateAccounts: []

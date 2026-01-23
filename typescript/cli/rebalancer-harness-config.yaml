@@ -1,0 +1,28 @@
+strategy:
+  chains:
+    arbitrum:
+      bridge: "0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: absolute
+    base:
+      bridge: "0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: absolute
+    ethereum:
+      bridge: "0xedCBAa585FD0F80f20073F9958246476466205b8"
+      bridgeLockTime: 1800
+      bridgeMinAcceptedAmount: "1000000000"
+      minAmount:
+        min: "5000000000"
+        target: "10000000000"
+        type: absolute
+  rebalanceStrategy: minAmount
+warpRouteId: USDC/mainnet-cctp
