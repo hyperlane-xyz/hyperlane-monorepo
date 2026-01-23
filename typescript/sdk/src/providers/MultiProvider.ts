@@ -460,7 +460,14 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       this.logger.info(
         `Transaction ${response.hash} confirmed at ${blockTag} block ${initialTaggedBlock.number}`,
       );
-      return receipt;
+      // Re-fetch receipt to get canonical block info after potential reorgs
+      const finalReceipt = await provider.getTransactionReceipt(response.hash);
+      if (!finalReceipt) {
+        throw new Error(
+          `Transaction ${response.hash} not found after ${blockTag} confirmation - may have been reorged out`,
+        );
+      }
+      return finalReceipt;
     }
 
     const POLL_INTERVAL_MS = 2000;
@@ -473,7 +480,16 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         this.logger.info(
           `Transaction ${response.hash} confirmed at ${blockTag} block ${taggedBlock.number}`,
         );
-        return receipt;
+        // Re-fetch receipt to get canonical block info after potential reorgs
+        const finalReceipt = await provider.getTransactionReceipt(
+          response.hash,
+        );
+        if (!finalReceipt) {
+          throw new Error(
+            `Transaction ${response.hash} not found after ${blockTag} confirmation - may have been reorged out`,
+          );
+        }
+        return finalReceipt;
       }
     }
 
