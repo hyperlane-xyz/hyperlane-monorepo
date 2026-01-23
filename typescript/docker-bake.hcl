@@ -43,7 +43,8 @@ target "ncc-services" {
       { name = "rebalancer", dir = "rebalancer", package = "@hyperlane-xyz/rebalancer", image = "hyperlane-rebalancer", port = "" },
       { name = "warp-monitor", dir = "warp-monitor", package = "@hyperlane-xyz/warp-monitor", image = "hyperlane-warp-monitor", port = "" },
       { name = "ccip-server", dir = "ccip-server", package = "@hyperlane-xyz/ccip-server", image = "hyperlane-offchain-lookup-server", port = "3000" },
-      { name = "keyfunder", dir = "keyfunder", package = "@hyperlane-xyz/keyfunder", image = "hyperlane-key-funder", port=""},
+      { name = "keyfunder", dir = "keyfunder", package = "@hyperlane-xyz/keyfunder", image = "hyperlane-key-funder", port="" },
+      { name = "relayer", dir = "relayer", package = "@hyperlane-xyz/relayer", image = "hyperlane-ts-relayer", port="" },
     ]
   }
 
