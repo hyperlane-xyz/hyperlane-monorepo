@@ -7,6 +7,7 @@ use crate::relayer::withdraw::hub_to_kaspa::{
     sign_relayer_fee,
 };
 use dym_kas_core::pskt::{estimate_mass, PopulatedInput, PopulatedInputBuilder};
+use dym_kas_hardcode::tx::RELAYER_SWEEPING_PRIORITY_FEE;
 use eyre::{eyre, Result};
 use kaspa_addresses::Address;
 use kaspa_consensus_core::tx::TransactionOutput;
@@ -136,30 +137,52 @@ pub async fn execute_migration(
     inputs.extend(relayer_inputs);
     let num_inputs = inputs.len();
 
-    // 7. Build placeholder outputs to estimate mass (storage mass divides by output amount)
+    // 7. Two-pass fee estimation (storage mass = C / output_amount, so fee affects mass)
     let new_escrow_script = pay_to_address_script(new_escrow_address);
     let relayer_change_script = pay_to_address_script(&relayer_addr);
-    let placeholder_outputs = vec![
+    let empty_payload = MessageIDs::new(vec![]).to_bytes();
+
+    let feerate = easy_wallet
+        .rpc_with_reconnect(|api| async move { get_normal_bucket_feerate(&api).await })
+        .await?;
+
+    // Pass 1: estimate mass with full relayer balance as change output
+    let initial_outputs = vec![
         TransactionOutput::new(escrow_sum, new_escrow_script.clone()),
         TransactionOutput::new(relayer_sum, relayer_change_script.clone()),
     ];
-
-    // 8. Calculate actual mass using Kaspa's mass calculator
-    let empty_payload = MessageIDs::new(vec![]).to_bytes();
-    let tx_mass = estimate_mass(
+    let initial_mass = estimate_mass(
         inputs.clone(),
-        placeholder_outputs,
+        initial_outputs,
         empty_payload.clone(),
         easy_wallet.net.network_id,
         escrow.m() as u16,
     )
-    .map_err(|e| eyre!("Estimate migration TX mass: {}", e))?;
+    .map_err(|e| eyre!("Estimate migration TX mass (pass 1): {}", e))?;
+    let initial_fee = (initial_mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
 
-    // 9. Calculate fee and relayer change
-    let feerate = easy_wallet
-        .rpc_with_reconnect(|api| async move { get_normal_bucket_feerate(&api).await })
-        .await?;
-    let tx_fee = (tx_mass as f64 * feerate).round() as u64;
+    // Pass 2: recalculate with fee-adjusted change output
+    let estimated_change = relayer_sum.saturating_sub(initial_fee);
+    if estimated_change == 0 {
+        return Err(eyre!(
+            "Relayer balance {} insufficient for fee {}",
+            relayer_sum,
+            initial_fee
+        ));
+    }
+    let final_outputs = vec![
+        TransactionOutput::new(escrow_sum, new_escrow_script.clone()),
+        TransactionOutput::new(estimated_change, relayer_change_script.clone()),
+    ];
+    let tx_mass = estimate_mass(
+        inputs.clone(),
+        final_outputs,
+        empty_payload.clone(),
+        easy_wallet.net.network_id,
+        escrow.m() as u16,
+    )
+    .map_err(|e| eyre!("Estimate migration TX mass (pass 2): {}", e))?;
+    let tx_fee = (tx_mass as f64 * feerate).ceil() as u64 + RELAYER_SWEEPING_PRIORITY_FEE;
 
     if relayer_sum <= tx_fee {
         return Err(eyre!(
