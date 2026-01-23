@@ -1,4 +1,9 @@
-import { strip0x } from '@hyperlane-xyz/utils';
+import type { ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
+import type {
+  DeployedWarpAddress,
+  RawWarpArtifactConfig,
+} from '@hyperlane-xyz/provider-sdk/warp';
+import { eqAddressAleo, strip0x } from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
@@ -8,7 +13,10 @@ import {
   programIdToPlaintext,
   stringToU128,
 } from '../utils/helper.js';
-import type { AleoTransaction } from '../utils/types.js';
+import type {
+  AleoTransaction,
+  AnnotatedAleoTransaction,
+} from '../utils/types.js';
 
 import { getTokenMetadata } from './warp-query.js';
 
@@ -160,4 +168,97 @@ export function getUnenrollRemoteRouterTx(
     privateFee: false,
     inputs: [`${domainId}u32`],
   };
+}
+
+/**
+ * Generates update transactions for a warp token by comparing current on-chain state
+ * with desired configuration. Returns transactions for ISM updates, router enrollment/unenrollment,
+ * and ownership transfer (always last).
+ *
+ * @param expectedArtifactState The desired warp token configuration with deployment address
+ * @param currentArtifactState The current on-chain warp token state
+ * @returns Array of transactions to execute in order
+ */
+export async function getWarpTokenUpdateTxs<
+  TConfig extends RawWarpArtifactConfig,
+>(
+  expectedArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
+  currentArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
+): Promise<AnnotatedAleoTransaction[]> {
+  const { config: expectedConfig, deployed } = expectedArtifactState;
+  const { config: currentConfig } = currentArtifactState;
+  const updateTxs: AnnotatedAleoTransaction[] = [];
+
+  // Update ISM if changed
+  const currentIsm = currentConfig.interchainSecurityModule?.deployed.address;
+  const newIsm = expectedConfig.interchainSecurityModule?.deployed.address;
+
+  if (!eqAddressAleo(currentIsm ?? '', newIsm ?? '')) {
+    const setIsmTx = getSetTokenIsmTx(deployed.address, newIsm ?? '');
+    updateTxs.push({
+      annotation: 'Updating token ISM',
+      ...setIsmTx,
+    });
+  }
+
+  // Get current and desired remote routers
+  const currentRouters = new Set(
+    Object.keys(currentConfig.remoteRouters).map((k) => parseInt(k)),
+  );
+  const desiredRouters = new Set(
+    Object.keys(expectedConfig.remoteRouters).map((k) => parseInt(k)),
+  );
+
+  // Unenroll removed routers
+  for (const domainId of currentRouters) {
+    if (!desiredRouters.has(domainId)) {
+      const unenrollTx = getUnenrollRemoteRouterTx(deployed.address, domainId);
+      updateTxs.push({
+        annotation: `Unenrolling router for domain ${domainId}`,
+        ...unenrollTx,
+      });
+    }
+  }
+
+  // Enroll or update routers
+  for (const [domainIdStr, remoteRouter] of Object.entries(
+    expectedConfig.remoteRouters,
+  )) {
+    const domainId = parseInt(domainIdStr);
+    const gas = expectedConfig.destinationGas[domainId] || '0';
+    const currentRouter = currentConfig.remoteRouters[domainId];
+    const currentGas = currentConfig.destinationGas[domainId] || '0';
+
+    const needsUpdate =
+      !currentRouter ||
+      !eqAddressAleo(currentRouter.address, remoteRouter.address) ||
+      currentGas !== gas;
+
+    if (needsUpdate) {
+      const enrollTx = getEnrollRemoteRouterTx(
+        deployed.address,
+        domainId,
+        remoteRouter.address,
+        gas,
+      );
+      updateTxs.push({
+        annotation: `Enrolling/updating router for domain ${domainId}`,
+        ...enrollTx,
+      });
+    }
+  }
+
+  // Owner transfer must be last transaction as the current owner executes all updates
+  if (!eqAddressAleo(currentConfig.owner, expectedConfig.owner)) {
+    const setOwnerTx = getSetTokenOwnerTx(
+      deployed.address,
+      expectedConfig.owner,
+    );
+    updateTxs.push({
+      annotation: 'Setting new token owner',
+      ...setOwnerTx,
+    });
+  }
+
+  return updateTxs;
 }

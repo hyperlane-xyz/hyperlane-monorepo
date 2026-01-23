@@ -27,6 +27,7 @@ import {
   getCreateSyntheticTokenTx,
   getEnrollRemoteRouterTx,
   getSetTokenIsmTx,
+  getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
 export class AleoSyntheticTokenReader
@@ -189,13 +190,15 @@ export class AleoSyntheticTokenWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<
+    artifact: ArtifactDeployed<
       RawSyntheticWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedAleoTransaction[]> {
-    // TODO: Implement update logic with getWarpTokenUpdateTxs
-    // For now, return empty array (no updates)
-    return [];
+    // Read current state from chain
+    const currentArtifact = await this.read(artifact.deployed.address);
+
+    // Generate update transactions
+    return getWarpTokenUpdateTxs(artifact, currentArtifact);
   }
 }
