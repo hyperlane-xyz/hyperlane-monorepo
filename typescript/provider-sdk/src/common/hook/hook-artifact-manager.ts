@@ -36,8 +36,8 @@ import {
 export class HookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly provider: AltVM.IProvider,
-    private readonly mailboxAddress: string,
     private readonly nativeTokenDenom: string,
+    private readonly mailboxAddress?: string,
   ) {}
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
@@ -74,6 +74,11 @@ export class HookArtifactManager implements IRawHookArtifactManager {
     type: T,
     signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
+    assert(
+      this.mailboxAddress,
+      `Mailbox needs to be defined to deploy a ${AltVM.HookType.MERKLE_TREE} hook`,
+    );
+
     const writers: {
       [K in HookType]: () => ArtifactWriter<
         RawHookArtifactConfigs[K],
@@ -81,12 +86,12 @@ export class HookArtifactManager implements IRawHookArtifactManager {
       >;
     } = {
       [AltVM.HookType.MERKLE_TREE]: () =>
-        new MerkleTreeHookWriter(this.provider, signer, this.mailboxAddress),
+        new MerkleTreeHookWriter(this.provider, signer, this.mailboxAddress!),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
         new IgpHookWriter(
           this.provider,
           signer,
-          this.mailboxAddress,
+          this.mailboxAddress!,
           this.nativeTokenDenom,
         ),
     };

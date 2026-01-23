@@ -61,11 +61,6 @@ export class AleoProtocolProvider implements ProtocolProvider {
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string; denom?: string },
   ): Promise<IRawHookArtifactManager> {
-    assert(
-      context?.mailbox,
-      `mailbox address required for hook artifact manager`,
-    );
-
     const nativeDenom = chainMetadata.nativeToken?.denom ?? '';
     assert(
       nativeDenom,
@@ -73,7 +68,7 @@ export class AleoProtocolProvider implements ProtocolProvider {
     );
 
     const provider = await this.createProvider(chainMetadata);
-    return new HookArtifactManager(provider, context?.mailbox, nativeDenom);
+    return new HookArtifactManager(provider, nativeDenom, context?.mailbox);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
