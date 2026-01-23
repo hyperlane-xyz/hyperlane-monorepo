@@ -2,6 +2,7 @@ import fs from 'fs';
 import http from 'http';
 import { Logger } from 'pino';
 
+import { startMetricsServer } from '@hyperlane-xyz/metrics';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
@@ -10,10 +11,10 @@ import {
   HyperlaneRelayer,
   RelayerCache,
   RelayerCacheSchema,
+  RelayerEventCallbacks,
 } from '../core/HyperlaneRelayer.js';
 
 import { RelayerConfig } from './RelayerConfig.js';
-import { startMetricsServer } from './metricsServer.js';
 import { RelayerMetrics, relayerMetricsRegistry } from './relayerMetrics.js';
 
 export interface RelayerServiceConfig {
@@ -57,11 +58,39 @@ export class RelayerService {
 
     const relayerWhitelist = whitelist ?? this.buildWhitelistFromConfig();
 
+    const eventCallbacks: RelayerEventCallbacks = {
+      onMessageRelayed: (origin, destination, _msgId, durationMs) => {
+        this.metrics.recordMessageSuccess(origin, destination);
+        this.metrics.recordRelayDuration(
+          origin,
+          destination,
+          durationMs / 1000,
+        );
+      },
+      onMessageFailed: (origin, destination) => {
+        this.metrics.recordMessageFailure(origin, destination);
+      },
+      onMessageSkipped: (origin, destination, _msgId, reason) => {
+        if (reason === 'whitelist') {
+          this.metrics.recordMessageSkipped(origin, destination);
+        } else if (reason === 'already_delivered') {
+          this.metrics.recordMessageAlreadyDelivered(origin, destination);
+        }
+      },
+      onRetry: (origin, destination) => {
+        this.metrics.recordRetry(origin, destination);
+      },
+      onBacklogUpdate: (size) => {
+        this.metrics.updateBacklogSize(size);
+      },
+    };
+
     this.relayer = new HyperlaneRelayer({
       core,
       whitelist: relayerWhitelist,
       retryTimeout:
         this.config.retryTimeout ?? this.relayerConfig?.retryTimeout,
+      eventCallbacks,
     });
 
     const cacheFile = this.config.cacheFile ?? this.relayerConfig?.cacheFile;
@@ -116,7 +145,10 @@ export class RelayerService {
     const relayer = await this.initialize(whitelist);
 
     if (this.config.enableMetrics) {
-      this.metricsServer = startMetricsServer(relayerMetricsRegistry);
+      this.metricsServer = startMetricsServer(
+        relayerMetricsRegistry,
+        this.logger,
+      );
     }
 
     this.logger.info('Starting relayer...');

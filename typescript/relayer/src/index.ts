@@ -3,13 +3,14 @@ export {
   RelayerCacheSchema,
   messageMatchesWhitelist,
 } from './core/HyperlaneRelayer.js';
-export type { RelayerCache } from './core/HyperlaneRelayer.js';
+export type {
+  RelayerCache,
+  RelayerEventCallbacks,
+} from './core/HyperlaneRelayer.js';
 
-// Config schema (browser-safe, no fs)
 export { RelayerConfigSchema } from './config/schema.js';
 export type { RelayerConfigInput } from './config/schema.js';
 
-// Metadata builders (moved from SDK)
 export {
   AggregationMetadata,
   AggregationMetadataBuilder,
