@@ -51,10 +51,13 @@ async function main() {
       environment,
       WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
     );
-    const deployedIds = deployedPods
-      .map((p) => p.warpRouteId)
-      .filter((id): id is string => !!id)
-      .sort();
+    const deployedIds = [
+      ...new Set(
+        deployedPods
+          .map((p) => p.warpRouteId)
+          .filter((id): id is string => !!id),
+      ),
+    ].sort();
 
     if (deployedIds.length === 0) {
       rootLogger.error(
