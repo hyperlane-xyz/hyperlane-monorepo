@@ -3,37 +3,51 @@ name: HypNative Collateral Migration
 on:
   workflow_dispatch:
     inputs:
-      old_router:
-        description: 'Address of the old HypNative contract to migrate from'
+      env_file:
+        description: 'Migration env file (e.g., viction-eth.env)'
         required: true
         type: string
-      remote_domain:
-        description: 'Domain ID of the remote chain'
-        required: true
-        type: string
-      proxy_admin:
-        description: 'Address of pre-deployed ProxyAdmin (must be owned by Safe)'
-        required: true
-        type: string
-      chain:
-        description: 'Chain to run migration on (for RPC URL selection)'
-        required: true
-        type: choice
-        options:
-          - ethereum
-          - optimism
-          - arbitrum
-          - polygon
-          - base
+  push:
+    branches:
+      - yorke/hypnative-migration
+    paths:
+      - 'solidity/script/migrations/*.env'
+      - 'solidity/script/HypNativeCollateralMigration.s.sol'
+      - 'solidity/script/migration-pipeline.sh'
+      - '.github/workflows/hypnative-migration.yml'
 
 concurrency:
   group: hypnative-migration-${{ github.ref }}
   cancel-in-progress: true
 
 jobs:
+  # Find all env files to process
+  find-migrations:
+    runs-on: ubuntu-latest
+    outputs:
+      env_files: ${{ steps.find.outputs.env_files }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - name: Find env files
+        id: find
+        run: |
+          if [ "${{ github.event_name }}" = "workflow_dispatch" ]; then
+            # Use specified env file
+            echo "env_files=[\"${{ inputs.env_file }}\"]" >> $GITHUB_OUTPUT
+          else
+            # Find all env files in migrations directory
+            files=$(ls solidity/script/migrations/*.env 2>/dev/null | xargs -I {} basename {} | jq -R -s -c 'split("\n") | map(select(length > 0))')
+            echo "env_files=$files" >> $GITHUB_OUTPUT
+          fi
+
   generate-safe-tx:
+    needs: find-migrations
     runs-on: ubuntu-latest
     timeout-minutes: 15
+    strategy:
+      matrix:
+        env_file: ${{ fromJson(needs.find-migrations.outputs.env_files) }}
     steps:
       - uses: actions/checkout@v6
         with:
@@ -41,6 +55,15 @@ jobs:
 
       - name: Setup Foundry
         uses: ./.github/actions/setup-foundry
+
+      - name: Load migration config
+        id: config
+        run: |
+          source solidity/script/migrations/${{ matrix.env_file }}
+          echo "OLD_ROUTER=$OLD_ROUTER" >> $GITHUB_OUTPUT
+          echo "REMOTE_DOMAIN=$REMOTE_DOMAIN" >> $GITHUB_OUTPUT
+          echo "PROXY_ADMIN=$PROXY_ADMIN" >> $GITHUB_OUTPUT
+          echo "CHAIN=$CHAIN" >> $GITHUB_OUTPUT
 
       - name: Set RPC URL
         env:
@@ -50,7 +73,7 @@ jobs:
           MAINNET3_POLYGON_RPC_URLS: ${{ secrets.MAINNET3_POLYGON_RPC_URLS }}
           MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
         run: |
-          case "${{ inputs.chain }}" in
+          case "${{ steps.config.outputs.CHAIN }}" in
             ethereum)
               echo "ETH_RPC_URL=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
               ;;
@@ -71,28 +94,28 @@ jobs:
       - name: Run Migration Pipeline
         working-directory: ./solidity
         env:
-          OLD_ROUTER: ${{ inputs.old_router }}
-          REMOTE_DOMAIN: ${{ inputs.remote_domain }}
-          PROXY_ADMIN: ${{ inputs.proxy_admin }}
+          OLD_ROUTER: ${{ steps.config.outputs.OLD_ROUTER }}
+          REMOTE_DOMAIN: ${{ steps.config.outputs.REMOTE_DOMAIN }}
+          PROXY_ADMIN: ${{ steps.config.outputs.PROXY_ADMIN }}
           OUTPUT_FILE: migration_transactions.json
         run: ./script/migration-pipeline.sh
 
       - name: Upload Safe Transaction JSON
         uses: actions/upload-artifact@v4
         with:
-          name: safe-tx-${{ inputs.chain }}-${{ inputs.old_router }}
+          name: safe-tx-${{ matrix.env_file }}
           path: solidity/migration_transactions.json
           retention-days: 30
 
       - name: Print Summary
         working-directory: ./solidity
         run: |
-          echo "## Migration Transaction Summary" >> $GITHUB_STEP_SUMMARY
+          echo "## Migration Transaction Summary: ${{ matrix.env_file }}" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
-          echo "**Chain:** ${{ inputs.chain }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Old Router:** \`${{ inputs.old_router }}\`" >> $GITHUB_STEP_SUMMARY
-          echo "**Remote Domain:** ${{ inputs.remote_domain }}" >> $GITHUB_STEP_SUMMARY
-          echo "**Proxy Admin:** \`${{ inputs.proxy_admin }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Chain:** ${{ steps.config.outputs.CHAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Old Router:** \`${{ steps.config.outputs.OLD_ROUTER }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Remote Domain:** ${{ steps.config.outputs.REMOTE_DOMAIN }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Proxy Admin:** \`${{ steps.config.outputs.PROXY_ADMIN }}\`" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
           echo "### Transaction Details" >> $GITHUB_STEP_SUMMARY
           echo "" >> $GITHUB_STEP_SUMMARY
