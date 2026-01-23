@@ -19,6 +19,7 @@ import { DeployEnvironment } from '../config/environment.js';
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../utils/consts.js';
 import {
   HelmManager,
+  getDeployedRegistryCommit,
   getHelmReleaseName,
   removeHelmRelease,
 } from '../utils/helm.js';
@@ -126,37 +127,15 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     );
   }
 
-  /**
-   * Get the registry commit from a deployed warp monitor's helm values.
-   * Returns undefined if the release doesn't exist or has no registry commit.
-   */
-  static async getDeployedRegistryCommit(
+  static getDeployedRegistryCommit(
     warpRouteId: string,
     namespace: string,
   ): Promise<string | undefined> {
-    const helmReleaseName = getHelmReleaseName(
+    return getDeployedRegistryCommit(
       warpRouteId,
+      namespace,
       WarpRouteMonitorHelmManager.helmReleasePrefix,
     );
-    try {
-      const values = await execCmdAndParseJson(
-        `helm get values ${helmReleaseName} --namespace ${namespace} -o json`,
-      );
-
-      // Standalone image: registryUri contains /tree/{commit}
-      const registryUri = values?.hyperlane?.registryUri;
-      if (registryUri) {
-        const match = registryUri.match(/\/tree\/(.+)$/);
-        if (match?.[1]) return match[1];
-      }
-
-      // Legacy monorepo image: REGISTRY_COMMIT in env config
-      const registryCommit = values?.hyperlane?.registryCommit;
-      if (registryCommit) return registryCommit;
-    } catch {
-      // Release doesn't exist
-    }
-    return undefined;
   }
 
   // Gets all Warp Monitor Helm Releases in the given namespace.
