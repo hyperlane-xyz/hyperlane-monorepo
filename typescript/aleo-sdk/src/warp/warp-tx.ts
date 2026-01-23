@@ -6,6 +6,7 @@ import {
   fillArray,
   fromAleoAddress,
   programIdToPlaintext,
+  stringToU128,
 } from '../utils/helper.js';
 import type { AleoTransaction } from '../utils/types.js';
 
@@ -45,6 +46,30 @@ export async function getCreateCollateralTokenTx(
       programIdToPlaintext(tokenProgramId),
       collateralDenom,
       `${metadata.decimals}u8`,
+    ],
+  };
+}
+
+/**
+ * Create transaction for initializing a synthetic token
+ */
+export function getCreateSyntheticTokenTx(
+  tokenProgramId: string,
+  name: string,
+  denom: string,
+  decimals: number,
+): AleoTransaction {
+  return {
+    programName: tokenProgramId,
+    functionName: 'init',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [
+      programIdToPlaintext(tokenProgramId),
+      `${stringToU128(name).toString()}u128`,
+      `${stringToU128(denom).toString()}u128`,
+      `${decimals}u8`,
+      `${decimals}u8`,
     ],
   };
 }
