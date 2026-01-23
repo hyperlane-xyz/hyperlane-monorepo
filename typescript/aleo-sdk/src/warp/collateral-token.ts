@@ -27,6 +27,7 @@ import {
   getCreateCollateralTokenTx,
   getEnrollRemoteRouterTx,
   getSetTokenIsmTx,
+  getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
 export class AleoCollateralTokenReader
@@ -191,13 +192,15 @@ export class AleoCollateralTokenWriter
   }
 
   async update(
-    _artifact: ArtifactDeployed<
+    artifact: ArtifactDeployed<
       RawCollateralWarpArtifactConfig,
       DeployedWarpAddress
     >,
   ): Promise<AnnotatedAleoTransaction[]> {
-    // TODO: Implement update logic with getWarpTokenUpdateTxs
-    // For now, return empty array (no updates)
-    return [];
+    // Read current state from chain
+    const currentArtifact = await this.read(artifact.deployed.address);
+
+    // Generate update transactions
+    return getWarpTokenUpdateTxs(artifact, currentArtifact);
   }
 }
