@@ -110,12 +110,8 @@ async function main() {
           environment,
         );
 
-      if (skipConfirmation && defaultRegistryCommit) {
-        registryCommit = defaultRegistryCommit;
-      } else if (skipConfirmation) {
-        throw new Error(
-          `No existing registry commit found for ${warpRouteId}. Cannot use --yes without --registry-commit.`,
-        );
+      if (skipConfirmation) {
+        registryCommit = defaultRegistryCommit ?? 'main';
       } else {
         registryCommit = await input({
           message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
