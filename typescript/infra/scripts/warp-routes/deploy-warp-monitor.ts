@@ -103,8 +103,8 @@ async function main() {
     `Loading secrets for ${chainsNeeded.length} chains: ${chainsNeeded.join(', ')}`,
   );
 
-  const [registry] = await timedAsync('getRegistry', () =>
-    Promise.all([envConfig.getRegistry(true, chainsNeeded)]),
+  const registry = await timedAsync('getRegistry', () =>
+    envConfig.getRegistry(true, chainsNeeded),
   );
   const multiProtocolProvider = await timedAsync(
     'getMultiProtocolProvider',
