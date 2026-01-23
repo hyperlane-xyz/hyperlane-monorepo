@@ -12,6 +12,8 @@ import {
   altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
+import { AnnotatedTx, TxReceipt } from '../../module.js';
+
 import {
   MerkleRootMultisigIsmReader,
   MerkleRootMultisigIsmWriter,
@@ -70,7 +72,7 @@ export class IsmArtifactManager implements IRawIsmArtifactManager {
 
   createWriter<T extends IsmType>(
     type: T,
-    signer: AltVM.ISigner<any, any>,
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:

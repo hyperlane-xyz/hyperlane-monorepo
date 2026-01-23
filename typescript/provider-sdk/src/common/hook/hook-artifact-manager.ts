@@ -13,6 +13,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { AnnotatedTx, TxReceipt } from '../../module.js';
+
 import { IgpHookReader, IgpHookWriter } from './igp-hook.js';
 import {
   MerkleTreeHookReader,
@@ -70,7 +72,7 @@ export class HookArtifactManager implements IRawHookArtifactManager {
 
   createWriter<T extends HookType>(
     type: T,
-    signer: AltVM.ISigner<any, any>,
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
     const writers: {
       [K in HookType]: () => ArtifactWriter<

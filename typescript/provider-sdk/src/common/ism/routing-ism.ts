@@ -14,6 +14,7 @@ import {
 import { eqAddress, isNullish } from '@hyperlane-xyz/utils';
 
 import { AltVM } from '../../index.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
 export class RoutingIsmRawReader
   implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
@@ -59,7 +60,7 @@ export class RoutingIsmRawWriter
 {
   constructor(
     provider: AltVM.IProvider,
-    private readonly signer: AltVM.ISigner<any, any>,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(provider);
   }
@@ -67,10 +68,13 @@ export class RoutingIsmRawWriter
   async create(
     artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
   ): Promise<
-    [ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>, any[]]
+    [
+      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+      TxReceipt[],
+    ]
   > {
     const { config } = artifact;
-    const receipts: any[] = [];
+    const receipts: TxReceipt[] = [];
 
     const { ismAddress, receipts: createReceipts } =
       await this.signer.createRoutingIsm({
@@ -106,10 +110,10 @@ export class RoutingIsmRawWriter
 
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<any[]> {
+  ): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);
-    const transactions: any[] = [];
+    const transactions: AnnotatedTx[] = [];
 
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);

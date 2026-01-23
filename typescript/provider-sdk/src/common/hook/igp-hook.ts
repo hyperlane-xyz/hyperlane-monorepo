@@ -12,6 +12,8 @@ import {
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { eqAddress, isNullish } from '@hyperlane-xyz/utils';
 
+import { AnnotatedTx, TxReceipt } from '../../module.js';
+
 /**
  * Reader for  IGP (Interchain Gas Paymaster) Hook.
  * Reads deployed IGP hook configuration from the chain.
@@ -73,19 +75,21 @@ export class IgpHookWriter
   implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
-    query: AltVM.IProvider,
-    private readonly signer: AltVM.ISigner<any, any>,
+    provider: AltVM.IProvider,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     private readonly mailboxAddress: string,
     private readonly denom: string,
   ) {
-    super(query);
+    super(provider);
   }
 
   async create(
     artifact: ArtifactNew<IgpHookConfig>,
-  ): Promise<[ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, any[]]> {
+  ): Promise<
+    [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, TxReceipt[]]
+  > {
     const { config } = artifact;
-    const receipts: any[] = [];
+    const receipts: TxReceipt[] = [];
 
     const { hookAddress, receipts: createReceipts } =
       await this.signer.createInterchainGasPaymasterHook({
@@ -142,9 +146,9 @@ export class IgpHookWriter
 
   async update(
     artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
-  ): Promise<any[]> {
+  ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
-    const transactions: any[] = [];
+    const transactions: AnnotatedTx[] = [];
 
     // Handle destination gas config updates first
     const currentOverhead = current.config.overhead;

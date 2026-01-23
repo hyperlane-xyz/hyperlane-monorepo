@@ -11,6 +11,8 @@ import {
   type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
+import { AnnotatedTx, TxReceipt } from '../../module.js';
+
 /**
  * Reader for MerkleTree Hook.
  * Reads deployed MerkleTree hook configuration from the chain.
@@ -51,7 +53,7 @@ export class MerkleTreeHookWriter
 {
   constructor(
     provider: AltVM.IProvider,
-    private readonly signer: AltVM.ISigner<any, any>,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     private readonly mailboxAddress: string,
   ) {
     super(provider);
@@ -60,7 +62,7 @@ export class MerkleTreeHookWriter
   async create(
     artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
-    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>, any[]]
+    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>, TxReceipt[]]
   > {
     const { hookAddress, receipts } = await this.signer.createMerkleTreeHook({
       mailboxAddress: this.mailboxAddress,
@@ -82,7 +84,7 @@ export class MerkleTreeHookWriter
 
   async update(
     _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
-  ): Promise<any[]> {
+  ): Promise<AnnotatedTx[]> {
     // MerkleTreeHook has no mutable state
     return [];
   }

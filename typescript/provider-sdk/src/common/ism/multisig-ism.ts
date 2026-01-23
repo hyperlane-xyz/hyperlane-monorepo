@@ -12,6 +12,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { AltVM } from '../../index.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
 export class MessageIdMultisigIsmReader
   implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
@@ -45,14 +46,16 @@ export class MessageIdMultisigIsmWriter
 {
   constructor(
     provider: AltVM.IProvider,
-    private readonly signer: AltVM.ISigner<any, any>,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(provider);
   }
 
   async create(
     artifact: ArtifactNew<MultisigIsmConfig>,
-  ): Promise<[ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, any[]]> {
+  ): Promise<
+    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, TxReceipt[]]
+  > {
     const { config } = artifact;
 
     const { ismAddress, receipts } =
@@ -77,7 +80,7 @@ export class MessageIdMultisigIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<any[]> {
+  ): Promise<AnnotatedTx[]> {
     return [];
   }
 }
@@ -114,14 +117,16 @@ export class MerkleRootMultisigIsmWriter
 {
   constructor(
     provider: AltVM.IProvider,
-    private readonly signer: AltVM.ISigner<any, any>,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(provider);
   }
 
   async create(
     artifact: ArtifactNew<MultisigIsmConfig>,
-  ): Promise<[ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, any[]]> {
+  ): Promise<
+    [ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>, TxReceipt[]]
+  > {
     const { config } = artifact;
 
     const { ismAddress, receipts } =
@@ -146,7 +151,7 @@ export class MerkleRootMultisigIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<any[]> {
+  ): Promise<AnnotatedTx[]> {
     return [];
   }
 }

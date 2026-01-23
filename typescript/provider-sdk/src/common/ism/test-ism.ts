@@ -12,6 +12,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/ism';
 
 import { AltVM } from '../../index.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
 export class TestIsmReader
   implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
@@ -43,14 +44,16 @@ export class TestIsmWriter
 {
   constructor(
     provider: AltVM.IProvider,
-    private readonly signer: AltVM.ISigner<any, any>,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
     super(provider);
   }
 
   async create(
     artifact: ArtifactNew<TestIsmConfig>,
-  ): Promise<[ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, any[]]> {
+  ): Promise<
+    [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, TxReceipt[]]
+  > {
     const { ismAddress, receipts } = await this.signer.createNoopIsm({});
 
     const deployedArtifact: ArtifactDeployed<
@@ -69,7 +72,7 @@ export class TestIsmWriter
 
   async update(
     _artifact: ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>,
-  ): Promise<any[]> {
+  ): Promise<AnnotatedTx[]> {
     return [];
   }
 }
