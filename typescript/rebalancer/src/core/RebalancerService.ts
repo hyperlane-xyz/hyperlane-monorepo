@@ -412,20 +412,22 @@ export class RebalancerService {
       return;
     }
 
-    // 1. Create intents for each route BEFORE execution
-    const intents = await Promise.all(
-      routes.map((route) =>
-        this.actionTracker!.createRebalanceIntent({
+    // 1. Create intents paired with their routes BEFORE execution
+    // This coupling ensures we can match results back to intents by route fields
+    const intentRoutes = await Promise.all(
+      routes.map(async (route) => ({
+        intent: await this.actionTracker!.createRebalanceIntent({
           origin: this.multiProvider.getDomainId(route.origin),
           destination: this.multiProvider.getDomainId(route.destination),
           amount: route.amount,
           bridge: route.bridge,
         }),
-      ),
+        route,
+      })),
     );
 
     this.logger.debug(
-      { intentCount: intents.length },
+      { intentCount: intentRoutes.length },
       'Created rebalance intents',
     );
 
@@ -441,28 +443,45 @@ export class RebalancerService {
 
       // Mark all intents as failed
       await Promise.all(
-        intents.map((intent) =>
-          this.actionTracker!.failRebalanceIntent(intent.id),
+        intentRoutes.map((ir) =>
+          this.actionTracker!.failRebalanceIntent(ir.intent.id),
         ),
       );
       return;
     }
 
     // 3. Process results - create action for successful txs, mark intent appropriately
-    await this.processExecutionResults(results, intents);
+    await this.processExecutionResults(results, intentRoutes);
   }
 
   /**
    * Process execution results and update tracking state.
    * Creates actions for successful transactions and updates intent statuses.
+   *
+   * Results are matched to intents by route (origin + destination) since
+   * Rebalancer may return results in different order than input routes.
    */
   private async processExecutionResults(
     results: RebalanceExecutionResult[],
-    intents: Array<{ id: string }>,
+    intentRoutes: Array<{ intent: { id: string }; route: RebalancingRoute }>,
   ): Promise<void> {
-    for (let i = 0; i < results.length; i++) {
-      const result = results[i];
-      const intent = intents[i];
+    for (const result of results) {
+      // Match result to intent by route fields
+      const match = intentRoutes.find(
+        (ir) =>
+          ir.route.origin === result.route.origin &&
+          ir.route.destination === result.route.destination,
+      );
+
+      if (!match) {
+        this.logger.error(
+          { route: result.route },
+          'No matching intent found for result',
+        );
+        continue;
+      }
+
+      const intent = match.intent;
 
       if (result.success && result.messageId) {
         // Create action for successful transaction with messageId
@@ -487,15 +506,29 @@ export class RebalancerService {
           },
           'Rebalance action created successfully',
         );
-      } else {
-        // Mark intent as failed for failed transactions or those without messageId
+      } else if (result.success && !result.messageId) {
+        // TODO: Handle successful execution without messageId (e.g., non-Hyperlane bridges)
+        // For now, mark as failed since we can't track delivery without messageId
         await this.actionTracker!.failRebalanceIntent(intent.id);
 
         this.logger.warn(
           {
             intentId: intent.id,
             success: result.success,
-            hasMessageId: !!result.messageId,
+            txHash: result.txHash,
+            origin: result.route.origin,
+            destination: result.route.destination,
+          },
+          'Rebalance succeeded but no messageId - cannot track delivery',
+        );
+      } else {
+        // Mark intent as failed for failed transactions
+        await this.actionTracker!.failRebalanceIntent(intent.id);
+
+        this.logger.warn(
+          {
+            intentId: intent.id,
+            success: result.success,
             error: result.error,
             origin: result.route.origin,
             destination: result.route.destination,
