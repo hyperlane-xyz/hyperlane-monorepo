@@ -72,9 +72,33 @@ async function main() {
     }
   }
 
+  // Filter out orphaned monitors (deployed for warp routes no longer in registry)
+  const orphanedIds: string[] = [];
+  const validWarpRouteIds: string[] = [];
+  for (const id of warpRouteIds) {
+    try {
+      getWarpCoreConfig(id);
+      validWarpRouteIds.push(id);
+    } catch {
+      orphanedIds.push(id);
+    }
+  }
+
+  if (orphanedIds.length > 0) {
+    rootLogger.warn(
+      `Skipping ${orphanedIds.length} orphaned monitors (warp route no longer in registry):\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
+    );
+    rootLogger.warn('Run helm uninstall manually to remove these monitors');
+  }
+
+  if (validWarpRouteIds.length === 0) {
+    rootLogger.info('No valid warp routes to deploy');
+    process.exit(0);
+  }
+
   // Extract chains from warp routes to only fetch secrets for needed chains
   const warpRouteChains = new Set<string>();
-  for (const id of warpRouteIds) {
+  for (const id of validWarpRouteIds) {
     const warpConfig = getWarpCoreConfig(id);
     for (const token of warpConfig.tokens) {
       warpRouteChains.add(token.chainName);
@@ -132,7 +156,7 @@ async function main() {
     );
   };
 
-  for (const id of warpRouteIds) {
+  for (const id of validWarpRouteIds) {
     rootLogger.info(`Deploying Warp Monitor for Warp Route ID: ${id}`);
     await deployWarpMonitor(id);
   }
