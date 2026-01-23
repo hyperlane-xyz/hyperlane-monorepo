@@ -11,6 +11,7 @@ import {
   toAleoAddress,
 } from '../utils/helper.js';
 import {
+  type AleoCollateralWarpTokenConfig,
   type AleoNativeWarpTokenConfig,
   AleoTokenType,
 } from '../utils/types.js';
@@ -247,5 +248,57 @@ export async function getNativeWarpTokenConfig(
     mailbox: mailboxAddress,
     ism,
     remoteRouters,
+  };
+}
+
+/**
+ * Query collateral warp token configuration
+ */
+export async function getCollateralWarpTokenConfig(
+  aleoClient: AnyAleoNetworkClient,
+  tokenAddress: string,
+  ismManager: string,
+): Promise<AleoCollateralWarpTokenConfig> {
+  // Query metadata
+  const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
+
+  // Verify token type
+  const tokenTypeValue = metadata['token_type'];
+  assert(
+    typeof tokenTypeValue === 'number',
+    `Invalid token_type in metadata for ${tokenAddress}`,
+  );
+
+  const tokenType = toAleoTokenType(tokenTypeValue);
+  assert(
+    tokenType === AleoTokenType.COLLATERAL,
+    `Token at ${tokenAddress} is not a collateral token (type: ${tokenType})`,
+  );
+
+  // Get mailbox
+  const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
+
+  // Parse ISM
+  const ism = parseIsmAddress(metadata.ism, ismManager);
+
+  // Get remote routers
+  const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
+
+  // Get token ID and metadata from token_registry
+  const tokenId = metadata['token_id'];
+  assert(tokenId, `Token ID not found in metadata for ${tokenAddress}`);
+
+  const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
+
+  return {
+    type: AleoTokenType.COLLATERAL,
+    owner: formatAddress(metadata.token_owner),
+    mailbox: mailboxAddress,
+    ism,
+    remoteRouters,
+    token: tokenId,
+    name: tokenMetadata.name,
+    symbol: tokenMetadata.symbol,
+    decimals: tokenMetadata.decimals,
   };
 }
