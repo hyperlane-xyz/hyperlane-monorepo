@@ -78,8 +78,9 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
     ) -> ChainResult<T> {
         let start = Instant::now();
         let res = self.inner.request(path, query).await;
+        let method = path.split('/').next().unwrap_or_default();
         self.metrics
-            .increment_metrics(&self.metrics_config, path, start, res.is_ok());
+            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
         res
     }
 
@@ -91,8 +92,9 @@ impl<C: AleoClient> HttpClient for MetricHttpClient<C> {
     ) -> ChainResult<T> {
         let start = Instant::now();
         let res = self.inner.request_post(path, body).await;
+        let method = path.split('/').next().unwrap_or_default();
         self.metrics
-            .increment_metrics(&self.metrics_config, path, start, res.is_ok());
+            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
         res
     }
 }
