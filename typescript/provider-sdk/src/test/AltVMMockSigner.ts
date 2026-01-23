@@ -43,115 +43,115 @@ export class MockSigner
 
   async createMailbox(
     _req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
-  ): Promise<AltVM.ResCreateMailbox> {
+  ): Promise<AltVM.ResCreateMailbox<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setDefaultIsm(
     _req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultIsm> {
+  ): Promise<AltVM.ResSetDefaultIsm<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setDefaultHook(
     _req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultHook> {
+  ): Promise<AltVM.ResSetDefaultHook<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setRequiredHook(
     _req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
-  ): Promise<AltVM.ResSetRequiredHook> {
+  ): Promise<AltVM.ResSetRequiredHook<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setMailboxOwner(
     _req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
-  ): Promise<AltVM.ResSetMailboxOwner> {
+  ): Promise<AltVM.ResSetMailboxOwner<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createMerkleRootMultisigIsm(
     _req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
+  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createMessageIdMultisigIsm(
     _req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
+  ): Promise<AltVM.ResCreateMessageIdMultisigIsm<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createRoutingIsm(
     _req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateRoutingIsm> {
+  ): Promise<AltVM.ResCreateRoutingIsm<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setRoutingIsmRoute(
     _req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmRoute> {
+  ): Promise<AltVM.ResSetRoutingIsmRoute<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async removeRoutingIsmRoute(
     _req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
+  ): Promise<AltVM.ResRemoveRoutingIsmRoute<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setRoutingIsmOwner(
     _req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmOwner> {
+  ): Promise<AltVM.ResSetRoutingIsmOwner<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createNoopIsm(
     _req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopIsm> {
+  ): Promise<AltVM.ResCreateNoopIsm<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createMerkleTreeHook(
     _req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleTreeHook> {
+  ): Promise<AltVM.ResCreateMerkleTreeHook<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createInterchainGasPaymasterHook(
     _req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setInterchainGasPaymasterHookOwner(
     _req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
+  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setDestinationGasConfig(
     _req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResSetDestinationGasConfig> {
+  ): Promise<AltVM.ResSetDestinationGasConfig<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async removeDestinationGasConfig(
     _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+  ): Promise<AltVM.ResRemoveDestinationGasConfig<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createNoopHook(
     _req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopHook> {
+  ): Promise<AltVM.ResCreateNoopHook<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<AltVM.ResCreateValidatorAnnounce> {
+  ): Promise<AltVM.ResCreateValidatorAnnounce<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
@@ -159,61 +159,61 @@ export class MockSigner
 
   async createNativeToken(
     _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
-  ): Promise<AltVM.ResCreateNativeToken> {
+  ): Promise<AltVM.ResCreateNativeToken<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createCollateralToken(
     _req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
-  ): Promise<AltVM.ResCreateCollateralToken> {
+  ): Promise<AltVM.ResCreateCollateralToken<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async createSyntheticToken(
     _req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<AltVM.ResCreateSyntheticToken> {
+  ): Promise<AltVM.ResCreateSyntheticToken<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setTokenOwner(
     _req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
-  ): Promise<AltVM.ResSetTokenOwner> {
+  ): Promise<AltVM.ResSetTokenOwner<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setTokenIsm(
     _req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
-  ): Promise<AltVM.ResSetTokenIsm> {
+  ): Promise<AltVM.ResSetTokenIsm<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async setTokenHook(
     _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
-  ): Promise<AltVM.ResSetTokenHook> {
+  ): Promise<AltVM.ResSetTokenHook<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async enrollRemoteRouter(
     _req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResEnrollRemoteRouter> {
+  ): Promise<AltVM.ResEnrollRemoteRouter<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async unenrollRemoteRouter(
     _req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResUnenrollRemoteRouter> {
+  ): Promise<AltVM.ResUnenrollRemoteRouter<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async transfer(
     _req: Omit<AltVM.ReqTransfer, 'signer'>,
-  ): Promise<AltVM.ResTransfer> {
+  ): Promise<AltVM.ResTransfer<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 
   async remoteTransfer(
     _req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
-  ): Promise<AltVM.ResRemoteTransfer> {
+  ): Promise<AltVM.ResRemoteTransfer<MockReceipt>> {
     throw new Error(`not implemented`);
   }
 }

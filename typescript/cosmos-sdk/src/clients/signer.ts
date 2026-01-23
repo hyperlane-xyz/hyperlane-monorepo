@@ -145,7 +145,11 @@ export class CosmosNativeSigner
     assertIsDeliverTxSuccess(receipt);
 
     const msgResponse = receipt.msgResponses[0];
-    return getProtoConverter(msgResponse.typeUrl).decode(msgResponse.value);
+
+    return {
+      receipt,
+      result: getProtoConverter(msgResponse.typeUrl).decode(msgResponse.value),
+    };
   }
 
   getSignerAddress(): string {
@@ -192,189 +196,195 @@ export class CosmosNativeSigner
 
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
-  ): Promise<AltVM.ResCreateMailbox> {
+  ): Promise<AltVM.ResCreateMailbox<DeliverTxResponse>> {
     const msg = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       mailboxAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async setDefaultIsm(
     req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultIsm> {
+  ): Promise<AltVM.ResSetDefaultIsm<DeliverTxResponse>> {
     const msg = await this.getSetDefaultIsmTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      ismAddress: req.ismAddress,
+      receipts: [receipt],
     };
   }
 
   async setDefaultHook(
     req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultHook> {
+  ): Promise<AltVM.ResSetDefaultHook<DeliverTxResponse>> {
     const msg = await this.getSetDefaultHookTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      hookAddress: req.hookAddress,
+      receipts: [receipt],
     };
   }
 
   async setRequiredHook(
     req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
-  ): Promise<AltVM.ResSetRequiredHook> {
+  ): Promise<AltVM.ResSetRequiredHook<DeliverTxResponse>> {
     const msg = await this.getSetRequiredHookTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      hookAddress: req.hookAddress,
+      receipts: [receipt],
     };
   }
 
   async setMailboxOwner(
     req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
-  ): Promise<AltVM.ResSetMailboxOwner> {
+  ): Promise<AltVM.ResSetMailboxOwner<DeliverTxResponse>> {
     const msg = await this.getSetMailboxOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async createMerkleRootMultisigIsm(
     req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
+  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm<DeliverTxResponse>> {
     const msg = await this.getCreateMerkleRootMultisigIsmTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       ismAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
+  ): Promise<AltVM.ResCreateMessageIdMultisigIsm<DeliverTxResponse>> {
     const msg = await this.getCreateMessageIdMultisigIsmTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       ismAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateRoutingIsm> {
+  ): Promise<AltVM.ResCreateRoutingIsm<DeliverTxResponse>> {
     const msg = await this.getCreateRoutingIsmTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       ismAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async setRoutingIsmRoute(
     req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmRoute> {
+  ): Promise<AltVM.ResSetRoutingIsmRoute<DeliverTxResponse>> {
     const msg = await this.getSetRoutingIsmRouteTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      route: req.route,
+      receipts: [receipt],
     };
   }
 
   async removeRoutingIsmRoute(
     req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
+  ): Promise<AltVM.ResRemoveRoutingIsmRoute<DeliverTxResponse>> {
     const msg = await this.getRemoveRoutingIsmRouteTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      domainId: req.domainId,
+      receipts: [receipt],
     };
   }
 
   async setRoutingIsmOwner(
     req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmOwner> {
+  ): Promise<AltVM.ResSetRoutingIsmOwner<DeliverTxResponse>> {
     const msg = await this.getSetRoutingIsmOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopIsm> {
+  ): Promise<AltVM.ResCreateNoopIsm<DeliverTxResponse>> {
     const msg = await this.getCreateNoopIsmTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       ismAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleTreeHook> {
+  ): Promise<AltVM.ResCreateMerkleTreeHook<DeliverTxResponse>> {
     const msg = await this.getCreateMerkleTreeHookTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       hookAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook<DeliverTxResponse>> {
     assert(req.denom, `denom required by ${CosmosNativeSigner.name}`);
 
     const msg = await this.getCreateInterchainGasPaymasterHookTransaction({
@@ -382,43 +392,44 @@ export class CosmosNativeSigner
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       hookAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async setInterchainGasPaymasterHookOwner(
     req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
+  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner<DeliverTxResponse>> {
     const msg = await this.getSetInterchainGasPaymasterHookOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async setDestinationGasConfig(
     req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResSetDestinationGasConfig> {
+  ): Promise<AltVM.ResSetDestinationGasConfig<DeliverTxResponse>> {
     const msg = await this.getSetDestinationGasConfigTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      destinationGasConfig: req.destinationGasConfig,
+      receipts: [receipt],
     };
   }
 
   async removeDestinationGasConfig(
     _req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+  ): Promise<AltVM.ResRemoveDestinationGasConfig<DeliverTxResponse>> {
     throw new Error(
       `RemoveDestinationGasConfig is currently not supported on Cosmos Native`,
     );
@@ -426,126 +437,129 @@ export class CosmosNativeSigner
 
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopHook> {
+  ): Promise<AltVM.ResCreateNoopHook<DeliverTxResponse>> {
     const msg = await this.getCreateNoopHookTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { receipt, result } = await this.submitTx(msg);
     return {
       hookAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async createValidatorAnnounce(
     _req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<AltVM.ResCreateValidatorAnnounce> {
+  ): Promise<AltVM.ResCreateValidatorAnnounce<DeliverTxResponse>> {
     // Cosmos Native has no validator announce
-    return { validatorAnnounceId: '' };
+    return { validatorAnnounceAddress: '', receipts: [] };
   }
 
   // ### TX WARP ###
 
   async createNativeToken(
     _req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
-  ): Promise<AltVM.ResCreateNativeToken> {
+  ): Promise<AltVM.ResCreateNativeToken<DeliverTxResponse>> {
     throw new Error(`Native Token is not supported on Cosmos Native`);
   }
 
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
-  ): Promise<AltVM.ResCreateCollateralToken> {
+  ): Promise<AltVM.ResCreateCollateralToken<DeliverTxResponse>> {
     const msg = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { result, receipt } = await this.submitTx(msg);
     return {
       tokenAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<AltVM.ResCreateSyntheticToken> {
+  ): Promise<AltVM.ResCreateSyntheticToken<DeliverTxResponse>> {
     const msg = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    const result = await this.submitTx(msg);
+    const { result, receipt } = await this.submitTx(msg);
     return {
       tokenAddress: result.id,
+      receipts: [receipt],
     };
   }
 
   async setTokenOwner(
     req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
-  ): Promise<AltVM.ResSetTokenOwner> {
+  ): Promise<AltVM.ResSetTokenOwner<DeliverTxResponse>> {
     const msg = await this.getSetTokenOwnerTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
-  ): Promise<AltVM.ResSetTokenIsm> {
+  ): Promise<AltVM.ResSetTokenIsm<DeliverTxResponse>> {
     const msg = await this.getSetTokenIsmTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      ismAddress: req.ismAddress,
+      receipts: [receipt],
     };
   }
 
   async setTokenHook(
     _req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
-  ): Promise<AltVM.ResSetTokenHook> {
+  ): Promise<AltVM.ResSetTokenHook<DeliverTxResponse>> {
     throw new Error(`SetTokenHook is currently not supported on Cosmos Native`);
   }
 
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResEnrollRemoteRouter> {
+  ): Promise<AltVM.ResEnrollRemoteRouter<DeliverTxResponse>> {
     const msg = await this.getEnrollRemoteRouterTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      receiverDomainId: req.remoteRouter.receiverDomainId,
+      receipts: [receipt],
     };
   }
 
   async unenrollRemoteRouter(
     req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResUnenrollRemoteRouter> {
+  ): Promise<AltVM.ResUnenrollRemoteRouter<DeliverTxResponse>> {
     const msg = await this.getUnenrollRemoteRouterTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      receiverDomainId: req.receiverDomainId,
+      receipts: [receipt],
     };
   }
 
   async transfer(
     req: Omit<AltVM.ReqTransfer, 'signer'>,
-  ): Promise<AltVM.ResTransfer> {
+  ): Promise<AltVM.ResTransfer<DeliverTxResponse>> {
     assert(req.denom, `denom required by ${CosmosNativeSigner.name}`);
 
     const msg = await this.getTransferTransaction({
@@ -553,23 +567,23 @@ export class CosmosNativeSigner
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      recipient: req.recipient,
+      receipts: [receipt],
     };
   }
 
   async remoteTransfer(
     req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
-  ): Promise<AltVM.ResRemoteTransfer> {
+  ): Promise<AltVM.ResRemoteTransfer<DeliverTxResponse>> {
     const msg = await this.getRemoteTransferTransaction({
       ...req,
       signer: this.account.address,
     });
 
-    await this.submitTx(msg);
+    const { receipt } = await this.submitTx(msg);
     return {
-      tokenAddress: req.tokenAddress,
+      receipts: [receipt],
     };
   }
 }
