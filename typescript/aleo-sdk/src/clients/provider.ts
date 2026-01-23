@@ -54,7 +54,15 @@ import {
 
 import { AleoBase } from './base.js';
 
+interface TransactionFeeCache {
+  [key: string]: {
+    fee: bigint;
+  };
+}
+
 export class AleoProvider extends AleoBase implements AltVM.IProvider {
+  private transactionFeeCache: TransactionFeeCache = {};
+
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
@@ -139,11 +147,26 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
+    const cacheKey = `${req.transaction.programName}:${req.transaction.functionName}`;
+
+    const cached = this.transactionFeeCache[cacheKey];
+    if (cached) {
+      return {
+        fee: cached.fee,
+        gasUnits: 0n,
+        gasPrice: 0,
+      };
+    }
+
     const programManager = this.getProgramManager();
     const fee = await programManager.estimateExecutionFee({
       programName: req.transaction.programName,
       functionName: req.transaction.functionName,
     });
+
+    this.transactionFeeCache[cacheKey] = {
+      fee,
+    };
 
     return {
       fee,
