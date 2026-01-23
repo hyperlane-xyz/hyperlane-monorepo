@@ -135,7 +135,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     it(description, async function () {
       const expectedTokenOwner: Address = tokenOwner;
       const expectedProxyAdminOwner: Address =
-        proxyAdminOwner ?? ownerOverridesProxyAdmin ?? expectedTokenOwner;
+        ownerOverridesProxyAdmin ?? proxyAdminOwner ?? expectedTokenOwner;
 
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
