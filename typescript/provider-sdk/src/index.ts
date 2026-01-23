@@ -21,3 +21,4 @@ export {
 export { MockProvider } from './test/AltVMMockProvider.js';
 export { MockSigner } from './test/AltVMMockSigner.js';
 export { IsmArtifactManager } from './common/ism/ism-artifact-manager.js';
+export { HookArtifactManager } from './common/hook/hook-artifact-manager.js';

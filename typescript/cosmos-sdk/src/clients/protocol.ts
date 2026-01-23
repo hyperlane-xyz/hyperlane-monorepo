@@ -1,6 +1,7 @@
 import {
   type AltVM,
   type ChainMetadataForAltVM,
+  HookArtifactManager,
   type ITransactionSubmitter,
   IsmArtifactManager,
   type MinimumRequiredGasByAction,
@@ -16,8 +17,6 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
-
-import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
@@ -63,23 +62,16 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
 
   async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: { mailbox?: string; denom?: string },
   ): Promise<IRawHookArtifactManager> {
-    const [mainRpcUrl, ...otherRpcUrls] = (chainMetadata.rpcUrls ?? []).map(
-      (rpc) => rpc.http,
+    assert(
+      context?.mailbox,
+      `mailbox address required for hook artifact manager`,
     );
+    assert(context?.denom, `denom required for hook artifact manager`);
 
-    assert(mainRpcUrl, 'At least one rpc url is required');
-    assert(chainMetadata.nativeToken?.denom, 'native token denom undefined');
-
-    const mailboxAddress = context?.mailbox;
-    const nativeTokenDenom = chainMetadata.nativeToken.denom;
-
-    return new CosmosHookArtifactManager({
-      rpcUrls: [mainRpcUrl, ...otherRpcUrls],
-      mailboxAddress,
-      nativeTokenDenom,
-    });
+    const provider = await this.createProvider(chainMetadata);
+    return new HookArtifactManager(provider, context?.mailbox, context?.denom);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

@@ -1,9 +1,9 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-
 import {
   AltVM,
   ChainMetadataForAltVM,
+  HookArtifactManager,
   ITransactionSubmitter,
+  IsmArtifactManager,
   MinimumRequiredGasByAction,
   ProtocolProvider,
   SignerConfig,
@@ -15,14 +15,8 @@ import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { RadixHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
-import { RadixBase } from '../utils/base.js';
-
-import { NETWORKS, RadixProvider } from './provider.js';
+import { RadixProvider } from './provider.js';
 import { RadixSigner } from './signer.js';
-
-const DEFAULT_GAS_MULTIPLIER = 1.2;
 
 export class RadixProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
@@ -58,105 +52,23 @@ export class RadixProtocolProvider implements ProtocolProvider {
   async createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
   ): Promise<IRawIsmArtifactManager> {
-    assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
+    const provider = await this.createProvider(chainMetadata);
 
-    const networkId = parseInt(chainMetadata.chainId.toString());
-    const gatewayUrl = chainMetadata.gatewayUrls[0]?.http;
-
-    assert(gatewayUrl, 'gateway url undefined');
-
-    // Get package address from metadata first
-    let packageAddress = chainMetadata.packageAddress;
-
-    // If not in metadata, try to get from NETWORKS config as fallback
-    if (!packageAddress) {
-      const networkBaseConfig = NETWORKS[networkId];
-      assert(
-        networkBaseConfig,
-        `Network with id ${networkId} not supported and no packageAddress provided in chain metadata. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
-      );
-      packageAddress = networkBaseConfig.packageAddress;
-    }
-
-    assert(
-      packageAddress,
-      `Expected package address to be defined for radix network with id ${networkId}`,
-    );
-
-    // Initialize the Gateway API client
-    const gateway = GatewayApiClient.initialize({
-      applicationName: 'hyperlane',
-      basePath: gatewayUrl,
-      networkId,
-    });
-
-    // Create RadixBase instance with default gas multiplier
-    const base = new RadixBase(
-      networkId,
-      gateway,
-      DEFAULT_GAS_MULTIPLIER,
-      packageAddress,
-    );
-
-    return new RadixIsmArtifactManager(gateway, base);
+    return new IsmArtifactManager(provider);
   }
 
   async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: { mailbox?: string; denom?: string },
   ): Promise<IRawHookArtifactManager> {
-    assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
-
-    const networkId = parseInt(chainMetadata.chainId.toString());
-    const gatewayUrl = chainMetadata.gatewayUrls[0]?.http;
-
-    assert(gatewayUrl, 'gateway url undefined');
-
-    // Get package address from metadata first
-    let packageAddress = chainMetadata.packageAddress;
-
-    // If not in metadata, try to get from NETWORKS config as fallback
-    if (!packageAddress) {
-      const networkBaseConfig = NETWORKS[networkId];
-      assert(
-        networkBaseConfig,
-        `Network with id ${networkId} not supported and no packageAddress provided in chain metadata. Supported network ids: ${Object.keys(NETWORKS).join(', ')}`,
-      );
-      packageAddress = networkBaseConfig.packageAddress;
-    }
-
     assert(
-      packageAddress,
-      `Expected package address to be defined for radix network with id ${networkId}`,
+      context?.mailbox,
+      `mailbox address required for hook artifact manager`,
     );
+    assert(context?.denom, `denom required for hook artifact manager`);
 
-    // Initialize the Gateway API client
-    const gateway = GatewayApiClient.initialize({
-      applicationName: 'hyperlane',
-      basePath: gatewayUrl,
-      networkId,
-    });
-
-    // Create RadixBase instance with default gas multiplier
-    const base = new RadixBase(
-      networkId,
-      gateway,
-      DEFAULT_GAS_MULTIPLIER,
-      packageAddress,
-    );
-
-    // Get native token denom from chain metadata
-    const nativeTokenDenom = chainMetadata.nativeToken?.denom || '';
-
-    // Get mailbox from context if provided, otherwise empty string for read-only operations
-    const mailboxAddress = context?.mailbox || '';
-
-    return new RadixHookArtifactManager(
-      gateway,
-      base,
-      mailboxAddress,
-      nativeTokenDenom,
-    );
+    const provider = await this.createProvider(chainMetadata);
+    return new HookArtifactManager(provider, context?.mailbox, context?.denom);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
