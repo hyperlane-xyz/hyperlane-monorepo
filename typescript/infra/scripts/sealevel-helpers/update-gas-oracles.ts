@@ -216,16 +216,31 @@ async function manageGasOracles(
     // Always show example gas cost for this route
     const overheadForExample = config.overhead ?? 200_000;
     const exampleRemoteGas = overheadForExample + 50_000;
-    const exampleCostLamports =
+
+    const { decimals: localDecimals, symbol } =
+      mpp.getChainMetadata(chain).nativeToken!;
+    const remoteDecimals = remoteGasData.token_decimals;
+
+    // Calculate cost matching Rust IGP logic
+    let exampleCostLocalUnits =
       (remoteGasData.token_exchange_rate *
         remoteGasData.gas_price *
         BigInt(exampleRemoteGas)) /
       10n ** 19n; // TOKEN_EXCHANGE_RATE_SCALE
 
-    const { decimals, symbol } = mpp.getChainMetadata(chain).nativeToken!;
-    const exampleCost = (Number(exampleCostLamports) / 10 ** decimals).toFixed(
-      5,
-    );
+    // Convert decimals (mirrors Rust convert_decimals)
+    if (remoteDecimals > localDecimals) {
+      exampleCostLocalUnits =
+        exampleCostLocalUnits / 10n ** BigInt(remoteDecimals - localDecimals);
+    } else if (remoteDecimals < localDecimals) {
+      exampleCostLocalUnits =
+        exampleCostLocalUnits * 10n ** BigInt(localDecimals - remoteDecimals);
+    }
+
+    const exampleCost = (
+      Number(exampleCostLocalUnits) /
+      10 ** localDecimals
+    ).toFixed(5);
     rootLogger.info(
       `${chain} -> ${remoteChain}: ${exampleRemoteGas} remote gas cost: ${exampleCost} ${symbol}`,
     );

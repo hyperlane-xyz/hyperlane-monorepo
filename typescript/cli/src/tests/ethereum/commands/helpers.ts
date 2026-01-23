@@ -395,7 +395,7 @@ export function hyperlaneStatus({
 export function hyperlaneRelayer(chains: string[], warp?: string) {
   return $`${localTestRunCmdPrefix()} hyperlane relayer \
         --registry ${REGISTRY_PATH} \
-        --chains ${chains.join(',')} \
+        ${chains.flatMap((c) => ['--chains', c])} \
         --warp ${warp ?? ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \

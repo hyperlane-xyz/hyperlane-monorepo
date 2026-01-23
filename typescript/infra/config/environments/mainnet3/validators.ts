@@ -1583,5 +1583,15 @@ export const validatorChainConfig = (
         'krown',
       ),
     },
+    eden: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('eden'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x1c61e6379443e2842d3e9db28e962b6c717fdab1'],
+        },
+        'eden',
+      ),
+    },
   };
 };

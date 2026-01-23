@@ -1,5 +1,26 @@
 # @hyperlane-xyz/cli
 
+## 22.0.0
+
+### Major Changes
+
+- 51a37ae: Renamed `--destinations` flag to `--chains` in `hyperlane ica deploy` and `hyperlane warp check --ica` commands for consistency with other CLI commands.
+- 9116ab0: CLI array input handling changed from CSV parsing to native yargs array syntax. Commands now use `--chains a b c` or `--chains a --chains b` instead of `--chains a,b`. Affected options: `--chains`, `--validators`, `--destinations`. Fixed a bug in chain resolver where string spreading produced individual characters instead of chain names.
+
+### Minor Changes
+
+- 9e167b3: Added `--ica` flag to `hyperlane warp check` command for verifying ICA (Interchain Account) ownership across destination chains. When used with `--origin` and optionally `--destinations`, the command checks that destination chain owners match expected ICA addresses derived from the origin chain owner. Non-EVM chains are automatically skipped with a warning.
+- 53c12b1: Metadata fields (logoURI, coinGeckoId, igpTokenAddressOrDenom, scale) and top-level options are now preserved when extending warp routes to new chains.
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- cc17360: Signer initialization is now deferred until after interactive chain selection for the `send message` command. This improves startup performance by only creating signers for the chains that will actually be used, rather than all EVM chains upfront.
+- 347ca12: Disabled chains (including deprecated ones) are now filtered out from CLI interactive prompts and the `hyperlane registry list` command output. This prevents users from accidentally selecting unsupported chains when deploying warp routes, sending messages, or running relayers.
+- 223fd7f: Fixed broken error handler in ncc.post-bundle.mjs that referenced undefined variables in the catch block.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 223fd7f: Suppressed harmless startup warnings via pnpm patches instead of runtime suppression. The bigint-buffer native bindings warning and node-fetch .data deprecation warning are now patched at the source, avoiding the need for --no-warnings flags or console.warn overrides.
+
 ## 21.1.0
 
 ## 21.0.0
