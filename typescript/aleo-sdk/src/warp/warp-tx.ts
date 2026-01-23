@@ -1,5 +1,6 @@
 import { strip0x } from '@hyperlane-xyz/utils';
 
+import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
   arrayToPlaintext,
   fillArray,
@@ -7,6 +8,8 @@ import {
   programIdToPlaintext,
 } from '../utils/helper.js';
 import type { AleoTransaction } from '../utils/types.js';
+
+import { getTokenMetadata } from './warp-query.js';
 
 /**
  * Create transaction for initializing a native token
@@ -20,6 +23,29 @@ export function getCreateNativeTokenTx(
     priorityFee: 0,
     privateFee: false,
     inputs: [programIdToPlaintext(tokenProgramId), `0u8`],
+  };
+}
+
+/**
+ * Create transaction for initializing a collateral token
+ */
+export async function getCreateCollateralTokenTx(
+  aleoClient: AnyAleoNetworkClient,
+  tokenProgramId: string,
+  collateralDenom: string,
+): Promise<AleoTransaction> {
+  const metadata = await getTokenMetadata(aleoClient, collateralDenom);
+
+  return {
+    programName: tokenProgramId,
+    functionName: 'init',
+    priorityFee: 0,
+    privateFee: false,
+    inputs: [
+      programIdToPlaintext(tokenProgramId),
+      collateralDenom,
+      `${metadata.decimals}u8`,
+    ],
   };
 }
 
