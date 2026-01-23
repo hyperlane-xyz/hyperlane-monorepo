@@ -113,6 +113,26 @@ export const RebalancerConfigSchema = z
     strategy: RebalancerStrategySchema,
   })
   .superRefine((config, ctx) => {
+    // CollateralDeficitStrategy must be first in composite if it is used
+    if (config.strategy.length > 1) {
+      const hasCollateralDeficit = config.strategy.some(
+        (s) =>
+          s.rebalanceStrategy === RebalancerStrategyOptions.CollateralDeficit,
+      );
+      const collateralDeficitFirst =
+        config.strategy[0].rebalanceStrategy ===
+        RebalancerStrategyOptions.CollateralDeficit;
+
+      if (hasCollateralDeficit && !collateralDeficitFirst) {
+        ctx.addIssue({
+          code: z.ZodIssueCode.custom,
+          message:
+            'CollateralDeficitStrategy must be first when used in composite strategy',
+          path: ['strategy'],
+        });
+      }
+    }
+
     // Validate each strategy in the array
     for (
       let strategyIndex = 0;
