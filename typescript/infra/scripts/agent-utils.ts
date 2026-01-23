@@ -36,6 +36,7 @@ import {
   getChains,
   getEnvChains,
   getRegistry,
+  warpRouteExistsInRegistry,
 } from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
@@ -439,6 +440,24 @@ export async function getWarpRouteIdsInteractive(
   }
 
   return selection;
+}
+
+export function filterOrphanedWarpRouteIds(warpRouteIds: string[]): {
+  validIds: string[];
+  orphanedIds: string[];
+} {
+  const validIds: string[] = [];
+  const orphanedIds: string[] = [];
+
+  for (const id of warpRouteIds) {
+    if (warpRouteExistsInRegistry(id)) {
+      validIds.push(id);
+    } else {
+      orphanedIds.push(id);
+    }
+  }
+
+  return { validIds, orphanedIds };
 }
 
 // not requiring to build coreConfig to get agentConfig

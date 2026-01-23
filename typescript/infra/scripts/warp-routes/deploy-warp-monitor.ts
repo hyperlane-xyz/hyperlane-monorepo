@@ -19,6 +19,7 @@ import {
 } from '../../src/warp-monitor/helm.js';
 import {
   assertCorrectKubeContext,
+  filterOrphanedWarpRouteIds,
   getAgentConfig,
   getArgs,
   getMultiProtocolProvider,
@@ -72,17 +73,8 @@ async function main() {
     }
   }
 
-  // Filter out orphaned monitors (deployed for warp routes no longer in registry)
-  const orphanedIds: string[] = [];
-  const validWarpRouteIds: string[] = [];
-  for (const id of warpRouteIds) {
-    try {
-      getWarpCoreConfig(id);
-      validWarpRouteIds.push(id);
-    } catch {
-      orphanedIds.push(id);
-    }
-  }
+  const { validIds: validWarpRouteIds, orphanedIds } =
+    filterOrphanedWarpRouteIds(warpRouteIds);
 
   if (orphanedIds.length > 0) {
     rootLogger.warn(

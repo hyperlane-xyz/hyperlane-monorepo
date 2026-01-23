@@ -18,6 +18,7 @@ import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
+  filterOrphanedWarpRouteIds,
   getArgs,
   withMetrics,
   withRegistryCommit,
@@ -72,8 +73,23 @@ async function main() {
     }
   }
 
+  const { validIds: validWarpRouteIds, orphanedIds } =
+    filterOrphanedWarpRouteIds(warpRouteIds);
+
+  if (orphanedIds.length > 0) {
+    rootLogger.warn(
+      `Skipping ${orphanedIds.length} orphaned rebalancers (warp route no longer in registry):\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
+    );
+    rootLogger.warn('Run helm uninstall manually to remove these rebalancers');
+  }
+
+  if (validWarpRouteIds.length === 0) {
+    rootLogger.info('No valid warp routes to deploy');
+    process.exit(0);
+  }
+
   rootLogger.info(
-    `Deploying Rebalancer for the following Route IDs:\n${warpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
+    `Deploying Rebalancer for the following Route IDs:\n${validWarpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
   );
 
   // Cache validated commits to avoid re-validating the same commit
@@ -127,7 +143,7 @@ async function main() {
 
   // TODO: Uninstall any stale rebalancer releases.
 
-  for (const id of warpRouteIds) {
+  for (const id of validWarpRouteIds) {
     rootLogger.info(`Deploying Rebalancer for Route ID: ${id}`);
     await deployRebalancer(id);
   }
