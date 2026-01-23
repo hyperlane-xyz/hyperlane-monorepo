@@ -1,0 +1,108 @@
+name: HypNative Collateral Migration
+
+on:
+  workflow_dispatch:
+    inputs:
+      old_router:
+        description: 'Address of the old HypNative contract to migrate from'
+        required: true
+        type: string
+      remote_domain:
+        description: 'Domain ID of the remote chain'
+        required: true
+        type: string
+      proxy_admin:
+        description: 'Address of pre-deployed ProxyAdmin (must be owned by Safe)'
+        required: true
+        type: string
+      chain:
+        description: 'Chain to run migration on (for RPC URL selection)'
+        required: true
+        type: choice
+        options:
+          - ethereum
+          - optimism
+          - arbitrum
+          - polygon
+          - base
+
+concurrency:
+  group: hypnative-migration-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  generate-safe-tx:
+    runs-on: ubuntu-latest
+    timeout-minutes: 15
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          submodules: recursive
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Set RPC URL
+        env:
+          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+          MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+          MAINNET3_POLYGON_RPC_URLS: ${{ secrets.MAINNET3_POLYGON_RPC_URLS }}
+          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
+        run: |
+          case "${{ inputs.chain }}" in
+            ethereum)
+              echo "ETH_RPC_URL=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            optimism)
+              echo "ETH_RPC_URL=${MAINNET3_OPTIMISM_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            arbitrum)
+              echo "ETH_RPC_URL=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            polygon)
+              echo "ETH_RPC_URL=${MAINNET3_POLYGON_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+            base)
+              echo "ETH_RPC_URL=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
+              ;;
+          esac
+
+      - name: Run Migration Pipeline
+        working-directory: ./solidity
+        env:
+          OLD_ROUTER: ${{ inputs.old_router }}
+          REMOTE_DOMAIN: ${{ inputs.remote_domain }}
+          PROXY_ADMIN: ${{ inputs.proxy_admin }}
+          OUTPUT_FILE: migration_transactions.json
+        run: ./script/migration-pipeline.sh
+
+      - name: Upload Safe Transaction JSON
+        uses: actions/upload-artifact@v4
+        with:
+          name: safe-tx-${{ inputs.chain }}-${{ inputs.old_router }}
+          path: solidity/migration_transactions.json
+          retention-days: 30
+
+      - name: Print Summary
+        working-directory: ./solidity
+        run: |
+          echo "## Migration Transaction Summary" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Chain:** ${{ inputs.chain }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Old Router:** \`${{ inputs.old_router }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "**Remote Domain:** ${{ inputs.remote_domain }}" >> $GITHUB_STEP_SUMMARY
+          echo "**Proxy Admin:** \`${{ inputs.proxy_admin }}\`" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Transaction Details" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "**Number of transactions:** $(jq '.transactions | length' migration_transactions.json)" >> $GITHUB_STEP_SUMMARY
+          echo "**Chain ID:** $(jq -r '.chainId' migration_transactions.json)" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "### Instructions" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "1. Download the \`migration_transactions.json\` artifact from this workflow run" >> $GITHUB_STEP_SUMMARY
+          echo "2. Go to your Safe app at https://app.safe.global" >> $GITHUB_STEP_SUMMARY
+          echo "3. Navigate to **New Transaction** > **Transaction Builder**" >> $GITHUB_STEP_SUMMARY
+          echo "4. Click **Upload JSON** and select the downloaded file" >> $GITHUB_STEP_SUMMARY
+          echo "5. Review the transactions and submit for signing" >> $GITHUB_STEP_SUMMARY
