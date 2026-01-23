@@ -20,8 +20,8 @@ describe('HookArtifactManager', () => {
     mockSigner = new MockSigner();
     manager = new HookArtifactManager(
       mockProvider,
-      mailboxAddress,
       nativeTokenDenom,
+      mailboxAddress,
     );
   });
 

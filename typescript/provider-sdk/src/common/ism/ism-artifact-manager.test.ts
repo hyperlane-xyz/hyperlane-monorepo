@@ -320,17 +320,31 @@ describe('IsmArtifactManager', () => {
       expect(receipts).to.be.an('array').with.length.greaterThan(0);
     });
 
-    it('creates ROUTING writer and verifies deployment', async () => {
+    it('creates ROUTING writer and verifies deployment with different owner', async () => {
       const ismAddress = 'deployed-routing-ism';
+      const signerAddress = '0x1234567890123456789012345678901234567890';
+      const ownerAddress = '0x0000000000000000000000000000000000000001';
       let createRoutingIsmCalled = false;
-      let capturedArgs: any;
+      let setRoutingIsmOwnerCalled = false;
+      let capturedCreateArgs: any;
+      let capturedOwnerArgs: any;
+
+      mockSigner.getSignerAddress = () => signerAddress;
 
       mockSigner.createRoutingIsm = async (req) => {
         createRoutingIsmCalled = true;
-        capturedArgs = req;
+        capturedCreateArgs = req;
         return {
           ismAddress,
           receipts: [{ txHash: 'tx123' }],
+        };
+      };
+
+      mockSigner.setRoutingIsmOwner = async (req) => {
+        setRoutingIsmOwnerCalled = true;
+        capturedOwnerArgs = req;
+        return {
+          receipts: [{ txHash: 'tx456' }],
         };
       };
 
@@ -341,18 +355,61 @@ describe('IsmArtifactManager', () => {
         artifactState: 'new' as const,
         config: {
           type: 'domainRoutingIsm',
-          owner: 'owner123',
+          owner: ownerAddress,
           domains: {},
         },
       });
 
       expect(createRoutingIsmCalled).to.be.true;
-      expect(capturedArgs.routes).to.be.an('array');
+      expect(capturedCreateArgs.routes).to.be.an('array');
+      expect(setRoutingIsmOwnerCalled).to.be.true;
+      expect(capturedOwnerArgs.ismAddress).to.equal(ismAddress);
+      expect(capturedOwnerArgs.newOwner).to.equal(ownerAddress);
       expect(deployed.artifactState).to.equal(ArtifactState.DEPLOYED);
       expect(deployed.config.type).to.equal('domainRoutingIsm');
-      expect(deployed.config.owner).to.equal('owner123');
+      expect(deployed.config.owner).to.equal(ownerAddress);
       expect(deployed.deployed.address).to.equal(ismAddress).and.be.a('string');
-      expect(receipts).to.be.an('array').with.length.greaterThan(0);
+      expect(receipts).to.be.an('array').with.length(2);
+    });
+
+    it('creates ROUTING writer without setting owner when owner equals signer', async () => {
+      const ismAddress = 'deployed-routing-ism';
+      const signerAddress = '0x1234567890123456789012345678901234567890';
+      let createRoutingIsmCalled = false;
+      let setRoutingIsmOwnerCalled = false;
+
+      mockSigner.getSignerAddress = () => signerAddress;
+
+      mockSigner.createRoutingIsm = async () => {
+        createRoutingIsmCalled = true;
+        return {
+          ismAddress,
+          receipts: [{ txHash: 'tx123' }],
+        };
+      };
+
+      mockSigner.setRoutingIsmOwner = async () => {
+        setRoutingIsmOwnerCalled = true;
+        return {
+          receipts: [{ txHash: 'tx456' }],
+        };
+      };
+
+      const writer = manager.createWriter(AltVM.IsmType.ROUTING, mockSigner);
+
+      const [deployed, receipts] = await writer.create({
+        artifactState: 'new' as const,
+        config: {
+          type: 'domainRoutingIsm',
+          owner: signerAddress,
+          domains: {},
+        },
+      });
+
+      expect(createRoutingIsmCalled).to.be.true;
+      expect(setRoutingIsmOwnerCalled).to.be.false;
+      expect(deployed.config.owner).to.equal(signerAddress);
+      expect(receipts).to.be.an('array').with.length(1);
     });
 
     it('throws error for unsupported ISM type', () => {

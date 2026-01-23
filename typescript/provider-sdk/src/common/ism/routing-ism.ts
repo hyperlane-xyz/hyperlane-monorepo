@@ -94,6 +94,17 @@ export class RoutingIsmRawWriter
       receipts.push(...setRouteReceipts);
     }
 
+    // Set owner if different from signer
+    const signerAddress = this.signer.getSignerAddress();
+    if (!eqAddress(config.owner, signerAddress)) {
+      const { receipts: setOwnerReceipts } =
+        await this.signer.setRoutingIsmOwner({
+          ismAddress,
+          newOwner: config.owner,
+        });
+      receipts.push(...setOwnerReceipts);
+    }
+
     const deployedArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress
