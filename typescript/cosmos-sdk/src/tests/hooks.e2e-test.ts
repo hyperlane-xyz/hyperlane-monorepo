@@ -1,7 +1,7 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, HookArtifactManager } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
   ArtifactState,
@@ -20,8 +20,7 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
-import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import { createSigner } from '../testing/utils.js';
+import { createProvider, createSigner } from '../testing/utils.js';
 
 chai.use(chaiAsPromised);
 
@@ -30,11 +29,12 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
 
   let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
   let cosmosSigner: CosmosNativeSigner;
-  let artifactManager: CosmosHookArtifactManager;
+  let artifactManager: HookArtifactManager;
   let mailboxAddress: string;
   let denom: string;
 
   before(async () => {
+    const provider = await createProvider();
     signer = await createSigner('alice');
     cosmosSigner = signer as CosmosNativeSigner;
 
@@ -48,15 +48,11 @@ describe('Cosmos Hooks Artifact API (e2e)', function () {
     mailboxAddress = mailboxResult.mailboxAddress;
     denom = 'uhyp';
 
-    const [rpc, ...otherRpcUrls] = cosmosSigner.getRpcUrls();
+    const [rpc, ..._otherRpcUrls] = cosmosSigner.getRpcUrls();
     assert(rpc, 'At least one rpc is required');
 
     // Create artifact manager
-    artifactManager = new CosmosHookArtifactManager({
-      rpcUrls: [rpc, ...otherRpcUrls],
-      mailboxAddress,
-      nativeTokenDenom: denom,
-    });
+    artifactManager = new HookArtifactManager(provider, mailboxAddress, denom);
   });
 
   describe('Immutable Hooks', () => {

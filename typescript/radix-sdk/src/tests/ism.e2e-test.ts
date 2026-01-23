@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, IsmArtifactManager } from '@hyperlane-xyz/provider-sdk';
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactDeployed,
@@ -17,8 +17,8 @@ import {
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
+import { RadixProvider } from '../clients/provider.js';
 import { RadixSigner } from '../clients/signer.js';
-import { RadixIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
   TEST_RADIX_BURN_ADDRESS,
@@ -31,14 +31,20 @@ import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
 describe('Radix ISMs (e2e)', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
+  let radixProvider: RadixProvider;
   let radixSigner: RadixSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
-  let artifactManager: RadixIsmArtifactManager;
+  let artifactManager: IsmArtifactManager;
 
   before(async () => {
     const rpcUrls =
       DEPLOYED_TEST_CHAIN_METADATA.rpcUrls?.map((url) => url.http) ?? [];
     assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
+
+    radixProvider = await RadixProvider.connect(
+      rpcUrls,
+      DEPLOYED_TEST_CHAIN_METADATA.chainId,
+    );
 
     radixSigner = (await RadixSigner.connectWithSigner(
       rpcUrls,
@@ -54,9 +60,7 @@ describe('Radix ISMs (e2e)', function () {
 
     providerSdkSigner = radixSigner;
 
-    const gateway = (radixSigner as any).gateway;
-    const base = (radixSigner as any).base;
-    artifactManager = new RadixIsmArtifactManager(gateway, base);
+    artifactManager = new IsmArtifactManager(radixProvider);
   });
 
   describe('Non composite ISMs', () => {

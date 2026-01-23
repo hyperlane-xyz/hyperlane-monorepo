@@ -3,7 +3,7 @@ import { DirectSecp256k1Wallet } from '@cosmjs/proto-signing';
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import { strip0x } from '@hyperlane-xyz/utils';
 
-import { CosmosNativeSigner } from '../index.js';
+import { CosmosNativeProvider, CosmosNativeSigner } from '../index.js';
 
 import { TEST_COSMOS_CHAIN_METADATA } from './constants.js';
 
@@ -16,6 +16,12 @@ const PKS = {
   bob: '0afcf195989ebb6306f23271e50832332180b73055eb57f6d3c53263127e7d78',
   charlie: '8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8',
 } as const;
+
+export const createProvider = async (
+  metadata: TestChainMetadata = TEST_COSMOS_CHAIN_METADATA,
+) => {
+  return CosmosNativeProvider.connect([metadata.rpcUrl], metadata.chainId);
+};
 
 export const createSigner = async (
   account: keyof typeof PKS,

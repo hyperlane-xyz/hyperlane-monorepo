@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, HookArtifactManager } from '@hyperlane-xyz/provider-sdk';
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
@@ -17,16 +17,17 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert, normalizeConfig } from '@hyperlane-xyz/utils';
 
+import { AleoProvider } from '../clients/provider.js';
 import { AleoSigner } from '../clients/signer.js';
-import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('6. aleo sdk Hook artifacts e2e tests', async function () {
   this.timeout(100_000);
 
+  let provider: AltVM.IProvider;
   let signer: AltVM.ISigner<AleoTransaction, AleoReceipt>;
   let providerSdkSigner: AltVM.ISigner<AnnotatedTx, TxReceipt>;
-  let artifactManager: AleoHookArtifactManager;
+  let artifactManager: HookArtifactManager;
   let mailboxAddress: string;
 
   before(async () => {
@@ -34,6 +35,8 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     // test private key with funds
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
+
+    provider = await AleoProvider.connect([localnetRpc], 1);
 
     signer = await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
       metadata: {
@@ -50,9 +53,11 @@ describe('6. aleo sdk Hook artifacts e2e tests', async function () {
     });
     mailboxAddress = mailbox.mailboxAddress;
 
-    // Access the aleoClient from the signer to create the artifact manager
-    const aleoClient = (signer as any).aleoClient;
-    artifactManager = new AleoHookArtifactManager(aleoClient, mailboxAddress);
+    artifactManager = new HookArtifactManager(
+      provider,
+      mailboxAddress,
+      'credits',
+    );
   });
 
   describe('MerkleTree Hook', () => {

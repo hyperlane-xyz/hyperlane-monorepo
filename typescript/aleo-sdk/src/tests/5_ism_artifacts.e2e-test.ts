@@ -1,7 +1,7 @@
 import chai, { expect } from 'chai';
 import chaiAsPromised from 'chai-as-promised';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, IsmArtifactManager } from '@hyperlane-xyz/provider-sdk';
 import { type ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   type ArtifactDeployed,
@@ -19,17 +19,18 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { normalizeConfig } from '@hyperlane-xyz/utils';
 
+import { AleoProvider } from '../clients/provider.js';
 import { AleoSigner } from '../clients/signer.js';
-import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
 chai.use(chaiAsPromised);
 
 describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async function () {
   this.timeout(100_000);
 
+  let provider: AleoProvider;
   let signer: AleoSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
-  let artifactManager: AleoIsmArtifactManager;
+  let artifactManager: IsmArtifactManager;
 
   // Shared test validators - sorted alphabetically as required by Aleo
   const validators = [
@@ -44,6 +45,8 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
     const privateKey =
       'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
+    provider = await AleoProvider.connect([localnetRpc], 1);
+
     signer = (await AleoSigner.connectWithSigner([localnetRpc], privateKey, {
       metadata: {
         chainId: 1,
@@ -52,9 +55,7 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
 
     providerSdkSigner = signer;
 
-    // Access the aleoClient from the signer to create the artifact manager
-    const aleoClient = (signer as any).aleoClient;
-    artifactManager = new AleoIsmArtifactManager(aleoClient);
+    artifactManager = new IsmArtifactManager(provider);
   });
 
   describe('Non composite ISMs', () => {
