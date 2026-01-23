@@ -1,11 +1,8 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import {
-  type ChainName,
-  HyperlaneCore,
-  HyperlaneRelayer,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
+import { type ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { ProtocolType, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';

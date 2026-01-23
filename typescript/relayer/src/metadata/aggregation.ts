@@ -1,4 +1,9 @@
 import {
+  AggregationIsmConfig,
+  DerivedIsmConfig,
+  IsmType,
+} from '@hyperlane-xyz/sdk';
+import {
   WithAddress,
   assert,
   fromHexString,
@@ -7,8 +12,6 @@ import {
   timeout,
   toHexString,
 } from '@hyperlane-xyz/utils';
-
-import { AggregationIsmConfig, DerivedIsmConfig, IsmType } from '../types.js';
 
 import type { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';

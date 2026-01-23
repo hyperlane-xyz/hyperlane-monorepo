@@ -2,6 +2,14 @@ import { joinSignature, splitSignature } from 'ethers/lib/utils.js';
 
 import { MerkleTreeHook__factory } from '@hyperlane-xyz/core';
 import {
+  ChainName,
+  HyperlaneCore,
+  IsmType,
+  MerkleTreeHookConfig,
+  MultisigIsmConfig,
+  S3Validator,
+} from '@hyperlane-xyz/sdk';
+import {
   Address,
   Checkpoint,
   MerkleProof,
@@ -20,12 +28,6 @@ import {
   strip0x,
   toHexString,
 } from '@hyperlane-xyz/utils';
-
-import { S3Validator } from '../../aws/validator.js';
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { MerkleTreeHookConfig } from '../../hook/types.js';
-import { ChainName } from '../../types.js';
-import { IsmType, MultisigIsmConfig } from '../types.js';
 
 import type { MetadataBuilder, MetadataContext } from './types.js';
 
