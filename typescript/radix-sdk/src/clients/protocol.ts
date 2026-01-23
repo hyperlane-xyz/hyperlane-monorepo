@@ -59,7 +59,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
 
   async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string; denom?: string },
+    context?: { mailbox?: string },
   ): Promise<IRawHookArtifactManager> {
     const nativeDenom = chainMetadata.nativeToken?.denom ?? '';
     assert(

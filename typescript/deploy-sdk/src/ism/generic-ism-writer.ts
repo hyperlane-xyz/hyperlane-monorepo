@@ -32,7 +32,7 @@ import { RoutingIsmWriter } from './routing-ism.js';
  *
  * @example
  * ```typescript
- * const writer = createIsmWriter(chainMetadata, chainLookup, signer);
+ * const writer = await createIsmWriter(chainMetadata, chainLookup, signer);
  * const [deployed, receipts] = await writer.create({ config: ismConfig });
  * ```
  */

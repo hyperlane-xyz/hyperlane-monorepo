@@ -33,7 +33,7 @@ import { Logger, rootLogger } from '@hyperlane-xyz/utils';
  *
  * @example
  * ```typescript
- * const reader = createIsmReader(chainMetadata, chainLookup);
+ * const reader = await createIsmReader(chainMetadata, chainLookup);
  * const ismConfig = await reader.read(ismAddress);
  * ```
  */
