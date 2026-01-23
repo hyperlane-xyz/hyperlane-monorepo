@@ -326,17 +326,49 @@ export class RebalancerContextFactory {
       getStrategyChainNames(this.config.strategyConfig),
     );
 
+    this.logger.debug(
+      { chainNames: Array.from(chainNames) },
+      'getInitialTotalCollateral: Querying bridged supply for chains',
+    );
+
     await Promise.all(
       this.warpCore.tokens.map(async (token) => {
         if (
           isCollateralizedTokenEligibleForRebalancing(token) &&
           chainNames.has(token.chainName)
         ) {
+          // Log the RPC URL being used for this chain
+          const chainMetadata = this.warpCore.multiProvider.tryGetChainMetadata(
+            token.chainName,
+          );
+          this.logger.debug(
+            {
+              chain: token.chainName,
+              rpcUrls: chainMetadata?.rpcUrls?.map((r) => r.http),
+              tokenAddress: token.addressOrDenom,
+            },
+            'getInitialTotalCollateral: Reading bridged supply',
+          );
+
           const adapter = token.getHypAdapter(this.warpCore.multiProvider);
           const bridgedSupply = await adapter.getBridgedSupply();
+
+          this.logger.debug(
+            {
+              chain: token.chainName,
+              bridgedSupply: bridgedSupply?.toString(),
+            },
+            'getInitialTotalCollateral: Got bridged supply',
+          );
+
           initialTotalCollateral += bridgedSupply ?? 0n;
         }
       }),
+    );
+
+    this.logger.info(
+      { totalCollateral: initialTotalCollateral.toString() },
+      'getInitialTotalCollateral: Total collateral calculated',
     );
 
     return initialTotalCollateral;
