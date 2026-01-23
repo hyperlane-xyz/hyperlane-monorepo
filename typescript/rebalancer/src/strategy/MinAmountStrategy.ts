@@ -98,31 +98,33 @@ export class MinAmountStrategy extends BaseStrategy {
       proposedRebalances ?? [],
     );
     const totalCollateral = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
+      (sum, chain) => sum + simulatedBalances[chain],
       0n,
     );
 
     return this.chains.reduce(
       (acc, chain) => {
-        const config = this.config[chain];
-        const balance = rawBalances[chain];
+        const chainConfig = this.config[chain];
+        const balance = simulatedBalances[chain];
         let minAmount: bigint;
         let targetAmount: bigint;
 
-        if (config.minAmount.type === RebalancerMinAmountType.Absolute) {
+        if (chainConfig.minAmount.type === RebalancerMinAmountType.Absolute) {
           const token = this.getTokenByChainName(chain);
 
-          minAmount = BigInt(toWei(config.minAmount.min, token.decimals));
-          targetAmount = BigInt(toWei(config.minAmount.target, token.decimals));
+          minAmount = BigInt(toWei(chainConfig.minAmount.min, token.decimals));
+          targetAmount = BigInt(
+            toWei(chainConfig.minAmount.target, token.decimals),
+          );
         } else {
           minAmount = BigInt(
             BigNumber(totalCollateral.toString())
-              .times(config.minAmount.min)
+              .times(chainConfig.minAmount.min)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
           targetAmount = BigInt(
             BigNumber(totalCollateral.toString())
-              .times(config.minAmount.target)
+              .times(chainConfig.minAmount.target)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
         }
