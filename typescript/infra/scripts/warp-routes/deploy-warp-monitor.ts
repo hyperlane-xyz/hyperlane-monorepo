@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { checkbox, input } from '@inquirer/prompts';
 
 import {
   LogFormat,
@@ -10,15 +10,18 @@ import {
 
 import { Contexts } from '../../config/contexts.js';
 import { getWarpCoreConfig } from '../../config/registry.js';
+import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
-import { WarpRouteMonitorHelmManager } from '../../src/warp-monitor/helm.js';
+import {
+  WarpRouteMonitorHelmManager,
+  getDeployedWarpMonitorWarpRouteIds,
+} from '../../src/warp-monitor/helm.js';
 import {
   assertCorrectKubeContext,
   getAgentConfig,
   getArgs,
   getMultiProtocolProvider,
-  getWarpRouteIdsInteractive,
   withRegistryCommit,
   withWarpRouteId,
 } from '../agent-utils.js';
@@ -37,12 +40,36 @@ async function main() {
 
   const envConfig = getEnvironmentConfig(environment);
 
-  // Get warp route IDs first to determine which chains we need
-  let warpRouteIds;
+  let warpRouteIds: string[];
   if (warpRouteId) {
     warpRouteIds = [warpRouteId];
   } else {
-    warpRouteIds = await getWarpRouteIdsInteractive(environment);
+    const deployedPods = await getDeployedWarpMonitorWarpRouteIds(
+      environment,
+      WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX,
+    );
+    const deployedIds = deployedPods
+      .map((p) => p.warpRouteId)
+      .filter((id): id is string => !!id)
+      .sort();
+
+    if (deployedIds.length === 0) {
+      rootLogger.error(
+        'No deployed warp monitors found. Use --warp-route-id to deploy a new one.',
+      );
+      process.exit(1);
+    }
+
+    warpRouteIds = await checkbox({
+      message: 'Select warp monitors to redeploy',
+      choices: deployedIds.map((id) => ({ value: id })),
+      pageSize: 30,
+    });
+
+    if (warpRouteIds.length === 0) {
+      rootLogger.info('No warp monitors selected');
+      process.exit(0);
+    }
   }
 
   // Extract chains from warp routes to only fetch secrets for needed chains
@@ -104,16 +131,6 @@ async function main() {
       helmManager.runHelmCommand(HelmCommand.InstallOrUpgrade),
     );
   };
-
-  // Only run cleanup when deploying all warp routes (no specific ID provided).
-  // This cleanup is slow (~20s) because it reads all warp routes from the registry.
-  if (!warpRouteId) {
-    await timedAsync('uninstallUnknownWarpMonitorReleases', () =>
-      WarpRouteMonitorHelmManager.uninstallUnknownWarpMonitorReleases(
-        environment,
-      ),
-    );
-  }
 
   for (const id of warpRouteIds) {
     rootLogger.info(`Deploying Warp Monitor for Warp Route ID: ${id}`);

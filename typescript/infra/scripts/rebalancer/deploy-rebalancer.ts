@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { checkbox, input } from '@inquirer/prompts';
 import path from 'path';
 
 import {
@@ -9,13 +9,16 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { RebalancerHelmManager } from '../../src/rebalancer/helm.js';
+import {
+  RebalancerHelmManager,
+  getDeployedRebalancerWarpRouteIds,
+} from '../../src/rebalancer/helm.js';
+import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
   getArgs,
-  getWarpRouteIdsInteractive,
   withMetrics,
   withRegistryCommit,
   withWarpRouteId,
@@ -37,11 +40,36 @@ async function main() {
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
-  let warpRouteIds;
+  let warpRouteIds: string[];
   if (warpRouteId) {
     warpRouteIds = [warpRouteId];
   } else {
-    warpRouteIds = await getWarpRouteIdsInteractive(environment);
+    const deployedPods = await getDeployedRebalancerWarpRouteIds(
+      environment,
+      REBALANCER_HELM_RELEASE_PREFIX,
+    );
+    const deployedIds = deployedPods
+      .map((p) => p.warpRouteId)
+      .filter((id): id is string => !!id)
+      .sort();
+
+    if (deployedIds.length === 0) {
+      rootLogger.error(
+        'No deployed rebalancers found. Use --warp-route-id to deploy a new one.',
+      );
+      process.exit(1);
+    }
+
+    warpRouteIds = await checkbox({
+      message: 'Select rebalancers to redeploy',
+      choices: deployedIds.map((id) => ({ value: id })),
+      pageSize: 30,
+    });
+
+    if (warpRouteIds.length === 0) {
+      rootLogger.info('No rebalancers selected');
+      process.exit(0);
+    }
   }
 
   rootLogger.info(
