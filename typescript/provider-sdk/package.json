@@ -30,7 +30,7 @@
     "lint": "eslint",
     "clean": "rm -rf ./dist",
     "prettier": "prettier --write .",
-    "test": "mocha --require ts-node/register 'src/**/*.test.ts'"
+    "test": "mocha --config .mocharc.json 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*",
@@ -47,6 +47,7 @@
     "eslint": "catalog:",
     "mocha": "catalog:",
     "ts-node": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

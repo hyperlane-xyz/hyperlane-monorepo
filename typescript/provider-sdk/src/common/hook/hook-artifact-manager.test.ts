@@ -183,6 +183,11 @@ describe('HookArtifactManager', () => {
           receipts: [{ txHash: 'tx456' }],
         };
       };
+      mockSigner.setInterchainGasPaymasterHookOwner = async () => {
+        return {
+          receipts: [{ txHash: 'tx789' }],
+        };
+      };
 
       const writer = manager.createWriter(
         AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
