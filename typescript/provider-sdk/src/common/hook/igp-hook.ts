@@ -164,11 +164,11 @@ export class IgpHookWriter
     for (const domainId of domainsToRemove) {
       transactions.push({
         annotation: `Removing destination gas config for domain ${domainId}`,
-        ...this.provider.getRemoveDestinationGasConfigTransaction({
+        ...(await this.provider.getRemoveDestinationGasConfigTransaction({
           signer: this.signer.getSignerAddress(),
           hookAddress: artifact.deployed.address,
           remoteDomainId: parseInt(domainId),
-        }),
+        })),
       });
     }
 
@@ -194,7 +194,7 @@ export class IgpHookWriter
       if (configChanged) {
         transactions.push({
           annotation: `Setting destination gas config for domain ${domainId}`,
-          ...this.provider.getSetDestinationGasConfigTransaction({
+          ...(await this.provider.getSetDestinationGasConfigTransaction({
             signer: this.signer.getSignerAddress(),
             hookAddress: artifact.deployed.address,
             destinationGasConfig: {
@@ -205,7 +205,7 @@ export class IgpHookWriter
               },
               gasOverhead: gasOverhead.toString(),
             },
-          }),
+          })),
         });
       }
     }
@@ -214,11 +214,13 @@ export class IgpHookWriter
     if (!eqAddress(artifact.config.owner, current.config.owner)) {
       transactions.push({
         annotation: `Setting IGP hook owner to ${artifact.config.owner}`,
-        ...this.provider.getSetInterchainGasPaymasterHookOwnerTransaction({
-          signer: this.signer.getSignerAddress(),
-          hookAddress: artifact.deployed.address,
-          newOwner: artifact.config.owner,
-        }),
+        ...(await this.provider.getSetInterchainGasPaymasterHookOwnerTransaction(
+          {
+            signer: this.signer.getSignerAddress(),
+            hookAddress: artifact.deployed.address,
+            newOwner: artifact.config.owner,
+          },
+        )),
       });
     }
 
