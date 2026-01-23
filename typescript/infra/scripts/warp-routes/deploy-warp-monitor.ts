@@ -58,31 +58,8 @@ async function main() {
     `Loading secrets for ${chainsNeeded.length} chains: ${chainsNeeded.join(', ')}`,
   );
 
-  let defaultRegistryCommit: string | undefined;
-  if (!registryCommitArg && warpRouteIds.length > 0) {
-    defaultRegistryCommit =
-      await WarpRouteMonitorHelmManager.getDeployedRegistryCommit(
-        warpRouteIds[0],
-        environment,
-      );
-  }
-
-  const registryCommit =
-    registryCommitArg ??
-    (await input({
-      message:
-        'Enter the registry version to use (can be a commit, branch or tag):',
-      default: defaultRegistryCommit,
-    }));
-
-  // Only fetch secrets for the chains in the warp routes (optimization)
-  const [registry] = await timedAsync(
-    'getRegistry + validateRegistryCommit',
-    () =>
-      Promise.all([
-        envConfig.getRegistry(true, chainsNeeded),
-        validateRegistryCommit(registryCommit),
-      ]),
+  const [registry] = await timedAsync('getRegistry', () =>
+    Promise.all([envConfig.getRegistry(true, chainsNeeded)]),
   );
   const multiProtocolProvider = await timedAsync(
     'getMultiProtocolProvider',
@@ -91,7 +68,29 @@ async function main() {
 
   const agentConfig = getAgentConfig(Contexts.Hyperlane, environment);
 
+  const validatedCommits = new Set<string>();
+
   const deployWarpMonitor = async (warpRouteId: string) => {
+    let registryCommit: string;
+    if (registryCommitArg) {
+      registryCommit = registryCommitArg;
+    } else {
+      const defaultRegistryCommit =
+        await WarpRouteMonitorHelmManager.getDeployedRegistryCommit(
+          warpRouteId,
+          environment,
+        );
+      registryCommit = await input({
+        message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
+        default: defaultRegistryCommit,
+      });
+    }
+
+    if (!validatedCommits.has(registryCommit)) {
+      await validateRegistryCommit(registryCommit);
+      validatedCommits.add(registryCommit);
+    }
+
     const helmManager = new WarpRouteMonitorHelmManager(
       warpRouteId,
       environment,

@@ -44,29 +44,35 @@ async function main() {
     warpRouteIds = await getWarpRouteIdsInteractive(environment);
   }
 
-  let defaultRegistryCommit: string | undefined;
-  if (!registryCommitArg && warpRouteIds.length > 0) {
-    defaultRegistryCommit =
-      await RebalancerHelmManager.getDeployedRegistryCommit(
-        warpRouteIds[0],
-        environment,
-      );
-  }
-
-  const registryCommit =
-    registryCommitArg ??
-    (await input({
-      message:
-        'Enter the registry version to use (can be a commit, branch or tag):',
-      default: defaultRegistryCommit,
-    }));
-  await validateRegistryCommit(registryCommit);
-
   rootLogger.info(
     `Deploying Rebalancer for the following Route IDs:\n${warpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
   );
 
+  // Cache validated commits to avoid re-validating the same commit
+  const validatedCommits = new Set<string>();
+
   const deployRebalancer = async (warpRouteId: string) => {
+    // Get registry commit for this specific rebalancer
+    let registryCommit: string;
+    if (registryCommitArg) {
+      registryCommit = registryCommitArg;
+    } else {
+      const defaultRegistryCommit =
+        await RebalancerHelmManager.getDeployedRegistryCommit(
+          warpRouteId,
+          environment,
+        );
+      registryCommit = await input({
+        message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
+        default: defaultRegistryCommit,
+      });
+    }
+
+    if (!validatedCommits.has(registryCommit)) {
+      await validateRegistryCommit(registryCommit);
+      validatedCommits.add(registryCommit);
+    }
+
     // Build path for config file - relative for local checks
     const configFileName = `${warpRouteId}-config.yaml`;
     const relativeConfigPath = path.join(
