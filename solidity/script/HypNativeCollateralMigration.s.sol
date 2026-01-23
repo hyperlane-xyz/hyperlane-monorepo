@@ -105,17 +105,45 @@ contract HypNativeCollateralMigration is Script {
 
         require(cfg.remoteRouter != bytes32(0), "Remote router not enrolled");
 
-        // Verify ProxyAdmin bytecode and ownership
+        // Verify ProxyAdmin bytecode (strip CBOR metadata for comparison)
         bytes memory expectedBytecode = type(ProxyAdmin).runtimeCode;
         bytes memory deployedBytecode = address(cfg.proxyAdmin).code;
         require(
-            keccak256(deployedBytecode) == keccak256(expectedBytecode),
+            keccak256(_stripCborMetadata(deployedBytecode)) ==
+                keccak256(_stripCborMetadata(expectedBytecode)),
             "ProxyAdmin bytecode mismatch"
         );
         require(
             cfg.proxyAdmin.owner() == cfg.owner,
             "ProxyAdmin not owned by Safe"
         );
+    }
+
+    /// @dev Strips CBOR metadata from bytecode if present
+    /// CBOR metadata ends with a 2-byte length indicator
+    function _stripCborMetadata(
+        bytes memory bytecode
+    ) internal pure returns (bytes memory) {
+        if (bytecode.length < 2) return bytecode;
+
+        // Last 2 bytes indicate CBOR metadata length
+        uint16 cborLength = uint16(uint8(bytecode[bytecode.length - 2])) *
+            256 +
+            uint16(uint8(bytecode[bytecode.length - 1]));
+
+        // Sanity check: CBOR length should be reasonable (< 100 bytes typically)
+        // and bytecode should be longer than CBOR + length indicator
+        if (cborLength > 100 || bytecode.length <= cborLength + 2) {
+            return bytecode; // No valid CBOR metadata, return as-is
+        }
+
+        // Strip CBOR metadata + 2-byte length indicator
+        uint256 strippedLength = bytecode.length - cborLength - 2;
+        bytes memory stripped = new bytes(strippedLength);
+        for (uint256 i = 0; i < strippedLength; i++) {
+            stripped[i] = bytecode[i];
+        }
+        return stripped;
     }
 
     function _deploy(
