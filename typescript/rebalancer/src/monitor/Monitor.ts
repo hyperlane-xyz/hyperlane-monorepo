@@ -1,6 +1,10 @@
 import { type Logger } from 'pino';
 
-import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
+import {
+  EthJsonRpcBlockParameterTag,
+  type Token,
+  type WarpCore,
+} from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
 import {
@@ -40,14 +44,14 @@ export class Monitor implements IMonitor {
    */
   private async getConfirmedBlockTag(
     chainName: string,
-  ): Promise<number | string | undefined> {
+  ): Promise<number | EthJsonRpcBlockParameterTag | undefined> {
     try {
       const metadata = this.warpCore.multiProvider.getChainMetadata(chainName);
       const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
 
       // Handle string block tags (e.g., "finalized" for Polygon)
       if (typeof reorgPeriod === 'string') {
-        return reorgPeriod;
+        return reorgPeriod as EthJsonRpcBlockParameterTag;
       }
 
       // Handle numeric reorgPeriod: compute latestBlock - reorgPeriod
