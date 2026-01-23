@@ -138,7 +138,7 @@ export class RoutingIsmRawWriter
         isNullish(currentIsmAddress) ||
         !eqAddress(currentIsmAddress, expectedIsmAddress)
       ) {
-        const txs = await this.provider.getSetRoutingIsmRouteTransaction({
+        const tx = await this.provider.getSetRoutingIsmRouteTransaction({
           signer: this.signer.getSignerAddress(),
           ismAddress: deployed.address,
           route: {
@@ -147,7 +147,10 @@ export class RoutingIsmRawWriter
           },
         });
 
-        transactions.push(...txs);
+        transactions.push({
+          annotation: `Setting ism route for domain ${domain}`,
+          ...tx,
+        });
       }
     }
 
@@ -156,24 +159,30 @@ export class RoutingIsmRawWriter
       const desiredIsmAddress = config.domains[domain];
 
       if (isNullish(desiredIsmAddress)) {
-        const txs = await this.provider.getRemoveRoutingIsmRouteTransaction({
+        const tx = await this.provider.getRemoveRoutingIsmRouteTransaction({
           signer: this.signer.getSignerAddress(),
           ismAddress: deployed.address,
           domainId: domain,
         });
 
-        transactions.push(...txs);
+        transactions.push({
+          annotation: `Removing ism route for domain ${domain}`,
+          ...tx,
+        });
       }
     }
 
     if (!eqAddress(config.owner, currentConfig.config.owner)) {
-      const txs = await this.provider.getSetRoutingIsmOwnerTransaction({
+      const tx = await this.provider.getSetRoutingIsmOwnerTransaction({
         signer: this.signer.getSignerAddress(),
         ismAddress: deployed.address,
         newOwner: config.owner,
       });
 
-      transactions.push(...txs);
+      transactions.push({
+        annotation: `Setting Routing ISM owner to ${config.owner}`,
+        ...tx,
+      });
     }
 
     return transactions;
