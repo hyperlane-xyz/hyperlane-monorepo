@@ -45,6 +45,7 @@ import {
   fillArray,
   formatAddress,
   fromAleoAddress,
+  generateSuffix,
   getAddressFromProgramId,
   getBalanceKey,
   getProgramIdFromSuffix,
@@ -81,15 +82,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   }
 
   protected generateSuffix(n: number): string {
-    const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
-    let result = '';
-
-    for (let i = 0; i < n; i++) {
-      const randomIndex = Math.floor(Math.random() * characters.length);
-      result += characters[randomIndex];
-    }
-
-    return result;
+    return generateSuffix(n);
   }
 
   // ### QUERY BASE ###
@@ -947,6 +940,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       inputs: [`${req.receiverDomainId}u32`],
     };
   }
+
+  //
 
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
