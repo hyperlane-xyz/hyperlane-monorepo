@@ -29,7 +29,8 @@
     "dev": "tsc --watch",
     "lint": "eslint",
     "clean": "rm -rf ./dist",
-    "prettier": "prettier --write ."
+    "prettier": "prettier --write .",
+    "test": "mocha --require ts-node/register 'src/**/*.test.ts'"
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*",
@@ -39,8 +40,13 @@
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
+    "chai": "catalog:",
     "eslint": "catalog:",
+    "mocha": "catalog:",
+    "ts-node": "catalog:",
     "typescript": "catalog:"
   }
 }
