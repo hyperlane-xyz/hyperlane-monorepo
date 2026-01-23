@@ -74,8 +74,10 @@ The rebalancer container
     value: json
   - name: LOG_LEVEL
     value: info
+  {{- if .Values.warpRouteId }}
   - name: WARP_ROUTE_ID
     value: {{ .Values.warpRouteId }}
+  {{- end }}
   {{- if .Values.hyperlane.registryUri }}
   - name: REGISTRY_URI
     value: {{ .Values.hyperlane.registryUri }}
