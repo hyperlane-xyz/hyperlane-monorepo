@@ -124,27 +124,61 @@ contract HypNativeCollateralMigration is Script {
         // Use pre-deployed ProxyAdmin (verified in _loadConfig)
         dep.proxyAdmin = cfg.proxyAdmin;
 
-        // Deploy implementation with CREATE2 for deterministic address
-        dep.implementation = new HypNative{salt: cfg.salt}(
-            1,
-            address(cfg.mailbox)
+        // Deploy implementation via CREATE2 factory
+        dep.implementation = HypNative(
+            payable(
+                _create2(
+                    cfg.salt,
+                    abi.encodePacked(
+                        type(HypNative).creationCode,
+                        abi.encode(1, address(cfg.mailbox))
+                    )
+                )
+            )
         );
 
-        // Deploy proxy with CREATE2 - temporarily owned by broadcaster for configuration
-        bytes memory initData = abi.encodeCall(
+        // Deploy proxy via CREATE2 factory
+        bytes memory proxyInitData = abi.encodeCall(
             HypNative.initialize,
             (address(0), address(0), msg.sender) // hook=0, ism=0 (use mailbox defaults)
         );
-        TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy{
-            salt: cfg.salt
-        }(address(dep.implementation), address(dep.proxyAdmin), initData);
-        dep.proxy = HypNative(payable(address(proxy)));
-
-        // Deploy TrustedRelayerIsm with CREATE2
-        dep.ism = new TrustedRelayerIsm{salt: cfg.salt}(
-            address(cfg.mailbox),
-            msg.sender
+        dep.proxy = HypNative(
+            payable(
+                _create2(
+                    cfg.salt,
+                    abi.encodePacked(
+                        type(TransparentUpgradeableProxy).creationCode,
+                        abi.encode(
+                            address(dep.implementation),
+                            address(dep.proxyAdmin),
+                            proxyInitData
+                        )
+                    )
+                )
+            )
         );
+
+        // Deploy TrustedRelayerIsm via CREATE2 factory
+        dep.ism = TrustedRelayerIsm(
+            _create2(
+                cfg.salt,
+                abi.encodePacked(
+                    type(TrustedRelayerIsm).creationCode,
+                    abi.encode(address(cfg.mailbox), msg.sender)
+                )
+            )
+        );
+    }
+
+    function _create2(
+        bytes32 salt,
+        bytes memory initCode
+    ) internal returns (address) {
+        (bool success, bytes memory result) = CREATE2_FACTORY.call(
+            abi.encodePacked(salt, initCode)
+        );
+        require(success, "CREATE2 failed");
+        return address(bytes20(result));
     }
 
     function _migrate(

@@ -83,44 +83,19 @@ CHAIN_ID=$(jq -r '.chain' "$BROADCAST_FILE")
 CHAIN_ID_HEX=$(printf "0x%x" "$CHAIN_ID")
 
 # Parse transactions and create Safe TX Builder JSON
-# CREATE operations use CREATE2 - convert to calls to deterministic deployer factory
-# CALL operations are included as-is
-# Skip any ProxyAdmin CREATE (we use pre-deployed one)
 echo "Generating Safe Transaction Builder JSON..."
-
-# Compute deterministic salt: keccak256(abi.encode(oldRouter, remoteDomain))
-SALT=$(cast keccak "$(cast abi-encode 'f(address,uint32)' "$OLD_ROUTER" "$REMOTE_DOMAIN")")
-echo "Salt: $SALT"
-
-CREATE2_FACTORY="0x4e59b44847b379578588920cA78FbF26c0B4956C"
-jq --arg chainId "$CHAIN_ID_HEX" --arg factory "$CREATE2_FACTORY" --arg salt "$SALT" '
-{
+jq --arg chainId "$CHAIN_ID_HEX" '{
     version: "1.0",
     chainId: $chainId,
     meta: {
         name: "HypNative Collateral Migration",
         description: "Migrate collateral from old non-proxied HypNative to new proxied HypNative"
     },
-    transactions: [
-        .transactions[] |
-        # Skip ProxyAdmin deployments (we use pre-deployed)
-        select(.contractName != "ProxyAdmin") |
-        if .transactionType == "CREATE" then
-            # Convert CREATE to CREATE2 factory call: salt (32 bytes) + initCode
-            {
-                to: $factory,
-                value: "0",
-                data: ($salt + (.transaction.input | ltrimstr("0x")))
-            }
-        else
-            # Regular CALL - pass through
-            {
-                to: .transaction.to,
-                value: (if .transaction.value == null then "0" else .transaction.value end),
-                data: .transaction.input
-            }
-        end
-    ]
+    transactions: [.transactions[] | {
+        to: .transaction.to,
+        value: (if .transaction.value == null then "0" else .transaction.value end),
+        data: .transaction.input
+    }]
 }' "$BROADCAST_FILE" >"$OUTPUT_FILE"
 
 echo ""
