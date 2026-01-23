@@ -42,7 +42,10 @@ export class RadixWarpTx {
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(receipt);
+    return {
+      receipts: [receipt],
+      tokenAddress: await this.base.getNewComponent(receipt),
+    };
   }
 
   public async createSyntheticToken({
@@ -66,7 +69,10 @@ export class RadixWarpTx {
 
     const receipt = await this.signer.signAndBroadcast(transactionManifest);
 
-    return this.base.getNewComponent(receipt);
+    return {
+      receipts: [receipt],
+      tokenAddress: await this.base.getNewComponent(receipt),
+    };
   }
 
   public async setTokenOwner({
@@ -82,7 +88,10 @@ export class RadixWarpTx {
       new_owner,
     });
 
-    await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    return {
+      receipts: [receipt],
+    };
   }
 
   public async setTokenIsm({ token, ism }: { token: string; ism: string }) {
@@ -92,7 +101,10 @@ export class RadixWarpTx {
       ism,
     });
 
-    await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    return {
+      receipts: [receipt],
+    };
   }
 
   public async enrollRemoteRouter({
@@ -114,7 +126,10 @@ export class RadixWarpTx {
       gas,
     });
 
-    await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    return {
+      receipts: [receipt],
+    };
   }
 
   public async unenrollRemoteRouter({
@@ -130,7 +145,10 @@ export class RadixWarpTx {
       receiver_domain,
     });
 
-    await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    return {
+      receipts: [receipt],
+    };
   }
 
   public async remoteTransfer({
@@ -169,6 +187,9 @@ export class RadixWarpTx {
       this.networkId,
     );
 
-    await this.signer.signAndBroadcast(transactionManifest);
+    const receipt = await this.signer.signAndBroadcast(transactionManifest);
+    return {
+      receipts: [receipt],
+    };
   }
 }
