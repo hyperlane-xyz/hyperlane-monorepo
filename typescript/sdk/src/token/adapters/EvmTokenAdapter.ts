@@ -72,6 +72,7 @@ import {
   TransferRemoteParams,
   xERC20Limits,
 } from './ITokenAdapter.js';
+import { buildBlockTagOverrides } from './utils.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
@@ -277,7 +278,7 @@ export class EvmHypSyntheticAdapter
   async getBridgedSupply(options?: {
     blockTag?: number | EthJsonRpcBlockParameterTag;
   }): Promise<bigint | undefined> {
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const totalSupply = await this.contract.totalSupply(overrides);
     return totalSupply.toBigInt();
   }
@@ -426,7 +427,7 @@ class BaseEvmHypCollateralAdapter
       wrappedTokenAddress,
       this.getProvider(),
     );
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const balance = await wrappedContract.balanceOf(
       this.addresses.token,
       overrides,
@@ -627,7 +628,7 @@ export class EvmHypCollateralFiatAdapter
       wrappedTokenAddress,
       this.getProvider(),
     );
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const totalSupply = await wrappedContract.totalSupply(overrides);
     return BigInt(totalSupply.toString());
   }
@@ -690,7 +691,7 @@ export class EvmHypRebaseCollateralAdapter
       await this.collateralContract.vault(),
       this.getProvider(),
     );
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const balance = await vault.balanceOf(this.addresses.token, overrides);
     return balance.toBigInt();
   }
@@ -713,7 +714,7 @@ export class EvmHypSyntheticRebaseAdapter
   override async getBridgedSupply(options?: {
     blockTag?: number | EthJsonRpcBlockParameterTag;
   }): Promise<bigint> {
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const totalShares = await this.contract.totalShares(overrides);
     return totalShares.toBigInt();
   }
@@ -749,7 +750,7 @@ abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
   }): Promise<bigint> {
     const xerc20 = await this.getXERC20();
     // Both IXERC20 and IXERC20VS have totalSupply, name, etc. if they extend ERC20
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const totalSupply = await xerc20.totalSupply(overrides);
     return totalSupply.toBigInt();
   }
@@ -812,7 +813,7 @@ abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
       wrappedTokenAddress,
       this.getProvider(),
     );
-    const overrides = options?.blockTag ? { blockTag: options.blockTag } : {};
+    const overrides = buildBlockTagOverrides(options?.blockTag);
     const balance = await wrappedContract.balanceOf(lockboxAddress, overrides);
     return BigInt(balance.toString());
   }
