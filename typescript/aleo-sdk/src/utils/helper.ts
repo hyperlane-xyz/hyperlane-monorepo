@@ -328,3 +328,18 @@ export function aleoTokenTypeToWarpType(aleoType: AleoTokenType): TokenType {
       throw new Error(`Unknown AleoTokenType: ${aleoType}`);
   }
 }
+
+/**
+ * Generate a random suffix of length n using alphanumeric characters
+ */
+export function generateSuffix(n: number): string {
+  const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+
+  for (let i = 0; i < n; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+
+  return result;
+}
