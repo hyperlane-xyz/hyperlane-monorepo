@@ -177,16 +177,17 @@ export class RebalancerContextFactory {
     const chainConfig: ChainMap<BridgeConfigWithOverride> = {};
 
     for (const chainName of chainNames) {
-      const config = getStrategyChainConfig(
+      const strategyChainConfig = getStrategyChainConfig(
         this.config.strategyConfig,
         chainName,
       );
-      if (config) {
+      if (strategyChainConfig) {
         chainConfig[chainName] = {
-          bridge: config.bridge,
-          bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
-          bridgeIsWarp: config.bridgeIsWarp ?? false,
-          override: config.override,
+          bridge: strategyChainConfig.bridge,
+          bridgeMinAcceptedAmount:
+            strategyChainConfig.bridgeMinAcceptedAmount ?? 0,
+          bridgeIsWarp: strategyChainConfig.bridgeIsWarp ?? false,
+          override: strategyChainConfig.override,
         };
       }
     }

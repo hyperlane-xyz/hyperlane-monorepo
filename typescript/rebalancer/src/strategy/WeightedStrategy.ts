@@ -88,9 +88,9 @@ export class WeightedStrategy extends BaseStrategy {
       simulatedBalances,
       proposedRebalances ?? [],
     );
-    // Get the total balance from all chains
+    // Get the total balance from all chains (using simulated balances)
     const total = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
+      (sum, chain) => sum + simulatedBalances[chain],
       0n,
     );
 
@@ -99,7 +99,7 @@ export class WeightedStrategy extends BaseStrategy {
         const { weight, tolerance } = this.config[chain].weighted;
         const target = (total * weight) / this.totalWeight;
         const toleranceAmount = (target * tolerance) / 100n;
-        const balance = rawBalances[chain];
+        const balance = simulatedBalances[chain];
 
         // Apply the tolerance to deficits to prevent small imbalances
         if (balance < target - toleranceAmount) {
