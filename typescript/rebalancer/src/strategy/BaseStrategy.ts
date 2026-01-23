@@ -176,6 +176,7 @@ export abstract class BaseStrategy implements IStrategy {
           origin: surplus.chain,
           destination: deficit.chain,
           amount: transferAmount,
+          bridge: this.bridges?.[surplus.chain]?.[0],
         });
       }
 
