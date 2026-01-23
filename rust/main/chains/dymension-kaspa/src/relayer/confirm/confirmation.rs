@@ -132,14 +132,10 @@ async fn recursive_trace_transactions(
         }
 
         /* ------------ the input is part of the lineage! ------------ */
-        let payload = tx
-            .payload
-            .clone()
-            .ok_or_else(|| eyre::eyre!("No payload found in transaction"))?;
-
-        let message_ids = crate::ops::payload::MessageIDs::from_tx_payload(&payload)?;
-
-        processed_withdrawals.extend(message_ids.0);
+        if let Some(payload) = tx.payload.clone() {
+            let message_ids = crate::ops::payload::MessageIDs::from_tx_payload(&payload)?;
+            processed_withdrawals.extend(message_ids.0);
+        }
         outpoint_sequence.push(out_curr);
         return Ok(());
     }
