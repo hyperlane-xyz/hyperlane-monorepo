@@ -120,7 +120,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     },
     {
       description:
-        'should update proxy admin owner using ownerOverrides.proxyAdmin',
+        'should update proxyAdmin owner using ownerOverrides.proxyAdmin',
       tokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       ownerOverridesProxyAdmin: randomAddress(),
     },
@@ -135,7 +135,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     it(description, async function () {
       const expectedTokenOwner: Address = tokenOwner;
       const expectedProxyAdminOwner: Address =
-        ownerOverridesProxyAdmin ?? proxyAdminOwner ?? expectedTokenOwner;
+        proxyAdminOwner ?? ownerOverridesProxyAdmin ?? expectedTokenOwner;
 
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
@@ -147,6 +147,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
           TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
         ].proxyAdmin = { owner: proxyAdminOwner };
       }
+
       if (ownerOverridesProxyAdmin) {
         warpDeployConfig[
           TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
