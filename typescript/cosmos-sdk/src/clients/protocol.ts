@@ -68,10 +68,15 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
       context?.mailbox,
       `mailbox address required for hook artifact manager`,
     );
-    assert(context?.denom, `denom required for hook artifact manager`);
+
+    const nativeDenom = chainMetadata.nativeToken?.denom ?? '';
+    assert(
+      nativeDenom,
+      `native denom required for hook artifact manager but not found in chainMetadata`,
+    );
 
     const provider = await this.createProvider(chainMetadata);
-    return new HookArtifactManager(provider, context?.mailbox, context?.denom);
+    return new HookArtifactManager(provider, context?.mailbox, nativeDenom);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
