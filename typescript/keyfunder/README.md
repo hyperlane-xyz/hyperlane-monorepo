@@ -81,6 +81,7 @@ chainsToSkip: []
 | `metrics.jobName`                        | Job name for metrics                                                                             |
 | `metrics.labels`                         | Additional labels for metrics                                                                    |
 | `chainsToSkip`                           | Array of chain names to skip                                                                     |
+| `chainTimeoutMs`                         | Timeout per chain in milliseconds (default: 60000, min: 10000, max: 300000)                      |
 
 ### Precision Notes
 
@@ -156,7 +157,7 @@ When the funder wallet balance exceeds `threshold * triggerMultiplier`, excess f
 
 ### Timeouts
 
-Each chain is processed with a 60-second timeout. If funding operations for a chain exceed this limit, the chain is marked as failed and processing continues with remaining chains.
+Each chain is processed with a configurable timeout (default: 60 seconds, configurable via `chainTimeoutMs`). If funding operations for a chain exceed this limit, the chain is marked as failed and processing continues with remaining chains. Use higher values for chains with slower block times.
 
 ## Metrics
 

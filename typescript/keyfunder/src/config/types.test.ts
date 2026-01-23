@@ -114,10 +114,20 @@ describe('KeyFunderConfig Schemas', () => {
       expect(result.success).to.be.true;
     });
 
-    it('should validate chain config with igp', () => {
+    it('should validate chain config with igp including address', () => {
       const config = {
         igp: {
           address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7',
+          claimThreshold: '0.2',
+        },
+      };
+      const result = ChainConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+    });
+
+    it('should validate chain config with igp without address (registry fallback)', () => {
+      const config = {
+        igp: {
           claimThreshold: '0.2',
         },
       };
@@ -238,6 +248,60 @@ describe('KeyFunderConfig Schemas', () => {
       const result = calculateMultipliedBalance(oneEther, 1.999);
       expect(result.toString()).to.equal('1990000000000000000');
     });
+
+    it('should handle 1.0x multiplier (identity)', () => {
+      const result = calculateMultipliedBalance(oneEther, 1.0);
+      expect(result.toString()).to.equal(oneEther.toString());
+    });
+  });
+
+  describe('Funding amount calculation logic', () => {
+    const MIN_DELTA_NUMERATOR = BigNumber.from(6);
+    const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
+
+    function simulateFundingCalculation(
+      currentBalance: BigNumber,
+      desiredBalance: BigNumber,
+    ): BigNumber {
+      if (currentBalance.gte(desiredBalance)) {
+        return BigNumber.from(0);
+      }
+      const delta = desiredBalance.sub(currentBalance);
+      const minDelta = desiredBalance
+        .mul(MIN_DELTA_NUMERATOR)
+        .div(MIN_DELTA_DENOMINATOR);
+      return delta.gt(minDelta) ? delta : BigNumber.from(0);
+    }
+
+    const oneEther = BigNumber.from('1000000000000000000');
+
+    it('should return 0 when currentBalance equals desiredBalance (underflow guard)', () => {
+      const result = simulateFundingCalculation(oneEther, oneEther);
+      expect(result.toString()).to.equal('0');
+    });
+
+    it('should return 0 when currentBalance exceeds desiredBalance (underflow guard)', () => {
+      const result = simulateFundingCalculation(oneEther.mul(2), oneEther);
+      expect(result.toString()).to.equal('0');
+    });
+
+    it('should return 0 when deficit is below 60% threshold (0.5 ETH balance, 1 ETH desired)', () => {
+      const currentBalance = oneEther.div(2);
+      const result = simulateFundingCalculation(currentBalance, oneEther);
+      expect(result.toString()).to.equal('0');
+    });
+
+    it('should return delta when deficit exceeds 60% threshold (0.3 ETH balance, 1 ETH desired)', () => {
+      const currentBalance = oneEther.mul(3).div(10);
+      const result = simulateFundingCalculation(currentBalance, oneEther);
+      const expectedDelta = oneEther.sub(currentBalance);
+      expect(result.toString()).to.equal(expectedDelta.toString());
+    });
+
+    it('should return full amount when balance is 0', () => {
+      const result = simulateFundingCalculation(BigNumber.from(0), oneEther);
+      expect(result.toString()).to.equal(oneEther.toString());
+    });
   });
 
   describe('KeyFunderConfigSchema', () => {
@@ -332,6 +396,55 @@ describe('KeyFunderConfig Schemas', () => {
             },
           },
         },
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should use default chainTimeoutMs', () => {
+      const config = {
+        version: '1',
+        roles: {},
+        chains: {},
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.chainTimeoutMs).to.equal(60_000);
+      }
+    });
+
+    it('should accept custom chainTimeoutMs within bounds', () => {
+      const config = {
+        version: '1',
+        roles: {},
+        chains: {},
+        chainTimeoutMs: 120_000,
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.true;
+      if (result.success) {
+        expect(result.data.chainTimeoutMs).to.equal(120_000);
+      }
+    });
+
+    it('should reject chainTimeoutMs below minimum (10s)', () => {
+      const config = {
+        version: '1',
+        roles: {},
+        chains: {},
+        chainTimeoutMs: 5_000,
+      };
+      const result = KeyFunderConfigSchema.safeParse(config);
+      expect(result.success).to.be.false;
+    });
+
+    it('should reject chainTimeoutMs above maximum (300s)', () => {
+      const config = {
+        version: '1',
+        roles: {},
+        chains: {},
+        chainTimeoutMs: 400_000,
       };
       const result = KeyFunderConfigSchema.safeParse(config);
       expect(result.success).to.be.false;

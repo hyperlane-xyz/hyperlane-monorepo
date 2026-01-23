@@ -20,7 +20,7 @@ export const RoleConfigSchema = z.object({
 });
 
 export const IgpConfigSchema = z.object({
-  address: AddressSchema,
+  address: AddressSchema.optional(),
   claimThreshold: BalanceStringSchema,
 });
 
@@ -79,6 +79,10 @@ export const MetricsConfigSchema = z.object({
   labels: z.record(z.string(), z.string()).optional(),
 });
 
+const DEFAULT_CHAIN_TIMEOUT_MS = 60_000;
+const MIN_CHAIN_TIMEOUT_MS = 10_000;
+const MAX_CHAIN_TIMEOUT_MS = 300_000;
+
 export const KeyFunderConfigSchema = z
   .object({
     version: z.literal('1'),
@@ -86,6 +90,18 @@ export const KeyFunderConfigSchema = z
     chains: z.record(z.string(), ChainConfigSchema),
     metrics: MetricsConfigSchema.optional(),
     chainsToSkip: z.array(z.string()).optional(),
+    chainTimeoutMs: z
+      .number()
+      .int()
+      .min(
+        MIN_CHAIN_TIMEOUT_MS,
+        `Chain timeout must be at least ${MIN_CHAIN_TIMEOUT_MS}ms`,
+      )
+      .max(
+        MAX_CHAIN_TIMEOUT_MS,
+        `Chain timeout must be at most ${MAX_CHAIN_TIMEOUT_MS}ms`,
+      )
+      .default(DEFAULT_CHAIN_TIMEOUT_MS),
   })
   .refine(
     (data) => {

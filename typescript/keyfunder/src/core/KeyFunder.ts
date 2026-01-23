@@ -13,8 +13,6 @@ import type { KeyFunderMetrics } from '../metrics/Metrics.js';
 const MIN_DELTA_NUMERATOR = BigNumber.from(6);
 const MIN_DELTA_DENOMINATOR = BigNumber.from(10);
 
-const CHAIN_FUNDING_TIMEOUT_MS = 60_000;
-
 export interface KeyFunderOptions {
   logger: Logger;
   metrics?: KeyFunderMetrics;
@@ -52,9 +50,10 @@ export class KeyFunder {
   }
 
   private async fundChainWithTimeout(chain: string): Promise<void> {
+    const timeoutMs = this.config.chainTimeoutMs;
     const { promise: timeoutPromise, cleanup } = createTimeoutPromise(
-      CHAIN_FUNDING_TIMEOUT_MS,
-      `Funding timed out for chain ${chain}`,
+      timeoutMs,
+      `Funding timed out for chain ${chain} after ${timeoutMs}ms`,
     );
 
     try {
@@ -188,15 +187,11 @@ export class KeyFunder {
     });
 
     const desiredBalance = ethers.utils.parseEther(key.desiredBalance);
-    const fundingAmount = await this.calculateFundingAmount(
+    const { fundingAmount, currentBalance } = await this.calculateFundingAmount(
       chain,
       key.address,
       desiredBalance,
     );
-
-    const currentBalance = await this.multiProvider
-      .getProvider(chain)
-      .getBalance(key.address);
 
     this.options.metrics?.recordWalletBalance(
       chain,
@@ -256,18 +251,19 @@ export class KeyFunder {
     chain: string,
     address: string,
     desiredBalance: BigNumber,
-  ): Promise<BigNumber> {
+  ): Promise<{ fundingAmount: BigNumber; currentBalance: BigNumber }> {
     const currentBalance = await this.multiProvider
       .getProvider(chain)
       .getBalance(address);
     if (currentBalance.gte(desiredBalance)) {
-      return BigNumber.from(0);
+      return { fundingAmount: BigNumber.from(0), currentBalance };
     }
     const delta = desiredBalance.sub(currentBalance);
     const minDelta = desiredBalance
       .mul(MIN_DELTA_NUMERATOR)
       .div(MIN_DELTA_DENOMINATOR);
-    return delta.gt(minDelta) ? delta : BigNumber.from(0);
+    const fundingAmount = delta.gt(minDelta) ? delta : BigNumber.from(0);
+    return { fundingAmount, currentBalance };
   }
 
   private async sweepExcessFunds(

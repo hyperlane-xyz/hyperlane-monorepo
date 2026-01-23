@@ -134,8 +134,10 @@ async function main(): Promise<void> {
     }
 
     // Always push metrics, even on failure (matches original fund-keys-from-deployer.ts behavior)
-    await metrics.push();
-    logger.info('Metrics pushed to gateway');
+    if (config.metrics?.pushGateway) {
+      await metrics.push();
+      logger.info('Metrics pushed to gateway');
+    }
 
     if (fundingError) {
       throw fundingError;
