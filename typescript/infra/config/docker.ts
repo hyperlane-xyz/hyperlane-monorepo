@@ -36,8 +36,8 @@ export const mainnetDockerTags: MainnetDockerTags = {
   kathy: '74d999b-20260108-145131',
   checkWarpDeploy: '74d999b-20260108-145131',
   // standalone services
-  warpMonitor: '74d999b-20260108-145128',
-  rebalancer: '74d999b-20260108-145129',
+  warpMonitor: '6b6fd0b-20260123-121413',
+  rebalancer: '6b6fd0b-20260123-121418',
 };
 
 export const testnetDockerTags: BaseDockerTags = {

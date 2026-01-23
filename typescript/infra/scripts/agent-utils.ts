@@ -36,6 +36,7 @@ import {
   getChains,
   getEnvChains,
   getRegistry,
+  warpRouteExistsInRegistry,
 } from '../config/registry.js';
 import { getCurrentKubernetesContext } from '../src/agents/index.js';
 import { getCloudAgentKey } from '../src/agents/key-utils.js';
@@ -249,6 +250,14 @@ export function withDryRun<T>(args: Argv<T>) {
     .default('dryRun', false);
 }
 
+export function withYes<T>(args: Argv<T>) {
+  return args
+    .describe('yes', 'Skip confirmations and use defaults')
+    .boolean('yes')
+    .alias('y', 'yes')
+    .default('yes', false);
+}
+
 export function withKnownWarpRouteIdRequired<T>(args: Argv<T>) {
   return withKnownWarpRouteId(args).demandOption('warpRouteId');
 }
@@ -439,6 +448,24 @@ export async function getWarpRouteIdsInteractive(
   }
 
   return selection;
+}
+
+export function filterOrphanedWarpRouteIds(warpRouteIds: string[]): {
+  validIds: string[];
+  orphanedIds: string[];
+} {
+  const validIds: string[] = [];
+  const orphanedIds: string[] = [];
+
+  for (const id of warpRouteIds) {
+    if (warpRouteExistsInRegistry(id)) {
+      validIds.push(id);
+    } else {
+      orphanedIds.push(id);
+    }
+  }
+
+  return { validIds, orphanedIds };
 }
 
 // not requiring to build coreConfig to get agentConfig
