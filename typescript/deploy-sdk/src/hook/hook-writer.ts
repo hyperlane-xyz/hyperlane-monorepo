@@ -55,15 +55,15 @@ export type HookDeploymentContext = {
  * const hookConfig = await reader.deriveHookConfig(hookAddress);
  * ```
  */
-export function createHookWriter(
+export async function createHookWriter(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
   context?: HookDeploymentContext,
-): HookWriter {
+): Promise<HookWriter> {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawHookArtifactManager =
-    protocolProvider.createHookArtifactManager(chainMetadata, context);
+    await protocolProvider.createHookArtifactManager(chainMetadata, context);
 
   return new HookWriter(artifactManager, chainLookup, signer);
 }

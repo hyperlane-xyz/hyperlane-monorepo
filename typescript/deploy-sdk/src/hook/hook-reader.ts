@@ -29,13 +29,13 @@ import { Logger, rootLogger } from '@hyperlane-xyz/utils';
  * const hookConfig = await reader.read(hookAddress);
  * ```
  */
-export function createHookReader(
+export async function createHookReader(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
-): HookReader {
+): Promise<HookReader> {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawHookArtifactManager =
-    protocolProvider.createHookArtifactManager(chainMetadata);
+    await protocolProvider.createHookArtifactManager(chainMetadata);
 
   return new HookReader(artifactManager, chainLookup);
 }

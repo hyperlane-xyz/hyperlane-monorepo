@@ -109,7 +109,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       defaultIsm = config.defaultIsm;
     } else {
       // Deploy new ISM
-      const writer = createIsmWriter(metadata, chainLookup, signer);
+      const writer = await createIsmWriter(metadata, chainLookup, signer);
       const artifact = ismConfigToArtifact(config.defaultIsm, chainLookup);
       const [deployed] = await writer.create(artifact);
       defaultIsm = deployed.deployed.address;
@@ -128,7 +128,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       defaultHook = config.defaultHook;
     } else {
       // Deploy new hook with mailbox context
-      const writer = createHookWriter(metadata, chainLookup, signer, {
+      const writer = await createHookWriter(metadata, chainLookup, signer, {
         mailbox: mailbox.mailboxAddress,
       });
       const artifact = hookConfigToArtifact(config.defaultHook, chainLookup);
@@ -143,7 +143,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       requiredHook = config.requiredHook;
     } else {
       // Deploy new hook with mailbox context
-      const writer = createHookWriter(metadata, chainLookup, signer, {
+      const writer = await createHookWriter(metadata, chainLookup, signer, {
         mailbox: mailbox.mailboxAddress,
       });
       const artifact = hookConfigToArtifact(config.requiredHook, chainLookup);
@@ -339,7 +339,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     }
 
     const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
-    const writer = createIsmWriter(
+    const writer = await createIsmWriter(
       chainMetadata,
       this.chainLookup,
       this.signer,
@@ -486,7 +486,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     }
 
     const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
-    const writer = createHookWriter(
+    const writer = await createHookWriter(
       chainMetadata,
       this.chainLookup,
       this.signer,

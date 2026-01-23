@@ -55,9 +55,9 @@ export class AleoProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
-  createIsmArtifactManager(
+  async createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-  ): IRawIsmArtifactManager {
+  ): Promise<IRawIsmArtifactManager> {
     const chainId = parseInt(chainMetadata.chainId.toString());
     assert(
       chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
@@ -75,10 +75,10 @@ export class AleoProtocolProvider implements ProtocolProvider {
     return new AleoIsmArtifactManager(aleoClient);
   }
 
-  createHookArtifactManager(
+  async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
-  ): IRawHookArtifactManager {
+  ): Promise<IRawHookArtifactManager> {
     const chainId = parseInt(chainMetadata.chainId.toString());
     assert(
       chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,

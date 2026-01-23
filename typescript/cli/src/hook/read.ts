@@ -41,7 +41,10 @@ export async function readHookConfig({
     }
     default: {
       const metadata = context.multiProvider.getChainMetadata(chain);
-      const hookReader = createHookReader(metadata, context.multiProvider);
+      const hookReader = await createHookReader(
+        metadata,
+        context.multiProvider,
+      );
       const config = await hookReader.deriveHookConfig(address);
       const stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
       if (!out) {

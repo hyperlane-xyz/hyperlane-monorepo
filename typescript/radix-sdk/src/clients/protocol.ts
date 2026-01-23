@@ -55,9 +55,9 @@ export class RadixProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
-  createIsmArtifactManager(
+  async createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-  ): IRawIsmArtifactManager {
+  ): Promise<IRawIsmArtifactManager> {
     assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
 
     const networkId = parseInt(chainMetadata.chainId.toString());
@@ -101,10 +101,10 @@ export class RadixProtocolProvider implements ProtocolProvider {
     return new RadixIsmArtifactManager(gateway, base);
   }
 
-  createHookArtifactManager(
+  async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
-  ): IRawHookArtifactManager {
+  ): Promise<IRawHookArtifactManager> {
     assert(chainMetadata.gatewayUrls, 'gateway urls undefined');
 
     const networkId = parseInt(chainMetadata.chainId.toString());

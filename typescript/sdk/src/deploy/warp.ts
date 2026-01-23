@@ -278,7 +278,7 @@ async function createWarpIsm({
       const signer = mustGet(altVmSigners, chain);
       const chainLookup = altVmChainLookup(multiProvider);
       const chainMetadata = chainLookup.getChainMetadata(chain);
-      const writer = createIsmWriter(chainMetadata, chainLookup, signer);
+      const writer = await createIsmWriter(chainMetadata, chainLookup, signer);
       const artifact = ismConfigToArtifact(
         // FIXME: not all ISM types are supported yet
         interchainSecurityModule as ProviderIsmConfig,
@@ -362,7 +362,7 @@ async function createWarpHook({
       const metadata = multiProvider.getChainMetadata(chain);
 
       // Deploy new hook using artifact writer with mailbox context
-      const writer = createHookWriter(metadata, chainLookup, signer, {
+      const writer = await createHookWriter(metadata, chainLookup, signer, {
         mailbox: chainAddresses.mailbox,
       });
       const artifact = hookConfigToArtifact(

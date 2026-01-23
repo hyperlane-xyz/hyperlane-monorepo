@@ -2,6 +2,7 @@ import {
   type AltVM,
   type ChainMetadataForAltVM,
   type ITransactionSubmitter,
+  IsmArtifactManager,
   type MinimumRequiredGasByAction,
   type ProtocolProvider,
   type SignerConfig,
@@ -17,13 +18,14 @@ import {
 import { assert } from '@hyperlane-xyz/utils';
 
 import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
 
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
 
 export class CosmosNativeProtocolProvider implements ProtocolProvider {
-  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
+  async createProvider(
+    chainMetadata: ChainMetadataForAltVM,
+  ): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
     return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
@@ -51,19 +53,18 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
-  createIsmArtifactManager(
+  async createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-  ): IRawIsmArtifactManager {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+  ): Promise<IRawIsmArtifactManager> {
+    const provider = await this.createProvider(chainMetadata);
 
-    return new CosmosIsmArtifactManager(rpcUrls);
+    return new IsmArtifactManager(provider);
   }
 
-  createHookArtifactManager(
+  async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
-  ): IRawHookArtifactManager {
+  ): Promise<IRawHookArtifactManager> {
     const [mainRpcUrl, ...otherRpcUrls] = (chainMetadata.rpcUrls ?? []).map(
       (rpc) => rpc.http,
     );

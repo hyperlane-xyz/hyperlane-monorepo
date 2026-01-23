@@ -428,7 +428,11 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     }
 
     const metadata = this.chainLookup.getChainMetadata(this.args.chain);
-    const writer = createIsmWriter(metadata, this.chainLookup, this.signer);
+    const writer = await createIsmWriter(
+      metadata,
+      this.chainLookup,
+      this.signer,
+    );
 
     const actualIsmAddress =
       (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
@@ -507,9 +511,14 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     }
 
     const metadata = this.chainLookup.getChainMetadata(this.args.chain);
-    const writer = createHookWriter(metadata, this.chainLookup, this.signer, {
-      mailbox: expectedConfig.mailbox,
-    });
+    const writer = await createHookWriter(
+      metadata,
+      this.chainLookup,
+      this.signer,
+      {
+        mailbox: expectedConfig.mailbox,
+      },
+    );
 
     const actualHookAddress =
       (actualConfig.hook as DerivedHookConfig)?.address ?? '';
