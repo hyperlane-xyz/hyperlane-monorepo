@@ -46,18 +46,11 @@ export function startMetricsServer(
     })
     .on('error', (err: NodeJS.ErrnoException) => {
       if (err.code === 'EADDRINUSE') {
-        const msg = `Metrics server port ${port} already in use. Set PROMETHEUS_PORT to use a different port.`;
-        if (logger) {
-          logger.error(msg);
-        } else {
-          console.error(msg);
-        }
+        logger?.error(
+          `Metrics server port ${port} already in use. Set PROMETHEUS_PORT to use a different port.`,
+        );
       } else {
-        if (logger) {
-          logger.error(err, 'Metrics server error');
-        } else {
-          console.error('Metrics server error:', err);
-        }
+        logger?.error(err, 'Metrics server error');
       }
     })
     .listen(port);
