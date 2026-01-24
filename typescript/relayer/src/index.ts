@@ -24,7 +24,6 @@ export {
   NullMetadata,
   NullMetadataBuilder,
   OffchainLookupMetadataBuilder,
-  offchainLookupRequestMessageHash,
   RoutingMetadata,
 } from './metadata/index.js';
 export type {
