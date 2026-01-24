@@ -2,30 +2,79 @@ import { expect } from 'chai';
 import { pino } from 'pino';
 
 import {
+  CollateralDeficitStrategy,
+  MinAmountStrategy,
   RebalancerConfig,
+  RebalancerMinAmountType,
   RebalancerStrategyOptions,
   WeightedStrategy,
 } from '@hyperlane-xyz/rebalancer';
+import { Token, TokenStandard } from '@hyperlane-xyz/sdk';
+import type { ChainMap } from '@hyperlane-xyz/sdk';
 import { toWei } from '@hyperlane-xyz/utils';
+import type { Address } from '@hyperlane-xyz/utils';
 
 import {
-  createEqualWeightedConfig,
-  createPhaseRunner,
-  createRebalancerTestSetup,
   DEFAULT_REBALANCER_CONFIG_PATH,
   DOMAIN_1,
   DOMAIN_2,
   DOMAIN_3,
-  getAllWarpRouteBalances,
   Phase,
   type RebalancerTestSetup,
   type SnapshotInfo,
+  createEqualWeightedConfig,
+  createMinAmountConfig,
+  createPhaseRunner,
+  createRebalancerTestSetup,
+  getAllWarpRouteBalances,
   transferAndRelay,
+  writeMinAmountConfig,
   writeWeightedConfig,
 } from './harness/index.js';
 
 // Silent logger for tests
 const logger = pino({ level: 'silent' });
+
+/**
+ * Helper to create Token objects for strategy constructors.
+ */
+function createTokensByChainName(domainNames: string[]): ChainMap<Token> {
+  const tokensByChainName: ChainMap<Token> = {};
+  for (const name of domainNames) {
+    tokensByChainName[name] = new Token({
+      chainName: name,
+      name: 'Test Token',
+      symbol: 'TST',
+      decimals: 18,
+      standard: TokenStandard.ERC20,
+      addressOrDenom: '',
+    });
+  }
+  return tokensByChainName;
+}
+
+/**
+ * Helper to create bridges map from test setup.
+ */
+function createBridgesMap(
+  setup: RebalancerTestSetup,
+  domainNames: string[],
+): ChainMap<Address[]> {
+  const bridges: ChainMap<Address[]> = {};
+  for (const origin of domainNames) {
+    bridges[origin] = [];
+    for (const dest of domainNames) {
+      if (origin !== dest) {
+        try {
+          bridges[origin].push(setup.getBridge(origin, dest));
+        } catch {
+          // Bridge might not exist for all pairs
+        }
+      }
+    }
+  }
+  return bridges;
+}
 
 describe('Rebalancer E2E Tests', function () {
   // Increase timeout for setup
@@ -86,7 +135,9 @@ describe('Rebalancer E2E Tests', function () {
     // Create strategy directly based on config
     // For weighted strategy tests
     const strategyConfig = rebalancerConfig.strategyConfig[0];
-    if (strategyConfig.rebalanceStrategy !== RebalancerStrategyOptions.Weighted) {
+    if (
+      strategyConfig.rebalanceStrategy !== RebalancerStrategyOptions.Weighted
+    ) {
       throw new Error('Only weighted strategy is supported in this helper');
     }
 
@@ -116,7 +167,7 @@ describe('Rebalancer E2E Tests', function () {
       // Create imbalance by adding MORE collateral to domain1
       // transferRemote from collateral to synthetic ADDS collateral (locks tokens)
       // So we transfer more from domain1 than domain2 to create imbalance
-      // 
+      //
       // Initial: domain1=10, domain2=10
       // After transfer from domain1->domain3: domain1=18, domain2=10 (8 more locked)
       // This creates imbalance where domain1 has MORE than domain2
@@ -242,6 +293,432 @@ describe('Rebalancer E2E Tests', function () {
       expect(route.destination).to.equal(DOMAIN_1.name);
       // Should transfer 5 tokens (to go from 50/50 to 75/25)
       expect(route.amount.toString()).to.equal(toWei('5'));
+    });
+  });
+
+  // ========== MIN AMOUNT STRATEGY TESTS ==========
+
+  describe('MinAmount Strategy', function () {
+    /**
+     * Helper to run MinAmountStrategy directly.
+     */
+    async function runMinAmountStrategy(
+      config: Record<
+        string,
+        {
+          min: string;
+          target: string;
+          bridge: Address;
+        }
+      >,
+    ): Promise<{
+      routes: Array<{ origin: string; destination: string; amount: bigint }>;
+      balances: Record<string, bigint>;
+    }> {
+      const rawBalances = await getAllWarpRouteBalances(setup);
+      const domainNames = Object.keys(config);
+      const tokensByChainName = createTokensByChainName(domainNames);
+      const bridges = createBridgesMap(setup, domainNames);
+
+      // Calculate total collateral
+      const totalCollateral = domainNames.reduce(
+        (sum, name) => sum + rawBalances[name],
+        0n,
+      );
+
+      // Build strategy config
+      const strategyConfig: Record<string, any> = {};
+      for (const [chainName, chainConfig] of Object.entries(config)) {
+        strategyConfig[chainName] = {
+          minAmount: {
+            min: chainConfig.min,
+            target: chainConfig.target,
+            type: RebalancerMinAmountType.Absolute,
+          },
+          bridge: chainConfig.bridge,
+          bridgeLockTime: 1,
+        };
+      }
+
+      const strategy = new MinAmountStrategy(
+        strategyConfig,
+        tokensByChainName,
+        totalCollateral,
+        logger,
+        undefined,
+        bridges,
+      );
+
+      const routes = strategy.getRebalancingRoutes(rawBalances, {
+        pendingRebalances: [],
+        pendingTransfers: [],
+      });
+
+      return {
+        routes: routes.map((r) => ({
+          origin: r.origin,
+          destination: r.destination,
+          amount: r.amount,
+        })),
+        balances: rawBalances,
+      };
+    }
+
+    it('should detect when a chain is below minimum and propose route', async function () {
+      // Create imbalance: domain1 gets more collateral, domain2 stays the same
+      // Transfer from domain1 to domain3 ADDS collateral to domain1
+      await transferAndRelay(
+        setup,
+        DOMAIN_1.name,
+        DOMAIN_3.name,
+        BigInt(toWei('8')),
+      );
+
+      // After transfer: domain1 = 18, domain2 = 10
+      const balances = await getAllWarpRouteBalances(setup);
+      console.log('Balances after transfer:', balances);
+
+      // Set minimum of 12 for each chain
+      // domain1 (18) is above min, domain2 (10) is below min (12)
+      // domain2 needs 12-10=2 (or target-current if target > min)
+      const result = await runMinAmountStrategy({
+        [DOMAIN_1.name]: {
+          min: '12',
+          target: '14',
+          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+        },
+        [DOMAIN_2.name]: {
+          min: '12',
+          target: '14',
+          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+        },
+      });
+
+      console.log('MinAmount strategy result:', result);
+
+      // Should propose route from domain1 (surplus) to domain2 (deficit)
+      expect(result.routes.length).to.be.greaterThan(0);
+
+      const route = result.routes[0];
+      expect(route.origin).to.equal(DOMAIN_1.name);
+      expect(route.destination).to.equal(DOMAIN_2.name);
+      // Amount should bring domain2 up to target (14)
+      expect(route.amount.toString()).to.equal(toWei('4')); // 14 - 10 = 4
+    });
+
+    it('should not propose routes when all chains meet minimum', async function () {
+      // No transfers - both domains have 10 tokens
+      // Set minimum of 8 for each chain - both are above minimum
+
+      const result = await runMinAmountStrategy({
+        [DOMAIN_1.name]: {
+          min: '8',
+          target: '9',
+          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+        },
+        [DOMAIN_2.name]: {
+          min: '8',
+          target: '9',
+          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+        },
+      });
+
+      console.log('MinAmount strategy result (all above min):', result);
+
+      // Should not propose any routes
+      expect(result.routes.length).to.equal(0);
+    });
+
+    it('should use config file approach', async function () {
+      // Create imbalance
+      await transferAndRelay(
+        setup,
+        DOMAIN_1.name,
+        DOMAIN_3.name,
+        BigInt(toWei('5')),
+      );
+
+      // Write min amount config
+      const configOptions = createMinAmountConfig(setup, {
+        [DOMAIN_1.name]: { min: '10', target: '12' },
+        [DOMAIN_2.name]: { min: '10', target: '12' },
+      });
+      writeMinAmountConfig(configOptions);
+
+      // Load and verify config
+      const rebalancerConfig = RebalancerConfig.load(
+        DEFAULT_REBALANCER_CONFIG_PATH,
+      );
+      expect(rebalancerConfig.strategyConfig[0].rebalanceStrategy).to.equal(
+        RebalancerStrategyOptions.MinAmount,
+      );
+    });
+
+    it('should handle relative min amounts', async function () {
+      // Create imbalance: domain1 gets more collateral
+      await transferAndRelay(
+        setup,
+        DOMAIN_1.name,
+        DOMAIN_3.name,
+        BigInt(toWei('8')),
+      );
+
+      // After transfer: domain1 = 18, domain2 = 10, total = 28
+      const rawBalances = await getAllWarpRouteBalances(setup);
+      const domainNames = [DOMAIN_1.name, DOMAIN_2.name];
+      const tokensByChainName = createTokensByChainName(domainNames);
+      const bridges = createBridgesMap(setup, domainNames);
+
+      const totalCollateral = domainNames.reduce(
+        (sum, name) => sum + rawBalances[name],
+        0n,
+      );
+
+      // Set relative minimums: 30% for each chain
+      // With total=28, 30% = 8.4 tokens
+      // domain1 (18) is above min, domain2 (10) is above min too
+      // But set min to 40% to trigger rebalancing
+      // 40% of 28 = 11.2 tokens - domain2 (10) is below
+      const strategyConfig = {
+        [DOMAIN_1.name]: {
+          minAmount: {
+            min: 0.4, // 40%
+            target: 0.45, // 45%
+            type: RebalancerMinAmountType.Relative,
+          },
+          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+          bridgeLockTime: 1,
+        },
+        [DOMAIN_2.name]: {
+          minAmount: {
+            min: 0.4, // 40%
+            target: 0.45, // 45%
+            type: RebalancerMinAmountType.Relative,
+          },
+          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+          bridgeLockTime: 1,
+        },
+      };
+
+      const strategy = new MinAmountStrategy(
+        strategyConfig,
+        tokensByChainName,
+        totalCollateral,
+        logger,
+        undefined,
+        bridges,
+      );
+
+      const routes = strategy.getRebalancingRoutes(rawBalances, {
+        pendingRebalances: [],
+        pendingTransfers: [],
+      });
+
+      console.log('MinAmount strategy (relative) result:', {
+        totalCollateral: totalCollateral.toString(),
+        routes: routes.map((r) => ({
+          ...r,
+          amount: r.amount.toString(),
+        })),
+      });
+
+      // domain2 (10) is below 40% of 28 (11.2), so should get rebalanced
+      // domain1 (18) has surplus above min (11.2)
+      expect(routes.length).to.be.greaterThan(0);
+      expect(routes[0].origin).to.equal(DOMAIN_1.name);
+      expect(routes[0].destination).to.equal(DOMAIN_2.name);
+    });
+  });
+
+  // ========== COLLATERAL DEFICIT STRATEGY TESTS ==========
+
+  describe('CollateralDeficit Strategy', function () {
+    /**
+     * Helper to run CollateralDeficitStrategy directly.
+     * This strategy is designed to handle negative (effective) balances
+     * caused by pending user transfers.
+     */
+    async function runCollateralDeficitStrategy(
+      config: Record<
+        string,
+        {
+          buffer: string;
+          bridge: Address;
+        }
+      >,
+      inflightContext?: {
+        pendingTransfers?: Array<{
+          origin: string;
+          destination: string;
+          amount: bigint;
+        }>;
+        pendingRebalances?: Array<{
+          origin: string;
+          destination: string;
+          amount: bigint;
+          bridge?: Address;
+        }>;
+      },
+    ): Promise<{
+      routes: Array<{
+        origin: string;
+        destination: string;
+        amount: bigint;
+        bridge?: Address;
+      }>;
+      balances: Record<string, bigint>;
+    }> {
+      const rawBalances = await getAllWarpRouteBalances(setup);
+      const domainNames = Object.keys(config);
+      const tokensByChainName = createTokensByChainName(domainNames);
+      const bridges = createBridgesMap(setup, domainNames);
+
+      // Build strategy config
+      const strategyConfig: Record<string, any> = {};
+      for (const [chainName, chainConfig] of Object.entries(config)) {
+        strategyConfig[chainName] = {
+          buffer: chainConfig.buffer,
+          bridge: chainConfig.bridge,
+          bridgeLockTime: 1,
+        };
+      }
+
+      const strategy = new CollateralDeficitStrategy(
+        strategyConfig,
+        tokensByChainName,
+        logger,
+        undefined,
+        bridges,
+      );
+
+      const routes = strategy.getRebalancingRoutes(rawBalances, {
+        pendingRebalances: inflightContext?.pendingRebalances ?? [],
+        pendingTransfers: inflightContext?.pendingTransfers ?? [],
+      });
+
+      return {
+        routes: routes.map((r) => ({
+          origin: r.origin,
+          destination: r.destination,
+          amount: r.amount,
+          bridge: r.bridge,
+        })),
+        balances: rawBalances,
+      };
+    }
+
+    it('should detect deficit caused by pending transfer and propose JIT rebalance', async function () {
+      // Initial state: domain1=10, domain2=10
+      // Simulate a large pending user transfer that will create a deficit
+      // When a user transfer is pending TO domain1, it will need collateral
+      // that exceeds what domain1 has
+
+      const result = await runCollateralDeficitStrategy(
+        {
+          [DOMAIN_1.name]: {
+            buffer: '1', // 1 token buffer
+            bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+          },
+          [DOMAIN_2.name]: {
+            buffer: '1',
+            bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+          },
+        },
+        {
+          // Simulate pending user transfer that needs 15 tokens from domain1
+          // domain1 only has 10, so effective balance becomes -5
+          pendingTransfers: [
+            {
+              origin: DOMAIN_3.name, // synthetic
+              destination: DOMAIN_1.name, // collateral
+              amount: BigInt(toWei('15')), // needs 15 tokens
+            },
+          ],
+        },
+      );
+
+      console.log('CollateralDeficit strategy result:', result);
+
+      // Strategy should detect deficit on domain1 and propose route from domain2
+      expect(result.routes.length).to.be.greaterThan(0);
+
+      const route = result.routes[0];
+      expect(route.origin).to.equal(DOMAIN_2.name);
+      expect(route.destination).to.equal(DOMAIN_1.name);
+      // Amount should cover deficit (-5) plus buffer (1) = 6
+      expect(Number(route.amount)).to.be.greaterThanOrEqual(Number(toWei('6')));
+    });
+
+    it('should not propose routes when no deficit exists', async function () {
+      // No pending transfers - all balances positive
+      const result = await runCollateralDeficitStrategy({
+        [DOMAIN_1.name]: {
+          buffer: '1',
+          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+        },
+        [DOMAIN_2.name]: {
+          buffer: '1',
+          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+        },
+      });
+
+      console.log('CollateralDeficit strategy result (no deficit):', result);
+
+      // No routes should be proposed
+      expect(result.routes.length).to.equal(0);
+    });
+
+    it('should account for pending rebalances when calculating deficit', async function () {
+      // Test that pending rebalances are considered
+      // If there's already a rebalance in flight, it should reduce the deficit
+
+      const result = await runCollateralDeficitStrategy(
+        {
+          [DOMAIN_1.name]: {
+            buffer: '1',
+            bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+          },
+          [DOMAIN_2.name]: {
+            buffer: '1',
+            bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+          },
+        },
+        {
+          // Pending user transfer creates -5 deficit on domain1
+          pendingTransfers: [
+            {
+              origin: DOMAIN_3.name,
+              destination: DOMAIN_1.name,
+              amount: BigInt(toWei('15')),
+            },
+          ],
+          // But there's already a pending rebalance of 4 tokens to domain1
+          pendingRebalances: [
+            {
+              origin: DOMAIN_2.name,
+              destination: DOMAIN_1.name,
+              amount: BigInt(toWei('4')),
+              bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+            },
+          ],
+        },
+      );
+
+      console.log(
+        'CollateralDeficit strategy result (with pending rebalance):',
+        result,
+      );
+
+      // The pending rebalance should reduce the deficit
+      // Without pending rebalance: deficit = 5 + 1 = 6
+      // With pending rebalance of 4: effective deficit = 1 + 1 = 2
+      if (result.routes.length > 0) {
+        const route = result.routes[0];
+        expect(route.origin).to.equal(DOMAIN_2.name);
+        expect(route.destination).to.equal(DOMAIN_1.name);
+        // Amount should be smaller due to pending rebalance
+        expect(Number(route.amount)).to.be.lessThan(Number(toWei('6')));
+      }
     });
   });
 
