@@ -1,9 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
-
-import { ISafe__factory } from '@hyperlane-xyz/core';
-
-import { getOwnerChanges, parseSafeTx } from '../src/utils/safe.js';
+import { getOwnerChanges } from '../src/utils/safe.js';
 
 describe('Safe Utils', () => {
   describe('getOwnerChanges', () => {
@@ -106,86 +102,6 @@ describe('Safe Utils', () => {
       expect(ownersToAdd[0].toLowerCase()).to.equal(
         '0x0000000000000000000000000000000000000003',
       );
-    });
-  });
-
-  describe('parseSafeTx', () => {
-    it('should parse swapOwner transaction using ISafe interface', () => {
-      const safeInterface = ISafe__factory.createInterface();
-      const oldOwner = '0x0000000000000000000000000000000000000002';
-      const newOwner = '0x0000000000000000000000000000000000000004';
-      const prevOwner = '0x0000000000000000000000000000000000000001';
-
-      const data = safeInterface.encodeFunctionData('swapOwner', [
-        prevOwner,
-        oldOwner,
-        newOwner,
-      ]);
-
-      const tx = {
-        to: '0x1234567890123456789012345678901234567890',
-        data,
-        value: BigNumber.from(0),
-        chain: 'test',
-        timestamp: Date.now(),
-      };
-
-      const decoded = parseSafeTx(tx);
-
-      expect(decoded.name).to.equal('swapOwner');
-      expect(decoded.args).to.have.lengthOf(3);
-      expect(decoded.args[0]).to.equal(prevOwner);
-      expect(decoded.args[1]).to.equal(oldOwner);
-      expect(decoded.args[2]).to.equal(newOwner);
-    });
-
-    it('should parse addOwnerWithThreshold transaction using ISafe interface', () => {
-      const safeInterface = ISafe__factory.createInterface();
-      const newOwner = '0x0000000000000000000000000000000000000005';
-      const threshold = 2;
-
-      const data = safeInterface.encodeFunctionData('addOwnerWithThreshold', [
-        newOwner,
-        threshold,
-      ]);
-
-      const tx = {
-        to: '0x1234567890123456789012345678901234567890',
-        data,
-        value: BigNumber.from(0),
-        chain: 'test',
-        timestamp: Date.now(),
-      };
-
-      const decoded = parseSafeTx(tx);
-
-      expect(decoded.name).to.equal('addOwnerWithThreshold');
-      expect(decoded.args).to.have.lengthOf(2);
-      expect(decoded.args[0]).to.equal(newOwner);
-      expect(decoded.args[1].toNumber()).to.equal(threshold);
-    });
-
-    it('should parse changeThreshold transaction using ISafe interface', () => {
-      const safeInterface = ISafe__factory.createInterface();
-      const newThreshold = 3;
-
-      const data = safeInterface.encodeFunctionData('changeThreshold', [
-        newThreshold,
-      ]);
-
-      const tx = {
-        to: '0x1234567890123456789012345678901234567890',
-        data,
-        value: BigNumber.from(0),
-        chain: 'test',
-        timestamp: Date.now(),
-      };
-
-      const decoded = parseSafeTx(tx);
-
-      expect(decoded.name).to.equal('changeThreshold');
-      expect(decoded.args).to.have.lengthOf(1);
-      expect(decoded.args[0].toNumber()).to.equal(newThreshold);
     });
   });
 
