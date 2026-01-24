@@ -32,21 +32,39 @@ variable "REGISTRY" {
 
 # Default group builds all targets
 group "default" {
-  targets = ["typescript-services"]
+  targets = ["ncc-services", "ccip-server"]
 }
 
-# Matrix build for all TypeScript service images
-target "typescript-services" {
+# NCC-bundled services using the unified Dockerfile
+target "ncc-services" {
   name = item.name
   matrix = {
     item = [
-      { name = "rebalancer", dockerfile = "typescript/rebalancer/Dockerfile", image = "hyperlane-rebalancer" },
-      { name = "warp-monitor", dockerfile = "typescript/warp-monitor/Dockerfile", image = "hyperlane-warp-monitor" },
-      { name = "ccip-server", dockerfile = "typescript/ccip-server/Dockerfile", image = "hyperlane-offchain-lookup-server" },
+      { name = "rebalancer", dir = "rebalancer", package = "@hyperlane-xyz/rebalancer", image = "hyperlane-rebalancer" },
+      { name = "warp-monitor", dir = "warp-monitor", package = "@hyperlane-xyz/warp-monitor", image = "hyperlane-warp-monitor" },
     ]
   }
 
-  dockerfile = item.dockerfile
+  dockerfile = "typescript/Dockerfile.node-service"
+  context    = "."
+  platforms  = split(",", PLATFORMS)
+
+  args = {
+    FOUNDRY_VERSION = FOUNDRY_VERSION
+    SERVICE_VERSION = SERVICE_VERSION
+    SERVICE_DIR     = item.dir
+    SERVICE_PACKAGE = item.package
+  }
+
+  tags = compact([
+    "${REGISTRY}/${item.image}:${TAG}",
+    TAG_SHA_DATE != "" ? "${REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
+  ])
+}
+
+# CCIP server requires separate Dockerfile due to Prisma
+target "ccip-server" {
+  dockerfile = "typescript/ccip-server/Dockerfile"
   context    = "."
   platforms  = split(",", PLATFORMS)
 
@@ -56,7 +74,7 @@ target "typescript-services" {
   }
 
   tags = compact([
-    "${REGISTRY}/${item.image}:${TAG}",
-    TAG_SHA_DATE != "" ? "${REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
+    "${REGISTRY}/hyperlane-offchain-lookup-server:${TAG}",
+    TAG_SHA_DATE != "" ? "${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}" : "",
   ])
 }
