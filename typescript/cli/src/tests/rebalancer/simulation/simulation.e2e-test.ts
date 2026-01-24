@@ -827,4 +827,271 @@ describe('Rebalancer Simulation', function () {
       expect(results.scores.overall).to.be.a('number');
     });
   });
+
+  describe('SimulationEnvironment (Custom Rebalancers)', function () {
+    it('should allow event-driven rebalancer', async function () {
+      const { SimulationEnvironment, StaticTrafficSource } = await import(
+        './index.js'
+      );
+
+      // Create traffic that will cause some chains to run low
+      const transfers = [];
+      for (let i = 0; i < 30; i++) {
+        transfers.push({
+          id: `env-test-${i}`,
+          timestamp: i * 10_000,
+          origin: 'ethereum',
+          destination: 'arbitrum', // All go to arbitrum, depleting ethereum
+          amount: BigInt(toWei('50000')),
+          sender: '0x1111111111111111111111111111111111111111' as Address,
+          recipient: '0x2222222222222222222222222222222222222222' as Address,
+        });
+      }
+
+      const source = new StaticTrafficSource(transfers);
+
+      // Event-driven rebalancer that reacts to waiting transfers
+      const events: Array<{ type: string; time: number }> = [];
+      let rebalanceCount = 0;
+
+      const eventDrivenRebalancer = {
+        onStart(env: any) {
+          // Subscribe to events
+          env.on((event: any) => {
+            events.push({ type: event.type, time: event.time });
+
+            // When a transfer starts waiting, try to rebalance
+            if (event.type === 'transfer_waiting') {
+              const state = env.getState();
+              // Find a chain with surplus
+              for (const [chain, balance] of Object.entries(state.balances)) {
+                if (
+                  chain !== event.data.destination &&
+                  (balance as bigint) > BigInt(toWei('200000'))
+                ) {
+                  const result = env.executeRebalance({
+                    origin: chain,
+                    destination: event.data.destination,
+                    amount: BigInt(event.data.shortfall),
+                  });
+                  if (result.success) {
+                    rebalanceCount++;
+                  }
+                  break;
+                }
+              }
+            }
+          });
+        },
+      };
+
+      const env = new SimulationEnvironment(
+        {
+          ...createSimulationConfig(),
+          tickIntervalMs: 1000,
+        },
+        12345,
+      );
+
+      const results = await env.run(
+        source,
+        eventDrivenRebalancer,
+        5 * 60 * 1000,
+      );
+
+      console.log(formatResults('Event-Driven Rebalancer', results));
+      console.log(`Events captured: ${events.length}`);
+      console.log(`Rebalances triggered: ${rebalanceCount}`);
+
+      expect(results.transfers.total).to.equal(30);
+      expect(events.length).to.be.greaterThan(0);
+      expect(events.some((e) => e.type === 'transfer_arrived')).to.be.true;
+    });
+
+    it('should allow polling-based rebalancer', async function () {
+      const { SimulationEnvironment, ChaosTrafficGenerator } = await import(
+        './index.js'
+      );
+
+      const traffic = new ChaosTrafficGenerator(
+        {
+          chains: CHAINS,
+          collateralChains: COLLATERAL_CHAINS,
+          transfersPerMinute: 10,
+          amountDistribution: {
+            min: BigInt(toWei('5000')),
+            max: BigInt(toWei('50000')),
+            distribution: 'pareto',
+          },
+          seed: 44444,
+        },
+        5 * 60 * 1000,
+      );
+
+      // Polling-based rebalancer that checks every tick
+      let tickCount = 0;
+      let rebalanceCount = 0;
+
+      const pollingRebalancer = {
+        onTick(env: any, _deltaMs: number) {
+          tickCount++;
+
+          // Only check every 10 seconds
+          if (tickCount % 10 !== 0) return;
+
+          const state = env.getState();
+          const threshold = BigInt(toWei('100000'));
+
+          // Find chains below threshold
+          for (const [chain, balance] of Object.entries(state.balances)) {
+            if ((balance as bigint) < threshold) {
+              // Find chain with surplus
+              for (const [otherChain, otherBalance] of Object.entries(
+                state.balances,
+              )) {
+                if (
+                  otherChain !== chain &&
+                  (otherBalance as bigint) > BigInt(toWei('300000'))
+                ) {
+                  const result = env.executeRebalance({
+                    origin: otherChain,
+                    destination: chain,
+                    amount: BigInt(toWei('100000')),
+                  });
+                  if (result.success) {
+                    rebalanceCount++;
+                  }
+                  break;
+                }
+              }
+            }
+          }
+        },
+      };
+
+      const env = new SimulationEnvironment(
+        {
+          ...createSimulationConfig(),
+          tickIntervalMs: 1000,
+        },
+        44444,
+      );
+
+      const results = await env.run(traffic, pollingRebalancer, 5 * 60 * 1000);
+
+      console.log(formatResults('Polling-Based Rebalancer', results));
+      console.log(`Ticks: ${tickCount}, Rebalances: ${rebalanceCount}`);
+
+      expect(results.transfers.total).to.be.greaterThan(0);
+      expect(tickCount).to.be.greaterThan(0);
+    });
+
+    it('should provide correct state snapshots', async function () {
+      const { SimulationEnvironment, StaticTrafficSource } = await import(
+        './index.js'
+      );
+
+      const transfers = [
+        {
+          id: 'state-test-1',
+          timestamp: 0,
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: BigInt(toWei('100000')),
+          sender: '0x1111111111111111111111111111111111111111' as Address,
+          recipient: '0x2222222222222222222222222222222222222222' as Address,
+        },
+      ];
+
+      const source = new StaticTrafficSource(transfers);
+      const stateSnapshots: any[] = [];
+
+      const stateTracker = {
+        onTick(env: any, _deltaMs: number) {
+          const state = env.getState();
+          // Record state at key times
+          if (
+            state.currentTime === 0 ||
+            state.currentTime === 30_000 ||
+            state.currentTime === 90_000
+          ) {
+            stateSnapshots.push({
+              time: state.currentTime,
+              balances: { ...state.balances },
+              inFlight: state.inFlightTransfers.length,
+              waiting: state.waitingTransfers.length,
+            });
+          }
+        },
+      };
+
+      const env = new SimulationEnvironment(
+        {
+          ...createSimulationConfig(),
+          tickIntervalMs: 1000,
+        },
+        12345,
+      );
+
+      await env.run(source, stateTracker, 2 * 60 * 1000);
+
+      // At t=0, transfer should be in-flight
+      expect(stateSnapshots[0].inFlight).to.equal(1);
+      expect(stateSnapshots[0].waiting).to.equal(0);
+
+      // At t=30s, still in-flight (warp takes 60s)
+      expect(stateSnapshots[1].inFlight).to.equal(1);
+
+      // At t=90s, transfer should have completed (arrived at 60s)
+      expect(stateSnapshots[2].inFlight).to.equal(0);
+    });
+
+    it('should support strategyToController adapter', async function () {
+      const {
+        SimulationEnvironment,
+        strategyToController,
+        SimpleThresholdStrategy,
+      } = await import('./index.js');
+
+      const traffic = new ChaosTrafficGenerator(
+        {
+          chains: CHAINS,
+          collateralChains: COLLATERAL_CHAINS,
+          transfersPerMinute: 10,
+          amountDistribution: {
+            min: BigInt(toWei('5000')),
+            max: BigInt(toWei('50000')),
+            distribution: 'pareto',
+          },
+          seed: 55555,
+        },
+        5 * 60 * 1000,
+      );
+
+      // Use existing ISimulationStrategy with the new environment
+      const strategy = new SimpleThresholdStrategy(
+        CHAINS,
+        BigInt(toWei('100000')),
+        BigInt(toWei('300000')),
+        BRIDGE_ADDRESSES,
+      );
+
+      const controller = strategyToController(strategy, 10_000);
+
+      const env = new SimulationEnvironment(
+        {
+          ...createSimulationConfig(),
+          tickIntervalMs: 1000,
+        },
+        55555,
+      );
+
+      const results = await env.run(traffic, controller, 5 * 60 * 1000);
+
+      console.log(formatResults('Strategy via Adapter', results));
+
+      expect(results.transfers.total).to.be.greaterThan(0);
+      expect(results.scores.overall).to.be.a('number');
+    });
+  });
 });

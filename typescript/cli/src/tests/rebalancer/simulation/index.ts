@@ -1,70 +1,78 @@
 /**
  * Rebalancer Simulation Harness
  *
- * A behavioral test harness for the Hyperlane rebalancer that:
- * - Generates chaos traffic or replays historical data
- * - Runs rebalancer strategies as a black box
- * - Measures outcomes (latency, cost, availability)
- * - Enables strategy comparison
+ * A simulation environment for testing any rebalancer implementation against
+ * realistic warp route traffic. The harness is agnostic to how the rebalancer
+ * is implemented - it just provides an environment and measures outcomes.
+ *
+ * ## Two Approaches
+ *
+ * ### 1. SimulationEnvironment (Recommended for custom rebalancers)
+ *
+ * Use this when you have a rebalancer with its own architecture/abstractions.
+ * Your rebalancer interacts with the environment by observing state, subscribing
+ * to events, and executing rebalances.
  *
  * @example
  * ```typescript
- * import {
- *   SimulationEngine,
- *   ChaosTrafficGenerator,
- *   NoOpStrategy,
- *   SimpleThresholdStrategy,
- *   BRIDGE_PRESETS,
- * } from './simulation/index.js';
+ * import { SimulationEnvironment, ChaosTrafficGenerator, BRIDGE_PRESETS } from './simulation';
  *
- * // Create traffic
- * const traffic = new ChaosTrafficGenerator({
- *   chains: ['ethereum', 'arbitrum', 'optimism'],
- *   collateralChains: ['ethereum', 'arbitrum', 'optimism'],
- *   transfersPerMinute: 10,
- *   amountDistribution: {
- *     min: toWei('100'),
- *     max: toWei('10000'),
- *     distribution: 'pareto',
+ * // Create your custom rebalancer controller
+ * const myRebalancer = {
+ *   onStart(env) {
+ *     // Subscribe to events
+ *     env.on((event) => {
+ *       if (event.type === 'transfer_waiting') {
+ *         // React to transfers waiting for collateral
+ *         const state = env.getState();
+ *         // ... your logic to decide if/how to rebalance
+ *       }
+ *     });
  *   },
- * }, 60 * 60 * 1000); // 1 hour
  *
- * // Create engine
- * const engine = new SimulationEngine({
- *   initialBalances: {
- *     ethereum: toWei('1000000'),
- *     arbitrum: toWei('500000'),
- *     optimism: toWei('500000'),
+ *   onTick(env, deltaMs) {
+ *     // Or use polling-based approach
+ *     const state = env.getState();
+ *     for (const waiting of state.waitingTransfers) {
+ *       // Find surplus chain and rebalance
+ *       env.executeRebalance({
+ *         origin: 'ethereum',
+ *         destination: waiting.destination,
+ *         amount: waiting.amount,
+ *       });
+ *     }
  *   },
- *   bridges: {
- *     'ethereum-arbitrum': BRIDGE_PRESETS.fast,
- *     'ethereum-optimism': BRIDGE_PRESETS.fast,
- *     'arbitrum-optimism': BRIDGE_PRESETS.fast,
- *     'arbitrum-ethereum': BRIDGE_PRESETS.fast,
- *     'optimism-ethereum': BRIDGE_PRESETS.fast,
- *     'optimism-arbitrum': BRIDGE_PRESETS.fast,
- *   },
- *   warpTransferLatencyMs: 60_000,
- *   gasPrices: {
- *     ethereum: 30_000_000_000n,
- *     arbitrum: 100_000_000n,
- *     optimism: 100_000_000n,
- *   },
- *   ethPriceUsd: 2000,
- *   transferTimeoutMs: 10 * 60 * 1000, // 10 min
- * });
+ * };
  *
- * // Run simulation
+ * const env = new SimulationEnvironment(config);
+ * const results = await env.run(trafficSource, myRebalancer, durationMs);
+ * ```
+ *
+ * ### 2. SimulationEngine (For ISimulationStrategy implementations)
+ *
+ * Use this for backward compatibility or if your rebalancer already implements
+ * the `getRebalancingRoutes(balances, inflight)` interface.
+ *
+ * @example
+ * ```typescript
+ * import { SimulationEngine, ChaosTrafficGenerator, NoOpStrategy } from './simulation';
+ *
+ * const engine = new SimulationEngine(config);
  * const results = await engine.run({
  *   trafficSource: traffic,
- *   rebalancer: new SimpleThresholdStrategy(...),
+ *   rebalancer: new MyStrategy(),  // implements ISimulationStrategy
  *   durationMs: 60 * 60 * 1000,
  *   tickIntervalMs: 1000,
  *   rebalancerIntervalMs: 10_000,
  * });
- *
- * console.log('Scores:', results.scores);
  * ```
+ *
+ * ## What the Simulation Measures
+ *
+ * - **Availability**: % of transfers completed without waiting for collateral
+ * - **Latency**: How long transfers take (p50, p95, p99)
+ * - **Cost**: Total USD spent on bridge fees
+ * - **Overall Score**: Weighted composite of above metrics
  */
 
 // Types
@@ -107,8 +115,12 @@ export {
 } from './HistoricalTrafficReplay.js';
 export { MetricsCollector } from './MetricsCollector.js';
 export { SimulationEngine } from './SimulationEngine.js';
+export {
+  SimulationEnvironment,
+  strategyToController,
+} from './SimulationEnvironment.js';
 
-// Strategy adapters
+// Strategy adapters (for backward compatibility with ISimulationStrategy)
 export {
   createSimulationStrategy,
   createStrategy,
@@ -124,3 +136,14 @@ export type {
   ExplorerMessage,
   HistoricalReplayConfig,
 } from './HistoricalTrafficReplay.js';
+
+export type {
+  EnvironmentState,
+  EventHandler,
+  IRebalancerController,
+  RebalanceRequest,
+  RebalanceResult,
+  SimulationEvent,
+  SimulationEventType,
+  SimulationEnvironmentConfig,
+} from './SimulationEnvironment.js';
