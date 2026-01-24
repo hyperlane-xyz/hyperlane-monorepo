@@ -813,12 +813,32 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export {
+  asHex,
   canProposeSafeTransactions,
+  decodeMultiSendData,
   getSafe,
   getSafeDelegates,
   getSafeService,
+  parseSafeTx,
   safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
+export {
+  decodePermissions,
+  isConfigTransaction,
+  isVaultTransaction,
+  parseSquadProposal,
+  SquadProposalStatus,
+  SquadTxStatus,
+  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  SQUADS_ACCOUNT_DISCRIMINATORS,
+  SQUADS_DISCRIMINATOR_SIZE,
+  SQUADS_INSTRUCTION_DISCRIMINATORS,
+  SquadsAccountType,
+  SquadsInstructionName,
+  SquadsInstructionType,
+  SquadsPermission,
+  SquadsProposalStatus,
+} from './utils/squads.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
   extractIsmAndHookFactoryAddresses,

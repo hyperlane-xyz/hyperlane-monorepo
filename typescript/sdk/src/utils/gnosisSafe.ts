@@ -1,13 +1,20 @@
 import SafeApiKit from '@safe-global/api-kit';
 import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
 import {
+  MetaTransactionData,
+  OperationType,
+} from '@safe-global/safe-core-sdk-types';
+import {
   getMultiSendCallOnlyDeployment,
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
+import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
 
+import { ISafe__factory } from '@hyperlane-xyz/core';
 import { Address } from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
@@ -179,4 +186,75 @@ export async function canProposeSafeTransactions(
   const delegates = await getSafeDelegates(safeService, safeAddress);
   const owners = await safe.getOwners();
   return delegates.includes(proposer) || owners.includes(proposer);
+}
+
+/**
+ * Parses a Safe transaction by decoding its data.
+ * @param tx - The annotated EV5 transaction to parse
+ * @returns The decoded transaction
+ */
+export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+  const decoded = ISafe__factory.createInterface().parseTransaction({
+    data: tx.data ?? '0x',
+    value: tx.value,
+  });
+
+  return decoded;
+}
+
+/**
+ * Converts a hex string to a properly formatted Hex type.
+ * Copied from https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/types.ts#L15-L17
+ * @param hex - The hex string to convert
+ * @returns The formatted Hex value
+ */
+export function asHex(hex?: string): Hex {
+  return isHex(hex) ? (hex as Hex) : (`0x${hex}` as Hex);
+}
+
+/**
+ * Decodes multiSend transaction data into individual MetaTransactionData objects.
+ * Copied from https://github.com/safe-global/safe-core-sdk/blob/201c50ef97ff5c48661cbe71a013ad7dc2866ada/packages/protocol-kit/src/utils/transactions/utils.ts#L159-L193
+ * @param encodedData - The encoded multiSend transaction data
+ * @returns Array of decoded MetaTransactionData objects
+ */
+export function decodeMultiSendData(
+  encodedData: string,
+): MetaTransactionData[] {
+  const decodedData = decodeFunctionData({
+    abi: parseAbi([
+      'function multiSend(bytes memory transactions) public payable',
+    ]),
+    data: asHex(encodedData),
+  });
+
+  const args = decodedData.args;
+  const txs: MetaTransactionData[] = [];
+
+  // Decode after 0x
+  let index = 2;
+
+  if (args) {
+    const [transactionBytes] = args;
+    while (index < transactionBytes.length) {
+      // As we are decoding hex encoded bytes calldata, each byte is represented by 2 chars
+      // uint8 operation, address to, value uint256, dataLength uint256
+
+      const operation = `0x${transactionBytes.slice(index, (index += 2))}`;
+      const to = `0x${transactionBytes.slice(index, (index += 40))}`;
+      const value = `0x${transactionBytes.slice(index, (index += 64))}`;
+      const dataLength =
+        parseInt(`${transactionBytes.slice(index, (index += 64))}`, 16) * 2;
+      const data = `0x${transactionBytes.slice(index, (index += dataLength))}`;
+
+      txs.push({
+        operation: Number(operation) as OperationType,
+        to: getAddress(to),
+        value: BigInt(value).toString(),
+        data,
+      });
+    }
+  }
+
+  return txs;
 }

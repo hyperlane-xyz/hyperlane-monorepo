@@ -28,6 +28,7 @@
     "@safe-global/safe-deployments": "catalog:",
     "@solana/spl-token": "catalog:",
     "@solana/web3.js": "catalog:",
+    "@sqds/multisig": "2.1.4",
     "@starknet-react/chains": "catalog:",
     "@turnkey/api-key-stamper": "catalog:",
     "@turnkey/sdk-server": "catalog:",
