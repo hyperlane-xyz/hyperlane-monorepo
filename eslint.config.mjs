@@ -21,7 +21,7 @@ export default [
     ignores: [
       '**/node_modules',
       '**/dist',
-      '**/cli-bundle',
+      '**/bundle',
       '**/coverage',
       '**/*.cjs',
       '**/*.cts',

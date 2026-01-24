@@ -47,6 +47,7 @@ RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY turbo.json ./
+COPY scripts ./scripts
 COPY typescript/warp-monitor ./typescript/warp-monitor
 COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
