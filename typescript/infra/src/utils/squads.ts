@@ -15,7 +15,20 @@ import { Argv } from 'yargs';
 import {
   ChainName,
   MultiProtocolProvider,
+  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  SQUADS_ACCOUNT_DISCRIMINATORS,
+  SQUADS_DISCRIMINATOR_SIZE,
+  SquadsAccountType,
+  SquadsInstructionName,
+  SquadsInstructionType,
+  SquadsPermission,
+  SquadsProposalStatus as SDKSquadsProposalStatus,
+  SquadsTxStatus,
   SvmMultiProtocolSignerAdapter,
+  decodeSquadsPermissions,
+  getSquadsTxStatus,
+  isConfigTransaction,
+  isVaultTransaction,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -23,21 +36,19 @@ import { getSquadsKeys, squadsConfigs } from '../config/squads.js';
 
 import { logTable } from './log.js';
 
-// ============================================================================
-// Squads V4 Constants
-// ============================================================================
-
-/**
- * Squads V4 instruction discriminator size (8-byte Anchor discriminator)
- * First 8 bytes of SHA256 hash of "global:instruction_name"
- */
-export const SQUADS_DISCRIMINATOR_SIZE = 8;
-
-/**
- * Squads V4 account discriminator size (8-byte Anchor discriminator)
- * First 8 bytes of SHA256 hash of "account:account_name"
- */
-export const SQUADS_ACCOUNT_DISCRIMINATOR_SIZE = 8;
+// Re-export SDK constants for backward compatibility
+export {
+  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  SQUADS_ACCOUNT_DISCRIMINATORS,
+  SQUADS_DISCRIMINATOR_SIZE,
+  SquadsAccountType,
+  SquadsInstructionName,
+  SquadsInstructionType,
+  SquadsPermission,
+  decodeSquadsPermissions,
+  isConfigTransaction,
+  isVaultTransaction,
+};
 
 export type SquadProposalStatus = {
   chain: string;
@@ -53,17 +64,8 @@ export type SquadProposalStatus = {
   submissionDate: string;
 };
 
-export enum SquadTxStatus {
-  DRAFT = '📝',
-  ACTIVE = '🟡',
-  ONE_AWAY = '🔵',
-  APPROVED = '🟢',
-  REJECTED = '🔴',
-  EXECUTING = '⚡',
-  EXECUTED = '✅',
-  CANCELLED = '❌',
-  STALE = '💩',
-}
+// SquadTxStatus is now imported from @hyperlane-xyz/sdk
+export { SquadsTxStatus as SquadTxStatus };
 
 export async function getSquadAndProvider(
   chain: ChainName,
@@ -257,18 +259,12 @@ export async function getPendingProposalsForChains(
   );
 }
 
-export const SquadsProposalStatus = {
-  Draft: 'Draft',
-  Active: 'Active',
-  Rejected: 'Rejected',
-  Approved: 'Approved',
-  Executing: 'Executing',
-  Executed: 'Executed',
-  Cancelled: 'Cancelled',
-} as const satisfies Record<accounts.Proposal['status']['__kind'], string>;
-export type SquadsProposalStatus =
-  (typeof SquadsProposalStatus)[keyof typeof SquadsProposalStatus];
+// SquadsProposalStatus and getSquadsTxStatus are imported from SDK
+// Re-export with local name for backward compatibility
+export const SquadsProposalStatus = SDKSquadsProposalStatus;
+export type SquadsProposalStatus = typeof SDKSquadsProposalStatus[keyof typeof SDKSquadsProposalStatus];
 
+// Wrapper for backward compatibility with slightly different parameter name
 export function getSquadTxStatus(
   statusKind: SquadsProposalStatus,
   approvals: number,
@@ -276,37 +272,13 @@ export function getSquadTxStatus(
   transactionIndex: number,
   staleTransactionIndex: number,
 ): string {
-  // Check if transaction is stale before checking other statuses
-  // Only return stale if it hasn't been executed
-  if (
-    transactionIndex < staleTransactionIndex &&
-    statusKind !== SquadsProposalStatus.Executed
-  ) {
-    return SquadTxStatus.STALE;
-  }
-
-  switch (statusKind) {
-    case SquadsProposalStatus.Draft:
-      return SquadTxStatus.DRAFT;
-    case SquadsProposalStatus.Active:
-      return approvals >= threshold
-        ? SquadTxStatus.APPROVED
-        : threshold - approvals === 1
-          ? SquadTxStatus.ONE_AWAY
-          : SquadTxStatus.ACTIVE;
-    case SquadsProposalStatus.Rejected:
-      return SquadTxStatus.REJECTED;
-    case SquadsProposalStatus.Approved:
-      return SquadTxStatus.APPROVED;
-    case SquadsProposalStatus.Executing:
-      return SquadTxStatus.EXECUTING;
-    case SquadsProposalStatus.Executed:
-      return SquadTxStatus.EXECUTED;
-    case SquadsProposalStatus.Cancelled:
-      return SquadTxStatus.CANCELLED;
-    default:
-      return '❓';
-  }
+  return getSquadsTxStatus(
+    statusKind,
+    approvals,
+    threshold,
+    transactionIndex,
+    staleTransactionIndex,
+  );
 }
 
 export function parseSquadProposal(proposal: accounts.Proposal) {
@@ -343,90 +315,11 @@ export function logProposals(pendingProposals: SquadProposalStatus[]) {
   ]);
 }
 
-/**
- * Squads V4 account types (for transaction discriminators)
- * Also used to identify transaction types (VaultTransaction vs ConfigTransaction)
- */
-export enum SquadsAccountType {
-  VAULT = 0,
-  CONFIG = 1,
-}
-
-/**
- * Squads V4 instruction discriminator values
- */
-export enum SquadsInstructionType {
-  ADD_MEMBER = 0,
-  REMOVE_MEMBER = 1,
-  CHANGE_THRESHOLD = 2,
-}
-
-/**
- * Human-readable names for Squads instructions
- */
-export const SquadsInstructionName: Record<SquadsInstructionType, string> = {
-  [SquadsInstructionType.ADD_MEMBER]: 'AddMember',
-  [SquadsInstructionType.REMOVE_MEMBER]: 'RemoveMember',
-  [SquadsInstructionType.CHANGE_THRESHOLD]: 'ChangeThreshold',
-};
-
-/**
- * Squads V4 account discriminators (Anchor 8-byte discriminators)
- * From Squads V4 SDK - first 8 bytes of SHA256 hash of "account:account_name"
- */
-export const SQUADS_ACCOUNT_DISCRIMINATORS: Record<
-  SquadsAccountType,
-  Uint8Array
-> = {
-  [SquadsAccountType.VAULT]: new Uint8Array([
-    168, 250, 162, 100, 81, 14, 162, 207,
-  ]),
-  [SquadsAccountType.CONFIG]: new Uint8Array([
-    94, 8, 4, 35, 113, 139, 139, 112,
-  ]),
-};
-
-/**
- * Squads V4 instruction discriminators (Anchor 8-byte discriminators)
- * From Squads V4 SDK - first 8 bytes of SHA256 hash of "global:instruction_name"
- */
-export const SQUADS_INSTRUCTION_DISCRIMINATORS: Record<
-  SquadsInstructionType,
-  Uint8Array
-> = {
-  [SquadsInstructionType.ADD_MEMBER]: new Uint8Array([
-    105, 59, 69, 187, 29, 191, 111, 175,
-  ]),
-  [SquadsInstructionType.REMOVE_MEMBER]: new Uint8Array([
-    117, 255, 234, 193, 246, 150, 28, 141,
-  ]),
-  [SquadsInstructionType.CHANGE_THRESHOLD]: new Uint8Array([
-    134, 5, 181, 153, 254, 178, 214, 132,
-  ]),
-};
-
-/**
- * Squads V4 Permission flags (bitmask)
- * From Squads documentation: https://docs.squads.so/main/development-guides/v4-sdk
- */
-export enum SquadsPermission {
-  PROPOSER = 1,
-  VOTER = 2,
-  EXECUTOR = 4,
-  ALL_PERMISSIONS = 7, // Combination of all permissions (Proposer + Voter + Executor)
-}
-
-/**
- * Decode a permissions bitmask into a human-readable string
- */
-export function decodePermissions(mask: number): string {
-  const permissions: string[] = [];
-  if (mask & SquadsPermission.PROPOSER) permissions.push('Proposer');
-  if (mask & SquadsPermission.VOTER) permissions.push('Voter');
-  if (mask & SquadsPermission.EXECUTOR) permissions.push('Executor');
-
-  return permissions.length > 0 ? permissions.join(', ') : 'None';
-}
+// SquadsAccountType, SquadsInstructionType, SquadsInstructionName,
+// SQUADS_ACCOUNT_DISCRIMINATORS, SquadsPermission, and decodeSquadsPermissions
+// are now imported from SDK.
+// Re-export decodeSquadsPermissions as decodePermissions for backward compatibility
+export { decodeSquadsPermissions as decodePermissions };
 
 // ============================================================================
 // Squads Proposal Helpers
@@ -783,31 +676,7 @@ export async function submitProposalToSquads(
   }
 }
 
-/**
- * Check if transaction account data is a VaultTransaction
- */
-export function isVaultTransaction(accountData: Buffer): boolean {
-  const discriminator = accountData.subarray(
-    0,
-    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  );
-  return discriminator.equals(
-    SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
-  );
-}
-
-/**
- * Check if transaction account data is a ConfigTransaction
- */
-export function isConfigTransaction(accountData: Buffer): boolean {
-  const discriminator = accountData.subarray(
-    0,
-    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  );
-  return discriminator.equals(
-    SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
-  );
-}
+// isVaultTransaction and isConfigTransaction are now imported from SDK
 
 /**
  * Determine if a transaction is a VaultTransaction or ConfigTransaction

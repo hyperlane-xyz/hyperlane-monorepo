@@ -898,3 +898,43 @@ export {
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
+
+// Transaction parsing utilities
+export {
+  // Safe parsing
+  asHex,
+  decodeMultiSendData,
+  formatFunctionFragmentArgs,
+  formatOperationType,
+  getOwnerChanges,
+  getSafeTxStatus,
+  metaTransactionDataToEV5Transaction,
+  parseSafeTx,
+  // Squads parsing
+  decodeSquadsPermissions,
+  formatSquadsConfigAction,
+  getSquadsTxStatus,
+  isConfigTransaction,
+  isVaultTransaction,
+  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  SQUADS_ACCOUNT_DISCRIMINATORS,
+  SQUADS_DISCRIMINATOR_SIZE,
+  SQUADS_INSTRUCTION_DISCRIMINATORS,
+  SquadsAccountType,
+  SquadsInstructionName,
+  SquadsInstructionType,
+  SquadsPermission,
+  SquadsProposalStatus,
+  SquadsTxStatus,
+  // Types
+  DecodedMultiSendTx,
+  ParsedSquadsInstruction,
+  ParsedSquadsTransaction,
+  ParsedTransaction,
+  SafeTxBuilderFile,
+  SafeTxBuilderFileSchema,
+  SafeTxMetadata,
+  SafeTxStatus,
+  SquadsProposalMetadata,
+  SquadsProposalStatusType,
+} from './tx-parsing/index.js';
