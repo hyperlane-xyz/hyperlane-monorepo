@@ -1,9 +1,0 @@
-{
-  "extends": ["//"],
-  "tasks": {
-    "bundle": {
-      "dependsOn": ["build"],
-      "outputs": ["relayer-bundle/**"]
-    }
-  }
-}

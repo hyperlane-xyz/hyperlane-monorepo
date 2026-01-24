@@ -31,8 +31,8 @@
   ],
   "scripts": {
     "build": "tsc",
-    "bundle": "rm -rf ./relayer-bundle && ncc build ./dist/fs/service.js -o relayer-bundle && node ./scripts/ncc.post-bundle.mjs",
-    "clean": "rm -rf dist cache relayer-bundle",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/fs/service.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
+    "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
