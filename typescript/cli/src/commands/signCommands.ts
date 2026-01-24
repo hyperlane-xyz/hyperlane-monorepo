@@ -49,4 +49,6 @@ export enum CommandType {
   CORE_READ = 'core:read',
   CORE_CHECK = 'core:check',
   ICA_DEPLOY = 'ica:deploy',
+  TX_PARSE_SAFE = 'tx:parse-safe',
+  TX_PARSE_SQUADS = 'tx:parse-squads',
 }

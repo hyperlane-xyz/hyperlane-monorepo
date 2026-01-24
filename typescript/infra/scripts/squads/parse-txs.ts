@@ -1,6 +1,14 @@
 import chalk from 'chalk';
+import fs from 'fs';
 import yargs from 'yargs';
 
+import {
+  type CoreProgramIds,
+  type SquadsChainConfigInput,
+  type SquadsTransaction,
+  SquadsTransactionReader,
+  type SvmMultisigConfigMap,
+} from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
@@ -8,12 +16,13 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import { Contexts } from '../../src/config/contexts.js';
 import { squadsConfigs } from '../../src/config/squads.js';
-import {
-  SquadsTransaction,
-  SquadsTransactionReader,
-} from '../../src/tx/squads-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
+import {
+  loadCoreProgramIds,
+  multisigIsmConfigPath,
+} from '../../src/utils/sealevel.js';
 import {
   getPendingProposalsForChains,
   logProposals,
@@ -39,7 +48,48 @@ async function main() {
   const warpRoutes = await registry.getWarpRoutes();
 
   // Initialize the transaction reader
-  const reader = new SquadsTransactionReader(environment, mpp);
+  const chainConfigs: Record<string, SquadsChainConfigInput> = {};
+  for (const [chain, squadsConfig] of Object.entries(squadsConfigs)) {
+    let coreProgramIds: CoreProgramIds | undefined;
+    try {
+      coreProgramIds = loadCoreProgramIds(environment, chain);
+    } catch (error) {
+      rootLogger.warn(
+        chalk.yellow(`Failed to load core program IDs for ${chain}: ${error}`),
+      );
+    }
+
+    let expectedMultisigIsm: SvmMultisigConfigMap | undefined;
+    try {
+      const configPath = multisigIsmConfigPath(
+        environment,
+        Contexts.Hyperlane,
+        chain,
+      );
+      if (fs.existsSync(configPath)) {
+        expectedMultisigIsm = JSON.parse(
+          fs.readFileSync(configPath, 'utf-8'),
+        ) as SvmMultisigConfigMap;
+      }
+    } catch (error) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Failed to load expected multisig config for ${chain}: ${error}`,
+        ),
+      );
+    }
+
+    chainConfigs[chain] = {
+      multisigPda: squadsConfig.multisigPda,
+      programId: squadsConfig.programId,
+      coreProgramIds,
+      expectedMultisigIsm,
+    };
+  }
+
+  const reader = new SquadsTransactionReader(mpp, {
+    chainConfigs,
+  });
   await reader.init(warpRoutes);
 
   // Get the pending proposals for the relevant chains

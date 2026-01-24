@@ -841,6 +841,15 @@ export {
   StarknetContractName,
 } from './utils/starknet.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
+export { decodeMultiSendData, parseSafeTx } from './transactions/safe.js';
+export {
+  CoreProgramIds,
+  SquadsChainConfigInput,
+  SquadsTransaction,
+  SquadsTransactionReader,
+  SquadsTransactionReaderConfig,
+  SvmMultisigConfigMap,
+} from './transactions/squads.js';
 export {
   getValidatorFromStorageLocation,
   isValidValidatorStorageLocation,

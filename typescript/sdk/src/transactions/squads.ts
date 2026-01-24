@@ -5,14 +5,37 @@
  * Similar to govern-transaction-reader.ts but for SVM/Squads multisigs
  */
 import { ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
-import { accounts, getTransactionPda, types } from '@sqds/multisig';
+import {
+  accounts,
+  getProposalPda,
+  getTransactionPda,
+  types,
+} from '@sqds/multisig';
 import { deserializeUnchecked } from 'borsh';
 import chalk from 'chalk';
-import fs from 'fs';
 
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+
+import { defaultMultisigConfigs } from '../consts/multisigIsm.js';
 import {
-  ChainName,
-  MultiProtocolProvider,
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
+} from '../ism/serialization.js';
+import { MultisigIsmConfig } from '../ism/types.js';
+import {
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+} from '../mailbox/serialization.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import {
   SealevelEnrollRemoteRouterInstruction,
   SealevelEnrollRemoteRouterInstructionSchema,
   SealevelEnrollRemoteRoutersInstruction,
@@ -21,62 +44,185 @@ import {
   SealevelHypTokenInstructionName,
   SealevelHypTokenTransferOwnershipInstruction,
   SealevelHypTokenTransferOwnershipInstructionSchema,
-  SealevelInstructionWrapper,
-  SealevelMailboxInstructionName,
-  SealevelMailboxInstructionType,
-  SealevelMailboxSetDefaultIsmInstruction,
-  SealevelMailboxSetDefaultIsmInstructionSchema,
-  SealevelMailboxTransferOwnershipInstruction,
-  SealevelMailboxTransferOwnershipInstructionSchema,
-  SealevelMultisigIsmInstructionName,
-  SealevelMultisigIsmInstructionType,
-  SealevelMultisigIsmSetValidatorsInstruction,
-  SealevelMultisigIsmSetValidatorsInstructionSchema,
-  SealevelMultisigIsmTransferOwnershipInstruction,
-  SealevelMultisigIsmTransferOwnershipInstructionSchema,
   SealevelSetDestinationGasConfigsInstruction,
   SealevelSetDestinationGasConfigsInstructionSchema,
   SealevelSetInterchainGasPaymasterInstruction,
   SealevelSetInterchainGasPaymasterInstructionSchema,
   SealevelSetInterchainSecurityModuleInstruction,
   SealevelSetInterchainSecurityModuleInstructionSchema,
-  WarpCoreConfig,
-  defaultMultisigConfigs,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+} from '../token/adapters/serialization.js';
+import { ChainMap, ChainName, IsmType } from '../types.js';
+import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
-import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
-import {
-  ErrorMessage,
-  HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
-  InstructionType,
-  MAILBOX_DISCRIMINATOR_SIZE,
-  MAX_SOLANA_ACCOUNTS,
-  MAX_SOLANA_ACCOUNT_SIZE,
-  ProgramName,
-  SYSTEM_PROGRAM_ID,
-  SvmMultisigConfigMap,
-  WarningMessage,
-  formatUnknownInstructionWarning,
-  formatUnknownProgramWarning,
-  loadCoreProgramIds,
-  multisigIsmConfigPath,
-} from '../utils/sealevel.js';
-import {
-  SQUADS_ACCOUNT_DISCRIMINATORS,
-  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+export interface GovernTransaction extends Record<string, any> {
+  chain: ChainName;
+  nestedTx?: GovernTransaction;
+}
+
+export interface CoreProgramIds {
+  mailbox: string;
+  validator_announce?: string;
+  multisig_ism_message_id: string;
+  igp_program_id?: string;
+  overhead_igp_account?: string;
+  igp_account?: string;
+}
+
+export type SvmMultisigConfig = Omit<MultisigIsmConfig, 'type'> & {
+  type: typeof IsmType.MESSAGE_ID_MULTISIG;
+};
+
+export type SvmMultisigConfigMap = ChainMap<SvmMultisigConfig>;
+
+export type SquadsChainConfigInput = {
+  multisigPda: PublicKey | string;
+  programId: PublicKey | string;
+  coreProgramIds?: CoreProgramIds;
+  expectedMultisigIsm?: SvmMultisigConfigMap;
+};
+
+type SquadsChainConfig = Omit<
+  SquadsChainConfigInput,
+  'multisigPda' | 'programId'
+> & {
+  multisigPda: PublicKey;
+  programId: PublicKey;
+};
+
+export type SquadsTransactionReaderConfig = {
+  chainConfigs: ChainMap<SquadsChainConfigInput>;
+  multisigConfigProvider?: (chain: ChainName) => SvmMultisigConfigMap | null;
+};
+
+export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
+export const MAILBOX_DISCRIMINATOR_SIZE = 4;
+export const MAX_SOLANA_ACCOUNTS = 256;
+export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
+export const SYSTEM_PROGRAM_ID = new PublicKey(
+  '11111111111111111111111111111111',
+);
+
+export enum ProgramName {
+  MAILBOX = 'Mailbox',
+  MULTISIG_ISM = 'MultisigIsmMessageId',
+  WARP_ROUTE = 'WarpRoute',
+  SQUADS_V4 = 'SquadsV4',
+  SYSTEM_PROGRAM = 'System Program',
+  COMPUTE_BUDGET = 'Compute Budget Program',
+  UNKNOWN = 'Unknown',
+}
+
+export enum InstructionType {
+  UNKNOWN = 'Unknown',
+  SYSTEM_CALL = 'System Program Call',
+  COMPUTE_BUDGET = 'Compute Budget',
+  PARSE_FAILED = 'Failed to Parse',
+}
+
+export enum ErrorMessage {
+  INSTRUCTION_TOO_SHORT = 'Instruction data too short',
+  INVALID_MULTISIG_ISM_DATA = 'Invalid MultisigIsm instruction data',
+}
+
+export enum WarningMessage {
+  OWNERSHIP_TRANSFER = '⚠️  OWNERSHIP TRANSFER DETECTED',
+  OWNERSHIP_RENUNCIATION = '⚠️  OWNERSHIP RENUNCIATION DETECTED',
+  UNKNOWN_SQUADS_INSTRUCTION = 'Unknown Squads instruction',
+}
+
+export function formatUnknownProgramWarning(programId: string): string {
+  return `⚠️  UNKNOWN PROGRAM: ${programId}`;
+}
+
+export function formatUnknownInstructionWarning(
+  programType: string,
+  discriminator: number,
+): string {
+  return `Unknown ${programType} instruction: ${discriminator}`;
+}
+
+export const SQUADS_ACCOUNT_DISCRIMINATOR_SIZE = 8;
+
+export enum SquadsAccountType {
+  VAULT = 0,
+  CONFIG = 1,
+}
+
+export enum SquadsInstructionType {
+  ADD_MEMBER = 0,
+  REMOVE_MEMBER = 1,
+  CHANGE_THRESHOLD = 2,
+}
+
+export const SquadsInstructionName: Record<SquadsInstructionType, string> = {
+  [SquadsInstructionType.ADD_MEMBER]: 'AddMember',
+  [SquadsInstructionType.REMOVE_MEMBER]: 'RemoveMember',
+  [SquadsInstructionType.CHANGE_THRESHOLD]: 'ChangeThreshold',
+};
+
+export const SQUADS_ACCOUNT_DISCRIMINATORS: Record<
   SquadsAccountType,
-  SquadsInstructionName,
-  SquadsInstructionType,
-  decodePermissions,
-  getSquadAndProvider,
-  getSquadProposal,
-  isConfigTransaction,
-  isVaultTransaction,
-} from '../utils/squads.js';
+  Uint8Array
+> = {
+  [SquadsAccountType.VAULT]: new Uint8Array([
+    168, 250, 162, 100, 81, 14, 162, 207,
+  ]),
+  [SquadsAccountType.CONFIG]: new Uint8Array([
+    94, 8, 4, 35, 113, 139, 139, 112,
+  ]),
+};
 
-import { GovernTransaction } from './govern-transaction-reader.js';
+export const SQUADS_INSTRUCTION_DISCRIMINATORS: Record<
+  SquadsInstructionType,
+  Uint8Array
+> = {
+  [SquadsInstructionType.ADD_MEMBER]: new Uint8Array([
+    105, 59, 69, 187, 29, 191, 111, 175,
+  ]),
+  [SquadsInstructionType.REMOVE_MEMBER]: new Uint8Array([
+    117, 255, 234, 193, 246, 150, 28, 141,
+  ]),
+  [SquadsInstructionType.CHANGE_THRESHOLD]: new Uint8Array([
+    134, 5, 181, 153, 254, 178, 214, 132,
+  ]),
+};
+
+export enum SquadsPermission {
+  PROPOSER = 1,
+  VOTER = 2,
+  EXECUTOR = 4,
+  ALL_PERMISSIONS = 7,
+}
+
+export function decodePermissions(mask: number): string {
+  const permissions: string[] = [];
+  if (mask & SquadsPermission.PROPOSER) permissions.push('Proposer');
+  if (mask & SquadsPermission.VOTER) permissions.push('Voter');
+  if (mask & SquadsPermission.EXECUTOR) permissions.push('Executor');
+
+  return permissions.length > 0 ? permissions.join(', ') : 'None';
+}
+
+export function isVaultTransaction(accountData: Buffer): boolean {
+  const discriminator = accountData.subarray(
+    0,
+    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  );
+  return discriminator.equals(
+    SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT],
+  );
+}
+
+export function isConfigTransaction(accountData: Buffer): boolean {
+  const discriminator = accountData.subarray(
+    0,
+    SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  );
+  return discriminator.equals(
+    SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+  );
+}
 
 /**
  * Parsed instruction result with human-readable information
@@ -143,6 +289,10 @@ interface WarpRouteMetadata {
  */
 export class SquadsTransactionReader {
   errors: any[] = [];
+  private readonly chainConfigs: Map<ChainName, SquadsChainConfig>;
+  private readonly multisigConfigProvider?: (
+    chain: ChainName,
+  ) => SvmMultisigConfigMap | null;
   private multisigConfigs: Map<ChainName, SvmMultisigConfigMap> = new Map();
 
   /**
@@ -153,9 +303,89 @@ export class SquadsTransactionReader {
     new Map();
 
   constructor(
-    readonly environment: DeployEnvironment,
     readonly mpp: MultiProtocolProvider,
-  ) {}
+    config: SquadsTransactionReaderConfig,
+  ) {
+    this.chainConfigs = new Map(
+      Object.entries(config.chainConfigs).map(([chain, chainConfig]) => [
+        chain as ChainName,
+        {
+          multisigPda:
+            typeof chainConfig.multisigPda === 'string'
+              ? new PublicKey(chainConfig.multisigPda)
+              : chainConfig.multisigPda,
+          programId:
+            typeof chainConfig.programId === 'string'
+              ? new PublicKey(chainConfig.programId)
+              : chainConfig.programId,
+          coreProgramIds: chainConfig.coreProgramIds,
+          expectedMultisigIsm: chainConfig.expectedMultisigIsm,
+        },
+      ]),
+    );
+    this.multisigConfigProvider = config.multisigConfigProvider;
+  }
+
+  private getChainConfig(chain: ChainName): SquadsChainConfig {
+    const config = this.chainConfigs.get(chain);
+    if (!config) {
+      throw new Error(`No squads config found for chain ${chain}`);
+    }
+    return config;
+  }
+
+  private getSquadAndProvider(chain: ChainName) {
+    const svmProvider = this.mpp.getSolanaWeb3Provider(chain);
+    const { multisigPda, programId } = this.getChainConfig(chain);
+    return { svmProvider, multisigPda, programId };
+  }
+
+  private async getSquadProposal(
+    chain: ChainName,
+    transactionIndex: number,
+  ): Promise<
+    | {
+        proposal: accounts.Proposal;
+        multisig: accounts.Multisig;
+        proposalPda: PublicKey;
+      }
+    | undefined
+  > {
+    try {
+      const { svmProvider, multisigPda, programId } =
+        this.getSquadAndProvider(chain);
+
+      // Fetch the deserialized Multisig account
+      const multisig = await accounts.Multisig.fromAccountAddress(
+        // @ts-ignore
+        svmProvider,
+        multisigPda,
+      );
+
+      // Get the proposal PDA
+      const [proposalPda] = getProposalPda({
+        multisigPda,
+        transactionIndex: BigInt(transactionIndex),
+        programId,
+      });
+
+      // Fetch the proposal account
+      const proposal = await accounts.Proposal.fromAccountAddress(
+        // @ts-ignore
+        svmProvider,
+        proposalPda,
+      );
+
+      return { proposal, multisig, proposalPda };
+    } catch (error) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
+        ),
+      );
+      return undefined;
+    }
+  }
 
   /**
    * Initialize the reader with warp routes from the registry
@@ -682,11 +912,7 @@ export class SquadsTransactionReader {
     multisigPda: PublicKey;
     programId: PublicKey;
   }> {
-    const proposalData = await getSquadProposal(
-      chain,
-      this.mpp,
-      transactionIndex,
-    );
+    const proposalData = await this.getSquadProposal(chain, transactionIndex);
     if (!proposalData) {
       const error = `Proposal ${transactionIndex} not found on ${chain}`;
       this.errors.push({ chain, transactionIndex, error });
@@ -694,10 +920,7 @@ export class SquadsTransactionReader {
     }
 
     const { proposal, proposalPda } = proposalData;
-    const { multisigPda, programId } = await getSquadAndProvider(
-      chain,
-      this.mpp,
-    );
+    const { multisigPda, programId } = this.getSquadAndProvider(chain);
 
     return { proposal, proposalPda, multisigPda, programId };
   }
@@ -710,7 +933,7 @@ export class SquadsTransactionReader {
     transactionIndex: number,
     transactionPda: PublicKey,
   ): Promise<any> {
-    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const { svmProvider } = this.getSquadAndProvider(chain);
     const accountInfo = await svmProvider.getAccountInfo(transactionPda);
 
     if (!accountInfo) {
@@ -743,7 +966,7 @@ export class SquadsTransactionReader {
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
   ): Promise<PublicKey[]> {
-    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const { svmProvider } = this.getSquadAndProvider(chain);
     const accountKeys = [...vaultTransaction.message.accountKeys];
     const lookups = vaultTransaction.message.addressTableLookups;
 
@@ -813,18 +1036,22 @@ export class SquadsTransactionReader {
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
   ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
-    const coreProgramIds = loadCoreProgramIds(this.environment, chain);
-    const corePrograms = {
-      mailbox: new PublicKey(coreProgramIds.mailbox),
-      validatorAnnounce: new PublicKey(coreProgramIds.validator_announce),
-      multisigIsmMessageId: new PublicKey(
-        coreProgramIds.multisig_ism_message_id,
-      ),
-      igpProgramId: new PublicKey(coreProgramIds.igp_program_id),
-    };
-
     const parsedInstructions: ParsedInstruction[] = [];
     const warnings: string[] = [];
+    const coreProgramIds = this.getChainConfig(chain).coreProgramIds;
+    const corePrograms = coreProgramIds
+      ? {
+          mailbox: new PublicKey(coreProgramIds.mailbox),
+          multisigIsmMessageId: new PublicKey(
+            coreProgramIds.multisig_ism_message_id,
+          ),
+        }
+      : undefined;
+    if (!corePrograms) {
+      warnings.push(
+        `No core program IDs configured for ${chain}; Hyperlane instruction parsing limited`,
+      );
+    }
 
     // Resolve address lookup tables to get complete account keys
     const accountKeys = await this.resolveAddressLookupTables(
@@ -892,7 +1119,10 @@ export class SquadsTransactionReader {
         let parsed: Partial<ParsedInstruction>;
         let programName: string;
 
-        if (this.isMailboxInstruction(programId, corePrograms)) {
+        if (
+          corePrograms &&
+          this.isMailboxInstruction(programId, corePrograms)
+        ) {
           programName = ProgramName.MAILBOX;
           parsed = this.readMailboxInstruction(instructionData);
           parsedInstructions.push({
@@ -908,7 +1138,10 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        if (this.isMultisigIsmInstruction(programId, corePrograms)) {
+        if (
+          corePrograms &&
+          this.isMultisigIsmInstruction(programId, corePrograms)
+        ) {
           programName = ProgramName.MULTISIG_ISM;
           parsed = this.readMultisigIsmInstruction(chain, instructionData);
           parsedInstructions.push({
@@ -1054,7 +1287,7 @@ export class SquadsTransactionReader {
     },
     transactionPda: PublicKey,
   ): Promise<SquadsTransaction> {
-    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const { svmProvider } = this.getSquadAndProvider(chain);
 
     let vaultTransaction: accounts.VaultTransaction;
     try {
@@ -1169,30 +1402,19 @@ export class SquadsTransactionReader {
       return this.multisigConfigs.get(chain)!;
     }
 
-    try {
-      const configPath = multisigIsmConfigPath(
-        this.environment,
-        Contexts.Hyperlane,
-        chain,
-      );
-      if (!fs.existsSync(configPath)) {
-        rootLogger.warn(
-          chalk.yellow(`No multisig config found at ${configPath}`),
-        );
-        return null;
-      }
-
-      const config = JSON.parse(
-        fs.readFileSync(configPath, 'utf-8'),
-      ) as SvmMultisigConfigMap;
-      this.multisigConfigs.set(chain, config);
-      return config;
-    } catch (error) {
+    const config =
+      this.chainConfigs.get(chain)?.expectedMultisigIsm ??
+      this.multisigConfigProvider?.(chain) ??
+      null;
+    if (!config) {
       rootLogger.warn(
-        chalk.yellow(`Failed to load multisig config for ${chain}: ${error}`),
+        chalk.yellow(`No expected multisig config found for ${chain}`),
       );
       return null;
     }
+
+    this.multisigConfigs.set(chain, config);
+    return config;
   }
 
   /**

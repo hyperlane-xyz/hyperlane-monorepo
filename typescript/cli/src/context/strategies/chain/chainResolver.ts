@@ -58,6 +58,9 @@ export async function resolveChains(
       return resolveChain(argv);
     case CommandType.ICA_DEPLOY:
       return resolveIcaDeployChains(argv);
+    case CommandType.TX_PARSE_SAFE:
+    case CommandType.TX_PARSE_SQUADS:
+      return resolveChain(argv);
     default:
       return resolveRelayerChains(argv);
   }
