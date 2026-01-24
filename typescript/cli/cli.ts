@@ -22,6 +22,7 @@ import {
   skipConfirmationOption,
   strategyCommandOption,
 } from './src/commands/options.js';
+import { parseCommand } from './src/commands/parse.js';
 import { registryCommand } from './src/commands/registry.js';
 import { relayerCommand } from './src/commands/relayer.js';
 import { sendCommand } from './src/commands/send.js';
@@ -65,6 +66,7 @@ try {
     .command(hookCommand)
     .command(icaCommand)
     .command(ismCommand)
+    .command(parseCommand)
     .command(registryCommand)
     .command(relayerCommand)
     .command(sendCommand)
