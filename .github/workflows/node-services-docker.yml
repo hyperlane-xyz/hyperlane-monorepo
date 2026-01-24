@@ -10,6 +10,7 @@ on:
       - 'typescript/rebalancer/**'
       - 'typescript/warp-monitor/**'
       - 'typescript/ccip-server/**'
+      - 'typescript/keyfunder/**'
       - 'typescript/Dockerfile.node-service'
       - 'pnpm-lock.yaml'
       - '.github/workflows/node-services-docker.yml'
@@ -129,6 +130,7 @@ jobs:
               { name: 'Rebalancer', image: 'hyperlane-rebalancer', emoji: '♻️' },
               { name: 'Warp Monitor', image: 'hyperlane-warp-monitor', emoji: '🕵️' },
               { name: 'CCIP Server', image: 'hyperlane-offchain-lookup-server', emoji: '🔍' },
+              { name: 'KeyFunder', image: 'hyperlane-keyfunder', emoji: '🔑' },
             ];
 
             const body = [
