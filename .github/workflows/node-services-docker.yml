@@ -10,6 +10,7 @@ on:
       - 'typescript/rebalancer/**'
       - 'typescript/warp-monitor/**'
       - 'typescript/ccip-server/**'
+      - 'typescript/Dockerfile.node-service'
       - 'pnpm-lock.yaml'
       - '.github/workflows/node-services-docker.yml'
       - 'typescript/docker-bake.hcl'
