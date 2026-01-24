@@ -72,9 +72,9 @@
   "scripts": {
     "hyperlane": "node ./dist/cli.js",
     "build": "pnpm version:update && tsc",
-    "bundle": "rm -rf ./cli-bundle && ncc build ./dist/cli.js -o cli-bundle && node ./scripts/ncc.post-bundle.mjs",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/cli.js -o bundle && node ../../scripts/ncc.post-bundle.mjs",
     "dev": "pnpm version:update && tsc --watch",
-    "clean": "rm -rf ./dist && rm -rf ./cli-bundle",
+    "clean": "rm -rf ./dist && rm -rf ./bundle",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src ./examples",
     "test:ci": "mocha --config .mocharc.json",
@@ -87,7 +87,7 @@
     "prepack": "pnpm bundle"
   },
   "files": [
-    "./cli-bundle",
+    "./bundle",
     "./examples",
     "package.json"
   ],
@@ -98,7 +98,7 @@
     "node": ">=16"
   },
   "bin": {
-    "hyperlane": "./cli-bundle/index.js"
+    "hyperlane": "./bundle/index.js"
   },
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "license": "Apache-2.0",
