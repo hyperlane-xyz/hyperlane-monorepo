@@ -142,16 +142,27 @@ export async function expandWarpDeployConfig(params: {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
+  preComputedTokenMetadata?: TokenMetadataMap;
+  // When using --chains filtering, pass full configs for correct remoteRouters/destinationGas
+  fullDeployedRoutersAddresses?: ChainMap<Address>;
+  fullWarpDeployConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
+    preComputedTokenMetadata,
+    fullDeployedRoutersAddresses,
+    fullWarpDeployConfig,
   } = params;
 
   const derivedTokenMetadata: TokenMetadataMap =
-    await HypERC20Deployer.deriveTokenMetadata(multiProvider, warpDeployConfig);
+    preComputedTokenMetadata ??
+    (await HypERC20Deployer.deriveTokenMetadata(
+      multiProvider,
+      warpDeployConfig,
+    ));
 
   // If the token is on an EVM chain check if it is deployed as a proxy
   // to expand the proxy config too
@@ -165,14 +176,20 @@ export async function expandWarpDeployConfig(params: {
     }),
   );
 
+  // Use full configs for remoteRouters/destinationGas computation when available
+  // (needed when --chains filtering is used to ensure correct remote chain references)
+  const routerAddressesForRemotes =
+    fullDeployedRoutersAddresses ?? deployedRoutersAddresses;
+  const deployConfigForGas = fullWarpDeployConfig ?? warpDeployConfig;
+
   return promiseObjAll(
     objMap(warpDeployConfig, async (chain, config) => {
       const [remoteRouters, destinationGas] =
         getDefaultRemoteRouterAndDestinationGasConfig(
           multiProvider,
           chain,
-          deployedRoutersAddresses,
-          warpDeployConfig,
+          routerAddressesForRemotes,
+          deployConfigForGas,
         );
 
       const chainConfig: WarpRouteDeployConfigMailboxRequired[string] &

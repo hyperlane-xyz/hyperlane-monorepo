@@ -4,6 +4,7 @@ import { type CommandModule } from 'yargs';
 
 import { RebalancerConfig, RebalancerService } from '@hyperlane-xyz/rebalancer';
 import {
+  HypERC20Deployer,
   type RawForkedChainConfigByChain,
   RawForkedChainConfigByChainSchema,
   expandVirtualWarpDeployConfig,
@@ -423,6 +424,18 @@ export const check: CommandModuleWithContext<
       warpCoreConfigPath: warp,
     });
 
+    // Store full configs before filtering for correct remoteRouters/destinationGas computation
+    const fullWarpDeployConfig = warpDeployConfig;
+    const fullDeployedRoutersAddresses =
+      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
+
+    // Derive token metadata from full config before filtering
+    // This ensures symbol/name/decimals are available even when filtering to synthetic-only chains
+    const preComputedTokenMetadata = await HypERC20Deployer.deriveTokenMetadata(
+      context.multiProvider,
+      warpDeployConfig,
+    );
+
     // For ICA mode, always include origin in the filter to preserve owner lookup
     const chainsToFilter =
       ica && origin && chains?.length
@@ -477,6 +490,9 @@ export const check: CommandModuleWithContext<
       warpDeployConfig,
       deployedRoutersAddresses,
       expandedOnChainWarpConfig,
+      preComputedTokenMetadata,
+      fullDeployedRoutersAddresses,
+      fullWarpDeployConfig,
     });
     expandedWarpDeployConfig = objFilter(
       expandedWarpDeployConfig,
