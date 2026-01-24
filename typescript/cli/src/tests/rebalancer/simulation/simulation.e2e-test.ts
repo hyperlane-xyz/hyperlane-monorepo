@@ -607,4 +607,224 @@ describe('Rebalancer Simulation', function () {
       expect(results.transfers.total).to.be.greaterThan(0);
     });
   });
+
+  describe('Strategy Adapters', function () {
+    it('should work with FunctionStrategy', async function () {
+      const { FunctionStrategy } = await import('./index.js');
+
+      // Create a simple function-based strategy that rebalances when any chain
+      // falls below 100K
+      const myStrategy = new FunctionStrategy((balances, _inflight) => {
+        const routes: Array<{
+          origin: string;
+          destination: string;
+          amount: bigint;
+        }> = [];
+        const threshold = BigInt(toWei('100000'));
+        const target = BigInt(toWei('300000'));
+
+        // Find chains below threshold
+        for (const [chain, balance] of Object.entries(balances)) {
+          if (balance < threshold) {
+            // Find a chain with surplus
+            for (const [otherChain, otherBalance] of Object.entries(balances)) {
+              if (otherChain !== chain && otherBalance > target) {
+                const amount =
+                  otherBalance - target < target - balance
+                    ? otherBalance - target
+                    : target - balance;
+                if (amount > 0n) {
+                  routes.push({
+                    origin: otherChain,
+                    destination: chain,
+                    amount,
+                  });
+                }
+              }
+            }
+          }
+        }
+        return routes;
+      });
+
+      const traffic = new ChaosTrafficGenerator(
+        {
+          chains: CHAINS,
+          collateralChains: COLLATERAL_CHAINS,
+          transfersPerMinute: 10,
+          amountDistribution: {
+            min: BigInt(toWei('5000')),
+            max: BigInt(toWei('50000')),
+            distribution: 'pareto',
+          },
+          seed: 33333,
+        },
+        5 * 60 * 1000,
+      );
+
+      const engine = new SimulationEngine(createSimulationConfig(), 33333);
+
+      const results = await engine.run({
+        trafficSource: traffic,
+        rebalancer: myStrategy,
+        durationMs: 5 * 60 * 1000,
+        tickIntervalMs: 1000,
+        rebalancerIntervalMs: 10_000,
+      });
+
+      console.log(formatResults('FunctionStrategy Test', results));
+
+      expect(results.transfers.total).to.be.greaterThan(0);
+      expect(results.scores.overall).to.be.a('number');
+    });
+
+    it('should work with createStrategy factory', async function () {
+      const { createStrategy } = await import('./index.js');
+
+      // Test creating from a function
+      const fnStrategy = createStrategy((_balances, _inflight) => []);
+      expect(fnStrategy).to.be.an('object');
+      expect(
+        fnStrategy.getRebalancingRoutes(
+          {},
+          { pendingRebalances: [], pendingTransfers: [] },
+        ),
+      ).to.deep.equal([]);
+
+      // Test creating from 'noop' type
+      const noopStrategy = createStrategy('noop');
+      expect(
+        noopStrategy.getRebalancingRoutes(
+          {},
+          { pendingRebalances: [], pendingTransfers: [] },
+        ),
+      ).to.deep.equal([]);
+
+      // Test creating from 'threshold' type
+      const thresholdStrategy = createStrategy('threshold', {
+        chains: CHAINS,
+        minBalance: BigInt(toWei('100000')),
+        targetBalance: BigInt(toWei('300000')),
+        bridges: BRIDGE_ADDRESSES,
+      });
+      expect(thresholdStrategy).to.be.an('object');
+    });
+  });
+
+  describe('Token Message Parsing', function () {
+    it('should parse transfer amount from TokenMessage', async function () {
+      const { parseTokenMessageAmount, parseTokenMessageRecipient } =
+        await import('./index.js');
+
+      // Create a mock TokenMessage body
+      // Format: bytes32 recipient (32 bytes) + uint256 amount (32 bytes)
+      // Recipient: 0x000...0001 (padded address)
+      // Amount: 1000000000000000000 (1e18 = 1 token)
+      const recipient =
+        '0x0000000000000000000000001234567890abcdef1234567890abcdef12345678';
+      const amount =
+        '0000000000000000000000000000000000000000000000000de0b6b3a7640000'; // 1e18 in hex
+      const messageBody = '0x' + recipient.slice(2) + amount;
+
+      const parsedAmount = parseTokenMessageAmount(messageBody);
+      expect(parsedAmount).to.equal(BigInt('1000000000000000000'));
+
+      const parsedRecipient = parseTokenMessageRecipient(messageBody);
+      expect(parsedRecipient?.toLowerCase()).to.equal(
+        '0x1234567890abcdef1234567890abcdef12345678',
+      );
+    });
+
+    it('should return null for invalid message bodies', async function () {
+      const { parseTokenMessageAmount, parseTokenMessageRecipient } =
+        await import('./index.js');
+
+      // Too short
+      expect(parseTokenMessageAmount('0x1234')).to.be.null;
+      expect(parseTokenMessageRecipient('0x1234')).to.be.null;
+
+      // Empty
+      expect(parseTokenMessageAmount('')).to.be.null;
+    });
+  });
+
+  describe('Static Traffic Source', function () {
+    it('should work with pre-loaded transfer data', async function () {
+      const { StaticTrafficSource } = await import('./index.js');
+
+      const transfers = [
+        {
+          id: 'test-1',
+          timestamp: 0,
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: BigInt(toWei('10000')),
+          sender: '0x1111111111111111111111111111111111111111' as Address,
+          recipient: '0x2222222222222222222222222222222222222222' as Address,
+        },
+        {
+          id: 'test-2',
+          timestamp: 30_000,
+          origin: 'arbitrum',
+          destination: 'optimism',
+          amount: BigInt(toWei('20000')),
+          sender: '0x3333333333333333333333333333333333333333' as Address,
+          recipient: '0x4444444444444444444444444444444444444444' as Address,
+        },
+        {
+          id: 'test-3',
+          timestamp: 60_000,
+          origin: 'optimism',
+          destination: 'ethereum',
+          amount: BigInt(toWei('15000')),
+          sender: '0x5555555555555555555555555555555555555555' as Address,
+          recipient: '0x6666666666666666666666666666666666666666' as Address,
+        },
+      ];
+
+      const source = new StaticTrafficSource(transfers);
+
+      expect(source.getTotalTransferCount()).to.equal(3);
+      expect(source.getTimeRange()).to.deep.equal({ start: 0, end: 60_000 });
+
+      // Get transfers in time windows
+      expect(source.getTransfers(0, 30_000)).to.have.length(1);
+      expect(source.getTransfers(0, 60_000)).to.have.length(2);
+      expect(source.getTransfers(0, 90_000)).to.have.length(3);
+      expect(source.getTransfers(60_000, 90_000)).to.have.length(1);
+    });
+
+    it('should run simulation with StaticTrafficSource', async function () {
+      const { StaticTrafficSource } = await import('./index.js');
+
+      const transfers = [];
+      for (let i = 0; i < 20; i++) {
+        transfers.push({
+          id: `static-${i}`,
+          timestamp: i * 15_000, // Every 15 seconds
+          origin: CHAINS[i % CHAINS.length],
+          destination: CHAINS[(i + 1) % CHAINS.length],
+          amount: BigInt(toWei(String(10000 + i * 1000))),
+          sender: '0x1111111111111111111111111111111111111111' as Address,
+          recipient: '0x2222222222222222222222222222222222222222' as Address,
+        });
+      }
+
+      const source = new StaticTrafficSource(transfers);
+      const engine = new SimulationEngine(createSimulationConfig(), 12345);
+
+      const results = await engine.run({
+        trafficSource: source,
+        rebalancer: new NoOpStrategy(),
+        durationMs: 5 * 60 * 1000,
+        tickIntervalMs: 1000,
+        rebalancerIntervalMs: 10_000,
+      });
+
+      console.log(formatResults('StaticTrafficSource Test', results));
+
+      expect(results.transfers.total).to.equal(20);
+      expect(results.scores.overall).to.be.a('number');
+    });
+  });
 });

@@ -98,13 +98,29 @@ export { BRIDGE_PRESETS } from './types.js';
 // Core components
 export { BridgeSimulator, SeededRandom } from './BridgeSimulator.js';
 export { ChaosTrafficGenerator } from './ChaosTrafficGenerator.js';
+export {
+  HistoricalExplorerClient,
+  HistoricalTrafficReplay,
+  parseTokenMessageAmount,
+  parseTokenMessageRecipient,
+  StaticTrafficSource,
+} from './HistoricalTrafficReplay.js';
 export { MetricsCollector } from './MetricsCollector.js';
 export { SimulationEngine } from './SimulationEngine.js';
 
 // Strategy adapters
 export {
   createSimulationStrategy,
+  createStrategy,
+  FunctionStrategy,
   NoOpStrategy,
   RealStrategyAdapter,
   SimpleThresholdStrategy,
 } from './StrategyAdapter.js';
+
+export type { RebalancerFunction } from './StrategyAdapter.js';
+
+export type {
+  ExplorerMessage,
+  HistoricalReplayConfig,
+} from './HistoricalTrafficReplay.js';

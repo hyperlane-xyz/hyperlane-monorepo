@@ -1,11 +1,12 @@
 /**
  * StrategyAdapter
  *
- * Adapts real rebalancer strategies to the simulation interface.
+ * Adapts various rebalancer implementations to the simulation interface.
+ *
+ * This module provides a flexible way to plug in any rebalancer strategy,
+ * whether it's from the Hyperlane rebalancer package, a custom implementation,
+ * or a simple function.
  */
-import type { Logger } from 'pino';
-
-import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type {
@@ -13,6 +14,23 @@ import type {
   InflightContext,
   RebalancingRoute,
 } from './types.js';
+
+// ============================================================================
+// Generic Strategy Function Type
+// ============================================================================
+
+/**
+ * A generic function type that any rebalancer can implement.
+ * This is the most flexible way to plug in a custom rebalancer.
+ */
+export type RebalancerFunction = (
+  balances: Record<string, bigint>,
+  inflight: InflightContext,
+) => RebalancingRoute[];
+
+// ============================================================================
+// Built-in Strategies
+// ============================================================================
 
 /**
  * A simple no-op strategy that never rebalances.
@@ -110,9 +128,16 @@ export class SimpleThresholdStrategy implements ISimulationStrategy {
   }
 }
 
+// ============================================================================
+// Strategy Adapters
+// ============================================================================
+
 /**
  * Adapter to wrap actual rebalancer strategies for simulation.
  * This allows testing real WeightedStrategy, MinAmountStrategy, etc.
+ *
+ * Works with any object that has a getRebalancingRoutes method matching
+ * the expected signature.
  */
 export class RealStrategyAdapter implements ISimulationStrategy {
   constructor(
@@ -136,10 +161,59 @@ export class RealStrategyAdapter implements ISimulationStrategy {
 }
 
 /**
- * Factory to create strategy adapters for simulation.
+ * Adapter that wraps a simple function as a strategy.
+ * This is the most flexible way to plug in custom logic.
+ *
+ * @example
+ * ```typescript
+ * const myStrategy = new FunctionStrategy((balances, inflight) => {
+ *   // Custom rebalancing logic
+ *   return [];
+ * });
+ * ```
  */
-export function createSimulationStrategy(
-  type: 'noop' | 'threshold',
+export class FunctionStrategy implements ISimulationStrategy {
+  constructor(private readonly fn: RebalancerFunction) {}
+
+  getRebalancingRoutes(
+    balances: Record<string, bigint>,
+    inflight: InflightContext,
+  ): RebalancingRoute[] {
+    return this.fn(balances, inflight);
+  }
+}
+
+// ============================================================================
+// Factory Functions
+// ============================================================================
+
+/**
+ * Create a simulation strategy from various input types.
+ *
+ * Accepts:
+ * - A function: (balances, inflight) => routes
+ * - An object with getRebalancingRoutes method
+ * - A built-in strategy type string
+ *
+ * @example
+ * ```typescript
+ * // From a function
+ * const s1 = createStrategy((balances, inflight) => []);
+ *
+ * // From an existing strategy object
+ * const s2 = createStrategy(myWeightedStrategy);
+ *
+ * // From a built-in type
+ * const s3 = createStrategy('noop');
+ * const s4 = createStrategy('threshold', { chains, minBalance, targetBalance, bridges });
+ * ```
+ */
+export function createStrategy(
+  strategyOrType:
+    | RebalancerFunction
+    | { getRebalancingRoutes: RebalancerFunction }
+    | 'noop'
+    | 'threshold',
   options?: {
     chains?: string[];
     minBalance?: bigint;
@@ -147,7 +221,21 @@ export function createSimulationStrategy(
     bridges?: Record<string, Address>;
   },
 ): ISimulationStrategy {
-  switch (type) {
+  // Handle function
+  if (typeof strategyOrType === 'function') {
+    return new FunctionStrategy(strategyOrType);
+  }
+
+  // Handle object with getRebalancingRoutes
+  if (
+    typeof strategyOrType === 'object' &&
+    'getRebalancingRoutes' in strategyOrType
+  ) {
+    return new RealStrategyAdapter(strategyOrType);
+  }
+
+  // Handle built-in types
+  switch (strategyOrType) {
     case 'noop':
       return new NoOpStrategy();
 
@@ -170,6 +258,11 @@ export function createSimulationStrategy(
       );
 
     default:
-      throw new Error(`Unknown strategy type: ${type}`);
+      throw new Error(`Unknown strategy type: ${strategyOrType}`);
   }
 }
+
+/**
+ * @deprecated Use createStrategy instead
+ */
+export const createSimulationStrategy = createStrategy;
