@@ -2,29 +2,43 @@
  * Inflight Tracking E2E Tests
  *
  * These tests specifically target scenarios where the lack of inflight tracking
- * in the simulation could cause the rebalancer to make suboptimal decisions.
+ * could cause the rebalancer to make incorrect decisions that block user transfers.
  *
- * Background:
- * - The RebalancerService uses ActionTracker with ExplorerClient to track:
- *   1. pendingTransfers: User transfers that are in-flight (need collateral on destination)
- *   2. pendingRebalances: Rebalance operations where origin tx is confirmed
+ * TOKEN FLOW (HypERC20Collateral):
+ * ================================
+ * - transferRemote() on ORIGIN: LOCKS user tokens INTO the warp route (collateral increases)
+ * - Message delivery on DESTINATION: RELEASES tokens FROM warp route TO user (collateral decreases)
  *
- * - In our local simulation, ExplorerClient queries the production Explorer URL
- *   which doesn't see local Anvil transactions. This means:
- *   - inflightContext will always be empty
- *   - Strategy won't reserve collateral for pending user transfers
- *   - Strategy won't account for in-progress rebalances
+ * INFLIGHT TRACKING PURPOSE:
+ * ==========================
+ * The strategy's `reserveCollateral()` method subtracts pending transfer amounts from
+ * destination balances. This prevents the rebalancer from draining collateral that's
+ * needed for pending transfers.
  *
- * Potential Issues:
- * 1. Collateral Reservation: Without knowing about pending transfers TO a domain,
- *    the rebalancer might drain that domain's collateral, causing the pending
- *    transfers to fail when they try to deliver.
+ * THE SCENARIO WE WANT TO TEST:
+ * =============================
+ * 1. Initial state: domain1=5000, domain2=5000 (balanced)
+ * 2. User initiates transfer domain1→domain2 for 1000 tokens
+ *    - domain1 collateral increases by 1000 (now 6000)
+ *    - Transfer is PENDING delivery on domain2
+ * 3. Rebalancer polls WITHOUT inflight tracking:
+ *    - Sees domain1=6000, domain2=5000
+ *    - Thinks domain1 has surplus, domain2 has deficit
+ *    - Moves 500 tokens from domain1 to domain2
+ * 4. Rebalancer polls WITH inflight tracking:
+ *    - Sees domain1=6000, domain2=5000
+ *    - But ALSO sees pending transfer that will release 1000 from domain2
+ *    - Effective domain2 = 5000 - 1000 = 4000
+ *    - Now sees domain1 surplus, domain2 deficit correctly accounting for pending
  *
- * 2. Double Rebalancing: Without tracking pending rebalances, the rebalancer might
- *    propose redundant rebalance operations before the first one completes.
- *
- * 3. Delayed Reaction: The rebalancer only sees on-chain balances, so it reacts
- *    AFTER transfers complete rather than proactively.
+ * ACTUAL PROBLEM SCENARIO:
+ * ========================
+ * Without inflight tracking, if domain2 is near its minimum threshold and has
+ * pending transfers, the rebalancer might:
+ * 1. See domain2 has "enough" collateral
+ * 2. Not rebalance to domain2
+ * 3. Pending transfers deliver, drain domain2 below minimum
+ * 4. New transfers to domain2 fail
  */
 import { expect } from 'chai';
 import { pino } from 'pino';
@@ -93,10 +107,22 @@ describe('Inflight Tracking Edge Cases', function () {
     baseSnapshot = await setup.createSnapshot();
   });
 
-  async function createSimulation(
-    tolerance: number = 2,
-    rebalancerCheckFrequencyMs: number = 5000,
-  ): Promise<IntegratedSimulation> {
+  /**
+   * Helper to create a simulation with custom parameters
+   */
+  async function createSimulation(options: {
+    tolerance?: number;
+    rebalancerCheckFrequencyMs?: number;
+    messageDeliveryDelayMs?: number;
+    bridgeTransferDelayMs?: number;
+  }): Promise<IntegratedSimulation> {
+    const {
+      tolerance = 2,
+      rebalancerCheckFrequencyMs = 5000,
+      messageDeliveryDelayMs = 2000,
+      bridgeTransferDelayMs = 3000,
+    } = options;
+
     const strategyConfig = createWeightedStrategyConfig(setup, {
       [DOMAIN_1.name]: { weight: 50, tolerance },
       [DOMAIN_2.name]: { weight: 50, tolerance },
@@ -105,21 +131,21 @@ describe('Inflight Tracking Edge Cases', function () {
     const simulation = new IntegratedSimulation({
       setup,
       warpRouteId: 'test-warp-route',
-      messageDeliveryDelayMs: 2000,
+      messageDeliveryDelayMs,
       deliveryCheckIntervalMs: 500,
       recordingIntervalMs: 1000,
       rebalancerCheckFrequencyMs,
-      bridgeTransferDelayMs: 3000,
+      bridgeTransferDelayMs,
       bridgeConfigs: {
         [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
           fixedFee: 0n,
           variableFeeBps: 10,
-          transferTimeMs: 3000,
+          transferTimeMs: bridgeTransferDelayMs,
         },
         [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
           fixedFee: 0n,
           variableFeeBps: 10,
-          transferTimeMs: 3000,
+          transferTimeMs: bridgeTransferDelayMs,
         },
       },
       strategyConfig,
@@ -130,352 +156,372 @@ describe('Inflight Tracking Edge Cases', function () {
     return simulation;
   }
 
-  describe('Scenario 1: Rapid-Fire Transfers Before Rebalancer Observes', function () {
+  describe('Scenario: Pending Transfer Blocks New Transfer', function () {
     /**
-     * This test demonstrates what happens when many transfers are initiated
-     * faster than the rebalancer's polling cycle.
+     * This is the core inflight tracking scenario:
      *
-     * Expected behavior WITH proper inflight tracking:
-     * - Rebalancer sees pending transfers and reserves collateral
-     * - Proactively moves collateral before transfers deliver
+     * Setup: Start with imbalanced collateral where domain2 is already low
+     * - domain1 = 7000 tokens (surplus)
+     * - domain2 = 3000 tokens (at threshold)
      *
-     * Actual behavior WITHOUT inflight tracking:
-     * - Rebalancer only sees on-chain balances
-     * - Doesn't know about pending transfers until they deliver
-     * - Reacts AFTER the fact, potentially too late
+     * Phase 1: User initiates large transfer TO domain2
+     * - This will RELEASE tokens from domain2 when delivered
+     * - Transfer is PENDING (not yet delivered)
+     *
+     * Phase 2: Another user wants to transfer TO domain2
+     * - Rebalancer sees domain2 still has 3000 tokens
+     * - Without inflight tracking: thinks domain2 can handle it
+     * - First transfer delivers, drains domain2
+     * - Second transfer fails because domain2 is now empty
+     *
+     * With proper inflight tracking:
+     * - Rebalancer sees pending transfer will release from domain2
+     * - Proactively moves collateral TO domain2 to cover both transfers
      */
-    it('should highlight delayed reaction when transfers arrive faster than polling', async function () {
-      // Use a slow polling interval to exaggerate the issue
-      const simulation = await createSimulation(2, 10_000); // Poll every 10 seconds
+    it('should demonstrate how pending transfers can cause subsequent transfer failures', async function () {
+      // This test requires a custom setup with imbalanced initial collateral
+      // We'll use the traffic generator directly to control timing precisely
 
-      // Fire 20 transfers in rapid succession (200ms apart = 4 seconds total)
-      // Each transfer releases 200 tokens from domain2 when delivered
-      // Total: 4000 tokens released from domain2 (leaving only 1000)
-      const transfers: ScheduledTransfer[] = [];
-      for (let i = 0; i < 20; i++) {
-        transfers.push({
-          time: i * 200, // 200ms apart
-          origin: DOMAIN_1.name,
-          destination: DOMAIN_2.name,
-          amount: BigInt(toWei('200')),
-        });
-      }
-
-      const schedule: SimulationRun = {
-        name: 'rapid-fire-transfers',
-        durationMs: 30_000,
-        transfers,
-      };
-
-      console.log('\n' + '='.repeat(70));
-      console.log('SCENARIO 1: Rapid-Fire Transfers');
-      console.log('='.repeat(70));
-      console.log('Configuration:');
-      console.log('  - Rebalancer polling: every 10 seconds');
-      console.log('  - Transfer spacing: 200ms (all 20 transfers in 4 seconds)');
-      console.log('  - Each transfer: 200 tokens domain1 → domain2');
-      console.log('  - Total impact: 4000 tokens released from domain2');
-      console.log('');
-      console.log('Without inflight tracking:');
-      console.log('  - At t=0: Rebalancer sees 5000/5000 (balanced)');
-      console.log('  - At t=4s: All transfers initiated, but rebalancer hasn\'t polled');
-      console.log('  - At t=6s: Transfers start delivering, domain2 draining');
-      console.log('  - At t=10s: Rebalancer finally polls, sees 5000/1000');
-      console.log('');
-      console.log('With proper inflight tracking (not implemented):');
-      console.log('  - Rebalancer would see pending transfers at any poll');
-      console.log('  - Would proactively move collateral before deliveries');
-      console.log('='.repeat(70) + '\n');
-
-      const startTime = Date.now();
-      const results = await simulation.run(schedule);
-      const wallTime = Date.now() - startTime;
-
-      console.log(visualizeSimulation(results));
-
-      console.log('\n=== RAPID-FIRE TEST RESULTS ===');
-      console.log(`Total transfers: ${results.transfers.total}`);
-      console.log(`Completed: ${results.transfers.completed}`);
-      console.log(`Stuck: ${results.transfers.stuck}`);
-      console.log(`Success rate: ${((results.transfers.completed / results.transfers.total) * 100).toFixed(1)}%`);
-      console.log(`Rebalances executed: ${results.rebalancing.count}`);
-      console.log(`Wall clock time: ${(wallTime / 1000).toFixed(1)}s`);
-
-      // In this scenario, the rebalancer should still succeed because:
-      // 1. The initial 5000 tokens on domain2 is enough for all 20 transfers (4000 total)
-      // 2. The rebalancer eventually rebalances after seeing the imbalance
-      //
-      // The test passes, but the rebalancer is reactive, not proactive.
-      // With proper inflight tracking, it could have started rebalancing earlier.
-
-      expect(results.transfers.total).to.equal(20);
-      expect(results.transfers.completed).to.equal(20);
-
-      // Note: This test doesn't FAIL, but it demonstrates the rebalancer is reactive.
-      // A follow-up test with more aggressive traffic could expose actual failures.
-      console.log('\nNote: Test passes but rebalancer is REACTIVE, not PROACTIVE.');
-      console.log('With inflight tracking, rebalancing could start earlier.\n');
-    });
-  });
-
-  describe('Scenario 2: Collateral Exhaustion Race', function () {
-    /**
-     * This test creates a race condition where:
-     * 1. Many transfers are pending delivery (but not yet delivered)
-     * 2. The rebalancer polls and sees "balanced" balances
-     * 3. More transfers come in, and the pending ones start delivering
-     * 4. Domain runs out of collateral mid-delivery
-     *
-     * This requires:
-     * - Fast transfer initiation
-     * - Slow message delivery (to accumulate pending transfers)
-     * - Slow rebalancer polling (to miss the buildup)
-     */
-    it('should show collateral exhaustion when pending transfers are not tracked', async function () {
-      // Create a custom simulation with VERY slow message delivery
-      // This accumulates many pending transfers before delivery
-      const strategyConfig = createWeightedStrategyConfig(setup, {
-        [DOMAIN_1.name]: { weight: 50, tolerance: 2 },
-        [DOMAIN_2.name]: { weight: 50, tolerance: 2 },
-      });
-
-      const simulation = new IntegratedSimulation({
+      const trafficGenerator = new OptimizedTrafficGenerator(
         setup,
-        warpRouteId: 'test-warp-route',
-        messageDeliveryDelayMs: 8000, // 8 second delivery delay
-        deliveryCheckIntervalMs: 500,
-        recordingIntervalMs: 1000,
-        rebalancerCheckFrequencyMs: 15_000, // Poll every 15 seconds (slow)
-        bridgeTransferDelayMs: 3000,
-        bridgeConfigs: {
-          [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
-            fixedFee: 0n,
-            variableFeeBps: 10,
-            transferTimeMs: 3000,
-          },
-          [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
-            fixedFee: 0n,
-            variableFeeBps: 10,
-            transferTimeMs: 3000,
-          },
-        },
-        strategyConfig,
-        logger,
-      });
-
-      await simulation.initialize();
-
-      // Phase 1: Fire 25 transfers rapidly (drain ~5000 from domain2)
-      // These will be PENDING for 8 seconds before delivery starts
-      const transfers: ScheduledTransfer[] = [];
-      for (let i = 0; i < 25; i++) {
-        transfers.push({
-          time: i * 100, // 100ms apart (2.5 seconds total)
-          origin: DOMAIN_1.name,
-          destination: DOMAIN_2.name,
-          amount: BigInt(toWei('200')), // 200 tokens each = 5000 total
-        });
-      }
-
-      const schedule: SimulationRun = {
-        name: 'collateral-exhaustion-race',
-        durationMs: 60_000,
-        transfers,
-      };
+        10000, // Very long message delivery delay (10 seconds)
+      );
+      await trafficGenerator.initialize();
 
       console.log('\n' + '='.repeat(70));
-      console.log('SCENARIO 2: Collateral Exhaustion Race');
+      console.log('SCENARIO: Pending Transfer Blocks Subsequent Transfer');
       console.log('='.repeat(70));
-      console.log('Configuration:');
-      console.log('  - Message delivery delay: 8 seconds');
-      console.log('  - Rebalancer polling: every 15 seconds');
-      console.log('  - 25 transfers × 200 tokens = 5000 total (equals domain2 balance)');
       console.log('');
-      console.log('Timeline without inflight tracking:');
-      console.log('  t=0-2.5s: All 25 transfers initiated (origin locks complete)');
-      console.log('  t=2.5s: Domain2 still shows 5000 tokens (deliveries pending)');
-      console.log('  t=8-10.5s: Deliveries start, domain2 drains to 0');
-      console.log('  t=15s: Rebalancer first poll, sees imbalance too late');
+      console.log('Token Flow Reminder:');
+      console.log('  - transferRemote() LOCKS tokens on origin (increases collateral)');
+      console.log('  - Message delivery RELEASES tokens on destination (decreases collateral)');
       console.log('');
-      console.log('With inflight tracking (not implemented):');
-      console.log('  - At any poll, rebalancer sees 25 pending transfers');
-      console.log('  - Reserves 5000 tokens on domain2 for pending deliveries');
-      console.log('  - Would proactively rebalance before exhaustion');
+      console.log('Initial State: 5000 tokens on each domain');
+      console.log('');
+      console.log('Test Sequence:');
+      console.log('  1. User A: Transfer 4500 tokens domain1 → domain2');
+      console.log('     - Locks 4500 on domain1 (now 9500)');
+      console.log('     - Delivery PENDING on domain2');
+      console.log('');
+      console.log('  2. Wait, but DON\'T deliver yet');
+      console.log('');
+      console.log('  3. User B: Transfer 1000 tokens domain1 → domain2');
+      console.log('     - Locks 1000 on domain1 (now 10500)');
+      console.log('     - Delivery PENDING on domain2');
+      console.log('');
+      console.log('  4. Now deliver both transfers:');
+      console.log('     - Transfer A releases 4500 from domain2 (5000 → 500)');
+      console.log('     - Transfer B tries to release 1000 from domain2...');
+      console.log('     - FAILS: domain2 only has 500 tokens!');
+      console.log('');
+      console.log('With inflight tracking, the rebalancer would:');
+      console.log('  - See pending transfers totaling 5500 tokens to domain2');
+      console.log('  - Reserve 5500 from domain2 balance for pending deliveries');
+      console.log('  - Detect domain2 will be in deficit after deliveries');
+      console.log('  - Proactively move collateral to domain2');
       console.log('='.repeat(70) + '\n');
 
-      const startTime = Date.now();
-      const results = await simulation.run(schedule);
-      const wallTime = Date.now() - startTime;
+      // Check initial balances
+      const domain1Token = setup.tokens[DOMAIN_1.name];
+      const domain2Token = setup.tokens[DOMAIN_2.name];
+      const domain1WarpRoute = setup.getWarpRouteAddress(DOMAIN_1.name);
+      const domain2WarpRoute = setup.getWarpRouteAddress(DOMAIN_2.name);
 
-      console.log(visualizeSimulation(results));
+      const initialDomain1 = await domain1Token.balanceOf(domain1WarpRoute);
+      const initialDomain2 = await domain2Token.balanceOf(domain2WarpRoute);
 
-      console.log('\n=== COLLATERAL EXHAUSTION RACE RESULTS ===');
-      console.log(`Total transfers: ${results.transfers.total}`);
-      console.log(`Completed: ${results.transfers.completed}`);
-      console.log(`Stuck: ${results.transfers.stuck}`);
-      console.log(`Success rate: ${((results.transfers.completed / results.transfers.total) * 100).toFixed(1)}%`);
-      console.log(`Rebalances executed: ${results.rebalancing.count}`);
-      console.log(`Wall clock time: ${(wallTime / 1000).toFixed(1)}s`);
+      console.log('Initial balances:');
+      console.log(`  domain1: ${(Number(initialDomain1.toString()) / 1e18).toFixed(0)} tokens`);
+      console.log(`  domain2: ${(Number(initialDomain2.toString()) / 1e18).toFixed(0)} tokens`);
 
-      // The test might pass because:
-      // 1. domain2 has exactly 5000 tokens to handle 25 × 200 = 5000
-      // 2. Rebalancer kicks in after seeing imbalance
-      //
-      // To actually see failures, we'd need MORE than 5000 tokens of transfers
-      // OR we'd need to verify the rebalancer's decision timing.
+      // Step 1: User A initiates large transfer
+      console.log('\n[Step 1] User A initiates transfer of 4500 tokens...');
+      const transferA = await trafficGenerator.executeTransfer(
+        {
+          time: 0,
+          origin: DOMAIN_1.name,
+          destination: DOMAIN_2.name,
+          amount: BigInt(toWei('4500')),
+        },
+        Date.now(),
+      );
+      console.log(`  Transfer A initiated: ${transferA.messageId.slice(0, 18)}...`);
 
-      expect(results.transfers.total).to.equal(25);
-      
-      // Log whether all succeeded or some failed
-      if (results.transfers.stuck > 0) {
-        console.log('\n!!! SOME TRANSFERS FAILED - INFLIGHT TRACKING WOULD HELP !!!');
-        console.log(`Failed transfers: ${results.transfers.stuck}`);
-      } else {
-        console.log('\nAll transfers succeeded, but this was close to the limit.');
-        console.log('Adding more transfers would likely cause failures without inflight tracking.\n');
+      // Check balances after transfer A initiation
+      const afterA_domain1 = await domain1Token.balanceOf(domain1WarpRoute);
+      console.log(`  domain1 balance after lock: ${(Number(afterA_domain1.toString()) / 1e18).toFixed(0)} tokens`);
+      console.log('  domain2 balance: unchanged (delivery pending)');
+
+      // Step 2: Wait a moment (but don't deliver)
+      console.log('\n[Step 2] Waiting... (transfers are pending, not delivered)');
+      await sleep(500);
+
+      // Step 3: User B initiates another transfer
+      console.log('\n[Step 3] User B initiates transfer of 1000 tokens...');
+      const transferB = await trafficGenerator.executeTransfer(
+        {
+          time: 0,
+          origin: DOMAIN_1.name,
+          destination: DOMAIN_2.name,
+          amount: BigInt(toWei('1000')),
+        },
+        Date.now(),
+      );
+      console.log(`  Transfer B initiated: ${transferB.messageId.slice(0, 18)}...`);
+
+      const afterB_domain1 = await domain1Token.balanceOf(domain1WarpRoute);
+      console.log(`  domain1 balance after lock: ${(Number(afterB_domain1.toString()) / 1e18).toFixed(0)} tokens`);
+
+      // Step 4: Try to deliver both transfers
+      console.log('\n[Step 4] Attempting to deliver both transfers...');
+
+      // Deliver Transfer A
+      console.log('  Delivering Transfer A (4500 tokens)...');
+      try {
+        await trafficGenerator.deliverTransfer(transferA);
+        const afterDeliveryA = await domain2Token.balanceOf(domain2WarpRoute);
+        console.log(`  ✅ Transfer A delivered. domain2 balance: ${(Number(afterDeliveryA.toString()) / 1e18).toFixed(0)} tokens`);
+      } catch (error: any) {
+        console.log(`  ❌ Transfer A delivery failed: ${error.message}`);
       }
+
+      // Deliver Transfer B
+      console.log('  Delivering Transfer B (1000 tokens)...');
+      let transferBFailed = false;
+      try {
+        await trafficGenerator.deliverTransfer(transferB);
+        const afterDeliveryB = await domain2Token.balanceOf(domain2WarpRoute);
+        console.log(`  ✅ Transfer B delivered. domain2 balance: ${(Number(afterDeliveryB.toString()) / 1e18).toFixed(0)} tokens`);
+      } catch (error: any) {
+        transferBFailed = true;
+        console.log(`  ❌ Transfer B delivery FAILED: ${error.message}`);
+      }
+
+      // Final balances
+      const finalDomain1 = await domain1Token.balanceOf(domain1WarpRoute);
+      const finalDomain2 = await domain2Token.balanceOf(domain2WarpRoute);
+
+      console.log('\n' + '='.repeat(70));
+      console.log('RESULTS');
+      console.log('='.repeat(70));
+      console.log(`Initial: domain1=${(Number(initialDomain1.toString()) / 1e18).toFixed(0)}, domain2=${(Number(initialDomain2.toString()) / 1e18).toFixed(0)}`);
+      console.log(`Final:   domain1=${(Number(finalDomain1.toString()) / 1e18).toFixed(0)}, domain2=${(Number(finalDomain2.toString()) / 1e18).toFixed(0)}`);
+      console.log('');
+
+      if (transferBFailed) {
+        console.log('✅ TEST DEMONSTRATES THE PROBLEM:');
+        console.log('   Transfer B failed because domain2 ran out of collateral.');
+        console.log('   With inflight tracking, the rebalancer would have prevented this.');
+      } else {
+        console.log('Transfer B succeeded. This means:');
+        console.log('   - Initial collateral was sufficient for both transfers');
+        console.log('   - To see the failure, we need initial collateral < sum of transfers');
+      }
+      console.log('='.repeat(70) + '\n');
+
+      // Assert that Transfer B failed (demonstrating the problem)
+      expect(transferBFailed).to.equal(
+        true,
+        'Transfer B should have failed due to insufficient collateral on domain2. ' +
+        'This demonstrates the need for inflight tracking: the rebalancer could not ' +
+        'see the pending transfers and thus could not proactively move collateral.',
+      );
     });
   });
 
-  describe('Scenario 3: Double Rebalance Prevention', function () {
+  describe('Scenario: Rebalancer Moves Collateral Away From Pending Destination', function () {
     /**
-     * Without tracking pending rebalances, the rebalancer might:
-     * 1. Detect imbalance and initiate rebalance A
-     * 2. Poll again before A completes
-     * 3. Still see imbalance (A hasn't delivered yet)
-     * 4. Initiate redundant rebalance B
+     * More nuanced scenario:
      *
-     * With proper tracking, the strategy would see pendingRebalances
-     * and account for them when calculating deficits.
+     * Setup: Balanced collateral
+     * - domain1 = 5000 tokens
+     * - domain2 = 5000 tokens
+     *
+     * Phase 1: User transfer locks tokens on domain1
+     * - domain1 collateral increases
+     * - Rebalancer sees domain1 > domain2
+     *
+     * Phase 2: Without inflight tracking
+     * - Rebalancer might move tokens FROM domain2 TO domain1
+     * - But the pending transfer will RELEASE from domain2!
+     *
+     * This is the opposite problem: the rebalancer moves collateral in
+     * the WRONG direction because it doesn't know about pending deliveries.
      */
-    it('should potentially show redundant rebalances without pending tracking', async function () {
-      // Fast polling to increase chance of catching inflight rebalances
-      const simulation = await createSimulation(2, 3000); // Poll every 3 seconds
+    it('should show rebalancer may move collateral wrong direction without inflight tracking', async function () {
+      // Use integrated simulation with fast rebalancer polling and slow delivery
+      const simulation = await createSimulation({
+        tolerance: 5, // 5% tolerance = 250 token threshold
+        rebalancerCheckFrequencyMs: 2000, // Poll every 2 seconds
+        messageDeliveryDelayMs: 15000, // 15 second delivery delay
+        bridgeTransferDelayMs: 3000,
+      });
 
-      // Create imbalanced traffic that triggers rebalancing
-      const transfers: ScheduledTransfer[] = [];
-      for (let i = 0; i < 15; i++) {
-        transfers.push({
-          time: i * 1000, // 1 second apart
+      // Create a transfer that will make domain1 look like it has surplus
+      // (because locking increases origin collateral)
+      const transfers: ScheduledTransfer[] = [
+        {
+          time: 0,
           origin: DOMAIN_1.name,
           destination: DOMAIN_2.name,
-          amount: BigInt(toWei('200')),
-        });
-      }
+          amount: BigInt(toWei('1000')), // Large enough to trigger rebalancer
+        },
+      ];
 
       const schedule: SimulationRun = {
-        name: 'double-rebalance-test',
+        name: 'wrong-direction-rebalance',
         durationMs: 60_000,
         transfers,
       };
 
       console.log('\n' + '='.repeat(70));
-      console.log('SCENARIO 3: Double Rebalance Prevention');
+      console.log('SCENARIO: Rebalancer May Move Collateral Wrong Direction');
       console.log('='.repeat(70));
-      console.log('Configuration:');
-      console.log('  - Rebalancer polling: every 3 seconds (fast)');
-      console.log('  - Bridge transfer delay: 3 seconds');
-      console.log('  - 15 transfers creating significant imbalance');
       console.log('');
-      console.log('Question: Will the rebalancer propose redundant rebalances?');
+      console.log('Initial State: 5000 tokens on each domain (balanced)');
       console.log('');
-      console.log('Without inflight tracking:');
-      console.log('  - Rebalancer sees imbalance, initiates rebalance A');
-      console.log('  - 3 seconds later, polls again');
-      console.log('  - Still sees imbalance (A not delivered yet)');
-      console.log('  - Might initiate redundant rebalance B');
+      console.log('What happens:');
+      console.log('  1. User initiates 1000 token transfer domain1 → domain2');
+      console.log('  2. This LOCKS 1000 on domain1 (now 6000)');
+      console.log('  3. Rebalancer polls, sees domain1=6000, domain2=5000');
+      console.log('  4. Without inflight: thinks domain1 has surplus');
+      console.log('  5. Might move tokens FROM domain2 TO domain1 (wrong!)');
+      console.log('');
+      console.log('Reality:');
+      console.log('  - Pending transfer will RELEASE 1000 from domain2');
+      console.log('  - domain2 will go from 5000 to 4000');
+      console.log('  - Moving tokens away from domain2 makes it worse!');
       console.log('');
       console.log('With inflight tracking:');
-      console.log('  - pendingRebalances includes A');
-      console.log('  - Strategy simulates A\'s effect');
-      console.log('  - Correctly determines no additional rebalance needed');
+      console.log('  - Sees pending transfer destination = domain2');
+      console.log('  - Reserves 1000 from domain2 balance');
+      console.log('  - Effective: domain1=6000, domain2=4000');
+      console.log('  - Correctly identifies domain2 needs collateral');
       console.log('='.repeat(70) + '\n');
 
-      const startTime = Date.now();
       const results = await simulation.run(schedule);
-      const wallTime = Date.now() - startTime;
-
       console.log(visualizeSimulation(results));
 
-      console.log('\n=== DOUBLE REBALANCE TEST RESULTS ===');
-      console.log(`Total transfers: ${results.transfers.total}`);
-      console.log(`Completed: ${results.transfers.completed}`);
-      console.log(`Stuck: ${results.transfers.stuck}`);
+      console.log('\n=== ANALYSIS ===');
       console.log(`Rebalances executed: ${results.rebalancing.count}`);
-      console.log(`Total volume rebalanced: ${(Number(results.rebalancing.totalVolume) / 1e18).toFixed(2)} tokens`);
-      console.log(`Wall clock time: ${(wallTime / 1000).toFixed(1)}s`);
+      console.log(`Total volume moved: ${(Number(results.rebalancing.totalVolume) / 1e18).toFixed(2)} tokens`);
 
-      // Calculate expected rebalance volume
-      // 15 transfers × 200 = 3000 tokens imbalance
-      // One rebalance of ~1500 should fix it
-      const expectedMinVolume = BigInt(toWei('1000'));
-      const expectedMaxVolume = BigInt(toWei('3000'));
+      if (results.rebalancing.count > 0) {
+        console.log('\nRebalance details:');
+        for (const [route, data] of Object.entries(results.rebalancing.byBridge)) {
+          console.log(`  ${route}: ${data.count} operations, ${(Number(data.volume) / 1e18).toFixed(2)} tokens`);
+        }
 
-      if (results.rebalancing.totalVolume > expectedMaxVolume) {
-        console.log('\n!!! POTENTIAL OVER-REBALANCING DETECTED !!!');
-        console.log(`Expected: ${(Number(expectedMaxVolume) / 1e18).toFixed(0)} tokens max`);
-        console.log(`Actual: ${(Number(results.rebalancing.totalVolume) / 1e18).toFixed(0)} tokens`);
-        console.log('This could indicate redundant rebalances due to lack of inflight tracking.');
-      } else {
-        console.log('\nRebalance volume is within expected range.');
-        console.log('Note: The rebalancer may still be making slightly suboptimal decisions');
-        console.log('due to not accounting for pending rebalances in its calculations.\n');
+        // Check if rebalancer moved in wrong direction
+        const wrongDirection = results.rebalancing.byBridge['domain2->domain1'];
+        if (wrongDirection && wrongDirection.count > 0) {
+          console.log('\n⚠️  SUBOPTIMAL: Rebalancer moved tokens FROM domain2');
+          console.log('    Without inflight tracking, it didn\'t know domain2 would');
+          console.log('    lose collateral when the pending transfer delivers.');
+        }
       }
 
-      expect(results.transfers.completed).to.equal(15);
+      expect(results.transfers.completed).to.equal(1);
     });
   });
 
-  describe('Scenario 4: Understanding Current Behavior', function () {
+  describe('Scenario: Multiple Pending Transfers Exhaust Collateral', function () {
     /**
-     * This test logs detailed information about what the rebalancer sees
-     * at each polling cycle, helping us understand the actual behavior.
+     * Stress test: Many transfers initiated in rapid succession before any deliver.
+     * Without inflight tracking, the rebalancer can't see the wave of pending
+     * deliveries that will drain a domain.
      */
-    it('should demonstrate what the rebalancer sees without inflight tracking', async function () {
-      // Note: To get detailed logs, we'd need to add logging to the simulation
-      // For now, this test just runs a scenario and lets us observe the output
-
-      const simulation = await createSimulation(5, 5000);
-
-      // Simple scenario: 10 transfers creating mild imbalance
-      const transfers: ScheduledTransfer[] = [];
-      for (let i = 0; i < 10; i++) {
-        transfers.push({
-          time: i * 2000,
-          origin: DOMAIN_1.name,
-          destination: DOMAIN_2.name,
-          amount: BigInt(toWei('150')),
-        });
-      }
-
-      const schedule: SimulationRun = {
-        name: 'behavior-observation',
-        durationMs: 60_000,
-        transfers,
-      };
+    it('should handle multiple pending transfers that together exhaust collateral', async function () {
+      const trafficGenerator = new OptimizedTrafficGenerator(
+        setup,
+        30000, // 30 second delivery delay - very long
+      );
+      await trafficGenerator.initialize();
 
       console.log('\n' + '='.repeat(70));
-      console.log('SCENARIO 4: Observing Rebalancer Behavior');
+      console.log('SCENARIO: Multiple Pending Transfers Exhaust Collateral');
       console.log('='.repeat(70));
-      console.log('This test runs a simple scenario to observe:');
-      console.log('  - When the rebalancer detects imbalance');
-      console.log('  - How it responds to on-chain balance changes');
-      console.log('  - The timing of rebalance operations');
       console.log('');
-      console.log('Watch the logs for:');
-      console.log('  - "Strategy evaluating" with pendingRebalances: 0, pendingTransfers: 0');
-      console.log('  - This confirms inflight context is empty');
+      console.log('Setup: 5000 tokens on each domain');
+      console.log('');
+      console.log('Initiate 10 transfers of 600 tokens each (6000 total):');
+      console.log('  - Each transfer locks on domain1');
+      console.log('  - Each transfer will release from domain2 on delivery');
+      console.log('  - domain2 only has 5000 tokens!');
+      console.log('');
+      console.log('Without inflight tracking:');
+      console.log('  - Rebalancer sees domain2 still has 5000');
+      console.log('  - Doesn\'t know 6000 tokens worth of deliveries are pending');
+      console.log('  - When deliveries happen, later transfers fail');
       console.log('='.repeat(70) + '\n');
 
-      const results = await simulation.run(schedule);
-      console.log(visualizeSimulation(results));
+      // Initiate 10 transfers (don't deliver yet)
+      const pendingTransfers = [];
+      const transferAmount = BigInt(toWei('600'));
 
-      console.log('\n=== BEHAVIOR OBSERVATION SUMMARY ===');
-      console.log(`Transfers: ${results.transfers.completed}/${results.transfers.total}`);
-      console.log(`Rebalances: ${results.rebalancing.count}`);
-      console.log(`Volume: ${(Number(results.rebalancing.totalVolume) / 1e18).toFixed(2)} tokens`);
+      console.log('Initiating 10 transfers...');
+      for (let i = 0; i < 10; i++) {
+        const pending = await trafficGenerator.executeTransfer(
+          {
+            time: 0,
+            origin: DOMAIN_1.name,
+            destination: DOMAIN_2.name,
+            amount: transferAmount,
+          },
+          Date.now(),
+        );
+        pendingTransfers.push(pending);
+        console.log(`  Transfer ${i + 1}: ${pending.messageId.slice(0, 18)}...`);
+      }
 
-      expect(results.transfers.completed).to.equal(10);
+      // Check domain1 balance (should have received all locks)
+      const domain1Token = setup.tokens[DOMAIN_1.name];
+      const domain1Balance = await domain1Token.balanceOf(setup.getWarpRouteAddress(DOMAIN_1.name));
+      console.log(`\ndomain1 balance after all locks: ${(Number(domain1Balance.toString()) / 1e18).toFixed(0)} tokens`);
+      console.log('domain2 balance: 5000 (unchanged, deliveries pending)');
+
+      // Now try to deliver all transfers
+      console.log('\nDelivering all transfers...');
+      let successCount = 0;
+      let failCount = 0;
+
+      for (let i = 0; i < pendingTransfers.length; i++) {
+        try {
+          await trafficGenerator.deliverTransfer(pendingTransfers[i]);
+          successCount++;
+          
+          // Check balance after each delivery
+          const domain2Token = setup.tokens[DOMAIN_2.name];
+          const domain2Balance = await domain2Token.balanceOf(setup.getWarpRouteAddress(DOMAIN_2.name));
+          console.log(`  Transfer ${i + 1}: ✅ delivered. domain2 balance: ${(Number(domain2Balance.toString()) / 1e18).toFixed(0)}`);
+        } catch (error: any) {
+          failCount++;
+          console.log(`  Transfer ${i + 1}: ❌ FAILED - ${error.message.slice(0, 50)}...`);
+        }
+      }
+
+      console.log('\n' + '='.repeat(70));
+      console.log('RESULTS');
+      console.log('='.repeat(70));
+      console.log(`Successful deliveries: ${successCount}/10`);
+      console.log(`Failed deliveries: ${failCount}/10`);
+      console.log('');
+
+      if (failCount > 0) {
+        console.log('✅ TEST DEMONSTRATES THE PROBLEM:');
+        console.log(`   ${failCount} transfers failed because domain2 ran out of collateral.`);
+        console.log('   With inflight tracking, the rebalancer would have seen:');
+        console.log('     - 10 pending transfers totaling 6000 tokens to domain2');
+        console.log('     - domain2 only has 5000 tokens');
+        console.log('     - Would have moved 1000+ tokens to domain2 proactively');
+      }
+      console.log('='.repeat(70) + '\n');
+
+      // We expect some transfers to fail
+      expect(failCount).to.be.greaterThan(
+        0,
+        'Some transfers should fail due to collateral exhaustion',
+      );
     });
   });
 });

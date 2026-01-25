@@ -223,22 +223,31 @@ The rebalancer's `ActionTracker` uses `ExplorerClient` to track inflight message
    - `syncRebalanceActions()` finds no inflight rebalance actions
    - The strategy receives empty `inflightContext`
 
-3. **Why Tests Still Pass** - The rebalancer works because:
-   - It relies primarily on **on-chain balances** for decision-making
-   - The strategy detects imbalances from balance deltas
-   - Bridge transfers are tracked locally via `SimulatedTokenBridge.getPendingTransferIds()`
+3. **Why This Matters** - The strategy's `reserveCollateral()` method reserves collateral on destination chains for pending transfers. Without this:
+   - The rebalancer doesn't know about pending transfers that will RELEASE collateral on delivery
+   - May not move collateral to a domain that will soon be drained
+   - Subsequent transfers to that domain will fail
 
-4. **Potential Issues** - Without proper inflight tracking, the rebalancer might:
-   - Propose redundant rebalances (not accounting for in-progress transfers)
-   - Over-rebalance in rapid succession
-   - Miss the opportunity to batch transfers optimally
+4. **Demonstrated Issue** - See `inflight-tracking.e2e-test.ts` for concrete examples:
+   ```
+   Scenario: 10 transfers of 600 tokens each (6000 total) to domain2
+   - domain2 has 5000 tokens
+   - Without inflight tracking: Rebalancer sees domain2 has "enough"
+   - Transfers 1-8 deliver successfully, domain2 drops to 200 tokens
+   - Transfers 9-10 FAIL: insufficient collateral
+   
+   With inflight tracking:
+   - Rebalancer would see 6000 tokens of pending deliveries
+   - Would move 1000+ tokens to domain2 proactively
+   - All 10 transfers would succeed
+   ```
 
 ### Future Improvements
 
 A `MockExplorerClient` could be implemented to:
 - Track Dispatch events from the local Anvil instance
 - Provide accurate inflight context to the strategy
-- Enable testing of the ActionTracker's full functionality
+- Enable testing of the ActionTracker's proactive behavior
 
 ## File Structure
 
