@@ -1,3 +1,5 @@
+import { ChildProcess, spawn } from 'child_process';
+
 import { JsonRpcProvider } from '@ethersproject/providers';
 import { Wallet } from 'ethers';
 import { Logger } from 'pino';
@@ -9,6 +11,7 @@ import {
   HypERC20__factory,
   Mailbox__factory,
   MockValueTransferBridge__factory,
+  SimulatedTokenBridge__factory,
   TestIsm__factory,
   TestPostDispatchHook__factory,
 } from '@hyperlane-xyz/core';
@@ -21,16 +24,138 @@ import {
   WarpCoreConfigSchema,
   WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, addressToBytes32, ProtocolType } from '@hyperlane-xyz/utils';
+import { Address, addressToBytes32, ProtocolType, retryAsync } from '@hyperlane-xyz/utils';
 
-// Default anvil private key
-export const ANVIL_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-export const ANVIL_DEPLOYER_ADDRESS =
-  '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
+// Anvil default private keys (accounts 0-9)
+export const ANVIL_KEYS = {
+  // Account 0 - deployer and owner
+  deployer: '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80',
+  // Account 1 - traffic generator (user transfers)
+  traffic: '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d',
+  // Account 2 - rebalancer service (legacy, shared signer)
+  rebalancer: '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a',
+  // Account 3 - bridge simulator (completes bridge transfers)
+  bridge: '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6',
+  // Account 4 - relayer (delivers Hyperlane messages)
+  relayer: '0x47e179ec197488593b187f80a00eb0da91f1b9d0b13f8733639f19c30a34926a',
+  // Accounts 5-9 - per-domain rebalancer signers (for parallel execution without nonce conflicts)
+  rebalancer_domain1: '0x8b3a350cf5c34c9194ca85829a2df0ec3153be0318b5e2d3348e872092edffba',
+  rebalancer_domain2: '0x92db14e403b83dfe3df233f83dfa3a0d7096f21ca9b0d6d6b8d88b2b4ec1564e',
+  rebalancer_domain3: '0x4bbbf85ce3377467afe5d46f804f221813b2bb87f24d81f60f1fcdbf7cbf4356',
+  rebalancer_domain4: '0xdbda1821b80551c9d65939329250298aa3472ba22feea921c0cf5d620ea67b97',
+};
+
+export const ANVIL_ADDRESSES = {
+  deployer: '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266',
+  traffic: '0x70997970C51812dc3A010C7d01b50e0d17dc79C8',
+  rebalancer: '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
+  bridge: '0x90F79bf6EB2c4f870365E785982E1f101E93b906',
+  relayer: '0x15d34AAf54267DB7D7c367839AAf71A00a2C6A65',
+  // Per-domain rebalancer addresses
+  rebalancer_domain1: '0x9965507D1a55bcC2695C58ba16FB37d819B0A4dc',
+  rebalancer_domain2: '0x976EA74026E726554dB657fA54763abd0C3a0aa9',
+  rebalancer_domain3: '0x14dC79964da2C08b23698B3D3cc7Ca32193d9955',
+  rebalancer_domain4: '0x23618e81E3f5cdF7f54C3d65f7FBc0aBf5B21E8f',
+};
+
+// Legacy exports for backward compatibility
+export const ANVIL_KEY = ANVIL_KEYS.deployer;
+export const ANVIL_DEPLOYER_ADDRESS = ANVIL_ADDRESSES.deployer;
 
 // Default RPC URL for single anvil instance
 const DEFAULT_RPC_URL = 'http://127.0.0.1:8545';
+const DEFAULT_ANVIL_PORT = 8545;
+
+/**
+ * Anvil process manager for test automation.
+ * Starts anvil if not running, provides cleanup on test completion.
+ */
+export interface AnvilInstance {
+  process: ChildProcess | null;
+  port: number;
+  rpcUrl: string;
+  stop: () => Promise<void>;
+}
+
+/**
+ * Start an anvil instance for testing.
+ * If anvil is already running on the port, returns a handle to it without starting a new one.
+ */
+export async function startAnvil(
+  port: number = DEFAULT_ANVIL_PORT,
+  logger?: Logger,
+): Promise<AnvilInstance> {
+  const rpcUrl = `http://127.0.0.1:${port}`;
+  const provider = new JsonRpcProvider(rpcUrl);
+
+  // Check if anvil is already running
+  try {
+    await provider.getNetwork();
+    logger?.info({ port }, 'Anvil already running, reusing existing instance');
+    return {
+      process: null,
+      port,
+      rpcUrl,
+      stop: async () => {
+        // Don't stop if we didn't start it
+        logger?.info('Anvil was already running, not stopping');
+      },
+    };
+  } catch {
+    // Anvil not running, start it
+  }
+
+  logger?.info({ port }, 'Starting anvil...');
+
+  const anvilProcess = spawn('anvil', ['--port', port.toString()], {
+    stdio: ['ignore', 'pipe', 'pipe'],
+    detached: false,
+  });
+
+  // Wait for anvil to be ready
+  try {
+    await retryAsync(
+      async () => {
+        const p = new JsonRpcProvider(rpcUrl);
+        await p.getNetwork();
+      },
+      20, // attempts
+      500, // delay ms
+    );
+  } catch (error) {
+    anvilProcess.kill();
+    throw new Error(`Failed to start anvil on port ${port}: ${error}`);
+  }
+
+  logger?.info({ port }, 'Anvil started successfully');
+
+  const stop = async () => {
+    if (anvilProcess && !anvilProcess.killed) {
+      logger?.info({ port }, 'Stopping anvil...');
+      anvilProcess.kill('SIGTERM');
+      // Wait for process to exit
+      await new Promise<void>((resolve) => {
+        anvilProcess.once('exit', () => resolve());
+        setTimeout(resolve, 2000); // Timeout after 2s
+      });
+      logger?.info({ port }, 'Anvil stopped');
+    }
+  };
+
+  // Cleanup on process exit
+  process.once('exit', () => {
+    if (anvilProcess && !anvilProcess.killed) {
+      anvilProcess.kill('SIGTERM');
+    }
+  });
+
+  return {
+    process: anvilProcess,
+    port,
+    rpcUrl,
+    stop,
+  };
+}
 
 /**
  * Domain configuration for a simulated chain.
@@ -45,6 +170,7 @@ export interface DomainConfig {
 export const DOMAIN_1: DomainConfig = { name: 'domain1', domainId: 1 };
 export const DOMAIN_2: DomainConfig = { name: 'domain2', domainId: 2 };
 export const DOMAIN_3: DomainConfig = { name: 'domain3', domainId: 3 };
+export const DOMAIN_4: DomainConfig = { name: 'domain4', domainId: 4 };
 
 export interface SnapshotInfo {
   snapshotId: string;
@@ -61,8 +187,20 @@ export interface DomainDeployment {
 export interface RebalancerTestSetup {
   // Infrastructure (shared across all domains)
   provider: JsonRpcProvider;
-  signer: Wallet;
   rpcUrl: string;
+
+  // Signers for different roles (to avoid nonce conflicts)
+  signer: Wallet; // Legacy: deployer signer
+  signers: {
+    deployer: Wallet;  // Contract deployment and ownership
+    traffic: Wallet;   // Traffic generator (user transfers)
+    rebalancer: Wallet; // Rebalancer service (legacy shared signer)
+    bridge: Wallet;    // Bridge simulator (completes transfers)
+    relayer: Wallet;   // Message relayer (delivers Hyperlane messages)
+  };
+
+  // Per-domain rebalancer signers (for parallel execution without nonce conflicts)
+  rebalancerSigners: Record<string, Wallet>;
 
   // Domain deployments
   domains: Record<string, DomainDeployment>;
@@ -84,11 +222,26 @@ export interface RebalancerTestSetup {
   getWarpRouteAddress(domainName: string): Address;
   getBridge(origin: string, destination: string): Address;
   getDomain(name: string): DomainDeployment;
-  getMultiProvider(): MultiProvider;
+  /** 
+   * Get a MultiProvider with the specified signer role.
+   * @param signerRole - The role to use for signing transactions
+   * @param usePerChainSigners - If true and signerRole is 'rebalancer', uses per-chain signers to avoid nonce conflicts
+   */
+  getMultiProvider(signerRole?: 'deployer' | 'traffic' | 'rebalancer' | 'bridge' | 'relayer', usePerChainSigners?: boolean): MultiProvider;
 
   // Snapshot management
   createSnapshot(): Promise<SnapshotInfo>;
   restoreSnapshot(snapshot: SnapshotInfo): Promise<void>;
+}
+
+/**
+ * Configuration for a simulated bridge.
+ */
+export interface SimulatedBridgeOptions {
+  /** Fixed fee in token units */
+  fixedFee: bigint;
+  /** Variable fee in basis points (10000 = 100%) */
+  variableFeeBps: number;
 }
 
 export interface CreateRebalancerTestSetupOptions {
@@ -116,6 +269,12 @@ export interface CreateRebalancerTestSetupOptions {
    * Logger instance (optional)
    */
   logger?: Logger;
+
+  /**
+   * If provided, deploys SimulatedTokenBridge instead of MockValueTransferBridge.
+   * The SimulatedTokenBridge allows the simulation to control when transfers complete.
+   */
+  simulatedBridge?: SimulatedBridgeOptions;
 }
 
 /**
@@ -144,9 +303,35 @@ export async function createRebalancerTestSetup(
 
   const allDomains = [...collateralDomains, ...syntheticDomains];
 
-  // Create provider and signer
+  // Create provider and all signers
   const provider = new JsonRpcProvider(rpcUrl);
-  const signer = new Wallet(ANVIL_KEY, provider);
+  const signers = {
+    deployer: new Wallet(ANVIL_KEYS.deployer, provider),
+    traffic: new Wallet(ANVIL_KEYS.traffic, provider),
+    rebalancer: new Wallet(ANVIL_KEYS.rebalancer, provider),
+    bridge: new Wallet(ANVIL_KEYS.bridge, provider),
+    relayer: new Wallet(ANVIL_KEYS.relayer, provider),
+  };
+  // Legacy signer reference
+  const signer = signers.deployer;
+
+  // Create per-domain rebalancer signers for parallel execution without nonce conflicts
+  const perDomainRebalancerKeys: Record<string, string> = {
+    domain1: ANVIL_KEYS.rebalancer_domain1,
+    domain2: ANVIL_KEYS.rebalancer_domain2,
+    domain3: ANVIL_KEYS.rebalancer_domain3,
+    domain4: ANVIL_KEYS.rebalancer_domain4,
+  };
+  const rebalancerSigners: Record<string, Wallet> = {};
+  for (const domain of allDomains) {
+    const key = perDomainRebalancerKeys[domain.name];
+    if (key) {
+      rebalancerSigners[domain.name] = new Wallet(key, provider);
+    } else {
+      // Fallback to shared rebalancer signer if no per-domain key defined
+      rebalancerSigners[domain.name] = signers.rebalancer;
+    }
+  }
 
   logger?.info('Setting up rebalancer test environment on single anvil...');
 
@@ -320,8 +505,23 @@ export async function createRebalancerTestSetup(
     );
   }
 
+  // 5b. Fund traffic signer with tokens for transfers
+  logger?.info('Funding traffic signer with tokens...');
+  for (const domain of collateralDomains) {
+    const token = tokens[domain.name];
+    // Give traffic signer enough tokens for many transfers
+    const trafficFunding = initialCollateral * 2n;
+    await (await token.transfer(ANVIL_ADDRESSES.traffic, trafficFunding)).wait();
+    logger?.debug(
+      `Funded traffic signer with ${trafficFunding} tokens on ${domain.name}`,
+    );
+  }
+
   // 6. Deploy mock bridges for all collateral domain pairs
-  logger?.info('Deploying mock bridges...');
+  const useSimulatedBridge = !!options.simulatedBridge;
+  logger?.info(
+    `Deploying ${useSimulatedBridge ? 'simulated' : 'mock'} bridges...`,
+  );
   const bridges: Record<string, Address> = {};
 
   for (const origin of collateralDomains) {
@@ -329,22 +529,82 @@ export async function createRebalancerTestSetup(
       if (origin.name === dest.name) continue;
 
       const bridgeKey = `${origin.name}-${dest.name}`;
-      const tokenAddress = tokens[origin.name].address;
+      const originTokenAddress = tokens[origin.name].address;
+      const destTokenAddress = tokens[dest.name].address;
 
-      const bridge = await new MockValueTransferBridge__factory(signer).deploy(
-        tokenAddress,
-      );
-      await bridge.deployed();
-      bridges[bridgeKey] = bridge.address;
+      let bridgeAddress: Address;
+      if (useSimulatedBridge) {
+        // Deploy SimulatedTokenBridge with configurable fees
+        // Use the bridge signer as the simulator (can complete transfers)
+        // Origin token is locked, destination token is minted on completion
+        const bridge = await new SimulatedTokenBridge__factory(signer).deploy(
+          originTokenAddress,
+          destTokenAddress, // destination token to mint on completion
+          ANVIL_ADDRESSES.bridge, // bridge signer can complete transfers
+          options.simulatedBridge!.fixedFee,
+          options.simulatedBridge!.variableFeeBps,
+        );
+        await bridge.deployed();
+        bridgeAddress = bridge.address;
+      } else {
+        // Deploy MockValueTransferBridge (instant completion, no fees)
+        const bridge = await new MockValueTransferBridge__factory(
+          signer,
+        ).deploy(tokenAddress);
+        await bridge.deployed();
+        bridgeAddress = bridge.address;
+      }
+
+      bridges[bridgeKey] = bridgeAddress;
 
       // TODO: Register bridge on warp route if needed
       // This depends on the warp route implementation
 
-      logger?.debug(`Deployed bridge ${bridgeKey}: ${bridge.address}`);
+      logger?.debug(`Deployed bridge ${bridgeKey}: ${bridgeAddress}`);
     }
   }
 
-  // 7. Build WarpCoreConfig for SDK usage
+  // 7. Configure rebalancer permissions on collateral warp routes
+  logger?.info('Configuring rebalancer permissions...');
+  
+  // Map of per-domain rebalancer addresses
+  const perDomainRebalancerAddresses: Record<string, string> = {
+    domain1: ANVIL_ADDRESSES.rebalancer_domain1,
+    domain2: ANVIL_ADDRESSES.rebalancer_domain2,
+    domain3: ANVIL_ADDRESSES.rebalancer_domain3,
+    domain4: ANVIL_ADDRESSES.rebalancer_domain4,
+  };
+  
+  for (const origin of collateralDomains) {
+    const warpRoute = HypERC20Collateral__factory.connect(
+      warpRoutes[origin.name],
+      signer,
+    );
+
+    // Add the shared rebalancer signer as authorized rebalancer (for backward compatibility)
+    await (await warpRoute.addRebalancer(ANVIL_ADDRESSES.rebalancer)).wait();
+    logger?.debug(`Added shared rebalancer ${ANVIL_ADDRESSES.rebalancer} to ${origin.name}`);
+    
+    // Add the per-domain rebalancer signer for this domain (for parallel execution)
+    const perDomainAddress = perDomainRebalancerAddresses[origin.name];
+    if (perDomainAddress) {
+      await (await warpRoute.addRebalancer(perDomainAddress)).wait();
+      logger?.debug(`Added per-domain rebalancer ${perDomainAddress} to ${origin.name}`);
+    }
+
+    // Add bridges for each destination domain
+    for (const dest of collateralDomains) {
+      if (origin.name === dest.name) continue;
+      const bridgeKey = `${origin.name}-${dest.name}`;
+      const bridgeAddress = bridges[bridgeKey];
+      await (await warpRoute.addBridge(dest.domainId, bridgeAddress)).wait();
+      logger?.debug(
+        `Added bridge ${bridgeAddress} for domain ${dest.domainId} on ${origin.name}`,
+      );
+    }
+  }
+
+  // 8. Build WarpCoreConfig for SDK usage
   const warpCoreConfig: WarpCoreConfig = {
     tokens: allDomains.map((domain) => {
       const isCollateral = collateralDomains.some(
@@ -370,7 +630,7 @@ export async function createRebalancerTestSetup(
   // Validate the config
   WarpCoreConfigSchema.parse(warpCoreConfig);
 
-  // 8. Build chain metadata for MultiProvider
+  // 9. Build chain metadata for MultiProvider
   const chainMetadata: Record<string, ChainMetadata> = {};
   for (const domain of allDomains) {
     chainMetadata[domain.name] = {
@@ -379,10 +639,15 @@ export async function createRebalancerTestSetup(
       domainId: domain.domainId,
       protocol: ProtocolType.Ethereum,
       rpcUrls: [{ http: rpcUrl }],
+      // Use minimal confirmations for local testing
+      blocks: {
+        confirmations: 1,
+        reorgPeriod: 1, // Critical: prevents 32-block wait in rebalancer
+      },
     };
   }
 
-  // 9. Create helper functions
+  // 10. Create helper functions
   const getWarpRouteAddress = (domainName: string): Address => {
     const address = warpRoutes[domainName];
     if (!address) {
@@ -408,9 +673,22 @@ export async function createRebalancerTestSetup(
     return domain;
   };
 
-  const getMultiProvider = (): MultiProvider => {
+  const getMultiProvider = (
+    signerRole: keyof typeof signers = 'deployer',
+    usePerChainSigners: boolean = false,
+  ): MultiProvider => {
     const mp = new MultiProvider(chainMetadata);
-    mp.setSharedSigner(signer);
+    
+    if (usePerChainSigners && signerRole === 'rebalancer') {
+      // Use per-chain signers to avoid nonce conflicts during parallel execution
+      for (const domainName of Object.keys(rebalancerSigners)) {
+        mp.setSigner(domainName, rebalancerSigners[domainName]);
+      }
+    } else {
+      // Use shared signer for all chains
+      mp.setSharedSigner(signers[signerRole]);
+    }
+    
     return mp;
   };
 
@@ -428,6 +706,8 @@ export async function createRebalancerTestSetup(
   return {
     provider,
     signer,
+    signers,
+    rebalancerSigners,
     rpcUrl,
     domains,
     tokens,

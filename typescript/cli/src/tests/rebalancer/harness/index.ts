@@ -55,17 +55,23 @@
 
 // Setup utilities
 export {
+  ANVIL_ADDRESSES,
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
+  ANVIL_KEYS,
+  type AnvilInstance,
   createRebalancerTestSetup,
   type CreateRebalancerTestSetupOptions,
   DOMAIN_1,
   DOMAIN_2,
   DOMAIN_3,
+  DOMAIN_4,
   type DomainConfig,
   type DomainDeployment,
   type RebalancerTestSetup,
+  type SimulatedBridgeOptions,
   type SnapshotInfo,
+  startAnvil,
 } from './setup.js';
 
 // Transfer utilities
