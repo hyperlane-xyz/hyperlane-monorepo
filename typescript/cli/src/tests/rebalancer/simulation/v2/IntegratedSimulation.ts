@@ -32,6 +32,8 @@ import type {
   EnhancedTimeSeriesPoint,
   PendingBridgeTransfer,
   PendingWarpTransfer,
+  RouteDeliveryConfig,
+  RouteDeliveryConfigs,
   ScheduledTransfer,
   SimulatedBridgeConfig,
   SimulationResults,
@@ -51,8 +53,18 @@ export interface IntegratedSimulationConfig {
   /** Warp route ID for registry lookups */
   warpRouteId: string;
 
-  /** Message delivery delay in wall-clock milliseconds */
+  /** 
+   * Message delivery delay in wall-clock milliseconds.
+   * This is the default used when routeDeliveryConfigs is not specified.
+   */
   messageDeliveryDelayMs: number;
+
+  /**
+   * Optional per-route delivery configurations.
+   * Keys are "origin-destination" (e.g., "domain1-domain2").
+   * If not specified for a route, messageDeliveryDelayMs is used.
+   */
+  routeDeliveryConfigs?: RouteDeliveryConfigs;
 
   /** How often to check for pending deliveries (wall-clock ms) */
   deliveryCheckIntervalMs: number;
@@ -183,6 +195,31 @@ export class IntegratedSimulation {
   }
 
   /**
+   * Get the message delivery delay for a specific route.
+   * Uses per-route config if available, otherwise falls back to default.
+   */
+  private getRouteDeliveryDelay(origin: string, destination: string): number {
+    const routeKey = `${origin}-${destination}`;
+    const routeConfig = this.config.routeDeliveryConfigs?.[routeKey];
+
+    if (routeConfig) {
+      const baseDelay = routeConfig.delayMs;
+      const variance = routeConfig.varianceMs ?? 0;
+
+      if (variance > 0) {
+        // Add random variance: delay ± variance
+        const randomVariance = (Math.random() * 2 - 1) * variance;
+        return Math.max(0, baseDelay + randomVariance);
+      }
+
+      return baseDelay;
+    }
+
+    // Fall back to default
+    return this.config.messageDeliveryDelayMs;
+  }
+
+  /**
    * Run the simulation.
    */
   async run(
@@ -281,9 +318,15 @@ export class IntegratedSimulation {
                 const transfer = dueTransfers[i];
                 const result = results[i];
 
+                // Get delivery delay for this specific route
+                const deliveryDelay = this.getRouteDeliveryDelay(
+                  transfer.origin,
+                  transfer.destination,
+                );
+
                 const pending: PendingTransfer = {
                   ...result,
-                  deliveryDueAt: now + this.config.messageDeliveryDelayMs,
+                  deliveryDueAt: now + deliveryDelay,
                 };
                 this.pendingTransfers.set(result.txHash, pending);
 

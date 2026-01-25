@@ -352,3 +352,108 @@ export interface TrafficPatternConfig {
   /** Random seed for reproducibility */
   seed?: number;
 }
+
+// ============================================================================
+// Route Configuration
+// ============================================================================
+
+/**
+ * Per-route message delivery configuration.
+ * Allows different routes to have different delivery characteristics.
+ */
+export interface RouteDeliveryConfig {
+  /** Base delivery delay in ms */
+  delayMs: number;
+  /** Variance in delivery time (±ms) */
+  varianceMs?: number;
+  /** Failure probability (0-1) */
+  failureRate?: number;
+}
+
+/**
+ * Configuration for message delivery across different routes.
+ * Keys are "origin-destination" (e.g., "domain1-domain2").
+ */
+export type RouteDeliveryConfigs = Record<string, RouteDeliveryConfig>;
+
+/**
+ * Default route delivery configs for common scenarios.
+ */
+export const ROUTE_DELIVERY_PRESETS = {
+  /** Fast uniform delivery - all routes ~2 seconds */
+  fastUniform: (chains: string[]): RouteDeliveryConfigs => {
+    const configs: RouteDeliveryConfigs = {};
+    for (const origin of chains) {
+      for (const dest of chains) {
+        if (origin !== dest) {
+          configs[`${origin}-${dest}`] = { delayMs: 2000, varianceMs: 500 };
+        }
+      }
+    }
+    return configs;
+  },
+
+  /** Slow uniform delivery - all routes ~10 seconds */
+  slowUniform: (chains: string[]): RouteDeliveryConfigs => {
+    const configs: RouteDeliveryConfigs = {};
+    for (const origin of chains) {
+      for (const dest of chains) {
+        if (origin !== dest) {
+          configs[`${origin}-${dest}`] = { delayMs: 10000, varianceMs: 2000 };
+        }
+      }
+    }
+    return configs;
+  },
+
+  /** Mixed delivery times - some routes fast, some slow */
+  mixedTiming: (chains: string[]): RouteDeliveryConfigs => {
+    const configs: RouteDeliveryConfigs = {};
+    let i = 0;
+    for (const origin of chains) {
+      for (const dest of chains) {
+        if (origin !== dest) {
+          // Alternate between fast (2s) and slow (15s)
+          const isFast = i % 2 === 0;
+          configs[`${origin}-${dest}`] = {
+            delayMs: isFast ? 2000 : 15000,
+            varianceMs: isFast ? 500 : 3000,
+          };
+          i++;
+        }
+      }
+    }
+    return configs;
+  },
+
+  /** Asymmetric routes - one direction fast, reverse slow */
+  asymmetric: (chains: string[]): RouteDeliveryConfigs => {
+    const configs: RouteDeliveryConfigs = {};
+    for (let i = 0; i < chains.length; i++) {
+      for (let j = 0; j < chains.length; j++) {
+        if (i !== j) {
+          // Forward direction (i < j) is fast, reverse is slow
+          const isFast = i < j;
+          configs[`${chains[i]}-${chains[j]}`] = {
+            delayMs: isFast ? 2000 : 20000,
+            varianceMs: isFast ? 500 : 5000,
+          };
+        }
+      }
+    }
+    return configs;
+  },
+
+  /** High variance - unpredictable delivery times */
+  highVariance: (chains: string[]): RouteDeliveryConfigs => {
+    const configs: RouteDeliveryConfigs = {};
+    for (const origin of chains) {
+      for (const dest of chains) {
+        if (origin !== dest) {
+          configs[`${origin}-${dest}`] = { delayMs: 8000, varianceMs: 7000 };
+        }
+      }
+    }
+    return configs;
+  },
+} as const;
