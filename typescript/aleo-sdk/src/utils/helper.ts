@@ -1,7 +1,11 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
 import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
-import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import {
+  isValidAddressAleo,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
 
@@ -10,7 +14,10 @@ import { AleoTokenType } from './types.js';
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
+
+function getCustomWarpSuffixFromEnv(): string | undefined {
+  return process.env['ALEO_WARP_SUFFIX'];
+}
 
 export const MAINNET_PREFIX = 'hyp';
 export const TESTNET_PREFIX = 'test_hyp';
@@ -78,7 +85,7 @@ export function loadProgramsInDeployOrder(
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
             (_, p1) =>
-              `${p1}_${customWarpSuffix || warpSuffix || coreSuffix}.aleo`,
+              `${p1}_${getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix}.aleo`,
           ),
       ),
     );
@@ -171,7 +178,7 @@ export const ALEO_NULL_ADDRESS =
 export const ALEO_NATIVE_DENOM = 'credits';
 
 export function formatAddress(address: string): string {
-  return address === ALEO_NULL_ADDRESS ? '' : address;
+  return isZeroishAddress(address) ? '' : address;
 }
 
 export function fillArray(array: any[], length: number, fillValue: any): any[] {
@@ -215,6 +222,16 @@ export function fromAleoAddress(aleoAddress: string): {
       // FIXME, change this function return type signature to make it explicit
       // that the programId might not be found
       programId: '',
+      address: aleoAddress,
+    };
+  }
+
+  // If address is not defined, then it means that the address
+  // does not have a programId prefix but it is still a valid aleo address
+  // because it passed validation
+  if (!address) {
+    return {
+      programId: aleoAddress,
       address: aleoAddress,
     };
   }
