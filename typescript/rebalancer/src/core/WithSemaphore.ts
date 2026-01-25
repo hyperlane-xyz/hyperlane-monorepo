@@ -5,8 +5,8 @@ import { getStrategyChainConfig } from '../config/types.js';
 import type {
   IRebalancer,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.
@@ -31,7 +31,7 @@ export class WithSemaphore implements IRebalancer {
    * @param routes - Routes to process
    */
   async rebalance(
-    routes: RebalancingRoute[],
+    routes: RebalanceRoute[],
   ): Promise<RebalanceExecutionResult[]> {
     if (this.executing) {
       this.logger.info('Currently executing rebalance. Skipping.');
@@ -82,7 +82,7 @@ export class WithSemaphore implements IRebalancer {
     return results;
   }
 
-  private getHighestLockTime(routes: RebalancingRoute[]) {
+  private getHighestLockTime(routes: RebalanceRoute[]) {
     return routes.reduce((highest, route) => {
       const origin = getStrategyChainConfig(
         this.config.strategyConfig,

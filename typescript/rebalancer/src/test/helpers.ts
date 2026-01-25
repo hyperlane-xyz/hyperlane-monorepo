@@ -19,14 +19,15 @@ import type {
   IRebalancer,
   PreparedTransaction,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import type { StrategyRoute } from '../interfaces/IStrategy.js';
 import type { BridgeConfigWithOverride } from '../utils/index.js';
 
 // === Mock Classes ===
 
 export class MockRebalancer implements IRebalancer {
-  rebalance(_routes: RebalancingRoute[]): Promise<RebalanceExecutionResult[]> {
+  rebalance(_routes: RebalanceRoute[]): Promise<RebalanceExecutionResult[]> {
     return Promise.resolve([]);
   }
 }
@@ -34,9 +35,22 @@ export class MockRebalancer implements IRebalancer {
 // === Test Data Builders ===
 
 export function buildTestRoute(
-  overrides: Partial<RebalancingRoute> = {},
-): RebalancingRoute {
+  overrides: Partial<StrategyRoute> = {},
+): StrategyRoute {
   return {
+    origin: 'ethereum',
+    destination: 'arbitrum',
+    amount: ethers.utils.parseEther('100').toBigInt(),
+    bridge: TEST_ADDRESSES.bridge,
+    ...overrides,
+  };
+}
+
+export function buildTestRebalanceRoute(
+  overrides: Partial<RebalanceRoute> = {},
+): RebalanceRoute {
+  return {
+    intentId: overrides.intentId ?? `test-route-${Date.now()}`,
     origin: 'ethereum',
     destination: 'arbitrum',
     amount: ethers.utils.parseEther('100').toBigInt(),
@@ -48,13 +62,14 @@ export function buildTestRoute(
 export function buildTestResult(
   overrides: Partial<RebalanceExecutionResult> = {},
 ): RebalanceExecutionResult {
+  const route = overrides.route ?? buildTestRebalanceRoute();
   return {
-    route: buildTestRoute(),
+    route,
     success: true,
     messageId:
-      '0xMessageId111111111111111111111111111111111111111111111111111111',
+      '0x1111111111111111111111111111111111111111111111111111111111111111',
     txHash:
-      '0xTxHash1111111111111111111111111111111111111111111111111111111111',
+      '0x2222222222222222222222222222222222222222222222222222222222222222',
     ...overrides,
   };
 }
@@ -62,10 +77,10 @@ export function buildTestResult(
 export function buildTestPreparedTransaction(
   overrides: Partial<PreparedTransaction> = {},
 ): PreparedTransaction {
-  const route = overrides.route ?? buildTestRoute();
+  const route = overrides.route ?? buildTestRebalanceRoute();
   return {
     populatedTx: {
-      to: '0xToken11111111111111111111111111111111111',
+      to: TEST_ADDRESSES.token,
       data: '0x',
       value: ethers.BigNumber.from(0),
     } as PopulatedTransaction,

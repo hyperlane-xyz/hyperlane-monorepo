@@ -24,8 +24,8 @@ import type {
   IRebalancer,
   PreparedTransaction,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfigWithOverride,
@@ -47,7 +47,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   async rebalance(
-    routes: RebalancingRoute[],
+    routes: RebalanceRoute[],
   ): Promise<RebalanceExecutionResult[]> {
     if (routes.length === 0) {
       this.logger.info('No routes to execute, exiting');
@@ -99,7 +99,7 @@ export class Rebalancer implements IRebalancer {
     return allResults;
   }
 
-  private async prepareTransactions(routes: RebalancingRoute[]): Promise<{
+  private async prepareTransactions(routes: RebalanceRoute[]): Promise<{
     preparedTransactions: PreparedTransaction[];
     preparationFailureResults: RebalanceExecutionResult[];
   }> {
@@ -142,7 +142,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   private async prepareTransaction(
-    route: RebalancingRoute,
+    route: RebalanceRoute,
   ): Promise<PreparedTransaction | null> {
     const { origin, destination, amount } = route;
 
@@ -228,7 +228,7 @@ export class Rebalancer implements IRebalancer {
     return { populatedTx, route, originTokenAmount };
   }
 
-  private async validateRoute(route: RebalancingRoute): Promise<boolean> {
+  private async validateRoute(route: RebalanceRoute): Promise<boolean> {
     const { origin, destination, amount } = route;
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];

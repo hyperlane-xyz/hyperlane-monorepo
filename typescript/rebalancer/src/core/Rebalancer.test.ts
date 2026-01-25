@@ -8,7 +8,7 @@ import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import {
   buildTestBridges,
-  buildTestRoute,
+  buildTestRebalanceRoute,
   createRebalancerTestContext,
 } from '../test/helpers.js';
 
@@ -64,7 +64,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute({
+      const route = buildTestRebalanceRoute({
         origin: 'ethereum',
         destination: 'arbitrum',
       });
@@ -90,7 +90,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -130,8 +130,14 @@ describe('Rebalancer', () => {
       );
 
       const routes = [
-        buildTestRoute({ origin: 'ethereum', destination: 'arbitrum' }),
-        buildTestRoute({ origin: 'optimism', destination: 'arbitrum' }),
+        buildTestRebalanceRoute({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+        }),
+        buildTestRebalanceRoute({
+          origin: 'optimism',
+          destination: 'arbitrum',
+        }),
       ];
 
       const results = await rebalancer.rebalance(routes);
@@ -157,7 +163,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute({
+      const route = buildTestRebalanceRoute({
         origin: 'ethereum',
         destination: 'arbitrum',
       });
@@ -180,7 +186,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute({
+      const route = buildTestRebalanceRoute({
         origin: 'ethereum',
         destination: 'arbitrum',
       });
@@ -204,7 +210,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -227,7 +233,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -248,7 +254,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -271,7 +277,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -292,7 +298,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -322,7 +328,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute({
+      const route = buildTestRebalanceRoute({
         amount: ethers.utils.parseEther('100').toBigInt(),
       });
       const results = await rebalancer.rebalance([route]);
@@ -346,7 +352,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute({
+      const route = buildTestRebalanceRoute({
         amount: ethers.utils.parseEther('100').toBigInt(),
       });
       const results = await rebalancer.rebalance([route]);
@@ -375,7 +381,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute({
+      const route = buildTestRebalanceRoute({
         amount: ethers.utils.parseEther('100').toBigInt(),
       });
       const results = await rebalancer.rebalance([route]);
@@ -406,8 +412,12 @@ describe('Rebalancer', () => {
       );
 
       const routes = [
-        buildTestRoute({ amount: ethers.utils.parseEther('100').toBigInt() }),
-        buildTestRoute({ amount: ethers.utils.parseEther('10').toBigInt() }),
+        buildTestRebalanceRoute({
+          amount: ethers.utils.parseEther('100').toBigInt(),
+        }),
+        buildTestRebalanceRoute({
+          amount: ethers.utils.parseEther('10').toBigInt(),
+        }),
       ];
 
       const results = await rebalancer.rebalance(routes);
@@ -439,7 +449,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -486,8 +496,14 @@ describe('Rebalancer', () => {
       );
 
       const routes = [
-        buildTestRoute({ origin: 'ethereum', destination: 'arbitrum' }),
-        buildTestRoute({ origin: 'optimism', destination: 'arbitrum' }),
+        buildTestRebalanceRoute({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+        }),
+        buildTestRebalanceRoute({
+          origin: 'optimism',
+          destination: 'arbitrum',
+        }),
       ];
 
       const results = await rebalancer.rebalance(routes);
@@ -532,9 +548,18 @@ describe('Rebalancer', () => {
       );
 
       const routes = [
-        buildTestRoute({ origin: 'ethereum', destination: 'arbitrum' }),
-        buildTestRoute({ origin: 'ethereum', destination: 'optimism' }),
-        buildTestRoute({ origin: 'optimism', destination: 'arbitrum' }),
+        buildTestRebalanceRoute({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+        }),
+        buildTestRebalanceRoute({
+          origin: 'ethereum',
+          destination: 'optimism',
+        }),
+        buildTestRebalanceRoute({
+          origin: 'optimism',
+          destination: 'arbitrum',
+        }),
       ];
 
       await rebalancer.rebalance(routes);
@@ -559,7 +584,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -600,8 +625,12 @@ describe('Rebalancer', () => {
       );
 
       const routes = [
-        buildTestRoute({ amount: ethers.utils.parseEther('100').toBigInt() }),
-        buildTestRoute({ amount: ethers.utils.parseEther('200').toBigInt() }),
+        buildTestRebalanceRoute({
+          amount: ethers.utils.parseEther('100').toBigInt(),
+        }),
+        buildTestRebalanceRoute({
+          amount: ethers.utils.parseEther('200').toBigInt(),
+        }),
       ];
 
       const results = await rebalancer.rebalance(routes);
@@ -647,12 +676,12 @@ describe('Rebalancer', () => {
       );
 
       const routes = [
-        buildTestRoute({
+        buildTestRebalanceRoute({
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: ethers.utils.parseEther('100').toBigInt(),
         }),
-        buildTestRoute({
+        buildTestRebalanceRoute({
           origin: 'ethereum',
           destination: 'optimism',
           amount: ethers.utils.parseEther('200').toBigInt(),
@@ -684,7 +713,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -706,7 +735,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
@@ -734,7 +763,7 @@ describe('Rebalancer', () => {
         testLogger,
       );
 
-      const route = buildTestRoute();
+      const route = buildTestRebalanceRoute();
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
