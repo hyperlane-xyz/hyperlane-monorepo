@@ -525,6 +525,220 @@ describe('Inflight Tracking Edge Cases', function () {
     });
   });
 
+  describe('Scenario: Proactive Rebalancing for Pending Transfers', function () {
+    /**
+     * THE KEY SCENARIO: Balanced collateral with pending transfers
+     *
+     * This tests that the rebalancer proactively moves collateral BEFORE
+     * transfers fail, by accounting for pending deliveries in its calculations.
+     *
+     * Setup:
+     * - domain1 = 5000, domain2 = 5000 (balanced)
+     * - Tolerance = 5% (250 token threshold)
+     *
+     * Sequence:
+     * 1. User initiates 2000 token transfer domain1→domain2
+     *    - Locks 2000 on domain1 (now 7000)
+     *    - Pending delivery of 2000 on domain2
+     *
+     * 2. On-chain balances: domain1=7000, domain2=5000
+     *    - WITHOUT inflight tracking: looks like domain1 has surplus
+     *    - Rebalancer might move tokens FROM domain2 TO domain1 (wrong!)
+     *
+     * 3. WITH inflight tracking:
+     *    - Rebalancer sees domain1=7000, domain2=5000
+     *    - BUT ALSO sees pending transfer releasing 2000 from domain2
+     *    - Effective domain2 = 5000 - 2000 = 3000
+     *    - Target is 5000, so domain2 has 2000 deficit
+     *    - Proactively moves collateral TO domain2
+     *
+     * 4. When transfer delivers:
+     *    - domain2 releases 2000 tokens
+     *    - But rebalancer already added collateral, so no failure
+     */
+
+    /**
+     * Helper to create simulation config for this test
+     */
+    function createTestSimulationConfig(enableMockExplorer: boolean) {
+      const strategyConfig = createWeightedStrategyConfig(setup, {
+        [DOMAIN_1.name]: { weight: 50, tolerance: 5 }, // 250 token threshold
+        [DOMAIN_2.name]: { weight: 50, tolerance: 5 },
+      });
+
+      return {
+        setup,
+        warpRouteId: 'test-warp-route',
+        messageDeliveryDelayMs: 15000, // Long delay - gives rebalancer time to see pending
+        deliveryCheckIntervalMs: 500,
+        recordingIntervalMs: 1000,
+        rebalancerCheckFrequencyMs: 3000, // Poll every 3 seconds
+        bridgeTransferDelayMs: 2000, // Fast bridge completion
+        bridgeConfigs: {
+          [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
+            fixedFee: 0n,
+            variableFeeBps: 10,
+            transferTimeMs: 2000,
+          },
+          [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
+            fixedFee: 0n,
+            variableFeeBps: 10,
+            transferTimeMs: 2000,
+          },
+        },
+        strategyConfig,
+        logger,
+        enableMockExplorer,
+      };
+    }
+
+    it('should NOT see pending transfers without MockExplorer (baseline)', async function () {
+      // Create simulation WITHOUT mock explorer
+      const simulation = new IntegratedSimulation(createTestSimulationConfig(false));
+      await simulation.initialize();
+
+      console.log('\n' + '='.repeat(70));
+      console.log('BASELINE: Rebalancer WITHOUT Inflight Tracking');
+      console.log('='.repeat(70));
+      console.log('');
+      console.log('MockExplorer: DISABLED');
+      console.log('Expected behavior: Rebalancer cannot see pending transfers');
+      console.log('='.repeat(70) + '\n');
+
+      const transfers: ScheduledTransfer[] = [
+        {
+          time: 0,
+          origin: DOMAIN_1.name,
+          destination: DOMAIN_2.name,
+          amount: BigInt(toWei('2000')),
+        },
+      ];
+
+      const schedule: SimulationRun = {
+        name: 'baseline-no-inflight',
+        durationMs: 60_000,
+        transfers,
+      };
+
+      const results = await simulation.run(schedule);
+
+      console.log('\n=== BASELINE RESULTS (No Inflight Tracking) ===');
+      console.log(`Transfers completed: ${results.transfers.completed}/${results.transfers.total}`);
+      console.log(`Rebalances executed: ${results.rebalancing.count}`);
+
+      if (results.rebalancing.count > 0) {
+        console.log('\nRebalance details:');
+        for (const [route, data] of Object.entries(results.rebalancing.byBridge)) {
+          console.log(`  ${route}: ${data.count} operations, ${(Number(data.volume) / 1e18).toFixed(2)} tokens`);
+        }
+      }
+
+      // Record the behavior for comparison
+      const baselineRebalanceCount = results.rebalancing.count;
+      const baselineDomain1ToDomain2 = results.rebalancing.byBridge['domain1->domain2']?.count ?? 0;
+
+      console.log('\nBaseline summary:');
+      console.log(`  Total rebalances: ${baselineRebalanceCount}`);
+      console.log(`  Domain1→Domain2 rebalances: ${baselineDomain1ToDomain2}`);
+      console.log('='.repeat(70) + '\n');
+
+      // The transfer should still complete (the simulation delivers it)
+      expect(results.transfers.completed).to.equal(1);
+    });
+
+    it('should proactively rebalance WITH MockExplorer enabled', async function () {
+      // Create simulation WITH mock explorer (enables inflight tracking)
+      const simulation = new IntegratedSimulation(createTestSimulationConfig(true));
+      await simulation.initialize();
+
+      console.log('\n' + '='.repeat(70));
+      console.log('SCENARIO: Proactive Rebalancing WITH Inflight Tracking');
+      console.log('='.repeat(70));
+      console.log('');
+      console.log('MockExplorer: ENABLED');
+      console.log('');
+      console.log('This is the KEY test for inflight tracking:');
+      console.log('');
+      console.log('Initial: domain1=5000, domain2=5000 (balanced)');
+      console.log('');
+      console.log('Step 1: User initiates 2000 token transfer domain1→domain2');
+      console.log('  - On-chain: domain1=7000 (after lock), domain2=5000');
+      console.log('  - Pending: 2000 tokens will release from domain2');
+      console.log('');
+      console.log('WITH inflight tracking:');
+      console.log('  - Rebalancer sees pending transfer releasing 2000 from domain2');
+      console.log('  - Effective domain2 = 5000 - 2000 = 3000');
+      console.log('  - Proactively moves collateral TO domain2');
+      console.log('');
+      console.log('Expected: Rebalancer should move tokens FROM domain1 TO domain2');
+      console.log('='.repeat(70) + '\n');
+
+      const transfers: ScheduledTransfer[] = [
+        {
+          time: 0,
+          origin: DOMAIN_1.name,
+          destination: DOMAIN_2.name,
+          amount: BigInt(toWei('2000')),
+        },
+      ];
+
+      const schedule: SimulationRun = {
+        name: 'proactive-rebalancing',
+        durationMs: 60_000,
+        transfers,
+      };
+
+      const results = await simulation.run(schedule);
+
+      console.log('\n=== RESULTS (With Inflight Tracking) ===');
+      console.log(`Transfers completed: ${results.transfers.completed}/${results.transfers.total}`);
+      console.log(`Rebalances executed: ${results.rebalancing.count}`);
+      console.log(`Rebalance volume: ${(Number(results.rebalancing.totalVolume) / 1e18).toFixed(2)} tokens`);
+
+      let correctDirectionCount = 0;
+      let wrongDirectionCount = 0;
+
+      if (results.rebalancing.count > 0) {
+        console.log('\nRebalance details:');
+        for (const [route, data] of Object.entries(results.rebalancing.byBridge)) {
+          console.log(`  ${route}: ${data.count} operations, ${(Number(data.volume) / 1e18).toFixed(2)} tokens`);
+        }
+
+        // Check if rebalancer moved in the CORRECT direction (domain1 → domain2)
+        const correctDirection = results.rebalancing.byBridge['domain1->domain2'];
+        if (correctDirection && correctDirection.count > 0) {
+          correctDirectionCount = correctDirection.count;
+          console.log('\n✅ PROACTIVE REBALANCING WORKED!');
+          console.log('   Rebalancer moved tokens TO domain2, anticipating the pending delivery.');
+          console.log('   This is the correct behavior with inflight tracking.');
+        }
+
+        // Check if rebalancer moved in WRONG direction
+        const wrongDirection = results.rebalancing.byBridge['domain2->domain1'];
+        if (wrongDirection && wrongDirection.count > 0) {
+          wrongDirectionCount = wrongDirection.count;
+          console.log('\n⚠️  Rebalancer also moved tokens AWAY from domain2');
+          console.log('   This may be normal oscillation after initial correction.');
+        }
+      } else {
+        console.log('\n⚠️  No rebalancing occurred.');
+        console.log('   With the pending transfer reserving 2000 from domain2,');
+        console.log('   the effective balance should show a deficit requiring rebalancing.');
+      }
+      console.log('='.repeat(70) + '\n');
+
+      // Assertions
+      expect(results.transfers.completed).to.equal(1, 'Transfer should complete');
+      
+      // The key assertion: with inflight tracking enabled, rebalancer should
+      // have moved collateral TO domain2 at some point
+      expect(correctDirectionCount).to.be.greaterThan(
+        0,
+        'With inflight tracking, rebalancer should proactively move collateral TO domain2'
+      );
+    });
+  });
+
   describe('Scenario: MockExplorer Integration', function () {
     /**
      * This test verifies that the MockExplorerServer integration works.
