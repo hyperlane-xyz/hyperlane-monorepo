@@ -1,14 +1,8 @@
-import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
+import { U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import {
-  assert,
-  ensure0x,
-  isNullish,
-  isZeroishAddress,
-  strip0x,
-} from '@hyperlane-xyz/utils';
+import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
   getHookType,
@@ -58,6 +52,14 @@ import {
   AleoTokenType,
   type AleoTransaction,
 } from '../utils/types.js';
+import { getRemoteRouters } from '../warp/warp-query.js';
+import {
+  getEnrollRemoteRouterTx,
+  getSetTokenHookTx,
+  getSetTokenIsmTx,
+  getSetTokenOwnerTx,
+  getUnenrollRemoteRouterTx,
+} from '../warp/warp-tx.js';
 
 import { AleoBase } from './base.js';
 
@@ -412,63 +414,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoteRouters(
     req: AltVM.ReqGetRemoteRouters,
   ): Promise<AltVM.ResGetRemoteRouters> {
-    const { programId } = fromAleoAddress(req.tokenAddress);
-
-    const remoteRouters: {
-      receiverDomainId: number;
-      receiverAddress: string;
-      gas: string;
-    }[] = [];
-
-    try {
-      const routerLengthRes = await this.aleoClient.getProgramMappingValue(
-        programId,
-        'remote_router_length',
-        'true',
-      );
-
-      for (let i = 0; i < parseInt(routerLengthRes); i++) {
-        const routerKey = await this.aleoClient.getProgramMappingPlaintext(
-          programId,
-          'remote_router_iter',
-          `${i}u32`,
-        );
-
-        const remoteRouterValue = await this.aleoClient.getProgramMappingValue(
-          programId,
-          'remote_routers',
-          routerKey,
-        );
-
-        if (!remoteRouterValue) continue;
-
-        const remoteRouter = Plaintext.fromString(remoteRouterValue).toObject();
-
-        if (
-          remoteRouters.find(
-            (r) => r.receiverDomainId === Number(remoteRouter['domain']),
-          )
-        ) {
-          continue;
-        }
-
-        remoteRouters.push({
-          receiverDomainId: Number(remoteRouter['domain']),
-          receiverAddress: ensure0x(
-            Buffer.from(remoteRouter['recipient']).toString('hex'),
-          ),
-          gas: remoteRouter['gas'].toString(),
-        });
-      }
-    } catch {
-      throw new Error(
-        `Failed to find remote routers for token address: ${req.tokenAddress}`,
-      );
-    }
+    const remoteRouters = await getRemoteRouters(
+      this.aleoClient,
+      req.tokenAddress,
+    );
 
     return {
       address: req.tokenAddress,
-      remoteRouters,
+      remoteRouters: Object.entries(remoteRouters).map(([domainId, data]) => ({
+        gas: data.gas,
+        receiverAddress: data.address,
+        receiverDomainId: parseInt(domainId),
+      })),
     };
   }
 
@@ -861,84 +818,36 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenOwnerTransaction(
     req: AltVM.ReqSetTokenOwner,
   ): Promise<AleoTransaction> {
-    return {
-      programName: fromAleoAddress(req.tokenAddress).programId,
-      functionName: 'set_owner',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [req.newOwner],
-    };
+    return getSetTokenOwnerTx(req.tokenAddress, req.newOwner);
   }
 
   async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
-    // Handle zero address - use Aleo null address to unset ISM
-    const ismAddress =
-      isNullish(req.ismAddress) || isZeroishAddress(req.ismAddress)
-        ? ALEO_NULL_ADDRESS
-        : req.ismAddress;
-
-    return {
-      programName: fromAleoAddress(req.tokenAddress).programId,
-      functionName: 'set_custom_ism',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [fromAleoAddress(ismAddress).address],
-    };
+    return getSetTokenIsmTx(req.tokenAddress, req.ismAddress);
   }
 
   async getSetTokenHookTransaction(
     req: AltVM.ReqSetTokenHook,
   ): Promise<AleoTransaction> {
-    const hook =
-      !isNullish(req.hookAddress) && !isZeroishAddress(req.hookAddress)
-        ? fromAleoAddress(req.hookAddress).address
-        : ALEO_NULL_ADDRESS;
-
-    return {
-      programName: fromAleoAddress(req.tokenAddress).programId,
-      functionName: 'set_custom_hook',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [hook],
-    };
+    return getSetTokenHookTx(req.tokenAddress, req.hookAddress);
   }
 
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<AleoTransaction> {
-    const bytes = fillArray(
-      [...Buffer.from(strip0x(req.remoteRouter.receiverAddress), 'hex')].map(
-        (b) => `${b}u8`,
-      ),
-      32,
-      `0u8`,
+    return getEnrollRemoteRouterTx(
+      req.tokenAddress,
+      req.remoteRouter.receiverDomainId,
+      req.remoteRouter.receiverAddress,
+      req.remoteRouter.gas,
     );
-
-    return {
-      programName: fromAleoAddress(req.tokenAddress).programId,
-      functionName: 'enroll_remote_router',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [
-        `${req.remoteRouter.receiverDomainId}u32`,
-        arrayToPlaintext(bytes),
-        `${req.remoteRouter.gas}u128`,
-      ],
-    };
   }
 
   async getUnenrollRemoteRouterTransaction(
     req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<AleoTransaction> {
-    return {
-      programName: fromAleoAddress(req.tokenAddress).programId,
-      functionName: 'unroll_remote_router',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [`${req.receiverDomainId}u32`],
-    };
+    return getUnenrollRemoteRouterTx(req.tokenAddress, req.receiverDomainId);
   }
 
   //
