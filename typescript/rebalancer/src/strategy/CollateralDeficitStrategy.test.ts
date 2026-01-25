@@ -9,7 +9,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
+import type { RawBalances, StrategyRoute } from '../interfaces/IStrategy.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 
@@ -171,7 +171,7 @@ describe('CollateralDeficitStrategy', () => {
         [chain2]: 20_000_000n, // 20 USDC
       };
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
@@ -220,7 +220,7 @@ describe('CollateralDeficitStrategy', () => {
         [chain2]: 20_000_000n,
       };
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
@@ -265,7 +265,7 @@ describe('CollateralDeficitStrategy', () => {
         [chain2]: 20_000_000n,
       };
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
@@ -370,8 +370,8 @@ describe('CollateralDeficitStrategy', () => {
             destination: chain1,
             amount: 7_000_000n, // 7 USDC pending to chain1
           },
-        ] as RebalancingRoute[],
-        pendingRebalances: [] as RebalancingRoute[],
+        ] as StrategyRoute[],
+        pendingRebalances: [] as StrategyRoute[],
       };
 
       // After reserveCollateral: chain1 = 2 - 7 = -5 USDC (deficit)
@@ -420,8 +420,8 @@ describe('CollateralDeficitStrategy', () => {
             destination: chain1,
             amount: 15_000_000n, // 15 USDC pending to chain1
           },
-        ] as RebalancingRoute[],
-        pendingRebalances: [] as RebalancingRoute[],
+        ] as StrategyRoute[],
+        pendingRebalances: [] as StrategyRoute[],
       };
 
       // After reserveCollateral: chain1 = 5 - 15 = -10 USDC (deficit)
@@ -457,7 +457,7 @@ describe('CollateralDeficitStrategy', () => {
         bridges,
       );
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
@@ -507,7 +507,7 @@ describe('CollateralDeficitStrategy', () => {
 
       // Route from chain2 → chain1 with chain2's bridge (origin bridge)
       // This should be INCLUDED because bridge matches origin's configured bridges
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
@@ -541,7 +541,7 @@ describe('CollateralDeficitStrategy', () => {
 
       // Route from chain2 → chain1 with chain1's bridge (destination bridge)
       // This should be EXCLUDED because bridge doesn't match origin's (chain2's) bridges
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,

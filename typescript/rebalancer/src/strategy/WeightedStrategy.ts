@@ -10,7 +10,7 @@ import {
 import type {
   InflightContext,
   RawBalances,
-  RebalancingRoute,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
@@ -75,8 +75,8 @@ export class WeightedStrategy extends BaseStrategy {
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    pendingRebalances?: RebalancingRoute[],
-    proposedRebalances?: RebalancingRoute[],
+    pendingRebalances?: StrategyRoute[],
+    proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
@@ -129,7 +129,7 @@ export class WeightedStrategy extends BaseStrategy {
   getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[] {
+  ): StrategyRoute[] {
     const routes = super.getRebalancingRoutes(rawBalances, inflightContext);
 
     // Set bridge field on each route using first configured bridge for the origin

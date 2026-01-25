@@ -3,8 +3,7 @@ import type { Address } from '@hyperlane-xyz/utils';
 
 export type RawBalances = ChainMap<bigint>;
 
-// TODO: rename to StrategyRoute, use domain ids for origin/destination
-export type RebalancingRoute = {
+export type StrategyRoute = {
   origin: ChainName;
   destination: ChainName;
   amount: bigint;
@@ -13,11 +12,11 @@ export type RebalancingRoute = {
 
 export type InflightContext = {
   /** In-progress rebalance intents (origin tx confirmed, balance already deducted on-chain) */
-  pendingRebalances: RebalancingRoute[];
+  pendingRebalances: StrategyRoute[];
   /** Pending user transfers that need collateral reserved */
-  pendingTransfers: RebalancingRoute[];
+  pendingTransfers: StrategyRoute[];
   /** Routes from earlier strategies in same cycle (not yet executed, for CompositeStrategy) */
-  proposedRebalances?: RebalancingRoute[];
+  proposedRebalances?: StrategyRoute[];
 };
 
 export interface IStrategy {
@@ -25,5 +24,5 @@ export interface IStrategy {
   getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[];
+  ): StrategyRoute[];
 }

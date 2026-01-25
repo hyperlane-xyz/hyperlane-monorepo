@@ -22,7 +22,7 @@ import { ProtocolType, tryFn } from '@hyperlane-xyz/utils';
 
 import { type IMetrics } from '../interfaces/IMetrics.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
-import { type RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type StrategyRoute } from '../interfaces/IStrategy.js';
 
 import { type PriceGetter } from './PriceGetter.js';
 import {
@@ -66,10 +66,7 @@ export class Metrics implements IMetrics {
       .inc();
   }
 
-  recordRebalanceAmount(
-    route: RebalancingRoute,
-    originTokenAmount: TokenAmount,
-  ) {
+  recordRebalanceAmount(route: StrategyRoute, originTokenAmount: TokenAmount) {
     rebalancerExecutionAmount
       .labels({
         warp_route_id: this.warpRouteId,
@@ -92,7 +89,7 @@ export class Metrics implements IMetrics {
       .inc();
   }
 
-  recordIntentCreated(route: RebalancingRoute, strategy: string) {
+  recordIntentCreated(route: StrategyRoute, strategy: string) {
     rebalancerIntentsCreatedTotal
       .labels({
         warp_route_id: this.warpRouteId,
@@ -103,7 +100,7 @@ export class Metrics implements IMetrics {
       .inc();
   }
 
-  recordActionAttempt(route: RebalancingRoute, succeeded: boolean) {
+  recordActionAttempt(route: StrategyRoute, succeeded: boolean) {
     rebalancerActionsCreatedTotal
       .labels({
         warp_route_id: this.warpRouteId,

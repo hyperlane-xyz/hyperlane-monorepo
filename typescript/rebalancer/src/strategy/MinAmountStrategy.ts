@@ -10,7 +10,7 @@ import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
-import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
+import type { RawBalances, StrategyRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -80,8 +80,8 @@ export class MinAmountStrategy extends BaseStrategy {
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    pendingRebalances?: RebalancingRoute[],
-    proposedRebalances?: RebalancingRoute[],
+    pendingRebalances?: StrategyRoute[],
+    proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];

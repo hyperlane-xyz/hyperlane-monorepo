@@ -7,7 +7,7 @@ import type {
   IStrategy,
   InflightContext,
   RawBalances,
-  RebalancingRoute,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
@@ -45,7 +45,7 @@ export abstract class BaseStrategy implements IStrategy {
   getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[] {
+  ): StrategyRoute[] {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
     const proposedRebalances = inflightContext?.proposedRebalances ?? [];
@@ -158,7 +158,7 @@ export abstract class BaseStrategy implements IStrategy {
     surpluses.sort((a, b) => (a.amount > b.amount ? -1 : 1));
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: RebalancingRoute[] = [];
+    const routes: StrategyRoute[] = [];
 
     // Transfer from surplus to deficit until all deficits are balanced.
     while (deficits.length > 0 && surpluses.length > 0) {
@@ -241,8 +241,8 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected abstract getCategorizedBalances(
     balances: RawBalances,
-    pendingRebalances?: RebalancingRoute[],
-    proposedRebalances?: RebalancingRoute[],
+    pendingRebalances?: StrategyRoute[],
+    proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
@@ -282,7 +282,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected reserveCollateral(
     rawBalances: RawBalances,
-    pendingTransfers: RebalancingRoute[],
+    pendingTransfers: StrategyRoute[],
   ): RawBalances {
     if (pendingTransfers.length === 0) {
       return rawBalances;
@@ -333,7 +333,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected simulatePendingRebalances(
     rawBalances: RawBalances,
-    pendingRebalances: RebalancingRoute[],
+    pendingRebalances: StrategyRoute[],
   ): RawBalances {
     if (pendingRebalances.length === 0) {
       return rawBalances;
@@ -385,7 +385,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected simulateProposedRebalances(
     rawBalances: RawBalances,
-    proposedRebalances: RebalancingRoute[],
+    proposedRebalances: StrategyRoute[],
   ): RawBalances {
     if (proposedRebalances.length === 0) {
       return rawBalances;
@@ -439,9 +439,9 @@ export abstract class BaseStrategy implements IStrategy {
    * @returns Filtered routes that can actually be executed
    */
   protected filterRebalances(
-    routes: RebalancingRoute[],
+    routes: StrategyRoute[],
     actualBalances: RawBalances,
-  ): RebalancingRoute[] {
+  ): StrategyRoute[] {
     return routes.filter((route) => {
       const balance = actualBalances[route.origin] ?? 0n;
       const hasSufficientBalance = balance >= route.amount;

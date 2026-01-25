@@ -11,7 +11,7 @@ import {
 import type {
   InflightContext,
   RawBalances,
-  RebalancingRoute,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 
@@ -57,8 +57,8 @@ export class CollateralDeficitStrategy extends BaseStrategy {
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    pendingRebalances?: RebalancingRoute[],
-    proposedRebalances?: RebalancingRoute[],
+    pendingRebalances?: StrategyRoute[],
+    proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
@@ -148,7 +148,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   override getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[] {
+  ): StrategyRoute[] {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
 
@@ -234,7 +234,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     // Sort deficits by amount (largest first)
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: RebalancingRoute[] = [];
+    const routes: StrategyRoute[] = [];
 
     // Match surpluses to deficits
     while (deficits.length > 0 && surpluses.length > 0) {
@@ -289,8 +289,8 @@ export class CollateralDeficitStrategy extends BaseStrategy {
    * - It has no bridge (recovered from Explorer, can't verify - include to be safe)
    */
   private filterByConfiguredBridges(
-    pendingRebalances?: RebalancingRoute[],
-  ): RebalancingRoute[] {
+    pendingRebalances?: StrategyRoute[],
+  ): StrategyRoute[] {
     if (!pendingRebalances || pendingRebalances.length === 0) {
       return [];
     }
@@ -315,7 +315,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
    * This identifies which surplus chains are "natural" sources for each deficit.
    */
   private buildTransferOriginMap(
-    pendingTransfers: RebalancingRoute[],
+    pendingTransfers: StrategyRoute[],
     deficitChains: Set<ChainName>,
   ): Map<ChainName, Set<ChainName>> {
     const originMap = new Map<ChainName, Set<ChainName>>();
