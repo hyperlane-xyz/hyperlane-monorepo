@@ -3,6 +3,7 @@ import type { Address } from '@hyperlane-xyz/utils';
 
 export type RawBalances = ChainMap<bigint>;
 
+// TODO: rename to StrategyRoute, use domain ids for origin/destination
 export type RebalancingRoute = {
   origin: ChainName;
   destination: ChainName;
