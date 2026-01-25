@@ -7,6 +7,7 @@ import { eqAddressAleo, strip0x } from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
+  ALEO_NULL_ADDRESS,
   arrayToPlaintext,
   fillArray,
   fromAleoAddress,
@@ -190,11 +191,15 @@ export async function getWarpTokenUpdateTxs<
   const updateTxs: AnnotatedAleoTransaction[] = [];
 
   // Update ISM if changed
-  const currentIsm = currentConfig.interchainSecurityModule?.deployed.address;
-  const newIsm = expectedConfig.interchainSecurityModule?.deployed.address;
+  const currentIsm =
+    currentConfig.interchainSecurityModule?.deployed.address ??
+    ALEO_NULL_ADDRESS;
+  const newIsm =
+    expectedConfig.interchainSecurityModule?.deployed.address ??
+    ALEO_NULL_ADDRESS;
 
-  if (!eqAddressAleo(currentIsm ?? '', newIsm ?? '')) {
-    const setIsmTx = getSetTokenIsmTx(deployed.address, newIsm ?? '');
+  if (!eqAddressAleo(currentIsm, newIsm)) {
+    const setIsmTx = getSetTokenIsmTx(deployed.address, newIsm);
     updateTxs.push({
       annotation: 'Updating token ISM',
       ...setIsmTx,
