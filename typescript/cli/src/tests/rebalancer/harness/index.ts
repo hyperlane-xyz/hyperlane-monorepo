@@ -114,7 +114,4 @@ export {
   createMockMessageFromDispatch,
   type MockMessage,
   MockExplorerServer,
-  // Backward compatibility exports
-  createInflightMessage,
-  type InflightMessage,
 } from './mock-explorer.js';

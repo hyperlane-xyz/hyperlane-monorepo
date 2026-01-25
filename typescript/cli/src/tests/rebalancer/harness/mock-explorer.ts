@@ -4,8 +4,7 @@ import type { Address } from '@hyperlane-xyz/utils';
 
 /**
  * Message structure matching the ExplorerClient's ExplorerMessage type.
- * All hex values should be in PostgreSQL bytea format (\\x prefix) for storage,
- * and will be normalized to 0x format in responses.
+ * All hex values should be stored in 0x format internally.
  */
 export interface MockMessage {
   msgId: string;
@@ -18,8 +17,6 @@ export interface MockMessage {
   originTxRecipient?: Address;
   messageBody: string;
   isDelivered: boolean;
-  /** @deprecated Use isDelivered instead. Provided for backward compatibility. */
-  status?: 'pending' | 'delivered';
 }
 
 /**
@@ -85,32 +82,9 @@ export class MockExplorerServer {
   /**
    * Add an inflight message from a warp transfer.
    * This should be called when a Dispatch event is detected.
-   * Also accepts legacy InflightMessage format for backward compatibility.
    */
-  addMessage(message: MockMessage | InflightMessage): void {
-    // Convert InflightMessage to MockMessage if needed
-    if ('originChainId' in message && !('isDelivered' in message)) {
-      const legacyMsg = message as InflightMessage;
-      this.messages.push({
-        msgId: legacyMsg.msgId,
-        originDomainId: legacyMsg.originDomainId,
-        destinationDomainId: legacyMsg.destinationDomainId,
-        sender: legacyMsg.sender,
-        recipient: legacyMsg.recipient,
-        originTxHash: `0x${'0'.repeat(64)}`, // Placeholder
-        originTxSender: legacyMsg.sender, // Use sender as tx sender
-        messageBody: '0x', // Placeholder
-        isDelivered: legacyMsg.status === 'delivered',
-        status: legacyMsg.status, // For backward compatibility
-      });
-    } else {
-      const msg = message as MockMessage;
-      // Ensure status field is set for backward compatibility
-      if (!msg.status) {
-        msg.status = msg.isDelivered ? 'delivered' : 'pending';
-      }
-      this.messages.push(msg);
-    }
+  addMessage(message: MockMessage): void {
+    this.messages.push(message);
   }
 
   /**
@@ -121,7 +95,6 @@ export class MockExplorerServer {
     const message = this.messages.find((m) => m.msgId === msgId);
     if (message) {
       message.isDelivered = true;
-      message.status = 'delivered'; // For backward compatibility
     }
   }
 
@@ -140,14 +113,7 @@ export class MockExplorerServer {
   }
 
   /**
-   * Set all messages (replaces existing).
-   */
-  setMessages(messages: MockMessage[]): void {
-    this.messages = [...messages];
-  }
-
-  /**
-   * Get current messages.
+   * Get current messages (returns a copy).
    */
   getMessages(): MockMessage[] {
     return [...this.messages];
@@ -169,12 +135,12 @@ export class MockExplorerServer {
     });
   }
 
-/**
- * Convert address to PostgreSQL bytea format for comparison.
- */
-private toBytea(addr: string): string {
-  return addr.replace(/^0x/i, '\\x').toLowerCase();
-}
+  /**
+   * Convert address to PostgreSQL bytea format for comparison.
+   */
+  private toBytea(addr: string): string {
+    return addr.replace(/^0x/i, '\\x').toLowerCase();
+  }
 
   /**
    * Check if two addresses match (handles both 0x and \\x formats).
@@ -457,52 +423,5 @@ export function createMockMessageFromDispatch(params: {
     originTxRecipient: params.originTxRecipient,
     messageBody: params.messageBody,
     isDelivered: false,
-    status: 'pending', // For backward compatibility
-  };
-}
-
-// ============================================================================
-// Backward compatibility types and helpers
-// ============================================================================
-
-/**
- * @deprecated Use MockMessage instead
- */
-export interface InflightMessage {
-  msgId: string;
-  originChainId: number;
-  originDomainId: number;
-  destinationChainId: number;
-  destinationDomainId: number;
-  sender: Address;
-  recipient: Address;
-  amount?: bigint;
-  status: 'pending' | 'delivered';
-}
-
-/**
- * @deprecated Use createMockMessageFromDispatch instead
- */
-export function createInflightMessage(params: {
-  msgId?: string;
-  originChainId: number;
-  originDomainId: number;
-  destinationChainId: number;
-  destinationDomainId: number;
-  sender: Address;
-  recipient: Address;
-  amount?: bigint;
-  status?: 'pending' | 'delivered';
-}): InflightMessage {
-  return {
-    msgId: params.msgId ?? `0x${Math.random().toString(16).slice(2)}`,
-    originChainId: params.originChainId,
-    originDomainId: params.originDomainId,
-    destinationChainId: params.destinationChainId,
-    destinationDomainId: params.destinationDomainId,
-    sender: params.sender,
-    recipient: params.recipient,
-    amount: params.amount,
-    status: params.status ?? 'pending',
   };
 }
