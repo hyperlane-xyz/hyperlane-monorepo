@@ -167,25 +167,91 @@ The `getMultiProvider('rebalancer', true)` function configures per-chain signers
 
 ## Running Tests
 
+All tests are run from the CLI package directory:
+
 ```bash
 cd /home/nam/repos/hyperlane-monorepo/typescript/cli
-
-# Smoke test (~17s)
-pnpm exec mocha --loader tsx --timeout 60000 --grep "Smoke" \
-  src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts
-
-# Comparison test (with vs without rebalancer)
-pnpm exec mocha --loader tsx --timeout 300000 --grep "should demonstrate" \
-  src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts
-
-# Stress test (50 transfers)
-pnpm exec mocha --loader tsx --timeout 300000 --grep "should handle 50 transfers" \
-  src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts
-
-# Multi-chain test (3 domains)
-pnpm exec mocha --loader tsx --timeout 180000 --grep "should handle 3-domain traffic" \
-  src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts
 ```
+
+### Quick Start
+
+```bash
+# Build first (required after changes)
+pnpm build
+
+# Run the smoke test (~15-20s)
+pnpm exec mocha --config .mocharc.json --timeout 60000 --grep "Smoke" \
+  'src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts'
+```
+
+### Integrated Simulation Tests
+
+```bash
+# Smoke test (~15-20s)
+pnpm exec mocha --config .mocharc.json --timeout 60000 --grep "Smoke" \
+  'src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts'
+
+# Comparison test - with vs without rebalancer (~2-3min)
+pnpm exec mocha --config .mocharc.json --timeout 300000 --grep "should demonstrate" \
+  'src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts'
+
+# Stress test - 50 transfers with phase changes (~2min)
+pnpm exec mocha --config .mocharc.json --timeout 300000 --grep "should handle 50 transfers" \
+  'src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts'
+
+# Multi-chain test - 3 domains (~1-2min)
+pnpm exec mocha --config .mocharc.json --timeout 180000 --grep "should handle 3-domain traffic" \
+  'src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts'
+```
+
+### Inflight Tracking Tests
+
+These tests demonstrate inflight tracking scenarios:
+
+```bash
+# Pending transfer blocks subsequent transfer
+pnpm exec mocha --config .mocharc.json --timeout 300000 --grep "Pending Transfer Blocks" \
+  'src/tests/rebalancer/simulation/v2/inflight-tracking.e2e-test.ts'
+
+# Multiple transfers exhaust collateral  
+pnpm exec mocha --config .mocharc.json --timeout 300000 --grep "Multiple Pending Transfers" \
+  'src/tests/rebalancer/simulation/v2/inflight-tracking.e2e-test.ts'
+
+# MockExplorer integration test
+pnpm exec mocha --config .mocharc.json --timeout 300000 --grep "MockExplorer Integration" \
+  'src/tests/rebalancer/simulation/v2/inflight-tracking.e2e-test.ts'
+```
+
+### Scenario Tests (Traffic Patterns + Route Delivery)
+
+```bash
+# Asymmetric route delivery timing
+pnpm exec mocha --config .mocharc.json --timeout 180000 --grep "asymmetric route delivery" \
+  'src/tests/rebalancer/simulation/v2/scenario-tests.e2e-test.ts'
+
+# High variance delivery timing
+pnpm exec mocha --config .mocharc.json --timeout 180000 --grep "high variance delivery" \
+  'src/tests/rebalancer/simulation/v2/scenario-tests.e2e-test.ts'
+```
+
+### Run All Tests
+
+```bash
+# All integrated simulation tests
+pnpm exec mocha --config .mocharc.json --timeout 300000 \
+  'src/tests/rebalancer/simulation/v2/integrated-simulation.e2e-test.ts'
+
+# All inflight tracking tests
+pnpm exec mocha --config .mocharc.json --timeout 600000 \
+  'src/tests/rebalancer/simulation/v2/inflight-tracking.e2e-test.ts'
+```
+
+### Troubleshooting
+
+1. **Tests timeout**: Increase `--timeout` value
+2. **Port 8545 in use**: Kill any existing anvil processes: `pkill anvil`
+3. **Build errors**: Run `pnpm build` in the cli directory first
+4. **Nonce errors**: Usually means a previous test didn't clean up; restart anvil
 
 ## Test Scenarios
 
@@ -212,42 +278,54 @@ pnpm exec mocha --loader tsx --timeout 180000 --grep "should handle 3-domain tra
 
 ## Known Limitations
 
-### Inflight Message Tracking
+### Inflight Message Tracking (Now Supported!)
 
-The rebalancer's `ActionTracker` uses `ExplorerClient` to track inflight messages (pending user transfers and rebalance actions). In the simulation:
+The rebalancer's `ActionTracker` uses `ExplorerClient` to track inflight messages. The simulation now supports this via `MockExplorerServer`:
 
-1. **No Local Explorer** - The simulation runs on a local Anvil instance with no Explorer indexer. The ExplorerClient queries the production Explorer URL which doesn't see local transactions.
+```typescript
+const simulation = new IntegratedSimulation({
+  // ... other config
+  enableMockExplorer: true, // Enable mock explorer integration
+});
+```
 
-2. **Current Behavior** - The ActionTracker's sync operations return empty results:
-   - `syncTransfers()` finds no inflight user transfers
-   - `syncRebalanceActions()` finds no inflight rebalance actions
-   - The strategy receives empty `inflightContext`
+When enabled:
+- `MockExplorerServer` starts and provides a local GraphQL endpoint
+- Transfer Dispatch events are tracked automatically
+- ActionTracker queries the mock explorer and sees pending transfers
+- Strategy reserves collateral for pending deliveries
 
-3. **Why This Matters** - The strategy's `reserveCollateral()` method reserves collateral on destination chains for pending transfers. Without this:
-   - The rebalancer doesn't know about pending transfers that will RELEASE collateral on delivery
-   - May not move collateral to a domain that will soon be drained
-   - Subsequent transfers to that domain will fail
+When disabled (default):
+- ActionTracker queries production Explorer (finds nothing local)
+- Strategy receives empty `inflightContext`
+- Rebalancer operates only on on-chain balances (reactive mode)
 
-4. **Demonstrated Issue** - See `inflight-tracking.e2e-test.ts` for concrete examples:
-   ```
-   Scenario: 10 transfers of 600 tokens each (6000 total) to domain2
-   - domain2 has 5000 tokens
-   - Without inflight tracking: Rebalancer sees domain2 has "enough"
-   - Transfers 1-8 deliver successfully, domain2 drops to 200 tokens
-   - Transfers 9-10 FAIL: insufficient collateral
-   
-   With inflight tracking:
-   - Rebalancer would see 6000 tokens of pending deliveries
-   - Would move 1000+ tokens to domain2 proactively
-   - All 10 transfers would succeed
-   ```
+### Demonstrated Issue (Without Inflight Tracking)
 
-### Future Improvements
+See `inflight-tracking.e2e-test.ts` for concrete examples:
 
-A `MockExplorerClient` could be implemented to:
-- Track Dispatch events from the local Anvil instance
-- Provide accurate inflight context to the strategy
-- Enable testing of the ActionTracker's proactive behavior
+```
+Scenario: 10 transfers of 600 tokens each (6000 total) to domain2
+- domain2 has 5000 tokens
+- Without inflight tracking: Rebalancer sees domain2 has "enough"
+- Transfers 1-8 deliver successfully, domain2 drops to 200 tokens
+- Transfers 9-10 FAIL: insufficient collateral
+
+With inflight tracking (enableMockExplorer: true):
+- Rebalancer sees 6000 tokens of pending deliveries
+- Reserves collateral for pending transfers
+- Would move 1000+ tokens to domain2 proactively (if strategy threshold met)
+```
+
+### Other Limitations
+
+1. **Single Anvil Instance** - All domains run on one Anvil, which means:
+   - Block timestamps are shared (no true multi-chain time simulation)
+   - Reorg simulation not possible
+
+2. **Bridge Simulation** - `SimulatedTokenBridge` is synchronous (no actual cross-chain messaging)
+
+3. **No Gas Price Variation** - All transactions use default gas pricing
 
 ## File Structure
 
@@ -255,6 +333,7 @@ A `MockExplorerClient` could be implemented to:
 typescript/cli/src/tests/rebalancer/
 ├── harness/
 │   ├── setup.ts                    # Contract deployment, multi-signer config
+│   ├── mock-explorer.ts            # MockExplorerServer for inflight tracking
 │   └── index.ts                    # Exports (DOMAIN_1-4, signers, etc.)
 ├── simulation/
 │   ├── README.md                   # This file
@@ -266,8 +345,171 @@ typescript/cli/src/tests/rebalancer/
 │       ├── TrafficPatterns.ts
 │       ├── types.ts
 │       ├── integrated-simulation.e2e-test.ts
+│       ├── inflight-tracking.e2e-test.ts
+│       ├── scenario-tests.e2e-test.ts
 │       └── ...
 
 solidity/contracts/mock/
 └── SimulatedTokenBridge.sol        # Mock bridge contract for simulation
 ```
+
+## Extending the Harness
+
+### Adding New Test Scenarios
+
+1. **Create a new test file** in `simulation/v2/`:
+
+```typescript
+// my-scenario.e2e-test.ts
+import { expect } from 'chai';
+import { pino } from 'pino';
+import { toWei } from '@hyperlane-xyz/utils';
+
+import {
+  DOMAIN_1, DOMAIN_2,
+  createRebalancerTestSetup,
+  startAnvil,
+} from '../../harness/index.js';
+import {
+  IntegratedSimulation,
+  createWeightedStrategyConfig,
+} from './IntegratedSimulation.js';
+import type { SimulationRun, ScheduledTransfer } from './types.js';
+
+const logger = pino({ level: 'info' });
+
+describe('My Scenario', function () {
+  this.timeout(300_000);
+  
+  let anvil, setup, baseSnapshot;
+  
+  before(async function () {
+    anvil = await startAnvil(8545, logger);
+    setup = await createRebalancerTestSetup({
+      collateralDomains: [DOMAIN_1, DOMAIN_2],
+      syntheticDomains: [],
+      initialCollateral: BigInt(toWei('5000')),
+      logger,
+      simulatedBridge: { fixedFee: 0n, variableFeeBps: 10 },
+    });
+    baseSnapshot = await setup.createSnapshot();
+  });
+  
+  after(async () => anvil?.stop());
+  afterEach(async () => {
+    await setup.restoreSnapshot(baseSnapshot);
+    baseSnapshot = await setup.createSnapshot();
+  });
+  
+  it('should test my scenario', async function () {
+    const strategyConfig = createWeightedStrategyConfig(setup, {
+      [DOMAIN_1.name]: { weight: 50, tolerance: 5 },
+      [DOMAIN_2.name]: { weight: 50, tolerance: 5 },
+    });
+    
+    const simulation = new IntegratedSimulation({
+      setup,
+      warpRouteId: 'test-warp-route',
+      messageDeliveryDelayMs: 2000,
+      deliveryCheckIntervalMs: 500,
+      recordingIntervalMs: 1000,
+      rebalancerCheckFrequencyMs: 3000,
+      bridgeTransferDelayMs: 3000,
+      bridgeConfigs: { /* ... */ },
+      strategyConfig,
+      logger,
+      enableMockExplorer: true, // Enable inflight tracking
+    });
+    
+    await simulation.initialize();
+    
+    const schedule: SimulationRun = {
+      name: 'my-scenario',
+      durationMs: 60_000,
+      transfers: [/* your transfers */],
+    };
+    
+    const results = await simulation.run(schedule);
+    expect(results.transfers.completed).to.equal(results.transfers.total);
+  });
+});
+```
+
+2. **Run your test**:
+```bash
+pnpm exec mocha --config .mocharc.json --timeout 300000 --grep "my scenario" \
+  'src/tests/rebalancer/simulation/v2/my-scenario.e2e-test.ts'
+```
+
+### Adding New Traffic Patterns
+
+Edit `TrafficPatterns.ts` to add new patterns:
+
+```typescript
+export const trafficPatterns = {
+  // Existing patterns...
+  
+  myPattern: (config: TrafficPatternConfig): ScheduledTransfer[] => {
+    const transfers: ScheduledTransfer[] = [];
+    // Generate your transfer schedule
+    return transfers;
+  },
+};
+```
+
+### Adding New Route Delivery Configurations
+
+Edit `types.ts` to add new presets:
+
+```typescript
+export const ROUTE_DELIVERY_PRESETS = {
+  // Existing presets...
+  
+  myPreset: (chains: string[]): RouteDeliveryConfigs => {
+    const configs: RouteDeliveryConfigs = {};
+    for (const origin of chains) {
+      for (const dest of chains) {
+        if (origin !== dest) {
+          configs[`${origin}-${dest}`] = {
+            delayMs: 5000,      // Base delay
+            varianceMs: 2000,   // Random variance ±2s
+          };
+        }
+      }
+    }
+    return configs;
+  },
+};
+```
+
+### Customizing the MockExplorerServer
+
+If you need custom explorer behavior, you can access it via the simulation:
+
+```typescript
+// The MockExplorerServer is created internally when enableMockExplorer=true
+// It tracks transfers automatically via trackTransferInMockExplorer()
+
+// To manually add messages (for advanced scenarios):
+import { MockExplorerServer, createMockMessageFromDispatch } from '../../harness/mock-explorer.js';
+
+const explorer = await MockExplorerServer.create();
+explorer.addMessage(createMockMessageFromDispatch({
+  messageId: '0x...',
+  originDomainId: 1,
+  destinationDomainId: 2,
+  sender: '0x...',
+  recipient: '0x...',
+  originTxHash: '0x...',
+  originTxSender: '0x...',
+  messageBody: '0x...',
+}));
+```
+
+### Adding More Domains
+
+The harness supports up to 4 domains by default (DOMAIN_1 through DOMAIN_4). To add more:
+
+1. Add new domain configs in `harness/setup.ts`
+2. Add corresponding per-domain rebalancer signers in `ANVIL_KEYS`
+3. Update `getMultiProvider()` to support the new domains

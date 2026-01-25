@@ -262,7 +262,17 @@ typescript/cli/src/tests/rebalancer/
   - All per-domain signers registered as authorized rebalancers on warp routes
 
 ### 📋 TODO
-- [ ] Handle rebalancer's bridge transfer tracking (via ExplorerClient mock or local tracking)
+- [ ] Test with more complex multi-domain scenarios (4+ domains)
+- [ ] Add bridge failure simulation (test rebalancer behavior when bridges fail)
+- [ ] Enhanced metrics and reporting dashboards
+
+### ✅ Recently Completed (January 2026)
+- [x] **MockExplorerServer integration for inflight tracking**
+  - `MockExplorerServer` handles real GraphQL queries from `ExplorerClient`
+  - Tracks Dispatch events and provides inflight context to ActionTracker
+  - `enableMockExplorer: true` in `IntegratedSimulationConfig` to enable
+  - Messages marked as delivered when `Mailbox.process()` completes
+  - Strategy now reserves collateral for pending transfers
 
 ## Test Scenarios
 
@@ -289,8 +299,8 @@ typescript/cli/src/tests/rebalancer/
 2. ~~**Bridge registration** - How does the warp route know which bridges are allowed?~~
    - **RESOLVED**: We register bridges via `addBridge()` on each collateral warp route during setup.
 
-3. **Explorer dependency** - The real RebalancerService uses ExplorerClient for inflight message tracking. 
-   - **STATUS**: Currently using default production Explorer URL. For local testing, the ActionTracker may not find messages since there's no local indexer. This means inflight context will be empty, but the core rebalancing logic still works based on on-chain balances.
+3. ~~**Explorer dependency** - The real RebalancerService uses ExplorerClient for inflight message tracking.~~
+   - **RESOLVED**: Implemented `MockExplorerServer` that tracks local Dispatch events and provides inflight context to ActionTracker. Enable via `enableMockExplorer: true` in simulation config.
 
 4. ~~**Nonce conflicts** - Multiple simulation components sending transactions concurrently caused nonce issues.~~
    - **RESOLVED**: Implemented multi-signer architecture with separate wallets for each role (deployer, traffic, rebalancer, bridge, relayer).
@@ -299,6 +309,41 @@ typescript/cli/src/tests/rebalancer/
    - **RESOLVED**: Updated `SimulatedTokenBridge` to accept both origin and destination token addresses. On `completeTransfer()`, it mints destination tokens to the recipient (simulating cross-chain delivery).
 
 ## Recent Fixes (January 2026)
+
+### MockExplorerServer Integration
+The simulation now supports inflight message tracking via a local mock explorer:
+
+```typescript
+const simulation = new IntegratedSimulation({
+  // ... other config
+  enableMockExplorer: true, // Enable mock explorer integration
+});
+```
+
+When enabled:
+- `MockExplorerServer` starts on a random port
+- Tracks Dispatch events when transfers are executed
+- Responds to GraphQL queries from `ExplorerClient`
+- ActionTracker sees pending transfers and reserves collateral
+- Messages marked delivered when `Mailbox.process()` completes
+
+Architecture:
+```
+┌─────────────────────────────────────────────────────────────────────────┐
+│                      IntegratedSimulation                                │
+│  - Creates MockExplorerServer (if enableMockExplorer=true)              │
+│  - Tracks Dispatch events → adds to MockExplorer                        │
+│  - Marks messages delivered after mailbox.process()                     │
+└─────────────────────────────────────────────────────────────────────────┘
+         │                           │
+         ▼                           ▼
+┌────────────────────┐    ┌──────────────────────────────────────────────┐
+│  MockExplorerServer │    │  RebalancerService                           │
+│  (GraphQL server)   │◄───│  - ActionTracker queries MockExplorer        │
+│                     │    │  - Sees pending transfers                    │
+│  - Filters messages │    │  - Strategy reserves collateral              │
+└────────────────────┘    └──────────────────────────────────────────────┘
+```
 
 ### Multi-Signer Architecture
 The simulation now uses separate Anvil accounts for different roles to avoid nonce conflicts:

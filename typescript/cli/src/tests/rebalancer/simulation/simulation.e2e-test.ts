@@ -5,7 +5,7 @@
  * configurations and compare their performance.
  */
 import { expect } from 'chai';
-import pino from 'pino';
+import { pino } from 'pino';
 
 import { WeightedStrategy } from '@hyperlane-xyz/rebalancer';
 import { toWei } from '@hyperlane-xyz/utils';

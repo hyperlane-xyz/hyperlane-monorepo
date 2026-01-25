@@ -550,7 +550,7 @@ export async function createRebalancerTestSetup(
         // Deploy MockValueTransferBridge (instant completion, no fees)
         const bridge = await new MockValueTransferBridge__factory(
           signer,
-        ).deploy(tokenAddress);
+        ).deploy(originTokenAddress);
         await bridge.deployed();
         bridgeAddress = bridge.address;
       }

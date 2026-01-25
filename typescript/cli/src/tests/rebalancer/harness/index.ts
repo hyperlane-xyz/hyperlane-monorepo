@@ -109,9 +109,12 @@ export {
   simulateCrashAt,
 } from './phases.js';
 
-// Mock explorer (keep for inflight testing)
+// Mock explorer for inflight message tracking
 export {
+  createMockMessageFromDispatch,
+  type MockMessage,
+  MockExplorerServer,
+  // Backward compatibility exports
   createInflightMessage,
   type InflightMessage,
-  MockExplorerServer,
 } from './mock-explorer.js';

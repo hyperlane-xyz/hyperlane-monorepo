@@ -10,6 +10,7 @@
  * - Traffic generator executes real warp route transfers
  * - Message delivery simulates Hyperlane relayer
  * - Bridge completion simulates external bridge finality
+ * - MockExplorerServer provides inflight message tracking
  */
 import type { Logger } from 'pino';
 
@@ -21,9 +22,13 @@ import {
   RebalancerStrategyOptions,
   type StrategyConfig,
 } from '@hyperlane-xyz/rebalancer';
-import { MultiProtocolProvider, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
+import { MultiProtocolProvider } from '@hyperlane-xyz/sdk';
 import { sleep, type Address } from '@hyperlane-xyz/utils';
 
+import {
+  createMockMessageFromDispatch,
+  MockExplorerServer,
+} from '../../harness/mock-explorer.js';
 import type { RebalancerTestSetup } from '../../harness/setup.js';
 import { MockRegistry } from './MockRegistry.js';
 import { OptimizedTrafficGenerator } from './OptimizedTrafficGenerator.js';
@@ -32,7 +37,6 @@ import type {
   EnhancedTimeSeriesPoint,
   PendingBridgeTransfer,
   PendingWarpTransfer,
-  RouteDeliveryConfig,
   RouteDeliveryConfigs,
   ScheduledTransfer,
   SimulatedBridgeConfig,
@@ -86,6 +90,12 @@ export interface IntegratedSimulationConfig {
 
   /** Optional logger */
   logger?: Logger;
+
+  /**
+   * Enable mock explorer for inflight message tracking.
+   * When enabled, the rebalancer's ActionTracker will see pending transfers.
+   */
+  enableMockExplorer?: boolean;
 }
 
 // ============================================================================
@@ -110,6 +120,7 @@ export class IntegratedSimulation {
   private trafficGenerator!: OptimizedTrafficGenerator;
   private rebalancerService!: RebalancerService;
   private mockRegistry!: MockRegistry;
+  private mockExplorer?: MockExplorerServer;
 
   // State
   private isRunning = false;
@@ -159,13 +170,22 @@ export class IntegratedSimulation {
     const multiProtocolProvider =
       MultiProtocolProvider.fromMultiProvider(multiProvider);
 
-    // 4. Create RebalancerService
+    // 4. Create MockExplorerServer if enabled
+    let explorerUrl: string | undefined;
+    if (this.config.enableMockExplorer) {
+      this.mockExplorer = await MockExplorerServer.create();
+      explorerUrl = this.mockExplorer.getUrl();
+      this.logger?.info({ explorerUrl }, 'MockExplorerServer started');
+    }
+
+    // 5. Create RebalancerService
     const serviceConfig: RebalancerServiceConfig = {
       mode: 'daemon',
       checkFrequency: this.config.rebalancerCheckFrequencyMs,
       monitorOnly: false, // We want real execution
       withMetrics: false, // No Prometheus for simulation
       logger: this.logger!,
+      explorerUrl, // Use mock explorer if enabled
     };
 
     this.rebalancerService = new RebalancerService(
@@ -176,7 +196,7 @@ export class IntegratedSimulation {
       serviceConfig,
     );
 
-    // 5. Create traffic generator
+    // 6. Create traffic generator
     this.trafficGenerator = new OptimizedTrafficGenerator(
       this.config.setup,
       this.config.messageDeliveryDelayMs,
@@ -184,7 +204,10 @@ export class IntegratedSimulation {
 
     await this.trafficGenerator.initialize();
 
-    this.logger?.info('IntegratedSimulation initialized');
+    this.logger?.info(
+      { mockExplorerEnabled: !!this.mockExplorer },
+      'IntegratedSimulation initialized',
+    );
   }
 
   /**
@@ -330,6 +353,11 @@ export class IntegratedSimulation {
                 };
                 this.pendingTransfers.set(result.txHash, pending);
 
+                // Track in MockExplorer if enabled
+                if (this.mockExplorer && result.messageBytes) {
+                  this.trackTransferInMockExplorer(result, transfer);
+                }
+
                 events.push({
                   time: now,
                   type: 'transfer_initiated',
@@ -418,6 +446,8 @@ export class IntegratedSimulation {
       return this.buildResults(schedule);
     } finally {
       this.isRunning = false;
+      // Cleanup MockExplorer if it was created
+      await this.cleanup();
     }
   }
 
@@ -472,6 +502,11 @@ export class IntegratedSimulation {
       for (const transfer of readyForDelivery) {
         if (this.trafficGenerator.isDelivered(transfer.messageId)) {
           transfer.completed = true;
+
+          // Mark as delivered in MockExplorer
+          if (this.mockExplorer) {
+            this.mockExplorer.markDelivered(transfer.messageId);
+          }
 
           events.push({
             time: now,
@@ -784,6 +819,78 @@ export class IntegratedSimulation {
     }
 
     return grouped;
+  }
+
+  // ==========================================================================
+  // Mock Explorer Integration
+  // ==========================================================================
+
+  /**
+   * Track a user transfer in the MockExplorer.
+   * This allows the rebalancer's ActionTracker to see pending transfers.
+   */
+  private trackTransferInMockExplorer(
+    result: PendingWarpTransfer,
+    transfer: ScheduledTransfer,
+  ): void {
+    if (!this.mockExplorer || !result.messageBytes) return;
+
+    const { setup } = this.config;
+
+    // Get domain IDs
+    const originDomain = setup.getDomain(transfer.origin);
+    const destDomain = setup.getDomain(transfer.destination);
+
+    // Get router addresses (warp route addresses)
+    const originRouter = setup.getWarpRouteAddress(transfer.origin);
+    const destRouter = setup.getWarpRouteAddress(transfer.destination);
+
+    // Extract the message body from the full Hyperlane message.
+    // Hyperlane message format:
+    //   version: 1 byte
+    //   nonce: 4 bytes
+    //   origin: 4 bytes
+    //   sender: 32 bytes
+    //   destination: 4 bytes
+    //   recipient: 32 bytes
+    //   body: remaining bytes (starts at offset 77)
+    // The body is what parseWarpRouteMessage expects (recipient + amount)
+    const BODY_OFFSET = 77;
+    const messageBody = '0x' + result.messageBytes.slice(2 + BODY_OFFSET * 2);
+
+    this.mockExplorer.addMessage(
+      createMockMessageFromDispatch({
+        messageId: result.messageId,
+        originDomainId: originDomain.domainId,
+        destinationDomainId: destDomain.domainId,
+        sender: originRouter as Address,
+        recipient: destRouter as Address,
+        originTxHash: result.txHash,
+        originTxSender: result.sender,
+        originTxRecipient: originRouter as Address,
+        messageBody,
+      }),
+    );
+
+    this.logger?.debug(
+      {
+        messageId: result.messageId,
+        origin: transfer.origin,
+        destination: transfer.destination,
+        amount: transfer.amount.toString(),
+      },
+      'Tracked transfer in MockExplorer',
+    );
+  }
+
+  /**
+   * Cleanup method to close the MockExplorer server.
+   */
+  async cleanup(): Promise<void> {
+    if (this.mockExplorer) {
+      await this.mockExplorer.close();
+      this.logger?.info('MockExplorerServer closed');
+    }
   }
 }
 

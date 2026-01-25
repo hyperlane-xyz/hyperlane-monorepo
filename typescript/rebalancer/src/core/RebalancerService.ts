@@ -55,6 +55,9 @@ export interface RebalancerServiceConfig {
 
   /** Service version for logging */
   version?: string;
+
+  /** Optional Explorer URL for ActionTracker (defaults to production Hyperlane Explorer) */
+  explorerUrl?: string;
 }
 
 export interface ManualRebalanceRequest {
@@ -174,12 +177,16 @@ export class RebalancerService {
     }
 
     // Create ActionTracker for tracking inflight actions
-    const { tracker, adapter } =
-      await this.contextFactory.createActionTracker();
+    const { tracker, adapter } = await this.contextFactory.createActionTracker(
+      this.config.explorerUrl,
+    );
     this.actionTracker = tracker;
     this.inflightContextAdapter = adapter;
     await this.actionTracker.initialize();
-    this.logger.info('ActionTracker initialized');
+    this.logger.info(
+      { explorerUrl: this.config.explorerUrl ?? 'default' },
+      'ActionTracker initialized',
+    );
 
     this.logger.info(
       {
