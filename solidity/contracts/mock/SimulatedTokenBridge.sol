@@ -30,6 +30,10 @@ contract SimulatedTokenBridge is ITokenBridge {
     uint256 public fixedFee;
     uint256 public variableFeeBps; // basis points (10000 = 100%)
 
+    // Failure simulation
+    bool public failNextTransfer;
+    uint256 public failureCount; // Track how many transfers have been failed
+
     // Pending transfer tracking
     struct PendingTransfer {
         uint32 destination;
@@ -64,6 +68,8 @@ contract SimulatedTokenBridge is ITokenBridge {
     event TransferFailed(bytes32 indexed transferId);
 
     event FeeConfigUpdated(uint256 fixedFee, uint256 variableFeeBps);
+
+    event TransferRejected(address indexed sender, uint256 amount, string reason);
 
     // ========== Constructor ==========
 
@@ -127,6 +133,14 @@ contract SimulatedTokenBridge is ITokenBridge {
         bytes32 _recipient,
         uint256 _amount
     ) external payable override returns (bytes32 transferId) {
+        // Check if this transfer should fail (for testing bridge failures)
+        if (failNextTransfer) {
+            failNextTransfer = false;
+            failureCount++;
+            emit TransferRejected(msg.sender, _amount, "Bridge temporarily unavailable");
+            revert("Bridge temporarily unavailable");
+        }
+
         uint256 fee = calculateFee(_amount);
         uint256 totalAmount = _amount + fee;
 
@@ -225,6 +239,15 @@ contract SimulatedTokenBridge is ITokenBridge {
      */
     function setSimulator(address _simulator) external onlySimulator {
         simulator = _simulator;
+    }
+
+    /**
+     * @notice Set whether the next transfer should fail.
+     * @dev Useful for testing rebalancer resilience to bridge failures.
+     * @param _fail Whether to fail the next transfer
+     */
+    function setFailNextTransfer(bool _fail) external onlySimulator {
+        failNextTransfer = _fail;
     }
 
     // ========== View Functions ==========
