@@ -6,7 +6,6 @@ import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
   ALEO_NULL_ADDRESS,
   U128ToString,
-  formatAddress,
   fromAleoAddress,
   toAleoAddress,
 } from '../utils/helper.js';
@@ -143,7 +142,7 @@ export async function getRemoteRouters(
     }
 
     assert(
-      remoteRouter['recipient'] instanceof Uint8Array,
+      Array.isArray(remoteRouter['recipient']),
       `Invalid recipient format in remote router for domain ${domainId}`,
     );
 
@@ -245,7 +244,7 @@ export async function getNativeWarpTokenConfig(
 
   return {
     type: AleoTokenType.NATIVE,
-    owner: formatAddress(metadata.token_owner),
+    owner: metadata.token_owner,
     mailbox: mailboxAddress,
     ism,
     remoteRouters,
@@ -293,7 +292,7 @@ export async function getCollateralWarpTokenConfig(
 
   return {
     type: AleoTokenType.COLLATERAL,
-    owner: formatAddress(metadata.token_owner),
+    owner: metadata.token_owner,
     mailbox: mailboxAddress,
     ism,
     remoteRouters,
@@ -345,7 +344,7 @@ export async function getSyntheticWarpTokenConfig(
 
   return {
     type: AleoTokenType.SYNTHETIC,
-    owner: formatAddress(metadata.token_owner),
+    owner: metadata.token_owner,
     mailbox: mailboxAddress,
     ism,
     remoteRouters,
