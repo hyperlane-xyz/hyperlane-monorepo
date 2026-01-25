@@ -3,7 +3,12 @@ import type {
   DeployedWarpAddress,
   RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import {
+  eqAddressAleo,
+  isNullish,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
@@ -104,14 +109,20 @@ export function getSetTokenOwnerTx(
  */
 export function getSetTokenIsmTx(
   tokenAddress: string,
-  ismAddress: string,
+  ismAddress?: string,
 ): AleoTransaction {
+  // Handle zero address - use Aleo null address to unset ISM
+  const ism =
+    !isNullish(ismAddress) && !isZeroishAddress(ismAddress)
+      ? fromAleoAddress(ismAddress).address
+      : ALEO_NULL_ADDRESS;
+
   return {
     programName: fromAleoAddress(tokenAddress).programId,
     functionName: 'set_custom_ism',
     priorityFee: 0,
     privateFee: false,
-    inputs: [fromAleoAddress(ismAddress).address],
+    inputs: [ism],
   };
 }
 
@@ -120,14 +131,19 @@ export function getSetTokenIsmTx(
  */
 export function getSetTokenHookTx(
   tokenAddress: string,
-  hookAddress: string,
+  hookAddress?: string,
 ): AleoTransaction {
+  const hook =
+    !isNullish(hookAddress) && !isZeroishAddress(hookAddress)
+      ? fromAleoAddress(hookAddress).address
+      : ALEO_NULL_ADDRESS;
+
   return {
     programName: fromAleoAddress(tokenAddress).programId,
     functionName: 'set_custom_hook',
     priorityFee: 0,
     privateFee: false,
-    inputs: [fromAleoAddress(hookAddress).address],
+    inputs: [hook],
   };
 }
 
