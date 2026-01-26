@@ -13,6 +13,7 @@ import { objMap } from '@hyperlane-xyz/utils';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
+  getAllBridges,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
@@ -268,16 +269,7 @@ export class RebalancerContextFactory {
     const signer = this.multiProvider.getSigner(chainNames[0]);
     const rebalancerAddress = await signer.getAddress();
 
-    // 5. Build config from warpCore and strategy
-    const bridges = chainNames
-      .map((chain) => {
-        const config = getStrategyChainConfig(
-          this.config.strategyConfig,
-          chain,
-        );
-        return config?.bridge;
-      })
-      .filter((bridge): bridge is string => bridge !== undefined);
+    const bridges = getAllBridges(this.config.strategyConfig);
 
     // Build router→domain mapping (source of truth for routers and domains)
     const routersByDomain: Record<number, string> = {};
