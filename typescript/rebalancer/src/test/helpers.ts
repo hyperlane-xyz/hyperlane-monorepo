@@ -217,8 +217,8 @@ export function createMockMultiProvider(config: MockMultiProviderConfig = {}) {
   };
 
   const defaultChainMetadata: ChainMap<Partial<ChainMetadata>> = {
-    ethereum: { domainId: 1, blocks: { reorgPeriod: 32 } },
-    arbitrum: { domainId: 42161, blocks: { reorgPeriod: 0 } },
+    ethereum: { domainId: 1, blocks: { confirmations: 32, reorgPeriod: 32 } },
+    arbitrum: { domainId: 42161, blocks: { confirmations: 0, reorgPeriod: 0 } },
   };
 
   const mergedMetadata = { ...defaultChainMetadata, ...chainMetadata };
@@ -273,8 +273,26 @@ export function buildTestBridges(
   return chains.reduce((acc, chain) => {
     acc[chain] = {
       bridge: TEST_ADDRESSES.bridge,
-      bridgeIsWarp: false,
       bridgeMinAcceptedAmount: 0,
+    };
+    return acc;
+  }, {} as ChainMap<BridgeConfigWithOverride>);
+}
+
+/**
+ * Convert a chain config map (with bridge addresses) to a BridgeConfigWithOverride map.
+ * Useful for tests that define bridge addresses in the strategy config.
+ */
+export function extractBridgeConfigs(
+  chainConfig: Record<
+    string,
+    { bridge: string; bridgeMinAcceptedAmount?: number | string }
+  >,
+): ChainMap<BridgeConfigWithOverride> {
+  return Object.entries(chainConfig).reduce((acc, [chain, config]) => {
+    acc[chain] = {
+      bridge: config.bridge,
+      bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
     };
     return acc;
   }, {} as ChainMap<BridgeConfigWithOverride>);

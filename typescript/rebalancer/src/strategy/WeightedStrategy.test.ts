@@ -5,6 +5,7 @@ import { pino } from 'pino';
 import type { ChainName } from '@hyperlane-xyz/sdk';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
+import { extractBridgeConfigs } from '../test/helpers.js';
 
 import { WeightedStrategy } from './WeightedStrategy.js';
 
@@ -34,6 +35,7 @@ describe('WeightedStrategy', () => {
               },
             },
             testLogger,
+            {},
           ),
       ).to.throw('At least two chains must be configured');
     });
@@ -55,6 +57,7 @@ describe('WeightedStrategy', () => {
               },
             },
             testLogger,
+            {},
           ),
       ).to.throw('Weight (-1) must not be negative for chain2');
     });
@@ -76,6 +79,7 @@ describe('WeightedStrategy', () => {
               },
             },
             testLogger,
+            {},
           ),
       ).to.throw('The total weight for all chains must be greater than 0');
     });
@@ -97,6 +101,7 @@ describe('WeightedStrategy', () => {
               },
             },
             testLogger,
+            {},
           ),
       ).to.throw('Tolerance (-1) must be between 0 and 100 for chain2');
 
@@ -116,6 +121,7 @@ describe('WeightedStrategy', () => {
               },
             },
             testLogger,
+            {},
           ),
       ).to.throw('Tolerance (101) must be between 0 and 100 for chain2');
     });
@@ -138,6 +144,7 @@ describe('WeightedStrategy', () => {
             },
           },
           testLogger,
+          {},
         ).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('200').toBigInt(),
@@ -162,6 +169,7 @@ describe('WeightedStrategy', () => {
             },
           },
           testLogger,
+          {},
         ).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain3]: ethers.utils.parseEther('300').toBigInt(),
@@ -185,6 +193,7 @@ describe('WeightedStrategy', () => {
             },
           },
           testLogger,
+          {},
         ).getRebalancingRoutes({
           [chain1]: ethers.utils.parseEther('100').toBigInt(),
           [chain2]: ethers.utils.parseEther('-200').toBigInt(),
@@ -207,6 +216,7 @@ describe('WeightedStrategy', () => {
           },
         },
         testLogger,
+        {},
       );
 
       const rawBalances = {
@@ -232,16 +242,8 @@ describe('WeightedStrategy', () => {
           bridgeLockTime: 1,
         },
       };
-      const bridges = {
-        [chain1]: [config[chain1].bridge],
-        [chain2]: [config[chain2].bridge],
-      };
-      const strategy = new WeightedStrategy(
-        config,
-        testLogger,
-        undefined,
-        bridges,
-      );
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new WeightedStrategy(config, testLogger, bridgeConfigs);
 
       const rawBalances = {
         [chain1]: ethers.utils.parseEther('100').toBigInt(),
@@ -275,6 +277,7 @@ describe('WeightedStrategy', () => {
           },
         },
         testLogger,
+        {},
       );
 
       const rawBalances = {
@@ -305,17 +308,8 @@ describe('WeightedStrategy', () => {
           bridgeLockTime: 1,
         },
       };
-      const bridges = {
-        [chain1]: [config[chain1].bridge],
-        [chain2]: [config[chain2].bridge],
-        [chain3]: [config[chain3].bridge],
-      };
-      const strategy = new WeightedStrategy(
-        config,
-        testLogger,
-        undefined,
-        bridges,
-      );
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new WeightedStrategy(config, testLogger, bridgeConfigs);
 
       const rawBalances = {
         [chain1]: ethers.utils.parseEther('100').toBigInt(),
@@ -352,17 +346,8 @@ describe('WeightedStrategy', () => {
           bridgeLockTime: 1,
         },
       };
-      const bridges = {
-        [chain1]: [config[chain1].bridge],
-        [chain2]: [config[chain2].bridge],
-        [chain3]: [config[chain3].bridge],
-      };
-      const strategy = new WeightedStrategy(
-        config,
-        testLogger,
-        undefined,
-        bridges,
-      );
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new WeightedStrategy(config, testLogger, bridgeConfigs);
 
       const rawBalances = {
         [chain1]: ethers.utils.parseEther('100').toBigInt(),
@@ -406,17 +391,8 @@ describe('WeightedStrategy', () => {
           bridgeLockTime: 1,
         },
       };
-      const bridges = {
-        [chain1]: [config[chain1].bridge],
-        [chain2]: [config[chain2].bridge],
-        [chain3]: [config[chain3].bridge],
-      };
-      const strategy = new WeightedStrategy(
-        config,
-        testLogger,
-        undefined,
-        bridges,
-      );
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new WeightedStrategy(config, testLogger, bridgeConfigs);
 
       const rawBalances = {
         [chain1]: ethers.utils.parseEther('100').toBigInt(),

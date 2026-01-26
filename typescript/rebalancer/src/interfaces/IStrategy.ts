@@ -3,19 +3,25 @@ import type { Address } from '@hyperlane-xyz/utils';
 
 export type RawBalances = ChainMap<bigint>;
 
-export type StrategyRoute = {
+export interface Route {
   origin: ChainName;
   destination: ChainName;
   amount: bigint;
-  bridge?: Address;
-};
+}
+
+export interface StrategyRoute extends Route {
+  bridge: Address;
+}
 
 export type InflightContext = {
-  /** In-progress rebalance intents (origin tx confirmed, balance already deducted on-chain) */
-  pendingRebalances: StrategyRoute[];
-  /** Pending user transfers that need collateral reserved */
-  pendingTransfers: StrategyRoute[];
-  /** Routes from earlier strategies in same cycle (not yet executed, for CompositeStrategy) */
+  /**
+   * In-flight rebalances from ActionTracker.
+   * Uses Route[] because recovered intents (from Explorer startup recovery)
+   * don't have bridge information. Some routes may have bridge at runtime.
+   */
+  pendingRebalances: Route[];
+  pendingTransfers: Route[];
+  /** Routes from earlier strategies - always have bridge */
   proposedRebalances?: StrategyRoute[];
 };
 

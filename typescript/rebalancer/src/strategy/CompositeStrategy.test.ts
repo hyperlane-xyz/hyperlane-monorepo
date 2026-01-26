@@ -7,16 +7,15 @@ import type {
   IStrategy,
   InflightContext,
   RawBalances,
+  Route,
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 
 import { CompositeStrategy } from './CompositeStrategy.js';
 
 const testLogger = pino({ level: 'silent' });
+const TEST_BRIDGE = '0x1234567890123456789012345678901234567890';
 
-/**
- * Mock strategy that returns predefined routes and captures the context it receives.
- */
 class MockStrategy implements IStrategy {
   readonly name = 'mock';
   public lastInflightContext?: InflightContext;
@@ -76,11 +75,13 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
       const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -109,6 +110,7 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -145,16 +147,19 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
       const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
       const route3: StrategyRoute = {
         origin: chain3,
         destination: chain1,
         amount: 3000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -201,12 +206,14 @@ describe('CompositeStrategy', () => {
         origin: chain3,
         destination: chain1,
         amount: 500n,
+        bridge: TEST_BRIDGE,
       };
 
       const route1: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -259,7 +266,7 @@ describe('CompositeStrategy', () => {
     });
 
     it('should preserve pendingTransfers for all strategies', () => {
-      const pendingTransfer: StrategyRoute = {
+      const pendingTransfer: Route = {
         origin: chain1,
         destination: chain2,
         amount: 500n,
@@ -299,16 +306,19 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
       const route1b: StrategyRoute = {
         origin: chain1,
         destination: chain3,
         amount: 1500n,
+        bridge: TEST_BRIDGE,
       };
       const route2a: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1a, route1b]);
@@ -338,6 +348,7 @@ describe('CompositeStrategy', () => {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([]);
@@ -366,6 +377,7 @@ describe('CompositeStrategy', () => {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);

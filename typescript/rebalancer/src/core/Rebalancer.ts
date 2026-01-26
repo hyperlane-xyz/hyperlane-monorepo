@@ -13,12 +13,7 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import {
-  eqAddress,
-  isNullish,
-  mapAllSettled,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
@@ -27,15 +22,10 @@ import type {
   RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
 import { type Metrics } from '../metrics/Metrics.js';
-import {
-  type BridgeConfigWithOverride,
-  getBridgeConfig,
-} from '../utils/index.js';
 
 export class Rebalancer implements IRebalancer {
   private readonly logger: Logger;
   constructor(
-    private readonly bridges: ChainMap<BridgeConfigWithOverride>,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
@@ -62,11 +52,7 @@ export class Rebalancer implements IRebalancer {
     let executionResults: RebalanceExecutionResult[] = [];
 
     if (preparedTransactions.length > 0) {
-      const filteredTransactions =
-        this.filterTransactions(preparedTransactions);
-      if (filteredTransactions.length > 0) {
-        executionResults = await this.executeTransactions(filteredTransactions);
-      }
+      executionResults = await this.executeTransactions(preparedTransactions);
     }
 
     // Combine preparation failures with execution results
@@ -171,12 +157,8 @@ export class Rebalancer implements IRebalancer {
     const originHypAdapter = originToken.getHypAdapter(
       this.warpCore.multiProvider,
     ) as EvmMovableCollateralAdapter;
-    const { bridge, bridgeIsWarp } = getBridgeConfig(
-      this.bridges,
-      origin,
-      destination,
-      this.logger,
-    );
+
+    const { bridge } = route;
 
     // 2. Get quotes
     let quotes: InterchainGasQuote[];
@@ -186,7 +168,6 @@ export class Rebalancer implements IRebalancer {
         destinationChainMeta.domainId,
         destinationToken.addressOrDenom,
         amount,
-        bridgeIsWarp,
       );
     } catch (error) {
       this.logger.error(
@@ -314,12 +295,8 @@ export class Rebalancer implements IRebalancer {
       return false;
     }
 
-    const { bridge } = getBridgeConfig(
-      this.bridges,
-      origin,
-      destination,
-      this.logger,
-    );
+    const { bridge } = route;
+
     if (
       !(await originHypAdapter.isBridgeAllowed(
         destinationDomain.domainId,
@@ -461,43 +438,6 @@ export class Rebalancer implements IRebalancer {
     }
 
     return results;
-  }
-
-  private filterTransactions(
-    transactions: PreparedTransaction[],
-  ): PreparedTransaction[] {
-    const filteredTransactions: PreparedTransaction[] = [];
-    for (const transaction of transactions) {
-      const { origin, destination, amount } = transaction.route;
-      const originToken = this.tokensByChainName[origin];
-      const decimalFormattedAmount =
-        transaction.originTokenAmount.getDecimalFormattedAmount();
-
-      // minimum amount check
-      const { bridgeMinAcceptedAmount } = getBridgeConfig(
-        this.bridges,
-        origin,
-        destination,
-        this.logger,
-      );
-      const minAccepted = BigInt(
-        toWei(bridgeMinAcceptedAmount, originToken.decimals),
-      );
-      if (minAccepted > amount) {
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName: originToken.name,
-          },
-          'Route skipped due to minimum threshold amount not met.',
-        );
-        continue;
-      }
-      filteredTransactions.push(transaction);
-    }
-    return filteredTransactions;
   }
 
   // === Parallel Transaction Sending Methods ===

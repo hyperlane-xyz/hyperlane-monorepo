@@ -7,7 +7,6 @@ import Sinon from 'sinon';
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 import {
-  buildTestBridges,
   buildTestRebalanceRoute,
   createRebalancerTestContext,
 } from '../test/helpers.js';
@@ -33,7 +32,6 @@ describe('Rebalancer', () => {
     it('should return empty array for empty routes', async () => {
       const ctx = createRebalancerTestContext();
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -56,7 +54,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -82,7 +79,6 @@ describe('Rebalancer', () => {
       });
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -114,7 +110,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         {
           ...ctx.chainMetadata,
@@ -155,7 +150,6 @@ describe('Rebalancer', () => {
       const ctx = createRebalancerTestContext(['arbitrum']);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -178,7 +172,6 @@ describe('Rebalancer', () => {
       const ctx = createRebalancerTestContext(['ethereum']);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -202,7 +195,6 @@ describe('Rebalancer', () => {
       });
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -225,7 +217,6 @@ describe('Rebalancer', () => {
       });
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -246,7 +237,6 @@ describe('Rebalancer', () => {
       });
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -269,7 +259,6 @@ describe('Rebalancer', () => {
       });
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -290,7 +279,6 @@ describe('Rebalancer', () => {
       });
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -303,127 +291,6 @@ describe('Rebalancer', () => {
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
-    });
-  });
-
-  describe('filterTransactions()', () => {
-    it('should pass transactions above minimum threshold', async () => {
-      const bridges = buildTestBridges(['ethereum', 'arbitrum']);
-      bridges.ethereum.bridgeMinAcceptedAmount = 10;
-
-      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
-        {
-          id: '0xMessageId111111111111111111111111111111111111111111111111111111',
-        } as any,
-      ]);
-
-      const rebalancer = new Rebalancer(
-        bridges,
-        ctx.warpCore,
-        ctx.chainMetadata,
-        ctx.tokensByChainName,
-        ctx.multiProvider as any,
-        testLogger,
-      );
-
-      const route = buildTestRebalanceRoute({
-        amount: ethers.utils.parseEther('100').toBigInt(),
-      });
-      const results = await rebalancer.rebalance([route]);
-
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-    });
-
-    it('should filter transactions below minimum threshold', async () => {
-      const bridges = buildTestBridges(['ethereum', 'arbitrum']);
-      bridges.ethereum.bridgeMinAcceptedAmount = 200;
-
-      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-
-      const rebalancer = new Rebalancer(
-        bridges,
-        ctx.warpCore,
-        ctx.chainMetadata,
-        ctx.tokensByChainName,
-        ctx.multiProvider as any,
-        testLogger,
-      );
-
-      const route = buildTestRebalanceRoute({
-        amount: ethers.utils.parseEther('100').toBigInt(),
-      });
-      const results = await rebalancer.rebalance([route]);
-
-      expect(results).to.have.lengthOf(0);
-    });
-
-    it('should pass transactions exactly at minimum threshold', async () => {
-      const bridges = buildTestBridges(['ethereum', 'arbitrum']);
-      bridges.ethereum.bridgeMinAcceptedAmount = 100;
-
-      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
-        {
-          id: '0xMessageId111111111111111111111111111111111111111111111111111111',
-        } as any,
-      ]);
-
-      const rebalancer = new Rebalancer(
-        bridges,
-        ctx.warpCore,
-        ctx.chainMetadata,
-        ctx.tokensByChainName,
-        ctx.multiProvider as any,
-        testLogger,
-      );
-
-      const route = buildTestRebalanceRoute({
-        amount: ethers.utils.parseEther('100').toBigInt(),
-      });
-      const results = await rebalancer.rebalance([route]);
-
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
-    });
-
-    it('should filter some and pass others based on threshold', async () => {
-      const bridges = buildTestBridges(['ethereum', 'arbitrum']);
-      bridges.ethereum.bridgeMinAcceptedAmount = 50;
-
-      const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
-
-      sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([
-        {
-          id: '0xMessageId111111111111111111111111111111111111111111111111111111',
-        } as any,
-      ]);
-
-      const rebalancer = new Rebalancer(
-        bridges,
-        ctx.warpCore,
-        ctx.chainMetadata,
-        ctx.tokensByChainName,
-        ctx.multiProvider as any,
-        testLogger,
-      );
-
-      const routes = [
-        buildTestRebalanceRoute({
-          amount: ethers.utils.parseEther('100').toBigInt(),
-        }),
-        buildTestRebalanceRoute({
-          amount: ethers.utils.parseEther('10').toBigInt(),
-        }),
-      ];
-
-      const results = await rebalancer.rebalance(routes);
-
-      expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
     });
   });
 
@@ -441,7 +308,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -480,7 +346,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        { ...ctx.bridges, optimism: ctx.bridges.ethereum },
         ctx.warpCore,
         {
           ...ctx.chainMetadata,
@@ -539,7 +404,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -576,7 +440,6 @@ describe('Rebalancer', () => {
       );
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -616,7 +479,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -667,7 +529,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -705,7 +566,6 @@ describe('Rebalancer', () => {
         .returns([{ id: expectedMessageId } as any]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -727,7 +587,6 @@ describe('Rebalancer', () => {
       sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,
@@ -755,7 +614,6 @@ describe('Rebalancer', () => {
       ]);
 
       const rebalancer = new Rebalancer(
-        ctx.bridges,
         ctx.warpCore,
         ctx.chainMetadata,
         ctx.tokensByChainName,

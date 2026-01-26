@@ -2,7 +2,6 @@ import { BigNumber } from 'bignumber.js';
 import { type Logger } from 'pino';
 
 import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
 import {
@@ -10,8 +9,13 @@ import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
-import type { RawBalances, StrategyRoute } from '../interfaces/IStrategy.js';
+import type {
+  RawBalances,
+  Route,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -26,15 +30,15 @@ export class MinAmountStrategy extends BaseStrategy {
 
   constructor(
     config: MinAmountStrategyConfig,
-    private readonly tokensByChainName: ChainMap<Token>,
+    tokensByChainName: ChainMap<Token>,
     initialTotalCollateral: bigint,
     logger: Logger,
+    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
-    bridges?: ChainMap<Address[]>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: MinAmountStrategy.name });
-    super(chains, log, metrics, bridges);
+    super(chains, log, bridgeConfigs, metrics, tokensByChainName);
     this.logger = log;
 
     const minAmountType = config[chains[0]].minAmount.type;
@@ -80,7 +84,7 @@ export class MinAmountStrategy extends BaseStrategy {
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    pendingRebalances?: StrategyRoute[],
+    pendingRebalances?: Route[],
     proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
@@ -150,7 +154,7 @@ export class MinAmountStrategy extends BaseStrategy {
   }
 
   protected getTokenByChainName(chainName: string): Token {
-    const token = this.tokensByChainName[chainName];
+    const token = this.tokensByChainName![chainName];
 
     if (token === undefined) {
       throw new Error(`Token not found for chain ${chainName}`);

@@ -1,15 +1,21 @@
 import { type Logger } from 'pino';
 
-import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+import type { ChainMap, ChainName, Token } from '@hyperlane-xyz/sdk';
+import { toWei } from '@hyperlane-xyz/utils';
 
 import type {
   IStrategy,
   InflightContext,
   RawBalances,
+  Route,
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import {
+  type BridgeConfig,
+  type BridgeConfigWithOverride,
+  getBridgeConfig,
+} from '../utils/bridgeUtils.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
 
@@ -21,13 +27,15 @@ export abstract class BaseStrategy implements IStrategy {
   protected readonly chains: ChainName[];
   protected readonly metrics?: Metrics;
   protected readonly logger: Logger;
-  protected readonly bridges?: ChainMap<Address[]>;
+  protected readonly bridgeConfigs: ChainMap<BridgeConfigWithOverride>;
+  protected readonly tokensByChainName?: ChainMap<Token>;
 
   constructor(
     chains: ChainName[],
     logger: Logger,
+    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
-    bridges?: ChainMap<Address[]>,
+    tokensByChainName?: ChainMap<Token>,
   ) {
     // Rebalancing makes sense only with more than one chain.
     if (chains.length < 2) {
@@ -35,8 +43,16 @@ export abstract class BaseStrategy implements IStrategy {
     }
     this.chains = chains;
     this.logger = logger;
+    this.bridgeConfigs = bridgeConfigs;
     this.metrics = metrics;
-    this.bridges = bridges;
+    this.tokensByChainName = tokensByChainName;
+  }
+
+  protected getBridgeConfigForRoute(
+    origin: ChainName,
+    destination: ChainName,
+  ): BridgeConfig {
+    return getBridgeConfig(this.bridgeConfigs, origin, destination);
   }
 
   /**
@@ -171,12 +187,18 @@ export abstract class BaseStrategy implements IStrategy {
 
       // Skip zero-amount routes (can occur after scaling when surpluses < deficits)
       if (transferAmount > 0n) {
+        // Get bridge config for this route (with destination-specific overrides)
+        const bridgeConfig = this.getBridgeConfigForRoute(
+          surplus.chain,
+          deficit.chain,
+        );
+
         // Creates the balancing route
         routes.push({
           origin: surplus.chain,
           destination: deficit.chain,
           amount: transferAmount,
-          bridge: this.bridges?.[surplus.chain]?.[0],
+          bridge: bridgeConfig.bridge,
         });
       }
 
@@ -215,8 +237,7 @@ export abstract class BaseStrategy implements IStrategy {
       this.metrics?.recordIntentCreated(route, this.name);
     }
 
-    // Filter routes based on actual balance sufficiency
-    const filteredRoutes = this.filterRebalances(routes, actualBalances);
+    const filteredRoutes = this.filterRoutes(routes, actualBalances);
 
     this.logger.debug(
       {
@@ -241,7 +262,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected abstract getCategorizedBalances(
     balances: RawBalances,
-    pendingRebalances?: StrategyRoute[],
+    pendingRebalances?: Route[],
     proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
@@ -282,7 +303,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected reserveCollateral(
     rawBalances: RawBalances,
-    pendingTransfers: StrategyRoute[],
+    pendingTransfers: Route[],
   ): RawBalances {
     if (pendingTransfers.length === 0) {
       return rawBalances;
@@ -333,7 +354,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected simulatePendingRebalances(
     rawBalances: RawBalances,
-    pendingRebalances: StrategyRoute[],
+    pendingRebalances: Route[],
   ): RawBalances {
     if (pendingRebalances.length === 0) {
       return rawBalances;
@@ -385,7 +406,7 @@ export abstract class BaseStrategy implements IStrategy {
    */
   protected simulateProposedRebalances(
     rawBalances: RawBalances,
-    proposedRebalances: StrategyRoute[],
+    proposedRebalances: Route[],
   ): RawBalances {
     if (proposedRebalances.length === 0) {
       return rawBalances;
@@ -427,26 +448,13 @@ export abstract class BaseStrategy implements IStrategy {
     return simulated;
   }
 
-  /**
-   * Filter rebalances based on actual balance sufficiency.
-   * Removes routes where the origin router doesn't have enough balance.
-   *
-   * Concrete strategies can override this method to implement different
-   * filtering logic (e.g., all-or-nothing for weighted strategy).
-   *
-   * @param routes - Proposed rebalancing routes
-   * @param actualBalances - Actual on-chain balances
-   * @returns Filtered routes that can actually be executed
-   */
-  protected filterRebalances(
+  protected filterRoutes(
     routes: StrategyRoute[],
     actualBalances: RawBalances,
   ): StrategyRoute[] {
     return routes.filter((route) => {
       const balance = actualBalances[route.origin] ?? 0n;
-      const hasSufficientBalance = balance >= route.amount;
-
-      if (!hasSufficientBalance) {
+      if (balance < route.amount) {
         this.logger.warn(
           {
             context: this.constructor.name,
@@ -457,9 +465,36 @@ export abstract class BaseStrategy implements IStrategy {
           },
           'Dropping route due to insufficient balance',
         );
+        return false;
       }
 
-      return hasSufficientBalance;
+      if (this.tokensByChainName) {
+        const token = this.tokensByChainName[route.origin];
+        if (token) {
+          const bridgeConfig = this.getBridgeConfigForRoute(
+            route.origin,
+            route.destination,
+          );
+          const minAmount = BigInt(
+            toWei(bridgeConfig.bridgeMinAcceptedAmount, token.decimals),
+          );
+          if (route.amount < minAmount) {
+            this.logger.info(
+              {
+                context: this.constructor.name,
+                origin: route.origin,
+                destination: route.destination,
+                amount: route.amount.toString(),
+                minAmount: minAmount.toString(),
+              },
+              'Dropping route below bridgeMinAcceptedAmount',
+            );
+            return false;
+          }
+        }
+      }
+
+      return true;
     });
   }
 }

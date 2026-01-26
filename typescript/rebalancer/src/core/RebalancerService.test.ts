@@ -35,13 +35,11 @@ function createMockRebalancerConfig(): RebalancerConfig {
           ethereum: {
             bridge: TEST_ADDRESSES.bridge,
             bridgeMinAcceptedAmount: 0,
-            bridgeIsWarp: false,
             weighted: { weight: 50n, tolerance: 10n },
           },
           arbitrum: {
             bridge: TEST_ADDRESSES.bridge,
             bridgeMinAcceptedAmount: 0,
-            bridgeIsWarp: false,
             weighted: { weight: 50n, tolerance: 10n },
           },
         },
@@ -92,20 +90,12 @@ function createMockStrategy(): IStrategy & {
   getRebalancingRoutes: Sinon.SinonStub;
 } {
   return {
+    name: 'mock-strategy',
     getRebalancingRoutes: Sinon.stub().returns([]),
   };
 }
 
-function createMockActionTracker(): IActionTracker & {
-  initialize: Sinon.SinonStub;
-  createRebalanceIntent: Sinon.SinonStub;
-  createRebalanceAction: Sinon.SinonStub;
-  failRebalanceIntent: Sinon.SinonStub;
-  syncTransfers: Sinon.SinonStub;
-  syncRebalanceIntents: Sinon.SinonStub;
-  syncRebalanceActions: Sinon.SinonStub;
-  logStoreContents: Sinon.SinonStub;
-} {
+function createMockActionTracker(): IActionTracker {
   return {
     initialize: Sinon.stub().resolves(),
     createRebalanceIntent: Sinon.stub().callsFake(async () => ({
@@ -113,22 +103,19 @@ function createMockActionTracker(): IActionTracker & {
       status: 'not_started',
     })),
     createRebalanceAction: Sinon.stub().resolves(),
+    completeRebalanceAction: Sinon.stub().resolves(),
+    failRebalanceAction: Sinon.stub().resolves(),
+    completeRebalanceIntent: Sinon.stub().resolves(),
+    cancelRebalanceIntent: Sinon.stub().resolves(),
     failRebalanceIntent: Sinon.stub().resolves(),
     syncTransfers: Sinon.stub().resolves(),
     syncRebalanceIntents: Sinon.stub().resolves(),
     syncRebalanceActions: Sinon.stub().resolves(),
     logStoreContents: Sinon.stub().resolves(),
-    getInProgressTransfers: Sinon.stub().returns([]),
-    getActiveRebalanceIntents: Sinon.stub().returns([]),
-  } as IActionTracker & {
-    initialize: Sinon.SinonStub;
-    createRebalanceIntent: Sinon.SinonStub;
-    createRebalanceAction: Sinon.SinonStub;
-    failRebalanceIntent: Sinon.SinonStub;
-    syncTransfers: Sinon.SinonStub;
-    syncRebalanceIntents: Sinon.SinonStub;
-    syncRebalanceActions: Sinon.SinonStub;
-    logStoreContents: Sinon.SinonStub;
+    getInProgressTransfers: Sinon.stub().resolves([]),
+    getActiveRebalanceIntents: Sinon.stub().resolves([]),
+    getTransfersByDestination: Sinon.stub().resolves([]),
+    getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
   };
 }
 
@@ -328,6 +315,48 @@ describe('RebalancerService', () => {
           amount: '-100',
         }),
       ).to.be.rejectedWith('Amount must be greater than 0');
+    });
+
+    it('should throw when origin chain has no bridge configured', async () => {
+      const contextFactory = createMockContextFactory();
+      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+
+      const configWithoutBridge: RebalancerConfig = {
+        warpRouteId: 'TEST/route',
+        strategyConfig: [
+          {
+            rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+            chains: {
+              arbitrum: {
+                bridge: TEST_ADDRESSES.bridge,
+                bridgeMinAcceptedAmount: 0,
+                weighted: { weight: 100n, tolerance: 10n },
+              },
+            },
+          },
+        ],
+      } as RebalancerConfig;
+
+      const config: RebalancerServiceConfig = {
+        mode: 'manual',
+        logger: testLogger,
+      };
+
+      const service = new RebalancerService(
+        createMockMultiProvider(),
+        undefined,
+        {} as any,
+        configWithoutBridge,
+        config,
+      );
+
+      await expect(
+        service.executeManual({
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: '100',
+        }),
+      ).to.be.rejectedWith('No bridge configured for origin chain ethereum');
     });
 
     it('should throw when in monitorOnly mode', async () => {

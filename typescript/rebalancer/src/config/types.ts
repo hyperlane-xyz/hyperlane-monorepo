@@ -39,10 +39,6 @@ const RebalancerBridgeConfigSchema = z.object({
     .transform((val) => val * 1_000)
     .optional()
     .describe('Expected time in seconds for bridge to process a transfer'),
-  bridgeIsWarp: z
-    .boolean()
-    .optional()
-    .describe('True if the bridge is another Warp Route'),
 });
 
 export const RebalancerBaseChainConfigSchema =

@@ -38,7 +38,6 @@ import {
   type TransferStatus,
 } from '../tracking/index.js';
 import { ExplorerClient } from '../utils/ExplorerClient.js';
-import { type BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 const DEFAULT_EXPLORER_URL = 'https://explorer4.hasura.app/v1/graphql';
@@ -189,28 +188,7 @@ export class RebalancerContextFactory {
       'Creating Rebalancer',
     );
 
-    // Build chain config from all strategies (first strategy with chain takes precedence)
-    const chainNames = getStrategyChainNames(this.config.strategyConfig);
-    const chainConfig: ChainMap<BridgeConfigWithOverride> = {};
-
-    for (const chainName of chainNames) {
-      const strategyChainConfig = getStrategyChainConfig(
-        this.config.strategyConfig,
-        chainName,
-      );
-      if (strategyChainConfig) {
-        chainConfig[chainName] = {
-          bridge: strategyChainConfig.bridge,
-          bridgeMinAcceptedAmount:
-            strategyChainConfig.bridgeMinAcceptedAmount ?? 0,
-          bridgeIsWarp: strategyChainConfig.bridgeIsWarp ?? false,
-          override: strategyChainConfig.override,
-        };
-      }
-    }
-
     const rebalancer = new Rebalancer(
-      chainConfig,
       this.warpCore,
       this.multiProvider.metadata,
       this.tokensByChainName,

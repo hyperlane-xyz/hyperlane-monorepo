@@ -10,7 +10,10 @@ import {
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { getStrategyChainNames } from '../config/types.js';
+import {
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import {
   type ConfirmedBlockTags,
@@ -229,12 +232,22 @@ export class RebalancerService {
     assert(!isNaN(amountNum), 'Amount must be a valid number');
     assert(amountNum > 0, 'Amount must be greater than 0');
 
+    const originConfig = getStrategyChainConfig(
+      this.rebalancerConfig.strategyConfig,
+      origin,
+    );
+    assert(
+      originConfig?.bridge,
+      `No bridge configured for origin chain ${origin}`,
+    );
+
     try {
       const route: RebalanceRoute = {
         intentId: randomUUID(),
         origin,
         destination,
         amount: BigInt(toWei(amount, originToken.decimals)),
+        bridge: originConfig.bridge,
       };
       await this.rebalancer.rebalance([route]);
       this.logger.info(
