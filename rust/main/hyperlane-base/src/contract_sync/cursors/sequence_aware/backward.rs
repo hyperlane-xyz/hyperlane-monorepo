@@ -170,16 +170,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         let lowest_block_height_or_sequence = self.get_lowest_block_height_or_sequence().await?;
 
         // Query the block height range ending at the current_indexing_snapshot's at_block.
-        // We assume that chunk size is at least 1 so that the block 0 is indexed
-        // together with block 1. That's why we can compare the current block height
-        // with the lowest block height with <=.
-        if current_indexing_snapshot.at_block <= lowest_block_height_or_sequence {
-            // If the current indexing snapshot's block height is less than or equal to the
+        // When current block equals lowest block, we still need to index it
+        // (e.g., when there's only one block to index at the boundary).
+        if current_indexing_snapshot.at_block < lowest_block_height_or_sequence {
+            // If the current indexing snapshot's block height is less than the
             // lowest block height, we don't want to index anything below the lowest block height.
             info!(
                 current_indexing_snapshot=?current_indexing_snapshot,
                 lowest_block_height=lowest_block_height_or_sequence,
-                "Current indexing snapshot's block height is less than or equal to the lowest block height, \
+                "Current indexing snapshot's block height is less than the lowest block height, \
                 not indexing anything below the lowest block height"
             );
             return None;
@@ -359,12 +358,15 @@ impl<T: Debug + Clone + Sync + Send + Indexable + 'static> BackwardSequenceAware
         // If the number of logs, which start at the current sequence and go backwards,
         // exceeds the current indexing snapshot sequence, we've synced everything including
         // sequence 0. Otherwise, we're not fully synced yet.
+        // Note: at_block is set to range.start() - 1 to avoid re-indexing the block we just processed.
+        // This works with the `<` check in get_next_block_range to allow indexing when
+        // current_block == lowest_block initially, while preventing re-indexing after updates.
         self.current_indexing_snapshot = current_indexing_snapshot
             .sequence
             .checked_sub(logs_len)
             .map(|new_current_sequence| TargetSnapshot {
                 sequence: new_current_sequence,
-                at_block: *range.start(),
+                at_block: range.start().saturating_sub(1),
             });
 
         // This means we indexed at least one log that builds on the last snapshot.
@@ -688,7 +690,7 @@ mod test {
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
                     sequence: 96,
-                    at_block: 900,
+                    at_block: 899,
                 })
             );
             assert_eq!(
@@ -720,7 +722,7 @@ mod test {
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
                     sequence: 99,
-                    at_block: 900,
+                    at_block: 899,
                 })
             );
             assert_eq!(
@@ -734,7 +736,7 @@ mod test {
             // Expect the range to be:
             // (current - chunk_size, current)
             let range = cursor.get_next_range().await.unwrap().unwrap();
-            let expected_range = 800..=900;
+            let expected_range = 799..=899;
             assert_eq!(range, expected_range);
 
             // Update the cursor with some found logs now.
@@ -756,7 +758,7 @@ mod test {
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
                     sequence: 95,
-                    at_block: 800,
+                    at_block: 798,
                 })
             );
             assert_eq!(
@@ -795,7 +797,7 @@ mod test {
                     cur.current_indexing_snapshot,
                     Some(TargetSnapshot {
                         sequence: 99,
-                        at_block: 900,
+                        at_block: 899,
                     })
                 );
                 assert_eq!(
@@ -809,7 +811,7 @@ mod test {
                 // Expect the range to be:
                 // (start, tip)
                 let range = cur.get_next_range().await.unwrap().unwrap();
-                let expected_range = 800..=900;
+                let expected_range = 799..=899;
                 assert_eq!(range, expected_range);
 
                 // Update the cursor, expecting a rewind now
@@ -890,7 +892,7 @@ mod test {
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
                     sequence: 98,
-                    at_block: 900,
+                    at_block: 899,
                 })
             );
             assert_eq!(
@@ -1023,7 +1025,7 @@ mod test {
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
                     sequence: 41,
-                    at_block: 942,
+                    at_block: 941,
                 })
             );
             assert_eq!(
@@ -1080,7 +1082,7 @@ mod test {
                 cursor.current_indexing_snapshot,
                 Some(TargetSnapshot {
                     sequence: 49,
-                    at_block: 950,
+                    at_block: 949,
                 })
             );
             assert_eq!(
@@ -1094,7 +1096,119 @@ mod test {
             // Expect the range to stop at the lowest block height even if the range
             // is tighter than the chunk size.
             let range = cursor.get_next_range().await.unwrap();
-            assert_eq!(range, Some(942..=950));
+            assert_eq!(range, Some(942..=949));
+        }
+
+        /// When current block equals lowest block, we should still index it.
+        /// This covers the edge case where start_block == lowest_block.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_indexes_single_block_at_lowest() {
+            let lowest_block_height = 1000i64;
+
+            let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(0),
+                tip: 1000,
+            });
+
+            let db = Arc::new(
+                MockHyperlaneSequenceAwareIndexerStore::<MockSequencedData> { logs: vec![] },
+            );
+
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier,
+                lowest_block_height_or_sequence: lowest_block_height,
+                store: db,
+                current_sequence_count: 1,
+                start_block: 1000,
+                index_mode: INDEX_MODE,
+                metrics_data,
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
+            cursor.skip_indexed().await.unwrap();
+
+            // current block (1000) == lowest block (1000), should still return a range
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, Some(1000..=1000));
+        }
+
+        /// When current block is below lowest block (misconfiguration), return None.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_returns_none_when_current_below_lowest() {
+            let lowest_block_height = 2000i64; // Higher than start_block
+
+            let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(0),
+                tip: 1000,
+            });
+
+            let db = Arc::new(
+                MockHyperlaneSequenceAwareIndexerStore::<MockSequencedData> { logs: vec![] },
+            );
+
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier,
+                lowest_block_height_or_sequence: lowest_block_height,
+                store: db,
+                current_sequence_count: 1,
+                start_block: 1000, // Below lowest_block_height
+                index_mode: INDEX_MODE,
+                metrics_data,
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
+            cursor.skip_indexed().await.unwrap();
+
+            // current block (1000) < lowest block (2000), should return None
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
+        }
+
+        /// When current block is one above lowest, should return 2-element range.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_indexes_two_blocks_at_boundary() {
+            let lowest_block_height = 1000i64;
+
+            let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(1),
+                tip: 1001,
+            });
+
+            let db = Arc::new(
+                MockHyperlaneSequenceAwareIndexerStore::<MockSequencedData> { logs: vec![] },
+            );
+
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier,
+                lowest_block_height_or_sequence: lowest_block_height,
+                store: db,
+                current_sequence_count: 2,
+                start_block: 1001,
+                index_mode: INDEX_MODE,
+                metrics_data,
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
+            cursor.skip_indexed().await.unwrap();
+
+            // current block (1001) == lowest block + 1, should return 2-element range
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, Some(1000..=1001));
         }
     }
 
