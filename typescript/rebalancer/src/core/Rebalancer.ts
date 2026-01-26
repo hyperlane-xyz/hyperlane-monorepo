@@ -5,6 +5,7 @@ import {
   type ChainMap,
   type ChainMetadata,
   type ChainName,
+  type EthJsonRpcBlockParameterTag,
   EvmMovableCollateralAdapter,
   HyperlaneCore,
   type InterchainGasQuote,
@@ -16,7 +17,6 @@ import {
   eqAddress,
   isNullish,
   mapAllSettled,
-  sleep,
   toWei,
 } from '@hyperlane-xyz/utils';
 
@@ -453,40 +453,12 @@ export class Rebalancer implements IRebalancer {
       }
     });
 
-    if (successfulSends.length === 0) {
-      this.logger.info('No successful transactions to wait for confirmations.');
-      return results;
+    // 6. Build results from confirmed receipts
+    for (const { transaction, receipt } of successfulSends) {
+      const result = this.buildResult(transaction, receipt);
+      results.push(result);
+      this.metrics?.recordActionAttempt(result.route, result.success);
     }
-
-    // 6. Wait for all confirmations in parallel
-    this.logger.info(
-      { numTransactions: successfulSends.length },
-      'Waiting for confirmations in parallel.',
-    );
-
-    const confirmResults = await Promise.allSettled(
-      successfulSends.map(({ transaction, receipt }) =>
-        this.waitAndBuildResult(transaction, receipt),
-      ),
-    );
-
-    // 7. Collect confirmation results
-    confirmResults.forEach((result, i) => {
-      if (result.status === 'fulfilled') {
-        results.push(result.value);
-        this.metrics?.recordActionAttempt(result.value.route, true);
-      } else {
-        results.push({
-          route: successfulSends[i].transaction.route,
-          success: false,
-          error: `Confirmation failed: ${String(result.reason)}`,
-        });
-        this.metrics?.recordActionAttempt(
-          successfulSends[i].transaction.route,
-          false,
-        );
-      }
-    });
 
     return results;
   }
@@ -561,19 +533,27 @@ export class Rebalancer implements IRebalancer {
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
 
+        const reorgPeriod = this.getReorgPeriod(origin);
+
         this.logger.info(
           {
             origin,
             destination: transaction.route.destination,
             amount: decimalFormattedAmount,
             tokenName,
+            reorgPeriod,
           },
-          'Sending rebalance transaction for route.',
+          'Sending rebalance transaction and waiting for reorgPeriod confirmations.',
         );
 
         const receipt = await this.multiProvider.sendTransaction(
           origin,
           transaction.populatedTx,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
         );
 
         this.logger.info(
@@ -584,7 +564,7 @@ export class Rebalancer implements IRebalancer {
             tokenName,
             txHash: receipt.transactionHash,
           },
-          'Rebalance transaction sent, will wait for confirmations.',
+          'Rebalance transaction confirmed at reorgPeriod depth.',
         );
 
         results.push({ transaction, receipt });
@@ -607,39 +587,20 @@ export class Rebalancer implements IRebalancer {
   }
 
   /**
-   * Wait for confirmations and build the execution result for a single transaction.
+   * Build the execution result from a confirmed transaction receipt.
+   * Receipt is already confirmed at reorgPeriod depth from sendTransaction.
    */
-  private async waitAndBuildResult(
+  private buildResult(
     transaction: PreparedTransaction,
     receipt: providers.TransactionReceipt,
-  ): Promise<RebalanceExecutionResult> {
+  ): RebalanceExecutionResult {
     const { origin, destination } = transaction.route;
-    const decimalFormattedAmount =
-      transaction.originTokenAmount.getDecimalFormattedAmount();
-    const tokenName = transaction.originTokenAmount.token.name;
 
-    // Wait for confirmations
-    await this.waitForConfirmations(origin, receipt.transactionHash);
-
-    this.logger.info(
-      {
-        origin,
-        destination,
-        amount: decimalFormattedAmount,
-        tokenName,
-        txHash: receipt.transactionHash,
-        txType: 'rebalance',
-      },
-      'Rebalance transaction confirmed at reorgPeriod depth.',
-    );
-
-    // Extract messageId from the rebalance transaction receipt
     let messageId: string | undefined;
     try {
       const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
       messageId = dispatchedMessages[0]?.id;
     } catch {
-      // Not all rebalance transactions dispatch messages (e.g., CCTP)
       this.logger.debug(
         { origin, destination },
         'No dispatched message found in rebalance receipt.',
@@ -654,88 +615,8 @@ export class Rebalancer implements IRebalancer {
     };
   }
 
-  // === Confirmation Waiting Methods ===
-
-  /**
-   * Get the reorgPeriod for a chain from its metadata.
-   * Returns a number (block count) or string (e.g., "finalized" for Polygon).
-   */
   private getReorgPeriod(chainName: string): number | string {
     const metadata = this.multiProvider.getChainMetadata(chainName);
     return metadata.blocks?.reorgPeriod ?? 32;
-  }
-
-  /**
-   * Wait for a transaction to reach reorgPeriod confirmations.
-   * This ensures the transaction is in the "confirmed block" range that Monitor uses.
-   */
-  private async waitForConfirmations(
-    chainName: string,
-    txHash: string,
-  ): Promise<void> {
-    const reorgPeriod = this.getReorgPeriod(chainName);
-    const provider = this.multiProvider.getProvider(chainName);
-
-    // Handle string block tags (e.g., "finalized" for Polygon)
-    if (typeof reorgPeriod === 'string') {
-      await this.waitForFinalizedBlock(chainName, txHash, reorgPeriod);
-      return;
-    }
-
-    // Handle numeric reorgPeriod
-    this.logger.info(
-      { chain: chainName, txHash, confirmations: reorgPeriod },
-      'Waiting for reorgPeriod confirmations',
-    );
-
-    await provider.waitForTransaction(txHash, reorgPeriod);
-
-    this.logger.info(
-      { chain: chainName, txHash },
-      'Transaction confirmed at reorgPeriod depth',
-    );
-  }
-
-  /**
-   * Wait for a transaction to be included in a finalized/safe block.
-   * Used for chains like Polygon that use string block tags instead of numeric reorgPeriod.
-   */
-  private async waitForFinalizedBlock(
-    chainName: string,
-    txHash: string,
-    blockTag: string,
-  ): Promise<void> {
-    const provider = this.multiProvider.getProvider(chainName);
-    const receipt = await provider.getTransactionReceipt(txHash);
-    if (!receipt) {
-      throw new Error(`Transaction receipt not found: ${txHash}`);
-    }
-    const txBlock = receipt.blockNumber;
-
-    this.logger.info(
-      { chain: chainName, txHash, txBlock, blockTag },
-      'Waiting for transaction to be in finalized block',
-    );
-
-    const POLL_INTERVAL_MS = 2000;
-    const MAX_WAIT_MS = 60000; // 1 minute timeout
-    const startTime = Date.now();
-
-    while (Date.now() - startTime < MAX_WAIT_MS) {
-      const taggedBlock = await provider.getBlock(blockTag);
-      if (taggedBlock && taggedBlock.number >= txBlock) {
-        this.logger.info(
-          { chain: chainName, txHash, finalizedBlock: taggedBlock.number },
-          'Transaction is in finalized block range',
-        );
-        return;
-      }
-      await sleep(POLL_INTERVAL_MS);
-    }
-
-    this.logger.warn(
-      { chain: chainName, txHash, blockTag },
-      'Timeout waiting for finalized block, proceeding anyway',
-    );
   }
 }
