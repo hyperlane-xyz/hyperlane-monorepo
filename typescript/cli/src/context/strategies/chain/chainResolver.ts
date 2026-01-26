@@ -42,7 +42,8 @@ export async function resolveChains(
     case CommandType.WARP_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
-      return resolveWarpApplyChains(argv);
+    case CommandType.WARP_CHECK:
+      return resolveWarpConfigChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
 
@@ -55,6 +56,8 @@ export async function resolveChains(
     case CommandType.CORE_READ:
     case CommandType.CORE_CHECK:
       return resolveChain(argv);
+    case CommandType.ICA_DEPLOY:
+      return resolveIcaDeployChains(argv);
     default:
       return resolveRelayerChains(argv);
   }
@@ -108,7 +111,7 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
   return chains;
 }
 
-async function resolveWarpApplyChains(
+async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
@@ -191,11 +194,8 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains) {
-    const additionalChains = argv.chains
-      .split(',')
-      .map((item: string) => item.trim());
-    return Array.from(new Set([...chains, ...additionalChains]));
+  if (argv.chains?.length) {
+    return Array.from(new Set([...chains, ...argv.chains]));
   }
 
   // If no destination is specified, return all EVM chains only
@@ -286,4 +286,14 @@ async function resolveCoreDeployChains(
       cause: error,
     });
   }
+}
+
+async function resolveIcaDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
+  assert(chains.size > 0, 'No chains provided for ICA deploy');
+  return Array.from(chains);
 }

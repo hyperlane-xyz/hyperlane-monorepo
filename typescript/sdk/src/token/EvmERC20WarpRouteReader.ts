@@ -231,6 +231,12 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     // Fetch tokenFee for ALL token types that support it, not just movable collateral
     const tokenFee = await this.fetchTokenFee(warpRouteAddress, domains);
 
+    // CCTP tokens implement their own ISM (the contract itself acts as the ISM via AbstractCcipReadIsm).
+    // The ISM is hardcoded and not configurable, so we return zero address to match deploy config expectations.
+    if (type === TokenType.collateralCctp) {
+      routerConfig.interchainSecurityModule = constants.AddressZero;
+    }
+
     return {
       ...routerConfig,
       ...tokenConfig,
