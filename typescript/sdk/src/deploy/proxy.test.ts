@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { isInitialized, proxyAdmin } from './proxy.js';
+import { isInitialized, proxyAdmin, proxyAdminUpdateTxs } from './proxy.js';
 
 describe('proxy utilities', () => {
   describe('isInitialized', () => {
@@ -141,6 +141,74 @@ describe('proxy utilities', () => {
         '0x1234567890123456789012345678901234567890',
       );
       expect(result).to.equal(ethers.constants.AddressZero);
+    });
+  });
+
+  describe('proxyAdminUpdateTxs', () => {
+    const CHAIN_ID = 1;
+    const PROXY_ADDRESS = '0x1234567890123456789012345678901234567890';
+    const PROXY_ADMIN_ADDRESS = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const OWNER_A = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const OWNER_B = '0xcccccccccccccccccccccccccccccccccccccccc';
+    const OWNER_C = '0xdddddddddddddddddddddddddddddddddddddddd';
+
+    it('should use ownerOverrides.proxyAdmin over top-level owner when proxyAdmin config is not set', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        {
+          owner: OWNER_A,
+          proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner: OWNER_A },
+        },
+        { owner: OWNER_A, ownerOverrides: { proxyAdmin: OWNER_B } },
+      );
+      expect(txs.length).to.equal(1);
+      expect(txs[0].annotation).to.include(OWNER_B);
+    });
+
+    it('should use ownerOverrides.proxyAdmin over proxyAdmin.owner when both are set', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        {
+          owner: OWNER_A,
+          proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner: OWNER_A },
+        },
+        {
+          owner: OWNER_A,
+          ownerOverrides: { proxyAdmin: OWNER_B },
+          proxyAdmin: { owner: OWNER_C },
+        },
+      );
+      expect(txs.length).to.equal(1);
+      expect(txs[0].annotation).to.include(OWNER_B);
+    });
+
+    it('should return empty array when owners match via ownerOverrides', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        {
+          owner: OWNER_A,
+          proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner: OWNER_A },
+        },
+        { owner: OWNER_B, ownerOverrides: { proxyAdmin: OWNER_A } },
+      );
+      expect(txs.length).to.equal(0);
+    });
+
+    it('should fall back to top-level owner when no proxyAdmin config or ownerOverrides', () => {
+      const txs = proxyAdminUpdateTxs(
+        CHAIN_ID,
+        PROXY_ADDRESS,
+        {
+          owner: OWNER_A,
+          proxyAdmin: { address: PROXY_ADMIN_ADDRESS, owner: OWNER_A },
+        },
+        { owner: OWNER_B },
+      );
+      expect(txs.length).to.equal(1);
+      expect(txs[0].annotation).to.include(OWNER_B);
     });
   });
 });

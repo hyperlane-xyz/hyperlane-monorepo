@@ -1,4 +1,4 @@
-import { input } from '@inquirer/prompts';
+import { checkbox, input } from '@inquirer/prompts';
 import path from 'path';
 
 import {
@@ -9,16 +9,21 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { RebalancerHelmManager } from '../../src/rebalancer/helm.js';
+import {
+  RebalancerHelmManager,
+  getDeployedRebalancerWarpRouteIds,
+} from '../../src/rebalancer/helm.js';
+import { REBALANCER_HELM_RELEASE_PREFIX } from '../../src/utils/consts.js';
 import { validateRegistryCommit } from '../../src/utils/git.js';
 import { HelmCommand } from '../../src/utils/helm.js';
 import {
   assertCorrectKubeContext,
+  filterOrphanedWarpRouteIds,
   getArgs,
-  getWarpRouteIdsInteractive,
   withMetrics,
   withRegistryCommit,
   withWarpRouteId,
+  withYes,
 } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -33,30 +38,102 @@ async function main() {
     warpRouteId,
     metrics,
     registryCommit: registryCommitArg,
-  } = await withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))).parse();
+    yes: skipConfirmation,
+  } = await withYes(
+    withMetrics(withRegistryCommit(withWarpRouteId(getArgs()))),
+  ).parse();
 
   await assertCorrectKubeContext(getEnvironmentConfig(environment));
 
-  let warpRouteIds;
+  let warpRouteIds: string[];
   if (warpRouteId) {
     warpRouteIds = [warpRouteId];
   } else {
-    warpRouteIds = await getWarpRouteIdsInteractive(environment);
+    const deployedPods = await getDeployedRebalancerWarpRouteIds(
+      environment,
+      REBALANCER_HELM_RELEASE_PREFIX,
+    );
+    const deployedIds = [
+      ...new Set(
+        deployedPods
+          .map((p) => p.warpRouteId)
+          .filter((id): id is string => !!id),
+      ),
+    ].sort();
+
+    if (deployedIds.length === 0) {
+      rootLogger.error(
+        'No deployed rebalancers found. Use --warp-route-id to deploy a new one.',
+      );
+      process.exit(1);
+    }
+
+    warpRouteIds = await checkbox({
+      message: 'Select rebalancers to redeploy',
+      choices: deployedIds.map((id) => ({ value: id })),
+      pageSize: 30,
+    });
+
+    if (warpRouteIds.length === 0) {
+      rootLogger.info('No rebalancers selected');
+      process.exit(0);
+    }
   }
 
-  const registryCommit =
-    registryCommitArg ??
-    (await input({
-      message:
-        'Enter the registry version to use (can be a commit, branch or tag):',
-    }));
-  await validateRegistryCommit(registryCommit);
+  const { validIds: validWarpRouteIds, orphanedIds } =
+    filterOrphanedWarpRouteIds(warpRouteIds);
+
+  if (orphanedIds.length > 0) {
+    rootLogger.warn(
+      `Skipping ${orphanedIds.length} orphaned rebalancers (warp route no longer in registry):\n${orphanedIds.map((id) => `  - ${id}`).join('\n')}`,
+    );
+    rootLogger.warn('Run helm uninstall manually to remove these rebalancers');
+  }
+
+  if (validWarpRouteIds.length === 0) {
+    if (warpRouteId && orphanedIds.includes(warpRouteId)) {
+      rootLogger.error(
+        `Warp route "${warpRouteId}" not found in registry. Verify the warp route ID is correct.`,
+      );
+      process.exit(1);
+    }
+    rootLogger.info('No valid warp routes to deploy');
+    process.exit(0);
+  }
 
   rootLogger.info(
-    `Deploying Rebalancer for the following Route IDs:\n${warpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
+    `Deploying Rebalancer for the following Route IDs:\n${validWarpRouteIds.map((id) => `  - ${id}`).join('\n')}`,
   );
 
+  // Cache validated commits to avoid re-validating the same commit
+  const validatedCommits = new Set<string>();
+
   const deployRebalancer = async (warpRouteId: string) => {
+    let registryCommit: string;
+    if (registryCommitArg) {
+      registryCommit = registryCommitArg;
+    } else {
+      const defaultRegistryCommit =
+        await RebalancerHelmManager.getDeployedRegistryCommit(
+          warpRouteId,
+          environment,
+        );
+
+      if (skipConfirmation) {
+        registryCommit = defaultRegistryCommit ?? 'main';
+      } else {
+        registryCommit = await input({
+          message: `[${warpRouteId}] Enter registry version (commit, branch or tag):`,
+          default: defaultRegistryCommit,
+        });
+      }
+    }
+
+    if (!validatedCommits.has(registryCommit)) {
+      await validateRegistryCommit(registryCommit);
+      validatedCommits.add(registryCommit);
+    }
+
     // Build path for config file - relative for local checks
     const configFileName = `${warpRouteId}-config.yaml`;
     const relativeConfigPath = path.join(
@@ -83,7 +160,7 @@ async function main() {
 
   // TODO: Uninstall any stale rebalancer releases.
 
-  for (const id of warpRouteIds) {
+  for (const id of validWarpRouteIds) {
     rootLogger.info(`Deploying Rebalancer for Route ID: ${id}`);
     await deployRebalancer(id);
   }

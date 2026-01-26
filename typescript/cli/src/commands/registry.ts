@@ -154,7 +154,7 @@ const rpcCommand: CommandModuleWithContext<{
  * agent-config command
  */
 const createAgentConfigCommand: CommandModuleWithContext<{
-  chains?: string;
+  chains?: string[];
   out: string;
   skipPrompts: boolean;
 }> = {
@@ -174,15 +174,15 @@ const createAgentConfigCommand: CommandModuleWithContext<{
     out,
   }: {
     context: CommandContext;
-    chains?: string;
+    chains?: string[];
     out: string;
     skipPrompts: boolean;
   }) => {
     const { multiProvider } = context;
 
     let chainNames: string[] | undefined;
-    if (chains) {
-      chainNames = chains.split(',');
+    if (chains?.length) {
+      chainNames = chains;
       const invalidChainNames = chainNames.filter(
         (chainName) => !multiProvider.hasChain(chainName),
       );
