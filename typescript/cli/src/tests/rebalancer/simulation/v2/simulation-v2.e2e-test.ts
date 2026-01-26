@@ -14,6 +14,7 @@ import {
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
+  type AnvilInstance,
   DOMAIN_1,
   DOMAIN_2,
   DOMAIN_3,
@@ -21,6 +22,7 @@ import {
   getAllWarpRouteBalances,
   type RebalancerTestSetup,
   type SnapshotInfo,
+  startAnvil,
 } from '../../harness/index.js';
 import { MockExplorerServer } from '../../harness/mock-explorer.js';
 import { SimulationClock } from './SimulationClock.js';
@@ -103,6 +105,7 @@ describe('Simulation Harness v2', function () {
   // Longer timeout for setup
   this.timeout(180_000);
 
+  let anvil: AnvilInstance;
   let setup: RebalancerTestSetup;
   let baseSnapshot: SnapshotInfo;
 
@@ -112,6 +115,9 @@ describe('Simulation Harness v2', function () {
   const INITIAL_COLLATERAL = toWei('100'); // 100 tokens per domain
 
   before(async function () {
+    console.log('Starting anvil for simulation v2 tests...');
+    anvil = await startAnvil(8545, logger);
+
     console.log('Setting up simulation v2 test environment...');
 
     // Create test setup with SimulatedTokenBridge
@@ -129,6 +135,12 @@ describe('Simulation Harness v2', function () {
 
     baseSnapshot = await setup.createSnapshot();
     console.log('Test environment ready');
+  });
+
+  after(async function () {
+    if (anvil) {
+      await anvil.stop();
+    }
   });
 
   afterEach(async function () {

@@ -12,12 +12,14 @@ import { pino } from 'pino';
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
+  type AnvilInstance,
   DOMAIN_1,
   DOMAIN_2,
   DOMAIN_3,
   createRebalancerTestSetup,
   type RebalancerTestSetup,
   type SnapshotInfo,
+  startAnvil,
 } from '../../harness/index.js';
 import { RealTimeSimulation, DEFAULT_TIME_COMPRESSION } from './RealTimeSimulation.js';
 import { generateTraffic } from './TrafficPatterns.js';
@@ -31,6 +33,7 @@ describe('Real-Time Rebalancer Simulation', function () {
   // Longer timeout since we're using real time (though compressed)
   this.timeout(120_000); // 2 minute timeout
 
+  let anvil: AnvilInstance;
   let setup: RebalancerTestSetup;
   let baseSnapshot: SnapshotInfo;
 
@@ -48,7 +51,10 @@ describe('Real-Time Rebalancer Simulation', function () {
   };
 
   before(async function () {
-    console.log('\nSetting up real-time simulation environment...');
+    console.log('\nStarting anvil for real-time simulation tests...');
+    anvil = await startAnvil(8545, logger);
+
+    console.log('Setting up real-time simulation environment...');
     console.log(`Time compression: 1:${TIME_COMPRESSION.compressionRatio}`);
     console.log('30 simulated minutes = 60 real seconds\n');
 
@@ -65,6 +71,12 @@ describe('Real-Time Rebalancer Simulation', function () {
 
     baseSnapshot = await setup.createSnapshot();
     console.log('Environment ready\n');
+  });
+
+  after(async function () {
+    if (anvil) {
+      await anvil.stop();
+    }
   });
 
   afterEach(async function () {

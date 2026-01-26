@@ -10,12 +10,14 @@ import { pino } from 'pino';
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
+  type AnvilInstance,
   DOMAIN_1,
   DOMAIN_2,
   DOMAIN_3,
   createRebalancerTestSetup,
   type RebalancerTestSetup,
   type SnapshotInfo,
+  startAnvil,
 } from '../../harness/index.js';
 import { FastSimulation } from './FastSimulation.js';
 import { generateTraffic } from './TrafficPatterns.js';
@@ -28,6 +30,7 @@ const logger = pino({ level: 'warn' });
 describe('Fast Simulation (Optimized)', function () {
   this.timeout(300_000); // 5 minute timeout for comprehensive tests
 
+  let anvil: AnvilInstance;
   let setup: RebalancerTestSetup;
   let baseSnapshot: SnapshotInfo;
 
@@ -36,7 +39,10 @@ describe('Fast Simulation (Optimized)', function () {
   const INITIAL_COLLATERAL = toWei('1000'); // 1000 tokens per domain (more for many transfers)
 
   before(async function () {
-    console.log('\nSetting up fast simulation environment...');
+    console.log('\nStarting anvil for fast simulation tests...');
+    anvil = await startAnvil(8545, logger);
+
+    console.log('Setting up fast simulation environment...');
     console.log('This setup deploys contracts and pre-approves tokens.\n');
 
     setup = await createRebalancerTestSetup({
@@ -52,6 +58,12 @@ describe('Fast Simulation (Optimized)', function () {
 
     baseSnapshot = await setup.createSnapshot();
     console.log('Environment ready\n');
+  });
+
+  after(async function () {
+    if (anvil) {
+      await anvil.stop();
+    }
   });
 
   afterEach(async function () {

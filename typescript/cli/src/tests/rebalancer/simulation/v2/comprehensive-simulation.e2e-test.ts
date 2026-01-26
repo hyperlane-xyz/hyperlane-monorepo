@@ -10,12 +10,14 @@ import { pino } from 'pino';
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
+  type AnvilInstance,
   DOMAIN_1,
   DOMAIN_2,
   DOMAIN_3,
   createRebalancerTestSetup,
   type RebalancerTestSetup,
   type SnapshotInfo,
+  startAnvil,
 } from '../../harness/index.js';
 import { MockExplorerServer } from '../../harness/mock-explorer.js';
 import { RebalancerSimulation } from './RebalancerSimulation.js';
@@ -29,6 +31,7 @@ const logger = pino({ level: 'warn' });
 describe('Comprehensive Rebalancer Simulation', function () {
   this.timeout(300_000); // 5 minute timeout for long simulations
 
+  let anvil: AnvilInstance;
   let setup: RebalancerTestSetup;
   let baseSnapshot: SnapshotInfo;
 
@@ -37,7 +40,10 @@ describe('Comprehensive Rebalancer Simulation', function () {
   const INITIAL_COLLATERAL = toWei('100'); // 100 tokens per domain
 
   before(async function () {
-    console.log('\nSetting up comprehensive simulation environment...');
+    console.log('\nStarting anvil for comprehensive simulation tests...');
+    anvil = await startAnvil(8545, logger);
+
+    console.log('Setting up comprehensive simulation environment...');
 
     setup = await createRebalancerTestSetup({
       collateralDomains: COLLATERAL_DOMAINS,
@@ -52,6 +58,12 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
     baseSnapshot = await setup.createSnapshot();
     console.log('Environment ready\n');
+  });
+
+  after(async function () {
+    if (anvil) {
+      await anvil.stop();
+    }
   });
 
   afterEach(async function () {

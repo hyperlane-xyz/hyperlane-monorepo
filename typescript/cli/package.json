@@ -85,6 +85,9 @@
     "test:aleo:e2e": "./src/tests/aleo/run-e2e-test.sh",
     "test:rebalancer:fork": "REBALANCER_FORK_TEST=1 mocha --config .mocharc.json src/tests/rebalancer/fork/**/*.e2e-test.ts",
     "test:rebalancer:harness": "tsx src/tests/rebalancer/manual/harness.ts",
+    "test:rebalancer:simulation": "mocha --config .mocharc.json --timeout 300000 'src/tests/rebalancer/simulation/v2/*.e2e-test.ts'",
+    "test:rebalancer:simulation:fast": "mocha --config .mocharc.json --timeout 180000 'src/tests/rebalancer/simulation/v2/fast-simulation.e2e-test.ts'",
+    "test:rebalancer:simulation:inflight": "mocha --config .mocharc.json --timeout 180000 'src/tests/rebalancer/simulation/v2/inflight-tracking.e2e-test.ts'",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts",
     "prepack": "pnpm bundle"
   },
