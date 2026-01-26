@@ -7,6 +7,7 @@ import IInterchainSecurityModuleAbi from '../abi/IInterchainSecurityModule.json'
 import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
 import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import { TRON_EMPTY_MESSAGE } from '../utils/index.js';
 import { TronIsmTypes } from '../utils/types.js';
 
 /**
@@ -104,10 +105,14 @@ export async function getMessageIdMultisigIsmConfig(
       ismAddress,
     );
 
+    const [validators, threshold] = await contract
+      .validatorsAndThreshold(TRON_EMPTY_MESSAGE)
+      .call();
+
     return {
       address: ismAddress,
-      threshold: Number(await contract.threshold().call()),
-      validators: await contract.validators().call(),
+      threshold: Number(threshold),
+      validators: validators.map((v: any) => v.replace('41', '0x')),
     };
   } catch (error) {
     throw new Error(
@@ -138,10 +143,14 @@ export async function getMerkleRootMultisigIsmConfig(
       ismAddress,
     );
 
+    const [validators, threshold] = await contract
+      .validatorsAndThreshold(TRON_EMPTY_MESSAGE)
+      .call();
+
     return {
       address: ismAddress,
-      threshold: await contract.threshold().call(),
-      validators: await contract.validators().call(),
+      threshold: Number(threshold),
+      validators: validators.map((v: any) => v.replace('41', '0x')),
     };
   } catch (error) {
     throw new Error(

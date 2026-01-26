@@ -5,7 +5,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
-import { createDeploymentTransaction } from '../utils/index.js';
+import { TRON_MAX_FEE, createDeploymentTransaction } from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 
 export async function getCreateMerkleTreeHookTx(
@@ -41,7 +41,7 @@ export async function getInitIgpTx(
     config.igpAddress,
     'initialize(address,address)',
     {
-      feeLimit: 100_000_000,
+      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -84,7 +84,7 @@ export async function getSetOracleTx(
     config.igpAddress,
     'setGasOracle(address)',
     {
-      feeLimit: 100_000_000,
+      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -124,7 +124,7 @@ export async function getSetRemoteGasTx(
     oracleAddress,
     'setRemoteGasDataConfigs((uint32,uint128,uint128)[])',
     {
-      feeLimit: 100_000_000,
+      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -155,7 +155,7 @@ export async function getSetIgpOwnerTx(
     config.igpAddress,
     'transferOwnership(address)',
     {
-      feeLimit: 100_000_000,
+      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -198,7 +198,7 @@ export async function getSetIgpDestinationGasConfigTx(
     config.igpAddress,
     'setDestinationGasConfigs((uint32,(address,uint96))[])',
     {
-      feeLimit: 100_000_000,
+      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
