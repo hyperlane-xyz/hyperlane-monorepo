@@ -1,4 +1,4 @@
-pub use {interchain_gas::*, mailbox::*, merkle_tree_hook::*};
+pub use {interchain_gas::*, mailbox::*, merkle_tree_hook::*, validator_announce::*};
 
 use std::sync::Arc;
 
@@ -13,6 +13,7 @@ use hyperlane_core::{ChainResult, LogMeta, H512};
 mod interchain_gas;
 mod mailbox;
 mod merkle_tree_hook;
+mod validator_announce;
 
 pub(crate) async fn fetch_raw_logs_and_meta<T: EthEvent, M>(
     tx_hash: H512,
