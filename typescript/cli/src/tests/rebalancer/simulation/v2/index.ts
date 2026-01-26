@@ -9,23 +9,7 @@
 export { SimulationClock } from './SimulationClock.js';
 export type { SimulationClockConfig } from './SimulationClock.js';
 
-// Controller
-export { SimulationController } from './SimulationController.js';
-export type { SimulationControllerConfig } from './SimulationController.js';
-
-// Rebalancer Simulation
-export { RebalancerSimulation } from './RebalancerSimulation.js';
-export type { RebalancerSimulationConfig, RebalancerStrategyConfig } from './RebalancerSimulation.js';
-
-// Real-Time Simulation (no fake timers)
-export { RealTimeSimulation, DEFAULT_TIME_COMPRESSION } from './RealTimeSimulation.js';
-export type { RealTimeSimulationConfig, TimeCompressionConfig } from './RealTimeSimulation.js';
-
-// Traffic Generator
-export { TrafficGenerator } from './TrafficGenerator.js';
-export type { TransferExecutionResult } from './TrafficGenerator.js';
-
-// Optimized Traffic Generator
+// Traffic Generator (optimized, handles message bytes correctly)
 export { OptimizedTrafficGenerator } from './OptimizedTrafficGenerator.js';
 
 // Fast Simulation (optimized for dozens of transfers)
