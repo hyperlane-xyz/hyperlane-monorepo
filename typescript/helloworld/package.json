@@ -4,7 +4,7 @@
   "version": "22.0.0",
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/registry": "23.11.0",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@openzeppelin/contracts": "catalog:",
