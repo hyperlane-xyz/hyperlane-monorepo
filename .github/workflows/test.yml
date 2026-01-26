@@ -600,6 +600,35 @@ jobs:
           job_name: 'Radix SDK E2E'
           result: ${{ needs.radix-sdk-e2e-run.result }}
 
+  tron-sdk-e2e-run:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Tron SDK e2e tests
+        run: pnpm -C typescript/tron-sdk test:e2e
+
+  tron-sdk-e2e:
+    runs-on: ubuntu-latest
+    needs: [tron-sdk-e2e-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check tron-sdk-e2e status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Tron SDK E2E'
+          result: ${{ needs.tron-sdk-e2e-run.result }}
+
   agent-configs:
     runs-on: depot-ubuntu-latest
     strategy:
