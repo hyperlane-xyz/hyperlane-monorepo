@@ -121,13 +121,10 @@ jobs:
           TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA_DATE }}"
           REGISTRY="gcr.io/abacus-labs-dev"
 
-          # Generate tags for comment action
+          # Generate tags for comment action (SHA-date only)
           TAGS=$(cat << EOF
-          ${REGISTRY}/hyperlane-rebalancer:${TAG}
           ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
-          ${REGISTRY}/hyperlane-warp-monitor:${TAG}
           ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
-          ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG}
           ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}
           EOF
           )
@@ -139,19 +136,16 @@ jobs:
           cat >> $GITHUB_STEP_SUMMARY << EOF
           ## ⚙️ Node Service Docker Images
 
-          | Image | Tag |
-          |-------|-----|
-          | ♻️ Rebalancer | \`${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}\` |
-          | 🕵️ Warp Monitor | \`${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}\` |
-          | 🔍 CCIP Server | \`${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}\` |
+          | Service | Tag |
+          |---------|-----|
+          | ♻️ rebalancer | \`${TAG_SHA_DATE}\` |
+          | 🕵️ warp-monitor | \`${TAG_SHA_DATE}\` |
+          | 🔍 offchain-lookup-server | \`${TAG_SHA_DATE}\` |
 
-          <details>
-          <summary>All tags</summary>
-
+          **Full image paths:**
           \`\`\`
           ${TAGS}
           \`\`\`
-          </details>
           EOF
 
       - name: Comment image tags on PR

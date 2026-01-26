@@ -108,7 +108,8 @@ ARG SERVICE_DIR
 COPY --from=builder /hyperlane-monorepo/typescript/${SERVICE_DIR}/bundle ./bundle
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
-RUN npm install @google-cloud/pino-logging-gcp-config
+# Version pinned to match pnpm-lock.yaml for reproducibility
+RUN npm install @google-cloud/pino-logging-gcp-config@1.3.0
 
 # Environment variables
 ARG SERVICE_VERSION=dev
