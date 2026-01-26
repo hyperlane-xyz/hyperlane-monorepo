@@ -331,7 +331,7 @@ export class TronProvider implements AltVM.IProvider {
 
     const domainIds = await igp.domains().call();
 
-    let destinationGasConfigs = {} as {
+    const destinationGasConfigs = {} as {
       [domainId: string]: {
         gasOracle: {
           tokenExchangeRate: string;
@@ -422,7 +422,7 @@ export class TronProvider implements AltVM.IProvider {
       tokenType = AltVM.TokenType.collateral;
     }
 
-    let token = {
+    const token = {
       address: req.tokenAddress,
       owner: this.tronweb.address.fromHex(await contract.owner().call()),
       tokenType,

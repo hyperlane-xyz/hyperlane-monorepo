@@ -16,7 +16,7 @@ export function decodeRevertReason(hex: string, tronweb: any): string {
       return tronweb.utils.abi.decodeParams(['string'], data)[0];
     }
     return `Hex Error: ${hex}`;
-  } catch (e) {
+  } catch {
     return `Could not decode hex: ${hex}`;
   }
 }
