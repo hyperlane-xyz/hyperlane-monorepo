@@ -581,7 +581,7 @@ describe('Rebalancer', () => {
       expect(results[0].messageId).to.equal(expectedMessageId);
     });
 
-    it('should succeed without messageId for non-Hyperlane bridges (CCTP)', async () => {
+    it('should return success: false when no Dispatch event found', async () => {
       const ctx = createRebalancerTestContext(['ethereum', 'arbitrum']);
 
       sandbox.stub(HyperlaneCore, 'getDispatchedMessages').returns([]);
@@ -598,7 +598,8 @@ describe('Rebalancer', () => {
       const results = await rebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
-      expect(results[0].success).to.be.true;
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('no Dispatch event found');
       expect(results[0].messageId).to.be.undefined;
     });
 

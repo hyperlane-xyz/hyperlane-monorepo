@@ -507,19 +507,6 @@ export class RebalancerService {
           },
           'Rebalance action created successfully',
         );
-      } else if (result.success && !result.messageId) {
-        await this.actionTracker!.failRebalanceIntent(intentId);
-
-        this.logger.warn(
-          {
-            intentId,
-            success: result.success,
-            txHash: result.txHash,
-            origin: result.route.origin,
-            destination: result.route.destination,
-          },
-          'Rebalance succeeded but no messageId - cannot track delivery',
-        );
       } else {
         await this.actionTracker!.failRebalanceIntent(intentId);
 

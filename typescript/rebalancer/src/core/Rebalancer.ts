@@ -535,22 +535,25 @@ export class Rebalancer implements IRebalancer {
     receipt: providers.TransactionReceipt,
   ): RebalanceExecutionResult {
     const { origin, destination } = transaction.route;
+    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
 
-    let messageId: string | undefined;
-    try {
-      const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
-      messageId = dispatchedMessages[0]?.id;
-    } catch {
-      this.logger.debug(
-        { origin, destination },
-        'No dispatched message found in rebalance receipt.',
+    if (dispatchedMessages.length === 0) {
+      this.logger.error(
+        { origin, destination, txHash: receipt.transactionHash },
+        'No Dispatch event found in confirmed rebalance receipt',
       );
+      return {
+        route: transaction.route,
+        success: false,
+        error: `Transaction confirmed but no Dispatch event found`,
+        txHash: receipt.transactionHash,
+      };
     }
 
     return {
       route: transaction.route,
       success: true,
-      messageId,
+      messageId: dispatchedMessages[0].id,
       txHash: receipt.transactionHash,
     };
   }
