@@ -194,8 +194,10 @@ impl HyperlaneContract for TronMailbox {
 
 #[async_trait]
 impl Mailbox for TronMailbox {
+    /// Note: reorg_period is not used in this implementation
+    /// because the Tron's view calls happen on the solidified node which is already finalized.
     #[instrument(skip(self))]
-    async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let nonce = self.contract.nonce().call().await?;
         Ok(nonce)
     }
