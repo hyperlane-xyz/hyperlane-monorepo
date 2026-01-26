@@ -29,7 +29,6 @@ interface AgentDockerTags {
 
 interface BaseDockerTags extends AgentDockerTags {
   keyFunder: string;
-  kathy: string;
 }
 
 interface MainnetDockerTags extends BaseDockerTags {
@@ -46,7 +45,6 @@ export const mainnetDockerTags: MainnetDockerTags = {
   validatorRC: 'a52b9e6-20260122-173915',
   scraper: '80f3635-20260123-103819',
   // monorepo services
-  kathy: '74d999b-20260108-145131',
   checkWarpDeploy: '74d999b-20260108-145131',
   // standalone services
   keyFunder: 'b29a170-20260128-174848',
@@ -61,8 +59,6 @@ export const testnetDockerTags: BaseDockerTags = {
   validator: 'eeadda5-20260129-131050',
   validatorRC: 'eeadda5-20260129-131050',
   scraper: 'eeadda5-20260129-131050',
-  // monorepo services
-  kathy: '74d999b-20260108-145131',
   // standalone services
   keyFunder: 'b29a170-20260128-174848',
 };

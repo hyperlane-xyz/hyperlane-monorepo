@@ -3,7 +3,6 @@ import {
   HelloWorldKathyRunMode,
 } from '../../../src/config/helloworld/types.js';
 import { Contexts } from '../../contexts.js';
-import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 
 import { environment } from './chains.js';
 import hyperlaneAddresses from './helloworld/hyperlane/addresses.json' with { type: 'json' };
@@ -12,10 +11,6 @@ import rcAddresses from './helloworld/rc/addresses.json' with { type: 'json' };
 export const hyperlaneHelloworld: HelloWorldConfig = {
   addresses: hyperlaneAddresses,
   kathy: {
-    docker: {
-      repo: DockerImageRepos.MONOREPO,
-      tag: testnetDockerTags.kathy,
-    },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,
@@ -31,10 +26,6 @@ export const hyperlaneHelloworld: HelloWorldConfig = {
 export const releaseCandidateHelloworld: HelloWorldConfig = {
   addresses: rcAddresses,
   kathy: {
-    docker: {
-      repo: DockerImageRepos.MONOREPO,
-      tag: testnetDockerTags.kathy,
-    },
     chainsToSkip: [],
     runEnv: environment,
     namespace: environment,

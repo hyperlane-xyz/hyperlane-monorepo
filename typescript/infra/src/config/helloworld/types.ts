@@ -10,7 +10,7 @@ export enum HelloWorldKathyRunMode {
 }
 
 export interface HelloWorldKathyConfig {
-  docker: DockerConfig;
+  docker?: DockerConfig;
   runEnv: string;
   namespace: string;
   chainsToSkip: ChainName[];
