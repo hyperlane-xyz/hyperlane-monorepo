@@ -1458,6 +1458,118 @@ mod test {
             assert_eq!(range, Some(42..=48));
         }
 
+        /// When current sequence equals lowest sequence, we should still index it.
+        /// This covers the edge case of a single message at sequence 0.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_indexes_single_sequence_at_lowest() {
+            let lowest_sequence = 0i64;
+
+            let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(0),
+                tip: 1000,
+            });
+
+            let db = Arc::new(
+                MockHyperlaneSequenceAwareIndexerStore::<MockSequencedData> { logs: vec![] },
+            );
+
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier,
+                lowest_block_height_or_sequence: lowest_sequence,
+                store: db,
+                current_sequence_count: 1,
+                start_block: 1000,
+                index_mode: INDEX_MODE,
+                metrics_data,
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
+            cursor.skip_indexed().await.unwrap();
+
+            // current sequence (0) == lowest sequence (0), should still return a range
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, Some(0..=0));
+        }
+
+        /// When current sequence is below lowest sequence (misconfiguration), return None.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_returns_none_when_current_below_lowest() {
+            let lowest_sequence = 100i64; // Higher than current
+
+            let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(0),
+                tip: 1000,
+            });
+
+            let db = Arc::new(
+                MockHyperlaneSequenceAwareIndexerStore::<MockSequencedData> { logs: vec![] },
+            );
+
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier,
+                lowest_block_height_or_sequence: lowest_sequence,
+                store: db,
+                current_sequence_count: 1, // sequence 0, below lowest
+                start_block: 1000,
+                index_mode: INDEX_MODE,
+                metrics_data,
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
+            cursor.skip_indexed().await.unwrap();
+
+            // current sequence (0) < lowest sequence (100), should return None
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, None);
+        }
+
+        /// When current sequence is one above lowest, should return 2-element range.
+        #[tracing_test::traced_test]
+        #[tokio::test]
+        async fn test_indexes_two_sequences_at_boundary() {
+            let lowest_sequence = 0i64;
+
+            let latest_sequence_querier = Arc::new(MockLatestSequenceQuerier {
+                latest_sequence_count: Some(1),
+                tip: 1000,
+            });
+
+            let db = Arc::new(
+                MockHyperlaneSequenceAwareIndexerStore::<MockSequencedData> { logs: vec![] },
+            );
+
+            let metrics_data = MetricsData {
+                domain: HyperlaneDomain::new_test_domain("test"),
+                metrics: Arc::new(mock_cursor_metrics()),
+            };
+            let params = BackwardSequenceAwareSyncCursorParams {
+                chunk_size: CHUNK_SIZE,
+                latest_sequence_querier,
+                lowest_block_height_or_sequence: lowest_sequence,
+                store: db,
+                current_sequence_count: 2, // sequences 0 and 1
+                start_block: 1000,
+                index_mode: INDEX_MODE,
+                metrics_data,
+            };
+            let mut cursor = BackwardSequenceAwareSyncCursor::new(params);
+            cursor.skip_indexed().await.unwrap();
+
+            // current sequence (1) == lowest sequence + 1, should return 2-element range
+            let range = cursor.get_next_range().await.unwrap();
+            assert_eq!(range, Some(0..=1));
+        }
+
         #[tracing_test::traced_test]
         #[tokio::test]
         async fn test_get_next_range_negative_block_height() {
