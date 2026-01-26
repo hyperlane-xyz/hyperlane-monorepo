@@ -1,9 +1,10 @@
 # Unified Dockerfile for NCC-bundled TypeScript node services
-# Used by: rebalancer, warp-monitor
+# Used by: rebalancer, warp-monitor, ccip-server
 #
 # Build args (passed from docker-bake.hcl):
 #   SERVICE_DIR - Directory name under typescript/ (e.g., "rebalancer")
 #   SERVICE_PACKAGE - Package name for turbo filter (e.g., "@hyperlane-xyz/rebalancer")
+#   SERVICE_PORT - Optional HTTP port (default: none, only metrics on 9090)
 
 FROM node:24-slim AS builder
 
@@ -53,6 +54,13 @@ COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
+
+# Copy prisma schema if present (needed for postinstall prisma generate in ccip-server)
+RUN --mount=type=bind,source=typescript/${SERVICE_DIR},target=/tmp/service-src \
+    if [ -d /tmp/service-src/prisma ]; then \
+      mkdir -p typescript/${SERVICE_DIR} && \
+      cp -r /tmp/service-src/prisma typescript/${SERVICE_DIR}/prisma; \
+    fi
 
 RUN pnpm install --frozen-lockfile
 
@@ -116,11 +124,14 @@ RUN GCP_LOGGER_VERSION=$(grep "pino-logging-gcp-config" /tmp/pnpm-workspace.yaml
 
 # Environment variables
 ARG SERVICE_VERSION=dev
+ARG SERVICE_PORT
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV SERVICE_VERSION=${SERVICE_VERSION}
+ENV SERVER_PORT=${SERVICE_PORT}
 
-# Expose metrics port
+# Expose service port (if set) and metrics port
+EXPOSE ${SERVICE_PORT:-9090}
 EXPOSE 9090
 
 # Run the service from the bundle
