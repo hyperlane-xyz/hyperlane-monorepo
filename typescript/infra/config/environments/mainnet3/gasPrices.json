@@ -135,6 +135,10 @@
     "amount": "0.0000001",
     "decimals": 1
   },
+  "eden": {
+    "amount": "1",
+    "decimals": 9
+  },
   "electroneum": {
     "amount": "10.000000007",
     "decimals": 9
@@ -143,8 +147,12 @@
     "amount": "1.500000007",
     "decimals": 9
   },
+  "eni": {
+    "amount": "108.9",
+    "decimals": 9
+  },
   "ethereum": {
-    "amount": "2.5",
+    "amount": "1",
     "decimals": 9
   },
   "everclear": {
@@ -225,6 +233,10 @@
   },
   "katana": {
     "amount": "0.001000251",
+    "decimals": 9
+  },
+  "krown": {
+    "amount": "0.001000007",
     "decimals": 9
   },
   "kyve": {

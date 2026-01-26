@@ -152,4 +152,9 @@ export const regularIcas: ChainMap<Address> = {
   // Jan 2, 2026
   // ----------------------------------------------------------
   citrea: '0x4fC003a348D6b244B01170D08CF69373c11FBf01',
+
+  // Jan 4, 2026
+  // ----------------------------------------------------------
+  eni: '0x2C5418067111F7e728D64C5D63bc87F3A7f8C6FC',
+  krown: '0x9F48298FF8c32F423fe14e71e6CBAcBa3c061e17',
 } as const;

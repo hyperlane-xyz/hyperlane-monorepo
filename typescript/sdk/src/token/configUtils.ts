@@ -1,9 +1,7 @@
+import { constants } from 'ethers';
 import { zeroAddress } from 'viem';
 
-import { AltVMHookReader, AltVMIsmReader } from '@hyperlane-xyz/deploy-sdk';
-import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
-import { HookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   Address,
   TransformObjectTransformer,
@@ -14,7 +12,6 @@ import {
   isAddressEvm,
   isCosmosIbcDenomAddress,
   isObjEmpty,
-  mustGet,
   objFilter,
   objMap,
   promiseObjAll,
@@ -23,6 +20,11 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { isProxy } from '../deploy/proxy.js';
+import {
+  ResolvedTokenFeeConfigInput,
+  TokenFeeConfigInput,
+  TokenFeeType,
+} from '../fee/types.js';
 import { EvmHookReader } from '../hook/EvmHookReader.js';
 import { EvmIsmReader } from '../ism/EvmIsmReader.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -37,12 +39,17 @@ import { HypERC20Deployer } from './deploy.js';
 import {
   ContractVerificationStatus,
   DerivedWarpRouteDeployConfig,
+  HypTokenConfig,
   HypTokenRouterConfig,
   HypTokenRouterVirtualConfig,
   OwnerStatus,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
+  isCollateralTokenConfig,
   isMovableCollateralTokenConfig,
+  isNativeTokenConfig,
+  isSyntheticRebaseTokenConfig,
+  isSyntheticTokenConfig,
 } from './types.js';
 
 /**
@@ -132,14 +139,12 @@ export function getRouterAddressesFromWarpCoreConfig(
  */
 export async function expandWarpDeployConfig(params: {
   multiProvider: MultiProvider;
-  altVmProviders: ChainMap<AltVM.IProvider>;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   deployedRoutersAddresses: ChainMap<Address>;
   expandedOnChainWarpConfig?: WarpRouteDeployConfigMailboxRequired;
 }): Promise<WarpRouteDeployConfigMailboxRequired> {
   const {
     multiProvider,
-    altVmProviders,
     warpDeployConfig,
     deployedRoutersAddresses,
     expandedOnChainWarpConfig,
@@ -262,8 +267,7 @@ export async function expandWarpDeployConfig(params: {
       }
 
       // Expand the hook config only if we have an explicit config in the deploy config
-      // and the current chain is an EVM one.
-      // if we have an address we leave it like that to avoid deriving
+      // (not just an address string for EVM - those are left as-is to avoid deriving)
       if (chainConfig.hook && typeof chainConfig.hook !== 'string') {
         switch (protocol) {
           case ProtocolType.Ethereum: {
@@ -272,21 +276,15 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = mustGet(altVmProviders, chain);
-            const reader = new AltVMHookReader(
-              (chain) => multiProvider.getChainMetadata(chain),
-              provider,
-            );
-            chainConfig.hook = await reader.deriveHookConfig(
-              // FIXME: not all hook types are supported yet
-              chainConfig.hook as HookConfig | Address,
-            );
+            // For non-EVM chains: config objects are kept as-is (no recursive expansion support)
+            // TODO: Handle HookConfig objects (nested config expansion) when Artifact API adds support
+            break;
           }
         }
       }
 
       // Expand the ism config only if we have an explicit config in the deploy config
-      // if we have an address we leave it like that to avoid deriving
+      // (not just an address string for EVM - those are left as-is to avoid deriving)
       if (
         chainConfig.interchainSecurityModule &&
         typeof chainConfig.interchainSecurityModule !== 'string'
@@ -300,22 +298,75 @@ export async function expandWarpDeployConfig(params: {
             break;
           }
           default: {
-            const provider = mustGet(altVmProviders, chain);
-            const reader = new AltVMIsmReader(
-              (chain) => multiProvider.tryGetChainName(chain),
-              provider,
-            );
-            chainConfig.interchainSecurityModule = await reader.deriveIsmConfig(
-              // FIXME: not all ISM types are supported yet
-              chainConfig.interchainSecurityModule as IsmConfig | Address,
-            );
+            // For non-EVM chains: config objects are kept as-is (no recursive expansion support)
+            // TODO: Handle IsmConfig objects (nested config expansion) when Artifact API adds support
+            break;
           }
         }
+      }
+
+      if (chainConfig.tokenFee) {
+        const routerAddress = deployedRoutersAddresses[chain];
+        assert(routerAddress, `Missing deployed router address for ${chain}`);
+        chainConfig.tokenFee = resolveTokenFeeAddress(
+          chainConfig.tokenFee,
+          routerAddress,
+          chainConfig,
+        );
       }
 
       return chainConfig;
     }),
   );
+}
+
+/**
+ * Resolves the fee token address based on the warp route token type.
+ * - Native tokens: fee token is AddressZero
+ * - Collateral tokens: fee token is the collateral token address
+ * - Synthetic tokens: fee token is the router address (the HypERC20 itself)
+ */
+export function resolveTokenFeeAddress(
+  feeConfig: TokenFeeConfigInput,
+  routerAddress: Address,
+  tokenConfig: HypTokenConfig,
+): ResolvedTokenFeeConfigInput {
+  let feeToken: Address;
+
+  if (isNativeTokenConfig(tokenConfig)) {
+    feeToken = constants.AddressZero;
+  } else if (isCollateralTokenConfig(tokenConfig)) {
+    feeToken = tokenConfig.token;
+  } else if (
+    isSyntheticTokenConfig(tokenConfig) ||
+    isSyntheticRebaseTokenConfig(tokenConfig)
+  ) {
+    feeToken = routerAddress;
+  } else {
+    throw new Error(`Unsupported token type for fee resolution`);
+  }
+
+  if (
+    feeConfig.type === TokenFeeType.RoutingFee &&
+    'feeContracts' in feeConfig &&
+    feeConfig.feeContracts
+  ) {
+    return {
+      ...feeConfig,
+      token: feeToken,
+      feeContracts: Object.fromEntries(
+        Object.entries(feeConfig.feeContracts).map(([chain, subFee]) => [
+          chain,
+          resolveTokenFeeAddress(subFee, routerAddress, tokenConfig),
+        ]),
+      ),
+    } satisfies ResolvedTokenFeeConfigInput;
+  }
+
+  return {
+    ...feeConfig,
+    token: feeToken,
+  } satisfies ResolvedTokenFeeConfigInput;
 }
 
 export async function expandVirtualWarpDeployConfig(params: {

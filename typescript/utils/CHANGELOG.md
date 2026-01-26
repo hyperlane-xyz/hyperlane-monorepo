@@ -1,5 +1,24 @@
 # @hyperlane-xyz/utils
 
+## 22.0.0
+
+### Minor Changes
+
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 3aec1c4: Added `timedAsync` utility for trace-level timing instrumentation of async operations.
+
+### Patch Changes
+
+- b892d63: Created new `@hyperlane-xyz/metrics` package to consolidate Prometheus metric utilities across the monorepo. Includes shared gauge definitions, metric update functions, balance utilities, metrics server, pushgateway utilities, and types. Added `tryFn` utility to `@hyperlane-xyz/utils`.
+
+## 21.1.0
+
+## 21.0.0
+
+### Patch Changes
+
+- 0bce4e7: Fixed an issue with starknet addresses validation
+
 ## 20.1.0
 
 ### Minor Changes

@@ -14,6 +14,7 @@ import {
 } from '../../../src/config/gas-oracle.js';
 import { getChain } from '../../registry.js';
 
+import { getEdenIgpConfig } from './eden.js';
 import gasPrices from './gasPrices.json' with { type: 'json' };
 import { DEPLOYER, chainOwners } from './owners.js';
 import { supportedChainNames } from './supportedChainNames.js';
@@ -91,22 +92,28 @@ const storageGasOracleConfig: AllStorageGasOracleConfigs =
 
 export const igp: ChainMap<IgpConfig> = objMap(
   chainOwners,
-  (local, owner): IgpConfig => ({
-    type: HookType.INTERCHAIN_GAS_PAYMASTER,
-    ...owner,
-    ownerOverrides: {
-      ...owner.ownerOverrides,
-      interchainGasPaymaster: DEPLOYER,
-      storageGasOracle: DEPLOYER,
-    },
-    oracleKey: DEPLOYER,
-    beneficiary: DEPLOYER,
-    overhead: Object.fromEntries(
-      exclude(local, supportedChainNames).map((remote) => [
-        remote,
-        getOverheadWithOverrides(local, remote),
-      ]),
-    ),
-    oracleConfig: getOracleConfigWithOverrides(local),
-  }),
+  (local, owner): IgpConfig => {
+    if (local === 'eden') {
+      return getEdenIgpConfig(owner, storageGasOracleConfig);
+    }
+
+    return {
+      type: HookType.INTERCHAIN_GAS_PAYMASTER,
+      ...owner,
+      ownerOverrides: {
+        ...owner.ownerOverrides,
+        interchainGasPaymaster: DEPLOYER,
+        storageGasOracle: DEPLOYER,
+      },
+      oracleKey: DEPLOYER,
+      beneficiary: DEPLOYER,
+      overhead: Object.fromEntries(
+        exclude(local, supportedChainNames).map((remote) => [
+          remote,
+          getOverheadWithOverrides(local, remote),
+        ]),
+      ),
+      oracleConfig: getOracleConfigWithOverrides(local),
+    };
+  },
 );

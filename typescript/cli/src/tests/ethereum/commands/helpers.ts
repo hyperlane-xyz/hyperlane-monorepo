@@ -4,32 +4,32 @@ import path from 'path';
 import { $ } from 'zx';
 
 import {
-  AbstractCcipReadIsm,
+  type AbstractCcipReadIsm,
   AbstractCcipReadIsm__factory,
-  ERC20Test,
+  type ERC20Test,
   ERC20Test__factory,
   ERC4626Test__factory,
-  FiatTokenTest,
+  type FiatTokenTest,
   FiatTokenTest__factory,
-  MockEverclearAdapter,
+  type MockEverclearAdapter,
   MockEverclearAdapter__factory,
   TestCcipReadIsm__factory,
-  XERC20LockboxTest,
+  type XERC20LockboxTest,
   XERC20LockboxTest__factory,
-  XERC20VSTest,
+  type XERC20VSTest,
   XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
-import { TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
+import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
 import {
-  WarpCoreConfig,
+  type WarpCoreConfig,
   WarpCoreConfigSchema,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
-import { Address, assert, inCIMode } from '@hyperlane-xyz/utils';
+import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { KeyBoardKeys, TestPromptAction } from '../../commands/helpers.js';
+import { KeyBoardKeys, type TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
   REGISTRY_PATH,
@@ -395,7 +395,7 @@ export function hyperlaneStatus({
 export function hyperlaneRelayer(chains: string[], warp?: string) {
   return $`${localTestRunCmdPrefix()} hyperlane relayer \
         --registry ${REGISTRY_PATH} \
-        --chains ${chains.join(',')} \
+        ${chains.flatMap((c) => ['--chains', c])} \
         --warp ${warp ?? ''} \
         --key ${ANVIL_KEY} \
         --verbosity debug \

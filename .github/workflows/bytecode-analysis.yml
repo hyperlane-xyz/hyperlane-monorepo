@@ -65,18 +65,7 @@ jobs:
         run: pnpm -C solidity run bytecode base-bytecode
 
       # Compare outputs
-      - name: Compare outputs (fail on any changes)
-        run: |
-          DIFF_OUTPUT=$(diff --unified --recursive solidity/base-bytecode solidity/HEAD-bytecode || true)
-
-          if [ -z "$DIFF_OUTPUT" ]; then
-            echo "No bytecode changes detected."
-            exit 0
-          fi
-
-          echo "Detected bytecode changes:"
-          echo "$DIFF_OUTPUT"
-          echo ""
-          echo "ERROR: Bytecode changes detected. This job fails if there are any bytecode changes."
-          echo "If these changes are expected, please review them carefully."
-          exit 1
+      - name: Compare outputs
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: .github/scripts/check-diff-changeset.sh bytecode solidity/base-bytecode solidity/HEAD-bytecode "$BASE_REF"

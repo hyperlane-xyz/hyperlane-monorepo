@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/utils",
   "description": "General utilities and types for the Hyperlane network",
-  "version": "20.1.0",
+  "version": "22.0.0",
   "dependencies": {
     "@cosmjs/encoding": "catalog:",
     "@ethersproject/bytes": "*",
@@ -41,7 +41,7 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "eslint-plugin-yml": "^1.18.0",
+    "eslint-plugin-yml": "^1.19.1",
     "mocha": "catalog:",
     "prettier": "catalog:",
     "sinon": "catalog:",

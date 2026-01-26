@@ -1,11 +1,12 @@
 import { expect } from 'chai';
 import { Wallet } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -300,5 +301,52 @@ describe('hyperlane warp apply basic extension tests', async function () {
       updatedWarpDeployConfig_3[CHAIN_NAME_3].destinationGas!;
     expect(Object.keys(destinationGas_3)).to.include(chain2Id);
     expect(destinationGas_3[chain2Id]).to.equal('7777');
+  });
+
+  it('should preserve metadata fields when extending warp route', async () => {
+    const TEST_LOGO_URI = 'https://example.com/logo.png';
+    const TEST_COINGECKO_ID = 'ethereum';
+
+    // Read and modify warp core config to add metadata
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+      WARP_CORE_CONFIG_PATH_2,
+    );
+    warpCoreConfig.tokens[0].logoURI = TEST_LOGO_URI;
+    warpCoreConfig.tokens[0].coinGeckoId = TEST_COINGECKO_ID;
+    writeYamlOrJson(WARP_CORE_CONFIG_PATH_2, warpCoreConfig);
+
+    // Extend with new config
+    const config: HypTokenRouterConfig = {
+      decimals: 18,
+      mailbox: chain3Addresses!.mailbox,
+      name: 'Ether',
+      owner: new Wallet(ANVIL_KEY).address,
+      symbol: 'ETH',
+      type: TokenType.native,
+    };
+
+    await extendWarpConfig({
+      chain: CHAIN_NAME_2,
+      chainToExtend: CHAIN_NAME_3,
+      extendedConfig: config,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+    });
+
+    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+
+    // Read resulting config and verify metadata preserved
+    const resultConfig: WarpCoreConfig = readYamlOrJson(
+      COMBINED_WARP_CORE_CONFIG_PATH,
+    );
+    const chain2Token = resultConfig.tokens.find(
+      (t) => t.chainName === CHAIN_NAME_2,
+    );
+
+    expect(chain2Token?.logoURI).to.equal(TEST_LOGO_URI);
+    expect(chain2Token?.coinGeckoId).to.equal(TEST_COINGECKO_ID);
   });
 });

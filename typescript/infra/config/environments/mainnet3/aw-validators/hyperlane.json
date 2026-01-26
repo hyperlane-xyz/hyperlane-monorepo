@@ -104,11 +104,17 @@
   "eclipsemainnet": {
     "validators": ["0xebb52d7eaa3ff7a5a6260bfe5111ce52d57401d0"]
   },
+  "eden": {
+    "validators": ["0x1c61e6379443e2842d3e9db28e962b6c717fdab1"]
+  },
   "electroneum": {
     "validators": ["0x32917f0a38c60ff5b1c4968cb40bc88b14ef0d83"]
   },
   "endurance": {
     "validators": ["0x28c5b322da06f184ebf68693c5d19df4d4af13e5"]
+  },
+  "eni": {
+    "validators": ["0xaedc7f95c57baa668eb94341589837b5430a484c"]
   },
   "ethereum": {
     "validators": ["0x03c842db86a6a3e524d4a6615390c1ea8e2b9541"]
@@ -169,6 +175,9 @@
   },
   "katana": {
     "validators": ["0xf23003ebdc6c53765d52b1fe7a65046eabb0e73b"]
+  },
+  "krown": {
+    "validators": ["0x4f78f3fca0660716c4b276893d73f6f4c95fe618"]
   },
   "kyve": {
     "validators": ["0x8576ddc0cd96325f85528e53f333357afb8bf044"]
@@ -238,6 +247,9 @@
   },
   "morph": {
     "validators": ["0x4884535f393151ec419add872100d352f71af380"]
+  },
+  "neutron": {
+    "validators": ["0xa9b8c1f4998f781f958c63cfcd1708d02f004ff0"]
   },
   "nibiru": {
     "validators": ["0xba9779d84a8efba1c6bc66326d875c3611a24b24"]
@@ -385,9 +397,6 @@
   },
   "zerogravity": {
     "validators": ["0xc37e7dad064c11d7ecfc75813a4d8d649d797275"]
-  },
-  "zeronetwork": {
-    "validators": ["0x1bd9e3f8a90ea1a13b0f2838a1858046368aad87"]
   },
   "zetachain": {
     "validators": ["0xa3bca0b80317dbf9c7dce16a16ac89f4ff2b23ef"]

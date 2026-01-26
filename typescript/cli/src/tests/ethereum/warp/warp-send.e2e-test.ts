@@ -5,21 +5,21 @@ import { parseEther } from 'ethers/lib/utils.js';
 
 import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
-  ChainAddresses,
+  type ChainAddresses,
   createWarpRouteConfigId,
 } from '@hyperlane-xyz/registry';
 import {
-  ChainMap,
-  ChainMetadata,
+  type ChainMap,
+  type ChainMetadata,
   HookType,
   IsmType,
-  Token,
+  type Token,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
-import { Address, randomInt } from '@hyperlane-xyz/utils';
+import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../../send/transfer.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
@@ -130,7 +130,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout: stdoutChains, exitCode: exitCodeChains } =
       await hyperlaneWarpSendRelay({
         warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
-        chains: `${CHAIN_NAME_3},${CHAIN_NAME_2}`,
+        chains: [CHAIN_NAME_3, CHAIN_NAME_2],
       });
     expect(exitCodeChains).to.equal(0);
     expect(stdoutChains).to.include(WarpSendLogs.SUCCESS);
@@ -144,7 +144,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
       await hyperlaneWarpSendRelay({
         warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
-        chains: `${CHAIN_NAME_2},${CHAIN_NAME_3}`,
+        chains: [CHAIN_NAME_2, CHAIN_NAME_3],
         roundTrip: true,
       });
     expect(exitCodeRoundTrip).to.equal(0);

@@ -3,7 +3,7 @@ import { expect } from 'chai';
 import {
   HookType,
   TokenType,
-  WarpRouteDeployConfig,
+  type WarpRouteDeployConfig,
   normalizeConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';

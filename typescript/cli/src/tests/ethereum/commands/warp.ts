@@ -1,22 +1,22 @@
 import { Wallet } from 'ethers';
-import { $, ProcessPromise } from 'zx';
+import { $, type ProcessPromise } from 'zx';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
-  HypTokenRouterConfig,
+  type ChainName,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpCoreConfig,
-  WarpRouteDeployConfig,
-  WarpRouteDeployConfigMailboxRequired,
+  type WarpCoreConfig,
+  type WarpRouteDeployConfig,
+  type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
+import { type Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { createAltVMSigners } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
-import { CommandContext } from '../../../context/types.js';
+import { type CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import {
@@ -202,11 +202,19 @@ export function hyperlaneWarpCheckRaw({
   symbol,
   warpCoreConfigPath,
   warpRouteId,
+  ica,
+  origin,
+  originOwner,
+  chains,
 }: {
   symbol?: string;
   warpDeployPath?: string;
   warpCoreConfigPath?: string;
   warpRouteId?: string;
+  ica?: boolean;
+  origin?: string;
+  originOwner?: string;
+  chains?: string[];
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp check \
         --registry ${REGISTRY_PATH} \
@@ -214,7 +222,11 @@ export function hyperlaneWarpCheckRaw({
         --verbosity debug \
         ${warpDeployPath ? ['--config', warpDeployPath] : []} \
         ${warpCoreConfigPath ? ['--warp', warpCoreConfigPath] : []} \
-        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []}`;
+        ${warpRouteId ? ['--warpRouteId', warpRouteId] : []} \
+        ${ica ? ['--ica'] : []} \
+        ${origin ? ['--origin', origin] : []} \
+        ${originOwner ? ['--originOwner', originOwner] : []} \
+        ${chains?.length ? chains.flatMap((d) => ['--chains', d]) : []}`;
 }
 
 export function hyperlaneWarpCheck(
@@ -243,7 +255,7 @@ export function hyperlaneWarpSendRelay({
   warpCorePath: string;
   relay?: boolean;
   value?: number | string;
-  chains?: string;
+  chains?: string[];
   roundTrip?: boolean;
 }): ProcessPromise {
   return $`${localTestRunCmdPrefix()} hyperlane warp send \
@@ -256,7 +268,7 @@ export function hyperlaneWarpSendRelay({
         --verbosity debug \
         --yes \
         --amount ${value} \
-        ${chains ? ['--chains', chains] : []} \
+        ${chains?.length ? chains.flatMap((c) => ['--chains', c]) : []} \
         ${roundTrip ? ['--round-trip'] : []} `;
 }
 

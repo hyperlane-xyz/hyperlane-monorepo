@@ -424,6 +424,8 @@ fn mock_adapter_methods(mut adapter: MockAdapter, payload: FullPayload) -> MockA
 
     adapter.expect_reverted_payloads().returning(|_| Ok(vec![]));
 
+    adapter.expect_post_finalized().returning(|| Ok(()));
+
     adapter.expect_max_batch_size().returning(|| 1);
 
     adapter

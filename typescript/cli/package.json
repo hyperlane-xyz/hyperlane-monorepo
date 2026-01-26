@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/cli",
-  "version": "20.1.0",
+  "version": "22.0.0",
   "description": "A command-line utility for common Hyperlane operations",
   "devDependencies": {
     "@aws-sdk/client-kms": "catalog:",
@@ -11,6 +11,7 @@
     "@ethersproject/abi": "*",
     "@ethersproject/constants": "*",
     "@ethersproject/providers": "*",
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
@@ -81,6 +82,7 @@
     "test:cross-chain:e2e": "./src/tests/cross-chain/run-e2e-test.sh",
     "test:cosmosnative:e2e": "./src/tests/cosmosnative/run-e2e-test.sh",
     "test:radix:e2e": "./src/tests/radix/run-e2e-test.sh",
+    "test:aleo:e2e": "./src/tests/aleo/run-e2e-test.sh",
     "version:update": "echo \"export const VERSION = '$npm_package_version';\" > src/version.ts",
     "prepack": "pnpm bundle"
   },

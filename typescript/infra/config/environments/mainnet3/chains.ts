@@ -38,6 +38,19 @@ export const agentSpecificChainMetadataOverrides: ChainMap<
       minPriorityFeePerGas: 1, // 1 wei
     },
   },
+  krown: {
+    transactionOverrides: {
+      minGasPrice: 11 * 10 ** 5,
+      minFeePerGas: 11 * 10 ** 5,
+      minPriorityFeePerGas: 11 * 10 ** 5,
+    },
+  },
+};
+
+// Chains without CoinGecko listings - these won't be overwritten by print-token-prices.ts
+export const tokenPriceOverrides: ChainMap<string> = {
+  incentiv: '0.003',
+  krown: '0.0015',
 };
 
 export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
@@ -94,6 +107,7 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
   // chilizmainnet: {
   //   transactionOverrides: {
   //     maxFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
+  //     maxPriorityFeePerGas: 100000 * 10 ** 9, // 100,000 gwei
   //   },
   // },
   // xlayer: {

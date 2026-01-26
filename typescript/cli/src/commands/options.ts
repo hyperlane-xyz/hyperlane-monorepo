@@ -1,10 +1,29 @@
 import os from 'os';
-import { Options } from 'yargs';
+import { type Options } from 'yargs';
 
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import { LogFormat, LogLevel } from '@hyperlane-xyz/utils';
 
 import { ENV } from '../utils/env.js';
+
+/**
+ * Coerce function for string array options.
+ * Trims whitespace and filters out empty strings.
+ */
+export const coerceStringArray = (values: string[]): string[] =>
+  values.map((v) => v.trim()).filter((v) => v.length > 0);
+
+/**
+ * Creates a string array option with automatic trimming and empty string filtering.
+ */
+export const stringArrayOptionConfig = (
+  options: Omit<Options, 'type' | 'string' | 'coerce'>,
+): Options => ({
+  ...options,
+  type: 'array',
+  string: true,
+  coerce: coerceStringArray,
+});
 
 /* Global options */
 
@@ -75,21 +94,9 @@ export const disableProxyCommandOption: Options = {
 
 /* Command-specific options */
 
-export const coreTargetsCommandOption: Options = {
-  type: 'string',
-  description:
-    'Comma separated list of chain names to which contracts will be deployed',
-};
-
-export const agentTargetsCommandOption: Options = {
-  type: 'string',
-  description: 'Comma separated list of chains to relay between',
-};
-
-export const originCommandOption: Options = {
-  type: 'string',
-  description: 'The name of the origin chain to deploy to',
-};
+export const agentTargetsCommandOption: Options = stringArrayOptionConfig({
+  description: 'List of chains to relay between',
+});
 
 export const ismCommandOption: Options = {
   type: 'string',
@@ -123,22 +130,10 @@ export const warpCoreConfigCommandOption: Options = {
   alias: 'wc',
 };
 
-export const agentConfigCommandOption = (
-  isIn: boolean,
-  defaultPath?: string,
-): Options => ({
-  type: 'string',
-  description: `${
-    isIn ? 'Input' : 'Output'
-  } file path for the agent configuration`,
-  default: defaultPath,
-});
-
-export const chainTargetsCommandOption: Options = {
-  type: 'string',
-  description: 'Comma-separated list of chain names',
+export const chainTargetsCommandOption: Options = stringArrayOptionConfig({
+  description: 'List of chain names',
   alias: 'c',
-};
+});
 
 export const outputFileCommandOption = (
   defaultPath?: string,
@@ -186,11 +181,10 @@ export const symbolCommandOption: Options = {
   description: 'Token symbol (e.g. ETH, USDC)',
 };
 
-export const validatorCommandOption: Options = {
-  type: 'string',
-  description: 'Comma separated list of validator addresses',
+export const validatorCommandOption: Options = stringArrayOptionConfig({
+  description: 'List of validator addresses',
   demandOption: true,
-};
+});
 
 export const transactionsCommandOption: Options = {
   type: 'string',

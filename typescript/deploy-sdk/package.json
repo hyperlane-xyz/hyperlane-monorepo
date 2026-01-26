@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/deploy-sdk",
-  "version": "0.7.0",
+  "version": "1.2.0",
   "description": "Deployer SDK for the Hyperlane Protocol",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "license": "Apache-2.0",
@@ -23,6 +23,7 @@
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit"
   },
   "dependencies": {
+    "@hyperlane-xyz/aleo-sdk": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/radix-sdk": "workspace:*",

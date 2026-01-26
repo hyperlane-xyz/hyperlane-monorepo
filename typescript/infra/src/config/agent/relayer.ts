@@ -24,6 +24,7 @@ import {
 
 import {
   getChain,
+  getChainAddresses,
   getDomainId,
   getWarpAddresses,
 } from '../../../config/registry.js';
@@ -372,6 +373,160 @@ export function matchingList<F extends HyperlaneFactories>(
         senderAddress: uniqueAddresses(addressesMap[source]),
         destinationDomain: getDomainId(destination),
         recipientAddress: uniqueAddresses(addressesMap[destination]),
+      });
+    }
+  }
+
+  return matchingList;
+}
+
+/**
+ * ICA Message Types from InterchainAccountMessage.sol
+ */
+export enum IcaMessageType {
+  /** Execute calls on remote ICA */
+  CALLS = 0,
+  /** Commit to future calls */
+  COMMITMENT = 1,
+  /** Reveal ISM and commitment (different format, no owner/salt) */
+  REVEAL = 2,
+}
+
+/**
+ * Options for matching ICA message body fields.
+ * All fields are optional - omit fields you don't want to match on.
+ *
+ * Reference: solidity/contracts/middleware/libs/InterchainAccountMessage.sol
+ */
+export interface IcaBodyMatchOptions {
+  /**
+   * MessageType (byte 0).
+   * Use IcaMessageType enum for type safety.
+   */
+  messageType?: IcaMessageType;
+  /** ICA owner address (bytes 1-33). Not present in REVEAL messages. */
+  owner?: Address;
+  /** ICA ISM address (bytes 33-65 for CALLS/COMMITMENT, bytes 1-33 for REVEAL) */
+  ism?: Address;
+  /** User salt (bytes 65-97). Not present in REVEAL messages. */
+  salt?: string;
+}
+
+/**
+ * Create a matching list for Interchain Account (ICA) messages with flexible body field matching.
+ *
+ * This function creates a matching list that:
+ * 1. Matches messages where the body fields equal the specified values for the origin chain
+ * 2. Filters by ICA router addresses as sender/recipient (fetched from registry)
+ * 3. Only matches on fields that are provided (all fields are optional)
+ */
+export function icaMatchingList(
+  icaMatchers: ChainMap<IcaBodyMatchOptions>,
+): MatchingList {
+  const chainAddresses = getChainAddresses();
+  const matchingList: MatchingList = [];
+
+  // Get all chains that have matchers defined
+  const chains = Object.keys(icaMatchers);
+
+  for (const source of chains) {
+    // Get the ICA router address from the registry
+    const sourceRouter = chainAddresses[source]?.interchainAccountRouter;
+    if (!sourceRouter) {
+      throw new Error(
+        `No ICA router found for chain ${source} in registry. Cannot create ICA matching list.`,
+      );
+    }
+
+    const matcher = icaMatchers[source];
+
+    // Validate that REVEAL messages don't specify owner or salt
+    if (matcher.messageType === IcaMessageType.REVEAL) {
+      if (matcher.owner !== undefined) {
+        throw new Error(
+          `Chain ${source}: REVEAL messages do not have an owner field. Remove 'owner' from IcaBodyMatchOptions.`,
+        );
+      }
+      if (matcher.salt !== undefined) {
+        throw new Error(
+          `Chain ${source}: REVEAL messages do not have a salt field. Remove 'salt' from IcaBodyMatchOptions.`,
+        );
+      }
+    }
+
+    // Build regex pattern based on message type and which fields are provided
+    let bodyRegex = '^';
+
+    // Byte 0: MessageType (2 hex chars)
+    if (matcher.messageType !== undefined) {
+      // Convert number to 2-digit hex
+      const typeHex = matcher.messageType.toString(16).padStart(2, '0');
+      bodyRegex += typeHex;
+    } else {
+      bodyRegex += '.{2}'; // Any 2 hex chars
+    }
+
+    // Different layouts based on message type
+    if (matcher.messageType === IcaMessageType.REVEAL) {
+      // REVEAL format: [0:1] type, [1:33] ISM, [33:65] commitment
+      // Bytes 1-33: ICA ISM (64 hex chars for bytes32)
+      if (matcher.ism !== undefined) {
+        const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
+        const ismHex = ismBytes32.replace(/^0x/, '');
+        bodyRegex += ismHex;
+      } else {
+        bodyRegex += '.{64}'; // Any 64 hex chars
+      }
+      // Note: owner and salt don't exist in REVEAL messages
+    } else {
+      // CALLS/COMMITMENT format: [0:1] type, [1:33] owner, [33:65] ISM, [65:97] salt, [97:??] data
+      // Bytes 1-33: ICA owner (64 hex chars for bytes32)
+      if (matcher.owner !== undefined) {
+        const ownerBytes32 = addressToBytes32(matcher.owner).toLowerCase();
+        const ownerHex = ownerBytes32.replace(/^0x/, '');
+        bodyRegex += ownerHex;
+      } else {
+        bodyRegex += '.{64}'; // Any 64 hex chars
+      }
+
+      // Bytes 33-65: ICA ISM (64 hex chars for bytes32)
+      if (matcher.ism !== undefined) {
+        const ismBytes32 = addressToBytes32(matcher.ism).toLowerCase();
+        const ismHex = ismBytes32.replace(/^0x/, '');
+        bodyRegex += ismHex;
+      } else {
+        bodyRegex += '.{64}'; // Any 64 hex chars
+      }
+
+      // Bytes 65-97: User Salt (64 hex chars for bytes32)
+      if (matcher.salt !== undefined) {
+        const saltHex = matcher.salt.toLowerCase().replace(/^0x/, '');
+        bodyRegex += saltHex;
+      }
+      // Note: We don't add .{64} if salt is not provided, as we may want to match
+      // messages regardless of what comes after
+    }
+
+    for (const destination of chains) {
+      if (source === destination) {
+        continue;
+      }
+
+      // Get the ICA router address from the registry
+      const destinationRouter =
+        chainAddresses[destination]?.interchainAccountRouter;
+      if (!destinationRouter) {
+        throw new Error(
+          `No ICA router found for chain ${destination} in registry. Cannot create ICA matching list.`,
+        );
+      }
+
+      matchingList.push({
+        originDomain: getDomainId(source),
+        senderAddress: addressToBytes32(sourceRouter),
+        destinationDomain: getDomainId(destination),
+        recipientAddress: addressToBytes32(destinationRouter),
+        bodyRegex,
       });
     }
   }

@@ -4,6 +4,7 @@ import { Address, rootLogger } from '@hyperlane-xyz/utils';
 import { ChainMetadata } from '../metadata/chainMetadataTypes.js';
 
 import {
+  AleoProvider,
   CosmJsNativeProvider,
   CosmJsProvider,
   CosmJsWasmProvider,
@@ -36,6 +37,8 @@ export async function isRpcHealthy(
     return isStarknetJsProviderHealthy(provider.provider, metadata);
   else if (provider.type === ProviderType.Radix)
     return isRadixProviderHealthy(provider.provider, metadata);
+  else if (provider.type === ProviderType.Aleo)
+    return isAleoProviderHealthy(provider.provider, metadata);
   else
     throw new Error(
       `Unsupported provider type ${provider.type}, new health check required`,
@@ -118,6 +121,25 @@ export async function isRadixProviderHealthy(
   } catch (err) {
     rootLogger.warn(
       `Radix gateway health check threw for ${metadata.name}`,
+      err as Error,
+    );
+    return false;
+  }
+}
+
+export async function isAleoProviderHealthy(
+  provider: AleoProvider['provider'],
+  metadata: ChainMetadata,
+): Promise<boolean> {
+  try {
+    const healthy = await provider.isHealthy();
+    if (healthy) {
+      rootLogger.debug(`Rpc is healthy for ${metadata.name}`);
+    }
+    return healthy;
+  } catch (err) {
+    rootLogger.warn(
+      `Aleo rpc health check threw for ${metadata.name}`,
       err as Error,
     );
     return false;

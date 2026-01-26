@@ -1,11 +1,11 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ChainAddresses } from '@hyperlane-xyz/registry';
+import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
-  HypTokenRouterConfig,
+  type HypTokenRouterConfig,
   TokenType,
-  WarpCoreConfig,
+  type WarpCoreConfig,
   randomAddress,
 } from '@hyperlane-xyz/sdk';
 import {

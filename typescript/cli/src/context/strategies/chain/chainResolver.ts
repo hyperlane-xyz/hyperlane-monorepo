@@ -1,7 +1,7 @@
 import { RebalancerConfig } from '@hyperlane-xyz/rebalancer';
 import {
-  ChainName,
-  DeployedCoreAddresses,
+  type ChainName,
+  type DeployedCoreAddresses,
   DeployedCoreAddressesSchema,
   EvmCoreModule,
 } from '@hyperlane-xyz/sdk';
@@ -11,7 +11,7 @@ import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
-  runMultiChainSelectionStep,
+  filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../../../utils/chains.js';
 import {
@@ -33,19 +33,20 @@ export async function resolveChains(
   switch (commandKey) {
     case CommandType.WARP_DEPLOY:
       return resolveWarpRouteConfigChains(argv);
-    case CommandType.WARP_SEND:
     case CommandType.SEND_MESSAGE:
+      return resolveSendMessageChains(argv);
+    case CommandType.WARP_SEND:
     case CommandType.STATUS:
     case CommandType.RELAYER:
       return resolveRelayerChains(argv);
     case CommandType.WARP_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
-      return resolveWarpApplyChains(argv);
+    case CommandType.WARP_CHECK:
+      return resolveWarpConfigChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
-    case CommandType.AGENT_KURTOSIS:
-      return resolveAgentChains(argv);
+
     case CommandType.SUBMIT:
       return resolveWarpRouteConfigChains(argv); // Same as WARP_DEPLOY
     case CommandType.CORE_APPLY:
@@ -55,6 +56,8 @@ export async function resolveChains(
     case CommandType.CORE_READ:
     case CommandType.CORE_CHECK:
       return resolveChain(argv);
+    case CommandType.ICA_DEPLOY:
+      return resolveIcaDeployChains(argv);
     default:
       return resolveRelayerChains(argv);
   }
@@ -108,7 +111,7 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
   return chains;
 }
 
-async function resolveWarpApplyChains(
+async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
@@ -144,33 +147,43 @@ async function resolveWarpRebalancerChains(
   return chains;
 }
 
-async function resolveAgentChains(
+/**
+ * Resolves chains for the 'send message' command.
+ * Returns only explicitly provided chains (origin/destination).
+ * If either is missing, returns only the provided ones - signers for
+ * interactively selected chains will be created after selection.
+ */
+async function resolveSendMessageChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { chainMetadata } = argv.context;
-  argv.origin =
-    argv.origin ??
-    (await runSingleChainSelectionStep(
-      chainMetadata,
-      'Select the origin chain',
-    ));
+  const { multiProvider } = argv.context;
+  const selectedChains = [argv.origin, argv.destination].filter(
+    Boolean,
+  ) as ChainName[];
 
-  if (!argv.targets) {
-    const selectedRelayChains = await runMultiChainSelectionStep({
-      chainMetadata: chainMetadata,
-      message: 'Select chains to relay between',
-      requireNumber: 2,
-    });
-    argv.targets = selectedRelayChains.join(',');
+  if (selectedChains.length > 0) {
+    const nonEvmChains = selectedChains.filter(
+      (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
+    );
+    if (nonEvmChains.length > 0) {
+      const chainDetails = nonEvmChains
+        .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
+        .join(', ');
+      throw new Error(
+        `'hyperlane send message' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
+      );
+    }
   }
 
-  return [argv.origin, ...argv.targets];
+  // Return only explicitly provided chains - signers for interactively
+  // selected chains will be created after selection
+  return selectedChains;
 }
 
 async function resolveRelayerChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
+  const { multiProvider, chainMetadata } = argv.context;
   const chains = new Set<ChainName>();
 
   if (argv.origin) {
@@ -181,16 +194,13 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains) {
-    const additionalChains = argv.chains
-      .split(',')
-      .map((item: string) => item.trim());
-    return Array.from(new Set([...chains, ...additionalChains]));
+  if (argv.chains?.length) {
+    return Array.from(new Set([...chains, ...argv.chains]));
   }
 
   // If no destination is specified, return all EVM chains only
   if (!argv.destination) {
-    const chains = multiProvider.getKnownChainNames();
+    const chains = Object.keys(filterOutDisabledChains(chainMetadata));
 
     return chains.filter(
       (chain: string) =>
@@ -276,4 +286,14 @@ async function resolveCoreDeployChains(
       cause: error,
     });
   }
+}
+
+async function resolveIcaDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
+  assert(chains.size > 0, 'No chains provided for ICA deploy');
+  return Array.from(chains);
 }

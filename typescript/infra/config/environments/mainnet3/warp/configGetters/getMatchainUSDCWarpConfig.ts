@@ -7,6 +7,7 @@ import {
   tokens,
 } from '../../../../../src/config/warp.js';
 import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
+import { WarpRouteIds } from '../warpIds.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
@@ -51,7 +52,9 @@ function tokenConfig(decimals: number) {
   };
 }
 
-const rebalancing = getUSDCRebalancingBridgesConfigFor(Object.keys(owners));
+const rebalancing = getUSDCRebalancingBridgesConfigFor(Object.keys(owners), [
+  WarpRouteIds.MainnetCCTPV1,
+]);
 
 export async function getMatchainUSDCWarpConfig(
   routerConfig: ChainMap<RouterConfigWithoutOwner>,

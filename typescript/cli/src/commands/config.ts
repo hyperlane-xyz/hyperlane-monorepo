@@ -1,11 +1,11 @@
-import { CommandModule } from 'yargs';
+import { type CommandModule } from 'yargs';
 
 import { readChainConfigs } from '../config/chain.js';
 import { readIsmConfig } from '../config/ism.js';
 import { readMultisigConfig } from '../config/multisig.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
 import { readWarpRouteDeployConfig } from '../config/warp.js';
-import { CommandModuleWithContext } from '../context/types.js';
+import { type CommandModuleWithContext } from '../context/types.js';
 import { log, logGreen } from '../logger.js';
 
 import { inputFileCommandOption } from './options.js';

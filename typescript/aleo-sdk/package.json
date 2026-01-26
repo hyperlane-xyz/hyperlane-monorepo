@@ -1,10 +1,11 @@
 {
   "name": "@hyperlane-xyz/aleo-sdk",
-  "version": "20.1.0",
+  "version": "22.0.0",
   "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
   "type": "module",
   "exports": {
-    ".": "./dist/index.js"
+    ".": "./dist/index.js",
+    "./testing": "./dist/testing/index.js"
   },
   "types": "dist/index.d.ts",
   "files": [
@@ -49,6 +50,7 @@
     "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
     "prettier": "catalog:",
+    "testcontainers": "catalog:",
     "ts-node": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
@@ -56,8 +58,16 @@
   "dependencies": {
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "@provablehq/sdk": "^0.9.13",
+    "@provablehq/sdk": "0.9.15",
     "bignumber.js": "catalog:",
     "unzipper": "^0.12.3"
+  },
+  "peerDependencies": {
+    "testcontainers": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "testcontainers": {
+      "optional": true
+    }
   }
 }

@@ -384,6 +384,7 @@ export {
 export {
   MultiProvider,
   MultiProviderOptions,
+  SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
   defaultEthersV5ProviderBuilder,
@@ -656,9 +657,28 @@ export {
   SealevelTokenAdapter,
 } from './token/adapters/SealevelTokenAdapter.js';
 export {
+  SealevelEnrollRemoteRouterInstruction,
+  SealevelEnrollRemoteRouterInstructionSchema,
+  SealevelEnrollRemoteRoutersInstruction,
+  SealevelEnrollRemoteRoutersInstructionSchema,
+  SealevelGasRouterConfig,
+  SealevelGasRouterConfigSchema,
   SealevelHyperlaneTokenData,
   SealevelHyperlaneTokenDataSchema,
   SealevelHypTokenInstruction,
+  SealevelHypTokenInstructionName,
+  SealevelHypTokenTransferOwnershipInstruction,
+  SealevelHypTokenTransferOwnershipInstructionSchema,
+  SealevelIgpConfig,
+  SealevelIgpConfigSchema,
+  SealevelRemoteRouterConfig,
+  SealevelRemoteRouterConfigSchema,
+  SealevelSetDestinationGasConfigsInstruction,
+  SealevelSetDestinationGasConfigsInstructionSchema,
+  SealevelSetInterchainGasPaymasterInstruction,
+  SealevelSetInterchainGasPaymasterInstructionSchema,
+  SealevelSetInterchainSecurityModuleInstruction,
+  SealevelSetInterchainSecurityModuleInstructionSchema,
   SealevelTransferRemoteInstruction,
   SealevelTransferRemoteSchema,
 } from './token/adapters/serialization.js';
@@ -868,6 +888,7 @@ export {
   TokenFeeConfigSchema,
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
+  LinearFeeConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

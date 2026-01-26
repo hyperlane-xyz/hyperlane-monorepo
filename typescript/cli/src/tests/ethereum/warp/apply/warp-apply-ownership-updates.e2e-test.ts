@@ -1,7 +1,11 @@
 import { expect } from 'chai';
 
-import { TokenType, randomAddress } from '@hyperlane-xyz/sdk';
-import { Address, ProtocolType, normalizeAddress } from '@hyperlane-xyz/utils';
+import { TokenFeeType, TokenType, randomAddress } from '@hyperlane-xyz/sdk';
+import {
+  type Address,
+  ProtocolType,
+  normalizeAddress,
+} from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
@@ -91,6 +95,7 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
     description: string;
     tokenOwner: string;
     proxyAdminOwner?: string;
+    ownerOverridesProxyAdmin?: string;
   }[] = [
     {
       description: 'should burn owner address',
@@ -113,13 +118,24 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
       tokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
       proxyAdminOwner: randomAddress(),
     },
+    {
+      description:
+        'should update proxyAdmin owner using ownerOverrides.proxyAdmin',
+      tokenOwner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum,
+      ownerOverridesProxyAdmin: randomAddress(),
+    },
   ];
 
-  for (const { description, proxyAdminOwner, tokenOwner } of testCases) {
+  for (const {
+    description,
+    proxyAdminOwner,
+    tokenOwner,
+    ownerOverridesProxyAdmin,
+  } of testCases) {
     it(description, async function () {
       const expectedTokenOwner: Address = tokenOwner;
       const expectedProxyAdminOwner: Address =
-        proxyAdminOwner ?? expectedTokenOwner;
+        ownerOverridesProxyAdmin ?? proxyAdminOwner ?? expectedTokenOwner;
 
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
@@ -130,6 +146,12 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
         warpDeployConfig[
           TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
         ].proxyAdmin = { owner: proxyAdminOwner };
+      }
+
+      if (ownerOverridesProxyAdmin) {
+        warpDeployConfig[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+        ].ownerOverrides = { proxyAdmin: ownerOverridesProxyAdmin };
       }
       writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
 
@@ -159,4 +181,46 @@ describe('hyperlane warp apply E2E (ownership updates)', async function () {
       ).to.eq(normalizeAddress(expectedProxyAdminOwner));
     });
   }
+
+  it('should succeed on re-run after ownership transfer with tokenFee configured (idempotency)', async function () {
+    const newOwner = randomAddress();
+    const feeOwner = HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.ethereum;
+    const tokenFeeConfig = {
+      type: TokenFeeType.LinearFee as const,
+      owner: feeOwner,
+      bps: BigInt('100'),
+    };
+
+    const warpDeployConfig = fixture.getDeployConfig();
+    warpDeployConfig[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+    ].tokenFee = tokenFeeConfig;
+    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, warpDeployConfig);
+
+    await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    const configWithNewOwner = fixture.getDeployConfig();
+    configWithNewOwner[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+    ].owner = newOwner;
+    configWithNewOwner[
+      TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2
+    ].tokenFee = tokenFeeConfig;
+    writeYamlOrJson(DEFAULT_EVM_WARP_DEPLOY_PATH, configWithNewOwner);
+
+    await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    const secondApply = await evmWarpCommands.applyRaw({
+      warpRouteId: DEFAULT_EVM_WARP_ID,
+      hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+    });
+
+    expect(secondApply.exitCode).to.equal(0);
+  });
 });

@@ -53,6 +53,13 @@ async function main() {
 
     return connectedChains.reduce((agg, destination) => {
       const oracleConfig = igpConfig.oracleConfig[destination];
+      // Skip destinations without oracle configs
+      if (!oracleConfig) {
+        console.debug(
+          `No oracle config for ${origin} -> ${destination}, skipping`,
+        );
+        return agg;
+      }
       if (oracleConfig.tokenDecimals === undefined) {
         throw new Error(
           `Token decimals not defined for ${origin} -> ${destination}`,
@@ -115,6 +122,7 @@ function getChainConnections(
       ['solanamainnet', 'carrchain'],
       ['solanamainnet', 'incentiv'],
       ['solanamainnet', 'litchain'],
+      ['solanamainnet', 'aleo'],
       // For Starknet / Paradex
       ['solanamainnet', 'starknet'],
       ['solanamainnet', 'paradex'],
@@ -125,6 +133,9 @@ function getChainConnections(
       ['eclipsemainnet', 'sonicsvm'],
       ['eclipsemainnet', 'soon'],
       ['eclipsemainnet', 'katana'],
+      ['eclipsemainnet', 'unichain'],
+      ['eclipsemainnet', 'optimism'],
+      ['eclipsemainnet', 'polygon'],
       // for solaxy routes
       ['solaxy', 'solanamainnet'],
       ['solaxy', 'ethereum'],

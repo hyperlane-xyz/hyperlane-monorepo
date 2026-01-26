@@ -1,12 +1,12 @@
 import {
-  ChainMap,
+  type ChainMap,
   HyperlaneCore,
   HyperlaneRelayer,
   RelayerCacheSchema,
 } from '@hyperlane-xyz/sdk';
-import { Address } from '@hyperlane-xyz/utils';
+import { type Address } from '@hyperlane-xyz/utils';
 
-import { CommandModuleWithContext } from '../context/types.js';
+import { type CommandModuleWithContext } from '../context/types.js';
 import { log } from '../logger.js';
 import { tryReadJson, writeJson } from '../utils/files.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
@@ -17,13 +17,13 @@ import {
   symbolCommandOption,
   warpCoreConfigCommandOption,
 } from './options.js';
-import { MessageOptionsArgTypes } from './send.js';
+import { type MessageOptionsArgTypes } from './send.js';
 
 const DEFAULT_RELAYER_CACHE = `${DEFAULT_LOCAL_REGISTRY}/relayer-cache.json`;
 
 export const relayerCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & {
-    chains?: string;
+    chains?: string[];
     cache: string;
     symbol?: string;
     warp?: string;
@@ -48,8 +48,7 @@ export const relayerCommand: CommandModuleWithContext<
       context.multiProvider,
     );
 
-    const chainsArray =
-      chains?.split(',').map((_) => _.trim()) ?? Object.keys(chainAddresses);
+    const chainsArray = chains?.length ? chains : Object.keys(chainAddresses);
 
     const whitelist: ChainMap<Address[]> = Object.fromEntries(
       chainsArray.map((chain) => [chain, []]),
