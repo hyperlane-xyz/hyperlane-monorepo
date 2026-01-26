@@ -16,6 +16,7 @@ import {
 } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
+import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';
 import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
 import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAppchainBaseUSDCWarpConfig.js';
 import {
@@ -213,6 +214,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
   [WarpRouteIds.ModeUSDTSTAGE]: getUSDTSTAGEWarpConfig,
+  [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
@@ -240,7 +242,6 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
-  [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
 };
 
 /**
