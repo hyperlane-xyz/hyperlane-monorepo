@@ -3,6 +3,8 @@
  *
  * These tests run realistic traffic patterns and observe how the rebalancer
  * responds. They visualize the results to assess rebalancer performance.
+ * 
+ * Uses FastSimulation which properly handles message delivery.
  */
 import { expect } from 'chai';
 import { pino } from 'pino';
@@ -19,8 +21,7 @@ import {
   type SnapshotInfo,
   startAnvil,
 } from '../../harness/index.js';
-import { MockExplorerServer } from '../../harness/mock-explorer.js';
-import { RebalancerSimulation } from './RebalancerSimulation.js';
+import { FastSimulation } from './FastSimulation.js';
 import { generateTraffic } from './TrafficPatterns.js';
 import { visualizeSimulation, compareSimulations } from './SimulationVisualizer.js';
 import type { SimulationRun, SimulationResults } from './types.js';
@@ -37,7 +38,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
   const COLLATERAL_DOMAINS = [DOMAIN_1, DOMAIN_2];
   const SYNTHETIC_DOMAINS = [DOMAIN_3];
-  const INITIAL_COLLATERAL = toWei('100'); // 100 tokens per domain
+  const INITIAL_COLLATERAL = toWei('500'); // 500 tokens per domain for comprehensive tests
 
   before(async function () {
     console.log('\nStarting anvil for comprehensive simulation tests...');
@@ -72,6 +73,51 @@ describe('Comprehensive Rebalancer Simulation', function () {
   });
 
   /**
+   * Create and initialize a FastSimulation for comprehensive tests.
+   */
+  async function createSimulation(withRebalancer: boolean): Promise<FastSimulation> {
+    const strategyConfig = withRebalancer ? {
+      chains: {
+        [DOMAIN_1.name]: {
+          weight: 50,
+          tolerance: 10, // 10% tolerance before rebalancing
+          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+        },
+        [DOMAIN_2.name]: {
+          weight: 50,
+          tolerance: 10,
+          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+        },
+      },
+    } : null;
+
+    const simulation = new FastSimulation({
+      setup,
+      messageDeliveryDelayMs: 5000, // 5 second delivery
+      deliveryCheckIntervalMs: 1000, // Check every second
+      recordingIntervalMs: 5000, // Record every 5 seconds
+      rebalancerIntervalMs: 30_000, // Check rebalancer every 30 seconds
+      bridgeConfigs: {
+        [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
+          fixedFee: BigInt(toWei('0.1')),
+          variableFeeBps: 10,
+          transferTimeMs: 15_000, // 15 second bridge time
+        },
+        [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
+          fixedFee: BigInt(toWei('0.1')),
+          variableFeeBps: 10,
+          transferTimeMs: 15_000,
+        },
+      },
+      strategyConfig,
+      logger,
+    });
+
+    await simulation.initialize();
+    return simulation;
+  }
+
+  /**
    * Run a simulation with or without rebalancing.
    */
   async function runSimulation(
@@ -79,59 +125,17 @@ describe('Comprehensive Rebalancer Simulation', function () {
     schedule: SimulationRun,
     withRebalancer: boolean,
   ): Promise<SimulationResults> {
-    const explorerServer = await MockExplorerServer.create();
-
-    try {
-      const strategyConfig = withRebalancer ? {
-        chains: {
-          [DOMAIN_1.name]: {
-            weight: 50,
-            tolerance: 10, // 10% tolerance before rebalancing
-            bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
-          },
-          [DOMAIN_2.name]: {
-            weight: 50,
-            tolerance: 10,
-            bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
-          },
-        },
-      } : null;
-
-      const simulation = new RebalancerSimulation({
-        setup,
-        explorerServer,
-        warpTransferDelayMs: 10_000, // 10 second message delivery
-        bridgeConfigs: {
-          [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
-            fixedFee: BigInt(toWei('0.1')),
-            variableFeeBps: 10,
-            transferTimeMs: 60_000, // 1 minute bridge time
-          },
-          [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
-            fixedFee: BigInt(toWei('0.1')),
-            variableFeeBps: 10,
-            transferTimeMs: 60_000,
-          },
-        },
-        rebalancerIntervalMs: 2 * 60_000, // Check every 2 minutes
-        timeStepMs: 30_000, // 30 second time steps (faster simulation)
-        strategyConfig,
-        logger,
-      });
-
-      return await simulation.run({ ...schedule, name });
-    } finally {
-      await explorerServer.close();
-    }
+    const simulation = await createSimulation(withRebalancer);
+    return await simulation.run({ ...schedule, name });
   }
 
   // ========== TRAFFIC PATTERN TESTS ==========
 
   describe('Traffic Pattern: Imbalanced', function () {
     it('should handle imbalanced traffic with rebalancer', async function () {
-      // Generate 10 minutes of imbalanced traffic (shorter for faster tests)
+      // Generate 5 minutes of imbalanced traffic (shorter for faster tests)
       const transfers = generateTraffic('imbalanced', {
-        durationMs: 10 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -141,11 +145,11 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
       const schedule: SimulationRun = {
         name: 'imbalanced-with-rebalancer',
-        durationMs: 10 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         transfers,
       };
 
-      console.log(`\nRunning simulation with ${transfers.length} transfers over 10 minutes...`);
+      console.log(`\nRunning simulation with ${transfers.length} transfers over 5 minutes...`);
       
       const results = await runSimulation(
         'Imbalanced Traffic WITH Rebalancer',
@@ -157,13 +161,14 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
       // Verify simulation ran
       expect(results.transfers.total).to.be.greaterThan(0);
+      expect(results.transfers.completed).to.be.greaterThan(0);
       expect(results.duration.wallClockMs).to.be.lessThan(120_000); // Should complete in < 2 minutes wall clock
     });
 
     it('should show difference with and without rebalancer', async function () {
-      // Generate traffic (10 minutes for faster comparison)
+      // Generate traffic (5 minutes for faster comparison)
       const transfers = generateTraffic('imbalanced', {
-        durationMs: 10 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -173,7 +178,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
       const schedule: SimulationRun = {
         name: 'comparison-test',
-        durationMs: 10 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         transfers,
       };
 
@@ -204,8 +209,9 @@ describe('Comprehensive Rebalancer Simulation', function () {
       // Show comparison
       console.log(compareSimulations(withoutResults, withResults));
 
-      // The rebalancer should have executed some rebalances
-      expect(withResults.rebalancing.count).to.be.greaterThanOrEqual(0);
+      // Both should complete their transfers
+      expect(withoutResults.transfers.completed).to.be.greaterThan(0);
+      expect(withResults.transfers.completed).to.be.greaterThan(0);
     });
   });
 
@@ -213,7 +219,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
     it('should handle heavy one-way traffic that creates significant imbalance', async function () {
       // This pattern sends all traffic from one chain, creating maximum imbalance
       const transfers = generateTraffic('heavy-one-way', {
-        durationMs: 10 * 60 * 1000, // 10 minutes
+        durationMs: 5 * 60 * 1000, // 5 minutes
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -223,7 +229,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
       const schedule: SimulationRun = {
         name: 'heavy-one-way',
-        durationMs: 10 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         transfers,
       };
 
@@ -238,14 +244,15 @@ describe('Comprehensive Rebalancer Simulation', function () {
       console.log(visualizeSimulation(results));
 
       // With heavy one-way traffic, we expect significant rebalancing
-      expect(results.transfers.total).to.be.greaterThan(5);
+      expect(results.transfers.total).to.be.greaterThan(3);
+      expect(results.transfers.completed).to.be.greaterThan(0);
     });
   });
 
   describe('Traffic Pattern: Bidirectional Imbalanced', function () {
     it('should handle bidirectional traffic with shifting patterns', async function () {
       const transfers = generateTraffic('bidirectional-imbalanced', {
-        durationMs: 15 * 60 * 1000, // 15 minutes
+        durationMs: 5 * 60 * 1000, // 5 minutes
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -255,7 +262,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
       const schedule: SimulationRun = {
         name: 'bidirectional-imbalanced',
-        durationMs: 15 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         transfers,
       };
 
@@ -270,13 +277,14 @@ describe('Comprehensive Rebalancer Simulation', function () {
       console.log(visualizeSimulation(results));
 
       expect(results.transfers.total).to.be.greaterThan(0);
+      expect(results.transfers.completed).to.be.greaterThan(0);
     });
   });
 
   describe('Traffic Pattern: Burst', function () {
     it('should handle burst traffic patterns', async function () {
       const transfers = generateTraffic('burst', {
-        durationMs: 10 * 60 * 1000, // 10 minutes
+        durationMs: 5 * 60 * 1000, // 5 minutes
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -286,7 +294,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
 
       const schedule: SimulationRun = {
         name: 'burst-traffic',
-        durationMs: 10 * 60 * 1000,
+        durationMs: 5 * 60 * 1000,
         transfers,
       };
 
@@ -301,16 +309,17 @@ describe('Comprehensive Rebalancer Simulation', function () {
       console.log(visualizeSimulation(results));
 
       expect(results.transfers.total).to.be.greaterThan(0);
+      expect(results.transfers.completed).to.be.greaterThan(0);
     });
   });
 
   // ========== LONG SIMULATION ==========
 
   describe('Extended Simulation', function () {
-    it('should run a 30-minute simulation with varied traffic', async function () {
-      // Combine multiple patterns for a realistic simulation
+    it('should run a 10-minute simulation with varied traffic', async function () {
+      // Combine multiple patterns for a realistic simulation (reduced from 30 min)
       const steady = generateTraffic('steady', {
-        durationMs: 30 * 60 * 1000,
+        durationMs: 10 * 60 * 1000,
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -319,7 +328,7 @@ describe('Comprehensive Rebalancer Simulation', function () {
       });
 
       const bursts = generateTraffic('burst', {
-        durationMs: 30 * 60 * 1000,
+        durationMs: 10 * 60 * 1000,
         chains: [DOMAIN_1.name, DOMAIN_2.name, DOMAIN_3.name],
         collateralChains: [DOMAIN_1.name, DOMAIN_2.name],
         syntheticChains: [DOMAIN_3.name],
@@ -331,15 +340,15 @@ describe('Comprehensive Rebalancer Simulation', function () {
       const transfers = [...steady, ...bursts].sort((a, b) => a.time - b.time);
 
       const schedule: SimulationRun = {
-        name: 'extended-30min',
-        durationMs: 30 * 60 * 1000,
+        name: 'extended-10min',
+        durationMs: 10 * 60 * 1000,
         transfers,
       };
 
-      console.log(`\nRunning 30-minute simulation with ${transfers.length} transfers...`);
+      console.log(`\nRunning 10-minute simulation with ${transfers.length} transfers...`);
 
       const results = await runSimulation(
-        '30-Minute Extended Simulation',
+        '10-Minute Extended Simulation',
         schedule,
         true,
       );
@@ -347,8 +356,9 @@ describe('Comprehensive Rebalancer Simulation', function () {
       console.log(visualizeSimulation(results));
 
       // Summary assertions
-      expect(results.transfers.total).to.be.greaterThan(15);
-      expect(results.duration.simulatedMs).to.equal(30 * 60 * 1000);
+      expect(results.transfers.total).to.be.greaterThan(10);
+      expect(results.transfers.completed).to.be.greaterThan(0);
+      expect(results.duration.simulatedMs).to.equal(10 * 60 * 1000);
       
       // Should have some rebalancing activity
       console.log(`\nSummary:`);
