@@ -197,7 +197,14 @@ impl SealevelProviderForLander for SealevelProvider {
 
         // If there was an error in the simulation result, return an error.
         if simulation_result.err.is_some() {
-            tracing::error!(?simulation_result, "Got simulation result for transaction");
+            // Log base58-encoded transaction for debugging/replay
+            let tx_bytes = bincode::serialize(&simulation_tx).unwrap_or_default();
+            let tx_base58 = solana_sdk::bs58::encode(&tx_bytes).into_string();
+            tracing::error!(
+                ?simulation_result,
+                tx_base58,
+                "Simulation failed - transaction for replay"
+            );
             return Err(ChainCommunicationError::from_other_str(
                 format!("Error in simulation result: {:?}", simulation_result.err).as_str(),
             ));
