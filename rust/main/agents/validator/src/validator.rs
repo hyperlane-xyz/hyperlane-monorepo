@@ -1,4 +1,4 @@
-use std::{fmt::Debug, sync::Arc, time::Duration};
+use std::{fmt::Debug, path::PathBuf, sync::Arc, time::Duration};
 
 use async_trait::async_trait;
 use axum::Router;
@@ -44,6 +44,7 @@ pub struct Validator {
     #[as_ref]
     core: HyperlaneAgentCore,
     db: HyperlaneRocksDB,
+    db_path: PathBuf,
     merkle_tree_hook_sync: Arc<SequencedDataContractSync<MerkleTreeInsertion>>,
     mailbox: Arc<dyn Mailbox>,
     merkle_tree_hook: Arc<dyn MerkleTreeHook>,
@@ -180,6 +181,7 @@ impl BaseAgent for Validator {
             origin_chain_conf,
             core,
             db: msg_db,
+            db_path: settings.db.clone(),
             mailbox: mailbox.into(),
             merkle_tree_hook: merkle_tree_hook.into(),
             merkle_tree_hook_sync,
@@ -230,6 +232,20 @@ impl BaseAgent for Validator {
                 migration_target = migration_target,
                 "Kaspa validator mode"
             );
+
+            // Migration lock file logic
+            if is_migration {
+                // Write lock file with the migration target address
+                if let Some(target) = migration_target {
+                    dymension_kaspa::write_migration_lock(&self.db_path, target)
+                        .expect("Failed to write migration lock file");
+                }
+            } else {
+                // Check lock file against configured escrow
+                let configured_escrow = prov.escrow_address().to_string();
+                dymension_kaspa::check_migration_lock(&self.db_path, &configured_escrow)
+                    .expect("Migration lock check failed");
+            }
 
             let signing = dymension_kaspa::ValidatorISMSigningResources::new(
                 Arc::new(self.raw_signer.clone()),
