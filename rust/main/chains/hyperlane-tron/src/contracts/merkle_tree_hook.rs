@@ -163,6 +163,8 @@ impl HyperlaneContract for TronMerkleTreeHook {
 
 #[async_trait]
 impl MerkleTreeHook for TronMerkleTreeHook {
+    /// Note: reorg_period is not used in this implementation
+    /// because the Tron's view calls happen on the solidified node which is already finalized.
     #[instrument(skip(self))]
     async fn latest_checkpoint(
         &self,
@@ -190,13 +192,14 @@ impl MerkleTreeHook for TronMerkleTreeHook {
             root: root.into(),
             index,
         };
-        // TODO: figure out how to call at specific block height
         Ok(CheckpointAtBlock {
             checkpoint,
             block_height: Some(height),
         })
     }
 
+    /// Note: reorg_period is not used in this implementation
+    /// because the Tron's view calls happen on the solidified node which is already finalized.
     #[instrument(skip(self))]
     #[allow(clippy::needless_range_loop)]
     async fn tree(&self, reorg_period: &ReorgPeriod) -> ChainResult<IncrementalMerkleAtBlock> {
@@ -208,6 +211,8 @@ impl MerkleTreeHook for TronMerkleTreeHook {
         })
     }
 
+    /// Note: reorg_period is not used in this implementation
+    /// because the Tron's view calls happen on the solidified node which is already finalized.
     #[instrument(skip(self))]
     async fn count(&self, reorg_period: &ReorgPeriod) -> ChainResult<u32> {
         let count = self.contract.count().call().await?;
