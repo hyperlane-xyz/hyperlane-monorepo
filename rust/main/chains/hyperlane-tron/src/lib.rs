@@ -9,12 +9,15 @@ use ethers_signers::LocalWallet;
 
 pub use {
     config::ConnectionConf, contracts::TronInterchainGasPaymaster, contracts::TronMailboxIndexer,
-    contracts::TronMerkleTreeHookIndexer, provider::TronProvider,
+    contracts::TronMerkleTreeHookIndexer, ism::TronAggregationIsm,
+    ism::TronInterchainSecurityModule, ism::TronMultisigIsm, ism::TronRoutingIsm,
+    provider::TronProvider,
 };
 
 mod config;
 mod contracts;
 mod error;
+mod ism;
 mod provider;
 mod utils;
 
