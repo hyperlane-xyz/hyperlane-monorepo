@@ -1,5 +1,28 @@
 # @hyperlane-xyz/rebalancer
 
+## 0.1.2
+
+### Patch Changes
+
+- b892d63: Migrated to use shared utilities from `@hyperlane-xyz/metrics` package, eliminating duplicate metric server implementations and ensuring consistent Prometheus metric collection across all services.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 223fd7f: Suppressed harmless startup warnings via pnpm patches instead of runtime suppression. The bigint-buffer native bindings warning and node-fetch .data deprecation warning are now patched at the source, avoiding the need for --no-warnings flags or console.warn overrides.
+- Updated dependencies [c6a6d5f]
+- Updated dependencies [4c58992]
+- Updated dependencies [99948bc]
+- Updated dependencies [99948bc]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [7a0a9e4]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/sdk@22.0.0
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/metrics@0.1.0
+  - @hyperlane-xyz/core@10.1.5
+
 ## 0.1.1
 
 ### Patch Changes

@@ -384,6 +384,7 @@ export {
 export {
   MultiProvider,
   MultiProviderOptions,
+  SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
   defaultEthersV5ProviderBuilder,

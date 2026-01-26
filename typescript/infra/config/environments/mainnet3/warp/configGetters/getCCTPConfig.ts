@@ -27,8 +27,10 @@ import {
 
 const SERVICE_URL = 'https://offchain-lookup.services.hyperlane.xyz';
 
-// Contract version for CCTP V2 routes - includes fix for destinationCaller (10.0.4+)
-const CONTRACT_VERSION = '10.1.3';
+// Contract version for CCTP V2 standard routes
+const CONTRACT_VERSION_STANDARD = '10.1.3';
+// Contract version for CCTP V2 fast routes - includes updated fee config
+const CONTRACT_VERSION_FAST = '10.1.5';
 
 export const CCTP_CHAINS = Object.keys(tokenMessengerV1Addresses);
 
@@ -117,7 +119,8 @@ const getCCTPV2WarpConfig = (
 
     return {
       ...config,
-      contractVersion: CONTRACT_VERSION,
+      contractVersion:
+        mode === 'fast' ? CONTRACT_VERSION_FAST : CONTRACT_VERSION_STANDARD,
       maxFeeBps,
       minFinalityThreshold,
     };

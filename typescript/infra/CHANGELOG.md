@@ -1,5 +1,31 @@
 # @hyperlane-xyz/infra
 
+## 22.0.0
+
+### Patch Changes
+
+- b892d63: Migrated to use shared utilities from `@hyperlane-xyz/metrics` package, eliminating duplicate metric server implementations and ensuring consistent Prometheus metric collection across all services.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- Updated dependencies [c6a6d5f]
+- Updated dependencies [b892d63]
+- Updated dependencies [4c58992]
+- Updated dependencies [99948bc]
+- Updated dependencies [99948bc]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [7a0a9e4]
+- Updated dependencies [223fd7f]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/sdk@22.0.0
+  - @hyperlane-xyz/rebalancer@0.1.2
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/metrics@0.1.0
+  - @hyperlane-xyz/helloworld@22.0.0
+  - @hyperlane-xyz/http-registry-server@22.0.0
+  - @hyperlane-xyz/core@10.1.5
+
 ## 21.1.0
 
 ### Patch Changes

@@ -1,5 +1,18 @@
 # @hyperlane-xyz/provider-sdk
 
+## 1.2.0
+
+### Minor Changes
+
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- Updated dependencies [66ef635]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/utils@22.0.0
+
 ## 1.1.0
 
 ### Minor Changes
