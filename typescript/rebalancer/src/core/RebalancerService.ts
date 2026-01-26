@@ -451,8 +451,17 @@ export class RebalancerService {
     let results: RebalanceExecutionResult[];
     try {
       results = await this.rebalancer.rebalance(rebalanceRoutes);
-      this.metrics?.recordRebalancerSuccess();
-      this.logger.info('Rebalancer completed a cycle successfully');
+      const failedResults = results.filter((r) => !r.success);
+      if (failedResults.length > 0) {
+        this.metrics?.recordRebalancerFailure();
+        this.logger.warn(
+          { failureCount: failedResults.length, total: results.length },
+          'Rebalancer cycle completed with failures',
+        );
+      } else {
+        this.metrics?.recordRebalancerSuccess();
+        this.logger.info('Rebalancer completed a cycle successfully');
+      }
     } catch (error: any) {
       this.metrics?.recordRebalancerFailure();
       this.logger.error({ error }, 'Error while rebalancing');

@@ -8,6 +8,7 @@ import type { MultiProvider, Token, WarpCore } from '@hyperlane-xyz/sdk';
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { RebalancerStrategyOptions } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
+import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -70,6 +71,8 @@ function createMockToken(chainName: string): Token {
     name: `${chainName}Token`,
     decimals: 18,
     addressOrDenom: getTestAddress(chainName),
+    standard: 'EvmHypCollateral',
+    isCollateralized: () => true,
   } as unknown as Token;
 }
 
@@ -496,6 +499,298 @@ describe('RebalancerService', () => {
       await service.stop();
 
       expect((monitor.stop as Sinon.SinonStub).calledOnce).to.be.true;
+    });
+  });
+
+  describe('daemon mode metrics', () => {
+    it('should record failure metric when rebalance has failed results', async () => {
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.resolves([
+        {
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+            intentId: 'intent-1',
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: false,
+          error: 'Gas estimation failed',
+        },
+      ]);
+
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+        },
+      ]);
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+
+      const recordRebalancerSuccess = Sinon.stub();
+      const recordRebalancerFailure = Sinon.stub();
+      const metrics = {
+        recordRebalancerSuccess,
+        recordRebalancerFailure,
+        recordIntentCreated: Sinon.stub(),
+        processToken: Sinon.stub().resolves(),
+      } as unknown as Metrics;
+
+      let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
+      const monitor = {
+        on: Sinon.stub().callsFake((event: string, handler: any) => {
+          if (event === MonitorEventType.TokenInfo) {
+            tokenInfoHandler = handler;
+          }
+          return monitor;
+        }),
+        start: Sinon.stub().resolves(),
+        stop: Sinon.stub().resolves(),
+      } as unknown as Monitor;
+
+      const contextFactory = createMockContextFactory({
+        rebalancer,
+        strategy,
+        actionTracker,
+        inflightAdapter,
+        monitor,
+        metrics,
+      });
+      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+
+      const config: RebalancerServiceConfig = {
+        mode: 'daemon',
+        checkFrequency: 60000,
+        withMetrics: true,
+        logger: testLogger,
+      };
+
+      const service = new RebalancerService(
+        createMockMultiProvider(),
+        undefined,
+        {} as any,
+        createMockRebalancerConfig(),
+        config,
+      );
+
+      await service.start();
+
+      expect(tokenInfoHandler).to.not.be.undefined;
+      await tokenInfoHandler!({
+        tokensInfo: [
+          { token: createMockToken('ethereum'), bridgedSupply: 5000n },
+          { token: createMockToken('arbitrum'), bridgedSupply: 5000n },
+        ],
+      });
+
+      expect(recordRebalancerFailure.calledOnce).to.be.true;
+      expect(recordRebalancerSuccess.called).to.be.false;
+    });
+
+    it('should record success metric when all rebalance results succeed', async () => {
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.resolves([
+        {
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+            intentId: 'intent-1',
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: true,
+          messageId:
+            '0x1111111111111111111111111111111111111111111111111111111111111111',
+          txHash:
+            '0x2222222222222222222222222222222222222222222222222222222222222222',
+        },
+      ]);
+
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+        },
+      ]);
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+
+      const recordRebalancerSuccess = Sinon.stub();
+      const recordRebalancerFailure = Sinon.stub();
+      const metrics = {
+        recordRebalancerSuccess,
+        recordRebalancerFailure,
+        recordIntentCreated: Sinon.stub(),
+        processToken: Sinon.stub().resolves(),
+      } as unknown as Metrics;
+
+      let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
+      const monitor = {
+        on: Sinon.stub().callsFake((event: string, handler: any) => {
+          if (event === MonitorEventType.TokenInfo) {
+            tokenInfoHandler = handler;
+          }
+          return monitor;
+        }),
+        start: Sinon.stub().resolves(),
+        stop: Sinon.stub().resolves(),
+      } as unknown as Monitor;
+
+      const contextFactory = createMockContextFactory({
+        rebalancer,
+        strategy,
+        actionTracker,
+        inflightAdapter,
+        monitor,
+        metrics,
+      });
+      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+
+      const config: RebalancerServiceConfig = {
+        mode: 'daemon',
+        checkFrequency: 60000,
+        withMetrics: true,
+        logger: testLogger,
+      };
+
+      const service = new RebalancerService(
+        createMockMultiProvider(),
+        undefined,
+        {} as any,
+        createMockRebalancerConfig(),
+        config,
+      );
+
+      await service.start();
+
+      expect(tokenInfoHandler).to.not.be.undefined;
+      await tokenInfoHandler!({
+        tokensInfo: [
+          { token: createMockToken('ethereum'), bridgedSupply: 5000n },
+          { token: createMockToken('arbitrum'), bridgedSupply: 5000n },
+        ],
+      });
+
+      expect(recordRebalancerSuccess.calledOnce).to.be.true;
+      expect(recordRebalancerFailure.called).to.be.false;
+    });
+
+    it('should record failure metric when rebalance has mixed results', async () => {
+      const rebalancer = createMockRebalancer();
+      rebalancer.rebalance.resolves([
+        {
+          route: {
+            origin: 'ethereum',
+            destination: 'arbitrum',
+            amount: 1000n,
+            intentId: 'intent-1',
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: true,
+          messageId:
+            '0x1111111111111111111111111111111111111111111111111111111111111111',
+          txHash:
+            '0x2222222222222222222222222222222222222222222222222222222222222222',
+        },
+        {
+          route: {
+            origin: 'arbitrum',
+            destination: 'ethereum',
+            amount: 500n,
+            intentId: 'intent-2',
+            bridge: TEST_ADDRESSES.bridge,
+          },
+          success: false,
+          error: 'Insufficient balance',
+        },
+      ]);
+
+      const strategy = createMockStrategy();
+      strategy.getRebalancingRoutes.returns([
+        {
+          origin: 'ethereum',
+          destination: 'arbitrum',
+          amount: 1000n,
+          bridge: TEST_ADDRESSES.bridge,
+        },
+        {
+          origin: 'arbitrum',
+          destination: 'ethereum',
+          amount: 500n,
+          bridge: TEST_ADDRESSES.bridge,
+        },
+      ]);
+
+      const actionTracker = createMockActionTracker();
+      const inflightAdapter = createMockInflightContextAdapter();
+
+      const recordRebalancerSuccess = Sinon.stub();
+      const recordRebalancerFailure = Sinon.stub();
+      const metrics = {
+        recordRebalancerSuccess,
+        recordRebalancerFailure,
+        recordIntentCreated: Sinon.stub(),
+        processToken: Sinon.stub().resolves(),
+      } as unknown as Metrics;
+
+      let tokenInfoHandler: ((event: any) => Promise<void>) | undefined;
+      const monitor = {
+        on: Sinon.stub().callsFake((event: string, handler: any) => {
+          if (event === MonitorEventType.TokenInfo) {
+            tokenInfoHandler = handler;
+          }
+          return monitor;
+        }),
+        start: Sinon.stub().resolves(),
+        stop: Sinon.stub().resolves(),
+      } as unknown as Monitor;
+
+      const contextFactory = createMockContextFactory({
+        rebalancer,
+        strategy,
+        actionTracker,
+        inflightAdapter,
+        monitor,
+        metrics,
+      });
+      sandbox.stub(RebalancerContextFactory, 'create').resolves(contextFactory);
+
+      const config: RebalancerServiceConfig = {
+        mode: 'daemon',
+        checkFrequency: 60000,
+        withMetrics: true,
+        logger: testLogger,
+      };
+
+      const service = new RebalancerService(
+        createMockMultiProvider(),
+        undefined,
+        {} as any,
+        createMockRebalancerConfig(),
+        config,
+      );
+
+      await service.start();
+
+      expect(tokenInfoHandler).to.not.be.undefined;
+      await tokenInfoHandler!({
+        tokensInfo: [
+          { token: createMockToken('ethereum'), bridgedSupply: 5000n },
+          { token: createMockToken('arbitrum'), bridgedSupply: 5000n },
+        ],
+      });
+
+      expect(recordRebalancerFailure.calledOnce).to.be.true;
+      expect(recordRebalancerSuccess.called).to.be.false;
     });
   });
 
