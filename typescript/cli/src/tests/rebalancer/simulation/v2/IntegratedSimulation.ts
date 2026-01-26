@@ -104,6 +104,10 @@ export interface IntegratedSimulationConfig {
 
 interface PendingTransfer extends PendingWarpTransfer {
   deliveryDueAt: number;
+  /** True if the transfer was initiated but delivery failed */
+  deliveryFailed?: boolean;
+  /** Number of delivery attempts */
+  deliveryAttempts?: number;
 }
 
 interface PendingBridge extends PendingBridgeTransfer {
@@ -480,6 +484,7 @@ export class IntegratedSimulation {
     const readyForDelivery = [...this.pendingTransfers.values()].filter(
       (t) =>
         !t.completed &&
+        !t.deliveryFailed &&
         t.deliveryDueAt <= now &&
         !this.trafficGenerator.isDelivered(t.messageId),
     );
@@ -490,47 +495,68 @@ export class IntegratedSimulation {
 
     this.logger?.debug({ count: readyForDelivery.length }, 'Delivering transfers');
 
-    try {
-      const result =
-        await this.trafficGenerator.deliverTransfersBatch(readyForDelivery);
+    const result =
+      await this.trafficGenerator.deliverTransfersBatch(readyForDelivery);
 
-      this.logger?.debug(
-        { delivered: result.delivered, skipped: result.skipped },
-        'Delivery batch completed',
-      );
+    this.logger?.debug(
+      { delivered: result.delivered, skipped: result.skipped, failed: result.failed },
+      'Delivery batch completed',
+    );
 
-      for (const transfer of readyForDelivery) {
-        if (this.trafficGenerator.isDelivered(transfer.messageId)) {
-          transfer.completed = true;
+    // Process results per-transfer
+    for (const transfer of readyForDelivery) {
+      const deliveryResult = result.results.find(r => r.messageId === transfer.messageId);
+      
+      if (deliveryResult?.success && this.trafficGenerator.isDelivered(transfer.messageId)) {
+        // Successfully delivered
+        transfer.completed = true;
 
-          // Mark as delivered in MockExplorer
-          if (this.mockExplorer) {
-            this.mockExplorer.markDelivered(transfer.messageId);
-          }
+        // Mark as delivered in MockExplorer
+        if (this.mockExplorer) {
+          this.mockExplorer.markDelivered(transfer.messageId);
+        }
 
-          events.push({
-            time: now,
-            type: 'transfer_completed',
-            origin: transfer.origin,
-            destination: transfer.destination,
-            amount: transfer.amount,
-          });
+        events.push({
+          time: now,
+          type: 'transfer_completed',
+          origin: transfer.origin,
+          destination: transfer.destination,
+          amount: transfer.amount,
+        });
 
-          this.transferMetrics.push({
-            id: transfer.messageId,
-            origin: transfer.origin,
-            destination: transfer.destination,
-            amount: transfer.amount,
-            initiatedAt: transfer.initiatedAt,
-            completedAt: now,
-            latencyMs: now - transfer.initiatedAt,
-            waitedForCollateral: false,
-            collateralWaitMs: 0,
-          });
+        this.transferMetrics.push({
+          id: transfer.messageId,
+          origin: transfer.origin,
+          destination: transfer.destination,
+          amount: transfer.amount,
+          initiatedAt: transfer.initiatedAt,
+          completedAt: now,
+          latencyMs: now - transfer.initiatedAt,
+          waitedForCollateral: false,
+          collateralWaitMs: 0,
+        });
+      } else if (deliveryResult && !deliveryResult.success) {
+        // Delivery failed (e.g., insufficient collateral)
+        transfer.deliveryAttempts = (transfer.deliveryAttempts || 0) + 1;
+        
+        this.logger?.warn(
+          { 
+            messageId: transfer.messageId, 
+            error: deliveryResult.error,
+            attempts: transfer.deliveryAttempts,
+          },
+          'Transfer delivery failed',
+        );
+        
+        // After 3 attempts, mark as permanently failed
+        if (transfer.deliveryAttempts >= 3) {
+          transfer.deliveryFailed = true;
+          this.logger?.error(
+            { messageId: transfer.messageId },
+            'Transfer marked as permanently failed after 3 attempts',
+          );
         }
       }
-    } catch (error) {
-      this.logger?.error({ error }, 'Batch delivery failed');
     }
 
     return events;
@@ -713,18 +739,34 @@ export class IntegratedSimulation {
     const now = this.getElapsedTime();
 
     for (const [_txHash, pending] of this.pendingTransfers) {
-      if (!pending.completed) {
-        this.transferMetrics.push({
-          id: pending.messageId,
-          origin: pending.origin,
-          destination: pending.destination,
-          amount: pending.amount,
-          initiatedAt: pending.initiatedAt,
-          completedAt: -1,
-          latencyMs: -1,
-          waitedForCollateral: true,
-          collateralWaitMs: now - pending.deliveryDueAt,
-        });
+      // Mark as stuck if: not completed OR delivery permanently failed
+      if (!pending.completed || pending.deliveryFailed) {
+        // Don't double-count if already in metrics (from deliveryFailed path)
+        const alreadyInMetrics = this.transferMetrics.some(
+          (m) => m.id === pending.messageId,
+        );
+        if (!alreadyInMetrics) {
+          this.logger?.debug(
+            { 
+              messageId: pending.messageId, 
+              deliveryFailed: pending.deliveryFailed,
+              attempts: pending.deliveryAttempts,
+            },
+            'Marking transfer as stuck',
+          );
+          
+          this.transferMetrics.push({
+            id: pending.messageId,
+            origin: pending.origin,
+            destination: pending.destination,
+            amount: pending.amount,
+            initiatedAt: pending.initiatedAt,
+            completedAt: -1,
+            latencyMs: -1,
+            waitedForCollateral: true,
+            collateralWaitMs: now - pending.deliveryDueAt,
+          });
+        }
       }
     }
   }

@@ -238,13 +238,30 @@ export class OptimizedTrafficGenerator {
    * Deliver multiple transfers.
    * IMPORTANT: All deliveries are executed sequentially to avoid nonce conflicts.
    * This is necessary because the signer is shared across all destinations.
+   * 
+   * Returns per-transfer results instead of throwing, so callers can track
+   * which transfers succeeded vs failed (e.g., due to insufficient collateral).
    */
-  async deliverTransfersBatch(transfers: PendingWarpTransfer[]): Promise<{ delivered: number; skipped: number }> {
+  async deliverTransfersBatch(transfers: PendingWarpTransfer[]): Promise<{ 
+    delivered: number; 
+    skipped: number; 
+    failed: number;
+    results: Array<{ messageId: string; success: boolean; error?: string }>;
+  }> {
     let delivered = 0;
     let skipped = 0;
+    let failed = 0;
+    const results: Array<{ messageId: string; success: boolean; error?: string }> = [];
 
     // Filter out already delivered transfers
     const toDeliver = transfers.filter(t => !this.deliveredMessageIds.has(t.messageId));
+    
+    // Mark already-delivered as skipped in results
+    for (const transfer of transfers) {
+      if (this.deliveredMessageIds.has(transfer.messageId)) {
+        results.push({ messageId: transfer.messageId, success: true, error: undefined });
+      }
+    }
     
     // Execute ALL deliveries sequentially to avoid nonce conflicts
     // (Even though they go to different destination mailboxes, we use the same signer)
@@ -253,21 +270,30 @@ export class OptimizedTrafficGenerator {
         const wasDelivered = await this.deliverTransfer(transfer);
         if (wasDelivered) {
           delivered++;
+          results.push({ messageId: transfer.messageId, success: true });
         } else {
           skipped++;
+          results.push({ messageId: transfer.messageId, success: true }); // Already delivered = success
         }
       } catch (error: any) {
         // Check if it's an "already delivered" error from the contract
         if (error.message?.includes('already delivered')) {
           this.deliveredMessageIds.add(transfer.messageId);
           skipped++;
+          results.push({ messageId: transfer.messageId, success: true });
         } else {
-          throw error;
+          // Actual delivery failure (e.g., insufficient collateral)
+          failed++;
+          results.push({ 
+            messageId: transfer.messageId, 
+            success: false, 
+            error: error.message || 'Unknown error' 
+          });
         }
       }
     }
 
-    return { delivered, skipped };
+    return { delivered, skipped, failed, results };
   }
 
   /**

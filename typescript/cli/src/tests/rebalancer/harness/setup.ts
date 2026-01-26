@@ -256,9 +256,10 @@ export interface CreateRebalancerTestSetupOptions {
   syntheticDomains: DomainConfig[];
 
   /**
-   * Initial collateral amount to mint on each collateral domain (in wei)
+   * Initial collateral amount to mint on each collateral domain (in wei).
+   * Can be a single value (same for all domains) or a record keyed by domain name.
    */
-  initialCollateral: bigint;
+  initialCollateral: bigint | Record<string, bigint>;
 
   /**
    * RPC URL (defaults to http://127.0.0.1:8545)
@@ -375,15 +376,28 @@ export async function createRebalancerTestSetup(
     );
   }
 
+  // Helper to get initial collateral for a domain
+  const getInitialCollateral = (domainName: string): bigint => {
+    if (typeof initialCollateral === 'bigint') {
+      return initialCollateral;
+    }
+    const amount = initialCollateral[domainName];
+    if (amount === undefined) {
+      throw new Error(`No initial collateral specified for domain ${domainName}`);
+    }
+    return amount;
+  };
+
   // 2. Deploy ERC20 tokens on collateral domains
   logger?.info('Deploying ERC20 tokens...');
   const tokens: Record<string, ERC20Test> = {};
 
   for (const domain of collateralDomains) {
+    const domainCollateral = getInitialCollateral(domain.name);
     const token = await new ERC20Test__factory(signer).deploy(
       'Test Token',
       'TST',
-      initialCollateral * 10n, // Mint extra for transfers
+      domainCollateral * 10n, // Mint extra for transfers
       18,
     );
     await token.deployed();
@@ -496,12 +510,13 @@ export async function createRebalancerTestSetup(
   for (const domain of collateralDomains) {
     const token = tokens[domain.name];
     const warpRouteAddress = warpRoutes[domain.name];
+    const domainCollateral = getInitialCollateral(domain.name);
 
     // Transfer tokens to warp route (simulating locked collateral)
-    await (await token.transfer(warpRouteAddress, initialCollateral)).wait();
+    await (await token.transfer(warpRouteAddress, domainCollateral)).wait();
 
     logger?.debug(
-      `Funded ${domain.name} warp route with ${initialCollateral} tokens`,
+      `Funded ${domain.name} warp route with ${domainCollateral} tokens`,
     );
   }
 
@@ -509,8 +524,9 @@ export async function createRebalancerTestSetup(
   logger?.info('Funding traffic signer with tokens...');
   for (const domain of collateralDomains) {
     const token = tokens[domain.name];
+    const domainCollateral = getInitialCollateral(domain.name);
     // Give traffic signer enough tokens for many transfers
-    const trafficFunding = initialCollateral * 2n;
+    const trafficFunding = domainCollateral * 2n;
     await (await token.transfer(ANVIL_ADDRESSES.traffic, trafficFunding)).wait();
     logger?.debug(
       `Funded traffic signer with ${trafficFunding} tokens on ${domain.name}`,
