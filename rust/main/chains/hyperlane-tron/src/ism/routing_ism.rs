@@ -22,8 +22,7 @@ pub struct TronRoutingIsm {
 }
 
 impl TronRoutingIsm {
-    /// Create a reference to a mailbox at a specific Tron address on some
-    /// chain
+    /// Creates a new TronRoutingIsm instance
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(TronRoutingIsmInternal::new(

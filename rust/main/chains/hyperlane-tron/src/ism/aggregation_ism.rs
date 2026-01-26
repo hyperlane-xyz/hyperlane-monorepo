@@ -23,8 +23,7 @@ pub struct TronAggregationIsm {
 }
 
 impl TronAggregationIsm {
-    /// Create a reference to a mailbox at a specific Tron address on some
-    /// chain
+    /// Creates a new TronAggregationIsm instance
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         let provider = Arc::new(provider);
         Self {

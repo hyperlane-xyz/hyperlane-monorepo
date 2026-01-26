@@ -25,8 +25,7 @@ pub struct TronInterchainSecurityModule {
 }
 
 impl TronInterchainSecurityModule {
-    /// Create a reference to a mailbox at a specific Tron address on some
-    /// chain
+    /// Creates a new TronInterchainSecurityModule instance
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(TronInterchainSecurityModuleInternal::new(

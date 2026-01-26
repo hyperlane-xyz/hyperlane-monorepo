@@ -22,8 +22,7 @@ pub struct TronMultisigIsm {
 }
 
 impl TronMultisigIsm {
-    /// Create a reference to a mailbox at a specific Tron address on some
-    /// chain
+    /// Creates a new TronMultisigIsm instance
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         Self {
             contract: Arc::new(TronMultisigIsmInternal::new(
