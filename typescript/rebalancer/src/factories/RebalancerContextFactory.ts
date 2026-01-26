@@ -12,11 +12,7 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
-import {
-  getAllBridges,
-  getStrategyChainConfig,
-  getStrategyChainNames,
-} from '../config/types.js';
+import { getAllBridges, getStrategyChainNames } from '../config/types.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
