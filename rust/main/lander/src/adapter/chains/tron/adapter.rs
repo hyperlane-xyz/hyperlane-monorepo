@@ -1,14 +1,15 @@
 use std::{sync::Arc, time::Duration};
 
-use crate::adapter::chains::tron::{
-    conf::create_signer, precursor::Precursor, submit::submit_transaction,
-};
 use async_trait::async_trait;
+use tracing::debug;
+
 use hyperlane_base::{settings::ChainConf, CoreMetrics};
 use hyperlane_core::{ContractLocator, H256, H512};
 use hyperlane_tron::{TronProvider, TronProviderForLander};
-use tracing::debug;
 
+use crate::adapter::chains::tron::{
+    conf::create_signer, precursor::Precursor, submit::submit_transaction,
+};
 use crate::{
     adapter::{chains::tron::TronTxPrecursor, AdaptsChain, GasLimit, TxBuildingResult},
     payload::PayloadDetails,

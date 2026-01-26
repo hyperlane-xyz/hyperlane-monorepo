@@ -1,7 +1,7 @@
-use hyperlane_tron::{TronProvider, TronProviderForLander};
 use tracing::{error, info};
 
 use hyperlane_core::ChainCommunicationError;
+use hyperlane_tron::{TronProvider, TronProviderForLander};
 
 use crate::adapter::chains::tron::Precursor;
 use crate::transaction::Transaction;

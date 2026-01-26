@@ -1,13 +1,14 @@
 use std::fmt::Debug;
 
-use crate::payload::{FullPayload, PayloadDetails};
-use crate::transaction::{Transaction, VmSpecificTxData};
 use derive_new::new;
 use ethers::{
     abi::Function,
     types::{transaction::eip2718::TypedTransaction, H160},
 };
 use ethers_core::types::transaction::eip2718::TypedTransaction::{Eip1559, Eip2930, Legacy};
+
+use crate::payload::{FullPayload, PayloadDetails};
+use crate::transaction::{Transaction, VmSpecificTxData};
 
 #[derive(new, Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
 pub struct TronTxPrecursor {
