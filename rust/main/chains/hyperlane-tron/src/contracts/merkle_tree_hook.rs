@@ -121,7 +121,7 @@ impl SequenceAwareIndexer<MerkleTreeInsertion> for TronMerkleTreeHookIndexer {
     }
 }
 
-/// A reference to a Mailbox contract on some Tron chain
+/// A reference to a MerkleTreeHook contract on some Tron chain
 #[derive(Debug)]
 pub struct TronMerkleTreeHook {
     contract: Arc<MerkleTreeHookContract<TronProvider>>,
@@ -130,8 +130,7 @@ pub struct TronMerkleTreeHook {
 }
 
 impl TronMerkleTreeHook {
-    /// Create a reference to a mailbox at a specific Tron address on some
-    /// chain
+    /// Create new TronMerkleTreeHook
     pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
         let provider = Arc::new(provider);
         Self {
@@ -185,6 +184,8 @@ impl MerkleTreeHook for TronMerkleTreeHook {
 
     #[instrument(skip(self))]
     async fn latest_checkpoint_at_block(&self, height: u64) -> ChainResult<CheckpointAtBlock> {
+        // Note: We can't use a specific block height for the call because Tron view calls
+        // don't support it.
         let (root, index) = self.contract.latest_checkpoint().call().await?;
         let checkpoint = Checkpoint {
             merkle_tree_hook_address: self.address(),
