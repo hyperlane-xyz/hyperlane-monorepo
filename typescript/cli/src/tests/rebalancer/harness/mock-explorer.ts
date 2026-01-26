@@ -425,3 +425,40 @@ export function createMockMessageFromDispatch(params: {
     isDelivered: false,
   };
 }
+
+/**
+ * Helper to create a MockMessage for simulation purposes with minimal parameters.
+ * Generates placeholder values for fields not needed in simulation.
+ */
+export function createInflightMessage(params: {
+  msgId: string;
+  originChainId: number;
+  originDomainId: number;
+  destinationChainId: number;
+  destinationDomainId: number;
+  sender: Address;
+  recipient: Address;
+  amount: bigint;
+  status: 'pending' | 'delivered';
+}): MockMessage {
+  // Generate a fake tx hash from the message ID
+  const fakeTxHash = `0x${params.msgId.slice(2, 66).padEnd(64, '0')}`;
+  
+  // Create a minimal message body encoding the amount
+  // Format: recipient (32 bytes) + amount (32 bytes) 
+  const amountHex = params.amount.toString(16).padStart(64, '0');
+  const recipientBytes32 = params.recipient.slice(2).padStart(64, '0');
+  const fakeMessageBody = `0x${recipientBytes32}${amountHex}`;
+
+  return {
+    msgId: params.msgId,
+    originDomainId: params.originDomainId,
+    destinationDomainId: params.destinationDomainId,
+    sender: params.sender,
+    recipient: params.recipient,
+    originTxHash: fakeTxHash,
+    originTxSender: params.sender, // Use sender as tx sender for simulation
+    messageBody: fakeMessageBody,
+    isDelivered: params.status === 'delivered',
+  };
+}
