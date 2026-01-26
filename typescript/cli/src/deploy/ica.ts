@@ -27,7 +27,7 @@ export type IcaDeployStatus =
 interface IcaDeployParams {
   context: WriteCommandContext;
   origin: ChainName;
-  destinations: ChainName[];
+  chains: ChainName[];
   owner: Address;
 }
 
@@ -43,7 +43,7 @@ interface IcaDeployResult {
  * Deploys Interchain Accounts on destination chains for a specified owner on the origin chain.
  */
 export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
-  const { context, origin, destinations, owner } = params;
+  const { context, origin, chains, owner } = params;
   const { registry, multiProvider } = context;
 
   // Validate owner address
@@ -52,10 +52,10 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
   }
 
   logBlue(`Deploying ICAs for owner ${owner} on ${origin}...`);
-  logBlue(`Destination chains: ${destinations.join(', ')}`);
+  logBlue(`Destination chains: ${chains.join(', ')}`);
 
   // Get chain addresses from the registry for all relevant chains
-  const allChains = [origin, ...destinations];
+  const allChains = [origin, ...chains];
   const chainAddresses: Record<ChainName, Record<string, string>> = {};
 
   for (const chain of allChains) {
@@ -83,7 +83,7 @@ export async function runIcaDeploy(params: IcaDeployParams): Promise<void> {
 
   // Deploy ICAs on each destination chain in parallel
   const { fulfilled, rejected } = await mapAllSettled(
-    destinations,
+    chains,
     async (destination) => {
       // First, get the expected ICA address
       const expectedAccount = await ica.getAccount(destination, ownerConfig);

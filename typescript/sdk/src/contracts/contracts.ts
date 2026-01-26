@@ -200,6 +200,9 @@ export function attachContractsMapAndGetForeignDeployments<
         case ProtocolType.Starknet:
           return router;
 
+        case ProtocolType.Aleo:
+          return addressToByteHexString(router, ProtocolType.Aleo);
+
         case ProtocolType.Radix:
           return addressToByteHexString(router, ProtocolType.Radix);
 

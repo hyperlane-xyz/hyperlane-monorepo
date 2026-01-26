@@ -703,6 +703,16 @@ export const defaultMultisigConfigs: ChainMap<MultisigConfig> = {
     ],
   },
 
+  eden: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0x1c61e6379443e2842d3e9db28e962b6c717fdab1',
+        alias: AW_VALIDATOR_ALIAS,
+      },
+    ],
+  },
+
   electroneum: {
     threshold: 2,
     validators: [
