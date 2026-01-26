@@ -8,8 +8,8 @@
 use ethers_signers::LocalWallet;
 
 pub use {
-    config::ConnectionConf, contracts::TronInterchainGasPaymaster, contracts::TronMailboxIndexer,
-    contracts::TronMerkleTreeHookIndexer, ism::TronAggregationIsm,
+    config::ConnectionConf, contracts::TronInterchainGasPaymaster, contracts::TronMailbox,
+    contracts::TronMailboxIndexer, contracts::TronMerkleTreeHookIndexer, ism::TronAggregationIsm,
     ism::TronInterchainSecurityModule, ism::TronMultisigIsm, ism::TronRoutingIsm,
     provider::TronProvider,
 };

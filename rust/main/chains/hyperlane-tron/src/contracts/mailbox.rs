@@ -1,11 +1,20 @@
+#![allow(clippy::enum_variant_names)]
+#![allow(missing_docs)]
+
 use std::ops::RangeInclusive;
 use std::sync::Arc;
 
 use async_trait::async_trait;
+use ethers::prelude::Middleware;
+use ethers_contract::builders::ContractCall;
+use hyperlane_core::Metadata;
+use tracing::instrument;
 
 use hyperlane_core::{
-    rpc_clients::call_and_retry_indefinitely, ChainResult, ContractLocator, HyperlaneMessage,
-    Indexed, Indexer, LogMeta, SequenceAwareIndexer, H256, H512,
+    rpc_clients::call_and_retry_indefinitely, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneMessage, HyperlaneProvider, Indexed, Indexer,
+    LogMeta, Mailbox, RawHyperlaneMessage, ReorgPeriod, SequenceAwareIndexer, TxCostEstimate,
+    TxOutcome, H256, H512, U256,
 };
 
 use crate::interfaces::i_mailbox::IMailbox as TronMailboxInternal;
@@ -127,5 +136,141 @@ impl SequenceAwareIndexer<H256> for TronMailboxIndexer {
         // A blanket implementation for this trait is fine for the TVM.
         let tip = Indexer::<H256>::get_finalized_block_number(self).await?;
         Ok((None, tip))
+    }
+}
+
+/// A reference to a Mailbox contract on some Tron chain
+#[derive(Debug)]
+pub struct TronMailbox {
+    contract: Arc<TronMailboxInternal<TronProvider>>,
+    domain: HyperlaneDomain,
+    provider: Arc<TronProvider>,
+}
+
+impl TronMailbox {
+    /// Create a reference to a mailbox at a specific Tron address on some
+    /// chain
+    pub fn new(provider: TronProvider, locator: &ContractLocator) -> Self {
+        let provider = Arc::new(provider);
+        Self {
+            contract: Arc::new(TronMailboxInternal::new(locator.address, provider.clone())),
+            domain: locator.domain.clone(),
+            provider,
+        }
+    }
+
+    fn contract_call(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &[u8],
+        tx_gas_estimate: Option<U256>,
+    ) -> ChainResult<ContractCall<TronProvider, ()>> {
+        let mut tx = self.contract.process(
+            metadata.to_vec().into(),
+            RawHyperlaneMessage::from(message).to_vec().into(),
+        );
+        if let Some(gas_estimate) = tx_gas_estimate {
+            tx = tx.gas(gas_estimate);
+        }
+        Ok(tx)
+    }
+}
+
+impl HyperlaneChain for TronMailbox {
+    fn domain(&self) -> &HyperlaneDomain {
+        &self.domain
+    }
+
+    fn provider(&self) -> Box<dyn HyperlaneProvider> {
+        Box::new(self.provider.clone())
+    }
+}
+
+impl HyperlaneContract for TronMailbox {
+    fn address(&self) -> H256 {
+        self.contract.address().into()
+    }
+}
+
+#[async_trait]
+impl Mailbox for TronMailbox {
+    /// Note: reorg_period is not used in this implementation
+    /// because the Tron's view calls happen on the solidified node which is already finalized.
+    #[instrument(skip(self))]
+    async fn count(&self, _reorg_period: &ReorgPeriod) -> ChainResult<u32> {
+        let nonce = self.contract.nonce().call().await?;
+        Ok(nonce)
+    }
+
+    #[instrument(skip(self))]
+    async fn delivered(&self, id: H256) -> ChainResult<bool> {
+        Ok(self.contract.delivered(id.into()).call().await?)
+    }
+
+    #[instrument(skip(self))]
+    async fn default_ism(&self) -> ChainResult<H256> {
+        Ok(self.contract.default_ism().call().await?.into())
+    }
+
+    #[instrument(skip(self))]
+    async fn recipient_ism(&self, recipient: H256) -> ChainResult<H256> {
+        Ok(self
+            .contract
+            .recipient_ism(recipient.into())
+            .call()
+            .await?
+            .into())
+    }
+
+    #[instrument(skip(self, message, metadata))]
+    async fn process(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &Metadata,
+        tx_gas_limit: Option<U256>,
+    ) -> ChainResult<TxOutcome> {
+        let contract_call = self.contract_call(message, metadata, tx_gas_limit)?;
+        self.provider.send_and_wait(&contract_call).await
+    }
+
+    #[instrument(skip(self))]
+    async fn process_estimate_costs(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &Metadata,
+    ) -> ChainResult<TxCostEstimate> {
+        let gas_limit = self
+            .contract_call(message, metadata, None)?
+            .estimate_gas()
+            .await?;
+
+        let gas_price: U256 = self.provider.get_gas_price().await?.into();
+
+        Ok(TxCostEstimate {
+            gas_limit: gas_limit.into(),
+            gas_price: gas_price.try_into()?,
+            l2_gas_limit: None,
+        })
+    }
+
+    async fn process_calldata(
+        &self,
+        message: &HyperlaneMessage,
+        metadata: &Metadata,
+    ) -> ChainResult<Vec<u8>> {
+        let mut contract_call = self.contract.process(
+            metadata.to_vec().into(),
+            RawHyperlaneMessage::from(message).to_vec().into(),
+        );
+        contract_call.tx.set_chain_id(self.domain.id());
+        let data = (contract_call.tx, contract_call.function);
+        serde_json::to_vec(&data).map_err(Into::into)
+    }
+
+    fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {
+        let call = self.contract.delivered(message_id.into());
+
+        let data = (call.tx, call.function);
+        serde_json::to_vec(&data).map(Some).map_err(Into::into)
     }
 }
