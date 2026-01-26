@@ -113,67 +113,55 @@ jobs:
           files: typescript/docker-bake.hcl
           push: true
 
+      - name: Generate image tags output
+        id: image-tags
+        if: always()
+        run: |
+          TAG="${{ steps.taggen.outputs.TAG }}"
+          TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA_DATE }}"
+          REGISTRY="gcr.io/abacus-labs-dev"
+
+          # Generate tags for comment action
+          TAGS=$(cat << EOF
+          ${REGISTRY}/hyperlane-rebalancer:${TAG}
+          ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
+          ${REGISTRY}/hyperlane-warp-monitor:${TAG}
+          ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
+          ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG}
+          ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}
+          EOF
+          )
+          echo "tags<<EOF" >> $GITHUB_OUTPUT
+          echo "$TAGS" >> $GITHUB_OUTPUT
+          echo "EOF" >> $GITHUB_OUTPUT
+
+          # Write job summary
+          cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## ⚙️ Node Service Docker Images
+
+          | Image | Tag |
+          |-------|-----|
+          | ♻️ Rebalancer | \`${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}\` |
+          | 🕵️ Warp Monitor | \`${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}\` |
+          | 🔍 CCIP Server | \`${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}\` |
+
+          <details>
+          <summary>All tags</summary>
+
+          \`\`\`
+          ${TAGS}
+          \`\`\`
+          </details>
+          EOF
+
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request' && always()
-        uses: actions/github-script@v7
+        uses: ./.github/actions/docker-image-comment
         with:
-          github-token: ${{ steps.generate-token.outputs.token }}
-          script: |
-            const tag = '${{ steps.taggen.outputs.TAG }}';
-            const tagShaDate = '${{ steps.taggen.outputs.TAG_SHA_DATE }}';
-            const registry = 'gcr.io/abacus-labs-dev';
-            const status = '${{ job.status }}';
-            const statusEmoji = status === 'success' ? '✅' : '❌';
-
-            const images = [
-              { name: 'Rebalancer', image: 'hyperlane-rebalancer', emoji: '♻️' },
-              { name: 'Warp Monitor', image: 'hyperlane-warp-monitor', emoji: '🕵️' },
-              { name: 'CCIP Server', image: 'hyperlane-offchain-lookup-server', emoji: '🔍' },
-            ];
-
-            const body = [
-              '## ⚙️ Node Service Docker Images',
-              '',
-              '| Image | Tag | Status |',
-              '|-------|-----|--------|',
-              ...images.map(({ name, image, emoji }) =>
-                `| ${emoji} ${name} | \`${registry}/${image}:${tagShaDate}\` | ${statusEmoji} |`
-              ),
-              '',
-              '<details>',
-              '<summary>All tags</summary>',
-              '',
-              '```',
-              ...images.flatMap(i => [
-                `${registry}/${i.image}:${tag}`,
-                `${registry}/${i.image}:${tagShaDate}`,
-              ]),
-              '```',
-              '</details>',
-            ].join('\n');
-
-            const marker = '<!-- typescript-docker-images -->';
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: ${{ github.event.pull_request.number }},
-            });
-
-            const existingComment = comments.find(c => c.body.includes(marker));
-            const fullBody = `${marker}\n${body}`;
-
-            if (existingComment) {
-              await github.rest.issues.updateComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                comment_id: existingComment.id,
-                body: fullBody,
-              });
-            } else {
-              await github.rest.issues.createComment({
-                owner: context.repo.owner,
-                repo: context.repo.repo,
-                issue_number: ${{ github.event.pull_request.number }},
-                body: fullBody,
-              });
-            }
+          comment_tag: typescript-docker-images
+          image_name: Node Service Docker Images
+          emoji: '⚙️'
+          image_tags: ${{ steps.image-tags.outputs.tags }}
+          pr_number: ${{ github.event.pull_request.number }}
+          github_token: ${{ steps.generate-token.outputs.token }}
+          job_status: ${{ job.status }}
