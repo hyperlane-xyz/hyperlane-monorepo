@@ -265,7 +265,8 @@ export class ExplorerClient {
 
   /**
    * Query inflight rebalance actions from the Explorer.
-   * Returns messages where sender/recipient are bridges and tx sender is the rebalancer.
+   * Returns messages where sender/recipient are bridges, tx sender is the rebalancer,
+   * and origin_tx_recipient is one of this warp route's routers.
    */
   async getInflightRebalanceActions(
     params: RebalanceActionQueryParams,
@@ -273,12 +274,14 @@ export class ExplorerClient {
   ): Promise<ExplorerMessage[]> {
     const { bridges, routersByDomain, rebalancerAddress, limit = 100 } = params;
 
-    // Derive domains from routersByDomain
+    // Derive routers and domains from routersByDomain
+    const routers = Object.values(routersByDomain);
     const domains = Object.keys(routersByDomain).map(Number);
 
     const variables = {
       senders: bridges.map((a) => this.toBytea(a)),
       recipients: bridges.map((a) => this.toBytea(a)),
+      originTxRecipients: routers.map((a) => this.toBytea(a)),
       originDomains: domains,
       destDomains: domains,
       txSender: this.toBytea(rebalancerAddress),
@@ -291,6 +294,7 @@ export class ExplorerClient {
       query InflightRebalanceActions(
         $senders: [bytea!],
         $recipients: [bytea!],
+        $originTxRecipients: [bytea!],
         $originDomains: [Int!],
         $destDomains: [Int!],
         $txSender: bytea!,
@@ -302,6 +306,7 @@ export class ExplorerClient {
               { is_delivered: { _eq: false } },
               { sender: { _in: $senders } },
               { recipient: { _in: $recipients } },
+              { origin_tx_recipient: { _in: $originTxRecipients } },
               { origin_domain_id: { _in: $originDomains } },
               { destination_domain_id: { _in: $destDomains } },
               { origin_tx_sender: { _eq: $txSender } }
@@ -317,6 +322,7 @@ export class ExplorerClient {
           recipient
           origin_tx_hash
           origin_tx_sender
+          origin_tx_recipient
           is_delivered
           message_body
         }

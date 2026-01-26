@@ -623,4 +623,35 @@ describe('ActionTracker', () => {
       expect(updated?.status).to.equal('failed');
     });
   });
+
+  describe('Explorer query parameters', () => {
+    it('should pass routersByDomain to getInflightRebalanceActions for warp route filtering', async () => {
+      explorerClient.getInflightRebalanceActions.resolves([]);
+      explorerClient.getInflightUserTransfers.resolves([]);
+
+      await tracker.initialize();
+
+      const call = explorerClient.getInflightRebalanceActions.firstCall;
+      expect(call).to.not.be.null;
+
+      const params = call.args[0];
+      expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
+      expect(params.bridges).to.deep.equal(config.bridges);
+      expect(params.rebalancerAddress).to.equal(config.rebalancerAddress);
+    });
+
+    it('should pass routersByDomain to getInflightUserTransfers for warp route filtering', async () => {
+      explorerClient.getInflightRebalanceActions.resolves([]);
+      explorerClient.getInflightUserTransfers.resolves([]);
+
+      await tracker.initialize();
+
+      const call = explorerClient.getInflightUserTransfers.firstCall;
+      expect(call).to.not.be.null;
+
+      const params = call.args[0];
+      expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
+      expect(params.excludeTxSender).to.equal(config.rebalancerAddress);
+    });
+  });
 });
