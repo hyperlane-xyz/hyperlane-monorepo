@@ -15,7 +15,7 @@ use crate::interfaces::i_interchain_gas_paymaster::{
 use crate::{fetch_raw_logs_and_meta, TronProvider};
 
 #[derive(Debug)]
-/// Struct that retrieves event data for an Tron InterchainGasPaymaster
+/// Struct that retrieves event data for a Tron InterchainGasPaymaster
 pub struct TronInterchainGasPaymaster {
     contract: Arc<TronInterchainGasPaymasterInternal<TronProvider>>,
     provider: Arc<TronProvider>,

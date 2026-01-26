@@ -33,7 +33,7 @@ impl Into<IncrementalMerkle> for Tree {
 }
 
 #[derive(Debug)]
-/// Struct that retrieves event data for an Tron MerkleTreeHook
+/// Struct that retrieves event data for a Tron MerkleTreeHook
 pub struct TronMerkleTreeHookIndexer {
     contract: Arc<MerkleTreeHookContract<TronProvider>>,
     provider: Arc<TronProvider>,

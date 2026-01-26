@@ -13,7 +13,7 @@ use crate::interfaces::mailbox::DispatchFilter;
 use crate::{fetch_raw_logs_and_meta, TronProvider};
 
 #[derive(Debug, Clone)]
-/// Struct that retrieves event data for an Tron mailbox
+/// Struct that retrieves event data for a Tron mailbox
 pub struct TronMailboxIndexer {
     contract: Arc<TronMailboxInternal<TronProvider>>,
     provider: Arc<TronProvider>,
