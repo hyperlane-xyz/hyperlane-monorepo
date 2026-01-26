@@ -30,7 +30,7 @@ import {
  * - Routing fee: 5 bps for EVM-to-EVM transfers, 0 bps for EVM-to-SVM transfers
  * - Contract version 10.1.3
  */
-const awProxyAdminAddresses: ChainMap<string> = {
+export const awProxyAdminAddresses: ChainMap<string> = {
   arbitrum: '0x80Cebd56A65e46c474a1A101e89E76C4c51D179c',
   base: '0x4Ed7d626f1E96cD1C0401607Bf70D95243E3dEd1',
   ethereum: '0x75EE15Ee1B4A75Fa3e2fDF5DF3253c25599cc659',
@@ -39,7 +39,7 @@ const awProxyAdminAddresses: ChainMap<string> = {
   unichain: '0x2f2aFaE1139Ce54feFC03593FeE8AB2aDF4a85A7',
 } as const;
 
-const awProxyAdminOwners: ChainMap<string | undefined> = {
+export const awProxyAdminOwners: ChainMap<string | undefined> = {
   arbitrum: chainOwners.arbitrum.ownerOverrides?.proxyAdmin,
   base: chainOwners.base.ownerOverrides?.proxyAdmin,
   ethereum: chainOwners.ethereum.ownerOverrides?.proxyAdmin,
