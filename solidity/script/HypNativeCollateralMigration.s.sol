@@ -187,12 +187,17 @@ contract HypNativeCollateralMigration is Script {
     ) internal returns (uint256 balance) {
         Router oldRouter = Router(cfg.oldRouter);
 
+        // Store previous ISM to restore after migration
+        address prevIsm = address(oldRouter.interchainSecurityModule());
+
         // Set permissive ISM on old contract
         oldRouter.setInterchainSecurityModule(address(dep.ism));
 
         // Build and process spoofed message
         balance = cfg.oldRouter.balance;
         require(balance > 0, "No balance to migrate");
+
+        uint256 prevProxyBalance = address(dep.proxy).balance;
 
         bytes memory message = _buildMessage(cfg, address(dep.proxy), balance);
         require(
@@ -203,11 +208,17 @@ contract HypNativeCollateralMigration is Script {
         // Process message - transfers native tokens from old to new
         cfg.mailbox.process("", message);
 
-        // Verify migration succeeded
-        require(address(dep.proxy).balance >= balance, "Migration failed");
+        // Verify migration succeeded with exact balance check
+        require(
+            address(dep.proxy).balance == prevProxyBalance + balance,
+            "Migration failed"
+        );
 
-        // Cleanup: restore ISM to default
-        oldRouter.setInterchainSecurityModule(address(0));
+        // Cleanup: restore previous ISM
+        oldRouter.setInterchainSecurityModule(prevIsm);
+
+        // Unenroll remote router to prevent deposits to drained contract
+        oldRouter.unenrollRemoteRouter(cfg.remoteDomain);
     }
 
     function _configure(Config memory cfg, Deployment memory dep) internal {
