@@ -36,6 +36,6 @@ pub use util::*;
 
 pub use {
     self::conf::*, self::error::*, self::indexers::*, self::ism::*, self::mailbox::*,
-    self::providers::*, self::validator::server::*, self::validator::startup::*,
-    self::validator_announce::*, self::withdrawal_utils::*,
+    self::providers::*, self::validator::server::*, self::validator_announce::*,
+    self::withdrawal_utils::*,
 };
