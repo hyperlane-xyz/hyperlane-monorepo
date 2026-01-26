@@ -1,7 +1,11 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  DeployedIsmArtifact,
+  DerivedIsmConfig,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -22,10 +26,14 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { AltVMHookModule } from './AltVMHookModule.js';
-import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { createHookWriter } from './hook/hook-writer.js';
+import { createIsmWriter } from './ism/generic-ism-writer.js';
+import {
+  ismConfigToArtifact,
+  shouldDeployNewIsm,
+} from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -42,7 +50,7 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     const metadata = chainLookup.getChainMetadata(args.chain);
     this.chainName = metadata.name;
 
-    this.reader = new AltVMWarpRouteReader(chainLookup, signer);
+    this.reader = new AltVMWarpRouteReader(metadata, chainLookup, signer);
 
     this.logger = rootLogger.child({
       module: AltVMWarpModule.name,
@@ -411,30 +419,67 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       'warp route ISM',
     );
 
-    const ismModule = new AltVMIsmModule(
+    // If ISM is an address reference, use it directly without updates
+    if (typeof expectedConfig.interchainSecurityModule === 'string') {
+      return {
+        deployedIsm: expectedConfig.interchainSecurityModule,
+        updateTransactions: [],
+      };
+    }
+
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createIsmWriter(metadata, this.chainLookup, this.signer);
+
+    const actualIsmAddress =
+      (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
+      '';
+
+    // Convert expected config to artifact format
+    const expectedArtifact = ismConfigToArtifact(
+      expectedConfig.interchainSecurityModule,
       this.chainLookup,
-      {
-        chain: this.args.chain,
-        config: expectedConfig.interchainSecurityModule,
-        addresses: {
-          ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
-          deployedIsm:
-            (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-              ?.address ?? '',
-        },
-      },
-      this.signer,
     );
+
+    // If no existing ISM, deploy new one directly (no comparison needed)
+    if (!actualIsmAddress) {
+      this.logger.debug(`No existing ISM found, deploying new one`);
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Read actual ISM state (only when we have existing ISM to compare)
+    const actualArtifact = await writer.read(actualIsmAddress);
+
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
-    const { deployedIsm } = ismModule.serialize();
 
-    return { deployedIsm, updateTransactions };
+    // Decide: deploy new ISM or update existing one
+    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
+      // Deploy new ISM
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Update existing ISM (only routing ISMs support updates)
+    const deployedArtifact: DeployedIsmArtifact = {
+      ...expectedArtifact,
+      artifactState: ArtifactState.DEPLOYED,
+      config: expectedArtifact.config,
+      deployed: actualArtifact.deployed,
+    };
+    const updateTransactions = await writer.update(deployedArtifact);
+
+    return {
+      deployedIsm: actualIsmAddress,
+      updateTransactions,
+    };
   }
 
   /**
@@ -453,26 +498,36 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     assert(expectedConfig.hook, 'Hook derived incorrectly');
 
-    const hookModule = new AltVMHookModule(
-      this.chainLookup,
-      {
-        chain: this.args.chain,
-        config: expectedConfig.hook,
-        addresses: {
-          ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
-          deployedHook: (actualConfig.hook as DerivedHookConfig)?.address ?? '',
-        },
-      },
-      this.signer,
-    );
+    // If expected hook is an address reference, use it directly
+    if (typeof expectedConfig.hook === 'string') {
+      return {
+        deployedHook: expectedConfig.hook,
+        updateTransactions: [],
+      };
+    }
+
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createHookWriter(metadata, this.chainLookup, this.signer, {
+      mailbox: expectedConfig.mailbox,
+    });
+
+    const actualHookAddress =
+      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
+
     this.logger.debug(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await hookModule.update(expectedConfig.hook);
-    const { deployedHook } = hookModule.serialize();
 
-    return { deployedHook, updateTransactions };
+    // Use the new deployOrUpdate method from HookWriter
+    const result = await writer.deployOrUpdate({
+      actualAddress: actualHookAddress || undefined,
+      expectedConfig: expectedConfig.hook,
+    });
+
+    return {
+      deployedHook: result.address,
+      updateTransactions: result.transactions,
+    };
   }
 
   /**

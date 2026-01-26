@@ -384,6 +384,7 @@ export {
 export {
   MultiProvider,
   MultiProviderOptions,
+  SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
   defaultEthersV5ProviderBuilder,
@@ -887,6 +888,7 @@ export {
   TokenFeeConfigSchema,
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
+  LinearFeeConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

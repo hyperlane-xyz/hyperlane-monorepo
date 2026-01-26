@@ -16,7 +16,7 @@ import { assert } from './validation.js';
 const EVM_ADDRESS_REGEX = /^0x[a-fA-F0-9]{40}$/;
 const SEALEVEL_ADDRESS_REGEX = /^[a-zA-Z0-9]{36,44}$/;
 const COSMOS_NATIVE_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
-const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
+const STARKNET_ADDRESS_REGEX = /^(0x)?[0-9a-fA-F]{63,64}$/;
 const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
 const ALEO_ADDRESS_REGEX =
@@ -78,11 +78,10 @@ export function isCosmosIbcDenomAddress(address: Address): boolean {
 }
 
 export function isAddressStarknet(address: Address) {
-  // Starknet addresses may not have leading zeros, so we need to validate
-  // using the starknet library rather than just a regex
   try {
-    const parsedAddress = validateAndParseAddress(address);
-    return STARKNET_ADDRESS_REGEX.test(parsedAddress);
+    return (
+      STARKNET_ADDRESS_REGEX.test(address) && !!validateAndParseAddress(address)
+    );
   } catch {
     return false;
   }
@@ -170,8 +169,11 @@ export function isValidAddressCosmos(address: Address) {
 
 export function isValidAddressStarknet(address: Address) {
   try {
-    const isValid = address && validateAndParseAddress(address);
-    return !!isValid;
+    return (
+      !!address &&
+      STARKNET_ADDRESS_REGEX.test(address) &&
+      !!validateAndParseAddress(address)
+    );
   } catch {
     return false;
   }

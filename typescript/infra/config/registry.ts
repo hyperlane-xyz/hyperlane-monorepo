@@ -104,6 +104,10 @@ export function getChainAddresses(): ChainMap<ChainAddresses> {
   return getRegistry().getAddresses();
 }
 
+export function warpRouteExistsInRegistry(warpRouteId: string): boolean {
+  return !!getRegistry().getWarpRoute(warpRouteId);
+}
+
 export function getWarpCoreConfig(warpRouteId: string): WarpCoreConfig {
   const registry = getRegistry();
   const warpRouteConfig = registry.getWarpRoute(warpRouteId);

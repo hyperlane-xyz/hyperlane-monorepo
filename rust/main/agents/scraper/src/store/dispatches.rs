@@ -1,12 +1,12 @@
 use std::collections::HashMap;
 
 use async_trait::async_trait;
-use eyre::Result;
-
+use eyre::{Report, Result};
 use hyperlane_core::{
     unwrap_or_none_result, HyperlaneLogStore, HyperlaneMessage,
     HyperlaneSequenceAwareIndexerStoreReader, Indexed, LogMeta, H512,
 };
+use tracing::warn;
 
 use crate::db::{StorableMessage, StorableRawMessageDispatch};
 use crate::store::storage::{HyperlaneDbStore, TxnWithId};
@@ -25,7 +25,21 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
         }
 
         // STEP 1: Store a raw message dispatches FIRST (zero RPC dependencies)
-        // This ensures CCTP can query transaction hashes even if RPC providers fail
+        // This ensures Offchain Lookup Server can query transaction hashes even if RPC providers fail
+        self.store_raw_message_dispatches(messages).await;
+
+        // STEP 2: Store full messages (requires RPC calls for block/transaction data)
+        // If RPC fails here, raw messages are already stored and Offchain Lookup Server can still
+        // function
+        self.store_enriched_message_dispatches(messages).await
+    }
+}
+
+impl HyperlaneDbStore {
+    async fn store_raw_message_dispatches(
+        &self,
+        messages: &[(Indexed<HyperlaneMessage>, LogMeta)],
+    ) {
         let raw_messages = messages
             .iter()
             .map(|(message, meta)| StorableRawMessageDispatch {
@@ -35,7 +49,14 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
         let raw_stored = self
             .db
             .store_raw_message_dispatches(self.domain.id(), &self.mailbox_address, raw_messages)
-            .await?;
+            .await
+            .unwrap_or_else(|e| {
+                warn!(
+                    ?e,
+                    "Failed to store raw message dispatches, continuing with enriched storage"
+                );
+                0
+            });
 
         // Track raw message dispatches in metrics for E2E verification
         if let Some(metric) = self.stored_events_metric() {
@@ -43,9 +64,12 @@ impl HyperlaneLogStore<HyperlaneMessage> for HyperlaneDbStore {
                 .with_label_values(&[RAW_MESSAGE_DISPATCH_LABEL, self.domain.name()])
                 .inc_by(raw_stored);
         }
+    }
 
-        // STEP 2: Store full messages (requires RPC calls for block/transaction data)
-        // If RPC fails here, raw messages are already stored and CCTP can still function
+    async fn store_enriched_message_dispatches(
+        &self,
+        messages: &[(Indexed<HyperlaneMessage>, LogMeta)],
+    ) -> Result<u32, Report> {
         let txns: HashMap<H512, TxnWithId> = self
             .ensure_blocks_and_txns(messages.iter().map(|r| &r.1))
             .await?

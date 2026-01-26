@@ -15,6 +15,7 @@ import {
   eqAddress,
   eqAddressEvm,
   fromHexString,
+  mapAllSettled,
   rootLogger,
   strip0x,
   toHexString,
@@ -106,20 +107,17 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     const originChain = this.core.multiProvider.getChainName(match.origin);
     const s3Validators = await this.s3Validators(originChain, validators);
 
-    const results = await Promise.allSettled(
-      s3Validators.map((v) => v.getCheckpoint(match.index)),
+    const { fulfilled, rejected } = await mapAllSettled(s3Validators, (v) =>
+      v.getCheckpoint(match.index),
     );
-    results
-      .filter((r) => r.status === 'rejected')
-      .forEach((r) => {
-        this.logger.error({ error: r }, 'Failed to fetch checkpoint');
-      });
-    const checkpoints = results
-      .filter(
-        (result): result is PromiseFulfilledResult<S3CheckpointWithId> =>
-          result.status === 'fulfilled' && result.value !== undefined,
-      )
-      .map((result) => result.value);
+
+    for (const [, error] of rejected) {
+      this.logger.error({ error }, 'Failed to fetch checkpoint');
+    }
+
+    const checkpoints = [...fulfilled.values()].filter(
+      (value): value is S3CheckpointWithId => value !== undefined,
+    );
 
     this.logger.debug({ checkpoints }, 'Fetched checkpoints');
 

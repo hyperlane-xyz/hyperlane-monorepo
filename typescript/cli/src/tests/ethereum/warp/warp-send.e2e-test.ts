@@ -130,7 +130,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout: stdoutChains, exitCode: exitCodeChains } =
       await hyperlaneWarpSendRelay({
         warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
-        chains: `${CHAIN_NAME_3},${CHAIN_NAME_2}`,
+        chains: [CHAIN_NAME_3, CHAIN_NAME_2],
       });
     expect(exitCodeChains).to.equal(0);
     expect(stdoutChains).to.include(WarpSendLogs.SUCCESS);
@@ -144,7 +144,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
       await hyperlaneWarpSendRelay({
         warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
-        chains: `${CHAIN_NAME_2},${CHAIN_NAME_3}`,
+        chains: [CHAIN_NAME_2, CHAIN_NAME_3],
         roundTrip: true,
       });
     expect(exitCodeRoundTrip).to.equal(0);

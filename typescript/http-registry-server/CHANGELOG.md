@@ -1,5 +1,42 @@
 # @hyperlane-xyz/http-registry-server
 
+## 22.0.0
+
+### Patch Changes
+
+- Updated dependencies [c6a6d5f]
+- Updated dependencies [4c58992]
+- Updated dependencies [99948bc]
+- Updated dependencies [99948bc]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [7a0a9e4]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/sdk@22.0.0
+  - @hyperlane-xyz/utils@22.0.0
+
+## 21.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@21.1.0
+- @hyperlane-xyz/utils@21.1.0
+
+## 21.0.0
+
+### Patch Changes
+
+- Updated dependencies [c08fa32]
+- Updated dependencies [68310db]
+- Updated dependencies [b6b206d]
+- Updated dependencies [bc8b22f]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/sdk@21.0.0
+  - @hyperlane-xyz/utils@21.0.0
+
 ## 20.1.0
 
 ### Patch Changes

@@ -11,20 +11,6 @@ export const getMantapacificTiaWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
   abacusWorksEnvOwnerConfig: ChainMap<OwnableConfig>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const neutronRouter =
-    '0xc5fc6899019cb4a7649981d89eb7b1a0929d0a85b2d41802f3315129ad4b581a';
-  const neutronOwner =
-    'neutron1fqf5mprg3f5hytvzp3t7spmsum6rjrw80mq8zgkc0h6rxga0dtzqws3uu7';
-
-  // @ts-ignore - foreignDeployment configs don't conform to the HypTokenRouterConfig
-  const neutron: HypTokenRouterConfig = {
-    foreignDeployment: neutronRouter,
-    owner: neutronOwner,
-    type: TokenType.native,
-    decimals: 6,
-    gas: 0,
-  };
-
   const celestia: HypTokenRouterConfig = {
     ...routerConfig.celestia,
     ...abacusWorksEnvOwnerConfig.celestia,
@@ -48,15 +34,11 @@ export const getMantapacificTiaWarpConfig = async (
         address:
           '0x726f757465725f61707000000000000000000000000000010000000000000007',
       },
-      neutron: {
-        address: neutronRouter,
-      },
     },
   };
 
   return {
     mantapacific,
-    neutron,
     celestia,
   };
 };

@@ -1,5 +1,86 @@
 # @hyperlane-xyz/sdk
 
+## 22.0.0
+
+### Minor Changes
+
+- 4c58992: Added `custom_rpc_header` query parameter support to SmartProvider, matching Rust agent behavior from PR #5379. This enables reusing the same authenticated RPC URLs across both TypeScript and Rust tooling. Header values are redacted in stored config for logging safety while real values are passed to ethers for authentication.
+- b0e9d48: Introduced artifact-based IsmWriter and migrated existing code to use it instead of AltVMIsmModule.
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- c6a6d5f: Fix CCTP warp route ISM derivation
+- 99948bc: Fixed EvmTokenFeeModule to derive routingDestinations from target config when not explicitly provided. This ensures sub-fee contracts are properly read from on-chain when updating RoutingFee configurations. Also added support for deploying new sub-fee contracts when adding destinations to an existing RoutingFee.
+- 99948bc: Fixed warp apply idempotency issue where re-running after partial failure would fail with UNPREDICTABLE_GAS_LIMIT error when ownership had already been transferred. The setFeeRecipient transaction is now only generated when the fee recipient actually needs to change.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 7a0a9e4: Fix `RoutingFee` deployment when the configured owner differs from the deployer signer, and avoid requiring routing destinations when deriving `RoutingFee` configs during warp deploy.
+- Updated dependencies [ade2653]
+- Updated dependencies [8b3f8da]
+- Updated dependencies [0acaa0e]
+- Updated dependencies [7f31d77]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+- Updated dependencies [44fbfd6]
+  - @hyperlane-xyz/aleo-sdk@22.0.0
+  - @hyperlane-xyz/cosmos-sdk@22.0.0
+  - @hyperlane-xyz/deploy-sdk@1.2.0
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+  - @hyperlane-xyz/radix-sdk@22.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/starknet-core@22.0.0
+
+## 21.1.0
+
+### Patch Changes
+
+- Updated dependencies [db857b5]
+- Updated dependencies [57a2053]
+- Updated dependencies [57a2053]
+- Updated dependencies [9c48ac8]
+  - @hyperlane-xyz/cosmos-sdk@21.1.0
+  - @hyperlane-xyz/provider-sdk@1.1.0
+  - @hyperlane-xyz/aleo-sdk@21.1.0
+  - @hyperlane-xyz/deploy-sdk@1.1.0
+  - @hyperlane-xyz/radix-sdk@21.1.0
+  - @hyperlane-xyz/starknet-core@21.1.0
+  - @hyperlane-xyz/utils@21.1.0
+  - @hyperlane-xyz/core@10.1.5
+
+## 21.0.0
+
+### Major Changes
+
+- 68310db: feat: aleo cli support
+
+### Minor Changes
+
+- bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
+
+### Patch Changes
+
+- c08fa32: Added default multisig ISM validator configs for eni and krown chains. Improved deployer contract verification to gracefully skip when no explorer API is configured instead of failing.
+- b6b206d: Fixed CCTP V2 deployer to allow maxFeeBps and minFinalityThreshold to be 0 by using explicit undefined checks instead of falsy checks.
+- ed10fc1: Introduced the Artifact API for ISM operations on AltVMs. The new API provides a unified interface for reading and writing ISM configurations across different blockchain protocols. Radix ISM readers and writers fully implemented; Cosmos ISM readers implemented. The generic `IsmReader` in deploy-sdk replaces the legacy `AltVMIsmReader` and supports recursive expansion of routing ISM configurations.
+- Updated dependencies [8006faf]
+- Updated dependencies [68310db]
+- Updated dependencies [239e1a1]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/aleo-sdk@21.0.0
+  - @hyperlane-xyz/deploy-sdk@1.0.0
+  - @hyperlane-xyz/provider-sdk@1.0.0
+  - @hyperlane-xyz/radix-sdk@21.0.0
+  - @hyperlane-xyz/cosmos-sdk@21.0.0
+  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/core@10.1.4
+  - @hyperlane-xyz/starknet-core@21.0.0
+
 ## 20.1.0
 
 ### Minor Changes

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/radix-sdk",
-  "version": "20.1.0",
+  "version": "22.0.0",
   "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
   "type": "module",
   "exports": {

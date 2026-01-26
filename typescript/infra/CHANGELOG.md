@@ -1,5 +1,65 @@
 # @hyperlane-xyz/infra
 
+## 22.0.0
+
+### Patch Changes
+
+- b892d63: Migrated to use shared utilities from `@hyperlane-xyz/metrics` package, eliminating duplicate metric server implementations and ensuring consistent Prometheus metric collection across all services.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- Updated dependencies [c6a6d5f]
+- Updated dependencies [b892d63]
+- Updated dependencies [4c58992]
+- Updated dependencies [99948bc]
+- Updated dependencies [99948bc]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [7a0a9e4]
+- Updated dependencies [223fd7f]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/sdk@22.0.0
+  - @hyperlane-xyz/rebalancer@0.1.2
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/metrics@0.1.0
+  - @hyperlane-xyz/helloworld@22.0.0
+  - @hyperlane-xyz/http-registry-server@22.0.0
+  - @hyperlane-xyz/core@10.1.5
+
+## 21.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@21.1.0
+- @hyperlane-xyz/rebalancer@0.1.1
+- @hyperlane-xyz/helloworld@21.1.0
+- @hyperlane-xyz/http-registry-server@21.1.0
+- @hyperlane-xyz/utils@21.1.0
+- @hyperlane-xyz/core@10.1.5
+
+## 21.0.0
+
+### Minor Changes
+
+- bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
+
+### Patch Changes
+
+- b3027cf: Patched node-fetch@2.7.0 to avoid 429 errors with Safe API, reverting from premature upgrade to node-fetch@3
+- Updated dependencies [c08fa32]
+- Updated dependencies [68310db]
+- Updated dependencies [b6b206d]
+- Updated dependencies [bc8b22f]
+- Updated dependencies [ed10fc1]
+- Updated dependencies [9963e0e]
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/sdk@21.0.0
+  - @hyperlane-xyz/rebalancer@0.1.0
+  - @hyperlane-xyz/utils@21.0.0
+  - @hyperlane-xyz/helloworld@21.0.0
+  - @hyperlane-xyz/http-registry-server@21.0.0
+  - @hyperlane-xyz/core@10.1.4
+
 ## 20.1.0
 
 ### Patch Changes

@@ -23,7 +23,7 @@ const DEFAULT_RELAYER_CACHE = `${DEFAULT_LOCAL_REGISTRY}/relayer-cache.json`;
 
 export const relayerCommand: CommandModuleWithContext<
   MessageOptionsArgTypes & {
-    chains?: string;
+    chains?: string[];
     cache: string;
     symbol?: string;
     warp?: string;
@@ -48,8 +48,7 @@ export const relayerCommand: CommandModuleWithContext<
       context.multiProvider,
     );
 
-    const chainsArray =
-      chains?.split(',').map((_) => _.trim()) ?? Object.keys(chainAddresses);
+    const chainsArray = chains?.length ? chains : Object.keys(chainAddresses);
 
     const whitelist: ChainMap<Address[]> = Object.fromEntries(
       chainsArray.map((chain) => [chain, []]),

@@ -24,7 +24,13 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(RawMessageDispatch::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
+                    )
+                    .col(
+                        ColumnDef::new(RawMessageDispatch::TimeUpdated)
+                            .timestamp()
+                            .not_null()
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(
                         ColumnDef::new_with_type(RawMessageDispatch::MsgId, Hash)
@@ -70,19 +76,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on msg_id for lookups
-        manager
-            .create_index(
-                Index::create()
-                    .table(RawMessageDispatch::Table)
-                    .name("raw_message_dispatch_msg_id_idx")
-                    .col(RawMessageDispatch::MsgId)
-                    .index_type(IndexType::Hash)
-                    .to_owned(),
-            )
-            .await?;
-
-        // Create index on origin_domain for filtering
+        // Create an index on origin_domain for filtering
         manager
             .create_index(
                 Index::create()
@@ -94,7 +88,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on destination_domain for filtering
+        // Create an index on destination_domain for filtering
         manager
             .create_index(
                 Index::create()
@@ -106,7 +100,7 @@ impl MigrationTrait for Migration {
             )
             .await?;
 
-        // Create index on origin_tx_hash for CCTP queries
+        // Create an index on origin_tx_hash for Offchain Lookup Server queries
         manager
             .create_index(
                 Index::create()
@@ -136,6 +130,8 @@ pub enum RawMessageDispatch {
     Id,
     /// Time of record creation
     TimeCreated,
+    /// Time of last update
+    TimeUpdated,
     /// Message ID (keccak256 hash of message)
     MsgId,
     /// Origin transaction hash (from LogMeta - no RPC required!)

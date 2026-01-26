@@ -7,6 +7,7 @@ import {
   type CommandModuleWithContext,
 } from '../context/types.js';
 import { errorRed, log, logBlue, logGray, logTable } from '../logger.js';
+import { filterOutDisabledChains } from '../utils/chains.js';
 
 import {
   chainTargetsCommandOption,
@@ -48,7 +49,9 @@ const listCommand: CommandModuleWithContext<{ type: ChainType }> = {
     const logChainsForType = (type: ChainType) => {
       logBlue(`\nHyperlane ${type} chains:`);
       logGray('------------------------------');
-      const chains = Object.values(context.chainMetadata).filter((c) => {
+      const chains = Object.values(
+        filterOutDisabledChains(context.chainMetadata),
+      ).filter((c) => {
         if (type === 'mainnet') return !c.isTestnet;
         else return !!c.isTestnet;
       });
@@ -151,7 +154,7 @@ const rpcCommand: CommandModuleWithContext<{
  * agent-config command
  */
 const createAgentConfigCommand: CommandModuleWithContext<{
-  chains?: string;
+  chains?: string[];
   out: string;
   skipPrompts: boolean;
 }> = {
@@ -171,15 +174,15 @@ const createAgentConfigCommand: CommandModuleWithContext<{
     out,
   }: {
     context: CommandContext;
-    chains?: string;
+    chains?: string[];
     out: string;
     skipPrompts: boolean;
   }) => {
     const { multiProvider } = context;
 
     let chainNames: string[] | undefined;
-    if (chains) {
-      chainNames = chains.split(',');
+    if (chains?.length) {
+      chainNames = chains;
       const invalidChainNames = chainNames.filter(
         (chainName) => !multiProvider.hasChain(chainName),
       );
