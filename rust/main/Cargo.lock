@@ -6411,9 +6411,43 @@ name = "hyperlane-tron"
 version = "2.0.0"
 dependencies = [
  "abigen",
+ "async-trait",
+ "bs58 0.5.1",
+ "dashmap",
  "derive-new",
+ "ethers",
+ "ethers-contract",
+ "ethers-core",
+ "ethers-prometheus",
  "ethers-signers",
+ "eyre",
+ "futures-util",
+ "hex 0.4.3",
+ "hex-literal",
+ "hyperlane-core",
+ "hyperlane-ethereum",
+ "hyperlane-metric",
+ "hyperlane-operation-verifier",
+ "hyperlane-warp-route",
+ "itertools 0.14.0",
+ "num 0.4.3",
+ "num-traits",
+ "pin-project",
+ "prost 0.13.4",
+ "prost-types 0.13.4",
+ "reqwest 0.11.27",
+ "reqwest-utils",
+ "serde",
+ "serde_json",
+ "thiserror 1.0.63",
+ "time",
+ "tokio",
+ "tonic 0.12.3",
+ "tower 0.5.2",
+ "tracing",
+ "tracing-futures",
  "tracing-test",
+ "tron-rs",
  "url",
 ]
 
@@ -14319,6 +14353,18 @@ name = "triomphe"
 version = "0.1.11"
 source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "859eb650cfee7434994602c3a68b25d77ad9e68c8a6cd491616ef86661382eb3"
+
+[[package]]
+name = "tron-rs"
+version = "0.1.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "2af52bde4e2bde245973e2867be1f8fe072ec764c1254326a77c131701c528fd"
+dependencies = [
+ "prost 0.13.4",
+ "prost-types 0.13.4",
+ "serde",
+ "tonic 0.12.3",
+]
 
 [[package]]
 name = "try-lock"
