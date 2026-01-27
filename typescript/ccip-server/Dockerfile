@@ -1,4 +1,4 @@
-FROM node:20-slim AS builder
+FROM node:24-slim AS builder
 
 WORKDIR /hyperlane-monorepo
 
@@ -101,7 +101,7 @@ RUN pnpm --filter @hyperlane-xyz/ccip-server deploy --legacy --prod /app
 RUN cp -r /app/src/generated /app/dist/generated
 
 # Production stage - Debian slim for Prisma native binary compatibility
-FROM node:20-slim AS runner
+FROM node:24-slim AS runner
 
 WORKDIR /app
 
