@@ -56,7 +56,7 @@ Check out the [Foundry Book](https://getfoundry.sh/introduction/installation/) f
 
 #### Node
 
-This repository targets v20 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
+This repository targets v24 of node. We recommend using [nvm](https://github.com/nvm-sh/nvm) to manage your node version.
 
 To install nvm
 
@@ -64,11 +64,11 @@ To install nvm
 curl -o- https://raw.githubusercontent.com/nvm-sh/nvm/v0.39.7/install.sh | bash
 ```
 
-To install version 20
+To install version 24
 
 ```bash
-nvm install 20
-nvm use 20
+nvm install 24
+nvm use 24
 ```
 
 You should change versions automatically with the `.nvmrc` file.

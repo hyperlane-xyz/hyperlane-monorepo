@@ -1,7 +1,12 @@
 import yargs from 'yargs';
 
 import { InterchainAccount } from '@hyperlane-xyz/sdk';
-import { assert, objFilter, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  formatStandardHookMetadata,
+  objFilter,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { getGovernanceSafes } from '../../../config/environments/mainnet3/governance/utils.js';
 import { supportedChainNames } from '../../../config/environments/mainnet3/supportedChainNames.js';
@@ -27,6 +32,7 @@ async function main() {
     origin: originChain,
     owner,
   };
+  const hookMetadata = formatStandardHookMetadata({ refundAddress: owner });
 
   const environment = 'mainnet3';
   // Get the multiprovider for the environment
@@ -80,6 +86,7 @@ async function main() {
           },
         ],
         config: accountConfig,
+        hookMetadata,
       }),
     );
   }
