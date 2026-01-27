@@ -8,6 +8,8 @@ import {
 import { sleep } from '@hyperlane-xyz/utils';
 
 import {
+  type ConfirmedBlockTag,
+  type ConfirmedBlockTags,
   type IMonitor,
   type MonitorEvent,
   MonitorEventType,
@@ -36,25 +38,17 @@ export class Monitor implements IMonitor {
     private readonly logger: Logger,
   ) {}
 
-  /**
-   * Get the confirmed block tag for a chain based on its reorgPeriod.
-   * For chains with string reorgPeriod (e.g., "finalized"), returns the string.
-   * For chains with numeric reorgPeriod, returns latestBlock - reorgPeriod.
-   * Falls back to undefined (latest) if unable to determine.
-   */
   private async getConfirmedBlockTag(
     chainName: string,
-  ): Promise<number | EthJsonRpcBlockParameterTag | undefined> {
+  ): Promise<ConfirmedBlockTag> {
     try {
       const metadata = this.warpCore.multiProvider.getChainMetadata(chainName);
       const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
 
-      // Handle string block tags (e.g., "finalized" for Polygon)
       if (typeof reorgPeriod === 'string') {
         return reorgPeriod as EthJsonRpcBlockParameterTag;
       }
 
-      // Handle numeric reorgPeriod: compute latestBlock - reorgPeriod
       const provider =
         this.warpCore.multiProvider.getEthersV5Provider(chainName);
       const latestBlock = await provider.getBlockNumber();
@@ -66,6 +60,17 @@ export class Monitor implements IMonitor {
       );
       return undefined;
     }
+  }
+
+  private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
+    const blockTags: ConfirmedBlockTags = {};
+    const chains = new Set(this.warpCore.tokens.map((t) => t.chainName));
+
+    for (const chain of chains) {
+      blockTags[chain] = await this.getConfirmedBlockTag(chain);
+    }
+
+    return blockTags;
   }
 
   // overloads from IMonitor
@@ -112,8 +117,12 @@ export class Monitor implements IMonitor {
 
         try {
           this.logger.debug('Polling cycle started');
+
+          const confirmedBlockTags = await this.computeConfirmedBlockTags();
+
           const event: MonitorEvent = {
             tokensInfo: [],
+            confirmedBlockTags,
           };
 
           for (const token of this.warpCore.tokens) {
@@ -125,7 +134,11 @@ export class Monitor implements IMonitor {
               },
               'Checking token',
             );
-            const bridgedSupply = await this.getTokenBridgedSupply(token);
+            const blockTag = confirmedBlockTags[token.chainName];
+            const bridgedSupply = await this.getTokenBridgedSupply(
+              token,
+              blockTag,
+            );
 
             event.tokensInfo.push({
               token,
@@ -133,7 +146,6 @@ export class Monitor implements IMonitor {
             });
           }
 
-          // Await the handler to ensure cycle completes before next poll
           if (this.tokenInfoHandler) {
             await this.tokenInfoHandler(event);
           }
@@ -180,6 +192,7 @@ export class Monitor implements IMonitor {
 
   private async getTokenBridgedSupply(
     token: Token,
+    blockTag?: ConfirmedBlockTag,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
       this.logger.warn(
@@ -194,25 +207,19 @@ export class Monitor implements IMonitor {
     }
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-
-    // Query at confirmed block to sync with Explorer indexing
-    const targetBlockTag = await this.getConfirmedBlockTag(token.chainName);
     let bridgedSupply: bigint | undefined;
 
     try {
-      bridgedSupply = await adapter.getBridgedSupply({
-        blockTag: targetBlockTag,
-      });
+      bridgedSupply = await adapter.getBridgedSupply({ blockTag });
       this.logger.debug(
-        { chain: token.chainName, targetBlockTag },
+        { chain: token.chainName, blockTag },
         'Queried confirmed balance',
       );
     } catch (error) {
-      // Fallback to latest if historical query fails
       this.logger.warn(
         {
           chain: token.chainName,
-          targetBlockTag,
+          blockTag,
           error: (error as Error).message,
         },
         'Historical block query failed, falling back to latest',

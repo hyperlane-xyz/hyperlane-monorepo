@@ -1,4 +1,8 @@
-import { type Token } from '@hyperlane-xyz/sdk';
+import {
+  type ChainMap,
+  EthJsonRpcBlockParameterTag,
+  type Token,
+} from '@hyperlane-xyz/sdk';
 
 import { WrappedError } from '../utils/errors.js';
 
@@ -16,17 +20,19 @@ export enum MonitorEventType {
   Start = 'Start',
 }
 
-/**
- * Represents an event emitted by the monitor containing bridgedSupply and token information.
- */
+export type ConfirmedBlockTag =
+  | number
+  | EthJsonRpcBlockParameterTag
+  | undefined;
+
+export type ConfirmedBlockTags = ChainMap<ConfirmedBlockTag>;
+
 export type MonitorEvent = {
-  /**
-   * Collection of objects containing the information retrieved by the Monitor.
-   */
   tokensInfo: {
     token: Token;
     bridgedSupply?: bigint;
   }[];
+  confirmedBlockTags: ConfirmedBlockTags;
 };
 
 /**
