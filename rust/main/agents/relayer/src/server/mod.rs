@@ -4,6 +4,7 @@ use std::sync::Arc;
 
 use axum::Router;
 use derive_new::new;
+use hyperlane_base::kas_hack::DepositRecoverySender;
 use hyperlane_core::HyperlaneDomain;
 use tokio::sync::broadcast::Sender;
 
@@ -27,6 +28,13 @@ pub mod messages;
 pub mod operations;
 pub mod proofs;
 
+/// Kaspa recovery configuration for the server
+pub struct KaspaRecoveryConfig {
+    pub sender: DepositRecoverySender,
+    pub rest_api_url: String,
+    pub escrow_address: String,
+}
+
 #[derive(new)]
 pub struct Server {
     destination_chains: usize,
@@ -45,6 +53,8 @@ pub struct Server {
     prover_syncs: Option<HashMap<u32, Arc<RwLock<MerkleTreeBuilder>>>>,
     #[new(default)]
     kaspa_db: Option<Arc<dyn KaspaDb>>,
+    #[new(default)]
+    kaspa_recovery: Option<KaspaRecoveryConfig>,
 }
 
 impl Server {
@@ -92,6 +102,11 @@ impl Server {
         self
     }
 
+    pub fn with_kaspa_recovery(mut self, recovery: Option<KaspaRecoveryConfig>) -> Self {
+        self.kaspa_recovery = recovery;
+        self
+    }
+
     // return a custom router that can be used in combination with other routers
     pub fn router(self) -> Router {
         let mut router = Router::new();
@@ -127,7 +142,17 @@ impl Server {
             router = router.merge(proofs::ServerState::new(prover_syncs).router());
         }
         if let Some(kaspa_db) = self.kaspa_db {
-            router = router.merge(kaspa::ServerState::new(kaspa_db).router());
+            let kaspa_state = kaspa::ServerState::new(kaspa_db);
+            let kaspa_state = if let Some(recovery) = self.kaspa_recovery {
+                kaspa_state.with_recovery(
+                    recovery.sender,
+                    recovery.rest_api_url,
+                    recovery.escrow_address,
+                )
+            } else {
+                kaspa_state
+            };
+            router = router.merge(kaspa_state.router());
         }
 
         let expose_environment_variable_endpoint =

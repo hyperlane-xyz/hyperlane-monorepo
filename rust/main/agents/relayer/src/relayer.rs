@@ -585,6 +585,26 @@ impl BaseAgent for Relayer {
             .map(|(key, origin)| (key.id(), origin.prover_sync.clone()))
             .collect();
 
+        // Build kaspa recovery config if available
+        let kaspa_recovery = if let Some(dym_args) = self.dymension_kaspa_args.as_ref() {
+            let sender_guard = dym_args.recovery_sender.blocking_read();
+            sender_guard
+                .as_ref()
+                .map(|sender| relayer_server::KaspaRecoveryConfig {
+                    sender: sender.clone(),
+                    rest_api_url: dym_args
+                        .kas_provider
+                        .conf()
+                        .kaspa_urls_rest
+                        .first()
+                        .map(|u| u.to_string())
+                        .unwrap_or_default(),
+                    escrow_address: dym_args.kas_provider.escrow_address().to_string(),
+                })
+        } else {
+            None
+        };
+
         let relayer_router = relayer_server::Server::new(self.destinations.len())
             .with_op_retry(sender.clone())
             .with_message_queue(prep_queues)
@@ -596,7 +616,8 @@ impl BaseAgent for Relayer {
                 self.dymension_kaspa_args
                     .as_ref()
                     .and_then(|dym_args| dym_args.kas_provider.kaspa_db().cloned()),
-            ) // Set kaspa_db to server_builder from dymension_args provider if available
+            )
+            .with_kaspa_recovery(kaspa_recovery)
             .router();
 
         let server = self
@@ -1126,6 +1147,9 @@ impl Relayer {
 struct DymensionKaspaArgs {
     kas_provider: Box<KaspaProvider>,
     dym_mailbox: Arc<CosmosNativeMailbox>,
+    /// Sender for deposit recovery requests, populated when Foo is created
+    recovery_sender:
+        Arc<tokio::sync::RwLock<Option<hyperlane_base::kas_hack::DepositRecoverySender>>>,
 }
 
 // Manual Debug since KaspaMailbox now has a trait object
@@ -1135,6 +1159,7 @@ impl std::fmt::Debug for DymensionKaspaArgs {
             .field("kas_provider", &self.kas_provider)
             .field("kas_mailbox", &"KaspaMailbox")
             .field("dym_mailbox", &self.dym_mailbox)
+            .field("recovery_sender", &"<RwLock>")
             .finish()
     }
 }
@@ -1197,6 +1222,7 @@ impl Relayer {
         Ok(Some(DymensionKaspaArgs {
             kas_provider,
             dym_mailbox,
+            recovery_sender: Arc::new(tokio::sync::RwLock::new(None)),
         }))
     }
 
@@ -1217,6 +1243,12 @@ impl Relayer {
         let metadata_getter = PendingMessageMetadataGetter::new();
 
         let b = KaspaBridgeFoo::new(kas_provider.clone(), hub_mailbox.clone(), metadata_getter);
+
+        // Store the recovery sender for use by the server endpoint
+        {
+            let mut sender_guard = args.recovery_sender.write().await;
+            *sender_guard = Some(b.recovery_sender());
+        }
 
         // sync relayer before starting other tasks
         b.sync_hub_if_needed().await.unwrap();

@@ -26,6 +26,7 @@ pub mod validator;
 
 // Direct reexports of lib stuff:
 pub use consts as hl_domains;
+pub use dym_kas_api;
 pub use dym_kas_core;
 pub use kaspa_addresses::Address as KaspaAddress;
 

@@ -13,9 +13,17 @@ use hyperlane_core::{
 };
 use hyperlane_cosmos::native::{h512_to_cosmos_hash, CosmosNativeMailbox};
 use std::{collections::HashSet, fmt::Debug, hash::Hash, sync::Arc, time::Duration};
-use tokio::{sync::Mutex, task::JoinHandle, time};
+use tokio::{
+    sync::{mpsc, Mutex},
+    task::JoinHandle,
+    time,
+};
 use tokio_metrics::TaskMonitor;
 use tracing::{debug, error, info, info_span, Instrument};
+
+/// Channel for submitting deposits to be recovered/reprocessed
+pub type DepositRecoverySender = mpsc::Sender<Deposit>;
+pub type DepositRecoveryReceiver = mpsc::Receiver<Deposit>;
 
 use super::{
     deposit_operation::{DepositOperation, DepositTracker},
@@ -51,6 +59,8 @@ pub struct Foo<C: MetadataConstructor> {
     metadata_constructor: C,
     deposit_tracker: Mutex<DepositTracker>,
     config: RelayerDepositTimings,
+    recovery_sender: DepositRecoverySender,
+    recovery_receiver: Mutex<DepositRecoveryReceiver>,
 }
 
 impl<C: MetadataConstructor> Foo<C>
@@ -64,13 +74,23 @@ where
     ) -> Self {
         // Get config from provider, or use defaults if not available
         let config = provider.must_relayer_stuff().deposit_timings.clone();
+        // Channel for deposit recovery requests (buffer of 100 should be plenty)
+        let (recovery_sender, recovery_receiver) = mpsc::channel(100);
         Self {
             provider,
             hub_mailbox,
             metadata_constructor,
             deposit_tracker: Mutex::new(DepositTracker::new()),
             config,
+            recovery_sender,
+            recovery_receiver: Mutex::new(recovery_receiver),
         }
+    }
+
+    /// Get a sender for submitting deposits to be recovered/reprocessed.
+    /// This can be used by the server to submit old deposits that fell outside the lookback window.
+    pub fn recovery_sender(&self) -> DepositRecoverySender {
+        self.recovery_sender.clone()
     }
 
     /// Run deposit and progress indication loops
@@ -121,6 +141,9 @@ where
         let mut last_query_time = 0i64;
 
         loop {
+            // Process any recovery requests first
+            self.process_recovery_requests().await;
+
             self.process_deposit_queue().await;
 
             let now = std::time::SystemTime::now()
@@ -161,6 +184,18 @@ where
 
             from_time =
                 Some(last_query_time - self.config.deposit_query_overlap.as_millis() as i64);
+        }
+    }
+
+    /// Process any deposits submitted via the recovery channel
+    async fn process_recovery_requests(&self) {
+        let mut receiver = self.recovery_receiver.lock().await;
+        while let Ok(deposit) = receiver.try_recv() {
+            info!(
+                deposit_id = %deposit.id,
+                "Processing deposit recovery request"
+            );
+            self.queue_new_deposits(vec![deposit]).await;
         }
     }
 
