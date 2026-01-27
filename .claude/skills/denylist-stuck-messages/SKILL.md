@@ -50,39 +50,7 @@ The skill will fetch the alert, extract all firing instances, and get `app_conte
 
 ## Chain Name to Domain ID Mapping
 
-Use this lookup table to convert chain names to domain IDs:
-
-| Chain          | Domain ID                 |
-| -------------- | ------------------------- |
-| ethereum       | 1                         |
-| optimism       | 10                        |
-| bsc            | 56                        |
-| gnosis         | 100                       |
-| polygon        | 137                       |
-| base           | 8453                      |
-| arbitrum       | 42161                     |
-| avalanche      | 43114                     |
-| celo           | 42220                     |
-| moonbeam       | 1284                      |
-| scroll         | 534352                    |
-| linea          | 59144                     |
-| mode           | 34443                     |
-| blast          | 81457                     |
-| fraxtal        | 252                       |
-| zircuit        | 48900                     |
-| mantle         | 5000                      |
-| lisk           | 1135                      |
-| unichain       | 130                       |
-| ink            | 57073                     |
-| superseed      | 5330                      |
-| treasure       | 61166                     |
-| hyperevm       | 999                       |
-| berachain      | 80094                     |
-| solanamainnet  | 1399811149                |
-| eclipsemainnet | 1408864445                |
-| neutron        | (cosmos - check registry) |
-
-For chains not in this list, look up the domain ID in `rust/main/hyperlane-core/src/chain.rs` (`KnownHyperlaneDomain` enum).
+Look up domain IDs in `rust/main/app-contexts/mainnet_config.json`. The app context's `matchingList` contains `originDomain` and `destinationDomain` fields with the numeric IDs.
 
 ## Workflow
 
