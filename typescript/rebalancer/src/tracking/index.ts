@@ -1,5 +1,6 @@
 // Export all store components
-export { IStore, InMemoryStore } from './store/index.js';
+export type { IStore } from './store/index.js';
+export { InMemoryStore } from './store/index.js';
 
 // Export types
 export type {
@@ -30,3 +31,6 @@ export type {
   CreateRebalanceIntentParams,
   CreateRebalanceActionParams,
 } from './IActionTracker.js';
+
+// Export InflightContextAdapter
+export { InflightContextAdapter } from './InflightContextAdapter.js';

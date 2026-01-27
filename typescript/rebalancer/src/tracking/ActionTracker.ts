@@ -6,6 +6,10 @@ import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
 import type {
+  ConfirmedBlockTag,
+  ConfirmedBlockTags,
+} from '../interfaces/IMonitor.js';
+import type {
   ExplorerClient,
   ExplorerMessage,
 } from '../utils/ExplorerClient.js';
@@ -93,10 +97,9 @@ export class ActionTracker implements IActionTracker {
 
   // === Sync Operations ===
 
-  async syncTransfers(): Promise<void> {
+  async syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void> {
     this.logger.debug('Syncing transfers');
 
-    // Query Explorer for inflight user transfers
     const inflightMessages = await this.explorerClient.getInflightUserTransfers(
       {
         routersByDomain: this.config.routersByDomain,
@@ -110,16 +113,13 @@ export class ActionTracker implements IActionTracker {
       'Received inflight user transfers from Explorer',
     );
 
-    // Track counts for summary
     let newTransfers = 0;
     let completedTransfers = 0;
 
-    // Process each message from Explorer
     for (const msg of inflightMessages) {
       const transfer = await this.transferStore.get(msg.msg_id);
 
       if (!transfer) {
-        // New transfer, create it
         this.logger.debug(
           {
             msgId: msg.msg_id,
@@ -169,12 +169,17 @@ export class ActionTracker implements IActionTracker {
       }
     }
 
-    // Check existing transfers for delivery
     const existingTransfers = await this.getInProgressTransfers();
     for (const transfer of existingTransfers) {
+      const chainName = this.core.multiProvider.getChainName(
+        transfer.destination,
+      );
+      const blockTag = confirmedBlockTags?.[chainName];
+
       const delivered = await this.isMessageDelivered(
         transfer.messageId,
         transfer.destination,
+        blockTag,
       );
 
       if (delivered) {
@@ -213,14 +218,14 @@ export class ActionTracker implements IActionTracker {
     this.logger.debug('Rebalance intents synced');
   }
 
-  async syncRebalanceActions(): Promise<void> {
+  async syncRebalanceActions(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<void> {
     this.logger.debug('Syncing rebalance actions');
 
-    // Track counts for summary
     let discoveredActions = 0;
     let completedActions = 0;
 
-    // 1. Query Explorer for ALL inflight rebalance actions (including manual ones)
     const inflightMessages =
       await this.explorerClient.getInflightRebalanceActions(
         {
@@ -236,16 +241,12 @@ export class ActionTracker implements IActionTracker {
       'Found inflight rebalance actions from Explorer',
     );
 
-    // 2. Get all existing actions for deduplication check by messageId
-    // Note: createRebalanceAction uses UUID for id, so we must check by messageId
     const allActions = await this.rebalanceActionStore.getAll();
 
-    // 3. For each message from Explorer, check if it exists by messageId
     for (const msg of inflightMessages) {
       const existingAction = allActions.find((a) => a.messageId === msg.msg_id);
 
       if (!existingAction) {
-        // New action (manual rebalance or restart gap) - recover it
         this.logger.info(
           {
             msgId: msg.msg_id,
@@ -259,13 +260,18 @@ export class ActionTracker implements IActionTracker {
       }
     }
 
-    // 3. Check delivery status for all in-progress actions in our store
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
+      const chainName = this.core.multiProvider.getChainName(
+        action.destination,
+      );
+      const blockTag = confirmedBlockTags?.[chainName];
+
       const delivered = await this.isMessageDelivered(
         action.messageId,
         action.destination,
+        blockTag,
       );
 
       if (delivered) {
@@ -509,14 +515,48 @@ export class ActionTracker implements IActionTracker {
 
   // === Private Helpers ===
 
+  private async getConfirmedBlockTag(
+    chainName: string,
+  ): Promise<ConfirmedBlockTag> {
+    try {
+      const metadata = this.core.multiProvider.getChainMetadata(chainName);
+      const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+
+      if (typeof reorgPeriod === 'string') {
+        return reorgPeriod as ConfirmedBlockTag;
+      }
+
+      const provider = this.core.multiProvider.getProvider(chainName);
+      const latestBlock = await provider.getBlockNumber();
+      return Math.max(0, latestBlock - reorgPeriod);
+    } catch (error) {
+      this.logger.warn(
+        { chain: chainName, error: (error as Error).message },
+        'Failed to get confirmed block, using latest',
+      );
+      return undefined;
+    }
+  }
+
   private async isMessageDelivered(
     messageId: string,
     destination: Domain,
+    providedBlockTag?: ConfirmedBlockTag,
   ): Promise<boolean> {
     try {
       const chainName = this.core.multiProvider.getChainName(destination);
       const mailbox = this.core.getContracts(chainName).mailbox;
-      return await mailbox.delivered(messageId);
+
+      const blockTag =
+        providedBlockTag ?? (await this.getConfirmedBlockTag(chainName));
+      const delivered = await mailbox.delivered(messageId, { blockTag });
+
+      this.logger.debug(
+        { messageId, destination: chainName, blockTag, delivered },
+        'Checked message delivery at confirmed block',
+      );
+
+      return delivered;
     } catch (error) {
       this.logger.warn(
         { messageId, destination, error },
