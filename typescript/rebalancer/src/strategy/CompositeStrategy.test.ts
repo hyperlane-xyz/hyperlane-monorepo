@@ -7,26 +7,25 @@ import type {
   IStrategy,
   InflightContext,
   RawBalances,
-  RebalancingRoute,
+  Route,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 
 import { CompositeStrategy } from './CompositeStrategy.js';
 
 const testLogger = pino({ level: 'silent' });
+const TEST_BRIDGE = '0x1234567890123456789012345678901234567890';
 
-/**
- * Mock strategy that returns predefined routes and captures the context it receives.
- */
 class MockStrategy implements IStrategy {
   readonly name = 'mock';
   public lastInflightContext?: InflightContext;
 
-  constructor(private readonly routesToReturn: RebalancingRoute[]) {}
+  constructor(private readonly routesToReturn: StrategyRoute[]) {}
 
   getRebalancingRoutes(
     _rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[] {
+  ): StrategyRoute[] {
     this.lastInflightContext = inflightContext;
     return this.routesToReturn;
   }
@@ -72,15 +71,17 @@ describe('CompositeStrategy', () => {
 
   describe('getRebalancingRoutes', () => {
     it('should concatenate routes from all sub-strategies', () => {
-      const route1: RebalancingRoute = {
+      const route1: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
-      const route2: RebalancingRoute = {
+      const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -105,10 +106,11 @@ describe('CompositeStrategy', () => {
     });
 
     it('should pass routes from earlier strategies as proposedRebalances to later strategies', () => {
-      const route1: RebalancingRoute = {
+      const route1: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -141,20 +143,23 @@ describe('CompositeStrategy', () => {
     });
 
     it('should accumulate routes across multiple strategies as proposedRebalances', () => {
-      const route1: RebalancingRoute = {
+      const route1: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
-      const route2: RebalancingRoute = {
+      const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
-      const route3: RebalancingRoute = {
+      const route3: StrategyRoute = {
         origin: chain3,
         destination: chain1,
         amount: 3000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -197,16 +202,18 @@ describe('CompositeStrategy', () => {
     });
 
     it('should preserve original pendingRebalances and use proposedRebalances for new routes', () => {
-      const originalPendingRebalance: RebalancingRoute = {
+      const originalPendingRebalance: StrategyRoute = {
         origin: chain3,
         destination: chain1,
         amount: 500n,
+        bridge: TEST_BRIDGE,
       };
 
-      const route1: RebalancingRoute = {
+      const route1: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);
@@ -259,7 +266,7 @@ describe('CompositeStrategy', () => {
     });
 
     it('should preserve pendingTransfers for all strategies', () => {
-      const pendingTransfer: RebalancingRoute = {
+      const pendingTransfer: Route = {
         origin: chain1,
         destination: chain2,
         amount: 500n,
@@ -295,20 +302,23 @@ describe('CompositeStrategy', () => {
     });
 
     it('should maintain route order (first strategy routes come first)', () => {
-      const route1a: RebalancingRoute = {
+      const route1a: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
-      const route1b: RebalancingRoute = {
+      const route1b: StrategyRoute = {
         origin: chain1,
         destination: chain3,
         amount: 1500n,
+        bridge: TEST_BRIDGE,
       };
-      const route2a: RebalancingRoute = {
+      const route2a: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1a, route1b]);
@@ -334,10 +344,11 @@ describe('CompositeStrategy', () => {
     });
 
     it('should handle strategies that return no routes', () => {
-      const route2: RebalancingRoute = {
+      const route2: StrategyRoute = {
         origin: chain2,
         destination: chain3,
         amount: 2000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([]);
@@ -362,10 +373,11 @@ describe('CompositeStrategy', () => {
     });
 
     it('should handle undefined inflightContext', () => {
-      const route1: RebalancingRoute = {
+      const route1: StrategyRoute = {
         origin: chain1,
         destination: chain2,
         amount: 1000n,
+        bridge: TEST_BRIDGE,
       };
 
       const strategy1 = new MockStrategy([route1]);

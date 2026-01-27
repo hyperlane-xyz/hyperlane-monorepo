@@ -1,9 +1,11 @@
-import { type PopulatedTransaction } from 'ethers';
+import { type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
   type ChainMap,
   type ChainMetadata,
+  type ChainName,
+  type EthJsonRpcBlockParameterTag,
   EvmMovableCollateralAdapter,
   HyperlaneCore,
   type InterchainGasQuote,
@@ -11,29 +13,19 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import {
-  eqAddress,
-  isNullish,
-  mapAllSettled,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
   PreparedTransaction,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
-import {
-  type BridgeConfigWithOverride,
-  getBridgeConfig,
-} from '../utils/index.js';
 
 export class Rebalancer implements IRebalancer {
   private readonly logger: Logger;
   constructor(
-    private readonly bridges: ChainMap<BridgeConfigWithOverride>,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
@@ -45,7 +37,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   async rebalance(
-    routes: RebalancingRoute[],
+    routes: RebalanceRoute[],
   ): Promise<RebalanceExecutionResult[]> {
     if (routes.length === 0) {
       this.logger.info('No routes to execute, exiting');
@@ -60,11 +52,7 @@ export class Rebalancer implements IRebalancer {
     let executionResults: RebalanceExecutionResult[] = [];
 
     if (preparedTransactions.length > 0) {
-      const filteredTransactions =
-        this.filterTransactions(preparedTransactions);
-      if (filteredTransactions.length > 0) {
-        executionResults = await this.executeTransactions(filteredTransactions);
-      }
+      executionResults = await this.executeTransactions(preparedTransactions);
     }
 
     // Combine preparation failures with execution results
@@ -97,7 +85,7 @@ export class Rebalancer implements IRebalancer {
     return allResults;
   }
 
-  private async prepareTransactions(routes: RebalancingRoute[]): Promise<{
+  private async prepareTransactions(routes: RebalanceRoute[]): Promise<{
     preparedTransactions: PreparedTransaction[];
     preparationFailureResults: RebalanceExecutionResult[];
   }> {
@@ -140,7 +128,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   private async prepareTransaction(
-    route: RebalancingRoute,
+    route: RebalanceRoute,
   ): Promise<PreparedTransaction | null> {
     const { origin, destination, amount } = route;
 
@@ -169,12 +157,8 @@ export class Rebalancer implements IRebalancer {
     const originHypAdapter = originToken.getHypAdapter(
       this.warpCore.multiProvider,
     ) as EvmMovableCollateralAdapter;
-    const { bridge, bridgeIsWarp } = getBridgeConfig(
-      this.bridges,
-      origin,
-      destination,
-      this.logger,
-    );
+
+    const { bridge } = route;
 
     // 2. Get quotes
     let quotes: InterchainGasQuote[];
@@ -184,7 +168,6 @@ export class Rebalancer implements IRebalancer {
         destinationChainMeta.domainId,
         destinationToken.addressOrDenom,
         amount,
-        bridgeIsWarp,
       );
     } catch (error) {
       this.logger.error(
@@ -226,7 +209,7 @@ export class Rebalancer implements IRebalancer {
     return { populatedTx, route, originTokenAmount };
   }
 
-  private async validateRoute(route: RebalancingRoute): Promise<boolean> {
+  private async validateRoute(route: RebalanceRoute): Promise<boolean> {
     const { origin, destination, amount } = route;
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
@@ -312,12 +295,8 @@ export class Rebalancer implements IRebalancer {
       return false;
     }
 
-    const { bridge } = getBridgeConfig(
-      this.bridges,
-      origin,
-      destination,
-      this.logger,
-    );
+    const { bridge } = route;
+
     if (
       !(await originHypAdapter.isBridgeAllowed(
         destinationDomain.domainId,
@@ -393,125 +372,194 @@ export class Rebalancer implements IRebalancer {
       return results;
     }
 
-    // 3. Send transactions
+    // 3. Group transactions by origin chain
+    const txsByOrigin = new Map<ChainName, PreparedTransaction[]>();
+    for (const tx of validTransactions) {
+      const origin = tx.route.origin;
+      if (!txsByOrigin.has(origin)) {
+        txsByOrigin.set(origin, []);
+      }
+      txsByOrigin.get(origin)!.push(tx);
+    }
+
+    // 4. Send transactions - parallel across chains, sequential within each chain
     this.logger.info(
-      { numTransactions: validTransactions.length },
-      'Sending valid transactions.',
+      {
+        numChains: txsByOrigin.size,
+        numTransactions: validTransactions.length,
+      },
+      'Sending transactions (parallel across chains, sequential within chain).',
     );
 
-    for (const transaction of validTransactions) {
+    const chainSendResults = await Promise.allSettled(
+      Array.from(txsByOrigin.entries()).map(([origin, txs]) =>
+        this.sendTransactionsForChain(origin, txs),
+      ),
+    );
+
+    // 5. Collect successful sends and record send failures
+    const successfulSends: Array<{
+      transaction: PreparedTransaction;
+      receipt: providers.TransactionReceipt;
+    }> = [];
+
+    chainSendResults.forEach((chainResult) => {
+      if (chainResult.status === 'fulfilled') {
+        for (const txResult of chainResult.value) {
+          if ('receipt' in txResult) {
+            successfulSends.push(txResult);
+          } else {
+            results.push({
+              route: txResult.transaction.route,
+              success: false,
+              error: `Transaction send failed: ${txResult.error}`,
+            });
+            this.metrics?.recordActionAttempt(
+              txResult.transaction.route,
+              false,
+            );
+          }
+        }
+      } else {
+        // This shouldn't happen since sendTransactionsForChain catches errors internally,
+        // but handle it just in case
+        this.logger.error(
+          { error: chainResult.reason },
+          'Unexpected error during chain transaction sending.',
+        );
+      }
+    });
+
+    // 6. Build results from confirmed receipts
+    for (const { transaction, receipt } of successfulSends) {
+      const result = this.buildResult(transaction, receipt);
+      results.push(result);
+      this.metrics?.recordActionAttempt(result.route, result.success);
+    }
+
+    return results;
+  }
+
+  // === Parallel Transaction Sending Methods ===
+
+  /**
+   * Send all transactions for a single origin chain sequentially.
+   * Sequential sending is required to avoid nonce contention when using the same signing key.
+   */
+  private async sendTransactionsForChain(
+    origin: ChainName,
+    transactions: PreparedTransaction[],
+  ): Promise<
+    Array<
+      | {
+          transaction: PreparedTransaction;
+          receipt: providers.TransactionReceipt;
+        }
+      | { transaction: PreparedTransaction; error: string }
+    >
+  > {
+    const results: Array<
+      | {
+          transaction: PreparedTransaction;
+          receipt: providers.TransactionReceipt;
+        }
+      | { transaction: PreparedTransaction; error: string }
+    > = [];
+
+    // Send sequentially to avoid nonce contention
+    for (const transaction of transactions) {
       try {
-        const { origin, destination } = transaction.route;
         const decimalFormattedAmount =
           transaction.originTokenAmount.getDecimalFormattedAmount();
         const tokenName = transaction.originTokenAmount.token.name;
 
+        const reorgPeriod = this.getReorgPeriod(origin);
+
         this.logger.info(
           {
             origin,
-            destination,
+            destination: transaction.route.destination,
             amount: decimalFormattedAmount,
             tokenName,
+            reorgPeriod,
           },
-          'Sending rebalance transaction for route.',
+          'Sending rebalance transaction and waiting for reorgPeriod confirmations.',
         );
 
-        const rebalanceReceipt = await this.multiProvider.sendTransaction(
+        const receipt = await this.multiProvider.sendTransaction(
           origin,
           transaction.populatedTx,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
         );
 
         this.logger.info(
           {
             origin,
-            destination,
+            destination: transaction.route.destination,
             amount: decimalFormattedAmount,
             tokenName,
-            txHash: rebalanceReceipt.transactionHash,
+            txHash: receipt.transactionHash,
           },
-          'Rebalance transaction confirmed for route.',
+          'Rebalance transaction confirmed at reorgPeriod depth.',
         );
 
-        // Extract messageId from the rebalance transaction receipt
-        let messageId: string | undefined;
-        if (rebalanceReceipt) {
-          try {
-            const dispatchedMessages =
-              HyperlaneCore.getDispatchedMessages(rebalanceReceipt);
-            messageId = dispatchedMessages[0]?.id;
-          } catch {
-            // Not all rebalance transactions dispatch messages (e.g., CCTP)
-            this.logger.debug(
-              { origin, destination },
-              'No dispatched message found in rebalance receipt.',
-            );
-          }
-        }
-
-        results.push({
-          route: transaction.route,
-          success: true,
-          messageId,
-          txHash: rebalanceReceipt?.transactionHash,
-        });
-        this.metrics?.recordActionAttempt(transaction.route, true);
+        results.push({ transaction, receipt });
       } catch (error) {
         this.logger.error(
           {
-            origin: transaction.route.origin,
+            origin,
             destination: transaction.route.destination,
             amount: transaction.originTokenAmount.getDecimalFormattedAmount(),
             tokenName: transaction.originTokenAmount.token.name,
             error,
           },
-          'Transaction failed for route.',
+          'Transaction send failed for route.',
         );
-        results.push({
-          route: transaction.route,
-          success: false,
-          error: String(error),
-        });
-        this.metrics?.recordActionAttempt(transaction.route, false);
+        results.push({ transaction, error: String(error) });
       }
     }
 
     return results;
   }
 
-  private filterTransactions(
-    transactions: PreparedTransaction[],
-  ): PreparedTransaction[] {
-    const filteredTransactions: PreparedTransaction[] = [];
-    for (const transaction of transactions) {
-      const { origin, destination, amount } = transaction.route;
-      const originToken = this.tokensByChainName[origin];
-      const decimalFormattedAmount =
-        transaction.originTokenAmount.getDecimalFormattedAmount();
+  /**
+   * Build the execution result from a confirmed transaction receipt.
+   * Receipt is already confirmed at reorgPeriod depth from sendTransaction.
+   */
+  private buildResult(
+    transaction: PreparedTransaction,
+    receipt: providers.TransactionReceipt,
+  ): RebalanceExecutionResult {
+    const { origin, destination } = transaction.route;
+    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
 
-      // minimum amount check
-      const { bridgeMinAcceptedAmount } = getBridgeConfig(
-        this.bridges,
-        origin,
-        destination,
-        this.logger,
+    if (dispatchedMessages.length === 0) {
+      this.logger.error(
+        { origin, destination, txHash: receipt.transactionHash },
+        'No Dispatch event found in confirmed rebalance receipt',
       );
-      const minAccepted = BigInt(
-        toWei(bridgeMinAcceptedAmount, originToken.decimals),
-      );
-      if (minAccepted > amount) {
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName: originToken.name,
-          },
-          'Route skipped due to minimum threshold amount not met.',
-        );
-        continue;
-      }
-      filteredTransactions.push(transaction);
+      return {
+        route: transaction.route,
+        success: false,
+        error: `Transaction confirmed but no Dispatch event found`,
+        txHash: receipt.transactionHash,
+      };
     }
-    return filteredTransactions;
+
+    return {
+      route: transaction.route,
+      success: true,
+      messageId: dispatchedMessages[0].id,
+      txHash: receipt.transactionHash,
+    };
+  }
+
+  private getReorgPeriod(chainName: string): number | string {
+    const metadata = this.multiProvider.getChainMetadata(chainName);
+    return metadata.blocks?.reorgPeriod ?? 32;
   }
 }
