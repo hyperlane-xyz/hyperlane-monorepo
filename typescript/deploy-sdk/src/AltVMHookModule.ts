@@ -146,6 +146,7 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
       if (
+        currentConfig.oracleConfig[remote] &&
         currentConfig.oracleConfig[remote].gasPrice === c.gasPrice &&
         currentConfig.oracleConfig[remote].tokenExchangeRate ===
           c.tokenExchangeRate
