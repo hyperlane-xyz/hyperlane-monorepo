@@ -2,6 +2,7 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
+import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
@@ -14,6 +15,7 @@ import {
   REGISTRY_PATH,
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
+  TEST_TOKEN_SYMBOL,
   WARP_READ_OUTPUT_PATH,
   getWarpCoreConfigPath,
   getWarpDeployConfigPath,
@@ -21,75 +23,77 @@ import {
 } from '../../constants.js';
 import { createIsmUpdateTests } from '../../helpers/warp-ism-test-factory.js';
 
-describe('hyperlane warp apply ISM updates (Radix E2E tests)', async function () {
+describe('hyperlane warp apply ISM updates (Aleo E2E tests)', async function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   const nativeTokenData =
-    TEST_CHAIN_METADATA_BY_PROTOCOL.radix.CHAIN_NAME_1.nativeToken;
+    TEST_CHAIN_METADATA_BY_PROTOCOL.aleo.CHAIN_NAME_1.nativeToken;
   assert(
     nativeTokenData,
-    `Expected native token data to be defined for chain ${TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1}`,
-  );
-  const nativeTokenAddress = nativeTokenData.denom;
-  assert(
-    nativeTokenAddress,
-    `Expected native token address to be defined for ${TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1}`,
+    `Expected native token data to be defined for chain ${TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1}`,
   );
 
   let chain1CoreAddress: ChainAddresses;
   const hyperlaneCore1 = new HyperlaneE2ECoreTestCommands(
-    ProtocolType.Radix,
-    TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    ProtocolType.Aleo,
+    TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH_BY_PROTOCOL.radix,
-    CORE_READ_CONFIG_PATH_BY_PROTOCOL.radix.CHAIN_NAME_1,
+    CORE_CONFIG_PATH_BY_PROTOCOL.aleo,
+    CORE_READ_CONFIG_PATH_BY_PROTOCOL.aleo.CHAIN_NAME_1,
   );
 
-  const WARP_CORE_PATH = getWarpCoreConfigPath(nativeTokenData.symbol, [
-    TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+  const WARP_CORE_PATH = getWarpCoreConfigPath(TEST_TOKEN_SYMBOL, [
+    TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
   ]);
-  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(nativeTokenData.symbol, [
-    TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+  const WARP_DEPLOY_PATH = getWarpDeployConfigPath(TEST_TOKEN_SYMBOL, [
+    TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
   ]);
-  const WARP_ROUTE_ID = getWarpId(nativeTokenData.symbol, [
-    TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+  const WARP_ROUTE_ID = getWarpId(TEST_TOKEN_SYMBOL, [
+    TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
   ]);
 
   const hyperlaneWarp = new HyperlaneE2EWarpTestCommands(
-    ProtocolType.Radix,
+    ProtocolType.Aleo,
     REGISTRY_PATH,
     WARP_CORE_PATH,
   );
 
   before(async function () {
-    chain1CoreAddress = await hyperlaneCore1.deployOrUseExistingCore(
-      HYP_KEY_BY_PROTOCOL.radix,
+    await hyperlaneCore1.deploy(HYP_KEY_BY_PROTOCOL.aleo);
+
+    chain1CoreAddress = readYamlOrJson(
+      `${REGISTRY_PATH}/chains/${TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1}/addresses.yaml`,
     );
+  });
+
+  beforeEach(() => {
+    // Generate unique short suffix for each test to avoid program name collisions
+    const uniqueSuffix = Math.random().toString(36).substring(2, 8);
+    process.env.ALEO_WARP_SUFFIX = uniqueSuffix;
   });
 
   createIsmUpdateTests(
     {
-      protocol: ProtocolType.Radix,
-      chainName: TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1,
+      protocol: ProtocolType.Aleo,
+      chainName: TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1,
       get baseWarpConfig() {
         return {
-          [TEST_CHAIN_NAMES_BY_PROTOCOL.radix.CHAIN_NAME_1]: {
-            type: TokenType.collateral,
-            token: nativeTokenAddress,
+          [TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1]: {
+            type: TokenType.native,
             mailbox: chain1CoreAddress.mailbox,
-            owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.radix,
+            owner: HYP_DEPLOYER_ADDRESS_BY_PROTOCOL.aleo,
             name: nativeTokenData.name,
             symbol: nativeTokenData.symbol,
             decimals: nativeTokenData.decimals,
           },
         };
       },
-      privateKey: HYP_KEY_BY_PROTOCOL.radix,
+      privateKey: HYP_KEY_BY_PROTOCOL.aleo,
       warpRoutePath: WARP_CORE_PATH,
       warpDeployPath: WARP_DEPLOY_PATH,
       warpRouteId: WARP_ROUTE_ID,
       warpReadOutputPath: WARP_READ_OUTPUT_PATH,
-      alternateOwnerAddress: BURN_ADDRESS_BY_PROTOCOL.radix,
+      alternateOwnerAddress: BURN_ADDRESS_BY_PROTOCOL.aleo,
     },
     hyperlaneCore1,
     hyperlaneWarp,
