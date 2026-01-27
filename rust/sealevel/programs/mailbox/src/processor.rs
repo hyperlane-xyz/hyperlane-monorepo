@@ -645,7 +645,7 @@ fn outbox_dispatch(
 
     let count = outbox
         .tree
-        .count
+        .count()
         .try_into()
         .expect("Too many messages in outbox tree");
 
@@ -741,7 +741,7 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
 
     let count: u32 = outbox
         .tree
-        .count
+        .count()
         .try_into()
         .expect("Too many messages in outbox tree");
     // Wrap it in the SimulationReturnData because serialized `count.to_le_bytes()`
@@ -772,7 +772,7 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     let root = outbox.tree.root();
     let count: u32 = outbox
         .tree
-        .count
+        .count()
         .try_into()
         .expect("Too many messages in outbox tree");
 
