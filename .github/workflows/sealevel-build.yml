@@ -4,6 +4,8 @@ on:
   push:
     tags:
       - 'sealevel-v*'
+  release:
+    types: [created]
   workflow_dispatch:
     inputs:
       program_type:
@@ -120,6 +122,14 @@ jobs:
           name: sealevel-checksums-${{ steps.version.outputs.version }}
           path: ./artifacts/checksums.sha256
           if-no-files-found: warn
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/*.so
+            ./artifacts/checksums.sha256
 
   verify-reproducibility:
     needs: build
