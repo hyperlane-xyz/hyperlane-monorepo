@@ -16,26 +16,19 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HookReader, createHookReader } from './hook/hook-reader.js';
-import { IsmReader, createIsmReader } from './ism/generic-ism.js';
+import { createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
   protected readonly logger: ReturnType<typeof rootLogger.child>;
-  protected readonly hookReader: HookReader;
-  private readonly ismReader: IsmReader;
 
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
   ) {
-    this.hookReader = createHookReader(this.chainMetadata, this.chainLookup);
-
     this.logger = rootLogger.child({
       module: AltVMWarpRouteReader.name,
     });
-
-    this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
   }
 
   /**
@@ -59,6 +52,11 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
   async deriveWarpRouteConfig(
     warpRouteAddress: Address,
   ): Promise<DerivedWarpConfig> {
+    const ismReader = await createIsmReader(
+      this.chainMetadata,
+      this.chainLookup,
+    );
+
     // Fetch token info once - this gives us type, metadata, owner, mailbox, ISM, etc.
     const token = await this.provider.getToken({
       tokenAddress: warpRouteAddress,
@@ -69,7 +67,7 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
 
     // Derive ISM config if present, otherwise use zero address
     const interchainSecurityModule = token.ismAddress
-      ? await this.ismReader.deriveIsmConfig(token.ismAddress)
+      ? await ismReader.deriveIsmConfig(token.ismAddress)
       : // TODO: replace with protocol-specific zero address
         '0x0000000000000000000000000000000000000000';
 
@@ -157,6 +155,11 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     owner: string;
     interchainSecurityModule?: any;
   }> {
+    const ismReader = await createIsmReader(
+      this.chainMetadata,
+      this.chainLookup,
+    );
+
     const token = await this.provider.getToken({
       tokenAddress: routerAddress,
     });
@@ -167,7 +170,7 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     };
 
     if (token.ismAddress) {
-      const derivedIsm = await this.ismReader.deriveIsmConfig(token.ismAddress);
+      const derivedIsm = await ismReader.deriveIsmConfig(token.ismAddress);
       config.interchainSecurityModule = derivedIsm;
     }
 

@@ -187,7 +187,7 @@ export class AleoSigner
 
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
-  ): Promise<AltVM.ResCreateMailbox> {
+  ): Promise<AltVM.ResCreateMailbox<AleoReceipt>> {
     const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
@@ -204,89 +204,90 @@ export class AleoSigner
 
     tx.programName = mailboxProgramId;
 
-    await this.sendAndConfirmTransaction(tx);
-    await this.sendAndConfirmTransaction({
-      programName: mailboxProgramId,
-      functionName: 'set_dispatch_proxy',
-      priorityFee: 0,
-      privateFee: false,
-      inputs: [dispatchProxyProgramId],
-    });
+    const receipts = [];
+
+    receipts.push(await this.sendAndConfirmTransaction(tx));
+    receipts.push(
+      await this.sendAndConfirmTransaction({
+        programName: mailboxProgramId,
+        functionName: 'set_dispatch_proxy',
+        priorityFee: 0,
+        privateFee: false,
+        inputs: [dispatchProxyProgramId],
+      }),
+    );
 
     return {
       mailboxAddress: toAleoAddress(mailboxProgramId),
+      receipts,
     };
   }
 
   async setDefaultIsm(
     req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultIsm> {
+  ): Promise<AltVM.ResSetDefaultIsm<AleoReceipt>> {
     const tx = await this.getSetDefaultIsmTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      ismAddress: req.ismAddress,
+      receipts: [receipt],
     };
   }
 
   async setDefaultHook(
     req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
-  ): Promise<AltVM.ResSetDefaultHook> {
+  ): Promise<AltVM.ResSetDefaultHook<AleoReceipt>> {
     const tx = await this.getSetDefaultHookTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      hookAddress: req.hookAddress,
+      receipts: [receipt],
     };
   }
 
   async setRequiredHook(
     req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
-  ): Promise<AltVM.ResSetRequiredHook> {
+  ): Promise<AltVM.ResSetRequiredHook<AleoReceipt>> {
     const tx = await this.getSetRequiredHookTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      hookAddress: req.hookAddress,
+      receipts: [receipt],
     };
   }
 
   async setMailboxOwner(
     req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
-  ): Promise<AltVM.ResSetMailboxOwner> {
+  ): Promise<AltVM.ResSetMailboxOwner<AleoReceipt>> {
     const tx = await this.getSetMailboxOwnerTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async createMerkleRootMultisigIsm(
     _req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
+  ): Promise<AltVM.ResCreateMerkleRootMultisigIsm<AleoReceipt>> {
     throw new Error(`MerkleRootMultisigIsm is currently not supported on Aleo`);
   }
 
   async createMessageIdMultisigIsm(
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
+  ): Promise<AltVM.ResCreateMessageIdMultisigIsm<AleoReceipt>> {
     const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
@@ -313,7 +314,7 @@ export class AleoSigner
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.queryMappingString(
       ismManagerProgramId,
@@ -329,12 +330,13 @@ export class AleoSigner
 
     return {
       ismAddress: `${ismManagerProgramId}/${ismAddress}`,
+      receipts: [receipt],
     };
   }
 
   async createRoutingIsm(
     req: Omit<AltVM.ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateRoutingIsm> {
+  ): Promise<AltVM.ResCreateRoutingIsm<AleoReceipt>> {
     const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
@@ -361,7 +363,7 @@ export class AleoSigner
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.queryMappingString(
       ismManagerProgramId,
@@ -387,57 +389,55 @@ export class AleoSigner
 
     return {
       ismAddress: `${ismManagerProgramId}/${ismAddress}`,
+      receipts: [receipt],
     };
   }
 
   async setRoutingIsmRoute(
     req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmRoute> {
+  ): Promise<AltVM.ResSetRoutingIsmRoute<AleoReceipt>> {
     const tx = await this.getSetRoutingIsmRouteTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      route: req.route,
+      receipts: [receipt],
     };
   }
 
   async removeRoutingIsmRoute(
     req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
+  ): Promise<AltVM.ResRemoveRoutingIsmRoute<AleoReceipt>> {
     const tx = await this.getRemoveRoutingIsmRouteTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      domainId: req.domainId,
+      receipts: [receipt],
     };
   }
 
   async setRoutingIsmOwner(
     req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<AltVM.ResSetRoutingIsmOwner> {
+  ): Promise<AltVM.ResSetRoutingIsmOwner<AleoReceipt>> {
     const tx = await this.getSetRoutingIsmOwnerTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async createNoopIsm(
     req: Omit<AltVM.ReqCreateNoopIsm, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopIsm> {
+  ): Promise<AltVM.ResCreateNoopIsm<AleoReceipt>> {
     const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('ism_manager', mailboxSuffix);
 
@@ -464,7 +464,7 @@ export class AleoSigner
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     const ismAddress = await this.queryMappingString(
       ismManagerProgramId,
@@ -480,12 +480,13 @@ export class AleoSigner
 
     return {
       ismAddress: `${ismManagerProgramId}/${ismAddress}`,
+      receipts: [receipt],
     };
   }
 
   async createMerkleTreeHook(
     req: Omit<AltVM.ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<AltVM.ResCreateMerkleTreeHook> {
+  ): Promise<AltVM.ResCreateMerkleTreeHook<AleoReceipt>> {
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -514,7 +515,7 @@ export class AleoSigner
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     const hookAddress = await this.queryMappingString(
       hookManagerProgramId,
@@ -530,12 +531,13 @@ export class AleoSigner
 
     return {
       hookAddress: `${hookManagerProgramId}/${hookAddress}`,
+      receipts: [receipt],
     };
   }
 
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
+  ): Promise<AltVM.ResCreateInterchainGasPaymasterHook<AleoReceipt>> {
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -564,7 +566,7 @@ export class AleoSigner
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     const hookAddress = await this.queryMappingString(
       hookManagerProgramId,
@@ -580,57 +582,55 @@ export class AleoSigner
 
     return {
       hookAddress: `${hookManagerProgramId}/${hookAddress}`,
+      receipts: [receipt],
     };
   }
 
   async setInterchainGasPaymasterHookOwner(
     req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
+  ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner<AleoReceipt>> {
     const tx = await this.getSetInterchainGasPaymasterHookOwnerTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async setDestinationGasConfig(
     req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResSetDestinationGasConfig> {
+  ): Promise<AltVM.ResSetDestinationGasConfig<AleoReceipt>> {
     const tx = await this.getSetDestinationGasConfigTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      destinationGasConfig: req.destinationGasConfig,
+      receipts: [receipt],
     };
   }
 
   async removeDestinationGasConfig(
     req: Omit<AltVM.ReqRemoveDestinationGasConfig, 'signer'>,
-  ): Promise<AltVM.ResRemoveDestinationGasConfig> {
+  ): Promise<AltVM.ResRemoveDestinationGasConfig<AleoReceipt>> {
     const tx = await this.getRemoveDestinationGasConfigTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      remoteDomainId: req.remoteDomainId,
+      receipts: [receipt],
     };
   }
 
   async createNoopHook(
     req: Omit<AltVM.ReqCreateNoopHook, 'signer'>,
-  ): Promise<AltVM.ResCreateNoopHook> {
+  ): Promise<AltVM.ResCreateNoopHook<AleoReceipt>> {
     const mailboxSuffix = getProgramSuffix(
       fromAleoAddress(req.mailboxAddress).programId,
     );
@@ -659,7 +659,7 @@ export class AleoSigner
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     const hookAddress = await this.queryMappingString(
       hookManagerProgramId,
@@ -675,12 +675,13 @@ export class AleoSigner
 
     return {
       hookAddress: `${hookManagerProgramId}/${hookAddress}`,
+      receipts: [receipt],
     };
   }
 
   async createValidatorAnnounce(
     req: Omit<AltVM.ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<AltVM.ResCreateValidatorAnnounce> {
+  ): Promise<AltVM.ResCreateValidatorAnnounce<AleoReceipt>> {
     const validatorAnnounceSuffix = this.generateSuffix(SUFFIX_LENGTH_SHORT);
     const programs = await this.deployProgram(
       'validator_announce',
@@ -697,10 +698,11 @@ export class AleoSigner
 
     tx.programName = validatorAnnounceId;
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
-      validatorAnnounceId: toAleoAddress(validatorAnnounceId),
+      validatorAnnounceAddress: toAleoAddress(validatorAnnounceId),
+      receipts: [receipt],
     };
   }
 
@@ -708,7 +710,7 @@ export class AleoSigner
 
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
-  ): Promise<AltVM.ResCreateNativeToken> {
+  ): Promise<AltVM.ResCreateNativeToken<AleoReceipt>> {
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -745,16 +747,17 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenProgramId), ...tx.inputs];
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress: toAleoAddress(tokenProgramId),
+      receipts: [receipt],
     };
   }
 
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
-  ): Promise<AltVM.ResCreateCollateralToken> {
+  ): Promise<AltVM.ResCreateCollateralToken<AleoReceipt>> {
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -791,16 +794,17 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenProgramId), ...tx.inputs];
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress: toAleoAddress(tokenProgramId),
+      receipts: [receipt],
     };
   }
 
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<AltVM.ResCreateSyntheticToken> {
+  ): Promise<AltVM.ResCreateSyntheticToken<AleoReceipt>> {
     const suffix = req.warpSuffix || this.warpSuffix;
 
     if (suffix) {
@@ -837,115 +841,109 @@ export class AleoSigner
 
     tx.inputs = [programIdToPlaintext(tokenProgramId), ...tx.inputs];
 
-    await this.sendAndConfirmTransaction(tx);
+    const receipt = await this.sendAndConfirmTransaction(tx);
 
     return {
       tokenAddress: toAleoAddress(tokenProgramId),
+      receipts: [receipt],
     };
   }
 
   async setTokenOwner(
     req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
-  ): Promise<AltVM.ResSetTokenOwner> {
+  ): Promise<AltVM.ResSetTokenOwner<AleoReceipt>> {
     const tx = await this.getSetTokenOwnerTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      newOwner: req.newOwner,
+      receipts: [receipt],
     };
   }
 
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
-  ): Promise<AltVM.ResSetTokenIsm> {
+  ): Promise<AltVM.ResSetTokenIsm<AleoReceipt>> {
     const tx = await this.getSetTokenIsmTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      ismAddress: req.ismAddress,
+      receipts: [receipt],
     };
   }
 
   async setTokenHook(
     req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
-  ): Promise<AltVM.ResSetTokenHook> {
+  ): Promise<AltVM.ResSetTokenHook<AleoReceipt>> {
     const tx = await this.getSetTokenHookTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      hookAddress: req.hookAddress,
+      receipts: [receipt],
     };
   }
 
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResEnrollRemoteRouter> {
+  ): Promise<AltVM.ResEnrollRemoteRouter<AleoReceipt>> {
     const tx = await this.getEnrollRemoteRouterTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      receiverDomainId: req.remoteRouter.receiverDomainId,
+      receipts: [receipt],
     };
   }
 
   async unenrollRemoteRouter(
     req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<AltVM.ResUnenrollRemoteRouter> {
+  ): Promise<AltVM.ResUnenrollRemoteRouter<AleoReceipt>> {
     const tx = await this.getUnenrollRemoteRouterTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      receiverDomainId: req.receiverDomainId,
+      receipts: [receipt],
     };
   }
 
   async transfer(
     req: Omit<AltVM.ReqTransfer, 'signer'>,
-  ): Promise<AltVM.ResTransfer> {
+  ): Promise<AltVM.ResTransfer<AleoReceipt>> {
     const tx = await this.getTransferTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      recipient: req.recipient,
+      receipts: [receipt],
     };
   }
 
   async remoteTransfer(
     req: Omit<AltVM.ReqRemoteTransfer, 'signer'>,
-  ): Promise<AltVM.ResRemoteTransfer> {
+  ): Promise<AltVM.ResRemoteTransfer<AleoReceipt>> {
     const tx = await this.getRemoteTransferTransaction({
       signer: this.getSignerAddress(),
       ...req,
     });
 
-    await this.sendAndConfirmTransaction(tx);
-
+    const receipt = await this.sendAndConfirmTransaction(tx);
     return {
-      tokenAddress: req.tokenAddress,
+      receipts: [receipt],
     };
   }
 }

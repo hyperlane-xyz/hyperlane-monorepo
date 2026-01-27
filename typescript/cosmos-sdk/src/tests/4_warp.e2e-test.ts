@@ -215,7 +215,7 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     });
 
     // ACT
-    const txResponse = await signer.remoteTransfer({
+    await signer.remoteTransfer({
       tokenAddress,
       destinationDomainId: remoteRouter.receiverDomainId,
       recipient: addressToBytes32(
@@ -236,9 +236,6 @@ describe('4. cosmos sdk warp e2e tests', async function () {
     });
 
     // ASSERT
-    expect(isValidAddressEvm(bytes32ToAddress(txResponse.tokenAddress))).to.be
-      .true;
-
     const mailbox = await signer.getMailbox({ mailboxAddress });
     expect(mailbox.nonce).to.equal(1);
   });

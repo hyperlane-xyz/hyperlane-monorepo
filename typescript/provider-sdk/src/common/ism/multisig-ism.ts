@@ -1,38 +1,30 @@
-import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
-
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
-  ArtifactDeployed,
-  ArtifactNew,
-  ArtifactReader,
+  type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
+  type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  DeployedIsmAddress,
-  MultisigIsmConfig,
+  type DeployedIsmAddress,
+  type MultisigIsmConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
-import { RadixBase } from '../utils/base.js';
-import { RadixBaseSigner } from '../utils/signer.js';
-import { AnnotatedRadixTransaction } from '../utils/types.js';
+import { AltVM } from '../../index.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
-import { getMultisigIsmConfig } from './ism-query.js';
-import {
-  getCreateMerkleRootMultisigIsmTx,
-  getCreateMessageIdMultisigIsmTx,
-} from './ism-tx.js';
-
-export class RadixMessageIdMultisigIsmReader
+export class MessageIdMultisigIsmReader
   implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
-  constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
+  constructor(protected readonly provider: AltVM.IProvider) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
-    const ismConfig = await getMultisigIsmConfig(this.gateway, address);
+    const ismConfig = await this.provider.getMessageIdMultisigIsm({
+      ismAddress: address,
+    });
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -48,16 +40,15 @@ export class RadixMessageIdMultisigIsmReader
   }
 }
 
-export class RadixMessageIdMultisigIsmWriter
-  extends RadixMessageIdMultisigIsmReader
+export class MessageIdMultisigIsmWriter
+  extends MessageIdMultisigIsmReader
   implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
-    gateway: Readonly<GatewayApiClient>,
-    private readonly signer: RadixBaseSigner,
-    private readonly base: RadixBase,
+    provider: AltVM.IProvider,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(gateway);
+    super(provider);
   }
 
   async create(
@@ -67,17 +58,11 @@ export class RadixMessageIdMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transactionManifest = await getCreateMessageIdMultisigIsmTx(
-      this.base,
-      this.signer.getAddress(),
-      {
+    const { ismAddress, receipts } =
+      await this.signer.createMessageIdMultisigIsm({
         validators: config.validators,
         threshold: config.threshold,
-      },
-    );
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-    const address = await this.base.getNewComponent(receipt);
+      });
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,
@@ -86,31 +71,31 @@ export class RadixMessageIdMultisigIsmWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address,
+        address: ismAddress,
       },
     };
 
-    return [deployedArtifact, [receipt]];
+    return [deployedArtifact, [...receipts]];
   }
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<AnnotatedRadixTransaction[]> {
-    // Multisig ISMs are immutable.
-    // To change configuration, a new ISM must be deployed
+  ): Promise<AnnotatedTx[]> {
     return [];
   }
 }
 
-export class RadixMerkleRootMultisigIsmReader
+export class MerkleRootMultisigIsmReader
   implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
 {
-  constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
+  constructor(protected readonly provider: AltVM.IProvider) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>> {
-    const ismConfig = await getMultisigIsmConfig(this.gateway, address);
+    const ismConfig = await this.provider.getMerkleRootMultisigIsm({
+      ismAddress: address,
+    });
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -126,16 +111,15 @@ export class RadixMerkleRootMultisigIsmReader
   }
 }
 
-export class RadixMerkleRootMultisigIsmWriter
-  extends RadixMerkleRootMultisigIsmReader
+export class MerkleRootMultisigIsmWriter
+  extends MerkleRootMultisigIsmReader
   implements ArtifactWriter<MultisigIsmConfig, DeployedIsmAddress>
 {
   constructor(
-    gateway: Readonly<GatewayApiClient>,
-    private readonly signer: RadixBaseSigner,
-    private readonly base: RadixBase,
+    provider: AltVM.IProvider,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(gateway);
+    super(provider);
   }
 
   async create(
@@ -145,17 +129,11 @@ export class RadixMerkleRootMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transactionManifest = await getCreateMerkleRootMultisigIsmTx(
-      this.base,
-      this.signer.getAddress(),
-      {
+    const { ismAddress, receipts } =
+      await this.signer.createMerkleRootMultisigIsm({
         validators: config.validators,
         threshold: config.threshold,
-      },
-    );
-
-    const receipt = await this.signer.signAndBroadcast(transactionManifest);
-    const address = await this.base.getNewComponent(receipt);
+      });
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,
@@ -164,18 +142,16 @@ export class RadixMerkleRootMultisigIsmWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address,
+        address: ismAddress,
       },
     };
 
-    return [deployedArtifact, [receipt]];
+    return [deployedArtifact, [...receipts]];
   }
 
   async update(
     _artifact: ArtifactDeployed<MultisigIsmConfig, DeployedIsmAddress>,
-  ): Promise<AnnotatedRadixTransaction[]> {
-    // Multisig ISMs are immutable.
-    // To change configuration, a new ISM must be deployed
+  ): Promise<AnnotatedTx[]> {
     return [];
   }
 }

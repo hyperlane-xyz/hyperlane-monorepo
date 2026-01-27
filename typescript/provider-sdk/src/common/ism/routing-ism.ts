@@ -11,36 +11,24 @@ import {
   type DeployedIsmAddress,
   type RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { eqAddressAleo, isNullish } from '@hyperlane-xyz/utils';
+import { eqAddress, isNullish } from '@hyperlane-xyz/utils';
 
-import { type AnyAleoNetworkClient } from '../clients/base.js';
-import { type AleoSigner } from '../clients/signer.js';
-import { getNewContractExpectedNonce } from '../utils/base-query.js';
-import {
-  type AleoReceipt,
-  type AnnotatedAleoTransaction,
-} from '../utils/types.js';
+import { AltVM } from '../../index.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
-import { getNewIsmAddress } from './base.js';
-import { getRoutingIsmConfig } from './ism-query.js';
-import {
-  getCreateRoutingIsmTx,
-  getRemoveRoutingIsmRouteTx,
-  getSetRoutingIsmOwnerTx,
-  getSetRoutingIsmRouteTx,
-} from './ism-tx.js';
-
-export class AleoRoutingIsmRawReader
+export class RoutingIsmRawReader
   implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
-  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(protected readonly provider: AltVM.IProvider) {}
 
   async read(
     address: string,
   ): Promise<
     ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
   > {
-    const ismConfig = await getRoutingIsmConfig(this.aleoClient, address);
+    const ismConfig = await this.provider.getRoutingIsm({
+      ismAddress: address,
+    });
 
     const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
     for (const route of ismConfig.routes) {
@@ -66,15 +54,15 @@ export class AleoRoutingIsmRawReader
   }
 }
 
-export class AleoRoutingIsmRawWriter
-  extends AleoRoutingIsmRawReader
+export class RoutingIsmRawWriter
+  extends RoutingIsmRawReader
   implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
-    aleoClient: AnyAleoNetworkClient,
-    private readonly signer: AleoSigner,
+    provider: AltVM.IProvider,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ) {
-    super(aleoClient);
+    super(provider);
   }
 
   async create(
@@ -82,39 +70,39 @@ export class AleoRoutingIsmRawWriter
   ): Promise<
     [
       ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-      AleoReceipt[],
+      TxReceipt[],
     ]
   > {
     const { config } = artifact;
-    const ismManagerProgramId = await this.signer.getIsmManager();
-    const receipts: AleoReceipt[] = [];
+    const receipts: TxReceipt[] = [];
 
-    const createTransaction = getCreateRoutingIsmTx(ismManagerProgramId);
-
-    const expectedNonce = await getNewContractExpectedNonce(
-      this.aleoClient,
-      ismManagerProgramId,
-    );
-
-    const createReceipt =
-      await this.signer.sendAndConfirmTransaction(createTransaction);
-    receipts.push(createReceipt);
-
-    const ismAddress = await getNewIsmAddress(
-      this.aleoClient,
-      ismManagerProgramId,
-      expectedNonce,
-    );
+    const { ismAddress, receipts: createReceipts } =
+      await this.signer.createRoutingIsm({
+        routes: [],
+      });
+    receipts.push(...createReceipts);
 
     for (const [domainId, domainIsm] of Object.entries(config.domains)) {
-      const setRouteTransaction = getSetRoutingIsmRouteTx(ismAddress, {
-        domainId: parseInt(domainId),
-        ismAddress: domainIsm.deployed.address,
-      });
+      const { receipts: setRouteReceipts } =
+        await this.signer.setRoutingIsmRoute({
+          ismAddress,
+          route: {
+            domainId: parseInt(domainId),
+            ismAddress: domainIsm.deployed.address,
+          },
+        });
+      receipts.push(...setRouteReceipts);
+    }
 
-      const setRouteReceipt =
-        await this.signer.sendAndConfirmTransaction(setRouteTransaction);
-      receipts.push(setRouteReceipt);
+    // Set owner if different from signer
+    const signerAddress = this.signer.getSignerAddress();
+    if (!eqAddress(config.owner, signerAddress)) {
+      const { receipts: setOwnerReceipts } =
+        await this.signer.setRoutingIsmOwner({
+          ismAddress,
+          newOwner: config.owner,
+        });
+      receipts.push(...setOwnerReceipts);
     }
 
     const deployedArtifact: ArtifactDeployed<
@@ -133,10 +121,10 @@ export class AleoRoutingIsmRawWriter
 
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<AnnotatedAleoTransaction[]> {
+  ): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);
-    const transactions: AnnotatedAleoTransaction[] = [];
+    const transactions: AnnotatedTx[] = [];
 
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
@@ -148,14 +136,21 @@ export class AleoRoutingIsmRawWriter
 
       if (
         isNullish(currentIsmAddress) ||
-        !eqAddressAleo(currentIsmAddress, expectedIsmAddress)
+        !eqAddress(currentIsmAddress, expectedIsmAddress)
       ) {
-        const transaction = getSetRoutingIsmRouteTx(deployed.address, {
-          domainId: domain,
-          ismAddress: expectedIsmAddress,
+        const tx = await this.provider.getSetRoutingIsmRouteTransaction({
+          signer: this.signer.getSignerAddress(),
+          ismAddress: deployed.address,
+          route: {
+            domainId: domain,
+            ismAddress: expectedIsmAddress,
+          },
         });
 
-        transactions.push(transaction);
+        transactions.push({
+          annotation: `Setting ism route for domain ${domain}`,
+          ...tx,
+        });
       }
     }
 
@@ -164,22 +159,30 @@ export class AleoRoutingIsmRawWriter
       const desiredIsmAddress = config.domains[domain];
 
       if (isNullish(desiredIsmAddress)) {
-        const transaction = getRemoveRoutingIsmRouteTx(
-          deployed.address,
-          domain,
-        );
+        const tx = await this.provider.getRemoveRoutingIsmRouteTransaction({
+          signer: this.signer.getSignerAddress(),
+          ismAddress: deployed.address,
+          domainId: domain,
+        });
 
-        transactions.push(transaction);
+        transactions.push({
+          annotation: `Removing ism route for domain ${domain}`,
+          ...tx,
+        });
       }
     }
 
-    if (!eqAddressAleo(config.owner, currentConfig.config.owner)) {
-      const transaction = getSetRoutingIsmOwnerTx(
-        deployed.address,
-        config.owner,
-      );
+    if (!eqAddress(config.owner, currentConfig.config.owner)) {
+      const tx = await this.provider.getSetRoutingIsmOwnerTransaction({
+        signer: this.signer.getSignerAddress(),
+        ismAddress: deployed.address,
+        newOwner: config.owner,
+      });
 
-      transactions.push(transaction);
+      transactions.push({
+        annotation: `Setting Routing ISM owner to ${config.owner}`,
+        ...tx,
+      });
     }
 
     return transactions;

@@ -10,41 +10,43 @@ import {
 import { HypReader } from '@hyperlane-xyz/provider-sdk/module';
 import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { HookReader, createHookReader } from './hook/hook-reader.js';
-import { IsmReader, createIsmReader } from './ism/generic-ism.js';
+import { createHookReader } from './hook/hook-reader.js';
+import { createIsmReader } from './ism/generic-ism.js';
 
 export class AltVMCoreReader implements HypReader<CoreModuleType> {
   protected readonly logger: Logger = rootLogger.child({
     module: 'AltVMCoreReader',
   });
-  private readonly ismReader: IsmReader;
-  protected readonly hookReader: HookReader;
 
   constructor(
     protected readonly chainMetadata: ChainMetadataForAltVM,
     protected readonly chainLookup: ChainLookup,
     protected readonly provider: AltVM.IProvider,
-  ) {
-    this.hookReader = createHookReader(this.chainMetadata, this.chainLookup);
-    this.ismReader = createIsmReader(this.chainMetadata, this.chainLookup);
-  }
+  ) {}
 
   async read(address: string): Promise<DerivedCoreConfig> {
     return this.deriveCoreConfig(address);
   }
 
   async deriveCoreConfig(mailboxAddress: Address): Promise<DerivedCoreConfig> {
+    const hookReader = await createHookReader(
+      this.chainMetadata,
+      this.chainLookup,
+    );
+    const ismReader = await createIsmReader(
+      this.chainMetadata,
+      this.chainLookup,
+    );
+
     const mailbox = await this.provider.getMailbox({
       mailboxAddress: mailboxAddress,
     });
 
     return {
       owner: mailbox.owner,
-      defaultIsm: await this.ismReader.deriveIsmConfig(mailbox.defaultIsm),
-      defaultHook: await this.hookReader.deriveHookConfig(mailbox.defaultHook),
-      requiredHook: await this.hookReader.deriveHookConfig(
-        mailbox.requiredHook,
-      ),
+      defaultIsm: await ismReader.deriveIsmConfig(mailbox.defaultIsm),
+      defaultHook: await hookReader.deriveHookConfig(mailbox.defaultHook),
+      requiredHook: await hookReader.deriveHookConfig(mailbox.requiredHook),
     };
   }
 }

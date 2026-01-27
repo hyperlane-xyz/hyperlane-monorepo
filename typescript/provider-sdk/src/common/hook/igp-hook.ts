@@ -10,37 +10,26 @@ import {
   type DeployedHookAddress,
   type IgpHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { eqAddressAleo, isNullish } from '@hyperlane-xyz/utils';
+import { eqAddress, isNullish } from '@hyperlane-xyz/utils';
 
-import { type AnyAleoNetworkClient } from '../clients/base.js';
-import { type AleoSigner } from '../clients/signer.js';
-import { getNewContractExpectedNonce } from '../utils/base-query.js';
-import { fromAleoAddress, getProgramSuffix } from '../utils/helper.js';
-import {
-  type AleoReceipt,
-  type AnnotatedAleoTransaction,
-} from '../utils/types.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
-import { getNewHookAddress } from './base.js';
-import { getIgpHookConfig } from './hook-query.js';
-import {
-  getCreateIgpHookTx,
-  getRemoveDestinationGasConfigTx,
-  getSetDestinationGasConfigTx,
-  getSetIgpHookOwnerTx,
-} from './hook-tx.js';
-
-export class AleoIgpHookReader
+/**
+ * Reader for  IGP (Interchain Gas Paymaster) Hook.
+ * Reads deployed IGP hook configuration from the chain.
+ */
+export class IgpHookReader
   implements ArtifactReader<IgpHookConfig, DeployedHookAddress>
 {
-  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(protected readonly provider: AltVM.IProvider) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<IgpHookConfig, DeployedHookAddress>> {
-    const hookConfig = await getIgpHookConfig(this.aleoClient, address);
+    const hookConfig = await this.provider.getInterchainGasPaymasterHook({
+      hookAddress: address,
+    });
 
-    // Map Aleo config to provider-sdk format
     const overhead: Record<string, number> = {};
     const oracleConfig: Record<
       string,
@@ -65,8 +54,6 @@ export class AleoIgpHookReader
       config: {
         type: AltVM.HookType.INTERCHAIN_GAS_PAYMASTER,
         owner: hookConfig.owner,
-        // Aleo IGP doesn't have beneficiary and oracleKey in the same way as EVM
-        // Setting them to owner as a placeholder
         beneficiary: hookConfig.owner,
         oracleKey: hookConfig.owner,
         overhead,
@@ -79,73 +66,68 @@ export class AleoIgpHookReader
   }
 }
 
-export class AleoIgpHookWriter
-  extends AleoIgpHookReader
+/**
+ * Writer for  IGP (Interchain Gas Paymaster) Hook.
+ * Handles deployment and updates of IGP hooks.
+ */
+export class IgpHookWriter
+  extends IgpHookReader
   implements ArtifactWriter<IgpHookConfig, DeployedHookAddress>
 {
   constructor(
-    aleoClient: AnyAleoNetworkClient,
-    private readonly signer: AleoSigner,
+    provider: AltVM.IProvider,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     private readonly mailboxAddress: string,
+    private readonly denom: string,
   ) {
-    super(aleoClient);
+    super(provider);
   }
 
   async create(
     artifact: ArtifactNew<IgpHookConfig>,
   ): Promise<
-    [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, AleoReceipt[]]
+    [ArtifactDeployed<IgpHookConfig, DeployedHookAddress>, TxReceipt[]]
   > {
-    const { programId } = fromAleoAddress(this.mailboxAddress);
-    const suffix = getProgramSuffix(programId);
+    const { config } = artifact;
+    const receipts: TxReceipt[] = [];
 
-    const hookManagerProgramId = await this.signer.getHookManager(suffix);
+    const { hookAddress, receipts: createReceipts } =
+      await this.signer.createInterchainGasPaymasterHook({
+        mailboxAddress: this.mailboxAddress,
+        denom: this.denom,
+      });
+    receipts.push(...createReceipts);
 
-    const transaction = getCreateIgpHookTx(hookManagerProgramId);
-
-    const expectedNonce = await getNewContractExpectedNonce(
-      this.aleoClient,
-      hookManagerProgramId,
-    );
-
-    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
-    const hookAddress = await getNewHookAddress(
-      this.aleoClient,
-      hookManagerProgramId,
-      expectedNonce,
-    );
-
-    const receipts: AleoReceipt[] = [receipt];
-
-    // Set destination gas configs
-    for (const [domainId, gasOverhead] of Object.entries(
-      artifact.config.overhead,
-    )) {
+    // Set destination gas configs for each domain
+    for (const [domainId, gasConfig] of Object.entries(config.oracleConfig)) {
       const parsedDomainId = parseInt(domainId);
 
-      const oracleConfig = artifact.config.oracleConfig[parsedDomainId];
-      if (!oracleConfig) {
-        throw new Error(`Missing oracle config for domain ${domainId}`);
-      }
+      const { receipts: setConfigReceipts } =
+        await this.signer.setDestinationGasConfig({
+          hookAddress,
+          destinationGasConfig: {
+            remoteDomainId: parsedDomainId,
+            gasOracle: {
+              tokenExchangeRate: gasConfig.tokenExchangeRate,
+              gasPrice: gasConfig.gasPrice,
+            },
+            gasOverhead: config.overhead[parsedDomainId]?.toString() || '0',
+          },
+        });
 
-      const gasConfigTx = getSetDestinationGasConfigTx(hookAddress, {
-        remoteDomainId: parsedDomainId,
-        gasOverhead: gasOverhead.toString(),
-        tokenExchangeRate: oracleConfig.tokenExchangeRate,
-        gasPrice: oracleConfig.gasPrice,
-      });
-
-      const gasConfigReceipt =
-        await this.signer.sendAndConfirmTransaction(gasConfigTx);
-      receipts.push(gasConfigReceipt);
+      receipts.push(...setConfigReceipts);
     }
 
     // Transfer ownership if needed (deployer is initial owner)
     const deployerAddress = this.signer.getSignerAddress();
-    if (!eqAddressAleo(artifact.config.owner, deployerAddress)) {
-      const ownerTx = getSetIgpHookOwnerTx(hookAddress, artifact.config.owner);
-      const ownerReceipt = await this.signer.sendAndConfirmTransaction(ownerTx);
-      receipts.push(ownerReceipt);
+    if (!eqAddress(artifact.config.owner, deployerAddress)) {
+      const { receipts: setOwnerReceipts } =
+        await this.signer.setInterchainGasPaymasterHookOwner({
+          hookAddress,
+          newOwner: artifact.config.owner,
+        });
+
+      receipts.push(...setOwnerReceipts);
     }
 
     const deployedArtifact: ArtifactDeployed<
@@ -164,9 +146,9 @@ export class AleoIgpHookWriter
 
   async update(
     artifact: ArtifactDeployed<IgpHookConfig, DeployedHookAddress>,
-  ): Promise<AnnotatedAleoTransaction[]> {
+  ): Promise<AnnotatedTx[]> {
     const current = await this.read(artifact.deployed.address);
-    const transactions: AnnotatedAleoTransaction[] = [];
+    const transactions: AnnotatedTx[] = [];
 
     // Handle destination gas config updates first
     const currentOverhead = current.config.overhead;
@@ -182,10 +164,11 @@ export class AleoIgpHookWriter
     for (const domainId of domainsToRemove) {
       transactions.push({
         annotation: `Removing destination gas config for domain ${domainId}`,
-        ...getRemoveDestinationGasConfigTx(
-          artifact.deployed.address,
-          parseInt(domainId),
-        ),
+        ...(await this.provider.getRemoveDestinationGasConfigTransaction({
+          signer: this.signer.getSignerAddress(),
+          hookAddress: artifact.deployed.address,
+          remoteDomainId: parseInt(domainId),
+        })),
       });
     }
 
@@ -211,24 +194,33 @@ export class AleoIgpHookWriter
       if (configChanged) {
         transactions.push({
           annotation: `Setting destination gas config for domain ${domainId}`,
-          ...getSetDestinationGasConfigTx(artifact.deployed.address, {
-            remoteDomainId: parseInt(domainId),
-            gasOverhead: gasOverhead.toString(),
-            tokenExchangeRate: oracleConfig.tokenExchangeRate,
-            gasPrice: oracleConfig.gasPrice,
-          }),
+          ...(await this.provider.getSetDestinationGasConfigTransaction({
+            signer: this.signer.getSignerAddress(),
+            hookAddress: artifact.deployed.address,
+            destinationGasConfig: {
+              remoteDomainId: parseInt(domainId),
+              gasOracle: {
+                tokenExchangeRate: oracleConfig.tokenExchangeRate,
+                gasPrice: oracleConfig.gasPrice,
+              },
+              gasOverhead: gasOverhead.toString(),
+            },
+          })),
         });
       }
     }
 
     // Transfer ownership last if changed
-    if (!eqAddressAleo(artifact.config.owner, current.config.owner)) {
+    if (!eqAddress(artifact.config.owner, current.config.owner)) {
       transactions.push({
         annotation: `Setting IGP hook owner to ${artifact.config.owner}`,
-        ...getSetIgpHookOwnerTx(
-          artifact.deployed.address,
-          artifact.config.owner,
-        ),
+        ...(await this.provider.getSetInterchainGasPaymasterHookOwnerTransaction(
+          {
+            signer: this.signer.getSignerAddress(),
+            hookAddress: artifact.deployed.address,
+            newOwner: artifact.config.owner,
+          },
+        )),
       });
     }
 

@@ -13,18 +13,16 @@ import {
 } from '@hyperlane-xyz/provider-sdk/hook';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { type AnyAleoNetworkClient } from '../clients/base.js';
-import { type AleoSigner } from '../clients/signer.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
-import { getHookType } from './hook-query.js';
-import { AleoIgpHookReader, AleoIgpHookWriter } from './igp-hook.js';
+import { IgpHookReader, IgpHookWriter } from './igp-hook.js';
 import {
-  AleoMerkleTreeHookReader,
-  AleoMerkleTreeHookWriter,
+  MerkleTreeHookReader,
+  MerkleTreeHookWriter,
 } from './merkle-tree-hook.js';
 
 /**
- * Aleo Hook Artifact Manager implementing IRawHookArtifactManager.
+ * Hook Artifact Manager implementing IRawHookArtifactManager.
  *
  * This manager:
  * - Provides factory methods for creating type-specific hook readers and writers
@@ -35,20 +33,19 @@ import {
  * when creating writers for deployment. This allows the manager to be used
  * for read-only operations without requiring deployment context.
  */
-export class AleoHookArtifactManager implements IRawHookArtifactManager {
+export class HookArtifactManager implements IRawHookArtifactManager {
   constructor(
-    private readonly aleoClient: AnyAleoNetworkClient,
-    private readonly mailboxAddress?: string, // Required only for deployments
+    private readonly provider: AltVM.IProvider,
+    private readonly nativeTokenDenom: string,
+    private readonly mailboxAddress?: string,
   ) {}
 
   async readHook(address: string): Promise<DeployedHookArtifact> {
-    // Detect hook type first
-    const aleoHookType = await getHookType(this.aleoClient, address);
-
-    // Get the appropriate reader and read the hook
-    const reader = this.createReader(
-      altVmHookTypeToProviderHookType(aleoHookType),
-    );
+    const altVMType = await this.provider.getHookType({
+      hookAddress: address,
+    });
+    const artifactIsmType = altVmHookTypeToProviderHookType(altVMType);
+    const reader = this.createReader(artifactIsmType);
     return reader.read(address);
   }
 
@@ -62,9 +59,9 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
       >;
     } = {
       [AltVM.HookType.MERKLE_TREE]: () =>
-        new AleoMerkleTreeHookReader(this.aleoClient),
+        new MerkleTreeHookReader(this.provider),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
-        new AleoIgpHookReader(this.aleoClient),
+        new IgpHookReader(this.provider),
     };
 
     const maybeReader = readers[type]();
@@ -75,10 +72,12 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
 
   createWriter<T extends HookType>(
     type: T,
-    signer: AleoSigner,
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawHookArtifactConfigs[T], DeployedHookAddress> {
-    const mailboxAddress = this.mailboxAddress;
-    assert(mailboxAddress, 'mailbox address required for hook deployment');
+    assert(
+      this.mailboxAddress,
+      `Mailbox needs to be defined to deploy a ${AltVM.HookType.MERKLE_TREE} hook`,
+    );
 
     const writers: {
       [K in HookType]: () => ArtifactWriter<
@@ -87,9 +86,14 @@ export class AleoHookArtifactManager implements IRawHookArtifactManager {
       >;
     } = {
       [AltVM.HookType.MERKLE_TREE]: () =>
-        new AleoMerkleTreeHookWriter(this.aleoClient, signer, mailboxAddress),
+        new MerkleTreeHookWriter(this.provider, signer, this.mailboxAddress!),
       [AltVM.HookType.INTERCHAIN_GAS_PAYMASTER]: () =>
-        new AleoIgpHookWriter(this.aleoClient, signer, mailboxAddress),
+        new IgpHookWriter(
+          this.provider,
+          signer,
+          this.mailboxAddress!,
+          this.nativeTokenDenom,
+        ),
     };
 
     const maybeWriter = writers[type]();

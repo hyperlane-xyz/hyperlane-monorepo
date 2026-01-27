@@ -40,7 +40,7 @@ export async function readIsmConfig({
   } else {
     const chainLookup = altVmChainLookup(context.multiProvider);
     const metadata = chainLookup.getChainMetadata(chain);
-    const ismReader = createIsmReader(metadata, chainLookup);
+    const ismReader = await createIsmReader(metadata, chainLookup);
     config = await ismReader.deriveIsmConfig(address);
     stringConfig = stringifyObject(config, resolveFileFormat(out), 2);
   }

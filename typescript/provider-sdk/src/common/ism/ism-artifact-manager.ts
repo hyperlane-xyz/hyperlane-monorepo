@@ -12,47 +12,24 @@ import {
   altVMIsmTypeToProviderSdkType,
 } from '@hyperlane-xyz/provider-sdk/ism';
 
-import { type AnyAleoNetworkClient } from '../clients/base.js';
-import { type AleoSigner } from '../clients/signer.js';
-import { AleoIsmType } from '../utils/types.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
-import { getIsmType } from './ism-query.js';
 import {
-  AleoMessageIdMultisigIsmReader,
-  AleoMessageIdMultisigIsmWriter,
+  MerkleRootMultisigIsmReader,
+  MerkleRootMultisigIsmWriter,
+  MessageIdMultisigIsmReader,
+  MessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
-import {
-  AleoRoutingIsmRawReader,
-  AleoRoutingIsmRawWriter,
-} from './routing-ism.js';
-import { AleoTestIsmReader, AleoTestIsmWriter } from './test-ism.js';
+import { RoutingIsmRawReader, RoutingIsmRawWriter } from './routing-ism.js';
+import { TestIsmReader, TestIsmWriter } from './test-ism.js';
 
-/**
- * Maps Aleo-specific ISM type values to provider-sdk ISM types.
- */
-function aleoIsmTypeToAltVmType(aleoType: AleoIsmType): AltVM.IsmType {
-  switch (aleoType) {
-    case AleoIsmType.MESSAGE_ID_MULTISIG:
-      return AltVM.IsmType.MESSAGE_ID_MULTISIG;
-    case AleoIsmType.ROUTING:
-      return AltVM.IsmType.ROUTING;
-    case AleoIsmType.TEST_ISM:
-      return AltVM.IsmType.TEST_ISM;
-    case AleoIsmType.MERKLE_ROOT_MULTISIG:
-      throw new Error(
-        `${AltVM.IsmType.MERKLE_ROOT_MULTISIG} is not supported on Aleo`,
-      );
-    default:
-      throw new Error(`Unknown Aleo ISM type: ${aleoType}`);
-  }
-}
-
-export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
-  constructor(private readonly aleoClient: AnyAleoNetworkClient) {}
+export class IsmArtifactManager implements IRawIsmArtifactManager {
+  constructor(private readonly provider: AltVM.IProvider) {}
 
   async readIsm(address: string): Promise<DeployedRawIsmArtifact> {
-    const aleoIsmType = await getIsmType(this.aleoClient, address);
-    const altVMType = aleoIsmTypeToAltVmType(aleoIsmType);
+    const altVMType = await this.provider.getIsmType({
+      ismAddress: address,
+    });
     const artifactIsmType = altVMIsmTypeToProviderSdkType(altVMType);
     const reader = this.createReader(artifactIsmType);
     return reader.read(address);
@@ -63,22 +40,27 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
   ): ArtifactReader<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
-        return new AleoTestIsmReader(
-          this.aleoClient,
-        ) as unknown as ArtifactReader<
+        return new TestIsmReader(this.provider) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new AleoMessageIdMultisigIsmReader(
-          this.aleoClient,
+        return new MessageIdMultisigIsmReader(
+          this.provider,
+        ) as unknown as ArtifactReader<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
+        return new MerkleRootMultisigIsmReader(
+          this.provider,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new AleoRoutingIsmRawReader(
-          this.aleoClient,
+        return new RoutingIsmRawReader(
+          this.provider,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
@@ -90,28 +72,36 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
 
   createWriter<T extends IsmType>(
     type: T,
-    signer: AleoSigner,
+    signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
   ): ArtifactWriter<RawIsmArtifactConfigs[T], DeployedIsmAddress> {
     switch (type) {
       case AltVM.IsmType.TEST_ISM:
-        return new AleoTestIsmWriter(
-          this.aleoClient,
+        return new TestIsmWriter(
+          this.provider,
           signer,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.MESSAGE_ID_MULTISIG:
-        return new AleoMessageIdMultisigIsmWriter(
-          this.aleoClient,
+        return new MessageIdMultisigIsmWriter(
+          this.provider,
+          signer,
+        ) as unknown as ArtifactWriter<
+          RawIsmArtifactConfigs[T],
+          DeployedIsmAddress
+        >;
+      case AltVM.IsmType.MERKLE_ROOT_MULTISIG:
+        return new MerkleRootMultisigIsmWriter(
+          this.provider,
           signer,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new AleoRoutingIsmRawWriter(
-          this.aleoClient,
+        return new RoutingIsmRawWriter(
+          this.provider,
           signer,
         ) as unknown as ArtifactWriter<
           RawIsmArtifactConfigs[T],

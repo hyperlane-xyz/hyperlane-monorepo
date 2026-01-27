@@ -66,7 +66,7 @@ export interface ProtocolProvider {
    */
   createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-  ): IRawIsmArtifactManager;
+  ): Promise<IRawIsmArtifactManager>;
 
   /**
    * Creates a Hook artifact manager for the protocol.
@@ -80,7 +80,7 @@ export interface ProtocolProvider {
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
-  ): IRawHookArtifactManager;
+  ): Promise<IRawHookArtifactManager>;
 
   getMinGas(): MinimumRequiredGasByAction;
 }

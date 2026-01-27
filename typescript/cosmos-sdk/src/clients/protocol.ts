@@ -1,7 +1,9 @@
 import {
   type AltVM,
   type ChainMetadataForAltVM,
+  HookArtifactManager,
   type ITransactionSubmitter,
+  IsmArtifactManager,
   type MinimumRequiredGasByAction,
   type ProtocolProvider,
   type SignerConfig,
@@ -16,14 +18,13 @@ import {
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { CosmosHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import { CosmosIsmArtifactManager } from '../ism/ism-artifact-manager.js';
-
 import { CosmosNativeProvider } from './provider.js';
 import { CosmosNativeSigner } from './signer.js';
 
 export class CosmosNativeProtocolProvider implements ProtocolProvider {
-  createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
+  async createProvider(
+    chainMetadata: ChainMetadataForAltVM,
+  ): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
     return CosmosNativeProvider.connect(rpcUrls, chainMetadata.domainId);
@@ -51,34 +52,26 @@ export class CosmosNativeProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
-  createIsmArtifactManager(
+  async createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-  ): IRawIsmArtifactManager {
-    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
-    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+  ): Promise<IRawIsmArtifactManager> {
+    const provider = await this.createProvider(chainMetadata);
 
-    return new CosmosIsmArtifactManager(rpcUrls);
+    return new IsmArtifactManager(provider);
   }
 
-  createHookArtifactManager(
+  async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
-  ): IRawHookArtifactManager {
-    const [mainRpcUrl, ...otherRpcUrls] = (chainMetadata.rpcUrls ?? []).map(
-      (rpc) => rpc.http,
+  ): Promise<IRawHookArtifactManager> {
+    const nativeDenom = chainMetadata.nativeToken?.denom ?? '';
+    assert(
+      nativeDenom,
+      `native denom required for hook artifact manager but not found in chainMetadata`,
     );
 
-    assert(mainRpcUrl, 'At least one rpc url is required');
-    assert(chainMetadata.nativeToken?.denom, 'native token denom undefined');
-
-    const mailboxAddress = context?.mailbox;
-    const nativeTokenDenom = chainMetadata.nativeToken.denom;
-
-    return new CosmosHookArtifactManager({
-      rpcUrls: [mainRpcUrl, ...otherRpcUrls],
-      mailboxAddress,
-      nativeTokenDenom,
-    });
+    const provider = await this.createProvider(chainMetadata);
+    return new HookArtifactManager(provider, nativeDenom, context?.mailbox);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

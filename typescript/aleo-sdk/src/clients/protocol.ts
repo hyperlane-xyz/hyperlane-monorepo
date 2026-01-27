@@ -1,10 +1,9 @@
-import { AleoNetworkClient as AleoMainnetNetworkClient } from '@provablehq/sdk/mainnet.js';
-import { AleoNetworkClient as AleoTestnetNetworkClient } from '@provablehq/sdk/testnet.js';
-
 import {
   type AltVM,
   type ChainMetadataForAltVM,
+  HookArtifactManager,
   type ITransactionSubmitter,
+  IsmArtifactManager,
   type MinimumRequiredGasByAction,
   type ProtocolProvider,
   type SignerConfig,
@@ -18,10 +17,6 @@ import {
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
-
-import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
-import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
-import { AleoNetworkId } from '../utils/types.js';
 
 import { AleoProvider } from './provider.js';
 import { AleoSigner } from './signer.js';
@@ -55,45 +50,25 @@ export class AleoProtocolProvider implements ProtocolProvider {
     throw Error('Not implemented');
   }
 
-  createIsmArtifactManager(
+  async createIsmArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-  ): IRawIsmArtifactManager {
-    const chainId = parseInt(chainMetadata.chainId.toString());
-    assert(
-      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
-      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
-    );
-
-    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
-    assert(rpcUrl, `got no rpcUrls`);
-
-    const aleoClient =
-      chainId === AleoNetworkId.MAINNET
-        ? new AleoMainnetNetworkClient(rpcUrl)
-        : new AleoTestnetNetworkClient(rpcUrl);
-
-    return new AleoIsmArtifactManager(aleoClient);
+  ): Promise<IRawIsmArtifactManager> {
+    const provider = await this.createProvider(chainMetadata);
+    return new IsmArtifactManager(provider);
   }
 
-  createHookArtifactManager(
+  async createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
     context?: { mailbox?: string },
-  ): IRawHookArtifactManager {
-    const chainId = parseInt(chainMetadata.chainId.toString());
+  ): Promise<IRawHookArtifactManager> {
+    const nativeDenom = chainMetadata.nativeToken?.denom ?? '';
     assert(
-      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
-      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+      nativeDenom,
+      `native denom required for hook artifact manager but not found in chainMetadata`,
     );
 
-    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
-    assert(rpcUrl, 'got no rpcUrls');
-
-    const aleoClient =
-      chainId === AleoNetworkId.MAINNET
-        ? new AleoMainnetNetworkClient(rpcUrl)
-        : new AleoTestnetNetworkClient(rpcUrl);
-
-    return new AleoHookArtifactManager(aleoClient, context?.mailbox);
+    const provider = await this.createProvider(chainMetadata);
+    return new HookArtifactManager(provider, nativeDenom, context?.mailbox);
   }
 
   getMinGas(): MinimumRequiredGasByAction {

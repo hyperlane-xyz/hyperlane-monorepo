@@ -32,18 +32,18 @@ import { RoutingIsmWriter } from './routing-ism.js';
  *
  * @example
  * ```typescript
- * const writer = createIsmWriter(chainMetadata, chainLookup, signer);
+ * const writer = await createIsmWriter(chainMetadata, chainLookup, signer);
  * const [deployed, receipts] = await writer.create({ config: ismConfig });
  * ```
  */
-export function createIsmWriter(
+export async function createIsmWriter(
   chainMetadata: ChainMetadataForAltVM,
   chainLookup: ChainLookup,
   signer: ISigner<AnnotatedTx, TxReceipt>,
-): IsmWriter {
+): Promise<IsmWriter> {
   const protocolProvider = getProtocolProvider(chainMetadata.protocol);
   const artifactManager: IRawIsmArtifactManager =
-    protocolProvider.createIsmArtifactManager(chainMetadata);
+    await protocolProvider.createIsmArtifactManager(chainMetadata);
 
   return new IsmWriter(artifactManager, chainLookup, signer);
 }

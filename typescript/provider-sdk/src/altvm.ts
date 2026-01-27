@@ -194,15 +194,15 @@ export type ReqCreateMailbox = {
   domainId: number;
   defaultIsmAddress?: string;
 };
-export type ResCreateMailbox = { mailboxAddress: string };
+export type ResCreateMailbox<R> = { mailboxAddress: string; receipts: R[] };
 
 export type ReqSetDefaultIsm = {
   signer: string;
   mailboxAddress: string;
   ismAddress: string;
 };
-export type ResSetDefaultIsm = {
-  ismAddress: string;
+export type ResSetDefaultIsm<R> = {
+  receipts: R[];
 };
 
 export type ReqSetDefaultHook = {
@@ -210,8 +210,8 @@ export type ReqSetDefaultHook = {
   mailboxAddress: string;
   hookAddress: string;
 };
-export type ResSetDefaultHook = {
-  hookAddress: string;
+export type ResSetDefaultHook<R> = {
+  receipts: R[];
 };
 
 export type ReqSetRequiredHook = {
@@ -219,8 +219,8 @@ export type ReqSetRequiredHook = {
   mailboxAddress: string;
   hookAddress: string;
 };
-export type ResSetRequiredHook = {
-  hookAddress: string;
+export type ResSetRequiredHook<R> = {
+  receipts: R[];
 };
 
 export type ReqSetMailboxOwner = {
@@ -228,8 +228,8 @@ export type ReqSetMailboxOwner = {
   mailboxAddress: string;
   newOwner: string;
 };
-export type ResSetMailboxOwner = {
-  newOwner: string;
+export type ResSetMailboxOwner<R> = {
+  receipts: R[];
 };
 
 export type ReqCreateMerkleRootMultisigIsm = {
@@ -237,8 +237,9 @@ export type ReqCreateMerkleRootMultisigIsm = {
   validators: string[];
   threshold: number;
 };
-export type ResCreateMerkleRootMultisigIsm = {
+export type ResCreateMerkleRootMultisigIsm<R> = {
   ismAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateMessageIdMultisigIsm = {
@@ -246,16 +247,18 @@ export type ReqCreateMessageIdMultisigIsm = {
   validators: string[];
   threshold: number;
 };
-export type ResCreateMessageIdMultisigIsm = {
+export type ResCreateMessageIdMultisigIsm<R> = {
   ismAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateRoutingIsm = {
   signer: string;
   routes: { ismAddress: string; domainId: number }[];
 };
-export type ResCreateRoutingIsm = {
+export type ResCreateRoutingIsm<R> = {
   ismAddress: string;
+  receipts: R[];
 };
 
 export type ReqSetRoutingIsmRoute = {
@@ -263,8 +266,8 @@ export type ReqSetRoutingIsmRoute = {
   ismAddress: string;
   route: { domainId: number; ismAddress: string };
 };
-export type ResSetRoutingIsmRoute = {
-  route: { domainId: number; ismAddress: string };
+export type ResSetRoutingIsmRoute<R> = {
+  receipts: R[];
 };
 
 export type ReqRemoveRoutingIsmRoute = {
@@ -272,8 +275,8 @@ export type ReqRemoveRoutingIsmRoute = {
   ismAddress: string;
   domainId: number;
 };
-export type ResRemoveRoutingIsmRoute = {
-  domainId: number;
+export type ResRemoveRoutingIsmRoute<R> = {
+  receipts: R[];
 };
 
 export type ReqSetRoutingIsmOwner = {
@@ -281,23 +284,25 @@ export type ReqSetRoutingIsmOwner = {
   ismAddress: string;
   newOwner: string;
 };
-export type ResSetRoutingIsmOwner = {
-  newOwner: string;
+export type ResSetRoutingIsmOwner<R> = {
+  receipts: R[];
 };
 
 export type ReqCreateNoopIsm = {
   signer: string;
 };
-export type ResCreateNoopIsm = {
+export type ResCreateNoopIsm<R> = {
   ismAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateMerkleTreeHook = {
   signer: string;
   mailboxAddress: string;
 };
-export type ResCreateMerkleTreeHook = {
+export type ResCreateMerkleTreeHook<R> = {
   hookAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateInterchainGasPaymasterHook = {
@@ -305,8 +310,9 @@ export type ReqCreateInterchainGasPaymasterHook = {
   mailboxAddress: string;
   denom?: string;
 };
-export type ResCreateInterchainGasPaymasterHook = {
+export type ResCreateInterchainGasPaymasterHook<R> = {
   hookAddress: string;
+  receipts: R[];
 };
 
 export type ReqSetInterchainGasPaymasterHookOwner = {
@@ -314,8 +320,8 @@ export type ReqSetInterchainGasPaymasterHookOwner = {
   hookAddress: string;
   newOwner: string;
 };
-export type ResSetInterchainGasPaymasterHookOwner = {
-  newOwner: string;
+export type ResSetInterchainGasPaymasterHookOwner<R> = {
+  receipts: R[];
 };
 
 export type ReqSetDestinationGasConfig = {
@@ -330,15 +336,8 @@ export type ReqSetDestinationGasConfig = {
     gasOverhead: string;
   };
 };
-export type ResSetDestinationGasConfig = {
-  destinationGasConfig: {
-    remoteDomainId: number;
-    gasOracle: {
-      tokenExchangeRate: string;
-      gasPrice: string;
-    };
-    gasOverhead: string;
-  };
+export type ResSetDestinationGasConfig<R> = {
+  receipts: R[];
 };
 
 export type ReqRemoveDestinationGasConfig = {
@@ -346,24 +345,26 @@ export type ReqRemoveDestinationGasConfig = {
   hookAddress: string;
   remoteDomainId: number;
 };
-export type ResRemoveDestinationGasConfig = {
-  remoteDomainId: number;
+export type ResRemoveDestinationGasConfig<R> = {
+  receipts: R[];
 };
 
 export type ReqCreateNoopHook = {
   signer: string;
   mailboxAddress: string;
 };
-export type ResCreateNoopHook = {
+export type ResCreateNoopHook<R> = {
   hookAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateValidatorAnnounce = {
   signer: string;
   mailboxAddress: string;
 };
-export type ResCreateValidatorAnnounce = {
-  validatorAnnounceId: string;
+export type ResCreateValidatorAnnounce<R> = {
+  validatorAnnounceAddress: string;
+  receipts: R[];
 };
 
 // ### POPULATE WARP ###
@@ -373,8 +374,9 @@ export type ReqCreateNativeToken = {
   mailboxAddress: string;
   warpSuffix?: string;
 };
-export type ResCreateNativeToken = {
+export type ResCreateNativeToken<R> = {
   tokenAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateCollateralToken = {
@@ -383,8 +385,9 @@ export type ReqCreateCollateralToken = {
   collateralDenom: string;
   warpSuffix?: string;
 };
-export type ResCreateCollateralToken = {
+export type ResCreateCollateralToken<R> = {
   tokenAddress: string;
+  receipts: R[];
 };
 
 export type ReqCreateSyntheticToken = {
@@ -395,8 +398,9 @@ export type ReqCreateSyntheticToken = {
   decimals: number;
   warpSuffix?: string;
 };
-export type ResCreateSyntheticToken = {
+export type ResCreateSyntheticToken<R> = {
   tokenAddress: string;
+  receipts: R[];
 };
 
 export type ReqSetTokenOwner = {
@@ -404,8 +408,8 @@ export type ReqSetTokenOwner = {
   tokenAddress: string;
   newOwner: string;
 };
-export type ResSetTokenOwner = {
-  newOwner: string;
+export type ResSetTokenOwner<R> = {
+  receipts: R[];
 };
 
 export type ReqSetTokenIsm = {
@@ -413,8 +417,8 @@ export type ReqSetTokenIsm = {
   tokenAddress: string;
   ismAddress: string;
 };
-export type ResSetTokenIsm = {
-  ismAddress: string;
+export type ResSetTokenIsm<R> = {
+  receipts: R[];
 };
 
 export type ReqSetTokenHook = {
@@ -422,8 +426,8 @@ export type ReqSetTokenHook = {
   tokenAddress: string;
   hookAddress: string;
 };
-export type ResSetTokenHook = {
-  hookAddress: string;
+export type ResSetTokenHook<R> = {
+  receipts: R[];
 };
 
 export type ReqEnrollRemoteRouter = {
@@ -435,8 +439,8 @@ export type ReqEnrollRemoteRouter = {
     gas: string;
   };
 };
-export type ResEnrollRemoteRouter = {
-  receiverDomainId: number;
+export type ResEnrollRemoteRouter<R> = {
+  receipts: R[];
 };
 
 export type ReqUnenrollRemoteRouter = {
@@ -444,8 +448,8 @@ export type ReqUnenrollRemoteRouter = {
   tokenAddress: string;
   receiverDomainId: number;
 };
-export type ResUnenrollRemoteRouter = {
-  receiverDomainId: number;
+export type ResUnenrollRemoteRouter<R> = {
+  receipts: R[];
 };
 
 export type ReqTransfer = {
@@ -454,8 +458,8 @@ export type ReqTransfer = {
   denom?: string;
   amount: string;
 };
-export type ResTransfer = {
-  recipient: string;
+export type ResTransfer<R> = {
+  receipts: R[];
 };
 
 export type ReqRemoteTransfer = {
@@ -469,8 +473,8 @@ export type ReqRemoteTransfer = {
   customHookAddress?: string;
   customHookMetadata?: string;
 };
-export type ResRemoteTransfer = {
-  tokenAddress: string;
+export type ResRemoteTransfer<R> = {
+  receipts: R[];
 };
 
 export interface IProvider<T = any> {
@@ -628,115 +632,117 @@ export interface ISigner<T, R> extends IProvider<T> {
 
   createMailbox(
     req: Omit<ReqCreateMailbox, 'signer'>,
-  ): Promise<ResCreateMailbox>;
+  ): Promise<ResCreateMailbox<R>>;
 
   setDefaultIsm(
     req: Omit<ReqSetDefaultIsm, 'signer'>,
-  ): Promise<ResSetDefaultIsm>;
+  ): Promise<ResSetDefaultIsm<R>>;
 
   setDefaultHook(
     req: Omit<ReqSetDefaultHook, 'signer'>,
-  ): Promise<ResSetDefaultHook>;
+  ): Promise<ResSetDefaultHook<R>>;
 
   setRequiredHook(
     req: Omit<ReqSetRequiredHook, 'signer'>,
-  ): Promise<ResSetRequiredHook>;
+  ): Promise<ResSetRequiredHook<R>>;
 
   setMailboxOwner(
     req: Omit<ReqSetMailboxOwner, 'signer'>,
-  ): Promise<ResSetMailboxOwner>;
+  ): Promise<ResSetMailboxOwner<R>>;
 
   createMerkleRootMultisigIsm(
     req: Omit<ReqCreateMerkleRootMultisigIsm, 'signer'>,
-  ): Promise<ResCreateMerkleRootMultisigIsm>;
+  ): Promise<ResCreateMerkleRootMultisigIsm<R>>;
 
   createMessageIdMultisigIsm(
     req: Omit<ReqCreateMessageIdMultisigIsm, 'signer'>,
-  ): Promise<ResCreateMessageIdMultisigIsm>;
+  ): Promise<ResCreateMessageIdMultisigIsm<R>>;
 
   createRoutingIsm(
     req: Omit<ReqCreateRoutingIsm, 'signer'>,
-  ): Promise<ResCreateRoutingIsm>;
+  ): Promise<ResCreateRoutingIsm<R>>;
 
   setRoutingIsmRoute(
     req: Omit<ReqSetRoutingIsmRoute, 'signer'>,
-  ): Promise<ResSetRoutingIsmRoute>;
+  ): Promise<ResSetRoutingIsmRoute<R>>;
 
   removeRoutingIsmRoute(
     req: Omit<ReqRemoveRoutingIsmRoute, 'signer'>,
-  ): Promise<ResRemoveRoutingIsmRoute>;
+  ): Promise<ResRemoveRoutingIsmRoute<R>>;
 
   setRoutingIsmOwner(
     req: Omit<ReqSetRoutingIsmOwner, 'signer'>,
-  ): Promise<ResSetRoutingIsmOwner>;
+  ): Promise<ResSetRoutingIsmOwner<R>>;
 
   createNoopIsm(
     req: Omit<ReqCreateNoopIsm, 'signer'>,
-  ): Promise<ResCreateNoopIsm>;
+  ): Promise<ResCreateNoopIsm<R>>;
 
   createMerkleTreeHook(
     req: Omit<ReqCreateMerkleTreeHook, 'signer'>,
-  ): Promise<ResCreateMerkleTreeHook>;
+  ): Promise<ResCreateMerkleTreeHook<R>>;
 
   createInterchainGasPaymasterHook(
     req: Omit<ReqCreateInterchainGasPaymasterHook, 'signer'>,
-  ): Promise<ResCreateInterchainGasPaymasterHook>;
+  ): Promise<ResCreateInterchainGasPaymasterHook<R>>;
 
   setInterchainGasPaymasterHookOwner(
     req: Omit<ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
-  ): Promise<ResSetInterchainGasPaymasterHookOwner>;
+  ): Promise<ResSetInterchainGasPaymasterHookOwner<R>>;
 
   setDestinationGasConfig(
     req: Omit<ReqSetDestinationGasConfig, 'signer'>,
-  ): Promise<ResSetDestinationGasConfig>;
+  ): Promise<ResSetDestinationGasConfig<R>>;
 
   removeDestinationGasConfig(
     req: Omit<ReqRemoveDestinationGasConfig, 'signer'>,
-  ): Promise<ResRemoveDestinationGasConfig>;
+  ): Promise<ResRemoveDestinationGasConfig<R>>;
 
   createNoopHook(
     req: Omit<ReqCreateNoopHook, 'signer'>,
-  ): Promise<ResCreateNoopHook>;
+  ): Promise<ResCreateNoopHook<R>>;
 
   createValidatorAnnounce(
     req: Omit<ReqCreateValidatorAnnounce, 'signer'>,
-  ): Promise<ResCreateValidatorAnnounce>;
+  ): Promise<ResCreateValidatorAnnounce<R>>;
 
   // ### TX WARP ###
 
   createNativeToken(
     req: Omit<ReqCreateNativeToken, 'signer'>,
-  ): Promise<ResCreateNativeToken>;
+  ): Promise<ResCreateNativeToken<R>>;
 
   createCollateralToken(
     req: Omit<ReqCreateCollateralToken, 'signer'>,
-  ): Promise<ResCreateCollateralToken>;
+  ): Promise<ResCreateCollateralToken<R>>;
 
   createSyntheticToken(
     req: Omit<ReqCreateSyntheticToken, 'signer'>,
-  ): Promise<ResCreateSyntheticToken>;
+  ): Promise<ResCreateSyntheticToken<R>>;
 
   setTokenOwner(
     req: Omit<ReqSetTokenOwner, 'signer'>,
-  ): Promise<ResSetTokenOwner>;
+  ): Promise<ResSetTokenOwner<R>>;
 
-  setTokenIsm(req: Omit<ReqSetTokenIsm, 'signer'>): Promise<ResSetTokenIsm>;
+  setTokenIsm(req: Omit<ReqSetTokenIsm, 'signer'>): Promise<ResSetTokenIsm<R>>;
 
-  setTokenHook(req: Omit<ReqSetTokenHook, 'signer'>): Promise<ResSetTokenHook>;
+  setTokenHook(
+    req: Omit<ReqSetTokenHook, 'signer'>,
+  ): Promise<ResSetTokenHook<R>>;
 
   enrollRemoteRouter(
     req: Omit<ReqEnrollRemoteRouter, 'signer'>,
-  ): Promise<ResEnrollRemoteRouter>;
+  ): Promise<ResEnrollRemoteRouter<R>>;
 
   unenrollRemoteRouter(
     req: Omit<ReqUnenrollRemoteRouter, 'signer'>,
-  ): Promise<ResUnenrollRemoteRouter>;
+  ): Promise<ResUnenrollRemoteRouter<R>>;
 
-  transfer(req: Omit<ReqTransfer, 'signer'>): Promise<ResTransfer>;
+  transfer(req: Omit<ReqTransfer, 'signer'>): Promise<ResTransfer<R>>;
 
   remoteTransfer(
     req: Omit<ReqRemoteTransfer, 'signer'>,
-  ): Promise<ResRemoteTransfer>;
+  ): Promise<ResRemoteTransfer<R>>;
 }
 
 export interface IProviderConnect {

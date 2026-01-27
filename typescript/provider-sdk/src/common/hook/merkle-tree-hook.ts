@@ -1,5 +1,3 @@
-import { type DeliverTxResponse } from '@cosmjs/stargate';
-
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   type ArtifactDeployed,
@@ -13,30 +11,24 @@ import {
   type MerkleTreeHookConfig,
 } from '@hyperlane-xyz/provider-sdk/hook';
 
-import { type CosmosNativeSigner } from '../clients/signer.js';
-import { getNewContractAddress } from '../utils/base.js';
-import { type AnnotatedEncodeObject } from '../utils/types.js';
-
-import {
-  type CosmosHookQueryClient,
-  getMerkleTreeHookConfig,
-} from './hook-query.js';
-import { getCreateMerkleTreeHookTx } from './hook-tx.js';
+import { AnnotatedTx, TxReceipt } from '../../module.js';
 
 /**
- * Reader for Cosmos MerkleTree Hook.
+ * Reader for MerkleTree Hook.
  * Reads deployed MerkleTree hook configuration from the chain.
  * MerkleTree hooks are immutable once deployed.
  */
-export class CosmosMerkleTreeHookReader
+export class MerkleTreeHookReader
   implements ArtifactReader<MerkleTreeHookConfig, DeployedHookAddress>
 {
-  constructor(private readonly query: CosmosHookQueryClient) {}
+  constructor(protected readonly provider: AltVM.IProvider) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>> {
-    const hookConfig = await getMerkleTreeHookConfig(this.query, address);
+    const hookConfig = await this.provider.getMerkleTreeHook({
+      hookAddress: address,
+    });
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -51,37 +43,30 @@ export class CosmosMerkleTreeHookReader
 }
 
 /**
- * Writer for Cosmos MerkleTree Hook.
+ * Writer for  MerkleTree Hook.
  * Handles deployment of MerkleTree hooks.
  * MerkleTree hooks are immutable, so no update operations are needed.
  */
-export class CosmosMerkleTreeHookWriter
-  extends CosmosMerkleTreeHookReader
+export class MerkleTreeHookWriter
+  extends MerkleTreeHookReader
   implements ArtifactWriter<MerkleTreeHookConfig, DeployedHookAddress>
 {
   constructor(
-    query: CosmosHookQueryClient,
-    private readonly signer: CosmosNativeSigner,
+    provider: AltVM.IProvider,
+    private readonly signer: AltVM.ISigner<AnnotatedTx, TxReceipt>,
     private readonly mailboxAddress: string,
   ) {
-    super(query);
+    super(provider);
   }
 
   async create(
     artifact: ArtifactNew<MerkleTreeHookConfig>,
   ): Promise<
-    [
-      ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
-      DeliverTxResponse[],
-    ]
+    [ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>, TxReceipt[]]
   > {
-    const createTx = getCreateMerkleTreeHookTx(
-      this.signer.getSignerAddress(),
-      this.mailboxAddress,
-    );
-
-    const receipt = await this.signer.sendAndConfirmTransaction(createTx);
-    const address = getNewContractAddress(receipt);
+    const { hookAddress, receipts } = await this.signer.createMerkleTreeHook({
+      mailboxAddress: this.mailboxAddress,
+    });
 
     const deployedArtifact: ArtifactDeployed<
       MerkleTreeHookConfig,
@@ -90,16 +75,16 @@ export class CosmosMerkleTreeHookWriter
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
-        address,
+        address: hookAddress,
       },
     };
 
-    return [deployedArtifact, [receipt]];
+    return [deployedArtifact, receipts];
   }
 
   async update(
     _artifact: ArtifactDeployed<MerkleTreeHookConfig, DeployedHookAddress>,
-  ): Promise<AnnotatedEncodeObject[]> {
+  ): Promise<AnnotatedTx[]> {
     // MerkleTreeHook has no mutable state
     return [];
   }
