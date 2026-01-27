@@ -1,5 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use derive_new::new;
+use shank::ShankType;
 
 use crate::accumulator::{
     hash_concat,
@@ -7,10 +8,11 @@ use crate::accumulator::{
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, new, PartialEq, Eq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, new, PartialEq, Eq, ShankType)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     /// The branch of the tree
+    #[idl_type("[[u8; 32]; 32]")]
     pub branch: [H256; TREE_DEPTH],
     /// The number of leaves in the tree
     pub count: usize,

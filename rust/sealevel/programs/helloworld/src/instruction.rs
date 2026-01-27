@@ -2,7 +2,8 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 
-use crate::types::RemoteRouterConfig;
+#[allow(unused_imports)]
+use crate::types::{RemoteRouterConfig, RemoteRouterConfigProxy};
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use shank::{ShankInstruction, ShankType};
 use solana_program::{
@@ -68,6 +69,7 @@ pub enum HelloWorldInstruction {
     #[account(0, name = "system_program", desc = "System program")]
     #[account(1, writable, name = "program_storage", desc = "Program storage PDA")]
     #[account(2, signer, name = "owner", desc = "Owner")]
+    #[idl_type("Vec<RemoteRouterConfigProxy>")]
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
 }
 

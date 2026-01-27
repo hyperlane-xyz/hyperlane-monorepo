@@ -1,35 +1,17 @@
 //! Type definitions for the HelloWorld program.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::H256;
 use shank::ShankType;
 
-/// Configuration for a remote router.
-/// This is a wrapper around hyperlane_sealevel_connection_client::router::RemoteRouterConfig
-/// to include in the IDL.
+/// Proxy struct for RemoteRouterConfig from hyperlane_sealevel_connection_client.
+/// This tells Shank to import the type definition from the external library's IDL
+/// instead of duplicating the fields here.
 #[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize, ShankType)]
-pub struct RemoteRouterConfig {
-    /// The domain of the remote router.
-    pub domain: u32,
-    /// The remote router.
-    #[idl_type("Option<[u8; 32]>")]
-    pub router: Option<H256>,
-}
+#[shank(
+    import_from = "hyperlane_sealevel_connection_client",
+    rename = "RemoteRouterConfig"
+)]
+pub struct RemoteRouterConfigProxy;
 
-impl From<hyperlane_sealevel_connection_client::router::RemoteRouterConfig> for RemoteRouterConfig {
-    fn from(config: hyperlane_sealevel_connection_client::router::RemoteRouterConfig) -> Self {
-        Self {
-            domain: config.domain,
-            router: config.router,
-        }
-    }
-}
-
-impl From<RemoteRouterConfig> for hyperlane_sealevel_connection_client::router::RemoteRouterConfig {
-    fn from(config: RemoteRouterConfig) -> Self {
-        Self {
-            domain: config.domain,
-            router: config.router,
-        }
-    }
-}
+// Re-export the real type for use in the program logic
+pub use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;

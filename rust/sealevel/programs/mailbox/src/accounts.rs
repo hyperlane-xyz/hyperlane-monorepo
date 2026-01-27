@@ -8,7 +8,8 @@ use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
 
-use crate::types::MerkleTree;
+#[allow(unused_imports)]
+use crate::types::{MerkleTree, MerkleTreeProxy};
 use shank::ShankAccount;
 use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
@@ -102,6 +103,7 @@ pub struct Outbox {
     /// The owner of this program, which has privileged permissions.
     pub owner: Option<Pubkey>,
     /// The merkle tree of dispatched messages.
+    #[idl_type("MerkleTreeProxy")]
     pub tree: MerkleTree,
     /// Max protocol fee that can be set.
     pub max_protocol_fee: u64,
