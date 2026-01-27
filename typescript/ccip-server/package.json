@@ -17,7 +17,7 @@
   "scripts": {
     "postinstall": "prisma generate",
     "build": "prisma generate && tsc -p tsconfig.json",
-    "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ./scripts/ncc.post-bundle.mjs",
+    "bundle": "rm -rf ./bundle && ncc build ./dist/server.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "start": "tsx src/server.ts",
     "dev": "NODE_ENV=development LOG_FORMAT=pretty tsx watch src/server.ts",
     "test": "jest",
