@@ -1,4 +1,4 @@
-import { BigNumber, PopulatedTransaction, utils } from 'ethers';
+import { BigNumber, PopulatedTransaction, ethers, utils } from 'ethers';
 import { z } from 'zod';
 
 import {
@@ -13,9 +13,11 @@ import {
   arrayToObject,
   bytes32ToAddress,
   eqAddress,
+  formatStandardHookMetadata,
   isZeroishAddress,
   objFilter,
   objMap,
+  parseStandardHookMetadata,
   promiseObjAll,
 } from '@hyperlane-xyz/utils';
 
@@ -26,6 +28,7 @@ import {
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
+import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
 
@@ -34,6 +37,9 @@ import {
   interchainAccountFactories,
 } from './contracts.js';
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
+
+const IGP_DEFAULT_GAS = BigNumber.from(50_000);
+const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -164,6 +170,106 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return destinationAccount;
   }
 
+  /**
+   * Encode the ICA message body for handle() call estimation.
+   * Mirrors solidity/contracts/middleware/libs/InterchainAccountMessage.sol#encode
+   */
+  encodeIcaMessageBody(
+    owner: string,
+    ism: string,
+    calls: { to: string; value: BigNumber; data: string }[],
+    salt: string = ethers.constants.HashZero,
+  ): string {
+    const MESSAGE_TYPE_CALLS = 0;
+    const prefix = ethers.utils.solidityPack(
+      ['uint8', 'bytes32', 'bytes32', 'bytes32'],
+      [MESSAGE_TYPE_CALLS, owner, ism, salt],
+    );
+    const suffix = ethers.utils.defaultAbiCoder.encode(
+      ['tuple(bytes32 to, uint256 value, bytes data)[]'],
+      [calls],
+    );
+    return ethers.utils.hexConcat([prefix, suffix]);
+  }
+
+  /**
+   * Estimate gas for ICA handle() execution on destination chain.
+   */
+  async estimateIcaHandleGas({
+    origin,
+    destination,
+    innerCalls,
+    config,
+  }: {
+    origin: string;
+    destination: string;
+    innerCalls: SdkCallData[];
+    config: AccountConfig;
+  }): Promise<BigNumber> {
+    const originDomain = this.multiProvider.getDomainId(origin);
+    const destinationRouter = this.router(this.contractsMap[destination]);
+
+    const localRouterAddress = config.localRouter
+      ? bytes32ToAddress(config.localRouter)
+      : this.routerAddress(origin);
+
+    const remoteIsm = addressToBytes32(
+      config.ismOverride ?? (await destinationRouter.isms(originDomain)),
+    );
+
+    const formattedCalls = innerCalls.map((call) => ({
+      to: addressToBytes32(call.to),
+      value: BigNumber.from(call.value ?? '0'),
+      data: call.data,
+    }));
+
+    const messageBody = this.encodeIcaMessageBody(
+      addressToBytes32(config.owner),
+      remoteIsm,
+      formattedCalls,
+    );
+
+    try {
+      const gasEstimate = await destinationRouter.estimateGas.handle(
+        originDomain,
+        addressToBytes32(localRouterAddress),
+        messageBody,
+        { from: await destinationRouter.mailbox() },
+      );
+      return addBufferToGasLimit(gasEstimate);
+    } catch (error) {
+      this.logger.warn(
+        { error, destination },
+        'Failed to estimate ICA handle gas, trying individual call estimation',
+      );
+
+      try {
+        const individualEstimates = await Promise.all(
+          formattedCalls.map((call) =>
+            this.estimateIndividualCallGas(destination, call),
+          ),
+        );
+        const totalGas = individualEstimates.reduce(
+          (sum, gas) => sum.add(gas),
+          BigNumber.from(0),
+        );
+        // Overhead: ICA deployment check + multicall dispatch + message decoding
+        const ICA_OVERHEAD = BigNumber.from(50_000);
+        const PER_CALL_OVERHEAD = BigNumber.from(5_000);
+        const overhead = ICA_OVERHEAD.add(
+          PER_CALL_OVERHEAD.mul(formattedCalls.length),
+        );
+        return addBufferToGasLimit(totalGas.add(overhead));
+      } catch (fallbackError) {
+        this.logger.warn(
+          { error: fallbackError, destination },
+          'Individual call estimation also failed, using static fallback',
+        );
+        return ICA_HANDLE_GAS_FALLBACK;
+      }
+    }
+  }
+
   // meant for ICA governance to return the populatedTx
   async getCallRemote({
     chain,
@@ -178,15 +284,53 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
           this.multiProvider.getSigner(chain),
         )
       : this.router(this.contractsMap[chain]);
+    const originDomain = this.multiProvider.getDomainId(chain);
     const remoteDomain = this.multiProvider.getDomainId(destination);
-    const quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
+
     const remoteRouter = addressToBytes32(
       config.routerOverride ?? this.routerAddress(destination),
     );
+    // ISMs are indexed by origin domain (where messages come FROM)
     const remoteIsm = addressToBytes32(
       config.ismOverride ??
-        (await this.router(this.contractsMap[destination]).isms(remoteDomain)),
+        (await this.router(this.contractsMap[destination]).isms(originDomain)),
     );
+
+    // Handle both string and object hookMetadata formats
+    const resolvedHookMetadata =
+      typeof hookMetadata === 'string'
+        ? hookMetadata
+        : hookMetadata
+          ? formatStandardHookMetadata({
+              msgValue: hookMetadata.msgValue
+                ? BigInt(hookMetadata.msgValue)
+                : undefined,
+              gasLimit: hookMetadata.gasLimit
+                ? BigInt(hookMetadata.gasLimit)
+                : undefined,
+              refundAddress: hookMetadata.refundAddress,
+            })
+          : '0x';
+
+    const gasLimitForQuote =
+      typeof hookMetadata === 'object' && hookMetadata?.gasLimit
+        ? BigNumber.from(hookMetadata.gasLimit)
+        : resolvedHookMetadata !== '0x'
+          ? (this.extractGasLimitFromMetadata(resolvedHookMetadata) ??
+            IGP_DEFAULT_GAS)
+          : IGP_DEFAULT_GAS;
+
+    let quote: BigNumber;
+    try {
+      quote = await localRouter['quoteGasPayment(uint32,uint256)'](
+        remoteDomain,
+        gasLimitForQuote,
+      );
+    } catch {
+      // Legacy ICA routers only support quoteGasPayment(uint32).
+      quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
+    }
+
     const callEncoded = await localRouter.populateTransaction[
       'callRemoteWithOverrides(uint32,bytes32,bytes32,(bytes32,uint256,bytes)[],bytes)'
     ](
@@ -198,10 +342,36 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         value: call.value ?? BigNumber.from('0'),
         data: call.data,
       })),
-      hookMetadata ?? '0x',
+      resolvedHookMetadata,
       { value: quote },
     );
     return callEncoded;
+  }
+
+  private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
+    const parsed = parseStandardHookMetadata(metadata);
+    return parsed ? BigNumber.from(parsed.gasLimit) : null;
+  }
+
+  /**
+   * Estimate gas for a single call on the destination chain.
+   * Used as fallback when full handle() estimation fails.
+   */
+  private async estimateIndividualCallGas(
+    destination: string,
+    call: { to: string; value: BigNumber; data: string },
+  ): Promise<BigNumber> {
+    const provider = this.multiProvider.getProvider(destination);
+    const PER_CALL_FALLBACK = BigNumber.from(50_000);
+    try {
+      return await provider.estimateGas({
+        to: bytes32ToAddress(call.to),
+        data: call.data,
+        value: call.value,
+      });
+    } catch {
+      return PER_CALL_FALLBACK;
+    }
   }
 
   // general helper for different overloaded callRemote functions
