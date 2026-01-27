@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import {
   type ChainMap,
   CoinGeckoTokenPriceGetter,
@@ -28,10 +26,12 @@ interface FeeRow {
 }
 
 // Placeholder addresses for different protocol types (for fee quotes)
+// Placeholder addresses for fee quotes
 // Note: Sealevel fee quotes require a funded sender for transaction simulation,
 // so we use the Hyperlane relayer account as a known funded address
+// Note: EVM can't use zero address as it fails "address bytes must not be empty" validation
 const PLACEHOLDER_ADDRESSES: Record<ProtocolType, string> = {
-  [ProtocolType.Ethereum]: ethers.constants.AddressZero,
+  [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000001',
   [ProtocolType.Sealevel]: 'G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp', // Hyperlane relayer (funded)
   [ProtocolType.Cosmos]: 'cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a',
   [ProtocolType.CosmosNative]: 'cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a',
@@ -99,6 +99,13 @@ export async function runWarpRouteFees({
     );
   }
 
+  // Find coinGeckoId for the warp route token (usually on collateral/native types).
+  // Assumes all tokens in the warp route are equal in value (standard warp route assumption)
+  // and that token fees are charged in the bridged token (WarpCore assumption).
+  const warpTokenCoinGeckoId = warpCoreConfig.tokens.find(
+    (t) => t.coinGeckoId,
+  )?.coinGeckoId;
+
   // Collect fee data for all routes
   const feeRows: FeeRow[] = [];
   // Track total USD costs for matrix display: origin -> destination -> cost
@@ -155,23 +162,26 @@ export async function runWarpRouteFees({
           const tokenFeeFormatted = tokenFeeQuote.getDecimalFormattedAmount();
           let tokenFeeUsdStr = 'N/A';
 
-          if (priceGetter) {
+          // Use warp token's coinGeckoId for token fee pricing (not chain's native token)
+          if (priceGetter && warpTokenCoinGeckoId) {
             try {
-              const tokenFeePrice = await priceGetter.getTokenPrice(
-                tokenFeeQuote.token.chainName,
-              );
-              tokenFeeUsdCost = tokenFeeFormatted * tokenFeePrice;
-              tokenFeeUsdStr = `~$${tokenFeeUsdCost.toFixed(2)}`;
+              const prices = await priceGetter.getTokenPriceByIds([
+                warpTokenCoinGeckoId,
+              ]);
+              if (prices && prices[0]) {
+                tokenFeeUsdCost = tokenFeeFormatted * prices[0];
+                tokenFeeUsdStr = `~$${tokenFeeUsdCost.toFixed(2)}`;
 
-              // Add to total
-              if (totalUsd !== null) {
-                totalUsd += tokenFeeUsdCost;
-              } else {
-                totalUsd = tokenFeeUsdCost;
+                // Add to total
+                if (totalUsd !== null) {
+                  totalUsd += tokenFeeUsdCost;
+                } else {
+                  totalUsd = tokenFeeUsdCost;
+                }
               }
             } catch (e) {
               warnYellow(
-                `Could not fetch USD price for ${tokenFeeQuote.token.chainName}: ${e}`,
+                `Could not fetch USD price for ${tokenFeeQuote.token.symbol}: ${e}`,
               );
             }
           }
