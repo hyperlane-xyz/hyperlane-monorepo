@@ -8,6 +8,7 @@ homepage = { workspace = true }
 license-file = { workspace = true }
 publish = { workspace = true }
 version = { workspace = true }
+include = ["src/**/*", "Cargo.toml", "idl/**/*"]
 
 [dependencies]
 async-trait.workspace = true
@@ -45,6 +46,7 @@ tokio = { workspace = true, optional = true, features = ["rt", "time"] }
 tracing.workspace = true
 typetag.workspace = true
 primitive-types = { workspace = true, optional = true }
+shank.workspace = true
 solana-sdk = { workspace = true, optional = true }
 tiny-keccak = { workspace = true, features = ["keccak"] }
 uint.workspace = true

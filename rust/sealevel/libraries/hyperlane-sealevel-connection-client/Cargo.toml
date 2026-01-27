@@ -4,9 +4,11 @@ cargo-features = ["workspace-inheritance"]
 name = "hyperlane-sealevel-connection-client"
 version = "0.1.0"
 edition = "2021"
+include = ["src/**/*", "Cargo.toml", "idl/**/*"]
 
 [dependencies]
 borsh.workspace = true
+shank.workspace = true
 solana-program.workspace = true
 
 access-control = { path = "../access-control" }
