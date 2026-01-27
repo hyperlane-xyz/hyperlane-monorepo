@@ -1,7 +1,6 @@
 import { Logger } from 'pino';
 
 import { type ChainMap, type ChainName, type Token } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
@@ -11,9 +10,11 @@ import {
 import type {
   InflightContext,
   RawBalances,
-  RebalancingRoute,
+  Route,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -34,14 +35,14 @@ export class CollateralDeficitStrategy extends BaseStrategy {
 
   constructor(
     config: CollateralDeficitStrategyConfig,
-    private readonly tokensByChainName: ChainMap<Token>,
+    tokensByChainName: ChainMap<Token>,
     logger: Logger,
+    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
-    bridges?: ChainMap<Address[]>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: CollateralDeficitStrategy.name });
-    super(chains, log, metrics, bridges);
+    super(chains, log, bridgeConfigs, metrics, tokensByChainName);
     this.logger = log;
     this.config = config;
     this.logger.info('CollateralDeficitStrategy created');
@@ -50,35 +51,44 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   /**
    * Categorizes balances into surpluses and deficits.
    *
-   * 1. Filter pendingRebalances by configured bridges
+   * 1. Filter pendingRebalances/proposedRebalances by configured bridges
    * 2. Simulate those rebalances to get projected balances
    * 3. Negative balance = deficit (magnitude + buffer)
    * 4. Positive balance = potential surplus
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    pendingRebalances?: RebalancingRoute[],
+    pendingRebalances?: Route[],
+    proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
     // Filter pending rebalances to only those using this strategy's bridges
-    const filteredRebalances =
-      this.filterByConfiguredBridges(pendingRebalances);
+    const filteredPending = this.filterByConfiguredBridges(pendingRebalances);
+    const filteredProposed = this.filterByConfiguredBridges(proposedRebalances);
 
     this.logger.debug(
       {
         context: this.constructor.name,
         totalPending: pendingRebalances?.length ?? 0,
-        filteredPending: filteredRebalances.length,
+        filteredPending: filteredPending.length,
+        totalProposed: proposedRebalances?.length ?? 0,
+        filteredProposed: filteredProposed.length,
       },
-      'Filtered pending rebalances by configured bridges',
+      'Filtered rebalances by configured bridges',
     );
 
-    // Simulate filtered rebalances to get projected balances
-    const simulatedBalances = this.simulatePendingRebalances(
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
       rawBalances,
-      filteredRebalances,
+      filteredPending,
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      filteredProposed,
     );
 
     const surpluses: Delta[] = [];
@@ -139,7 +149,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   override getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[] {
+  ): StrategyRoute[] {
     const pendingRebalances = inflightContext?.pendingRebalances ?? [];
     const pendingTransfers = inflightContext?.pendingTransfers ?? [];
 
@@ -225,7 +235,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     // Sort deficits by amount (largest first)
     deficits.sort((a, b) => (a.amount > b.amount ? -1 : 1));
 
-    const routes: RebalancingRoute[] = [];
+    const routes: StrategyRoute[] = [];
 
     // Match surpluses to deficits
     while (deficits.length > 0 && surpluses.length > 0) {
@@ -235,11 +245,15 @@ export class CollateralDeficitStrategy extends BaseStrategy {
         surplus.amount > deficit.amount ? deficit.amount : surplus.amount;
 
       if (transferAmount > 0n) {
+        const bridgeConfig = this.getBridgeConfigForRoute(
+          surplus.chain,
+          deficit.chain,
+        );
         routes.push({
           origin: surplus.chain,
           destination: deficit.chain,
           amount: transferAmount,
-          bridge: this.bridges?.[surplus.chain]?.[0],
+          bridge: bridgeConfig.bridge,
         });
       }
 
@@ -259,7 +273,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       'Found rebalancing routes',
     );
 
-    const filteredRoutes = this.filterRebalances(routes, actualBalances);
+    const filteredRoutes = this.filterRoutes(routes, actualBalances);
 
     this.logger.debug(
       {
@@ -276,28 +290,28 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   /**
    * Filter pending rebalances to only those using this strategy's configured bridges.
    * A rebalance matches if:
-   * - Its bridge is in the origin chain's configured bridges, OR
+   * - Its bridge matches the configured bridge (with overrides) for the route, OR
    * - It has no bridge (recovered from Explorer, can't verify - include to be safe)
    */
-  private filterByConfiguredBridges(
-    pendingRebalances?: RebalancingRoute[],
-  ): RebalancingRoute[] {
+  private filterByConfiguredBridges(pendingRebalances?: Route[]): Route[] {
     if (!pendingRebalances || pendingRebalances.length === 0) {
       return [];
     }
 
     return pendingRebalances.filter((rebalance) => {
-      // Include routes without bridge (recovered from Explorer, can't verify)
-      if (!rebalance.bridge) {
+      const bridge = (rebalance as StrategyRoute).bridge;
+      if (!bridge) {
         this.logger.debug(
           { origin: rebalance.origin, destination: rebalance.destination },
           'Including pending rebalance without bridge (recovered intent)',
         );
         return true;
       }
-      // For routes with bridge, verify it's configured
-      const configuredBridges = this.bridges?.[rebalance.origin] ?? [];
-      return configuredBridges.includes(rebalance.bridge);
+      const bridgeConfig = this.getBridgeConfigForRoute(
+        rebalance.origin,
+        rebalance.destination,
+      );
+      return bridgeConfig?.bridge === bridge;
     });
   }
 
@@ -306,7 +320,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
    * This identifies which surplus chains are "natural" sources for each deficit.
    */
   private buildTransferOriginMap(
-    pendingTransfers: RebalancingRoute[],
+    pendingTransfers: Route[],
     deficitChains: Set<ChainName>,
   ): Map<ChainName, Set<ChainName>> {
     const originMap = new Map<ChainName, Set<ChainName>>();
@@ -368,7 +382,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
   }
 
   protected getTokenByChainName(chainName: string): Token {
-    const token = this.tokensByChainName[chainName];
+    const token = this.tokensByChainName![chainName];
     if (token === undefined) {
       throw new Error(`Token not found for chain ${chainName}`);
     }
