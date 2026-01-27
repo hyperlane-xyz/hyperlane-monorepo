@@ -2,48 +2,35 @@
 pragma solidity ^0.8.0;
 
 import "forge-std/Script.sol";
-import {TransparentUpgradeableProxy} from "@openzeppelin/contracts/proxy/transparent/TransparentUpgradeableProxy.sol";
-import {ProxyAdmin} from "@openzeppelin/contracts/proxy/transparent/ProxyAdmin.sol";
 
 import {HypNative} from "../contracts/token/HypNative.sol";
 import {TrustedRelayerIsm} from "../contracts/isms/TrustedRelayerIsm.sol";
-import {GasRouter} from "../contracts/client/GasRouter.sol";
 import {Router} from "../contracts/client/Router.sol";
-import {MailboxClient} from "../contracts/client/MailboxClient.sol";
 import {IMailbox} from "../contracts/interfaces/IMailbox.sol";
 import {TypeCasts} from "../contracts/libs/TypeCasts.sol";
 
 /**
  * @title HypNativeCollateralMigration
- * @notice Atomically migrates native token collateral from old non-proxied HypNative to new proxied HypNative
+ * @notice Migrates native token collateral from old HypNative to a pre-deployed new HypNative
  * @dev This script:
- *   1. Uses pre-deployed ProxyAdmin (must be owned by the Safe)
- *   2. Deploys new proxied HypNative infrastructure (CREATE2 for determinism)
- *   3. Deploys TrustedRelayerIsm to allow spoofed message processing
- *   4. Migrates collateral via spoofed Hyperlane message
- *   5. Configures new contract with same router enrollment and gas settings
- *   6. Transfers ownership of new proxy to the Safe
+ *   1. Deploys TrustedRelayerIsm to allow spoofed message processing
+ *   2. Migrates collateral via spoofed Hyperlane message
+ *   3. Unenrolls the remote router from the old contract to prevent further deposits
  *
- * Deployment strategy:
- *   - ProxyAdmin: Pre-deployed externally (required for deterministic batch)
- *   - HypNative impl, Proxy, TrustedRelayerIsm: CREATE2 with deterministic salt
- *
- * Why pre-deployed ProxyAdmin?
- *   CREATE2 via deterministic deployer makes the factory the msg.sender, so OZ ProxyAdmin
- *   would be owned by factory instead of Safe. Pre-deploying separately ensures Safe ownership.
+ * The new HypNative must be deployed and configured externally before running this script.
  *
  * Safety: Re-running will fail because:
  *   - `require(balance > 0)` fails after migration (old contract has 0 balance)
  *   - `require(!mailbox.delivered(messageId))` fails if message was already processed
- *   - CREATE2 reverts if contracts already exist at predicted addresses
+ *   - CREATE2 reverts if TrustedRelayerIsm already exists at predicted address
  *
  * Environment variables:
  *   OLD_ROUTER     - Address of the old HypNative contract to migrate from (required)
+ *   NEW_ROUTER     - Address of the new HypNative contract to migrate to (required)
  *   REMOTE_DOMAIN  - Domain ID of the remote chain (required)
- *   PROXY_ADMIN    - Address of pre-deployed ProxyAdmin owned by Safe (required)
  *
  * Usage (via pipeline script):
- *   PROXY_ADMIN=0x... ./script/migration-pipeline.sh
+ *   OLD_ROUTER=0x... NEW_ROUTER=0x... REMOTE_DOMAIN=... ./script/migration-pipeline.sh
  *
  * This generates a Safe Transaction Builder JSON file that can be imported into the Safe UI.
  */
@@ -55,21 +42,13 @@ contract HypNativeCollateralMigration is Script {
 
     struct Config {
         address oldRouter;
+        address newRouter;
         uint32 remoteDomain;
         uint32 localDomain;
         address owner;
         bytes32 remoteRouter;
-        uint256 destinationGas;
         IMailbox mailbox;
         bytes32 salt;
-        ProxyAdmin proxyAdmin;
-    }
-
-    struct Deployment {
-        HypNative implementation;
-        HypNative proxy;
-        ProxyAdmin proxyAdmin;
-        TrustedRelayerIsm ism;
     }
 
     function run() external {
@@ -77,19 +56,18 @@ contract HypNativeCollateralMigration is Script {
 
         vm.startBroadcast();
 
-        Deployment memory dep = _deploy(cfg);
-        uint256 balance = _migrate(cfg, dep);
-        _configure(cfg, dep);
+        TrustedRelayerIsm ism = _deployIsm(cfg);
+        uint256 balance = _migrate(cfg, ism);
 
         vm.stopBroadcast();
 
-        _logResults(cfg, dep, balance);
+        _logResults(cfg, address(ism), balance);
     }
 
     function _loadConfig() internal view returns (Config memory cfg) {
         cfg.oldRouter = vm.envAddress("OLD_ROUTER");
+        cfg.newRouter = vm.envAddress("NEW_ROUTER");
         cfg.remoteDomain = uint32(vm.envUint("REMOTE_DOMAIN"));
-        cfg.proxyAdmin = ProxyAdmin(vm.envAddress("PROXY_ADMIN"));
 
         // Derive deterministic salt from migration parameters
         cfg.salt = keccak256(abi.encode(cfg.oldRouter, cfg.remoteDomain));
@@ -99,61 +77,14 @@ contract HypNativeCollateralMigration is Script {
         cfg.localDomain = cfg.mailbox.localDomain();
         cfg.owner = oldRouter.owner();
         cfg.remoteRouter = oldRouter.routers(cfg.remoteDomain);
-        cfg.destinationGas = GasRouter(cfg.oldRouter).destinationGas(
-            cfg.remoteDomain
-        );
 
         require(cfg.remoteRouter != bytes32(0), "Remote router not enrolled");
-
-        // Verify ProxyAdmin ownership (must be owned by the same Safe that owns the old router)
-        require(
-            cfg.proxyAdmin.owner() == cfg.owner,
-            "ProxyAdmin not owned by Safe"
-        );
     }
 
-    function _deploy(
+    function _deployIsm(
         Config memory cfg
-    ) internal returns (Deployment memory dep) {
-        // Use pre-deployed ProxyAdmin (verified in _loadConfig)
-        dep.proxyAdmin = cfg.proxyAdmin;
-
-        // Deploy implementation via CREATE2 factory
-        dep.implementation = HypNative(
-            payable(
-                _create2(
-                    cfg.salt,
-                    abi.encodePacked(
-                        type(HypNative).creationCode,
-                        abi.encode(1, address(cfg.mailbox))
-                    )
-                )
-            )
-        );
-
-        // Deploy proxy via CREATE2 factory
-        bytes memory proxyInitData = abi.encodeCall(
-            HypNative.initialize,
-            (address(0), address(0), msg.sender) // hook=0, ism=0 (use mailbox defaults)
-        );
-        dep.proxy = HypNative(
-            payable(
-                _create2(
-                    cfg.salt,
-                    abi.encodePacked(
-                        type(TransparentUpgradeableProxy).creationCode,
-                        abi.encode(
-                            address(dep.implementation),
-                            address(dep.proxyAdmin),
-                            proxyInitData
-                        )
-                    )
-                )
-            )
-        );
-
-        // Deploy TrustedRelayerIsm via CREATE2 factory
-        dep.ism = TrustedRelayerIsm(
+    ) internal returns (TrustedRelayerIsm ism) {
+        ism = TrustedRelayerIsm(
             _create2(
                 cfg.salt,
                 abi.encodePacked(
@@ -177,7 +108,7 @@ contract HypNativeCollateralMigration is Script {
 
     function _migrate(
         Config memory cfg,
-        Deployment memory dep
+        TrustedRelayerIsm ism
     ) internal returns (uint256 balance) {
         Router oldRouter = Router(cfg.oldRouter);
 
@@ -185,15 +116,15 @@ contract HypNativeCollateralMigration is Script {
         address prevIsm = address(oldRouter.interchainSecurityModule());
 
         // Set permissive ISM on old contract
-        oldRouter.setInterchainSecurityModule(address(dep.ism));
+        oldRouter.setInterchainSecurityModule(address(ism));
 
         // Build and process spoofed message
         balance = cfg.oldRouter.balance;
         require(balance > 0, "No balance to migrate");
 
-        uint256 prevProxyBalance = address(dep.proxy).balance;
+        uint256 prevNewRouterBalance = cfg.newRouter.balance;
 
-        bytes memory message = _buildMessage(cfg, address(dep.proxy), balance);
+        bytes memory message = _buildMessage(cfg, cfg.newRouter, balance);
         require(
             !cfg.mailbox.delivered(keccak256(message)),
             "Message already delivered"
@@ -204,7 +135,7 @@ contract HypNativeCollateralMigration is Script {
 
         // Verify migration succeeded with exact balance check
         require(
-            address(dep.proxy).balance == prevProxyBalance + balance,
+            cfg.newRouter.balance == prevNewRouterBalance + balance,
             "Migration failed"
         );
 
@@ -215,24 +146,15 @@ contract HypNativeCollateralMigration is Script {
         oldRouter.unenrollRemoteRouter(cfg.remoteDomain);
     }
 
-    function _configure(Config memory cfg, Deployment memory dep) internal {
-        dep.proxy.enrollRemoteRouter(cfg.remoteDomain, cfg.remoteRouter);
-        dep.proxy.setDestinationGas(cfg.remoteDomain, cfg.destinationGas);
-        dep.proxy.transferOwnership(cfg.owner);
-    }
-
     function _logResults(
         Config memory cfg,
-        Deployment memory dep,
+        address ism,
         uint256 balance
     ) internal view {
         console.log("=== Migration Complete ===");
-        console.log("Salt:", vm.toString(cfg.salt));
-        console.log("New HypNative (proxy):", address(dep.proxy));
-        console.log("New HypNative (impl):", address(dep.implementation));
-        console.log("ProxyAdmin:", address(dep.proxyAdmin));
-        console.log("ProxyAdmin owner:", dep.proxyAdmin.owner());
-        console.log("TrustedRelayerIsm:", address(dep.ism));
+        console.log("Old HypNative:", cfg.oldRouter);
+        console.log("New HypNative:", cfg.newRouter);
+        console.log("TrustedRelayerIsm:", ism);
         console.log("Migrated (wei):");
         console.log(balance);
     }
