@@ -1,8 +1,15 @@
 import type { Logger } from 'pino';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import {
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+  RebalanceRoute,
+} from '../interfaces/IRebalancer.js';
 import { type ExplorerClient } from '../utils/ExplorerClient.js';
 
 /**
@@ -22,16 +29,24 @@ export class WithInflightGuard implements IRebalancer {
     this.logger = logger.child({ class: WithInflightGuard.name });
   }
 
-  async rebalance(routes: RebalancingRoute[]): Promise<void> {
+  async rebalance(
+    routes: RebalanceRoute[],
+  ): Promise<RebalanceExecutionResult[]> {
     // Always enforce the inflight guard
     if (routes.length === 0) {
       return this.rebalancer.rebalance(routes);
     }
 
-    const chains = Object.keys(this.config.strategyConfig.chains);
-    const bridges = chains.map(
-      (chain) => this.config.strategyConfig.chains[chain].bridge,
-    );
+    const chains = getStrategyChainNames(this.config.strategyConfig);
+    const bridges = chains
+      .map((chain) => {
+        const chainConfig = getStrategyChainConfig(
+          this.config.strategyConfig,
+          chain,
+        );
+        return chainConfig?.bridge;
+      })
+      .filter((bridge): bridge is string => bridge !== undefined);
 
     let hasInflightRebalances = false;
     try {
@@ -56,7 +71,7 @@ export class WithInflightGuard implements IRebalancer {
       this.logger.info(
         'Inflight rebalance detected via Explorer; skipping this cycle',
       );
-      return;
+      return [];
     }
 
     return this.rebalancer.rebalance(routes);

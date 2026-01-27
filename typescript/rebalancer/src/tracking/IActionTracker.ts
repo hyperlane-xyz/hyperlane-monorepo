@@ -1,5 +1,7 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
+import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
+
 import type { RebalanceAction, RebalanceIntent, Transfer } from './types.js';
 
 export interface CreateRebalanceIntentParams {
@@ -39,8 +41,9 @@ export interface IActionTracker {
 
   /**
    * Sync inflight user transfers from Explorer and verify delivery status.
+   * @param confirmedBlockTags Optional block tags from Monitor for consistent state queries
    */
-  syncTransfers(): Promise<void>;
+  syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
 
   /**
    * Sync rebalance intents by checking fulfillment status.
@@ -49,8 +52,9 @@ export interface IActionTracker {
 
   /**
    * Sync rebalance actions by verifying on-chain message delivery.
+   * @param confirmedBlockTags Optional block tags from Monitor for consistent state queries
    */
-  syncRebalanceActions(): Promise<void>;
+  syncRebalanceActions(confirmedBlockTags?: ConfirmedBlockTags): Promise<void>;
 
   // === Transfer Queries ===
 
