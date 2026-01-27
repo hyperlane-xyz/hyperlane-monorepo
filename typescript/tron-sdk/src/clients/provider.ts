@@ -315,7 +315,7 @@ export class TronProvider implements AltVM.IProvider {
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
       }
       default:
-        throw new Error(`Unknown ISM ModuleType: ${hookType}`);
+        throw new Error(`Unknown Hook Type: ${hookType}`);
     }
   }
 
