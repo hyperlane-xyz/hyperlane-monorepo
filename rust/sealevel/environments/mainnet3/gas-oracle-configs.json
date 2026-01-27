@@ -82,16 +82,16 @@
     },
     "eclipsemainnet": {
       "oracleConfig": {
-        "tokenExchangeRate": "34506608449374557",
-        "gasPrice": "1754",
+        "tokenExchangeRate": "37013334906773660",
+        "gasPrice": "1181",
         "tokenDecimals": 9
       },
       "overhead": 600000
     },
     "electroneum": {
       "oracleConfig": {
-        "tokenExchangeRate": "155925182912438",
-        "gasPrice": "465265020654380",
+        "tokenExchangeRate": "140909841869247",
+        "gasPrice": "514843622602393",
         "tokenDecimals": 18
       },
       "overhead": 166887
@@ -99,7 +99,7 @@
     "ethereum": {
       "oracleConfig": {
         "tokenExchangeRate": "345066084493745574699",
-        "gasPrice": "1000000000",
+        "gasPrice": "300000000",
         "tokenDecimals": 18
       },
       "overhead": 166887
