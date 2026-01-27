@@ -13,17 +13,16 @@ import { WarpRouteIds } from '../warpIds.js';
 
 import { getUSDCRebalancingBridgesConfigFor } from './utils.js';
 
-// TODO: Waiting for confirmation
 const owners = {
-  aleo: 'aleo1mx0tldt5qsqymn5a3whnmf9rx2whp837jjn0tvqgxqf86zg6dvyqnc8spm',
-  arbitrum: '0x63C65aFC66C7247a3d43197744Da7F5838ACbf77',
-  avalanche: '0x117f4a84f98b3C8BEF00a2371672031694C1Fa0A',
-  base: '0xc88297c52BED07aecAec13BD3bB21647C319a73d',
-  bsc: '0x157515A5Fe21FBC4e22479B5FA59344D0bC8bc58',
-  ethereum: '0x738Bb9f27B5757797ba730390b4e43A9F4C2A011',
-  optimism: '0x17e9199682D987D61784F8105018fa30e04Aa886',
-  polygon: '0xac4AB5850b8dE9c07A2756c1c79266aB36183822',
-  solanamainnet: 'ABJnd4eWexNte9GYy21ud5hvSwFKWedveP6GCFxXKkCw',
+  aleo: '',
+  arbitrum: '',
+  avalanche: '',
+  base: '',
+  bsc: '',
+  ethereum: '',
+  optimism: '',
+  polygon: '',
+  solanamainnet: '',
 };
 
 export const getAleoUSDCWarpConfig = async (
