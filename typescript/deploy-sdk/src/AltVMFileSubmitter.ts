@@ -30,14 +30,14 @@ export class AltVMFileSubmitter implements ITransactionSubmitter {
 
     // Attempt to append transactions to existing filepath.
     try {
-      const maybeExistingTxs = readYamlOrJson(filepath); // Can throw if file is empty
+      const maybeExistingTxs = readYamlOrJson(filepath);
       assert(
         Array.isArray(maybeExistingTxs),
         `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
       );
       allTxs.unshift(...maybeExistingTxs);
-    } catch (e) {
-      this.logger.error(`Invalid transactions read from ${filepath}`, e);
+    } catch {
+      // skip if file does not exist yet or if the content is non-json/yaml
     }
 
     writeYamlOrJson(filepath, allTxs);
