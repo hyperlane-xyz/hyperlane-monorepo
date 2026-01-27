@@ -232,11 +232,6 @@ export abstract class BaseStrategy implements IStrategy {
       'Found rebalancing routes',
     );
 
-    // Record metrics for each intent created
-    for (const route of routes) {
-      this.metrics?.recordIntentCreated(route, this.name);
-    }
-
     const filteredRoutes = this.filterRoutes(routes, actualBalances);
 
     this.logger.debug(
@@ -247,6 +242,11 @@ export abstract class BaseStrategy implements IStrategy {
       },
       'Filtered rebalancing routes',
     );
+
+    // Record metrics for each intent that passed filtering
+    for (const route of filteredRoutes) {
+      this.metrics?.recordIntentCreated(route, this.name);
+    }
 
     return filteredRoutes;
   }
