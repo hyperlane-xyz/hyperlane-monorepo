@@ -59,6 +59,28 @@ const DEFAULT_SWEEP_ADDRESS = '0x478be6076f31E9666123B9721D0B6631baD944AF';
 const DEFAULT_TARGET_MULTIPLIER = 1.5; // Leave 1.5x threshold after sweep
 const DEFAULT_TRIGGER_MULTIPLIER = 2.0; // Sweep when balance > 2x threshold
 
+// Chains to sweep excess funds from (EVM only)
+const CHAINS_TO_SWEEP: ChainName[] = [
+  'arbitrum',
+  'avalanche',
+  'base',
+  'blast',
+  'bsc',
+  'celo',
+  'ethereum',
+  'fraxtal',
+  'hyperevm',
+  'ink',
+  'linea',
+  'lisk',
+  'mitosis',
+  'optimism',
+  'polygon',
+  'soneium',
+  'superseed',
+  'unichain',
+];
+
 const nativeBridges = {
   scrollsepolia: {
     l1ETHGateway: '0x8A54A2347Da2562917304141ab67324615e9866d',
@@ -668,6 +690,15 @@ class ContextFunder {
   // To avoid churning txs, only sweep when balance > triggerMultiplier * threshold,
   // and leave targetMultiplier * threshold after sweep.
   private async attemptToSweepExcessFunds(chain: ChainName): Promise<void> {
+    // Skip if chain is not in the sweep allowlist
+    if (!CHAINS_TO_SWEEP.includes(chain)) {
+      logger.debug(
+        { chain },
+        'Chain not in CHAINS_TO_SWEEP allowlist, skipping sweep',
+      );
+      return;
+    }
+
     // Skip if the chain isn't in production yet i.e. if the validator set size is still 1
     if (defaultMultisigConfigs[chain].validators.length === 1) {
       logger.debug(
