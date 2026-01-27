@@ -30,7 +30,8 @@
     "lint": "eslint",
     "clean": "rm -rf ./dist",
     "prettier": "prettier --write .",
-    "test": "mocha --config .mocharc.json"
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json"
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*",
