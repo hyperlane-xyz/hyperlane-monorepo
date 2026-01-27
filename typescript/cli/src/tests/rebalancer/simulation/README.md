@@ -104,6 +104,14 @@ Executes warp route transfers:
 - Extracts message bytes from Dispatch events
 - Delivers messages by calling `Mailbox.process()`
 
+### FastSimulation (`v2/FastSimulation.ts`)
+
+High-throughput simulation optimized for many transfers with minimal delays:
+- Uses batch transfer execution for efficiency
+- Configurable delays (100ms message delivery, 500ms rebalancer interval)
+- ASCII visualization of balance timeline and rebalancing events
+- Tracks metrics: latency (min/mean/p95/max), throughput, rebalance count
+
 ### IntegratedSimulation (`v2/IntegratedSimulation.ts`)
 
 Main orchestrator:
@@ -234,6 +242,31 @@ pnpm exec mocha --config .mocharc.json --timeout 180000 --grep "high variance de
   'src/tests/rebalancer/simulation/v2/scenario-tests.e2e-test.ts'
 ```
 
+### Fast Simulation Tests (Optimized)
+
+The `FastSimulation` class provides high-throughput testing with minimal delays:
+
+```bash
+# Kill any existing anvil first
+pkill -9 -f anvil
+
+# Run all fast simulation tests (~25s)
+LOG_LEVEL=error pnpm exec mocha --config .mocharc.json --timeout 120000 \
+  'src/tests/rebalancer/simulation/v2/fast-simulation.e2e-test.ts'
+```
+
+**Test scenarios:**
+- **Smoke Test** (10 transfers, ~11s): Basic validation with balanced traffic
+- **Heavy Imbalanced** (30 transfers, ~9s): One-way traffic triggering 10+ rebalances
+
+**Key configuration:**
+```typescript
+// Pool: 10,000 tokens per domain
+// Tolerance: 5% (triggers rebalancing at >500 token imbalance)
+// Message delivery: 100ms
+// Rebalancer check interval: 500ms
+```
+
 ### Run All Tests
 
 ```bash
@@ -244,34 +277,83 @@ pnpm exec mocha --config .mocharc.json --timeout 300000 \
 # All inflight tracking tests
 pnpm exec mocha --config .mocharc.json --timeout 600000 \
   'src/tests/rebalancer/simulation/v2/inflight-tracking.e2e-test.ts'
+
+# All fast simulation tests
+LOG_LEVEL=error pnpm exec mocha --config .mocharc.json --timeout 120000 \
+  'src/tests/rebalancer/simulation/v2/fast-simulation.e2e-test.ts'
+
+# Run ALL simulation tests via npm script
+pnpm test:rebalancer:simulation
 ```
 
 ### Troubleshooting
 
 1. **Tests timeout**: Increase `--timeout` value
-2. **Port 8545 in use**: Kill any existing anvil processes: `pkill anvil`
+2. **Port 8545 in use**: Kill any existing anvil processes: `pkill -9 -f anvil`
 3. **Build errors**: Run `pnpm build` in the cli directory first
 4. **Nonce errors**: Usually means a previous test didn't clean up; restart anvil
+5. **"could not detect network" errors**: Anvil becomes unresponsive under heavy load. Kill and restart:
+   ```bash
+   pkill -9 -f anvil
+   sleep 1
+   # Re-run your test
+   ```
+6. **Tests pass individually but fail together**: Some tests accumulate state that exhausts Anvil. Run heavy tests separately or add delays between test suites.
 
 ## Test Scenarios
 
-### 1. Smoke Test
+### Fast Simulation Tests
+
+#### Smoke Test (10 transfers)
+- 10 transfers with mixed directions
+- ~11 seconds wall clock time
+- Validates basic transfer completion with 100ms latency
+- No rebalancing triggered (imbalance stays under 5% tolerance)
+
+#### Heavy Imbalanced Traffic (30 transfers)
+- 30 one-way transfers (domain1 → domain2)
+- 50 tokens per transfer (1,500 tokens total)
+- **Triggers 10+ rebalance operations** totaling ~11,000 tokens
+- Shows `⚡` rebalance events in timeline visualization
+- ~9 seconds wall clock time
+
+**Example output:**
+```
+═══════════════════════════════════════════════════════════════════════
+                          SIMULATION: heavy-imbalanced
+═══════════════════════════════════════════════════════════════════════
+
+📊 SUMMARY
+   Transfers: 30/30 completed (0 stuck)
+   Rebalances: 11 totaling 10.8k tokens
+   
+📈 BALANCE TIMELINE
+   Time  │ domain1              │ domain2              │ Events
+   ──────┼──────────────────────┼──────────────────────┼──────────
+   0m    │ ████████████  10.0k  │ ████████████  10.0k  │ 
+   0m    │ █████████████ 10.6k  │ █████████    9.4k   │ ⚡1 
+   0m    │ ██████████████ 11.5k │ ████████     8.5k   │ ↔1 ⚡1
+```
+
+### Integrated Simulation Tests
+
+#### 1. Smoke Test
 - 3 transfers, basic flow validation
 - ~17 seconds, 100% success rate
 
-### 2. Comparison Test (With vs Without Rebalancer)
+#### 2. Comparison Test (With vs Without Rebalancer)
 - Same traffic pattern run twice
 - Without rebalancer: ~76.7% success rate
 - With rebalancer: 100% success rate
 
-### 3. Stress Test (50 Transfers)
+#### 3. Stress Test (50 Transfers)
 - 50 transfers with 3 traffic phases
 - Phase 1: Drain domain2 (transfers TO domain2)
 - Phase 2: Drain domain1 (transfers TO domain1)
 - Phase 3: Mixed traffic
 - Validates rebalancer maintains stability across phase changes
 
-### 4. Multi-Chain Test (3 Domains)
+#### 4. Multi-Chain Test (3 Domains)
 - 3 collateral domains (domain1, domain2, domain4)
 - 15 transfers draining domain1
 - Validates parallel rebalancing from multiple surplus domains
@@ -339,11 +421,15 @@ typescript/cli/src/tests/rebalancer/
 │   ├── README.md                   # This file
 │   ├── PLAN-v2.md                  # Implementation plan and status
 │   └── v2/
-│       ├── IntegratedSimulation.ts # Main simulation with real RebalancerService
+│       ├── FastSimulation.ts       # High-throughput simulation (optimized)
+│       ├── IntegratedSimulation.ts # Full simulation with real RebalancerService
 │       ├── MockRegistry.ts         # IRegistry implementation
 │       ├── OptimizedTrafficGenerator.ts
+│       ├── SimulationVisualizer.ts # ASCII visualization of results
+│       ├── SimulationClock.ts      # Simulated time management
 │       ├── TrafficPatterns.ts
 │       ├── types.ts
+│       ├── fast-simulation.e2e-test.ts      # Fast simulation tests
 │       ├── integrated-simulation.e2e-test.ts
 │       ├── inflight-tracking.e2e-test.ts
 │       ├── scenario-tests.e2e-test.ts
