@@ -15,18 +15,22 @@ import { assert } from '@hyperlane-xyz/utils';
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import type { AleoSigner } from '../clients/signer.js';
 import {
+  SUFFIX_LENGTH_LONG,
   fromAleoAddress,
   generateSuffix,
   getProgramSuffix,
   toAleoAddress,
 } from '../utils/helper.js';
-import type { AleoReceipt, AnnotatedAleoTransaction } from '../utils/types.js';
+import {
+  type AleoReceipt,
+  type AnnotatedAleoTransaction,
+  aleoWarpFieldsToArtifactApi,
+} from '../utils/types.js';
 
 import { getSyntheticWarpTokenConfig } from './warp-query.js';
 import {
   getCreateSyntheticTokenTx,
-  getEnrollRemoteRouterTx,
-  getSetTokenIsmTx,
+  getPostDeploymentUpdateTxs,
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
@@ -51,30 +55,15 @@ export class AleoSyntheticTokenReader
     );
 
     // Convert to provider-sdk artifact format
+    const { destinationGas, remoteRouters, interchainSecurityModule } =
+      aleoWarpFieldsToArtifactApi(token);
     const config: RawSyntheticWarpArtifactConfig = {
       type: TokenType.synthetic,
       owner: token.owner,
       mailbox: token.mailbox,
-      interchainSecurityModule: token.ism
-        ? {
-            artifactState: ArtifactState.UNDERIVED,
-            deployed: {
-              address: token.ism,
-            },
-          }
-        : undefined,
-      remoteRouters: Object.fromEntries(
-        Object.entries(token.remoteRouters).map(([domainId, router]) => [
-          domainId,
-          { address: router.address },
-        ]),
-      ),
-      destinationGas: Object.fromEntries(
-        Object.entries(token.remoteRouters).map(([domainId, router]) => [
-          domainId,
-          router.gas,
-        ]),
-      ),
+      destinationGas,
+      remoteRouters,
+      interchainSecurityModule,
       name: token.name,
       symbol: token.symbol,
       decimals: token.decimals,
@@ -117,8 +106,8 @@ export class AleoSyntheticTokenWriter
     const { programId: mailboxProgramId } = fromAleoAddress(config.mailbox);
     const mailboxSuffix = getProgramSuffix(mailboxProgramId);
 
-    // Generate token suffix (SUFFIX_LENGTH_LONG = 6)
-    const tokenSuffix = generateSuffix(6);
+    // Generate token suffix
+    const tokenSuffix = generateSuffix(SUFFIX_LENGTH_LONG);
 
     // Deploy synthetic token program
     const programs = await this.signer.deployProgram(
@@ -128,7 +117,10 @@ export class AleoSyntheticTokenWriter
     );
 
     const tokenProgramId = programs['hyp_synthetic'];
-    assert(tokenProgramId, 'hyp_synthetic program not deployed');
+    assert(
+      tokenProgramId,
+      'Expected synthetic token program to be deployed but none was found in deployment mapping',
+    );
 
     // Initialize token
     const initTx = getCreateSyntheticTokenTx(
@@ -142,38 +134,13 @@ export class AleoSyntheticTokenWriter
 
     const tokenAddress = toAleoAddress(tokenProgramId);
 
-    // Set ISM if configured
-    if (config.interchainSecurityModule) {
-      const setIsmTx = getSetTokenIsmTx(
-        tokenAddress,
-        config.interchainSecurityModule.deployed.address,
-      );
+    // Perform post-deployment updates (ISM setup and router enrollment)
+    const postDeploymentTxs = getPostDeploymentUpdateTxs(tokenAddress, config);
 
-      const ismReceipt = await this.signer.sendAndConfirmTransaction(setIsmTx);
-      allReceipts.push(ismReceipt);
+    for (const tx of postDeploymentTxs) {
+      const receipt = await this.signer.sendAndConfirmTransaction(tx);
+      allReceipts.push(receipt);
     }
-
-    // Enroll remote routers
-    for (const [domainIdStr, remoteRouter] of Object.entries(
-      config.remoteRouters,
-    )) {
-      const domainId = parseInt(domainIdStr);
-      const gas = config.destinationGas[domainId] || '0';
-
-      const enrollTx = getEnrollRemoteRouterTx(
-        tokenAddress,
-        domainId,
-        remoteRouter.address,
-        gas,
-      );
-
-      const enrollReceipt =
-        await this.signer.sendAndConfirmTransaction(enrollTx);
-      allReceipts.push(enrollReceipt);
-    }
-
-    // We don't transfer ownership here because after deployment the token needs to be
-    // enrolled with the other tokens deployed and only the owner can do that
 
     const deployedArtifact: ArtifactDeployed<
       RawSyntheticWarpArtifactConfig,
