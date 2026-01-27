@@ -53,7 +53,10 @@ struct VersionResponse {
 
 #[derive(Serialize)]
 struct ValidatorInfoResponse {
-    ism_address: String,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    ism_address: Option<String>,
+    #[serde(skip_serializing_if = "Option::is_none")]
+    escrow_pub: Option<String>,
 }
 
 #[derive(Serialize)]
@@ -213,8 +216,24 @@ async fn respond_validator_info<
     State(res): State<Arc<ValidatorServerResources<S, H>>>,
 ) -> HandlerResult<Json<ValidatorInfoResponse>> {
     info!("validator: info requested");
-    let ism_address = format!("{:?}", res.must_signing().ism_address());
-    Ok(Json(ValidatorInfoResponse { ism_address }))
+
+    let ism_address = res.try_signing().map(|s| format!("{:?}", s.ism_address()));
+
+    let escrow_pub = match res.try_kas_key_source() {
+        Some(key_source) => match key_source.load_keypair().await {
+            Ok(keypair) => Some(hex::encode(keypair.public_key().serialize())),
+            Err(e) => {
+                tracing::warn!(error = %e, "validator-info: load escrow keypair");
+                None
+            }
+        },
+        None => None,
+    };
+
+    Ok(Json(ValidatorInfoResponse {
+        ism_address,
+        escrow_pub,
+    }))
 }
 
 async fn respond_migration_status<
@@ -258,8 +277,19 @@ impl<
     fn must_signing(&self) -> &ValidatorISMSigningResources<S, H> {
         self.signing.as_ref().unwrap()
     }
+
+    fn try_signing(&self) -> Option<&ValidatorISMSigningResources<S, H>> {
+        self.signing.as_ref()
+    }
+
     fn kas_key_source(&self) -> crate::conf::KaspaEscrowKeySource {
         self.kas_provider.as_ref().unwrap().kas_key_source().clone()
+    }
+
+    fn try_kas_key_source(&self) -> Option<crate::conf::KaspaEscrowKeySource> {
+        self.kas_provider
+            .as_ref()
+            .and_then(|p| p.try_kas_key_source().cloned())
     }
 
     fn must_escrow(&self) -> EscrowPublic {

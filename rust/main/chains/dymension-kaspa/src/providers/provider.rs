@@ -314,6 +314,10 @@ impl KaspaProvider {
             .expect("Kaspa key source not configured")
     }
 
+    pub fn try_kas_key_source(&self) -> Option<&crate::conf::KaspaEscrowKeySource> {
+        self.kas_key_source.as_ref()
+    }
+
     pub fn rest(&self) -> &RestProvider {
         &self.rest
     }
