@@ -62,7 +62,24 @@ Extract status with:
 grep -o "message_id: [MESSAGE_ID][^}]*" [log_output] | sort -u
 ```
 
-### Step 4: For Gas Estimation Errors - Get the Revert Reason
+### Step 4: Check for Gas Payment Issues
+
+If message is slow/stuck, search for gas payment evaluation logs:
+
+```bash
+gcloud logging read '[BASE_RELAYER_QUERY] AND "[MESSAGE_ID]" AND jsonPayload.fields.message:"Evaluating if message meets gas payment requirement"' --project=abacus-labs-dev --limit=5 --format=json --freshness=7d
+```
+
+Key fields in `jsonPayload.fields`:
+
+- `current_payment.gas_amount` - gas units paid for by sender
+- `tx_cost_estimate.gas_limit` - gas units needed for delivery
+- `current_expenditure.gas_used` - gas already spent on retries
+- `policy` - subsidy policy (e.g., `fractional_numerator: 1, fractional_denominator: 2` = 50% subsidy)
+
+If `gas_amount < gas_limit`, message fails with `"Repreparing message: Gas payment requirement not met"` and retries every ~3 minutes.
+
+### Step 5: For Gas Estimation Errors - Get the Revert Reason
 
 If status is `ErrorEstimatingGas`, the actual revert reason is in `jsonPayload.fields.error`. Use this query and extraction:
 
@@ -89,7 +106,7 @@ Common revert patterns:
 - `execution reverted: [CUSTOM_ERROR]` - Custom contract revert (decode with `cast 4byte`)
 - `execution reverted` with hex data - Decode selector with `cast 4byte 0x[first4bytes]`
 
-### Step 5: Extract Message Details
+### Step 6: Extract Message Details
 
 From the logs, identify:
 
@@ -105,7 +122,7 @@ Example log format:
 HyperlaneMessage { id: 0x..., nonce: 162898, origin: ethereum, sender: 0x..., destination: 4114, recipient: 0x... }
 ```
 
-### Step 6: Report Findings
+### Step 7: Report Findings
 
 Summarize:
 
@@ -138,8 +155,10 @@ If `CouldNotFetchMetadata` persists > 5 minutes:
 
 If `GasPaymentRequirementNotMet`:
 
-- The sender didn't pay enough IGP (Interchain Gas Paymaster)
-- May need manual intervention or retry with higher gas payment
+- Compare `current_payment.gas_amount` vs `tx_cost_estimate.gas_limit`
+- Message will auto-retry every ~3 min until gas prices drop or subsidy kicks in
+- Check `policy` field for subsidy ratio (e.g., 1/2 = relayer covers 50%)
+- Resolution: wait for gas prices to drop, or manually subsidize via IGP top-up
 
 ## Decoding Revert Selectors
 
