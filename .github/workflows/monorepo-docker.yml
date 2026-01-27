@@ -137,14 +137,3 @@ jobs:
           ${REGISTRY}/hyperlane-monorepo:${TAG_SHA_DATE}
           \`\`\`
           EOF
-
-      - name: Comment image tags on PR
-        if: github.event_name == 'pull_request' && always()
-        uses: ./.github/actions/docker-image-comment
-        with:
-          comment_tag: monorepo-docker-image
-          image_name: Monorepo Docker Image
-          image_tags: gcr.io/abacus-labs-dev/hyperlane-monorepo:${{ steps.taggen.outputs.TAG_SHA }}-${{ steps.taggen.outputs.TAG_DATE }}
-          pr_number: ${{ github.event.pull_request.number }}
-          github_token: ${{ steps.generate-token.outputs.token }}
-          job_status: ${{ job.status }}
