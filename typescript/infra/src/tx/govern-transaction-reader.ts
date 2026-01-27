@@ -44,6 +44,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
+  StandardHookMetadataParams,
   addressToBytes32,
   bytes32ToAddress,
   deepEquals,
@@ -101,11 +102,8 @@ interface SetDefaultIsmInsight {
   insight: string;
 }
 
-interface HookMetadataInsight {
+interface HookMetadataInsight extends StandardHookMetadataParams {
   raw: string;
-  msgValue: string;
-  gasLimit: string;
-  refundAddress: string;
   insight: string;
 }
 
@@ -152,6 +150,38 @@ const icaInterfaceWithHookMetadata = new ethers.utils.Interface([
 const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
   icaInterfaceWithHookMetadata.getSighash('callRemoteWithOverrides');
 
+async function parseHookMetadataWithInsight(
+  chain: ChainName,
+  metadata: string,
+): Promise<HookMetadataInsight> {
+  const parsed = parseStandardHookMetadata(metadata);
+  if (!parsed) {
+    return {
+      raw: metadata,
+      insight: '❌ failed to parse hookMetadata',
+    };
+  }
+
+  const { msgValue, gasLimit, refundAddress } = parsed;
+  const isZeroAddress = refundAddress === ethers.constants.AddressZero;
+
+  let insight: string;
+  if (isZeroAddress) {
+    insight = '⚠️ refund to zero address (excess goes to msg.sender)';
+  } else {
+    const ownerInsight = await getOwnerInsight(chain, refundAddress);
+    insight = `✅ refund to ${ownerInsight}`;
+  }
+
+  return {
+    raw: metadata,
+    msgValue,
+    gasLimit,
+    refundAddress,
+    insight,
+  };
+}
+
 export class GovernTransactionReader {
   errors: any[] = [];
 
@@ -186,10 +216,18 @@ export class GovernTransactionReader {
     const legacyIcas = getLegacyGovernanceIcas(governanceType);
     const timelocks = getGovernanceTimelocks(governanceType);
 
+    const enrichedChainAddresses = {
+      ...chainAddresses,
+      ethereum: {
+        ...chainAddresses.ethereum,
+        legacyInterchainAccountRouter: legacyEthIcaRouter,
+      },
+    };
+
     const txReaderInstance = new GovernTransactionReader(
       environment,
       multiProvider,
-      chainAddresses,
+      enrichedChainAddresses,
       config.core,
       warpRoutes,
       safes,
@@ -1153,15 +1191,13 @@ export class GovernTransactionReader {
     const hasHookMetadata = tx.data.startsWith(
       CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR,
     );
-    const decoded = hasHookMetadata
-      ? icaInterfaceWithHookMetadata.parseTransaction({
-          data: tx.data,
-          value: tx.value,
-        })
-      : icaInterface.parseTransaction({
-          data: tx.data,
-          value: tx.value,
-        });
+    const parseInterface = hasHookMetadata
+      ? icaInterfaceWithHookMetadata
+      : icaInterface;
+    const decoded = parseInterface.parseTransaction({
+      data: tx.data,
+      value: tx.value,
+    });
 
     const args = formatFunctionFragmentArgs(
       decoded.args,
@@ -1200,7 +1236,7 @@ export class GovernTransactionReader {
 
     const isLegacy = this.isLegacyEthIcaRouter(tx);
     const routerAddress = isLegacy
-      ? legacyEthIcaRouter
+      ? this.chainAddresses.ethereum.legacyInterchainAccountRouter
       : this.chainAddresses[chain].interchainAccountRouter;
 
     return {
@@ -1537,7 +1573,7 @@ export class GovernTransactionReader {
     );
 
     const hookMetadataInsight = hookMetadataRaw
-      ? this.parseHookMetadata(hookMetadataRaw)
+      ? await parseHookMetadataWithInsight(chain, hookMetadataRaw)
       : undefined;
 
     return {
@@ -1559,42 +1595,6 @@ export class GovernTransactionReader {
       },
       ...(hookMetadataInsight && { hookMetadata: hookMetadataInsight }),
       calls: decodedCalls,
-    };
-  }
-
-  private parseHookMetadata(metadata: string): HookMetadataInsight {
-    const parsed = parseStandardHookMetadata(metadata);
-    if (!parsed) {
-      return {
-        raw: metadata,
-        msgValue: 'parse error',
-        gasLimit: 'parse error',
-        refundAddress: 'parse error',
-        insight: '❌ failed to parse hookMetadata',
-      };
-    }
-
-    const { msgValue, gasLimit, refundAddress } = parsed;
-    const isZeroAddress = refundAddress === ethers.constants.AddressZero;
-    const isRefundToSafe = Object.values(this.safes).some(
-      (safe) => safe && eqAddress(safe, refundAddress),
-    );
-
-    let insight: string;
-    if (isZeroAddress) {
-      insight = '⚠️ refund to zero address (excess goes to msg.sender)';
-    } else if (isRefundToSafe) {
-      insight = '✅ refund to Safe';
-    } else {
-      insight = `⚠️ refund to unknown address`;
-    }
-
-    return {
-      raw: metadata,
-      msgValue: msgValue.toString(),
-      gasLimit: gasLimit.toString(),
-      refundAddress,
-      insight,
     };
   }
 
@@ -1692,13 +1692,22 @@ export class GovernTransactionReader {
       this.chainAddresses[chain].interchainAccountRouter,
     );
     // Check for legacy ETH ICA router (used for legacy ICA chains like arcadia)
-    const isLegacyEthRouter = eqAddress(tx.to, legacyEthIcaRouter);
+    const isLegacyEthRouter = eqAddress(
+      tx.to,
+      this.chainAddresses.ethereum.legacyInterchainAccountRouter,
+    );
 
     return isCurrentRouter || isLegacyEthRouter;
   }
 
   isLegacyEthIcaRouter(tx: AnnotatedEV5Transaction): boolean {
-    return tx.to !== undefined && eqAddress(tx.to, legacyEthIcaRouter);
+    return (
+      tx.to !== undefined &&
+      eqAddress(
+        tx.to,
+        this.chainAddresses.ethereum.legacyInterchainAccountRouter,
+      )
+    );
   }
 
   isMailboxTransaction(chain: ChainName, tx: AnnotatedEV5Transaction): boolean {
