@@ -1,5 +1,6 @@
 // Export all store components
-export { IStore, InMemoryStore } from './store/index.js';
+export type { IStore } from './store/index.js';
+export { InMemoryStore } from './store/index.js';
 
 // Export types
 export type {

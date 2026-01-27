@@ -4,7 +4,7 @@ import { ethers } from 'ethers';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import { type RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type RebalanceRoute } from '../interfaces/IRebalancer.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 import { ExplorerClient } from '../utils/ExplorerClient.js';
 
@@ -48,7 +48,9 @@ describe('WithInflightGuard', () => {
 
   it('calls underlying rebalancer when no inflight is detected', async () => {
     const config = buildTestConfig({}, ['ethereum', 'arbitrum']);
-    const routes: RebalancingRoute[] = [{ origin: 'ethereum' } as any];
+    const routes: RebalanceRoute[] = [
+      { origin: 'ethereum', intentId: 'test-1' } as any,
+    ];
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
@@ -77,7 +79,9 @@ describe('WithInflightGuard', () => {
 
   it('skips rebalancing when inflight is detected', async () => {
     const config = buildTestConfig({}, ['ethereum', 'arbitrum']);
-    const routes: RebalancingRoute[] = [{ origin: 'ethereum' } as any];
+    const routes: RebalanceRoute[] = [
+      { origin: 'ethereum', intentId: 'test-1' } as any,
+    ];
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');
@@ -105,7 +109,9 @@ describe('WithInflightGuard', () => {
 
   it('propagates explorer query error', async () => {
     const config = buildTestConfig({}, ['ethereum', 'arbitrum']);
-    const routes: RebalancingRoute[] = [{ origin: 'ethereum' } as any];
+    const routes: RebalanceRoute[] = [
+      { origin: 'ethereum', intentId: 'test-1' } as any,
+    ];
 
     const rebalancer = new MockRebalancer();
     const rebalanceSpy = Sinon.spy(rebalancer, 'rebalance');

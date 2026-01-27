@@ -4,7 +4,7 @@ import { pino } from 'pino';
 import Sinon from 'sinon';
 
 import { RebalancerStrategyOptions } from '../config/types.js';
-import { type RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type RebalanceRoute } from '../interfaces/IRebalancer.js';
 import { MockRebalancer, buildTestConfig } from '../test/helpers.js';
 
 import { WithSemaphore } from './WithSemaphore.js';
@@ -20,7 +20,8 @@ describe('WithSemaphore', () => {
     const routes = [
       {
         origin: 'chain1',
-      } as any as RebalancingRoute,
+        intentId: 'test-1',
+      } as any as RebalanceRoute,
     ];
 
     const rebalancer = new MockRebalancer();
@@ -49,7 +50,8 @@ describe('WithSemaphore', () => {
     const routes = [
       {
         origin: 'chain1',
-      } as any as RebalancingRoute,
+        intentId: 'test-1',
+      } as any as RebalanceRoute,
     ];
 
     const rebalancer = new MockRebalancer();
@@ -68,16 +70,19 @@ describe('WithSemaphore', () => {
 
   it('should throw if a chain is missing', async () => {
     const config = buildTestConfig({
-      strategyConfig: {
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        chains: {},
-      },
-    });
+      strategyConfig: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {},
+        },
+      ],
+    } as any);
 
     const routes = [
       {
         origin: 'chain1',
-      } as any as RebalancingRoute,
+        intentId: 'test-1',
+      } as any as RebalanceRoute,
     ];
 
     const rebalancer = new MockRebalancer();
@@ -94,7 +99,8 @@ describe('WithSemaphore', () => {
     const routes = [
       {
         origin: 'chain1',
-      } as any as RebalancingRoute,
+        intentId: 'test-1',
+      } as any as RebalanceRoute,
     ];
 
     const rebalancer = new MockRebalancer();

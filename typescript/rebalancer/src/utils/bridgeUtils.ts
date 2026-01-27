@@ -1,5 +1,3 @@
-import { type Logger } from 'pino';
-
 import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 
 export type BridgeConfigWithOverride = BridgeConfig & {
@@ -9,7 +7,6 @@ export type BridgeConfigWithOverride = BridgeConfig & {
 export type BridgeConfig = {
   bridge: string;
   bridgeMinAcceptedAmount: string | number;
-  bridgeIsWarp: boolean;
 };
 
 /**
@@ -23,15 +20,8 @@ export function getBridgeConfig(
   bridges: ChainMap<BridgeConfigWithOverride>,
   fromChain: ChainName,
   toChain: ChainName,
-  logger: Logger,
 ): BridgeConfig {
   const fromConfig = bridges[fromChain];
-
-  if (!fromConfig) {
-    logger.error({ fromChain }, 'Bridge config not found');
-    throw new Error(`Bridge config not found for chain ${fromChain}`);
-  }
-
   const routeSpecificOverrides = fromConfig.override?.[toChain];
 
   // Create a new object with the properties from bridgeConfig, excluding the overrides property

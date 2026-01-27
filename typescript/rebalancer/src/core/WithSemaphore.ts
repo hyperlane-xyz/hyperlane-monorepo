@@ -1,8 +1,12 @@
 import type { Logger } from 'pino';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
+import { getStrategyChainConfig } from '../config/types.js';
+import type {
+  IRebalancer,
+  RebalanceExecutionResult,
+  RebalanceRoute,
+} from '../interfaces/IRebalancer.js';
 
 /**
  * Prevents frequent rebalancing operations while bridges complete.
@@ -26,11 +30,13 @@ export class WithSemaphore implements IRebalancer {
    * Rebalance with timing control
    * @param routes - Routes to process
    */
-  async rebalance(routes: RebalancingRoute[]): Promise<void> {
+  async rebalance(
+    routes: RebalanceRoute[],
+  ): Promise<RebalanceExecutionResult[]> {
     if (this.executing) {
       this.logger.info('Currently executing rebalance. Skipping.');
 
-      return;
+      return [];
     }
 
     // No routes mean the system is balanced so we reset the timer to allow new rebalancing
@@ -40,23 +46,24 @@ export class WithSemaphore implements IRebalancer {
       );
 
       this.waitUntil = 0;
-      return;
+      return [];
     }
 
     // Skip if still in waiting period
     if (Date.now() < this.waitUntil) {
       this.logger.info('Still in waiting period. Skipping rebalance.');
 
-      return;
+      return [];
     }
 
     // The wait period will be determined by the bridge with the highest wait tolerance
     const highestTolerance = this.getHighestLockTime(routes);
 
+    let results: RebalanceExecutionResult[];
     try {
       // Execute rebalance
       this.executing = true;
-      await this.rebalancer.rebalance(routes);
+      results = await this.rebalancer.rebalance(routes);
     } finally {
       this.executing = false;
     }
@@ -71,18 +78,23 @@ export class WithSemaphore implements IRebalancer {
       },
       'Rebalance semaphore locked',
     );
+
+    return results;
   }
 
-  private getHighestLockTime(routes: RebalancingRoute[]) {
+  private getHighestLockTime(routes: RebalanceRoute[]) {
     return routes.reduce((highest, route) => {
-      const origin = this.config.strategyConfig.chains[route.origin];
+      const origin = getStrategyChainConfig(
+        this.config.strategyConfig,
+        route.origin,
+      );
 
       if (!origin) {
         this.logger.error({ route }, 'Chain not found in config. Skipping.');
         throw new Error(`Chain ${route.origin} not found in config`);
       }
 
-      const bridgeLockTime = origin.bridgeLockTime;
+      const bridgeLockTime = origin.bridgeLockTime ?? 0;
       const overrideLockTime =
         origin.override?.[route.destination]?.bridgeLockTime ?? 0;
 
