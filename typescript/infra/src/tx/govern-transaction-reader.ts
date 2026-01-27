@@ -77,7 +77,9 @@ import {
   Owner,
   determineGovernanceType,
 } from '../governance.js';
-import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
+import { decodeMultiSendData, parseSafeTx } from '@hyperlane-xyz/sdk';
+
+import { getSafeTx } from '../utils/safe.js';
 
 export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;

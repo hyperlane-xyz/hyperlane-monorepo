@@ -819,6 +819,11 @@ export {
   getSafeService,
   safeApiKeyRequired,
 } from './utils/gnosisSafe.js';
+export {
+  asHex,
+  decodeMultiSendData,
+  parseSafeTx,
+} from './transactions/safe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {
   extractIsmAndHookFactoryAddresses,
@@ -841,6 +846,37 @@ export {
   StarknetContractName,
 } from './utils/starknet.js';
 export { getChainIdFromTxs } from './utils/transactions.js';
+export {
+  ParsedInstruction,
+  SquadTxStatus,
+  SquadsAccountType,
+  SquadsConfig,
+  SquadsConfigMap,
+  SquadsInstructionName,
+  SquadsInstructionType,
+  SquadsKeys,
+  SquadsPermission,
+  SquadsProposalStatus,
+  SquadsTransaction,
+  SquadsTransactionReader,
+  SquadsTransactionReaderOptions,
+  SQUADS_ACCOUNT_DISCRIMINATORS,
+  SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
+  SQUADS_DISCRIMINATOR_SIZE,
+  SvmCoreProgramIds,
+  SvmMultisigConfig,
+  SvmMultisigConfigMap,
+  decodePermissions,
+  formatUnknownInstructionWarning,
+  formatUnknownProgramWarning,
+  getSquadAndProvider,
+  getSquadProposal,
+  getSquadTxStatus,
+  getSquadsKeys,
+  getTransactionType,
+  isConfigTransaction,
+  isVaultTransaction,
+} from './transactions/squads.js';
 export {
   getValidatorFromStorageLocation,
   isValidValidatorStorageLocation,

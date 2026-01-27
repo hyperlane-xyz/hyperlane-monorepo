@@ -28,6 +28,7 @@ import { sendCommand } from './src/commands/send.js';
 import { statusCommand } from './src/commands/status.js';
 import { strategyCommand } from './src/commands/strategy.js';
 import { submitCommand } from './src/commands/submit.js';
+import { txCommand } from './src/commands/tx.js';
 import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
 import { contextMiddleware, signerMiddleware } from './src/context/context.js';
@@ -71,6 +72,7 @@ try {
     .command(statusCommand)
     .command(strategyCommand)
     .command(submitCommand)
+    .command(txCommand)
     .command(validatorCommand)
     .command(warpCommand)
     .command(forkCommand)
