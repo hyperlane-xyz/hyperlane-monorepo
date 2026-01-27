@@ -43,6 +43,9 @@ pub enum Commands {
     /// Decode a Kaspa withdrawal tx payload to extract Hyperlane message IDs
     #[clap(name = "decode-payload")]
     DecodePayload(DecodePayloadCli),
+    /// Compute the Hyperlane message ID for a Kaspa deposit transaction
+    #[clap(name = "compute-deposit-id")]
+    ComputeDepositId(ComputeDepositIdCli),
 }
 
 #[derive(Subcommand, Debug)]
@@ -310,4 +313,18 @@ pub struct DecodePayloadCli {
     /// This is the payload field from a Kaspa withdrawal transaction.
     #[arg(required = true, index = 1)]
     pub payload: String,
+}
+
+#[derive(Args, Debug)]
+pub struct ComputeDepositIdCli {
+    /// The deposit payload (hex string, with or without 0x prefix).
+    /// This is the HyperlaneMessage payload from a Kaspa deposit transaction.
+    #[arg(required = true, index = 1)]
+    pub payload: String,
+    /// The Kaspa transaction ID (hex string, with or without 0x prefix).
+    #[arg(required = true, index = 2)]
+    pub tx_id: String,
+    /// The UTXO index of the deposit output in the transaction.
+    #[arg(required = true, index = 3)]
+    pub utxo_index: usize,
 }

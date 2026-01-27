@@ -7818,6 +7818,7 @@ dependencies = [
  "kaspa-addresses",
  "kaspa-consensus-core",
  "kaspa-core",
+ "kaspa-hashes",
  "kaspa-wallet-core",
  "kaspa-wallet-keys",
  "rand 0.8.5",

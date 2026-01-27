@@ -76,6 +76,16 @@ async fn run(cli: Cli) {
                 std::process::exit(1);
             }
         }
+        Commands::ComputeDepositId(args) => {
+            if let Err(e) = x::compute_deposit_id::compute_deposit_id(
+                &args.payload,
+                &args.tx_id,
+                args.utxo_index,
+            ) {
+                eprintln!("compute deposit id: {e}");
+                std::process::exit(1);
+            }
+        }
     }
 }
 
