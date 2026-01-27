@@ -1,10 +1,10 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { isArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
-  DeployedIsmArtifact,
   DerivedIsmConfig,
+  mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -259,18 +259,39 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       return updateTransactions;
     }
 
-    if (
-      !expectedConfig.interchainSecurityModule ||
-      (typeof expectedConfig.interchainSecurityModule === 'string' &&
-        isZeroishAddress(expectedConfig.interchainSecurityModule))
-    ) {
-      this.logger.debug(`Token ISM config is empty. No updates needed.`);
-      return updateTransactions;
-    }
-
     const actualDeployedIsm =
       (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
       '';
+    const actualIsmIsNonZero =
+      actualDeployedIsm && !isZeroishAddress(actualDeployedIsm);
+
+    const expectedIsmIsEmpty =
+      !expectedConfig.interchainSecurityModule ||
+      (typeof expectedConfig.interchainSecurityModule === 'string' &&
+        isZeroishAddress(expectedConfig.interchainSecurityModule));
+
+    // If expected ISM is empty/zero but actual ISM exists, reset to zero address
+    if (expectedIsmIsEmpty && actualIsmIsNonZero) {
+      this.logger.debug(
+        `Resetting ISM from ${actualDeployedIsm} to zero address`,
+      );
+      return [
+        {
+          annotation: `Resetting ISM for Warp Route to zero address`,
+          ...(await this.signer.getSetTokenIsmTransaction({
+            signer: actualConfig.owner,
+            tokenAddress: this.args.addresses.deployedTokenRoute,
+            ismAddress: '0x0000000000000000000000000000000000000000',
+          })),
+        },
+      ];
+    }
+
+    // If both are empty/zero, no updates needed
+    if (expectedIsmIsEmpty) {
+      this.logger.debug(`Token ISM config is empty. No updates needed.`);
+      return updateTransactions;
+    }
 
     // Try to update (may also deploy) Ism with the expected config
     const {
@@ -468,18 +489,24 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     }
 
     // Update existing ISM (only routing ISMs support updates)
-    const deployedArtifact: DeployedIsmArtifact = {
-      ...expectedArtifact,
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config,
-      deployed: actualArtifact.deployed,
-    };
-    const updateTransactions = await writer.update(deployedArtifact);
+    // Merge artifacts to preserve DEPLOYED state for unchanged nested ISMs
+    const mergedArtifact = mergeIsmArtifacts(actualArtifact, expectedArtifact);
 
-    return {
-      deployedIsm: actualIsmAddress,
-      updateTransactions,
-    };
+    // If merge resulted in NEW state, deploy it
+    if (isArtifactNew(mergedArtifact)) {
+      const [deployed] = await writer.create(mergedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    } else {
+      // Otherwise update in-place (artifact is DEPLOYED)
+      const updateTransactions = await writer.update(mergedArtifact);
+      return {
+        deployedIsm: mergedArtifact.deployed.address,
+        updateTransactions,
+      };
+    }
   }
 
   /**
