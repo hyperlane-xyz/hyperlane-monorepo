@@ -1,0 +1,350 @@
+import { randomAddress } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
+
+import type {
+  RandomTrafficOptions,
+  SerializedScenario,
+  SerializedTransferEvent,
+  SurgeScenarioOptions,
+  TransferEvent,
+  TransferScenario,
+  UnidirectionalFlowOptions,
+} from './types.js';
+
+/**
+ * Generates random bigint in range [min, max]
+ */
+function randomBigIntInRange(min: bigint, max: bigint): bigint {
+  const range = max - min;
+  const randomFactor = BigInt(Math.floor(Math.random() * Number(range)));
+  return min + randomFactor;
+}
+
+/**
+ * Generates a unique transfer ID
+ */
+function generateTransferId(index: number, prefix: string = 'tx'): string {
+  return `${prefix}-${index.toString().padStart(6, '0')}`;
+}
+
+/**
+ * Generates a Poisson-distributed interval
+ */
+function poissonInterval(meanInterval: number): number {
+  // Using inverse transform sampling for exponential distribution
+  const u = Math.random();
+  return -Math.log(1 - u) * meanInterval;
+}
+
+/**
+ * ScenarioGenerator creates transfer scenarios for simulation testing.
+ */
+export class ScenarioGenerator {
+  /**
+   * Generates a unidirectional flow scenario where all transfers
+   * go from one chain to another.
+   */
+  static unidirectionalFlow(
+    options: UnidirectionalFlowOptions,
+  ): TransferScenario {
+    const {
+      origin,
+      destination,
+      transferCount,
+      duration,
+      amount,
+      user = randomAddress(),
+    } = options;
+
+    const interval = duration / transferCount;
+    const transfers: TransferEvent[] = [];
+
+    for (let i = 0; i < transferCount; i++) {
+      const transferAmount = Array.isArray(amount)
+        ? randomBigIntInRange(amount[0], amount[1])
+        : amount;
+
+      transfers.push({
+        id: generateTransferId(i, 'uni'),
+        timestamp: Math.floor(i * interval),
+        origin,
+        destination,
+        amount: transferAmount,
+        user: user as Address,
+      });
+    }
+
+    return {
+      name: `unidirectional-${origin}-to-${destination}-${transferCount}tx`,
+      duration,
+      transfers,
+      chains: [origin, destination],
+    };
+  }
+
+  /**
+   * Generates random traffic across multiple chains with configurable distribution.
+   */
+  static randomTraffic(options: RandomTrafficOptions): TransferScenario {
+    const {
+      chains,
+      transferCount,
+      duration,
+      amountRange,
+      users = [randomAddress() as Address],
+      distribution = 'uniform',
+      poissonMeanInterval,
+    } = options;
+
+    if (chains.length < 2) {
+      throw new Error('Random traffic requires at least 2 chains');
+    }
+
+    const transfers: TransferEvent[] = [];
+    let currentTime = 0;
+
+    for (let i = 0; i < transferCount; i++) {
+      // Pick random origin and destination (must be different)
+      const originIndex = Math.floor(Math.random() * chains.length);
+      let destIndex = Math.floor(Math.random() * chains.length);
+      while (destIndex === originIndex) {
+        destIndex = Math.floor(Math.random() * chains.length);
+      }
+
+      // Calculate timestamp based on distribution
+      let timestamp: number;
+      if (distribution === 'poisson' && poissonMeanInterval) {
+        currentTime += poissonInterval(poissonMeanInterval);
+        timestamp = Math.min(Math.floor(currentTime), duration);
+      } else {
+        timestamp = Math.floor(Math.random() * duration);
+      }
+
+      transfers.push({
+        id: generateTransferId(i, 'rnd'),
+        timestamp,
+        origin: chains[originIndex],
+        destination: chains[destIndex],
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: users[Math.floor(Math.random() * users.length)],
+      });
+    }
+
+    // Sort by timestamp
+    transfers.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      name: `random-${chains.length}chains-${transferCount}tx`,
+      duration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
+   * Generates a surge scenario with baseline traffic and a surge period.
+   */
+  static surgeScenario(options: SurgeScenarioOptions): TransferScenario {
+    const {
+      chains,
+      baselineRate,
+      surgeMultiplier,
+      surgeStart,
+      surgeDuration,
+      totalDuration,
+      amountRange,
+    } = options;
+
+    const transfers: TransferEvent[] = [];
+    let txIndex = 0;
+
+    // Generate baseline traffic
+    const baselineInterval = 1000 / baselineRate; // ms between transfers
+    for (let t = 0; t < totalDuration; t += baselineInterval) {
+      // Skip surge period for baseline
+      if (t >= surgeStart && t < surgeStart + surgeDuration) {
+        continue;
+      }
+
+      const originIndex = Math.floor(Math.random() * chains.length);
+      let destIndex = Math.floor(Math.random() * chains.length);
+      while (destIndex === originIndex) {
+        destIndex = Math.floor(Math.random() * chains.length);
+      }
+
+      transfers.push({
+        id: generateTransferId(txIndex++, 'base'),
+        timestamp: Math.floor(t),
+        origin: chains[originIndex],
+        destination: chains[destIndex],
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: randomAddress() as Address,
+      });
+    }
+
+    // Generate surge traffic
+    const surgeRate = baselineRate * surgeMultiplier;
+    const surgeInterval = 1000 / surgeRate;
+    for (
+      let t = surgeStart;
+      t < surgeStart + surgeDuration;
+      t += surgeInterval
+    ) {
+      const originIndex = Math.floor(Math.random() * chains.length);
+      let destIndex = Math.floor(Math.random() * chains.length);
+      while (destIndex === originIndex) {
+        destIndex = Math.floor(Math.random() * chains.length);
+      }
+
+      transfers.push({
+        id: generateTransferId(txIndex++, 'surge'),
+        timestamp: Math.floor(t),
+        origin: chains[originIndex],
+        destination: chains[destIndex],
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: randomAddress() as Address,
+      });
+    }
+
+    // Sort by timestamp
+    transfers.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      name: `surge-${chains.length}chains-${surgeMultiplier}x`,
+      duration: totalDuration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
+   * Creates an imbalance scenario where one chain receives more than others.
+   * Useful for testing rebalancer response to imbalanced liquidity.
+   */
+  static imbalanceScenario(
+    chains: string[],
+    heavyChain: string,
+    transferCount: number,
+    duration: number,
+    amountRange: [bigint, bigint],
+    imbalanceRatio: number = 0.8, // 80% of transfers go to heavy chain
+  ): TransferScenario {
+    const transfers: TransferEvent[] = [];
+    const otherChains = chains.filter((c) => c !== heavyChain);
+
+    for (let i = 0; i < transferCount; i++) {
+      const timestamp = Math.floor((i / transferCount) * duration);
+      const goToHeavy = Math.random() < imbalanceRatio;
+
+      let origin: string;
+      let destination: string;
+
+      if (goToHeavy) {
+        origin = otherChains[Math.floor(Math.random() * otherChains.length)];
+        destination = heavyChain;
+      } else {
+        origin = heavyChain;
+        destination =
+          otherChains[Math.floor(Math.random() * otherChains.length)];
+      }
+
+      transfers.push({
+        id: generateTransferId(i, 'imb'),
+        timestamp,
+        origin,
+        destination,
+        amount: randomBigIntInRange(amountRange[0], amountRange[1]),
+        user: randomAddress() as Address,
+      });
+    }
+
+    return {
+      name: `imbalance-${heavyChain}-${imbalanceRatio * 100}pct`,
+      duration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
+   * Serializes a scenario to JSON-compatible format
+   */
+  static serialize(scenario: TransferScenario): SerializedScenario {
+    return {
+      name: scenario.name,
+      duration: scenario.duration,
+      chains: scenario.chains,
+      transfers: scenario.transfers.map((t) => ({
+        id: t.id,
+        timestamp: t.timestamp,
+        origin: t.origin,
+        destination: t.destination,
+        amount: t.amount.toString(),
+        user: t.user,
+      })),
+    };
+  }
+
+  /**
+   * Deserializes a scenario from JSON format
+   */
+  static deserialize(data: SerializedScenario): TransferScenario {
+    return {
+      name: data.name,
+      duration: data.duration,
+      chains: data.chains,
+      transfers: data.transfers.map((t: SerializedTransferEvent) => ({
+        id: t.id,
+        timestamp: t.timestamp,
+        origin: t.origin,
+        destination: t.destination,
+        amount: BigInt(t.amount),
+        user: t.user as Address,
+      })),
+    };
+  }
+
+  /**
+   * Validates a scenario for consistency
+   */
+  static validate(scenario: TransferScenario): {
+    valid: boolean;
+    errors: string[];
+  } {
+    const errors: string[] = [];
+
+    // Check transfers are sorted
+    for (let i = 1; i < scenario.transfers.length; i++) {
+      if (
+        scenario.transfers[i].timestamp < scenario.transfers[i - 1].timestamp
+      ) {
+        errors.push(`Transfers not sorted at index ${i}`);
+      }
+    }
+
+    // Check all chains in transfers are in chains list
+    const chainSet = new Set(scenario.chains);
+    for (const transfer of scenario.transfers) {
+      if (!chainSet.has(transfer.origin)) {
+        errors.push(`Unknown origin chain: ${transfer.origin}`);
+      }
+      if (!chainSet.has(transfer.destination)) {
+        errors.push(`Unknown destination chain: ${transfer.destination}`);
+      }
+      if (transfer.origin === transfer.destination) {
+        errors.push(`Same origin and destination: ${transfer.origin}`);
+      }
+    }
+
+    // Check timestamps within duration
+    for (const transfer of scenario.transfers) {
+      if (transfer.timestamp > scenario.duration) {
+        errors.push(
+          `Transfer timestamp ${transfer.timestamp} exceeds duration ${scenario.duration}`,
+        );
+      }
+    }
+
+    return { valid: errors.length === 0, errors };
+  }
+}

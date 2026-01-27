@@ -1,0 +1,71 @@
+{
+  "name": "balanced-2chain-bidirectional",
+  "duration": 30000,
+  "chains": ["chain1", "chain2"],
+  "transfers": [
+    {
+      "id": "bal-000001",
+      "timestamp": 0,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1000000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000002",
+      "timestamp": 1000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "1000000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000003",
+      "timestamp": 2000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "2000000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000004",
+      "timestamp": 3000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2000000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000005",
+      "timestamp": 4000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1500000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000006",
+      "timestamp": 5000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "1500000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000007",
+      "timestamp": 6000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3000000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    },
+    {
+      "id": "bal-000008",
+      "timestamp": 7000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3000000000000000000",
+      "user": "0x0000000000000000000000000000000000000001"
+    }
+  ]
+}

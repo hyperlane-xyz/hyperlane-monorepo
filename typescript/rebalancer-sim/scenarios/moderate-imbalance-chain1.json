@@ -1,0 +1,131 @@
+{
+  "name": "imbalance-chain1-70pct",
+  "duration": 8000,
+  "chains": [
+    "chain1",
+    "chain2",
+    "chain3"
+  ],
+  "transfers": [
+    {
+      "id": "imb-000000",
+      "timestamp": 0,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4187864153281526272",
+      "user": "0xe5a6293db057889bd3b397adce14c6d994898e51"
+    },
+    {
+      "id": "imb-000001",
+      "timestamp": 533,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5953678908955336704",
+      "user": "0x7ef03f13dfed571e9e6d9c3553ab1b47cbfb8cdc"
+    },
+    {
+      "id": "imb-000002",
+      "timestamp": 1066,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4678164502375643136",
+      "user": "0xea30ccef846695463c5e3b94b559192778c9b457"
+    },
+    {
+      "id": "imb-000003",
+      "timestamp": 1600,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3977262163180698880",
+      "user": "0xfab93435682aa80bbf3b02177ec5e4aa39ec8013"
+    },
+    {
+      "id": "imb-000004",
+      "timestamp": 2133,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "2504398276582407744",
+      "user": "0xeb6aa606c436a200d859ba1fb3f9ccf4113698ae"
+    },
+    {
+      "id": "imb-000005",
+      "timestamp": 2666,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "3500724549812174336",
+      "user": "0x98f86f5dcdbe9210bb41e355f830d5150cba99bc"
+    },
+    {
+      "id": "imb-000006",
+      "timestamp": 3200,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3394761400025870080",
+      "user": "0x1b10f0f1809e5cf6f6c0517446185a29ea712a24"
+    },
+    {
+      "id": "imb-000007",
+      "timestamp": 3733,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4671136662345657344",
+      "user": "0xa59c25ad661b180c6bc5ca72de3c2b0a71a4d9cb"
+    },
+    {
+      "id": "imb-000008",
+      "timestamp": 4266,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "4819149775595620864",
+      "user": "0x2fe8a520e309a584a60185ab5390edc290545268"
+    },
+    {
+      "id": "imb-000009",
+      "timestamp": 4800,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5462862062291531264",
+      "user": "0x99f9564caefd271b8768b8c583b97186de6d2c74"
+    },
+    {
+      "id": "imb-000010",
+      "timestamp": 5333,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3658741625975670528",
+      "user": "0x041422ffd7a632eb85f2aadaec4c110985c5d09c"
+    },
+    {
+      "id": "imb-000011",
+      "timestamp": 5866,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4185777414225029120",
+      "user": "0x806e815d26c59d8a814f76af8dd150455a29657f"
+    },
+    {
+      "id": "imb-000012",
+      "timestamp": 6400,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3434397056855510272",
+      "user": "0xc8835a5edb27204ef62e05d3a77109462906fc66"
+    },
+    {
+      "id": "imb-000013",
+      "timestamp": 6933,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3389722205832367872",
+      "user": "0x7b6218cd5aba9cce7c8e809e32a3f9ba0f6331eb"
+    },
+    {
+      "id": "imb-000014",
+      "timestamp": 7466,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4240861563817684736",
+      "user": "0x88376ceea2c8ae14cacdbaa7e659c2aeddd7eb1b"
+    }
+  ]
+}

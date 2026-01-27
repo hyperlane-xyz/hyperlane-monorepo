@@ -1,0 +1,50 @@
+{
+  "name": "unidirectional-chain2-to-chain1-5tx",
+  "duration": 5000,
+  "chains": [
+    "chain2",
+    "chain1"
+  ],
+  "transfers": [
+    {
+      "id": "uni-000000",
+      "timestamp": 0,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x760220f820f6abf52e21c6b64a1182d81ff0506a"
+    },
+    {
+      "id": "uni-000001",
+      "timestamp": 1000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x760220f820f6abf52e21c6b64a1182d81ff0506a"
+    },
+    {
+      "id": "uni-000002",
+      "timestamp": 2000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x760220f820f6abf52e21c6b64a1182d81ff0506a"
+    },
+    {
+      "id": "uni-000003",
+      "timestamp": 3000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x760220f820f6abf52e21c6b64a1182d81ff0506a"
+    },
+    {
+      "id": "uni-000004",
+      "timestamp": 4000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "20000000000000000000",
+      "user": "0x760220f820f6abf52e21c6b64a1182d81ff0506a"
+    }
+  ]
+}
