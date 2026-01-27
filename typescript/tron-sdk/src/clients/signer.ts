@@ -1,7 +1,7 @@
-import { assert } from 'chai';
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { assert } from '@hyperlane-xyz/utils';
 
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
 import {
