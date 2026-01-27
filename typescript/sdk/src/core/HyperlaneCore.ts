@@ -48,6 +48,17 @@ import { DispatchedMessage } from './types.js';
 // We set to 0x0001 instead of 0x0 to ensure it does not break on zksync.
 const DEFAULT_METADATA = '0x0001';
 
+type HandleGasEstimatable = {
+  estimateGas: {
+    handle(
+      origin: number,
+      sender: AddressBytes32,
+      body: string,
+      overrides: { from: Address },
+    ): Promise<ethers.BigNumber>;
+  };
+};
+
 export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
   static fromAddressesMap(
     addressesMap: HyperlaneAddressesMap<any>,
@@ -253,18 +264,35 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
+  static estimateHandleGas(
+    recipient: HandleGasEstimatable,
+    params: {
+      origin: number;
+      sender: AddressBytes32;
+      body: string;
+      from: Address;
+    },
+  ): Promise<ethers.BigNumber> {
+    return recipient.estimateGas.handle(
+      params.origin,
+      params.sender,
+      params.body,
+      { from: params.from },
+    );
+  }
+
   async estimateHandle(message: DispatchedMessage): Promise<string> {
     // This estimation overrides transaction.from which requires a funded signer
     // on ZkSync-based chains. We catch estimation failures and return '0' to
     // allow the caller to handle gas estimation differently.
     try {
       return (
-        await this.getRecipient(message).estimateGas.handle(
-          message.parsed.origin,
-          message.parsed.sender,
-          message.parsed.body,
-          { from: this.getAddresses(this.getDestination(message)).mailbox },
-        )
+        await HyperlaneCore.estimateHandleGas(this.getRecipient(message), {
+          origin: message.parsed.origin,
+          sender: message.parsed.sender,
+          body: message.parsed.body,
+          from: this.getAddresses(this.getDestination(message)).mailbox,
+        })
       ).toString();
     } catch (error) {
       this.logger.debug(

@@ -27,6 +27,7 @@ import {
   HyperlaneContracts,
   HyperlaneContractsMap,
 } from '../../contracts/types.js';
+import { HyperlaneCore } from '../../core/HyperlaneCore.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
@@ -230,11 +231,14 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     );
 
     try {
-      const gasEstimate = await destinationRouter.estimateGas.handle(
-        originDomain,
-        addressToBytes32(localRouterAddress),
-        messageBody,
-        { from: await destinationRouter.mailbox() },
+      const gasEstimate = await HyperlaneCore.estimateHandleGas(
+        destinationRouter,
+        {
+          origin: originDomain,
+          sender: addressToBytes32(localRouterAddress),
+          body: messageBody,
+          from: await destinationRouter.mailbox(),
+        },
       );
       return addBufferToGasLimit(gasEstimate);
     } catch (error) {
