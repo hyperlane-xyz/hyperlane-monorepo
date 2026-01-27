@@ -8,8 +8,8 @@ import {
 import type {
   IRebalancer,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type ExplorerClient } from '../utils/ExplorerClient.js';
 
 /**
@@ -30,7 +30,7 @@ export class WithInflightGuard implements IRebalancer {
   }
 
   async rebalance(
-    routes: RebalancingRoute[],
+    routes: RebalanceRoute[],
   ): Promise<RebalanceExecutionResult[]> {
     // Always enforce the inflight guard
     if (routes.length === 0) {
