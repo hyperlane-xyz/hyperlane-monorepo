@@ -163,10 +163,9 @@ async function parseHookMetadataWithInsight(
   }
 
   const { msgValue, gasLimit, refundAddress } = parsed;
-  const isZeroAddress = refundAddress === ethers.constants.AddressZero;
 
   let insight: string;
-  if (isZeroAddress) {
+  if (isZeroishAddress(refundAddress)) {
     insight = '⚠️ refund to zero address (excess goes to msg.sender)';
   } else {
     const ownerInsight = await getOwnerInsight(chain, refundAddress);
