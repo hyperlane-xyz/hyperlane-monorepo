@@ -12,6 +12,8 @@ export default [
       '**/dependencies/**/*',
       '.solcover.js',
       'generate-artifact-exports.mjs',
+      '**/.tronbox-build/**/*',
+      'tronbox-config.js',
     ],
   },
 ];
