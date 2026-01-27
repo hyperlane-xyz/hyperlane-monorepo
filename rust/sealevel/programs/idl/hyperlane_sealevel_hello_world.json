@@ -198,7 +198,7 @@
           "name": "args",
           "type": {
             "vec": {
-              "defined": "RemoteRouterConfig"
+              "defined": "RemoteRouterConfigProxy"
             }
           }
         }
@@ -354,7 +354,7 @@
       }
     },
     {
-      "name": "RemoteRouterConfig",
+      "name": "RemoteRouterConfigProxy",
       "type": {
         "kind": "struct",
         "fields": [

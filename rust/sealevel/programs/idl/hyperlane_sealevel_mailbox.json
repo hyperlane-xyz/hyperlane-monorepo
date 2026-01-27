@@ -463,8 +463,11 @@
           {
             "name": "tree",
             "type": {
-              "defined": "MerkleTree"
-            }
+              "defined": "MerkleTreeProxy"
+            },
+            "attrs": [
+              "idl-type"
+            ]
           },
           {
             "name": "maxProtocolFee",
@@ -648,19 +651,22 @@
       }
     },
     {
-      "name": "MerkleTree",
+      "name": "MerkleTreeProxy",
       "type": {
         "kind": "struct",
         "fields": [
           {
             "name": "branch",
             "type": {
-              "vec": {
-                "array": [
-                  "u8",
-                  32
-                ]
-              }
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                },
+                32
+              ]
             },
             "attrs": [
               "idl-type"

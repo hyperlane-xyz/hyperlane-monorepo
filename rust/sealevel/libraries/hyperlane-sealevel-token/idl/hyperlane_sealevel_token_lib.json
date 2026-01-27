@@ -1,6 +1,6 @@
 {
   "version": "0.1.0",
-  "name": "hyperlane_sealevel_token",
+  "name": "hyperlane_sealevel_token_lib",
   "instructions": [
     {
       "name": "Init",
@@ -9,7 +9,7 @@
         {
           "name": "init",
           "type": {
-            "defined": "InitProxy"
+            "defined": "Init"
           }
         }
       ],
@@ -25,7 +25,7 @@
         {
           "name": "transferRemote",
           "type": {
-            "defined": "TransferRemoteProxy"
+            "defined": "TransferRemote"
           }
         }
       ],
@@ -142,31 +142,112 @@
       }
     }
   ],
-  "accounts": [
+  "types": [
     {
-      "name": "SyntheticPlugin",
+      "name": "HyperlaneToken",
       "type": {
         "kind": "struct",
         "fields": [
           {
-            "name": "mint",
+            "name": "bump",
+            "type": "u8"
+          },
+          {
+            "name": "mailbox",
             "type": "publicKey"
           },
           {
-            "name": "mintBump",
+            "name": "mailboxProcessAuthority",
+            "type": "publicKey"
+          },
+          {
+            "name": "dispatchAuthorityBump",
             "type": "u8"
           },
           {
-            "name": "ataPayerBump",
+            "name": "decimals",
             "type": "u8"
+          },
+          {
+            "name": "remoteDecimals",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "interchainSecurityModule",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "interchainGasPaymaster",
+            "type": {
+              "option": {
+                "tuple": [
+                  "publicKey",
+                  {
+                    "defined": "InterchainGasPaymasterType"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "destinationGas",
+            "type": {
+              "hashMap": [
+                "u32",
+                "u64"
+              ]
+            }
+          },
+          {
+            "name": "remoteRouters",
+            "type": {
+              "hashMap": [
+                "u32",
+                {
+                  "defined": "H256"
+                }
+              ]
+            }
+          },
+          {
+            "name": "pluginData",
+            "type": {
+              "defined": "T"
+            }
           }
         ]
       }
-    }
-  ],
-  "types": [
+    },
     {
-      "name": "InitProxy",
+      "name": "InterchainGasPaymasterTypeProxy",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Igp",
+            "fields": [
+              "publicKey"
+            ]
+          },
+          {
+            "name": "OverheadIgp",
+            "fields": [
+              "publicKey"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "Init",
       "type": {
         "kind": "struct",
         "fields": [
@@ -208,7 +289,7 @@
       }
     },
     {
-      "name": "TransferRemoteProxy",
+      "name": "TransferRemote",
       "type": {
         "kind": "struct",
         "fields": [
@@ -242,157 +323,27 @@
           }
         ]
       }
+    }
+  ],
+  "errors": [
+    {
+      "code": 1,
+      "name": "ExtraneousAccount",
+      "msg": "Unused account(s) provided"
     },
     {
-      "name": "RemoteRouterConfigProxy",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "domain",
-            "type": "u32"
-          },
-          {
-            "name": "router",
-            "type": {
-              "option": {
-                "array": [
-                  "u8",
-                  32
-                ]
-              }
-            },
-            "attrs": [
-              "idl-type"
-            ]
-          }
-        ]
-      }
+      "code": 2,
+      "name": "IntegerOverflow",
+      "msg": "Integer overflow"
     },
     {
-      "name": "GasRouterConfigProxy",
-      "type": {
-        "kind": "struct",
-        "fields": [
-          {
-            "name": "domain",
-            "type": "u32"
-          },
-          {
-            "name": "gas",
-            "type": {
-              "option": "u64"
-            }
-          }
-        ]
-      }
-    },
-    {
-      "name": "InterchainGasPaymasterTypeProxy",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Igp",
-            "fields": [
-              "publicKey"
-            ]
-          },
-          {
-            "name": "OverheadIgp",
-            "fields": [
-              "publicKey"
-            ]
-          }
-        ]
-      }
-    },
-    {
-      "name": "TokenInstructionProxy",
-      "type": {
-        "kind": "enum",
-        "variants": [
-          {
-            "name": "Init",
-            "fields": [
-              {
-                "defined": "InitProxy"
-              }
-            ]
-          },
-          {
-            "name": "TransferRemote",
-            "fields": [
-              {
-                "defined": "TransferRemoteProxy"
-              }
-            ]
-          },
-          {
-            "name": "EnrollRemoteRouter",
-            "fields": [
-              {
-                "defined": "RemoteRouterConfig"
-              }
-            ]
-          },
-          {
-            "name": "EnrollRemoteRouters",
-            "fields": [
-              {
-                "vec": {
-                  "defined": "RemoteRouterConfig"
-                }
-              }
-            ]
-          },
-          {
-            "name": "SetDestinationGasConfigs",
-            "fields": [
-              {
-                "vec": {
-                  "defined": "GasRouterConfig"
-                }
-              }
-            ]
-          },
-          {
-            "name": "SetInterchainSecurityModule",
-            "fields": [
-              {
-                "option": "publicKey"
-              }
-            ]
-          },
-          {
-            "name": "SetInterchainGasPaymaster",
-            "fields": [
-              {
-                "option": {
-                  "tuple": [
-                    "publicKey",
-                    {
-                      "defined": "InterchainGasPaymasterTypeProxy"
-                    }
-                  ]
-                }
-              }
-            ]
-          },
-          {
-            "name": "TransferOwnership",
-            "fields": [
-              {
-                "option": "publicKey"
-              }
-            ]
-          }
-        ]
-      }
+      "code": 3,
+      "name": "MessageDecodeError",
+      "msg": "Message decoding error"
     }
   ],
   "metadata": {
     "origin": "shank",
-    "address": "HyperlaneToken111111111111111111111111111111"
+    "address": "hyperlane-sealevel-token-lib"
   }
 }
