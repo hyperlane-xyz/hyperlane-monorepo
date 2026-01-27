@@ -33,7 +33,10 @@ export async function getTokenMetadata(
     tokenId,
   );
 
-  assert(mappingValue, `Token metadata not found for tokenId: ${tokenId}`);
+  assert(
+    mappingValue,
+    `Expected token metadata to be registered in token_registry.aleo but none found for tokenId: ${tokenId}`,
+  );
 
   const tokenMetadata = Plaintext.fromString(mappingValue).toObject();
 
@@ -56,7 +59,9 @@ function toAleoTokenType(value: number): AleoTokenType {
     case AleoTokenType.COLLATERAL:
       return AleoTokenType.COLLATERAL;
     default:
-      throw new Error(`Unknown token type value: ${value}`);
+      throw new Error(
+        `Expected valid token type for aleo contract but got ${value}`,
+      );
   }
 }
 
@@ -75,14 +80,17 @@ export async function getAleoWarpTokenType(
     'true',
   );
 
-  assert(metadataValue, `Token metadata not found for ${tokenAddress}`);
+  assert(
+    metadataValue,
+    `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+  );
 
   const metadata = Plaintext.fromString(metadataValue).toObject();
   const tokenTypeValue = metadata['token_type'];
 
   assert(
     typeof tokenTypeValue === 'number',
-    `Invalid token_type in metadata for ${tokenAddress}`,
+    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
   );
 
   return toAleoTokenType(tokenTypeValue);
@@ -112,7 +120,7 @@ export async function getRemoteRouters(
   const routerLength = parseInt(routerLengthRes);
   assert(
     !isNaN(routerLength) && routerLength >= 0,
-    `Invalid remote_router_length for ${tokenAddress}: ${routerLengthRes}`,
+    `Expected remote_router_length to be a non-negative number for token ${tokenAddress} but got ${routerLengthRes}`,
   );
 
   for (let i = 0; i < routerLength; i++) {
@@ -136,14 +144,14 @@ export async function getRemoteRouters(
 
     const domainId = Number(remoteRouter['domain']);
 
-    // Skip duplicates
+    // Skip duplicates (defensive: shouldn't occur in normal operation)
     if (remoteRouters[domainId]) {
       continue;
     }
 
     assert(
       Array.isArray(remoteRouter['recipient']),
-      `Invalid recipient format in remote router for domain ${domainId}`,
+      `Expected recipient to be an array in remote router for domain ${domainId} but got ${typeof remoteRouter['recipient']}`,
     );
 
     remoteRouters[domainId] = {
@@ -170,7 +178,10 @@ async function getWarpTokenMetadata(
     'true',
   );
 
-  assert(metadataValue, `Token metadata not found for ${tokenAddress}`);
+  assert(
+    metadataValue,
+    `Expected app_metadata mapping to exist for token ${tokenAddress} but none found`,
+  );
 
   return Plaintext.fromString(metadataValue).toObject();
 }
@@ -189,7 +200,7 @@ async function getMailboxAddress(
 
   assert(
     mailboxProgramId,
-    `Mailbox program not found in imports for ${tokenAddress}`,
+    `Expected mailbox program in imports for token ${tokenAddress} but none found`,
   );
 
   return toAleoAddress(mailboxProgramId);
@@ -224,13 +235,13 @@ export async function getNativeWarpTokenConfig(
   const tokenTypeValue = metadata['token_type'];
   assert(
     typeof tokenTypeValue === 'number',
-    `Invalid token_type in metadata for ${tokenAddress}`,
+    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
   );
 
   const tokenType = toAleoTokenType(tokenTypeValue);
   assert(
     tokenType === AleoTokenType.NATIVE,
-    `Token at ${tokenAddress} is not a native token (type: ${tokenType})`,
+    `Expected native token (type ${AleoTokenType.NATIVE}) at ${tokenAddress} but got type ${tokenType}`,
   );
 
   // Get mailbox
@@ -266,13 +277,13 @@ export async function getCollateralWarpTokenConfig(
   const tokenTypeValue = metadata['token_type'];
   assert(
     typeof tokenTypeValue === 'number',
-    `Invalid token_type in metadata for ${tokenAddress}`,
+    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
   );
 
   const tokenType = toAleoTokenType(tokenTypeValue);
   assert(
     tokenType === AleoTokenType.COLLATERAL,
-    `Token at ${tokenAddress} is not a collateral token (type: ${tokenType})`,
+    `Expected collateral token (type ${AleoTokenType.COLLATERAL}) at ${tokenAddress} but got type ${tokenType}`,
   );
 
   // Get mailbox
@@ -286,7 +297,10 @@ export async function getCollateralWarpTokenConfig(
 
   // Get token ID and metadata from token_registry
   const tokenId = metadata['token_id'];
-  assert(tokenId, `Token ID not found in metadata for ${tokenAddress}`);
+  assert(
+    tokenId,
+    `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
+  );
 
   const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
 
@@ -318,13 +332,13 @@ export async function getSyntheticWarpTokenConfig(
   const tokenTypeValue = metadata['token_type'];
   assert(
     typeof tokenTypeValue === 'number',
-    `Invalid token_type in metadata for ${tokenAddress}`,
+    `Expected token_type field to be a number in app_metadata for token ${tokenAddress} but got ${typeof tokenTypeValue}`,
   );
 
   const tokenType = toAleoTokenType(tokenTypeValue);
   assert(
     tokenType === AleoTokenType.SYNTHETIC,
-    `Token at ${tokenAddress} is not a synthetic token (type: ${tokenType})`,
+    `Expected synthetic token (type ${AleoTokenType.SYNTHETIC}) at ${tokenAddress} but got type ${tokenType}`,
   );
 
   // Get mailbox
@@ -338,7 +352,10 @@ export async function getSyntheticWarpTokenConfig(
 
   // Get token ID and metadata from token_registry
   const tokenId = metadata['token_id'];
-  assert(tokenId, `Token ID not found in metadata for ${tokenAddress}`);
+  assert(
+    tokenId,
+    `Expected token_id field in app_metadata for token ${tokenAddress} but none found`,
+  );
 
   const tokenMetadata = await getTokenMetadata(aleoClient, tokenId);
 
