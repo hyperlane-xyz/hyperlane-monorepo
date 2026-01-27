@@ -8,6 +8,7 @@ import {
 } from '../config/types.js';
 import { type IStrategy } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 import { CompositeStrategy } from './CompositeStrategy.js';
@@ -72,34 +73,58 @@ export class StrategyFactory {
     logger: Logger,
     metrics?: Metrics,
   ): IStrategy {
+    const bridgeConfigs = this.extractBridgeConfigs(strategyConfig);
+
     switch (strategyConfig.rebalanceStrategy) {
-      case RebalancerStrategyOptions.Weighted:
-        return new WeightedStrategy(strategyConfig.chains, logger, metrics);
-      case RebalancerStrategyOptions.MinAmount:
+      case RebalancerStrategyOptions.Weighted: {
+        return new WeightedStrategy(
+          strategyConfig.chains,
+          logger,
+          bridgeConfigs,
+          metrics,
+          tokensByChainName,
+        );
+      }
+      case RebalancerStrategyOptions.MinAmount: {
         return new MinAmountStrategy(
           strategyConfig.chains,
           tokensByChainName,
           initialTotalCollateral,
           logger,
+          bridgeConfigs,
           metrics,
         );
+      }
       case RebalancerStrategyOptions.CollateralDeficit: {
-        // Extract bridges from config into ChainMap<Address[]> format
-        const bridges: ChainMap<string[]> = {};
-        for (const [chain, config] of Object.entries(strategyConfig.chains)) {
-          bridges[chain] = [config.bridge];
-        }
         return new CollateralDeficitStrategy(
           strategyConfig.chains,
           tokensByChainName,
           logger,
+          bridgeConfigs,
           metrics,
-          bridges,
         );
       }
       default: {
         throw new Error('Unsupported strategy type');
       }
     }
+  }
+
+  private static extractBridgeConfigs(
+    strategyConfig: StrategyConfig,
+  ): ChainMap<BridgeConfigWithOverride> {
+    const bridgeConfigs: ChainMap<BridgeConfigWithOverride> = {};
+
+    for (const [chain, config] of Object.entries(strategyConfig.chains)) {
+      bridgeConfigs[chain] = {
+        bridge: config.bridge,
+        bridgeMinAcceptedAmount: config.bridgeMinAcceptedAmount ?? 0,
+        override: config.override as ChainMap<
+          Partial<{ bridge: string; bridgeMinAcceptedAmount: string | number }>
+        >,
+      };
+    }
+
+    return bridgeConfigs;
   }
 }

@@ -1,10 +1,15 @@
-import EventEmitter from 'events';
 import { type Logger } from 'pino';
 
-import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
+import {
+  EthJsonRpcBlockParameterTag,
+  type Token,
+  type WarpCore,
+} from '@hyperlane-xyz/sdk';
 import { sleep } from '@hyperlane-xyz/utils';
 
 import {
+  type ConfirmedBlockTag,
+  type ConfirmedBlockTags,
   type IMonitor,
   type MonitorEvent,
   MonitorEventType,
@@ -14,9 +19,12 @@ import {
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
+ * Awaits the TokenInfo handler before starting the next cycle to prevent race conditions.
  */
 export class Monitor implements IMonitor {
-  private readonly emitter = new EventEmitter();
+  private tokenInfoHandler?: (event: MonitorEvent) => void | Promise<void>;
+  private errorHandler?: (event: Error) => void;
+  private startHandler?: () => void;
   private isMonitorRunning = false;
   private resolveStop: (() => void) | null = null;
   private stopPromise: Promise<void> | null = null;
@@ -30,25 +38,69 @@ export class Monitor implements IMonitor {
     private readonly logger: Logger,
   ) {}
 
+  private async getConfirmedBlockTag(
+    chainName: string,
+  ): Promise<ConfirmedBlockTag> {
+    try {
+      const metadata = this.warpCore.multiProvider.getChainMetadata(chainName);
+      const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+
+      if (typeof reorgPeriod === 'string') {
+        return reorgPeriod as EthJsonRpcBlockParameterTag;
+      }
+
+      const provider =
+        this.warpCore.multiProvider.getEthersV5Provider(chainName);
+      const latestBlock = await provider.getBlockNumber();
+      return Math.max(0, latestBlock - reorgPeriod);
+    } catch (error) {
+      this.logger.warn(
+        { chain: chainName, error: (error as Error).message },
+        'Failed to get confirmed block, using latest',
+      );
+      return undefined;
+    }
+  }
+
+  private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
+    const blockTags: ConfirmedBlockTags = {};
+    const chains = new Set(this.warpCore.tokens.map((t) => t.chainName));
+
+    for (const chain of chains) {
+      blockTags[chain] = await this.getConfirmedBlockTag(chain);
+    }
+
+    return blockTags;
+  }
+
   // overloads from IMonitor
   on(
     eventName: MonitorEventType.TokenInfo,
-    fn: (event: MonitorEvent) => void,
+    fn: (event: MonitorEvent) => void | Promise<void>,
   ): this;
   on(eventName: MonitorEventType.Error, fn: (event: Error) => void): this;
   on(eventName: MonitorEventType.Start, fn: () => void): this;
-  on(eventName: string, fn: (...args: any[]) => void): this {
-    this.emitter.on(eventName, fn);
+  on(eventName: string, fn: (...args: any[]) => void | Promise<void>): this {
+    switch (eventName) {
+      case MonitorEventType.TokenInfo:
+        this.tokenInfoHandler = fn as (
+          event: MonitorEvent,
+        ) => void | Promise<void>;
+        break;
+      case MonitorEventType.Error:
+        this.errorHandler = fn as (event: Error) => void;
+        break;
+      case MonitorEventType.Start:
+        this.startHandler = fn as () => void;
+        break;
+    }
     return this;
   }
 
   async start() {
     if (this.isMonitorRunning) {
       // Cannot start the same monitor multiple times
-      this.emitter.emit(
-        MonitorEventType.Error,
-        new MonitorStartError('Monitor already running'),
-      );
+      this.errorHandler?.(new MonitorStartError('Monitor already running'));
       return;
     }
 
@@ -58,13 +110,19 @@ export class Monitor implements IMonitor {
         { checkFrequency: this.checkFrequency },
         'Monitor started',
       );
-      this.emitter.emit(MonitorEventType.Start);
+      this.startHandler?.();
 
       while (this.isMonitorRunning) {
+        const cycleStart = Date.now();
+
         try {
           this.logger.debug('Polling cycle started');
+
+          const confirmedBlockTags = await this.computeConfirmedBlockTags();
+
           const event: MonitorEvent = {
             tokensInfo: [],
+            confirmedBlockTags,
           };
 
           for (const token of this.warpCore.tokens) {
@@ -76,7 +134,11 @@ export class Monitor implements IMonitor {
               },
               'Checking token',
             );
-            const bridgedSupply = await this.getTokenBridgedSupply(token);
+            const blockTag = confirmedBlockTags[token.chainName];
+            const bridgedSupply = await this.getTokenBridgedSupply(
+              token,
+              blockTag,
+            );
 
             event.tokensInfo.push({
               token,
@@ -84,12 +146,12 @@ export class Monitor implements IMonitor {
             });
           }
 
-          // Emit the event warp routes info
-          this.emitter.emit(MonitorEventType.TokenInfo, event);
+          if (this.tokenInfoHandler) {
+            await this.tokenInfoHandler(event);
+          }
           this.logger.debug('Polling cycle completed');
         } catch (error) {
-          this.emitter.emit(
-            MonitorEventType.Error,
+          this.errorHandler?.(
             new MonitorPollingError(
               `Error during monitor execution cycle: ${(error as Error).message}`,
               error as Error,
@@ -97,12 +159,16 @@ export class Monitor implements IMonitor {
           );
         }
 
-        // Wait for the specified check frequency before the next iteration
-        await sleep(this.checkFrequency);
+        // Smart sleep: only wait for remaining time after cycle completes
+        const elapsed = Date.now() - cycleStart;
+        const remaining = this.checkFrequency - elapsed;
+        if (remaining > 0) {
+          await sleep(remaining);
+        }
+        // If elapsed >= checkFrequency, start next cycle immediately
       }
     } catch (error) {
-      this.emitter.emit(
-        MonitorEventType.Error,
+      this.errorHandler?.(
         new MonitorStartError(
           `Error starting monitor: ${(error as Error).message}`,
           error as Error,
@@ -111,7 +177,9 @@ export class Monitor implements IMonitor {
     }
 
     // After the loop has been gracefully terminated, we can clean up.
-    this.emitter.removeAllListeners();
+    this.tokenInfoHandler = undefined;
+    this.errorHandler = undefined;
+    this.startHandler = undefined;
     this.logger.info('Monitor stopped');
 
     // If stop() was called, resolve the promise to signal that we're done.
@@ -124,6 +192,7 @@ export class Monitor implements IMonitor {
 
   private async getTokenBridgedSupply(
     token: Token,
+    blockTag?: ConfirmedBlockTag,
   ): Promise<bigint | undefined> {
     if (!token.isHypToken()) {
       this.logger.warn(
@@ -138,7 +207,25 @@ export class Monitor implements IMonitor {
     }
 
     const adapter = token.getHypAdapter(this.warpCore.multiProvider);
-    const bridgedSupply = await adapter.getBridgedSupply();
+    let bridgedSupply: bigint | undefined;
+
+    try {
+      bridgedSupply = await adapter.getBridgedSupply({ blockTag });
+      this.logger.debug(
+        { chain: token.chainName, blockTag },
+        'Queried confirmed balance',
+      );
+    } catch (error) {
+      this.logger.warn(
+        {
+          chain: token.chainName,
+          blockTag,
+          error: (error as Error).message,
+        },
+        'Historical block query failed, falling back to latest',
+      );
+      bridgedSupply = await adapter.getBridgedSupply();
+    }
 
     if (bridgedSupply === undefined) {
       this.logger.warn(

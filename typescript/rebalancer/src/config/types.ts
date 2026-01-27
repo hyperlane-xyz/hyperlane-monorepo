@@ -39,10 +39,6 @@ const RebalancerBridgeConfigSchema = z.object({
     .transform((val) => val * 1_000)
     .optional()
     .describe('Expected time in seconds for bridge to process a transfer'),
-  bridgeIsWarp: z
-    .boolean()
-    .optional()
-    .describe('True if the bridge is another Warp Route'),
 });
 
 export const RebalancerBaseChainConfigSchema =
@@ -237,4 +233,31 @@ export function getStrategyChainConfig(
     }
   }
   return undefined;
+}
+
+/**
+ * Get all unique bridge addresses from all strategies and their overrides.
+ * This is used by ActionTracker to detect inflight rebalances across all configured bridges.
+ */
+export function getAllBridges(strategies: StrategyConfig[]): string[] {
+  const bridges = new Set<string>();
+
+  for (const strategy of strategies) {
+    for (const chainConfig of Object.values(strategy.chains)) {
+      if (chainConfig.bridge) {
+        bridges.add(chainConfig.bridge);
+      }
+
+      if (chainConfig.override) {
+        for (const overrideConfig of Object.values(chainConfig.override)) {
+          const override = overrideConfig as { bridge?: string };
+          if (override.bridge) {
+            bridges.add(override.bridge);
+          }
+        }
+      }
+    }
+  }
+
+  return Array.from(bridges);
 }

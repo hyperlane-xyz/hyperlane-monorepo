@@ -1,14 +1,18 @@
 import { type Logger } from 'pino';
 
-import type { ChainMap } from '@hyperlane-xyz/sdk';
-import type { Address } from '@hyperlane-xyz/utils';
+import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
 
 import {
   RebalancerStrategyOptions,
   type WeightedStrategyConfig,
 } from '../config/types.js';
-import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
+import type {
+  RawBalances,
+  Route,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -25,12 +29,13 @@ export class WeightedStrategy extends BaseStrategy {
   constructor(
     config: WeightedStrategyConfig,
     logger: Logger,
+    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
-    bridges?: ChainMap<Address[]>,
+    tokensByChainName?: ChainMap<Token>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: WeightedStrategy.name });
-    super(chains, log, metrics, bridges);
+    super(chains, log, bridgeConfigs, metrics, tokensByChainName);
     this.logger = log;
 
     let totalWeight = 0n;
@@ -71,8 +76,8 @@ export class WeightedStrategy extends BaseStrategy {
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    pendingRebalances?: RebalancingRoute[],
-    proposedRebalances?: RebalancingRoute[],
+    pendingRebalances?: Route[],
+    proposedRebalances?: StrategyRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
