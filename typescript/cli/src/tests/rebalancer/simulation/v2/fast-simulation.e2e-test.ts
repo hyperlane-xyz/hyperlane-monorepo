@@ -1,8 +1,9 @@
 /**
- * Fast Simulation E2E Tests
+ * Simulation E2E Tests
  *
- * Tests the optimized FastSimulation with many transfers.
- * Uses minimal delays for maximum throughput.
+ * Tests the IntegratedSimulation with the real RebalancerService.
+ * Uses minimal delays (100ms) for fast test execution while still
+ * running the actual rebalancer daemon.
  */
 import { expect } from 'chai';
 import { pino } from 'pino';
@@ -18,14 +19,17 @@ import {
   type SnapshotInfo,
   startAnvil,
 } from '../../harness/index.js';
-import { FastSimulation } from './FastSimulation.js';
-import { visualizeSimulation, compareSimulations } from './SimulationVisualizer.js';
+import {
+  IntegratedSimulation,
+  createWeightedStrategyConfig,
+} from './IntegratedSimulation.js';
+import { visualizeSimulation } from './SimulationVisualizer.js';
 import type { SimulationRun, ScheduledTransfer } from './types.js';
 
-// Logger for tests
+// Logger for tests - use 'warn' to suppress verbose rebalancer logs
 const logger = pino({ level: 'warn' });
 
-describe('Fast Simulation (Optimized)', function () {
+describe('Simulation (with Real RebalancerService)', function () {
   this.timeout(300_000);
 
   let anvil: AnvilInstance;
@@ -38,10 +42,10 @@ describe('Fast Simulation (Optimized)', function () {
   const INITIAL_COLLATERAL = toWei('10000'); // 10,000 tokens per domain
 
   before(async function () {
-    console.log('\nStarting anvil for fast simulation tests...');
+    console.log('\nStarting anvil for simulation tests...');
     anvil = await startAnvil(8545, logger);
 
-    console.log('Setting up fast simulation environment...');
+    console.log('Setting up simulation environment...');
 
     setup = await createRebalancerTestSetup({
       collateralDomains: COLLATERAL_DOMAINS,
@@ -72,36 +76,37 @@ describe('Fast Simulation (Optimized)', function () {
   });
 
   /**
-   * Create and initialize a FastSimulation with minimal delays.
+   * Create and initialize an IntegratedSimulation with minimal delays.
+   * Uses the real RebalancerService in daemon mode.
    */
-  async function createSimulation(withRebalancer: boolean): Promise<FastSimulation> {
-    const strategyConfig = withRebalancer ? {
-      chains: {
-        [DOMAIN_1.name]: {
-          weight: 50,
-          tolerance: 5, // 5% tolerance - triggers rebalancing sooner
-          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
-        },
-        [DOMAIN_2.name]: {
-          weight: 50,
-          tolerance: 5,
-          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
-        },
-      },
-    } : null;
+  async function createSimulation(withRebalancer: boolean): Promise<IntegratedSimulation> {
+    // Create strategy config only if rebalancer is enabled
+    const strategyConfig = withRebalancer
+      ? createWeightedStrategyConfig(setup, {
+          [DOMAIN_1.name]: { weight: 50, tolerance: 5 },
+          [DOMAIN_2.name]: { weight: 50, tolerance: 5 },
+        })
+      : createWeightedStrategyConfig(setup, {
+          // Even without rebalancing, we need valid config for the service
+          // Use very high tolerance so it never triggers
+          [DOMAIN_1.name]: { weight: 50, tolerance: 100 },
+          [DOMAIN_2.name]: { weight: 50, tolerance: 100 },
+        });
 
-    const simulation = new FastSimulation({
+    const simulation = new IntegratedSimulation({
       setup,
+      warpRouteId: 'test-warp-route',
       // Minimal delays for fast execution
       messageDeliveryDelayMs: 100, // 100ms delivery (near-instant)
       deliveryCheckIntervalMs: 50, // Check every 50ms
       recordingIntervalMs: 200, // Record every 200ms
-      rebalancerIntervalMs: 500, // Check rebalancer every 500ms
+      rebalancerCheckFrequencyMs: 500, // Rebalancer polls every 500ms
+      bridgeTransferDelayMs: 200, // 200ms bridge completion time
       bridgeConfigs: {
         [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
           fixedFee: BigInt(toWei('0.1')),
           variableFeeBps: 10,
-          transferTimeMs: 200, // 200ms bridge time
+          transferTimeMs: 200,
         },
         [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
           fixedFee: BigInt(toWei('0.1')),
@@ -123,7 +128,7 @@ describe('Fast Simulation (Optimized)', function () {
     it('should complete transfers quickly', async function () {
       const simulation = await createSimulation(false);
 
-      // 10 transfers, each 50 tokens (5% of pool)
+      // 10 transfers, each 50 tokens (0.5% of pool)
       const schedule: SimulationRun = {
         name: 'smoke-test',
         durationMs: 5_000, // 5 seconds simulated
@@ -148,7 +153,7 @@ describe('Fast Simulation (Optimized)', function () {
       expect(results.transfers.total).to.equal(10);
       expect(results.transfers.completed).to.equal(10);
       expect(results.transfers.stuck).to.equal(0);
-      expect(results.duration.wallClockMs).to.be.lessThan(15_000);
+      expect(results.duration.wallClockMs).to.be.lessThan(30_000);
     });
   });
 
@@ -159,15 +164,15 @@ describe('Fast Simulation (Optimized)', function () {
       const simulation = await createSimulation(true);
 
       // All transfers go domain1 -> domain2, creating heavy imbalance
-      // 30 transfers of 50 tokens each = 1500 tokens one way
+      // 15 transfers of 100 tokens each = 1500 tokens one way
       // This will create massive imbalance requiring rebalancing
       const transfers: ScheduledTransfer[] = [];
-      for (let i = 0; i < 30; i++) {
+      for (let i = 0; i < 15; i++) {
         transfers.push({
-          time: i * 100, // Every 100ms
+          time: i * 200, // Every 200ms (slower to reduce Anvil load)
           origin: DOMAIN_1.name,
           destination: DOMAIN_2.name,
-          amount: BigInt(toWei('50')), // 50 tokens each (5% of pool)
+          amount: BigInt(toWei('100')), // 100 tokens each (1% of pool)
         });
       }
 
@@ -178,8 +183,8 @@ describe('Fast Simulation (Optimized)', function () {
       };
 
       console.log(`\nRunning heavy imbalanced simulation with ${schedule.transfers.length} transfers...`);
-      console.log('All transfers: domain1 → domain2 (50 tokens each = 1500 total)\n');
-      
+      console.log('All transfers: domain1 → domain2 (100 tokens each = 1500 total)\n');
+
       const results = await simulation.run(schedule);
       console.log(visualizeSimulation(results));
 
@@ -189,10 +194,9 @@ describe('Fast Simulation (Optimized)', function () {
       console.log(`Total rebalanced: ${Number(results.rebalancing.totalVolume) / 1e18} tokens`);
       console.log(`Wall clock time: ${results.duration.wallClockMs}ms`);
 
-      expect(results.transfers.total).to.equal(30);
+      expect(results.transfers.total).to.equal(15);
       // Should trigger rebalancing due to heavy imbalance
       expect(results.rebalancing.count).to.be.greaterThan(0);
     });
   });
-
 });

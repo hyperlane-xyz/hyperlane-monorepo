@@ -104,22 +104,16 @@ Executes warp route transfers:
 - Extracts message bytes from Dispatch events
 - Delivers messages by calling `Mailbox.process()`
 
-### FastSimulation (`v2/FastSimulation.ts`)
-
-High-throughput simulation optimized for many transfers with minimal delays:
-- Uses batch transfer execution for efficiency
-- Configurable delays (100ms message delivery, 500ms rebalancer interval)
-- ASCII visualization of balance timeline and rebalancing events
-- Tracks metrics: latency (min/mean/p95/max), throughput, rebalance count
-
 ### IntegratedSimulation (`v2/IntegratedSimulation.ts`)
 
-Main orchestrator:
+Main simulation orchestrator that runs the **real RebalancerService**:
 1. Starts RebalancerService in daemon mode
-2. Executes scheduled transfers
-3. Delivers Hyperlane messages after delay
+2. Executes scheduled warp route transfers
+3. Delivers Hyperlane messages after configurable delay (default 100ms for fast tests)
 4. Completes bridge transfers after delay
-5. Collects metrics and builds results
+5. Collects metrics and builds results with ASCII visualization
+
+Supports configurable timing for both fast tests (100ms delays) and realistic scenarios (2-3s delays).
 
 ### SimulatedTokenBridge (`solidity/contracts/mock/SimulatedTokenBridge.sol`)
 
@@ -244,7 +238,7 @@ pnpm exec mocha --config .mocharc.json --timeout 180000 --grep "high variance de
 
 ### Fast Simulation Tests (Optimized)
 
-The `FastSimulation` class provides high-throughput testing with minimal delays:
+The simulation supports fast timing (100ms delays) for quick test execution:
 
 ```bash
 # Kill any existing anvil first
@@ -302,7 +296,7 @@ pnpm test:rebalancer:simulation
 
 ## Test Scenarios
 
-### Fast Simulation Tests
+### Fast Tests (100ms delays)
 
 #### Smoke Test (10 transfers)
 - 10 transfers with mixed directions
@@ -421,16 +415,15 @@ typescript/cli/src/tests/rebalancer/
 │   ├── README.md                   # This file
 │   ├── PLAN-v2.md                  # Implementation plan and status
 │   └── v2/
-│       ├── FastSimulation.ts       # High-throughput simulation (optimized)
-│       ├── IntegratedSimulation.ts # Full simulation with real RebalancerService
+│       ├── IntegratedSimulation.ts # Main simulation with real RebalancerService
 │       ├── MockRegistry.ts         # IRegistry implementation
 │       ├── OptimizedTrafficGenerator.ts
 │       ├── SimulationVisualizer.ts # ASCII visualization of results
 │       ├── SimulationClock.ts      # Simulated time management
 │       ├── TrafficPatterns.ts
 │       ├── types.ts
-│       ├── fast-simulation.e2e-test.ts      # Fast simulation tests
-│       ├── integrated-simulation.e2e-test.ts
+│       ├── fast-simulation.e2e-test.ts      # Fast tests (100ms delays)
+│       ├── integrated-simulation.e2e-test.ts # Full integration tests
 │       ├── inflight-tracking.e2e-test.ts
 │       ├── scenario-tests.e2e-test.ts
 │       └── ...

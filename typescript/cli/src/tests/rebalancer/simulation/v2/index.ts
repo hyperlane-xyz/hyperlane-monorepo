@@ -12,10 +12,6 @@ export type { SimulationClockConfig } from './SimulationClock.js';
 // Traffic Generator (optimized, handles message bytes correctly)
 export { OptimizedTrafficGenerator } from './OptimizedTrafficGenerator.js';
 
-// Fast Simulation (optimized for dozens of transfers)
-export { FastSimulation } from './FastSimulation.js';
-export type { FastSimulationConfig } from './FastSimulation.js';
-
 // Integrated Simulation (real RebalancerService)
 export { IntegratedSimulation, createWeightedStrategyConfig } from './IntegratedSimulation.js';
 export type { IntegratedSimulationConfig } from './IntegratedSimulation.js';
