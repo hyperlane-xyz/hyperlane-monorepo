@@ -32,7 +32,10 @@ export interface InventoryExecutionResult {
  * Interface for executing inventory-based rebalances.
  *
  * The InventoryRebalancer handles rebalancing for chains that don't support
- * MovableCollateralRouter (e.g., Solana). The flow is:
+ * MovableCollateralRouter (e.g., Solana). It processes ONE intent at a time:
+ *
+ * 1. If an in_progress intent exists, continue it (ignore new routes)
+ * 2. If no intent exists, take the FIRST route only, create an intent, and execute
  *
  * IMPORTANT: transferRemote ADDS collateral to the chain it's called FROM.
  * So for a strategy route "origin (surplus) → destination (deficit)":
@@ -50,14 +53,14 @@ export interface IInventoryRebalancer {
   /**
    * Execute inventory-based rebalances for the given routes.
    *
-   * @param routes - Routes to execute (from strategy output)
-   * @param intents - Intents created for each route
-   * @returns Execution results for each route
+   * Only ONE route/intent is processed at a time:
+   * - If an in_progress intent exists, continue it (routes are ignored)
+   * - Otherwise, take only the FIRST route, create an intent, and execute
+   *
+   * @param routes - Routes proposed by strategy (only first is used if no active intent)
+   * @returns Execution results (single result for the executed route)
    */
-  execute(
-    routes: InventoryRoute[],
-    intents: RebalanceIntent[],
-  ): Promise<InventoryExecutionResult[]>;
+  execute(routes: InventoryRoute[]): Promise<InventoryExecutionResult[]>;
 
   /**
    * Check if a route can be executed with current inventory.

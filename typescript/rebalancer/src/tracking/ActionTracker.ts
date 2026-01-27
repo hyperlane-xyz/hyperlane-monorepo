@@ -510,19 +510,28 @@ export class ActionTracker implements IActionTracker {
   }
 
   /**
-   * Get inventory intents that are in_progress but not fully fulfilled,
+   * Get inventory intents that are in_progress or not_started but not fully fulfilled,
    * and have no in-flight actions (safe to continue).
    * Returns enriched data with computed values derived from action states.
+   *
+   * NOTE: We include 'not_started' intents because they may have been created
+   * but failed to execute (e.g., all bridges failed viability check). Without
+   * checking for these, we would create duplicate intents every polling cycle.
    */
   async getPartiallyFulfilledInventoryIntents(): Promise<
     PartialInventoryIntent[]
   > {
-    const inProgressIntents =
-      await this.rebalanceIntentStore.getByStatus('in_progress');
+    // Query both in_progress AND not_started intents
+    // not_started intents may exist if execution failed before any action was created
+    const [inProgressIntents, notStartedIntents] = await Promise.all([
+      this.rebalanceIntentStore.getByStatus('in_progress'),
+      this.rebalanceIntentStore.getByStatus('not_started'),
+    ]);
 
+    const allActiveIntents = [...inProgressIntents, ...notStartedIntents];
     const partialIntents: PartialInventoryIntent[] = [];
 
-    for (const intent of inProgressIntents) {
+    for (const intent of allActiveIntents) {
       // Only inventory execution method
       if (intent.executionMethod !== 'inventory') continue;
 

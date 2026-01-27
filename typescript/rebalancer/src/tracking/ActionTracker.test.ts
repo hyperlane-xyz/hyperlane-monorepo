@@ -479,6 +479,85 @@ describe('ActionTracker', () => {
     });
   });
 
+  describe('getPartiallyFulfilledInventoryIntents', () => {
+    it('returns not_started inventory intents', async () => {
+      // Create a not_started inventory intent (simulates failed execution before any action created)
+      await rebalanceIntentStore.save({
+        id: 'stuck-intent',
+        status: 'not_started',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Should be returned even though status is 'not_started'
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal('stuck-intent');
+      expect(partialIntents[0].completedAmount).to.equal(0n);
+      expect(partialIntents[0].remaining).to.equal(1000000000000000000n);
+    });
+
+    it('returns in_progress inventory intents with partial completion', async () => {
+      // Create an in_progress inventory intent with a completed action
+      await rebalanceIntentStore.save({
+        id: 'partial-intent',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n, // 1 ETH
+        executionMethod: 'inventory',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      // Create a completed inventory_deposit action for partial amount
+      await rebalanceActionStore.save({
+        id: 'action-1',
+        type: 'inventory_deposit',
+        status: 'complete',
+        intentId: 'partial-intent',
+        origin: 1,
+        destination: 2,
+        amount: 400000000000000000n, // 0.4 ETH completed
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(1);
+      expect(partialIntents[0].intent.id).to.equal('partial-intent');
+      expect(partialIntents[0].completedAmount).to.equal(400000000000000000n);
+      expect(partialIntents[0].remaining).to.equal(600000000000000000n); // 0.6 ETH remaining
+    });
+
+    it('does not return non-inventory intents', async () => {
+      // Create a not_started intent without executionMethod: 'inventory'
+      await rebalanceIntentStore.save({
+        id: 'non-inventory-intent',
+        status: 'not_started',
+        origin: 1,
+        destination: 2,
+        amount: 1000000000000000000n,
+        // executionMethod is undefined - not an inventory intent
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      const partialIntents =
+        await tracker.getPartiallyFulfilledInventoryIntents();
+
+      expect(partialIntents).to.have.lengthOf(0);
+    });
+  });
+
   describe('createRebalanceIntent', () => {
     it('should create a new intent with status not_started', async () => {
       const result = await tracker.createRebalanceIntent({

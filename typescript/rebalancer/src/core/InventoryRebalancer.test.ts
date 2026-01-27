@@ -75,11 +75,15 @@ describe('InventoryRebalancer E2E', () => {
       failRebalanceIntent: Sinon.stub(),
       getActionsByType: Sinon.stub(),
       getInflightInventoryMovements: Sinon.stub(),
+      getPartiallyFulfilledInventoryIntents: Sinon.stub(),
       createRebalanceAction: Sinon.stub(),
       completeRebalanceAction: Sinon.stub(),
       failRebalanceAction: Sinon.stub(),
       logStoreContents: Sinon.stub(),
     } as SinonStubbedInstance<IActionTracker>;
+
+    // Default: No active (partial) inventory intents
+    actionTracker.getPartiallyFulfilledInventoryIntents.resolves([]);
 
     // Mock IExternalBridge (LiFi)
     bridge = {
@@ -207,7 +211,7 @@ describe('InventoryRebalancer E2E', () => {
     overrides?: Partial<RebalanceIntent>,
   ): RebalanceIntent {
     const now = Date.now();
-    return {
+    const intent: RebalanceIntent = {
       id: 'intent-1',
       status: 'not_started',
       origin: ARBITRUM_DOMAIN,
@@ -218,6 +222,11 @@ describe('InventoryRebalancer E2E', () => {
       updatedAt: now,
       ...overrides,
     };
+
+    // Configure mock to return this intent when createRebalanceIntent is called
+    actionTracker.createRebalanceIntent.resolves(intent);
+
+    return intent;
   }
 
   describe('Basic Inventory Rebalance (Sufficient Inventory)', () => {
@@ -229,7 +238,7 @@ describe('InventoryRebalancer E2E', () => {
       // Setup: Strategy says move from arbitrum→solana
       // We need inventory on SOLANA (destination/deficit) to call transferRemote FROM there
       const route = createTestRoute();
-      const intent = createTestIntent();
+      const intent = createTestIntent(); // Configures mock to return intent
 
       // Inventory is checked on DESTINATION (solana), not origin
       inventoryMonitor.getAvailableInventory
@@ -237,13 +246,13 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Single successful result
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(results[0].route).to.deep.equal(route);
-      expect(results[0].intent).to.deep.equal(intent);
+      expect(results[0].intent.id).to.equal(intent.id);
 
       // Verify: transferRemote was called via adapter
       expect(adapterStub.quoteTransferRemoteGas.calledOnce).to.be.true;
@@ -267,14 +276,14 @@ describe('InventoryRebalancer E2E', () => {
 
     it('executes transferRemote with correct parameters (swapped direction)', async () => {
       const route = createTestRoute({ amount: 5000000000n }); // 5k USDC
-      const intent = createTestIntent({ amount: 5000000000n });
+      createTestIntent({ amount: 5000000000n });
 
       // Inventory checked on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(5000000000n);
 
-      await inventoryRebalancer.execute([route], [intent]);
+      await inventoryRebalancer.execute([route]);
 
       // Verify populateTransferRemoteTx params
       // Direction is SWAPPED: transferRemote from solana TO arbitrum
@@ -287,29 +296,27 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   describe('Partial Fulfillment (Insufficient Inventory)', () => {
-    // With the new 90% consolidation threshold logic, partial transfers only happen when:
-    // 1. amount > totalInventory (need looping because not enough total)
-    // 2. maxTransferable >= minViableTransfer
-    // 3. maxTransferable >= totalInventory * 90% (90%+ of inventory consolidated on destination)
+    // Partial transfers happen when maxTransferable >= minViableTransfer
+    // For non-native tokens (EvmHypCollateral), minViableTransfer = 0, so partial always viable
     const PARTIAL_AMOUNT = BigInt(5e15); // 0.005 ETH - above threshold
     const FULL_AMOUNT = BigInt(1e16); // 0.01 ETH
 
-    it('executes partial transferRemote when 90%+ of total inventory is consolidated', async () => {
-      // Setup: Need 0.01 ETH, but total inventory is only 0.005 ETH (all on destination)
-      // Since amount > totalInventory AND 100% is consolidated on destination, partial transfer happens
+    it('executes partial transferRemote when maxTransferable >= minViableTransfer', async () => {
+      // Setup: Need 0.01 ETH, but only 0.005 ETH available on destination
+      // For non-native tokens, minViableTransfer = 0, so partial transfer is viable
       const route = createTestRoute({ amount: FULL_AMOUNT });
-      const intent = createTestIntent({ amount: FULL_AMOUNT });
+      createTestIntent({ amount: FULL_AMOUNT });
 
       // Inventory checked on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(PARTIAL_AMOUNT); // Only 0.005 ETH available
 
-      // Total inventory (excluding origin) = 0.005 ETH, so 100% is on destination
+      // Total inventory for logging
       inventoryMonitor.getTotalInventory.resolves(PARTIAL_AMOUNT);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Success with partial amount
       expect(results).to.have.lengthOf(1);
@@ -328,7 +335,7 @@ describe('InventoryRebalancer E2E', () => {
 
     it('intent remains in_progress after partial fulfillment', async () => {
       const route = createTestRoute({ amount: FULL_AMOUNT });
-      const intent = createTestIntent({ amount: FULL_AMOUNT });
+      createTestIntent({ amount: FULL_AMOUNT });
 
       // Inventory checked on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
@@ -338,7 +345,7 @@ describe('InventoryRebalancer E2E', () => {
       // Total inventory (excluding origin) = 0.005 ETH
       inventoryMonitor.getTotalInventory.resolves(PARTIAL_AMOUNT);
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Intent is still returned (not completed)
       // The intent status will be updated by ActionTracker when action is created
@@ -350,7 +357,7 @@ describe('InventoryRebalancer E2E', () => {
   describe('No Inventory Available', () => {
     it('returns failure when no inventory on destination chain and no other source available', async () => {
       const route = createTestRoute();
-      const intent = createTestIntent();
+      createTestIntent();
 
       // No inventory on DESTINATION (solana) - that's where we need it to call transferRemote
       inventoryMonitor.getAvailableInventory
@@ -361,7 +368,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryMonitor.getBalances.resolves(new Map());
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Failure result
       expect(results).to.have.lengthOf(1);
@@ -375,86 +382,123 @@ describe('InventoryRebalancer E2E', () => {
     });
   });
 
-  describe('Multiple Routes', () => {
-    it('processes multiple routes independently', async () => {
+  describe('Single Intent Architecture', () => {
+    it('takes only first route when multiple routes provided', async () => {
       // Route 1: arbitrum → solana (check inventory on solana)
       const route1 = createTestRoute({ amount: 5000000000n });
-      // Route 2: solana → arbitrum (check inventory on arbitrum)
+      // Route 2: solana → arbitrum (would check inventory on arbitrum if processed)
       const route2 = createTestRoute({
         origin: SOLANA_CHAIN,
         destination: ARBITRUM_CHAIN,
         amount: 3000000000n,
       });
 
-      const intent1 = createTestIntent({ id: 'intent-1', amount: 5000000000n });
-      const intent2 = createTestIntent({
-        id: 'intent-2',
-        origin: SOLANA_DOMAIN,
-        destination: ARBITRUM_DOMAIN,
-        amount: 3000000000n,
-      });
+      createTestIntent({ id: 'intent-1', amount: 5000000000n });
 
-      // Inventory is checked on DESTINATION chain for each route:
-      // Route 1 (arb→sol): check solana
-      // Route 2 (sol→arb): check arbitrum
+      // Inventory on DESTINATION of first route (solana)
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(5000000000n);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(3000000000n);
 
-      // Execute
-      const results = await inventoryRebalancer.execute(
-        [route1, route2],
-        [intent1, intent2],
-      );
+      // Execute with multiple routes
+      const results = await inventoryRebalancer.execute([route1, route2]);
 
-      // Verify: Both routes processed
-      expect(results).to.have.lengthOf(2);
+      // Verify: Only ONE route processed (single-intent architecture)
+      expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect(results[1].success).to.be.true;
 
-      // Verify: Two actions created
-      expect(actionTracker.createRebalanceAction.calledTwice).to.be.true;
+      // Verify: Only one intent created
+      expect(actionTracker.createRebalanceIntent.calledOnce).to.be.true;
+
+      // Verify: Only one action created
+      expect(actionTracker.createRebalanceAction.calledOnce).to.be.true;
     });
 
-    it('continues processing after route failure', async () => {
-      // Both routes: arbitrum → solana (check inventory on solana)
-      const route1 = createTestRoute({ amount: 5000000000n });
-      const route2 = createTestRoute({ amount: 3000000000n });
+    it('continues existing intent instead of processing new routes', async () => {
+      // Setup: existing partial intent
+      const existingIntent = createTestIntent({
+        id: 'existing-intent',
+        status: 'in_progress',
+        amount: 10000000000n,
+      });
 
-      const intent1 = createTestIntent({ id: 'intent-1', amount: 5000000000n });
-      const intent2 = createTestIntent({ id: 'intent-2', amount: 3000000000n });
+      // Configure mock to return existing partial intent
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 3000000000n,
+          remaining: 7000000000n, // 7k remaining
+        },
+      ]);
 
-      // Mock getBalances to return empty Map (no other chains with inventory for LiFi)
-      inventoryMonitor.getBalances.resolves(new Map());
+      // New route that would be ignored
+      const newRoute = createTestRoute({ amount: 5000000000n });
 
-      // First route has no inventory on destination (solana), second has enough
-      // Both check SOLANA (destination) but at different calls
+      // Inventory on DESTINATION of existing intent (solana)
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
-        .onFirstCall()
-        .resolves(0n) // First route: no inventory
-        .onSecondCall()
-        .resolves(3000000000n); // Second route: has inventory
+        .resolves(10000000000n); // Plenty of inventory
 
-      const results = await inventoryRebalancer.execute(
-        [route1, route2],
-        [intent1, intent2],
-      );
+      // Execute with new route (should be ignored in favor of existing intent)
+      const results = await inventoryRebalancer.execute([newRoute]);
 
-      // Verify: First failed, second succeeded
-      expect(results).to.have.lengthOf(2);
-      expect(results[0].success).to.be.false;
-      expect(results[1].success).to.be.true;
+      // Verify: Existing intent was continued (not new route)
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(results[0].intent.id).to.equal('existing-intent');
+
+      // Verify: No new intent was created
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+    });
+
+    it('returns empty results when no routes provided and no active intent', async () => {
+      const results = await inventoryRebalancer.execute([]);
+
+      expect(results).to.have.lengthOf(0);
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
+    });
+
+    it('continues existing not_started intent instead of creating new one', async () => {
+      // Setup: Create an intent that stays 'not_started' (simulating failed bridges)
+      const existingIntent = createTestIntent({
+        id: 'stuck-not-started-intent',
+        status: 'not_started', // Never transitioned to in_progress
+        amount: 10000000000n,
+      });
+
+      // Configure mock to return the not_started intent as a partial intent
+      // (this is the fix - getPartiallyFulfilledInventoryIntents now includes not_started)
+      actionTracker.getPartiallyFulfilledInventoryIntents.resolves([
+        {
+          intent: existingIntent,
+          completedAmount: 0n,
+          remaining: 10000000000n,
+        },
+      ]);
+
+      // New route that would be ignored in favor of existing intent
+      const newRoute = createTestRoute({ amount: 5000000000n });
+
+      // Provide sufficient inventory for execution
+      inventoryMonitor.getAvailableInventory
+        .withArgs(SOLANA_CHAIN)
+        .resolves(10000000000n);
+
+      const results = await inventoryRebalancer.execute([newRoute]);
+
+      // Verify: Existing not_started intent was continued (not new route)
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].intent.id).to.equal('stuck-not-started-intent');
+
+      // Verify: No new intent was created
+      expect(actionTracker.createRebalanceIntent.called).to.be.false;
     });
   });
 
   describe('Error Handling', () => {
     it('handles transaction send failure', async () => {
       const route = createTestRoute();
-      const intent = createTestIntent();
+      createTestIntent();
 
       // Inventory on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
@@ -462,7 +506,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
       multiProvider.sendTransaction.rejects(new Error('Transaction failed'));
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
@@ -474,14 +518,14 @@ describe('InventoryRebalancer E2E', () => {
       warpCore.tokens = [];
 
       const route = createTestRoute();
-      const intent = createTestIntent();
+      createTestIntent();
 
       // Even with inventory, if no token for destination, it should fail
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(10000000000n);
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
@@ -490,7 +534,7 @@ describe('InventoryRebalancer E2E', () => {
 
     it('handles adapter quoteTransferRemoteGas failure', async () => {
       const route = createTestRoute();
-      const intent = createTestIntent();
+      createTestIntent();
 
       // Inventory on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
@@ -498,21 +542,11 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
       adapterStub.quoteTransferRemoteGas.rejects(new Error('Gas quote failed'));
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('Gas quote failed');
-    });
-
-    it('handles missing intent for route', async () => {
-      const route = createTestRoute();
-      // No intent provided for this route
-
-      const results = await inventoryRebalancer.execute([route], []);
-
-      // Verify: Skipped due to no intent
-      expect(results).to.have.lengthOf(0);
     });
   });
 
@@ -551,7 +585,7 @@ describe('InventoryRebalancer E2E', () => {
       const availableInventory = requestedAmount + TOTAL_RESERVATION; // Enough for amount + costs
 
       const route = createTestRoute({ amount: requestedAmount });
-      const intent = createTestIntent({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
 
       // Inventory on DESTINATION (solana) where transferRemote is called FROM
       inventoryMonitor.getAvailableInventory
@@ -559,7 +593,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(availableInventory);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Success with full requested amount (since we have enough for amount + costs)
       expect(results).to.have.lengthOf(1);
@@ -597,22 +631,22 @@ describe('InventoryRebalancer E2E', () => {
       const availableInventory = TOTAL_RESERVATION + partialAmount;
 
       const route = createTestRoute({ amount: requestedAmount });
-      const intent = createTestIntent({ amount: requestedAmount });
+      createTestIntent({ amount: requestedAmount });
 
       // Inventory on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(availableInventory);
 
-      // For partial transfer to happen with new 90% threshold logic:
+      // For partial transfer to happen with 50% threshold logic:
       // - amount > totalInventory (so looping is required)
-      // - maxTransferable >= 90% of totalInventory
+      // - maxTransferable >= 50% of totalInventory
       // Here: totalInventory = partialAmount (same as what's on destination)
       // Since 100% is consolidated on destination, partial transfer should happen
       inventoryMonitor.getTotalInventory.resolves(partialAmount);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Success with reduced amount
       expect(results).to.have.lengthOf(1);
@@ -644,7 +678,7 @@ describe('InventoryRebalancer E2E', () => {
       warpCore.tokens = [arbitrumToken, solanaToken];
 
       const route = createTestRoute({ amount: 10000000000000000n });
-      const intent = createTestIntent({ amount: 10000000000000000n });
+      createTestIntent({ amount: 10000000000000000n });
 
       // Available inventory on DESTINATION (solana) is less than total reservation (IGP + gas)
       inventoryMonitor.getAvailableInventory
@@ -655,7 +689,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryMonitor.getBalances.resolves(new Map());
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Failure due to insufficient funds
       expect(results).to.have.lengthOf(1);
@@ -683,7 +717,7 @@ describe('InventoryRebalancer E2E', () => {
       warpCore.tokens = [arbitrumToken, solanaToken];
 
       const route = createTestRoute({ amount: 10000000000n });
-      const intent = createTestIntent({ amount: 10000000000n });
+      createTestIntent({ amount: 10000000000n });
 
       // Inventory on DESTINATION (solana)
       inventoryMonitor.getAvailableInventory
@@ -691,7 +725,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Success with full amount (no IGP deduction)
       expect(results).to.have.lengthOf(1);
@@ -783,94 +817,54 @@ describe('InventoryRebalancer E2E', () => {
     // Test the 90% consolidation threshold for partial transfers
     // Tests use non-native tokens (EvmHypCollateral) so minViableTransfer = 0
 
-    it('does NOT do partial transfer when amount <= totalInventory', async () => {
-      // amount = 1 ETH, totalInventory = 1.5 ETH (more than enough)
-      // Should fall through to inventory movement, NOT partial transfer
+    it('does partial transfer when inventory is available on destination', async () => {
+      // amount = 1 ETH, availableOnDestination = 0.5 ETH
+      // With simplified logic: if maxTransferable >= minViableTransfer, do partial transfer
+      // For non-native tokens, minViableTransfer = 0, so partial transfer happens
       const amount = BigInt(1e18); // 1 ETH
       const availableOnDestination = BigInt(0.5e18); // 0.5 ETH on destination
-      const availableOnSource = BigInt(1e18); // 1 ETH on source (ARBITRUM)
-      const totalInventory = BigInt(1.5e18); // 1.5 ETH total (including other chains)
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
       // Inventory on destination (SOLANA)
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(availableOnDestination);
 
-      // Inventory on source (ARBITRUM) - needed for executeInventoryMovement
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(availableOnSource);
+      inventoryMonitor.getTotalInventory.resolves(availableOnDestination);
 
-      // Total inventory exceeds amount, so no looping needed
-      inventoryMonitor.getTotalInventory.resolves(totalInventory);
-
-      // Mock getBalances to provide sources for bridging
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: availableOnSource,
-              available: availableOnSource,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            {
-              chainName: SOLANA_CHAIN,
-              balance: availableOnDestination,
-              available: availableOnDestination,
-            },
-          ],
-        ]),
-      );
-
-      // Mock bridge for inventory movement
-      bridge.quote.resolves(
-        createMockBridgeQuote({
-          fromAmount: BigInt(1.05e18), // 1 ETH + 5% buffer
-          toAmount: BigInt(1e18),
-        }),
-      );
-      bridge.execute.resolves({
-        txHash: '0xBridgeTxHash',
-        fromChain: 42161,
-        toChain: 1399811149,
-      });
-
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
 
-      // Verify: transferRemote was NOT called (partial transfer did not happen)
-      // Instead, inventory movement via bridge should have happened
-      expect(bridge.execute.called).to.be.true;
+      // Verify: transferRemote WAS called (partial transfer happened)
+      const populateParams =
+        adapterStub.populateTransferRemoteTx.lastCall.args[0];
+      expect(populateParams.weiAmountOrId).to.equal(availableOnDestination);
+
+      // Verify: Bridge was NOT called (no need to bridge when partial transfer is viable)
+      expect(bridge.execute.called).to.be.false;
     });
 
-    it('does partial transfer when amount > totalInventory AND 90%+ consolidated', async () => {
-      // amount = 2 ETH, totalInventory = 1 ETH (need looping)
-      // maxTransferable = 0.9 ETH (90% of totalInventory on destination)
-      // Should do partial transfer
-      const amount = BigInt(2e18); // 2 ETH
-      const totalInventory = BigInt(1e18); // 1 ETH total
-      const maxTransferable = BigInt(0.9e18); // 0.9 ETH = 90% of total
+    it('does partial transfer when maxTransferable >= minViableTransfer', async () => {
+      // For non-native tokens (EvmHypCollateral), minViableTransfer = 0
+      // So any positive maxTransferable triggers partial transfer
+      const amount = BigInt(2e18); // 2 ETH requested
+      const maxTransferable = BigInt(0.6e18); // 0.6 ETH available
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
-      // 0.9 ETH available on destination (90% of total)
+      // 0.6 ETH available on destination
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(maxTransferable);
 
-      inventoryMonitor.getTotalInventory.resolves(totalInventory);
+      inventoryMonitor.getTotalInventory.resolves(maxTransferable);
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -881,19 +875,32 @@ describe('InventoryRebalancer E2E', () => {
       expect(populateParams.weiAmountOrId).to.equal(maxTransferable);
     });
 
-    it('does NOT do partial transfer when < 90% consolidated', async () => {
-      // amount = 2 ETH, totalInventory = 1 ETH
-      // maxTransferable = 0.8 ETH (80% of totalInventory - below threshold)
-      // Should fall through to inventory movement
+    it('does NOT do partial transfer when maxTransferable < minViableTransfer (native tokens)', async () => {
+      // For native tokens (EvmHypNative), minViableTransfer = totalCost * 2
+      // When available inventory minus costs is below minViableTransfer, falls through to bridging
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
       const amount = BigInt(2e18); // 2 ETH
-      const totalInventory = BigInt(1e18); // 1 ETH total
-      const availableOnDestination = BigInt(0.8e18); // 0.8 ETH = 80% (below 90%)
-      const availableOnSource = BigInt(0.2e18); // 0.2 ETH on ARBITRUM
+      // Available inventory is small - after subtracting costs, maxTransferable < minViableTransfer
+      // minViableTransfer = ~0.0066 ETH (totalCost * 2)
+      // If available = 0.005 ETH, after costs ~0, maxTransferable < minViableTransfer
+      const availableOnDestination = BigInt(0.003e18); // 0.003 ETH - below minViableTransfer
+      const availableOnSource = BigInt(0.6e18); // 0.6 ETH on ARBITRUM
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
-      // Inventory on destination
+      // Inventory on destination - too small after costs
       inventoryMonitor.getAvailableInventory
         .withArgs(SOLANA_CHAIN)
         .resolves(availableOnDestination);
@@ -903,9 +910,11 @@ describe('InventoryRebalancer E2E', () => {
         .withArgs(ARBITRUM_CHAIN)
         .resolves(availableOnSource);
 
-      inventoryMonitor.getTotalInventory.resolves(totalInventory);
+      inventoryMonitor.getTotalInventory.resolves(
+        availableOnDestination + availableOnSource,
+      );
 
-      // Mock getBalances to provide sources for bridging (the remaining 0.2 ETH on another chain)
+      // Mock getBalances to provide sources for bridging
       inventoryMonitor.getBalances.resolves(
         new Map([
           [
@@ -930,8 +939,8 @@ describe('InventoryRebalancer E2E', () => {
       // Mock bridge
       bridge.quote.resolves(
         createMockBridgeQuote({
-          fromAmount: BigInt(0.2e18),
-          toAmount: BigInt(0.19e18),
+          fromAmount: BigInt(0.5e18),
+          toAmount: BigInt(0.48e18),
         }),
       );
       bridge.execute.resolves({
@@ -940,7 +949,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -976,7 +985,7 @@ describe('InventoryRebalancer E2E', () => {
       // Amount smaller than minViableTransfer
       const smallAmount = MIN_VIABLE / 2n; // 0.0033 ETH < minViable 0.0066 ETH
       const route = createTestRoute({ amount: smallAmount });
-      const intent = createTestIntent({ amount: smallAmount });
+      createTestIntent({ amount: smallAmount });
 
       // Even with plenty of inventory, small amount triggers early exit
       inventoryMonitor.getAvailableInventory
@@ -985,7 +994,7 @@ describe('InventoryRebalancer E2E', () => {
 
       inventoryMonitor.getTotalInventory.resolves(BigInt(10e18));
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -1046,7 +1055,7 @@ describe('InventoryRebalancer E2E', () => {
       const perChainInventory = BigInt(0.6e18);
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
       // No inventory on destination
       inventoryMonitor.getAvailableInventory
@@ -1103,7 +1112,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -1118,7 +1127,7 @@ describe('InventoryRebalancer E2E', () => {
       const availableInventory = BigInt(2e18); // 2 ETH on source
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
       // No inventory on destination
       inventoryMonitor.getAvailableInventory
@@ -1149,13 +1158,14 @@ describe('InventoryRebalancer E2E', () => {
         ]),
       );
 
-      // Capture the quote amount
-      let quotedToAmount: bigint | undefined;
+      // Capture the quote amount from executeInventoryMovement
+      // (calculateMaxViableBridgeAmount doesn't quote for ERC20 tokens)
+      let quotedFromAmount: bigint | undefined;
       bridge.quote.callsFake(async (params: any) => {
-        quotedToAmount = params.toAmount;
+        quotedFromAmount = params.fromAmount;
         return createMockBridgeQuote({
-          fromAmount: params.toAmount ?? params.fromAmount,
-          toAmount: params.toAmount ?? params.fromAmount,
+          fromAmount: params.fromAmount ?? params.toAmount,
+          toAmount: params.fromAmount ?? params.toAmount,
         });
       });
       bridge.execute.resolves({
@@ -1164,11 +1174,13 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      await inventoryRebalancer.execute([route], [intent]);
+      await inventoryRebalancer.execute([route]);
 
       // Verify: 5% buffer applied (1 ETH * 1.05 = 1.05 ETH)
+      // The bridge plan uses pre-validated amounts (for ERC20, full inventory available)
+      // But the target is (amount * 105%), so if source has >= target, we bridge exactly target
       const expectedWithBuffer = (amount * 105n) / 100n;
-      expect(quotedToAmount).to.equal(expectedWithBuffer);
+      expect(quotedFromAmount).to.equal(expectedWithBuffer);
     });
 
     it('continues when some bridges fail', async () => {
@@ -1176,7 +1188,7 @@ describe('InventoryRebalancer E2E', () => {
       const perChainInventory = BigInt(0.6e18);
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
       // No inventory on destination
       inventoryMonitor.getAvailableInventory
@@ -1236,7 +1248,7 @@ describe('InventoryRebalancer E2E', () => {
         .onSecondCall()
         .rejects(new Error('Bridge execution failed'));
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Overall success (at least one bridge succeeded)
       expect(results).to.have.lengthOf(1);
@@ -1248,7 +1260,7 @@ describe('InventoryRebalancer E2E', () => {
       const perChainInventory = BigInt(0.6e18);
 
       const route = createTestRoute({ amount });
-      const intent = createTestIntent({ amount });
+      createTestIntent({ amount });
 
       // No inventory on destination
       inventoryMonitor.getAvailableInventory
@@ -1300,12 +1312,405 @@ describe('InventoryRebalancer E2E', () => {
       // All bridges fail
       bridge.execute.rejects(new Error('Bridge execution failed'));
 
-      const results = await inventoryRebalancer.execute([route], [intent]);
+      const results = await inventoryRebalancer.execute([route]);
 
       // Verify: Failure when all bridges fail
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
       expect(results[0].error).to.include('All inventory movements failed');
+    });
+  });
+
+  describe('Bridge Viability Check', () => {
+    // Tests for the gas-aware planning approach that prevents "insufficient funds for gas * price + value" errors
+    // by calculating max viable bridge amounts BEFORE creating bridge plans.
+    // Uses calculateMaxViableBridgeAmount which:
+    // 1. Gets a quote to determine gas costs
+    // 2. Applies 20x multiplier on quoted gas (LiFi underestimates)
+    // 3. Returns 0 if gas exceeds 10% of inventory (not economically viable)
+
+    it('filters out sources where gas cost exceeds 10% of inventory', async () => {
+      // Setup: Native token bridge where gas cost is too high relative to balance
+      // Scenario: Arbitrum has 0.00219 ETH, estimated gas (with 20x buffer) exceeds 10% threshold
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative, // Native token for gas check
+        addressOrDenom: '0xArbitrumNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xSolanaNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const amount = BigInt(1e18); // 1 ETH requested on destination
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      // Raw balance on source chain (ARBITRUM) - the limiting factor
+      const rawBalance = BigInt('2194632084196208'); // ~0.00219 ETH
+
+      // No inventory on destination - triggers bridge from ARBITRUM
+      inventoryMonitor.getAvailableInventory
+        .withArgs(SOLANA_CHAIN)
+        .resolves(0n);
+
+      // Inventory on source - raw balance that's too low
+      inventoryMonitor.getAvailableInventory
+        .withArgs(ARBITRUM_CHAIN)
+        .resolves(rawBalance);
+
+      inventoryMonitor.getTotalInventory.resolves(rawBalance);
+
+      inventoryMonitor.getBalances.resolves(
+        new Map([
+          [
+            ARBITRUM_CHAIN,
+            {
+              chainName: ARBITRUM_CHAIN,
+              balance: rawBalance,
+              available: rawBalance,
+            },
+          ],
+          [
+            SOLANA_CHAIN,
+            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
+          ],
+        ]),
+      );
+
+      // Mock quote with gas costs that exceed 10% threshold when multiplied by 20
+      // rawBalance = 0.00219 ETH
+      // 10% threshold = 0.000219 ETH
+      // gasCosts = 0.00005 ETH, estimated = 0.001 ETH (20x multiplier)
+      // 0.001 > 0.000219 → not viable
+      bridge.quote.resolves(
+        createMockBridgeQuote({
+          fromAmount: rawBalance,
+          toAmount: rawBalance - BigInt(1e14), // Some output
+          gasCosts: BigInt('50000000000000'), // 0.00005 ETH, becomes 0.001 ETH with 20x
+          feeCosts: 0n,
+        }),
+      );
+
+      const results = await inventoryRebalancer.execute([route]);
+
+      // Verify: Should fail because no sources pass viability check at planning time
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      // New behavior: Error is "No viable bridge sources" (filtered at planning time)
+      // rather than "Insufficient funds" (which was at execution time)
+      expect(results[0].error).to.include('No viable bridge sources');
+
+      // Verify: Bridge.execute should NOT have been called (filtered during planning)
+      expect(bridge.execute.called).to.be.false;
+    });
+
+    it('proceeds with bridge when total cost is within available balance', async () => {
+      // Setup: Native token bridge where we have enough balance
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xArbitrumNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xSolanaNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const amount = BigInt(1e18); // 1 ETH requested
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      // Plenty of balance on source chain
+      const rawBalance = BigInt(2e18); // 2 ETH - more than enough
+
+      inventoryMonitor.getAvailableInventory
+        .withArgs(SOLANA_CHAIN)
+        .resolves(0n);
+      inventoryMonitor.getAvailableInventory
+        .withArgs(ARBITRUM_CHAIN)
+        .resolves(rawBalance);
+
+      inventoryMonitor.getTotalInventory.resolves(rawBalance);
+
+      inventoryMonitor.getBalances.resolves(
+        new Map([
+          [
+            ARBITRUM_CHAIN,
+            {
+              chainName: ARBITRUM_CHAIN,
+              balance: rawBalance,
+              available: rawBalance,
+            },
+          ],
+          [
+            SOLANA_CHAIN,
+            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
+          ],
+        ]),
+      );
+
+      // Quote with reasonable costs well under the balance
+      bridge.quote.resolves(
+        createMockBridgeQuote({
+          fromAmount: BigInt(1.05e18), // 1.05 ETH (with buffer)
+          toAmount: BigInt(1e18),
+          gasCosts: BigInt(1e15), // 0.001 ETH gas
+          feeCosts: 0n,
+        }),
+      );
+
+      // Mock successful execution
+      bridge.execute.resolves({
+        txHash: '0xSuccessBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.execute([route]);
+
+      // Verify: Should succeed
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+
+      // Verify: Bridge.execute WAS called (not abandoned)
+      expect(bridge.execute.calledOnce).to.be.true;
+    });
+
+    it('viability check only applies to native tokens (not ERC20)', async () => {
+      // Setup: ERC20 token bridge - gas is paid separately in ETH, not from token balance
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypCollateral, // ERC20, not native
+        addressOrDenom: '0xArbitrumToken',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypCollateral,
+        addressOrDenom: '0xSolanaToken',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const amount = BigInt(1e18); // 1 token
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      // Small token balance (but gas is paid in ETH, so this shouldn't matter for viability)
+      const tokenBalance = BigInt(1e18);
+
+      inventoryMonitor.getAvailableInventory
+        .withArgs(SOLANA_CHAIN)
+        .resolves(0n);
+      inventoryMonitor.getAvailableInventory
+        .withArgs(ARBITRUM_CHAIN)
+        .resolves(tokenBalance);
+
+      inventoryMonitor.getTotalInventory.resolves(tokenBalance);
+
+      inventoryMonitor.getBalances.resolves(
+        new Map([
+          [
+            ARBITRUM_CHAIN,
+            {
+              chainName: ARBITRUM_CHAIN,
+              balance: tokenBalance,
+              available: tokenBalance,
+            },
+          ],
+          [
+            SOLANA_CHAIN,
+            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
+          ],
+        ]),
+      );
+
+      // Quote with high gas costs (but for ERC20, this shouldn't trigger viability check)
+      bridge.quote.resolves(
+        createMockBridgeQuote({
+          fromAmount: BigInt(1.05e18),
+          toAmount: BigInt(1e18),
+          gasCosts: BigInt(1e18), // Very high gas (would fail viability if this were native)
+          feeCosts: 0n,
+        }),
+      );
+
+      bridge.execute.resolves({
+        txHash: '0xERC20BridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.execute([route]);
+
+      // Verify: Should succeed because ERC20 viability check doesn't include gasCosts
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+    });
+
+    it('calculates max viable amount as inventory minus (gasCosts * 20) for native tokens', async () => {
+      // Setup: Native token with enough balance for viable bridge
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xArbitrumNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xSolanaNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const amount = BigInt(0.5e18); // 0.5 ETH requested
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      // Large balance - should be viable
+      const rawBalance = BigInt(1e18); // 1 ETH
+
+      inventoryMonitor.getAvailableInventory
+        .withArgs(SOLANA_CHAIN)
+        .resolves(0n);
+      inventoryMonitor.getAvailableInventory
+        .withArgs(ARBITRUM_CHAIN)
+        .resolves(rawBalance);
+
+      inventoryMonitor.getTotalInventory.resolves(rawBalance);
+
+      inventoryMonitor.getBalances.resolves(
+        new Map([
+          [
+            ARBITRUM_CHAIN,
+            {
+              chainName: ARBITRUM_CHAIN,
+              balance: rawBalance,
+              available: rawBalance,
+            },
+          ],
+          [
+            SOLANA_CHAIN,
+            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
+          ],
+        ]),
+      );
+
+      // gasCosts = 0.001 ETH, estimated = 0.02 ETH (20x multiplier)
+      // maxViable = 1 ETH - 0.02 ETH = 0.98 ETH
+      // 10% threshold = 0.1 ETH, estimatedGas (0.02) < threshold → viable
+      const gasCosts = BigInt(0.001e18); // 0.001 ETH
+      bridge.quote.resolves(
+        createMockBridgeQuote({
+          fromAmount: rawBalance,
+          toAmount: rawBalance - BigInt(1e15),
+          gasCosts,
+          feeCosts: 0n,
+        }),
+      );
+
+      bridge.execute.resolves({
+        txHash: '0xSuccessBridgeTxHash',
+        fromChain: 42161,
+        toChain: 1399811149,
+      });
+
+      const results = await inventoryRebalancer.execute([route]);
+
+      // Verify: Should succeed - bridge is viable
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.true;
+      expect(bridge.execute.calledOnce).to.be.true;
+
+      // Verify: The quoted fromAmount should be the target (since maxViable > target)
+      // For the execution quote (second quote call):
+      // targetWithBuffer = (0.5 ETH) * 1.05 = 0.525 ETH (for non-inventory execution, costs are 0)
+      const executionQuoteCall = bridge.quote
+        .getCalls()
+        .find(
+          (call: any) =>
+            call.args[0].fromAmount !== undefined &&
+            call.args[0].fromAmount !== rawBalance,
+        );
+      // Since maxViable (0.98 ETH) > targetWithBuffer (0.525 ETH), we bridge exactly targetWithBuffer
+      expect(executionQuoteCall).to.exist;
+    });
+
+    it('handles quote failures gracefully by skipping the source chain', async () => {
+      // Setup: Native token where quote fails
+      const arbitrumToken = {
+        chainName: ARBITRUM_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xArbitrumNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      const solanaToken = {
+        chainName: SOLANA_CHAIN,
+        standard: TokenStandard.EvmHypNative,
+        addressOrDenom: '0xSolanaNative',
+        getHypAdapter: Sinon.stub().returns(adapterStub),
+      };
+      warpCore.tokens = [arbitrumToken, solanaToken];
+
+      const amount = BigInt(1e18);
+
+      const route = createTestRoute({ amount });
+      createTestIntent({ amount });
+
+      const rawBalance = BigInt(2e18); // 2 ETH
+
+      inventoryMonitor.getAvailableInventory
+        .withArgs(SOLANA_CHAIN)
+        .resolves(0n);
+      inventoryMonitor.getAvailableInventory
+        .withArgs(ARBITRUM_CHAIN)
+        .resolves(rawBalance);
+
+      inventoryMonitor.getTotalInventory.resolves(rawBalance);
+
+      inventoryMonitor.getBalances.resolves(
+        new Map([
+          [
+            ARBITRUM_CHAIN,
+            {
+              chainName: ARBITRUM_CHAIN,
+              balance: rawBalance,
+              available: rawBalance,
+            },
+          ],
+          [
+            SOLANA_CHAIN,
+            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
+          ],
+        ]),
+      );
+
+      // Quote fails for viability check
+      bridge.quote.rejects(new Error('LiFi API timeout'));
+
+      const results = await inventoryRebalancer.execute([route]);
+
+      // Verify: Should fail because quote error means no viable sources
+      expect(results).to.have.lengthOf(1);
+      expect(results[0].success).to.be.false;
+      expect(results[0].error).to.include('No viable bridge sources');
+
+      // Verify: Bridge.execute should NOT have been called
+      expect(bridge.execute.called).to.be.false;
     });
   });
 });

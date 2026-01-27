@@ -418,6 +418,13 @@ export class RebalancerService {
       this.logger.info('No rebalancing needed');
     }
 
+    // TODO: we should refactor this
+    // Always check for existing inventory intents to continue, even when no new routes proposed.
+    // This handles the case where the bridge completed but the transferRemote hasn't been sent yet.
+    if (this.inventoryRebalancer && rebalancingRoutes.length === 0) {
+      await this.executeInventoryRoutes([]);
+    }
+
     this.logger.info('Polling cycle completed');
   }
 
@@ -595,35 +602,20 @@ export class RebalancerService {
 
   /**
    * Execute inventory routes using the InventoryRebalancer.
+   *
+   * InventoryRebalancer handles single-intent logic internally:
+   * - If an in_progress intent exists, continues it (ignores new routes)
+   * - Otherwise, takes only the first route and creates a new intent
    */
   private async executeInventoryRoutes(routes: StrategyRoute[]): Promise<void> {
-    if (!this.inventoryRebalancer || !this.actionTracker) return;
+    if (!this.inventoryRebalancer) return;
 
     // Refresh inventory balances before execution
     if (this.inventoryMonitor) {
       await this.inventoryMonitor.refresh();
     }
 
-    // 1. Create intents for each route
-    const intents = await Promise.all(
-      routes.map((route) =>
-        this.actionTracker!.createRebalanceIntent({
-          origin: this.multiProvider.getDomainId(route.origin),
-          destination: this.multiProvider.getDomainId(route.destination),
-          amount: route.amount,
-          bridge: route.bridge,
-          executionMethod: 'inventory',
-          originalDeficit: route.amount, // Track original deficit for re-evaluation
-        }),
-      ),
-    );
-
-    this.logger.debug(
-      { intentCount: intents.length },
-      'Created inventory rebalance intents',
-    );
-
-    // 2. Convert routes to inventory routes and execute
+    // Convert routes and let InventoryRebalancer decide what to execute
     const inventoryRoutes: InventoryRoute[] = routes.map((r) => ({
       origin: r.origin,
       destination: r.destination,
@@ -631,10 +623,7 @@ export class RebalancerService {
     }));
 
     try {
-      const results = await this.inventoryRebalancer.execute(
-        inventoryRoutes,
-        intents,
-      );
+      const results = await this.inventoryRebalancer.execute(inventoryRoutes);
 
       // Log results
       const successful = results.filter((r) => r.success);
@@ -661,89 +650,6 @@ export class RebalancerService {
       }
     } catch (error: any) {
       this.logger.error({ error }, 'Error while executing inventory routes');
-
-      // Mark all intents as failed
-      await Promise.all(
-        intents.map((intent) =>
-          this.actionTracker!.failRebalanceIntent(intent.id),
-        ),
-      );
-    }
-  }
-
-  /**
-   * Continue fulfilling partially-fulfilled inventory intents.
-   * Called each cycle to make progress on intents that couldn't be fully
-   * fulfilled in previous cycles.
-   */
-  private async continuePartialInventoryIntents(): Promise<void> {
-    if (!this.inventoryRebalancer || !this.actionTracker) return;
-
-    const partialIntents =
-      await this.actionTracker.getPartiallyFulfilledInventoryIntents();
-
-    if (partialIntents.length === 0) return;
-
-    this.logger.info(
-      {
-        count: partialIntents.length,
-        intents: partialIntents.map((p) => ({
-          id: p.intent.id,
-          origin: this.multiProvider.getChainName(p.intent.origin),
-          destination: this.multiProvider.getChainName(p.intent.destination),
-          remaining: p.remaining.toString(),
-          completed: p.completedAmount.toString(),
-          total: p.intent.amount.toString(),
-        })),
-      },
-      'Found partially-fulfilled inventory intents to continue',
-    );
-
-    // Refresh inventory balances before execution
-    if (this.inventoryMonitor) {
-      await this.inventoryMonitor.refresh();
-    }
-
-    // Convert to routes using the pre-computed remaining amount
-    const routes: InventoryRoute[] = partialIntents.map((p) => ({
-      origin: this.multiProvider.getChainName(p.intent.origin),
-      destination: this.multiProvider.getChainName(p.intent.destination),
-      amount: p.remaining,
-    }));
-
-    // Extract the raw intents for execution
-    const intents = partialIntents.map((p) => p.intent);
-
-    try {
-      const results = await this.inventoryRebalancer.execute(routes, intents);
-
-      const successful = results.filter((r) => r.success);
-      const failed = results.filter((r) => !r.success);
-
-      if (successful.length > 0) {
-        this.logger.info(
-          { count: successful.length },
-          'Continued partial inventory intents successfully',
-        );
-      }
-
-      if (failed.length > 0) {
-        this.logger.warn(
-          {
-            count: failed.length,
-            errors: failed.map((r) => ({
-              route: `${r.route.origin} → ${r.route.destination}`,
-              error: r.error,
-            })),
-          },
-          'Some partial inventory continuations failed',
-        );
-      }
-    } catch (error: any) {
-      this.logger.error(
-        { error },
-        'Error continuing partial inventory intents',
-      );
     }
   }
 
