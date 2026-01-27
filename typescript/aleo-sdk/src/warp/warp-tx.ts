@@ -188,6 +188,52 @@ export function getUnenrollRemoteRouterTx(
 }
 
 /**
+ * Generate post-deployment transactions for ISM setup and router enrollment.
+ * Used after token deployment to configure ISM and enroll remote routers.
+ *
+ * @param tokenAddress The deployed token address
+ * @param config The warp token configuration
+ * @returns Array of transactions to execute in order
+ */
+export function getPostDeploymentUpdateTxs<
+  TConfig extends RawWarpArtifactConfig,
+>(tokenAddress: string, config: TConfig): AleoTransaction[] {
+  const txs: AleoTransaction[] = [];
+
+  // Set ISM if configured
+  if (config.interchainSecurityModule) {
+    const setIsmTx = getSetTokenIsmTx(
+      tokenAddress,
+      config.interchainSecurityModule.deployed.address,
+    );
+
+    txs.push(setIsmTx);
+  }
+
+  // Enroll remote routers
+  for (const [domainIdStr, remoteRouter] of Object.entries(
+    config.remoteRouters,
+  )) {
+    const domainId = parseInt(domainIdStr);
+    const gas = config.destinationGas[domainId] || '0';
+
+    const enrollTx = getEnrollRemoteRouterTx(
+      tokenAddress,
+      domainId,
+      remoteRouter.address,
+      gas,
+    );
+
+    txs.push(enrollTx);
+  }
+
+  // We don't transfer ownership here because after deployment the token needs to be
+  // enrolled with the other tokens deployed and only the owner can do that
+
+  return txs;
+}
+
+/**
  * Generates update transactions for a warp token by comparing current on-chain state
  * with desired configuration. Returns transactions for ISM updates, router enrollment/unenrollment,
  * and ownership transfer (always last).

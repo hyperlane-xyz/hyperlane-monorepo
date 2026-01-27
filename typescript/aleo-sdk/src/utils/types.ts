@@ -3,6 +3,8 @@ import {
   type ExecuteOptions,
 } from '@provablehq/sdk';
 
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { type RawWarpArtifactConfig } from '@hyperlane-xyz/provider-sdk/warp';
 import { type Annotated } from '@hyperlane-xyz/utils';
 
 export interface AleoTransaction extends ExecuteOptions {}
@@ -82,3 +84,38 @@ export type AleoWarpTokenConfig =
   | AleoNativeWarpTokenConfig
   | AleoCollateralWarpTokenConfig
   | AleoSyntheticWarpTokenConfig;
+
+/**
+ * Transform Aleo warp token's common fields to provider-sdk artifact format.
+ * Handles ISM, remote routers, and destination gas transformations that are
+ * identical across all token types.
+ */
+export function aleoWarpFieldsToArtifactApi(
+  token: Pick<AleoWarpTokenConfig, 'ism' | 'remoteRouters'>,
+): Pick<
+  RawWarpArtifactConfig,
+  'interchainSecurityModule' | 'remoteRouters' | 'destinationGas'
+> {
+  return {
+    interchainSecurityModule: token.ism
+      ? {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: token.ism,
+          },
+        }
+      : undefined,
+    remoteRouters: Object.fromEntries(
+      Object.entries(token.remoteRouters).map(([domainId, router]) => [
+        domainId,
+        { address: router.address },
+      ]),
+    ),
+    destinationGas: Object.fromEntries(
+      Object.entries(token.remoteRouters).map(([domainId, router]) => [
+        domainId,
+        router.gas,
+      ]),
+    ),
+  };
+}
