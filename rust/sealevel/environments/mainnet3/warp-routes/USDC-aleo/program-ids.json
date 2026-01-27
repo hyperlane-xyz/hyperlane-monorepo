@@ -1,27 +1,7 @@
 {
-  "base": {
-    "hex": "0x000000000000000000000000b46930ca998587a95d9ee000fa73a071add56b64",
-    "base58": "1111111111113WnAnUWt3ARHLCXxWMr1U9evkquu"
-  },
-  "avalanche": {
-    "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
-    "base58": "111111111111SjqQJzwJohXQWqixNet95xeidP6"
-  },
-  "arbitrum": {
-    "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
-    "base58": "111111111111SjqQJzwJohXQWqixNet95xeidP6"
-  },
-  "ethereum": {
-    "hex": "0x00000000000000000000000078ac7fecd1857f5beee98ab39096c9781f976d97",
-    "base58": "1111111111112gWXCG9JeCFZepuULEfd2GRcWgAS"
-  },
-  "optimism": {
-    "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
-    "base58": "111111111111SjqQJzwJohXQWqixNet95xeidP6"
-  },
-  "bsc": {
-    "hex": "0x0000000000000000000000005284d803a4563dc5ee83fea80c688b096d70eb75",
-    "base58": "11111111111129gM5NRkod7xFfrpv8Doiu6xGVr4"
+  "aleo": {
+    "hex": "0x599c6fa27b9b1dcefd2b9e5d749e6435d94a56ad9bf9d917237d97b34490620a",
+    "base58": "72oe162P2SnDQBnicXujNnHUVqz5UbCwtxGZHeDgvc8H"
   },
   "polygon": {
     "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
@@ -31,8 +11,28 @@
     "hex": "0xcbc86103aea36314563d1c383e1d3415b2f59430fc6a78a564758d990e785cef",
     "base58": "EiUymjh3vJ2486ozY24s1A1YWXoH6QnSGjWuP95ph35G"
   },
-  "aleo": {
-    "hex": "0x599c6fa27b9b1dcefd2b9e5d749e6435d94a56ad9bf9d917237d97b34490620a",
-    "base58": "72oe162P2SnDQBnicXujNnHUVqz5UbCwtxGZHeDgvc8H"
+  "ethereum": {
+    "hex": "0x00000000000000000000000078ac7fecd1857f5beee98ab39096c9781f976d97",
+    "base58": "1111111111112gWXCG9JeCFZepuULEfd2GRcWgAS"
+  },
+  "optimism": {
+    "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
+    "base58": "111111111111SjqQJzwJohXQWqixNet95xeidP6"
+  },
+  "arbitrum": {
+    "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
+    "base58": "111111111111SjqQJzwJohXQWqixNet95xeidP6"
+  },
+  "base": {
+    "hex": "0x000000000000000000000000b46930ca998587a95d9ee000fa73a071add56b64",
+    "base58": "1111111111113WnAnUWt3ARHLCXxWMr1U9evkquu"
+  },
+  "bsc": {
+    "hex": "0x0000000000000000000000005284d803a4563dc5ee83fea80c688b096d70eb75",
+    "base58": "11111111111129gM5NRkod7xFfrpv8Doiu6xGVr4"
+  },
+  "avalanche": {
+    "hex": "0x0000000000000000000000001fda66fa15a261f01f1e09228d41bd0a806d7529",
+    "base58": "111111111111SjqQJzwJohXQWqixNet95xeidP6"
   }
 }
