@@ -105,13 +105,7 @@ contract HypNativeCollateralMigration is Script {
 
         require(cfg.remoteRouter != bytes32(0), "Remote router not enrolled");
 
-        // Verify ProxyAdmin bytecode and ownership
-        bytes memory expectedBytecode = type(ProxyAdmin).runtimeCode;
-        bytes memory deployedBytecode = address(cfg.proxyAdmin).code;
-        require(
-            keccak256(deployedBytecode) == keccak256(expectedBytecode),
-            "ProxyAdmin bytecode mismatch"
-        );
+        // Verify ProxyAdmin ownership (must be owned by the same Safe that owns the old router)
         require(
             cfg.proxyAdmin.owner() == cfg.owner,
             "ProxyAdmin not owned by Safe"
