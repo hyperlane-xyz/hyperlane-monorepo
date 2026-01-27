@@ -29,6 +29,7 @@ import {TokenRouter} from "../../contracts/token/libs/TokenRouter.sol";
 import {Quote} from "../../contracts/interfaces/ITokenBridge.sol";
 
 import {ERC4626RebalancingBridge} from "../../contracts/token/bridge/ERC4626RebalancingBridge.sol";
+import {ITokenBridge} from "../../contracts/interfaces/ITokenBridge.sol";
 
 contract ERC4626RebalancingBridgeTest is Test {
     using TypeCasts for address;
@@ -58,7 +59,11 @@ contract ERC4626RebalancingBridgeTest is Test {
     HypERC20 internal remoteToken;
 
     // Events from ERC4626RebalancingBridge
-    event Deposited(address indexed depositor, uint256 assets, uint256 shares);
+    event PrincipalDeposited(
+        address indexed depositor,
+        uint256 assets,
+        uint256 shares
+    );
     event PrincipalWithdrawn(
         address indexed recipient,
         uint256 assets,
@@ -138,6 +143,13 @@ contract ERC4626RebalancingBridgeTest is Test {
             address(warpRoute).addressToBytes32()
         );
 
+        // Self-enroll the warp route for its local domain to enable local rebalancing
+        // This is required for addBridge() and rebalance() to work with the local domain
+        warpRoute.enrollRemoteRouter(
+            ORIGIN,
+            address(warpRoute).addressToBytes32()
+        );
+
         // Set fee recipient on warp route
         warpRoute.setFeeRecipient(FEE_RECIPIENT);
 
@@ -147,6 +159,10 @@ contract ERC4626RebalancingBridgeTest is Test {
             warpRoute
         );
 
+        // Add bridge to warp route for local domain and add rebalancer
+        warpRoute.addBridge(ORIGIN, ITokenBridge(address(bridge)));
+        warpRoute.addRebalancer(REBALANCER);
+
         // Fund ALICE and warp route
         token.transfer(ALICE, 100_000e18);
         token.transfer(address(warpRoute), 50_000e18); // Collateral in warp route
@@ -154,15 +170,10 @@ contract ERC4626RebalancingBridgeTest is Test {
 
     // ============ Helper Functions ============
 
-    /// @dev Simulates depositing via transferRemote (how rebalance would work)
-    function _depositViaBridge(uint256 amount) internal {
-        // Approve bridge to pull from this contract (simulating warp route approval)
-        token.approve(address(bridge), amount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            amount
-        );
+    /// @dev Deposits via the real rebalance flow (rebalancer -> warpRoute.rebalance -> bridge.transferRemote)
+    function _depositViaRebalance(uint256 amount) internal {
+        vm.prank(REBALANCER);
+        warpRoute.rebalance(ORIGIN, amount, ITokenBridge(address(bridge)));
     }
 
     // ============ Constructor Tests ============
@@ -204,92 +215,149 @@ contract ERC4626RebalancingBridgeTest is Test {
         new ERC4626RebalancingBridge(IERC4626(address(otherVault)), warpRoute);
     }
 
-    // ============ TransferRemote (Deposit) Tests ============
+    // ============ Rebalance (Deposit) Tests ============
 
-    function test_transferRemote_depositsToVault() public {
+    function test_rebalance_depositsToVault() public {
         uint256 depositAmount = 1000e18;
-
-        token.approve(address(bridge), depositAmount);
 
         uint256 vaultSharesBefore = vault.balanceOf(address(bridge));
         uint256 principalBefore = bridge.principalDeposited();
+        uint256 warpRouteBalanceBefore = token.balanceOf(address(warpRoute));
 
         vm.expectEmit(true, false, false, true);
-        emit Deposited(address(this), depositAmount, depositAmount); // 1:1 initially
-
-        bytes32 messageId = bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
+        emit PrincipalDeposited(
+            address(warpRoute),
+            depositAmount,
             depositAmount
-        );
+        ); // 1:1 initially
 
-        assertEq(messageId, bytes32(0)); // Local bridge returns 0
+        _depositViaRebalance(depositAmount);
+
         assertEq(
             vault.balanceOf(address(bridge)),
             vaultSharesBefore + depositAmount
         );
         assertEq(bridge.principalDeposited(), principalBefore + depositAmount);
+        // Warp route balance decreased
+        assertEq(
+            token.balanceOf(address(warpRoute)),
+            warpRouteBalanceBefore - depositAmount
+        );
     }
 
-    function test_transferRemote_multipleDeposits() public {
+    function test_rebalance_multipleDeposits() public {
         uint256 firstDeposit = 1000e18;
         uint256 secondDeposit = 500e18;
 
-        token.approve(address(bridge), firstDeposit + secondDeposit);
-
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            firstDeposit
-        );
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            secondDeposit
-        );
+        _depositViaRebalance(firstDeposit);
+        _depositViaRebalance(secondDeposit);
 
         assertEq(bridge.principalDeposited(), firstDeposit + secondDeposit);
     }
 
+    function test_rebalance_onlyRebalancerCanCall() public {
+        uint256 depositAmount = 1000e18;
+
+        // Non-rebalancer (ALICE) tries to rebalance
+        vm.prank(ALICE);
+        vm.expectRevert("MCR: Only Rebalancer");
+        warpRoute.rebalance(
+            ORIGIN,
+            depositAmount,
+            ITokenBridge(address(bridge))
+        );
+    }
+
+    function test_rebalance_onlyAllowedBridge() public {
+        uint256 depositAmount = 1000e18;
+
+        // Deploy another bridge that's not allowed
+        ERC4626RebalancingBridge otherBridge = new ERC4626RebalancingBridge(
+            IERC4626(address(vault)),
+            warpRoute
+        );
+
+        vm.prank(REBALANCER);
+        vm.expectRevert("MCR: Not allowed bridge");
+        warpRoute.rebalance(
+            ORIGIN,
+            depositAmount,
+            ITokenBridge(address(otherBridge))
+        );
+    }
+
+    function test_transferRemote_revertsOnNonWarpRouteCaller() public {
+        uint256 depositAmount = 1000e18;
+
+        // Fund and approve from ALICE (not warp route)
+        token.transfer(ALICE, depositAmount);
+        vm.prank(ALICE);
+        token.approve(address(bridge), depositAmount);
+
+        // Try to call transferRemote directly (not through warp route)
+        vm.prank(ALICE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC4626RebalancingBridge.OnlyWarpRoute.selector,
+                ALICE
+            )
+        );
+        bridge.transferRemote(ORIGIN, BOB.addressToBytes32(), depositAmount);
+    }
+
     // ============ WithdrawPrincipal Tests ============
 
-    function test_withdrawPrincipal_withdrawsFromVault() public {
+    function test_withdrawPrincipal_withdrawsToWarpRoute() public {
         uint256 depositAmount = 1000e18;
         uint256 withdrawAmount = 500e18;
 
-        // Setup: deposit first
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
 
-        uint256 recipientBalanceBefore = token.balanceOf(BOB);
+        uint256 warpRouteBalanceBefore = token.balanceOf(address(warpRoute));
         uint256 principalBefore = bridge.principalDeposited();
 
         vm.expectEmit(true, false, false, false);
-        emit PrincipalWithdrawn(BOB, withdrawAmount, 0);
+        emit PrincipalWithdrawn(address(warpRoute), withdrawAmount, 0);
 
-        uint256 assets = bridge.withdrawPrincipal(BOB, withdrawAmount);
+        // Rebalancer withdraws principal (goes to warp route, not caller)
+        vm.prank(REBALANCER);
+        uint256 assets = bridge.withdrawPrincipal(withdrawAmount);
 
         assertEq(assets, withdrawAmount);
-        assertEq(token.balanceOf(BOB), recipientBalanceBefore + withdrawAmount);
+        // Funds go to warp route, not to the rebalancer
+        assertEq(
+            token.balanceOf(address(warpRoute)),
+            warpRouteBalanceBefore + withdrawAmount
+        );
         assertEq(bridge.principalDeposited(), principalBefore - withdrawAmount);
+    }
+
+    function test_withdrawPrincipal_revertsOnNotRebalancer() public {
+        uint256 depositAmount = 1000e18;
+
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
+
+        // Non-rebalancer (ALICE) tries to withdraw
+        vm.prank(ALICE);
+        vm.expectRevert(
+            abi.encodeWithSelector(
+                ERC4626RebalancingBridge.NotAllowedRebalancer.selector,
+                ALICE
+            )
+        );
+        bridge.withdrawPrincipal(500e18);
     }
 
     function test_withdrawPrincipal_revertsOnInsufficientPrincipal() public {
         uint256 depositAmount = 1000e18;
         uint256 withdrawAmount = 1500e18; // More than deposited
 
-        // Setup: deposit first
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
 
+        vm.prank(REBALANCER);
         vm.expectRevert(
             abi.encodeWithSelector(
                 ERC4626RebalancingBridge.InsufficientPrincipal.selector,
@@ -297,38 +365,60 @@ contract ERC4626RebalancingBridgeTest is Test {
                 depositAmount
             )
         );
-        bridge.withdrawPrincipal(BOB, withdrawAmount);
+        bridge.withdrawPrincipal(withdrawAmount);
     }
 
     function test_withdrawPrincipal_fullWithdrawal() public {
         uint256 depositAmount = 1000e18;
 
-        // Setup: deposit first
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
 
-        bridge.withdrawPrincipal(BOB, depositAmount);
+        uint256 warpRouteBalanceBefore = token.balanceOf(address(warpRoute));
+
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(depositAmount);
 
         assertEq(bridge.principalDeposited(), 0);
-        assertEq(token.balanceOf(BOB), depositAmount);
+        assertEq(
+            token.balanceOf(address(warpRoute)),
+            warpRouteBalanceBefore + depositAmount
+        );
+    }
+
+    function test_withdrawPrincipal_multipleRebalancersAllowed() public {
+        uint256 depositAmount = 1000e18;
+
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
+
+        // Add another rebalancer
+        address REBALANCER2 = address(0x5);
+        warpRoute.addRebalancer(REBALANCER2);
+
+        // Both rebalancers can withdraw
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(300e18);
+
+        vm.prank(REBALANCER2);
+        bridge.withdrawPrincipal(300e18);
+
+        assertEq(bridge.principalDeposited(), 400e18);
     }
 
     // ============ Quote Tests ============
 
-    function test_quoteTransferRemote_returnsZeroFees() public view {
+    function test_quoteTransferRemote_returnsAmountWithNoFees() public view {
+        uint256 transferAmount = 1000e18;
         Quote[] memory quotes = bridge.quoteTransferRemote(
             ORIGIN,
             BOB.addressToBytes32(),
-            1000e18
+            transferAmount
         );
 
         assertEq(quotes.length, 1);
         assertEq(quotes[0].token, address(token));
-        assertEq(quotes[0].amount, 0);
+        assertEq(quotes[0].amount, transferAmount); // Amount needed, no additional fees
     }
 
     // ============ Yield Claiming Tests ============
@@ -337,13 +427,8 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 depositAmount = 1000e18;
         uint256 yieldAmount = 100e18;
 
-        // Setup: deposit
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        // Setup: deposit via rebalance
+        _depositViaRebalance(depositAmount);
 
         // Simulate yield: mint tokens directly to vault
         token.mintTo(address(vault), yieldAmount);
@@ -372,12 +457,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 depositAmount = 1000e18;
 
         // Setup: deposit but no yield
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        _depositViaRebalance(depositAmount);
 
         vm.expectRevert(ERC4626RebalancingBridge.NoYieldToClaim.selector);
         bridge.claimYield();
@@ -388,12 +468,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 yieldAmount = 100e18;
 
         // Setup: deposit with yield
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        _depositViaRebalance(depositAmount);
         token.mintTo(address(vault), yieldAmount);
 
         // Remove fee recipient
@@ -408,12 +483,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 yieldAmount = 100e18;
 
         // Setup: deposit with yield
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        _depositViaRebalance(depositAmount);
         token.mintTo(address(vault), yieldAmount);
 
         // Random caller claims yield
@@ -428,13 +498,8 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 depositAmount = 1000e18;
         uint256 yieldAmount = 50e18;
 
-        // Setup: deposit
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        // Setup: deposit via rebalance
+        _depositViaRebalance(depositAmount);
 
         // First yield
         token.mintTo(address(vault), yieldAmount);
@@ -452,49 +517,10 @@ contract ERC4626RebalancingBridgeTest is Test {
 
     // ============ View Function Tests ============
 
-    function test_totalAssets_returnsCorrectValue() public {
-        uint256 depositAmount = 1000e18;
-
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
-
-        assertEq(bridge.totalAssets(), depositAmount);
-
-        // Add yield
-        uint256 yieldAmount = 100e18;
-        token.mintTo(address(vault), yieldAmount);
-
-        assertGt(bridge.totalAssets(), depositAmount);
-    }
-
-    function test_totalShares_returnsCorrectValue() public {
-        uint256 depositAmount = 1000e18;
-
-        assertEq(bridge.totalShares(), 0);
-
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
-
-        assertEq(bridge.totalShares(), depositAmount); // 1:1 for fresh vault
-    }
-
     function test_calculateYield_returnsZeroForNewDeposit() public {
         uint256 depositAmount = 1000e18;
 
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        _depositViaRebalance(depositAmount);
 
         assertEq(bridge.calculateYield(), 0);
     }
@@ -505,33 +531,48 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 depositAmount = 1000e18;
         uint256 yieldAmount = 100e18;
 
-        // 1. Deposit
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        uint256 warpRouteBalanceBefore = token.balanceOf(address(warpRoute));
+
+        // 1. Deposit via rebalance
+        _depositViaRebalance(depositAmount);
 
         assertEq(bridge.principalDeposited(), depositAmount);
-        assertEq(bridge.totalAssets(), depositAmount);
+        assertEq(
+            vault.convertToAssets(vault.balanceOf(address(bridge))),
+            depositAmount
+        );
+        assertEq(
+            token.balanceOf(address(warpRoute)),
+            warpRouteBalanceBefore - depositAmount
+        );
 
         // 2. Yield accrues
         token.mintTo(address(vault), yieldAmount);
         assertGt(bridge.calculateYield(), 0);
-        assertGt(bridge.totalAssets(), depositAmount);
+        assertGt(
+            vault.convertToAssets(vault.balanceOf(address(bridge))),
+            depositAmount
+        );
 
         // 3. Claim yield
         uint256 claimed = bridge.claimYield();
         assertGt(claimed, 0);
         assertGt(token.balanceOf(FEE_RECIPIENT), 0);
 
-        // 4. Withdraw principal
+        // 4. Withdraw principal (goes back to warp route)
         uint256 withdrawAmount = 500e18;
-        bridge.withdrawPrincipal(BOB, withdrawAmount);
+        uint256 warpRouteBalanceBeforeWithdraw = token.balanceOf(
+            address(warpRoute)
+        );
+
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(withdrawAmount);
 
         assertEq(bridge.principalDeposited(), depositAmount - withdrawAmount);
-        assertEq(token.balanceOf(BOB), withdrawAmount);
+        assertEq(
+            token.balanceOf(address(warpRoute)),
+            warpRouteBalanceBeforeWithdraw + withdrawAmount
+        );
 
         // 5. More yield, claim again
         token.mintTo(address(vault), yieldAmount);
@@ -539,44 +580,43 @@ contract ERC4626RebalancingBridgeTest is Test {
         assertGt(claimed2, 0);
 
         // 6. Withdraw remaining principal
-        bridge.withdrawPrincipal(BOB, depositAmount - withdrawAmount);
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(depositAmount - withdrawAmount);
 
         assertEq(bridge.principalDeposited(), 0);
     }
 
     function test_fuzz_depositAndWithdraw(uint256 depositAmount) public {
+        // Bound to warp route's balance
         depositAmount = bound(depositAmount, 1e18, 10_000e18);
 
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        _depositViaRebalance(depositAmount);
 
         assertEq(bridge.principalDeposited(), depositAmount);
 
-        // Withdraw half
+        // Withdraw half (goes to warp route)
         uint256 withdrawAmount = depositAmount / 2;
-        bridge.withdrawPrincipal(BOB, withdrawAmount);
+        uint256 warpRouteBalanceBefore = token.balanceOf(address(warpRoute));
+
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(withdrawAmount);
 
         assertEq(bridge.principalDeposited(), depositAmount - withdrawAmount);
-        assertEq(token.balanceOf(BOB), withdrawAmount);
+        assertEq(
+            token.balanceOf(address(warpRoute)),
+            warpRouteBalanceBefore + withdrawAmount
+        );
     }
 
     function test_fuzz_yieldClaiming(
         uint256 depositAmount,
         uint256 yieldPercent
     ) public {
+        // Bound to warp route's balance
         depositAmount = bound(depositAmount, 1e18, 10_000e18);
         yieldPercent = bound(yieldPercent, 1, 100); // 1% to 100%
 
-        token.approve(address(bridge), depositAmount);
-        bridge.transferRemote(
-            ORIGIN,
-            address(warpRoute).addressToBytes32(),
-            depositAmount
-        );
+        _depositViaRebalance(depositAmount);
 
         // Add yield
         uint256 yieldAmount = (depositAmount * yieldPercent) / 100;
@@ -588,5 +628,87 @@ contract ERC4626RebalancingBridgeTest is Test {
         uint256 feeRecipientBefore = token.balanceOf(FEE_RECIPIENT);
         bridge.claimYield();
         assertGt(token.balanceOf(FEE_RECIPIENT), feeRecipientBefore);
+    }
+
+    // ============ Self-Enrollment Tests ============
+
+    function test_selfEnrollment_requiredForLocalRebalancing() public {
+        // Deploy a new warp route WITHOUT self-enrollment
+        HypERC20Collateral newImplementation = new HypERC20Collateral(
+            address(token),
+            SCALE,
+            address(localMailbox)
+        );
+        TransparentUpgradeableProxy newProxy = new TransparentUpgradeableProxy(
+            address(newImplementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20Collateral.initialize.selector,
+                address(noopHook),
+                address(0),
+                address(this)
+            )
+        );
+        HypERC20Collateral newWarpRoute = HypERC20Collateral(address(newProxy));
+
+        // Only enroll remote router (not self)
+        newWarpRoute.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+
+        // Deploy bridge for new warp route
+        ERC4626RebalancingBridge newBridge = new ERC4626RebalancingBridge(
+            IERC4626(address(vault)),
+            newWarpRoute
+        );
+
+        // Try to add bridge for local domain - should fail without self-enrollment
+        vm.expectRevert("No router enrolled for domain: 11");
+        newWarpRoute.addBridge(ORIGIN, ITokenBridge(address(newBridge)));
+    }
+
+    function test_selfEnrollment_enablesLocalRebalancing() public {
+        // Deploy a new warp route WITH self-enrollment
+        HypERC20Collateral newImplementation = new HypERC20Collateral(
+            address(token),
+            SCALE,
+            address(localMailbox)
+        );
+        TransparentUpgradeableProxy newProxy = new TransparentUpgradeableProxy(
+            address(newImplementation),
+            PROXY_ADMIN,
+            abi.encodeWithSelector(
+                HypERC20Collateral.initialize.selector,
+                address(noopHook),
+                address(0),
+                address(this)
+            )
+        );
+        HypERC20Collateral newWarpRoute = HypERC20Collateral(address(newProxy));
+
+        // Enroll remote AND self
+        newWarpRoute.enrollRemoteRouter(
+            DESTINATION,
+            address(remoteToken).addressToBytes32()
+        );
+        newWarpRoute.enrollRemoteRouter(
+            ORIGIN,
+            address(newWarpRoute).addressToBytes32()
+        );
+
+        // Deploy bridge for new warp route
+        ERC4626RebalancingBridge newBridge = new ERC4626RebalancingBridge(
+            IERC4626(address(vault)),
+            newWarpRoute
+        );
+
+        // Now adding bridge should succeed
+        newWarpRoute.addBridge(ORIGIN, ITokenBridge(address(newBridge)));
+
+        // Verify bridge was added
+        address[] memory bridges = newWarpRoute.allowedBridges(ORIGIN);
+        assertEq(bridges.length, 1);
+        assertEq(bridges[0], address(newBridge));
     }
 }
