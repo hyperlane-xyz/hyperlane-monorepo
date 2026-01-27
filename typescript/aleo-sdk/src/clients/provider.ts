@@ -2,7 +2,12 @@ import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import {
   getHookType,
@@ -874,12 +879,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
+    // Handle zero address - use Aleo null address to unset ISM
+    const ismAddress = isZeroishAddress(req.ismAddress)
+      ? ALEO_NULL_ADDRESS
+      : req.ismAddress;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_ism',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.ismAddress).address],
+      inputs: [fromAleoAddress(ismAddress).address],
     };
   }
 

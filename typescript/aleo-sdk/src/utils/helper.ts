@@ -202,7 +202,17 @@ export function fromAleoAddress(aleoAddress: string): {
     throw new Error(`address ${aleoAddress} is no valid aleo address`);
   }
 
-  const [programId, address] = aleoAddress.split('/');
+  const [programId, address]: (string | undefined)[] = aleoAddress.split('/');
+
+  // If address is not defined, then it means that the address
+  // does not have a programId prefix but it is still a valid aleo address
+  // because it passed validation
+  if (!address) {
+    return {
+      programId: aleoAddress,
+      address: aleoAddress,
+    };
+  }
 
   return {
     programId,
