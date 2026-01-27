@@ -2,7 +2,7 @@ import { expect } from 'chai';
 import { ethers } from 'ethers';
 import { pino } from 'pino';
 
-import type { ChainName } from '@hyperlane-xyz/sdk';
+import type { ChainMap, ChainName, Token } from '@hyperlane-xyz/sdk';
 
 import type { RawBalances } from '../interfaces/IStrategy.js';
 import { extractBridgeConfigs } from '../test/helpers.js';
@@ -416,6 +416,108 @@ describe('WeightedStrategy', () => {
           bridge: ethers.constants.AddressZero,
         },
       ]);
+    });
+  });
+
+  describe('bridgeMinAcceptedAmount filtering', () => {
+    function createMockToken(chainName: string, decimals = 18): Token {
+      return {
+        chainName,
+        decimals,
+        addressOrDenom: ethers.constants.AddressZero,
+      } as unknown as Token;
+    }
+
+    it('should filter out routes below bridgeMinAcceptedAmount', () => {
+      const chain1 = 'chain1';
+      const chain2 = 'chain2';
+
+      const tokensByChainName: ChainMap<Token> = {
+        [chain1]: createMockToken(chain1),
+        [chain2]: createMockToken(chain2),
+      };
+
+      const config = {
+        [chain1]: {
+          weighted: { weight: 50n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+          bridgeMinAcceptedAmount: '100', // 100 tokens minimum
+        },
+        [chain2]: {
+          weighted: { weight: 50n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+          bridgeMinAcceptedAmount: '100',
+        },
+      };
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new WeightedStrategy(
+        config,
+        testLogger,
+        bridgeConfigs,
+        undefined,
+        tokensByChainName,
+      );
+
+      // chain1 has 150, chain2 has 50 (total 200, each should have 100)
+      // Would generate route: chain1 -> chain2, amount = 50
+      // But 50 < bridgeMinAcceptedAmount (100), so route should be filtered
+      const rawBalances: RawBalances = {
+        [chain1]: ethers.utils.parseEther('150').toBigInt(),
+        [chain2]: ethers.utils.parseEther('50').toBigInt(),
+      };
+
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+
+      expect(routes).to.have.lengthOf(0);
+    });
+
+    it('should keep routes at or above bridgeMinAcceptedAmount', () => {
+      const chain1 = 'chain1';
+      const chain2 = 'chain2';
+
+      const tokensByChainName: ChainMap<Token> = {
+        [chain1]: createMockToken(chain1),
+        [chain2]: createMockToken(chain2),
+      };
+
+      const config = {
+        [chain1]: {
+          weighted: { weight: 50n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+          bridgeMinAcceptedAmount: '50', // 50 tokens minimum
+        },
+        [chain2]: {
+          weighted: { weight: 50n, tolerance: 0n },
+          bridge: ethers.constants.AddressZero,
+          bridgeLockTime: 1,
+          bridgeMinAcceptedAmount: '50',
+        },
+      };
+      const bridgeConfigs = extractBridgeConfigs(config);
+      const strategy = new WeightedStrategy(
+        config,
+        testLogger,
+        bridgeConfigs,
+        undefined,
+        tokensByChainName,
+      );
+
+      // chain1 has 200, chain2 has 100 (total 300, each should have 150)
+      // Route: chain1 -> chain2, amount = 50 (equals minAcceptedAmount)
+      const rawBalances: RawBalances = {
+        [chain1]: ethers.utils.parseEther('200').toBigInt(),
+        [chain2]: ethers.utils.parseEther('100').toBigInt(),
+      };
+
+      const routes = strategy.getRebalancingRoutes(rawBalances);
+
+      expect(routes).to.have.lengthOf(1);
+      expect(routes[0].amount).to.equal(
+        ethers.utils.parseEther('50').toBigInt(),
+      );
     });
   });
 });
