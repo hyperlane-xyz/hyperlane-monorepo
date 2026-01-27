@@ -23,8 +23,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { writeYamlOrJson } from '../../../utils/files.js';
-import { readYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deployToken } from '../commands/helpers.js';
 import {
