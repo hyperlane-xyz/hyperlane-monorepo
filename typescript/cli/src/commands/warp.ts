@@ -276,12 +276,13 @@ const getFees: CommandModuleWithContext<
     },
   },
   handler: async ({ context, symbol, warp, warpRouteId, amount }) => {
+    logCommandHeader('Hyperlane Warp Route Fees');
     await runWarpRouteFees({
       context,
       symbol,
       warpCoreConfigPath: warp,
       warpRouteId,
-      amount: amount ?? '1',
+      amount: amount!,
     });
     process.exit(0);
   },

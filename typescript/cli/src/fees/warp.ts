@@ -7,13 +7,7 @@ import {
 import { type Address, ProtocolType, toWei } from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
-import {
-  logBlue,
-  logCommandHeader,
-  logGreen,
-  logTable,
-  warnYellow,
-} from '../logger.js';
+import { logBlue, logGreen, logTable, warnYellow } from '../logger.js';
 import { ENV } from '../utils/env.js';
 import { getWarpCoreConfigOrExit } from '../utils/warp.js';
 
@@ -25,7 +19,6 @@ interface FeeRow {
   'USD Cost': string;
 }
 
-// Placeholder addresses for different protocol types (for fee quotes)
 // Placeholder addresses for fee quotes
 // Note: Sealevel fee quotes require a funded sender for transaction simulation,
 // so we use the Hyperlane relayer account as a known funded address
@@ -55,8 +48,6 @@ export async function runWarpRouteFees({
   warpRouteId?: string;
   amount: string;
 }): Promise<void> {
-  logCommandHeader('Hyperlane Warp Route Fees');
-
   // Load warp core config
   const warpCoreConfig: WarpCoreConfig = await getWarpCoreConfigOrExit({
     context,
@@ -157,6 +148,15 @@ export async function runWarpRouteFees({
         // Calculate total USD (start with IGP)
         let totalUsd = igpUsdCost;
 
+        // Add IGP row
+        feeRows.push({
+          Origin: token.chainName,
+          Destination: destChain,
+          'Fee Amount': igpFormatted.toFixed(8),
+          'Fee Token': igpQuote.token.symbol,
+          'USD Cost': igpUsdStr,
+        });
+
         // Handle token fee if present
         if (tokenFeeQuote) {
           const tokenFeeFormatted = tokenFeeQuote.getDecimalFormattedAmount();
@@ -186,15 +186,6 @@ export async function runWarpRouteFees({
             }
           }
 
-          // Add IGP row
-          feeRows.push({
-            Origin: token.chainName,
-            Destination: destChain,
-            'Fee Amount': igpFormatted.toFixed(8),
-            'Fee Token': igpQuote.token.symbol,
-            'USD Cost': igpUsdStr,
-          });
-
           // Add token fee row
           feeRows.push({
             Origin: token.chainName,
@@ -202,15 +193,6 @@ export async function runWarpRouteFees({
             'Fee Amount': tokenFeeFormatted.toFixed(8),
             'Fee Token': tokenFeeQuote.token.symbol,
             'USD Cost': tokenFeeUsdStr,
-          });
-        } else {
-          // No token fee, just add IGP row
-          feeRows.push({
-            Origin: token.chainName,
-            Destination: destChain,
-            'Fee Amount': igpFormatted.toFixed(8),
-            'Fee Token': igpQuote.token.symbol,
-            'USD Cost': igpUsdStr,
           });
         }
 
