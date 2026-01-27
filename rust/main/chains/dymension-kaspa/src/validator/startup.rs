@@ -43,10 +43,11 @@ pub fn check_migration_lock(
         return Ok(());
     }
 
-    let expected_escrow = fs::read_to_string(&lock_path).map_err(|e| MigrationLockError::ReadError {
-        path: lock_path.display().to_string(),
-        reason: e.to_string(),
-    })?;
+    let expected_escrow =
+        fs::read_to_string(&lock_path).map_err(|e| MigrationLockError::ReadError {
+            path: lock_path.display().to_string(),
+            reason: e.to_string(),
+        })?;
 
     let expected_escrow = expected_escrow.trim();
 

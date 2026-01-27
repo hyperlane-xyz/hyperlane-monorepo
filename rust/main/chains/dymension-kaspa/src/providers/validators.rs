@@ -1,17 +1,18 @@
 use tonic::async_trait;
 
 use hyperlane_core::{
-    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signature,
-    SignedCheckpointWithMessageId, H160,
+    rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, Signable, Signature,
+    SignedCheckpointWithMessageId, SignedType, H160,
 };
 
 use bytes::Bytes;
 use eyre::Result;
 use reqwest::StatusCode;
 use std::str::FromStr;
-use tracing::{error, info, warn};
+use tracing::{error, info};
 
 use crate::ConnectionConf;
+use crate::SignableProgressIndication;
 use futures::stream::{FuturesUnordered, StreamExt};
 use std::sync::Arc;
 use std::time::Instant;
@@ -22,6 +23,55 @@ use crate::ops::{
     withdraw::WithdrawFXG,
 };
 use kaspa_wallet_pskt::prelude::Bundle;
+
+/// Verifies that a signature was produced by the expected ISM address.
+/// Returns true if valid, false otherwise (with error logging).
+fn verify_ism_signer<T: Signable>(
+    index: usize,
+    host: &str,
+    expected_address: &str,
+    signed: &SignedType<T>,
+) -> bool {
+    let expected_h160 = match H160::from_str(expected_address) {
+        Ok(h) => h,
+        Err(e) => {
+            error!(
+                validator = ?host,
+                validator_index = index,
+                expected_address = ?expected_address,
+                error = ?e,
+                "kaspa: invalid ISM address format"
+            );
+            return false;
+        }
+    };
+
+    match signed.recover() {
+        Ok(recovered_signer) => {
+            if recovered_signer != expected_h160 {
+                error!(
+                    validator = ?host,
+                    validator_index = index,
+                    expected_signer = ?expected_h160,
+                    actual_signer = ?recovered_signer,
+                    "kaspa: signature verification failed - signer mismatch"
+                );
+                false
+            } else {
+                true
+            }
+        }
+        Err(e) => {
+            error!(
+                validator = ?host,
+                validator_index = index,
+                error = ?e,
+                "kaspa: signature recovery failed"
+            );
+            false
+        }
+    }
+}
 
 #[derive(Clone)]
 pub struct ValidatorsClient {
@@ -230,9 +280,7 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<SignedCheckpointWithMessageId>> {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
-        // Use ISM validators for deposit signatures
         let hosts = self.hosts_ism();
-        // Extract ISM addresses from ISM validators for signature verification
         let expected_addresses: Vec<String> = self
             .validators_ism()
             .iter()
@@ -241,62 +289,15 @@ impl ValidatorsClient {
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        // Only validate signatures if ISM addresses are configured (non-empty)
-        let has_ism_addresses = expected_addresses.iter().any(|a| !a.is_empty());
-        let validator = if !has_ism_addresses {
-            None
-        } else {
-            Some(
-                move |index: usize,
-                      host: &String,
-                      signed_checkpoint: &SignedCheckpointWithMessageId| {
-                    if let Some(expected) = expected_addresses.get(index) {
-                        if expected.is_empty() {
-                            return true;
-                        }
-                        match H160::from_str(expected) {
-                            Ok(expected_h160) => match signed_checkpoint.recover() {
-                                Ok(recovered_signer) => {
-                                    if recovered_signer != expected_h160 {
-                                        error!(
-                                            validator = ?host,
-                                            validator_index = index,
-                                            expected_signer = ?expected_h160,
-                                            actual_signer = ?recovered_signer,
-                                            "kaspa: signature verification failed - signer mismatch"
-                                        );
-                                        false
-                                    } else {
-                                        true
-                                    }
-                                }
-                                Err(e) => {
-                                    error!(
-                                        validator = ?host,
-                                        validator_index = index,
-                                        error = ?e,
-                                        "kaspa: signature recovery failed"
-                                    );
-                                    false
-                                }
-                            },
-                            Err(e) => {
-                                error!(
-                                    validator = ?host,
-                                    validator_index = index,
-                                    expected_address = ?expected,
-                                    error = ?e,
-                                    "kaspa: invalid ISM address format"
-                                );
-                                false
-                            }
-                        }
-                    } else {
-                        true
-                    }
-                },
-            )
-        };
+        let validator =
+            move |index: usize,
+                  host: &String,
+                  signed_checkpoint: &SignedCheckpointWithMessageId| {
+                expected_addresses
+                    .get(index)
+                    .map(|expected| verify_ism_signer(index, host, expected, signed_checkpoint))
+                    .unwrap_or(true)
+            };
 
         let indexed_sigs = Self::collect_with_threshold(
             hosts,
@@ -308,12 +309,11 @@ impl ValidatorsClient {
                 let fxg = fxg.clone();
                 Box::pin(async move { request_validate_new_deposits(&client, host, &fxg).await })
             },
-            validator,
+            Some(validator),
         )
         .await?;
 
-        // Extract signatures and sort by recovered signer address (lexicographic order required by Hub ISM)
-        // Recovery should not fail here since validation already verified each signature
+        // Sort by recovered signer address (lexicographic order required by Hub ISM)
         let mut sigs: Vec<_> = indexed_sigs.into_iter().map(|(_, sig)| sig).collect();
         sigs.sort_by_cached_key(|sig| {
             sig.recover()
@@ -330,28 +330,29 @@ impl ValidatorsClient {
     ) -> ChainResult<Vec<Signature>> {
         let threshold = self.multisig_threshold_hub_ism();
         let client = self.http_client.clone();
-        // Use ISM validators for confirmation signatures
         let hosts = self.hosts_ism();
+        let expected_addresses: Vec<String> = self
+            .validators_ism()
+            .iter()
+            .map(|v| v.ism_address.clone())
+            .collect();
         let metrics = self.metrics.clone();
         let fxg = fxg.clone();
 
-        // Get ISM addresses for sorting from ISM validators
-        let ism_addresses: Vec<H160> = self
-            .validators_ism()
-            .iter()
-            .enumerate()
-            .map(|(idx, v)| {
-                H160::from_str(&v.ism_address).unwrap_or_else(|e| {
-                    warn!(
-                        validator_index = idx,
-                        ism_address = %v.ism_address,
-                        error = ?e,
-                        "kaspa: ISM address parse failed, using default for sorting"
-                    );
-                    H160::default()
-                })
+        // Capture progress_indication for signature verification
+        let progress_indication = fxg.progress_indication.clone();
+
+        let validator = move |index: usize, host: &String, signature: &Signature| {
+            expected_addresses.get(index).map_or(true, |expected| {
+                // Construct SignedType to enable signer recovery
+                let signable = SignableProgressIndication::new(progress_indication.clone());
+                let signed = SignedType {
+                    value: signable,
+                    signature: *signature,
+                };
+                verify_ism_signer(index, host, expected, &signed)
             })
-            .collect();
+        };
 
         let indexed_sigs = Self::collect_with_threshold(
             hosts,
@@ -365,11 +366,18 @@ impl ValidatorsClient {
                     async move { request_validate_new_confirmation(&client, host, &fxg).await },
                 )
             },
-            None::<fn(usize, &String, &Signature) -> bool>,
+            Some(validator),
         )
         .await?;
 
-        // Pair signatures with ISM addresses and sort by ISM address (lexicographic order required by Hub ISM)
+        // Get ISM addresses for sorting
+        let ism_addresses: Vec<H160> = self
+            .validators_ism()
+            .iter()
+            .map(|v| H160::from_str(&v.ism_address).expect("ISM address must be valid"))
+            .collect();
+
+        // Sort by ISM address (lexicographic order required by Hub ISM)
         let mut sigs_with_addr: Vec<_> = indexed_sigs
             .into_iter()
             .map(|(idx, sig)| {

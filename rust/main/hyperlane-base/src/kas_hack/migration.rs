@@ -38,10 +38,20 @@ where
     let tx_ids = execute_or_detect_migration(provider, &target_addr, &new_escrow).await;
 
     // Step 2: Wait for TX confirmation then sync hub
-    info!(delay_secs = SYNC_DELAY_SECS, "Waiting for TX confirmation before hub sync");
+    info!(
+        delay_secs = SYNC_DELAY_SECS,
+        "Waiting for TX confirmation before hub sync"
+    );
     tokio::time::sleep(Duration::from_secs(SYNC_DELAY_SECS)).await;
 
-    sync_hub(provider, hub_mailbox, &old_escrow, &new_escrow, &format_signatures).await;
+    sync_hub(
+        provider,
+        hub_mailbox,
+        &old_escrow,
+        &new_escrow,
+        &format_signatures,
+    )
+    .await;
 
     Ok(tx_ids)
 }
@@ -84,14 +94,21 @@ async fn sync_hub<F>(
     old_escrow: &str,
     new_escrow: &str,
     format_signatures: &F,
-)
-where
+) where
     F: Fn(&mut Vec<Signature>) -> ChainResult<Vec<u8>>,
 {
     let mut attempt: u64 = 0;
     loop {
         attempt += 1;
-        match ensure_hub_synced(provider, hub_mailbox, old_escrow, new_escrow, format_signatures).await {
+        match ensure_hub_synced(
+            provider,
+            hub_mailbox,
+            old_escrow,
+            new_escrow,
+            format_signatures,
+        )
+        .await
+        {
             Ok(_) => {
                 info!("Post-migration hub sync completed");
                 return;

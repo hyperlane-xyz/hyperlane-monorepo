@@ -431,6 +431,14 @@ pub struct SignableProgressIndication {
     progress_indication: ProgressIndication,
 }
 
+impl SignableProgressIndication {
+    pub fn new(progress_indication: ProgressIndication) -> Self {
+        Self {
+            progress_indication,
+        }
+    }
+}
+
 impl Serialize for SignableProgressIndication {
     fn serialize<S>(&self, serializer: S) -> Result<S::Ok, S::Error>
     where
@@ -519,13 +527,11 @@ async fn respond_validate_confirmed_withdrawals<
         info!("validator: confirmed withdrawal is valid");
     }
 
-    let progress_indication = &conf_fxg.progress_indication;
-
     let sig = res
         .must_signing()
-        .sign_with_fallback(SignableProgressIndication {
-            progress_indication: progress_indication.clone(),
-        })
+        .sign_with_fallback(SignableProgressIndication::new(
+            conf_fxg.progress_indication.clone(),
+        ))
         .await
         .map_err(AppError)?;
 
