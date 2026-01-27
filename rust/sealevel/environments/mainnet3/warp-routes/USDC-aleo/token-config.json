@@ -51,6 +51,7 @@
   "solanamainnet": {
     "type": "collateral",
     "decimals": 6,
+    "owner": "ABJnd4eWexNte9GYy21ud5hvSwFKWedveP6GCFxXKkCw",
     "remoteDecimals": 18,
     "token": "EPjFWdd5AufqSSqeM2qN1xzybapC8G4wEGGkZwyTDt1v",
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
