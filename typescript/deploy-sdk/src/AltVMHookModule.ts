@@ -145,7 +145,11 @@ export class AltVMHookModule implements HypModule<HookModuleType> {
     const updateTxs: AnnotatedTx[] = [];
 
     for (const [remote, c] of Object.entries(targetConfig.oracleConfig)) {
-      if (deepEquals(currentConfig.oracleConfig[remote], c)) {
+      if (
+        currentConfig.oracleConfig[remote].gasPrice === c.gasPrice &&
+        currentConfig.oracleConfig[remote].tokenExchangeRate ===
+          c.tokenExchangeRate
+      ) {
         continue;
       }
 
