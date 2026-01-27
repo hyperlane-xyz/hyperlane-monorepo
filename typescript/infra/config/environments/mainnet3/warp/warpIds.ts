@@ -133,5 +133,5 @@ export enum WarpRouteIds {
   EniUSDT = 'USDT/eni',
 
   // Aleo
-  AleoUSDC = 'AleoUSDC',
+  AleoUSDC = 'USDC/aleo',
 }
