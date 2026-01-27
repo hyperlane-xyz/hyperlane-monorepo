@@ -188,8 +188,8 @@ Add the new entries near the end of the array, before the closing bracket, group
 ### Step 6: Create Branch and Pull Request
 
 ```bash
-# Create branch
-git checkout -b denylist/<app_context>-<date>
+# Create branch (use the user's GitHub handle)
+git checkout -b <github_handle>/denylist-<app_context>
 
 # Stage changes
 git add typescript/infra/config/environments/mainnet3/customBlacklist.ts
