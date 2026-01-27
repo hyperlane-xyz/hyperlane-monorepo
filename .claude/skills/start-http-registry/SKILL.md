@@ -5,17 +5,21 @@ description: Start the local HTTP registry server for development. Use when test
 
 # Start HTTP Registry Server
 
-Start the http-registry server in the background:
-
-```bash
-pnpm -C typescript/infra start:http-registry
-```
+Start the http-registry server in the background.
 
 **Instructions:**
 
-1. Run the command with `run_in_background: true` so it doesn't block the conversation
-2. After starting, report the task/shell ID to the user
-3. Remind the user they can stop it later with `KillShell` using that ID
+1. First, find the monorepo root (working directory may have drifted):
+   ```bash
+   git rev-parse --show-toplevel
+   ```
+2. Run the command with `run_in_background: true`, prefixing with `cd` to the monorepo root:
+   ```bash
+   cd <MONOREPO_ROOT> && pnpm -C typescript/infra start:http-registry
+   ```
+3. After starting, report the task/shell ID to the user
+4. Remind the user they can stop it later with `KillShell` using that ID
+5. Note the URL that the registry is running on, which would be `http://localhost:<port>`, where the port can be found in the logs.
 
 **Example output:**
 
