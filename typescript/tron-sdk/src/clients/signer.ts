@@ -67,6 +67,13 @@ export class TronSigner
   ): Promise<TronReceipt> {
     const signedTx = await this.tronweb.trx.sign(transaction);
     const result = await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    if (!result?.result || !result.txid) {
+      throw new Error(
+        `Failed to broadcast transaction: ${result.code ?? result.message ?? 'unknown error'}`,
+      );
+    }
+
     const receipt = await this.waitForTransaction(result.txid);
 
     return receipt;
@@ -111,7 +118,7 @@ export class TronSigner
           },
           {
             type: 'address',
-            value: mailboxAddress,
+            value: req.defaultIsmAddress || mailboxAddress,
           },
           {
             type: 'address',

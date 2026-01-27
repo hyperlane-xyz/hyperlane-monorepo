@@ -32,11 +32,7 @@ import {
   getSetRoutingIsmOwnerTx,
   getSetRoutingIsmRouteTx,
 } from '../ism/ism-tx.js';
-import {
-  TRON_EMPTY_ADDRESS,
-  TRON_MAX_FEE,
-  decodeRevertReason,
-} from '../utils/index.js';
+import { TRON_EMPTY_ADDRESS, TRON_MAX_FEE } from '../utils/index.js';
 import {
   IABI,
   TronHookTypes,
@@ -108,7 +104,14 @@ export class TronProvider implements AltVM.IProvider {
     const start = Date.now();
 
     while (Date.now() - start < timeout) {
-      const info = await this.tronweb.trx.getTransactionInfo(txid);
+      let info;
+
+      try {
+        info = await this.tronweb.trx.getTransactionInfo(txid);
+      } catch {
+        await new Promise((resolve) => setTimeout(resolve, 2000));
+        continue;
+      }
 
       if (info && info.id) {
         const result = info.receipt?.result;
@@ -123,10 +126,7 @@ export class TronProvider implements AltVM.IProvider {
           if (info.resMessage) {
             revertReason = this.tronweb.toUtf8(info.resMessage);
           } else if (info.contractResult && info.contractResult[0]) {
-            revertReason = decodeRevertReason(
-              info.contractResult[0],
-              this.tronweb,
-            );
+            revertReason = info.contractResult[0];
           }
 
           throw new Error(
@@ -465,10 +465,11 @@ export class TronProvider implements AltVM.IProvider {
 
     for (const domainId of domainIds) {
       const { gasLimit } = await contract.destinationGas(domainId).call();
+      const receiver = await contract.routers(domainId).call();
 
       remoteRouters.push({
         receiverDomainId: Number(domainId),
-        receiverAddress: await contract.routers(domainId).call(),
+        receiverAddress: ensure0x(receiver),
         gas: gasLimit.toString(),
       });
     }
@@ -945,11 +946,11 @@ export class TronProvider implements AltVM.IProvider {
           [
             {
               type: 'address',
-              value: [req.recipient],
+              value: req.recipient,
             },
             {
               type: 'uint256',
-              value: [req.amount],
+              value: req.amount,
             },
           ],
           this.tronweb.address.toHex(req.signer),

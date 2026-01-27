@@ -19,8 +19,6 @@ describe('4. tron sdk warp e2e tests', async function () {
   let collateralDenom: string;
 
   let nativeTokenAddress: string;
-  let collateralTokenAddress: string;
-  let syntheticTokenAddress: string;
 
   const domainId = 1234;
 
@@ -118,8 +116,6 @@ describe('4. tron sdk warp e2e tests', async function () {
     expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
-
-    collateralTokenAddress = txResponse.tokenAddress;
   });
 
   step('create new synthetic token', async () => {
@@ -149,8 +145,6 @@ describe('4. tron sdk warp e2e tests', async function () {
     expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
-
-    syntheticTokenAddress = txResponse.tokenAddress;
   });
 
   step('set token ISM', async () => {

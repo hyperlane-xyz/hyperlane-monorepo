@@ -11,12 +11,6 @@ import { TRON_EMPTY_MESSAGE } from '../utils/index.js';
 import { TronIsmTypes } from '../utils/types.js';
 
 /**
- * Type alias for query client with ISM extension.
- * Used throughout ISM readers to ensure type safety.
- */
-export type TronIsmQueryClient = TronWeb;
-
-/**
  * Query ISM type from address.
  *
  * @param query - Query client
@@ -25,7 +19,7 @@ export type TronIsmQueryClient = TronWeb;
  * @throws Error if ISM not found or unknown type
  */
 export async function getIsmType(
-  query: TronIsmQueryClient,
+  query: TronWeb,
   ismAddress: string,
 ): Promise<TronIsmTypes> {
   try {
@@ -64,7 +58,7 @@ export async function getIsmType(
  * @throws Error if NoopIsm not found
  */
 export async function getNoopIsmConfig(
-  query: TronIsmQueryClient,
+  query: TronWeb,
   ismAddress: string,
 ): Promise<{ address: string }> {
   try {
@@ -92,7 +86,7 @@ export async function getNoopIsmConfig(
  * @throws Error if Message ID Multisig ISM not found
  */
 export async function getMessageIdMultisigIsmConfig(
-  query: TronIsmQueryClient,
+  query: TronWeb,
   ismAddress: string,
 ): Promise<{
   address: string;
@@ -130,7 +124,7 @@ export async function getMessageIdMultisigIsmConfig(
  * @throws Error if Merkle Root Multisig ISM not found
  */
 export async function getMerkleRootMultisigIsmConfig(
-  query: TronIsmQueryClient,
+  query: TronWeb,
   ismAddress: string,
 ): Promise<{
   address: string;
@@ -168,7 +162,7 @@ export async function getMerkleRootMultisigIsmConfig(
  * @throws Error if routing ISM not found
  */
 export async function getRoutingIsmConfig(
-  query: TronIsmQueryClient,
+  query: TronWeb,
   ismAddress: string,
 ): Promise<{
   address: string;

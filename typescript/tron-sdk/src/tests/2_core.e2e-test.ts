@@ -54,7 +54,7 @@ describe('2. tron sdk core e2e tests', async function () {
     expect(mailbox.address).to.equal(txResponse.mailboxAddress);
     expect(mailbox.owner).to.equal(signer.getSignerAddress());
     expect(mailbox.localDomain).to.equal(domainId);
-    expect(mailbox.defaultIsm).to.be.empty;
+    expect(mailbox.defaultIsm).to.equal(ismAddress);
     expect(mailbox.defaultHook).to.be.empty;
     expect(mailbox.requiredHook).to.be.empty;
 
