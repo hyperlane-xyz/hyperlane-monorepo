@@ -23,12 +23,10 @@ import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 import {Router} from "../client/Router.sol";
 import {IPostDispatchHook} from "../interfaces/hooks/IPostDispatchHook.sol";
 import {IInterchainSecurityModule} from "../interfaces/IInterchainSecurityModule.sol";
-import {IInterchainGasPaymaster} from "../interfaces/IInterchainGasPaymaster.sol";
 import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
 import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
 import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
-import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
@@ -1009,10 +1007,12 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         // Check if ERC20 fee payment is requested via hookMetadata
         address _feeToken = _hookMetadata.feeToken();
         if (_feeToken != address(0)) {
-            // Get gas limit from metadata and quote the fee
-            uint256 _gasLimit = _hookMetadata.gasLimit();
-            uint256 _fee = IInterchainGasPaymaster(address(_hook))
-                .quoteGasPayment(_feeToken, _destination, _gasLimit);
+            uint256 _fee = _Router_quoteDispatch(
+                _destination,
+                bytes(""),
+                _hookMetadata,
+                address(_hook)
+            );
 
             // Pull fee tokens from caller and approve hook
             IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
