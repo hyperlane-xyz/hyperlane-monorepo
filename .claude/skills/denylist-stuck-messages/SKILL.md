@@ -236,7 +236,7 @@ Co-Authored-By: Claude Opus 4.5 <noreply@anthropic.com>"
 
 # Push and create PR
 git push -u origin HEAD
-gh pr create --title "denylist: <APP_CONTEXT> stuck messages" --body "$(cat <<'EOF'
+gh pr create --title "chore: denylist <APP_CONTEXT> stuck messages" --body "$(cat <<'EOF'
 ## Summary
 - Added X message IDs to the relayer denylist
 - App context: `<APP_CONTEXT>`
@@ -255,15 +255,24 @@ EOF
 )"
 ```
 
-### Step 7: Deploy Relayer
+### Step 7: Ask User to Confirm Deployment
 
-After user confirms the denylist, deploy the relayer immediately (no need to wait for PR approval):
+After creating the PR, ask the user if they want to deploy the relayer now:
+
+Use `AskUserQuestion`:
+
+- Question: "PR created. Deploy the relayer now with the updated denylist?"
+- Options:
+  1. "Yes, deploy now" (Recommended) - Run deployment immediately
+  2. "No, I'll deploy later" - Skip deployment, output command for later use
+
+If user confirms deployment, run:
 
 ```bash
 pnpm --dir typescript/infra exec tsx ./scripts/agents/deploy-agents.ts -e mainnet3 --context hyperlane --role relayer
 ```
 
-User confirmation during step 4 is sufficient approval for deployment.
+If user skips deployment, output the command for them to run later.
 
 ### Step 8: Output Slack Message
 
