@@ -36,7 +36,7 @@
     "@inquirer/select": "catalog:",
     "bignumber.js": "catalog:",
     "ethers": "catalog:",
-    "express": "^5.1.0",
+    "express": "^4.22.0",
     "pino": "catalog:",
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
