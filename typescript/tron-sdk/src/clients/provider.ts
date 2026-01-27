@@ -205,16 +205,20 @@ export class TronProvider implements AltVM.IProvider {
     }
 
     const energyPriceData = await this.tronweb.trx.getEnergyPrices();
-    const [_, energyPrice] = energyPriceData.split(',').at(-1)!.split(':');
+    const energyParts = energyPriceData.split(',').at(-1);
+    if (!energyParts) {
+      throw new Error('Failed to retrieve energy price data');
+    }
 
+    const [_, energyPrice] = energyParts.split(':');
     const bandwidthPriceData = await this.tronweb.trx.getBandwidthPrices();
-    const [__, bandwidthPrice] = bandwidthPriceData
-      .split(',')
-      .at(-1)!
-      .split(':');
+    const bandwidthParts = bandwidthPriceData.split(',').at(-1);
+    if (!bandwidthParts) {
+      throw new Error('Failed to retrieve bandwidth price data');
+    }
 
+    const [__, bandwidthPrice] = bandwidthParts.split(':');
     const txSize = BigInt(req.transaction.raw_data_hex.length / 2 + 134); // Signature + Result + Protobuf
-
     const energyFee = BigInt(energy_required) * BigInt(energyPrice);
     const bandwidthFee = txSize * BigInt(bandwidthPrice);
     const totalFeeSun = energyFee + bandwidthFee;
