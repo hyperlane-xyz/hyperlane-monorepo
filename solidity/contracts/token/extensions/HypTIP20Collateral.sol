@@ -6,6 +6,9 @@ import {ITIP403Registry} from "../interfaces/ITIP403Registry.sol";
 import {TokenRouter} from "../libs/TokenRouter.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
+import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title HypTIP20Collateral
@@ -17,6 +20,7 @@ import {TypeCasts} from "../../libs/TypeCasts.sol";
 contract HypTIP20Collateral is TokenRouter {
     using TypeCasts for bytes32;
     using TokenMessage for bytes;
+    using SafeERC20 for IERC20;
 
     ITIP20 public immutable wrappedToken;
     ITIP403Registry public immutable tip403Registry;
@@ -55,7 +59,10 @@ contract HypTIP20Collateral is TokenRouter {
         uint256 _scale,
         address _mailbox
     ) TokenRouter(_scale, _mailbox) {
-        require(_tip20Token != address(0), "HypTIP20Collateral: invalid token");
+        require(
+            Address.isContract(_tip20Token),
+            "HypTIP20Collateral: invalid token"
+        );
         wrappedToken = ITIP20(_tip20Token);
         tip403Registry = ITIP403Registry(_tip403Registry);
         _disableInitializers();
@@ -80,13 +87,16 @@ contract HypTIP20Collateral is TokenRouter {
      * @dev Overrides to perform optional TIP-403 pre-flight check and burn tokens on outbound transfer.
      */
     function _transferFromSender(uint256 _amount) internal override {
-        // Optional TIP-403 pre-flight check
+        // TIP-403 pre-flight check for better error messages.
+        // Note: The token itself also enforces TIP-403 via transferAuthorized modifier,
+        // but checking here provides clearer revert reasons and saves gas on failure.
         _validateTransferPolicy(msg.sender);
 
-        // Transfer amount to address(this)
-        require(
-            wrappedToken.transferFrom(msg.sender, address(this), _amount),
-            "TIP20: transfer failed"
+        // Transfer amount to address(this) using SafeERC20 for compatibility
+        IERC20(address(wrappedToken)).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
         );
 
         // Burn amount from address(this) balance

@@ -8,6 +8,8 @@ import {TokenRouter} from "../libs/TokenRouter.sol";
 import {TokenMessage} from "../libs/TokenMessage.sol";
 import {TypeCasts} from "../../libs/TypeCasts.sol";
 import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
 
 /**
  * @title HypTIP20
@@ -18,6 +20,7 @@ import {IAccessControl} from "@openzeppelin/contracts/access/IAccessControl.sol"
 contract HypTIP20 is TokenRouter {
     using TypeCasts for bytes32;
     using TokenMessage for bytes;
+    using SafeERC20 for IERC20;
 
     /// @notice The TIP-20 token created and managed by this router.
     ITIP20 public immutable wrappedToken;
@@ -55,6 +58,8 @@ contract HypTIP20 is TokenRouter {
 
     /**
      * @notice Creates a new HypTIP20 router and its underlying TIP-20 token.
+     * @dev The scale is fixed at 1e12 because TIP-20 tokens always use 6 decimals
+     * (Hyperlane's canonical 18 decimals / TIP-20's 6 decimals = 1e12).
      * @param _name The name of the TIP-20 token.
      * @param _symbol The symbol of the TIP-20 token.
      * @param _currency The currency identifier for the TIP-20 token.
@@ -72,7 +77,7 @@ contract HypTIP20 is TokenRouter {
         bytes32 _salt,
         address _mailbox
     ) TokenRouter(1e12, _mailbox) {
-        // Scale = 1e12: TIP-20 uses 6 decimals, Hyperlane uses 18 decimals
+        // Scale = 1e12: TIP-20 standard mandates 6 decimals, Hyperlane uses 18 decimals
 
         // Create the TIP-20 token via factory precompile
         address tokenAddress = ITIP20Factory(TIP20Factory.TIP20_FACTORY)
@@ -84,6 +89,7 @@ contract HypTIP20 is TokenRouter {
                 address(this),
                 _salt
             );
+        require(tokenAddress != address(0), "HypTIP20: token creation failed");
         wrappedToken = ITIP20(tokenAddress);
 
         // Store TIP-403 registry (can be address(0) to disable)
@@ -126,13 +132,16 @@ contract HypTIP20 is TokenRouter {
      * @dev Overrides to perform optional TIP-403 pre-flight check and burn tokens on outbound transfer.
      */
     function _transferFromSender(uint256 _amount) internal override {
-        // Optional TIP-403 pre-flight check
+        // TIP-403 pre-flight check for better error messages.
+        // Note: The token itself also enforces TIP-403 via transferAuthorized modifier,
+        // but checking here provides clearer revert reasons and saves gas on failure.
         _validateTransferPolicy(msg.sender);
 
-        // Transfer amount to address(this) first
-        require(
-            wrappedToken.transferFrom(msg.sender, address(this), _amount),
-            "TIP20: transfer failed"
+        // Transfer amount to address(this) using SafeERC20 for compatibility
+        IERC20(address(wrappedToken)).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amount
         );
 
         // Burn amount from address(this) balance
