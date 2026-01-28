@@ -16,8 +16,8 @@
     "yaml": "catalog:"
   },
   "peerDependencies": {
-    "@google-cloud/pino-logging-gcp-config": "^1.0.6",
-    "pino-pretty": ">=10.0.0"
+    "@google-cloud/pino-logging-gcp-config": "catalog:",
+    "pino-pretty": "catalog:"
   },
   "peerDependenciesMeta": {
     "@google-cloud/pino-logging-gcp-config": {

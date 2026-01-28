@@ -28,6 +28,7 @@ import {
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
+import { runWarpRouteFees } from '../fees/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
   errorRed,
@@ -78,6 +79,7 @@ export const warpCommand: CommandModule = {
       .command(check)
       .command(deploy)
       .command(fork)
+      .command(getFees)
       .command(init)
       .command(read)
       .command(rebalancer)
@@ -258,6 +260,34 @@ export const read: CommandModuleWithContext<
   },
 };
 
+const getFees: CommandModuleWithContext<
+  SelectWarpRouteBuilder & {
+    amount?: string;
+  }
+> = {
+  command: 'get-fees',
+  describe: 'Show fees for each pairwise connection on a warp route',
+  builder: {
+    ...SELECT_WARP_ROUTE_BUILDER,
+    amount: {
+      type: 'string',
+      description: 'Amount for fee quotes (human-readable, e.g., "1.5")',
+      default: '1',
+    },
+  },
+  handler: async ({ context, symbol, warp, warpRouteId, amount }) => {
+    logCommandHeader('Hyperlane Warp Route Fees');
+    await runWarpRouteFees({
+      context,
+      symbol,
+      warpCoreConfigPath: warp,
+      warpRouteId,
+      amount: amount!,
+    });
+    process.exit(0);
+  },
+};
+
 const send: CommandModuleWithWriteContext<
   MessageOptionsArgTypes &
     SelectWarpRouteBuilder & {
@@ -424,12 +454,8 @@ export const check: CommandModuleWithContext<
       warpCoreConfigPath: warp,
     });
 
-    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
-      warpDeployConfig,
-      warpCoreConfig,
-    ));
-
     // If --ica flag is set, run ICA owner check instead of the regular config check
+    // Note: ICA check uses full warpDeployConfig (not filtered) to support pre-deployed chains
     if (ica) {
       assert(origin, '--origin is required when using --ica');
 
@@ -443,6 +469,11 @@ export const check: CommandModuleWithContext<
 
       process.exit(0);
     }
+
+    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
+      warpDeployConfig,
+      warpCoreConfig,
+    ));
 
     const deployedRoutersAddresses =
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);

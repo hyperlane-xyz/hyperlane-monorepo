@@ -45,5 +45,5 @@ yalc.lock
 # .yarn as we use pnpm now
 .yarn
 
-# AI work session artifacts
+.opencode
 .sisyphus

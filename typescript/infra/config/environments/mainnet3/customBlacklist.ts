@@ -229,4 +229,9 @@ export const blacklistedMessageIds = [
   '0x084c15e0190355b7a0d2813b015abca6728a2f6ad9cee3a2490cbb476619e75c',
   // dest: base
   '0xf4ea3ab5bcf5077b695b12db3c94e4e8c66fbf59d0299f00d23eb359efc18d32',
+  // dest: ethereum - CCTP nonce already used [2026-01-28]
+  '0xaa18ebc1c79345e6d24984a0b9a5ab66c968d128d46b2357b641e56e71b8d30c',
+  '0xd6aeef7c092a88aa23ad53227aeb834ae731d059b3ce749db8451e761f3f15ac',
+  '0xfacde0fcb624617bd5e3357bb89d896e6acb4fdd6d9f4d46c2b0af06cecdbec7',
+  '0x522a590ceda199121cace2dba1487efb11f640ec2d98d04b9f158cd4345db94b',
 ];

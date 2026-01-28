@@ -1,3 +1,10 @@
+# Unified Dockerfile for NCC-bundled TypeScript node services
+# Used by: rebalancer, warp-monitor
+#
+# Build args (passed from docker-bake.hcl):
+#   SERVICE_DIR - Directory name under typescript/ (e.g., "rebalancer")
+#   SERVICE_PACKAGE - Package name for turbo filter (e.g., "@hyperlane-xyz/rebalancer")
+
 FROM node:24-slim AS builder
 
 WORKDIR /hyperlane-monorepo
@@ -26,8 +33,12 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 # Copy patches directory (required for pnpm install)
 COPY patches ./patches
 
-# Copy only the packages needed for rebalancer
-COPY typescript/rebalancer/package.json ./typescript/rebalancer/
+# Service-specific arg for the directory
+ARG SERVICE_DIR
+
+# Copy package.json files for all workspace dependencies
+# Note: Using a common set that covers all NCC-bundled services
+COPY typescript/${SERVICE_DIR}/package.json ./typescript/${SERVICE_DIR}/
 COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
@@ -47,7 +58,8 @@ RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY turbo.json ./
-COPY typescript/rebalancer ./typescript/rebalancer
+COPY scripts ./scripts
+COPY typescript/${SERVICE_DIR} ./typescript/${SERVICE_DIR}
 COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/sdk ./typescript/sdk
@@ -80,8 +92,9 @@ RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
     curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
     chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
-# Build and bundle the rebalancer (ncc creates a single-file bundle with all deps)
-RUN pnpm turbo run bundle --filter=@hyperlane-xyz/rebalancer
+# Build and bundle the service (ncc creates a single-file bundle with all deps)
+ARG SERVICE_PACKAGE
+RUN pnpm turbo run bundle --filter=${SERVICE_PACKAGE}
 
 # Production stage - minimal Alpine image with just the bundled code
 FROM node:24-alpine AS runner
@@ -91,10 +104,15 @@ WORKDIR /app
 RUN apk add --no-cache ca-certificates
 
 # Copy only the bundled output (includes all dependencies)
-COPY --from=builder /hyperlane-monorepo/typescript/rebalancer/bundle ./bundle
+ARG SERVICE_DIR
+COPY --from=builder /hyperlane-monorepo/typescript/${SERVICE_DIR}/bundle ./bundle
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
-RUN npm install @google-cloud/pino-logging-gcp-config
+# Version read from pnpm-workspace.yaml catalog for consistency
+COPY --from=builder /hyperlane-monorepo/pnpm-workspace.yaml /tmp/
+RUN GCP_LOGGER_VERSION=$(grep "pino-logging-gcp-config" /tmp/pnpm-workspace.yaml | sed "s/.*': //" | tr -d "^") && \
+    npm install "@google-cloud/pino-logging-gcp-config@${GCP_LOGGER_VERSION}" && \
+    rm /tmp/pnpm-workspace.yaml
 
 # Environment variables
 ARG SERVICE_VERSION=dev
@@ -105,5 +123,5 @@ ENV SERVICE_VERSION=${SERVICE_VERSION}
 # Expose metrics port
 EXPOSE 9090
 
-# Run the rebalancer service from the bundle
+# Run the service from the bundle
 CMD ["node", "bundle/index.js"]
