@@ -468,6 +468,12 @@ export class CosmosNativeSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.account.address,
@@ -482,6 +488,12 @@ export class CosmosNativeSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const msg = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.account.address,

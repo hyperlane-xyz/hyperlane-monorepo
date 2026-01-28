@@ -34,6 +34,7 @@ import {
   getSetRoutingIsmRouteTx,
 } from '../ism/ism-tx.js';
 import {
+  EIP1967_ADMIN_SLOT,
   TRON_EMPTY_ADDRESS,
   TRON_MAX_FEE,
   decodeRevertReason,
@@ -142,6 +143,49 @@ export class TronProvider implements AltVM.IProvider {
     throw new Error(`Transaction timed out: ${txid}`);
   }
 
+  protected async getProxyAdmin(
+    proxyAddress: string,
+  ): Promise<{ owner: string; address: string } | undefined> {
+    let proxyAdmin = undefined;
+
+    try {
+      const response: { result: string } = await this.tronweb.fullNode.request(
+        'jsonrpc',
+        {
+          jsonrpc: '2.0',
+          method: 'eth_getStorageAt',
+          params: [
+            ensure0x(this.tronweb.address.toHex(proxyAddress)),
+            EIP1967_ADMIN_SLOT,
+            'latest',
+          ],
+          id: 1,
+        },
+        'POST',
+      );
+
+      const ethAddress = strip0x(response.result).slice(-40);
+      const tronHex = '41' + ethAddress;
+
+      const proxyAdminAddress = this.tronweb.address.fromHex(tronHex);
+      const proxyAdminContract = this.tronweb.contract(
+        ProxyAdminAbi.abi,
+        proxyAdminAddress,
+      );
+
+      proxyAdmin = {
+        address: proxyAdminAddress,
+        owner: this.tronweb.address.fromHex(
+          await proxyAdminContract.owner().call(),
+        ),
+      };
+    } catch (error) {
+      // If query fails, leave proxyAdmin empty
+    }
+
+    return proxyAdmin;
+  }
+
   // ### QUERY BASE ###
 
   async isHealthy(): Promise<boolean> {
@@ -244,45 +288,7 @@ export class TronProvider implements AltVM.IProvider {
       await mailbox.requiredHook().call(),
     );
 
-    const EIP1967_ADMIN_SLOT =
-      '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
-
-    let proxyAdmin = undefined;
-
-    try {
-      const response: { result: string } = await this.tronweb.fullNode.request(
-        'jsonrpc',
-        {
-          jsonrpc: '2.0',
-          method: 'eth_getStorageAt',
-          params: [
-            ensure0x(this.tronweb.address.toHex(req.mailboxAddress)),
-            EIP1967_ADMIN_SLOT,
-            'latest',
-          ],
-          id: 1,
-        },
-        'POST',
-      );
-
-      const ethAddress = strip0x(response.result).slice(-40);
-      const tronHex = '41' + ethAddress;
-
-      const proxyAdminAddress = this.tronweb.address.fromHex(tronHex);
-      const proxyAdminContract = this.tronweb.contract(
-        ProxyAdminAbi.abi,
-        proxyAdminAddress,
-      );
-
-      proxyAdmin = {
-        address: proxyAdminAddress,
-        owner: this.tronweb.address.fromHex(
-          await proxyAdminContract.owner().call(),
-        ),
-      };
-    } catch (error) {
-      // If query fails, leave proxyAdmin empty
-    }
+    const proxyAdmin = await this.getProxyAdmin(req.mailboxAddress);
 
     return {
       address: req.mailboxAddress,
@@ -464,7 +470,7 @@ export class TronProvider implements AltVM.IProvider {
       tokenType = AltVM.TokenType.collateral;
     }
 
-    let token = {
+    let token: AltVM.ResGetToken = {
       address: req.tokenAddress,
       owner: this.tronweb.address.fromHex(await contract.owner().call()),
       tokenType,
@@ -477,6 +483,7 @@ export class TronProvider implements AltVM.IProvider {
       name: '',
       symbol: '',
       decimals: 0,
+      proxyAdmin: await this.getProxyAdmin(req.tokenAddress),
     };
 
     if (tokenType === AltVM.TokenType.native) {
@@ -1016,13 +1023,18 @@ export class TronProvider implements AltVM.IProvider {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<TronTransaction> {
+    const { tokenType } = await this.getToken({
+      tokenAddress: req.tokenAddress,
+    });
+
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'transferRemote(uint32,bytes32,uint256)',
         {
           feeLimit: TRON_MAX_FEE,
-          callValue: Number(req.amount),
+          callValue:
+            tokenType === AltVM.TokenType.native ? Number(req.amount) : 0,
         },
         [
           {

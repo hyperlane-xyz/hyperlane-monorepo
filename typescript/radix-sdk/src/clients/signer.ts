@@ -515,6 +515,12 @@ export class RadixSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     return {
       tokenAddress: await this.tx.warp.createCollateralToken({
         mailbox: req.mailboxAddress,
@@ -526,6 +532,12 @@ export class RadixSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     return {
       tokenAddress: await this.tx.warp.createSyntheticToken({
         mailbox: req.mailboxAddress,

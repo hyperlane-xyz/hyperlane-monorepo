@@ -169,6 +169,10 @@ export type ResGetToken = {
   name: string;
   symbol: string;
   decimals: number;
+  proxyAdmin?: {
+    owner: string;
+    address: string;
+  };
 };
 
 export type ReqGetRemoteRouters = { tokenAddress: string };
@@ -387,6 +391,7 @@ export type ReqCreateNativeToken = {
   signer: string;
   mailboxAddress: string;
   warpSuffix?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateNativeToken = {
   tokenAddress: string;
@@ -397,6 +402,7 @@ export type ReqCreateCollateralToken = {
   mailboxAddress: string;
   collateralDenom: string;
   warpSuffix?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateCollateralToken = {
   tokenAddress: string;
@@ -409,6 +415,7 @@ export type ReqCreateSyntheticToken = {
   denom: string;
   decimals: number;
   warpSuffix?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateSyntheticToken = {
   tokenAddress: string;

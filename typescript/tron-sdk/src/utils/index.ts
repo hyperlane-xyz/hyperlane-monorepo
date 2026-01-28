@@ -5,6 +5,8 @@ import { IABI } from './types.js';
 export const TRON_EMPTY_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
 export const TRON_EMPTY_MESSAGE =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
+export const EIP1967_ADMIN_SLOT =
+  '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
 export const TRON_MAX_FEE = 100_000_000; // 100 TRX should be sufficient for every reasonable transaction
 
 export function decodeRevertReason(hex: string, tronweb: any): string {

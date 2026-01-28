@@ -27,13 +27,30 @@ export class AltVMDeployer {
 
       this.logger.info(`Deploying ${config.type} token to chain ${chain}`);
 
+      let proxyAdminAddress: string | undefined;
+      if (config.proxyAdmin?.address) {
+        // Use existing ProxyAdmin address
+        proxyAdminAddress = config.proxyAdmin.address;
+      } else if (config.proxyAdmin?.owner) {
+        // Deploy new ProxyAdmin with specified owner
+        const proxyAdmin = await this.signersMap[chain].createProxyAdmin({
+          owner: config.proxyAdmin.owner,
+        });
+        proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+      }
+
       if (config.type === TokenType.native) {
-        result[chain] = await this.deployNativeToken(chain, config.mailbox);
+        result[chain] = await this.deployNativeToken(
+          chain,
+          config.mailbox,
+          proxyAdminAddress,
+        );
       } else if (config.type === TokenType.collateral) {
         result[chain] = await this.deployCollateralToken(
           chain,
           config.mailbox,
           config.token,
+          proxyAdminAddress,
         );
       } else if (config.type === TokenType.synthetic) {
         result[chain] = await this.deploySyntheticToken(
@@ -42,6 +59,7 @@ export class AltVMDeployer {
           config.name,
           config.symbol,
           config.decimals,
+          proxyAdminAddress,
         );
       } else {
         // This should never happen with proper type guards above
@@ -72,10 +90,12 @@ export class AltVMDeployer {
   private async deployNativeToken(
     chain: string,
     originMailbox: Address,
+    proxyAdminAddress?: Address,
   ): Promise<Address> {
     this.logger.info(`Deploying native token to ${chain}`);
     const { tokenAddress } = await this.signersMap[chain].createNativeToken({
       mailboxAddress: originMailbox,
+      proxyAdminAddress,
     });
     return tokenAddress;
   }
@@ -84,12 +104,14 @@ export class AltVMDeployer {
     chain: string,
     originMailbox: Address,
     originDenom: string,
+    proxyAdminAddress?: Address,
   ): Promise<Address> {
     this.logger.info(`Deploying collateral token to ${chain}`);
     const { tokenAddress } = await this.signersMap[chain].createCollateralToken(
       {
         mailboxAddress: originMailbox,
         collateralDenom: originDenom,
+        proxyAdminAddress,
       },
     );
     return tokenAddress;
@@ -101,6 +123,7 @@ export class AltVMDeployer {
     name: string | undefined,
     denom: string | undefined,
     decimals: number | undefined,
+    proxyAdminAddress?: Address,
   ): Promise<Address> {
     this.logger.info(`Deploying synthetic token to ${chain}`);
     const { tokenAddress } = await this.signersMap[chain].createSyntheticToken({
@@ -108,6 +131,7 @@ export class AltVMDeployer {
       name: name || '',
       denom: denom || '',
       decimals: decimals || 0,
+      proxyAdminAddress,
     });
     return tokenAddress;
   }

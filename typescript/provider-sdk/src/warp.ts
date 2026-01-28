@@ -25,6 +25,10 @@ export interface BaseWarpConfig {
   hook?: HookConfig | string;
   remoteRouters?: RemoteRouters;
   destinationGas?: DestinationGas;
+  proxyAdmin?: {
+    owner: string;
+    address?: string;
+  };
 }
 
 export interface CollateralWarpConfig extends BaseWarpConfig {
@@ -55,6 +59,10 @@ export interface BaseDerivedWarpConfig {
   hook: DerivedHookConfig | string;
   remoteRouters: RemoteRouters;
   destinationGas: DestinationGas;
+  proxyAdmin?: {
+    owner: string;
+    address: string;
+  };
 }
 
 export interface DerivedCollateralWarpConfig extends BaseDerivedWarpConfig {
