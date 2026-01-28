@@ -32,7 +32,7 @@ variable "REGISTRY" {
 
 # Default group builds all targets
 group "default" {
-  targets = ["ncc-services", "ccip-server"]
+  targets = ["ncc-services"]
 }
 
 # NCC-bundled services using the unified Dockerfile
@@ -40,8 +40,9 @@ target "ncc-services" {
   name = item.name
   matrix = {
     item = [
-      { name = "rebalancer", dir = "rebalancer", package = "@hyperlane-xyz/rebalancer", image = "hyperlane-rebalancer" },
-      { name = "warp-monitor", dir = "warp-monitor", package = "@hyperlane-xyz/warp-monitor", image = "hyperlane-warp-monitor" },
+      { name = "rebalancer", dir = "rebalancer", package = "@hyperlane-xyz/rebalancer", image = "hyperlane-rebalancer", port = "" },
+      { name = "warp-monitor", dir = "warp-monitor", package = "@hyperlane-xyz/warp-monitor", image = "hyperlane-warp-monitor", port = "" },
+      { name = "ccip-server", dir = "ccip-server", package = "@hyperlane-xyz/ccip-server", image = "hyperlane-offchain-lookup-server", port = "3000" },
     ]
   }
 
@@ -54,27 +55,11 @@ target "ncc-services" {
     SERVICE_VERSION = SERVICE_VERSION
     SERVICE_DIR     = item.dir
     SERVICE_PACKAGE = item.package
+    SERVICE_PORT    = item.port
   }
 
   tags = compact([
     "${REGISTRY}/${item.image}:${TAG}",
     TAG_SHA_DATE != "" ? "${REGISTRY}/${item.image}:${TAG_SHA_DATE}" : "",
-  ])
-}
-
-# CCIP server requires separate Dockerfile due to Prisma
-target "ccip-server" {
-  dockerfile = "typescript/ccip-server/Dockerfile"
-  context    = "."
-  platforms  = split(",", PLATFORMS)
-
-  args = {
-    FOUNDRY_VERSION = FOUNDRY_VERSION
-    SERVICE_VERSION = SERVICE_VERSION
-  }
-
-  tags = compact([
-    "${REGISTRY}/hyperlane-offchain-lookup-server:${TAG}",
-    TAG_SHA_DATE != "" ? "${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}" : "",
   ])
 }
