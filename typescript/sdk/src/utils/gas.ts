@@ -29,6 +29,7 @@ export async function estimateHandleGasForRecipient(
   params: EstimateHandleGasParams,
 ): Promise<BigNumber | null> {
   try {
+    // await required for catch to handle promise rejection
     return await params.recipient.estimateGas.handle(
       params.origin,
       params.sender,
@@ -49,6 +50,7 @@ export async function estimateCallGas(
 ): Promise<BigNumber> {
   const fallback = params.fallback ?? DEFAULT_CALL_GAS_FALLBACK;
   try {
+    // await required for catch to handle promise rejection
     return await params.provider.estimateGas({
       to: params.to,
       data: params.data,
