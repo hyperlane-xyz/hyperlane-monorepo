@@ -1,12 +1,8 @@
-export {
-  HyperlaneRelayer,
-  RelayerCacheSchema,
-  messageMatchesWhitelist,
-} from './core/HyperlaneRelayer.js';
-export type {
-  RelayerCache,
-  RelayerEventCallbacks,
-} from './core/HyperlaneRelayer.js';
+export { RelayerCacheSchema } from './core/cache.js';
+export { RelayerEvent, RelayerObserver } from './core/events.js';
+export { HyperlaneRelayer } from './core/HyperlaneRelayer.js';
+export { messageMatchesWhitelist } from './core/whitelist.js';
+export type { RelayerCache } from './core/cache.js';
 
 export { RelayerConfigSchema } from './config/schema.js';
 export type { RelayerConfigInput } from './config/schema.js';

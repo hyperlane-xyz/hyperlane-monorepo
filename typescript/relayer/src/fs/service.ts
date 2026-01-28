@@ -1,41 +1,56 @@
 #!/usr/bin/env node
 import { Wallet } from 'ethers';
-import fs from 'fs';
-import path from 'path';
-import { fileURLToPath } from 'url';
+import { z } from 'zod';
 
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import { MultiProvider } from '@hyperlane-xyz/sdk';
 import { createServiceLogger, rootLogger } from '@hyperlane-xyz/utils';
 
-import { RelayerConfig } from './RelayerConfig.js';
+import type { RelayerConfigInput } from '../config/schema.js';
+
+import { loadConfig } from './RelayerConfig.js';
 import { RelayerService } from './RelayerService.js';
 
-function getVersion(): string {
-  try {
-    const __dirname = fileURLToPath(new URL('.', import.meta.url));
-    const packageJson = JSON.parse(
-      fs.readFileSync(path.join(__dirname, '../../package.json'), 'utf-8'),
-    );
-    return packageJson.version;
-  } catch (error) {
-    rootLogger.warn({ error }, 'Could not read version from package.json');
-    return 'unknown';
+const EnvSchema = z.object({
+  RELAYER_CONFIG_FILE: z.string().optional(),
+  RELAYER_CHAINS: z.string().optional(),
+  RELAYER_CACHE_FILE: z.string().optional(),
+  HYP_KEY: z.string().min(1),
+  PROMETHEUS_ENABLED: z.enum(['true', 'false']).optional(),
+  SERVICE_VERSION: z.string().optional(),
+});
+
+// Environment overrides take precedence over file config. If RELAYER_CHAINS is
+// provided, it supersedes any whitelist in the file.
+function mergeRelayerConfig(
+  base?: RelayerConfigInput,
+  overrides?: RelayerConfigInput,
+): RelayerConfigInput | undefined {
+  if (!base && !overrides) return undefined;
+  const merged = { ...base, ...overrides };
+  if (overrides?.chains) {
+    delete merged.whitelist;
   }
+  return merged;
 }
 
 async function main(): Promise<void> {
-  const VERSION = getVersion();
-
-  const configFile = process.env.RELAYER_CONFIG_FILE;
-  const chainsEnv = process.env.RELAYER_CHAINS;
-  const cacheFile = process.env.RELAYER_CACHE_FILE;
-  const privateKey = process.env.HYP_KEY;
-
-  if (!privateKey) {
-    rootLogger.error('HYP_KEY environment variable is required');
+  const envResult = EnvSchema.safeParse(process.env);
+  if (!envResult.success) {
+    rootLogger.error(
+      { issues: envResult.error.issues },
+      'Invalid environment variables',
+    );
     process.exit(1);
   }
+  const env = envResult.data;
+
+  const VERSION = env.SERVICE_VERSION || 'dev';
+
+  const configFile = env.RELAYER_CONFIG_FILE;
+  const chainsEnv = env.RELAYER_CHAINS;
+  const cacheFile = env.RELAYER_CACHE_FILE;
+  const privateKey = env.HYP_KEY;
 
   const logger = await createServiceLogger({
     service: 'relayer',
@@ -43,7 +58,7 @@ async function main(): Promise<void> {
   });
 
   const signer = new Wallet(privateKey);
-  const enableMetrics = process.env.PROMETHEUS_ENABLED !== 'false';
+  const enableMetrics = env.PROMETHEUS_ENABLED !== 'false';
 
   logger.info(
     {
@@ -58,9 +73,9 @@ async function main(): Promise<void> {
   );
 
   try {
-    let relayerConfig: RelayerConfig | undefined;
+    let fileConfig: RelayerConfigInput | undefined;
     if (configFile) {
-      relayerConfig = RelayerConfig.load(configFile);
+      fileConfig = loadConfig(configFile);
       logger.info('Loaded relayer configuration from file');
     }
 
@@ -79,24 +94,33 @@ async function main(): Promise<void> {
     const multiProvider = new MultiProvider(chainMetadata);
     multiProvider.setSharedSigner(signer);
 
-    const chains = chainsEnv?.split(',').map((c) => c.trim());
-    const whitelist = chains
-      ? Object.fromEntries(chains.map((chain) => [chain, []]))
+    const chains = chainsEnv
+      ? chainsEnv
+          .split(',')
+          .map((c) => c.trim())
+          .filter((chain) => chain.length > 0)
       : undefined;
 
-    const service = new RelayerService(
-      multiProvider,
-      registry,
-      {
-        mode: 'daemon',
-        cacheFile,
-        logger,
-        enableMetrics,
-      },
-      relayerConfig,
-    );
+    let envConfig: RelayerConfigInput | undefined;
+    if (chains?.length || cacheFile) {
+      envConfig = {};
+      if (chains?.length) {
+        envConfig.chains = chains;
+      }
+      if (cacheFile) {
+        envConfig.cacheFile = cacheFile;
+      }
+    }
 
-    await service.start(whitelist);
+    const relayerConfig = mergeRelayerConfig(fileConfig, envConfig);
+
+    const service = await RelayerService.create(multiProvider, registry, {
+      logger,
+      enableMetrics,
+      relayerConfig,
+    });
+
+    await service.start();
   } catch (error) {
     logger.error({ error }, 'Failed to start relayer service');
     process.exit(1);

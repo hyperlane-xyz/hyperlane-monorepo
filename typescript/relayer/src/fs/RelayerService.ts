@@ -7,20 +7,15 @@ import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
-import {
-  HyperlaneRelayer,
-  RelayerCache,
-  RelayerCacheSchema,
-  RelayerEventCallbacks,
-} from '../core/HyperlaneRelayer.js';
+import { RelayerConfigInput } from '../config/schema.js';
+import { HyperlaneRelayer } from '../core/HyperlaneRelayer.js';
+import { RelayerCache, RelayerCacheSchema } from '../core/cache.js';
+import { RelayerEvent, RelayerObserver } from '../core/events.js';
 
-import { RelayerConfig } from './RelayerConfig.js';
 import { RelayerMetrics, relayerMetricsRegistry } from './relayerMetrics.js';
 
 export interface RelayerServiceConfig {
-  mode: 'manual' | 'daemon';
-  cacheFile?: string;
-  retryTimeout?: number;
+  relayerConfig?: RelayerConfigInput;
   logger?: Logger;
   /** Enable Prometheus metrics server (default: false) */
   enableMetrics?: boolean;
@@ -32,15 +27,70 @@ export class RelayerService {
   private readonly logger: Logger;
   readonly metrics: RelayerMetrics;
 
-  constructor(
+  private constructor(
     private readonly multiProvider: MultiProvider,
     private readonly registry: IRegistry,
     private readonly config: RelayerServiceConfig,
-    private readonly relayerConfig?: RelayerConfig,
   ) {
     this.logger =
       config.logger ?? rootLogger.child({ module: 'RelayerService' });
     this.metrics = new RelayerMetrics();
+  }
+
+  static async create(
+    multiProvider: MultiProvider,
+    registry: IRegistry,
+    config: RelayerServiceConfig,
+    whitelist?: ChainMap<Address[]>,
+  ): Promise<RelayerService> {
+    const service = new RelayerService(multiProvider, registry, config);
+    await service.initialize(whitelist);
+    return service;
+  }
+
+  private handleEvent(event: RelayerEvent): void {
+    switch (event.type) {
+      case 'messageRelayed':
+        this.metrics.recordMessageSuccess(
+          event.originChain,
+          event.destinationChain,
+        );
+        this.metrics.recordRelayDuration(
+          event.originChain,
+          event.destinationChain,
+          event.durationMs / 1000,
+        );
+        break;
+      case 'messageFailed':
+        this.metrics.recordMessageFailure(
+          event.originChain,
+          event.destinationChain,
+        );
+        break;
+      case 'messageSkipped':
+        if (event.reason === 'whitelist') {
+          this.metrics.recordMessageSkipped(
+            event.originChain,
+            event.destinationChain,
+          );
+        } else if (event.reason === 'already_delivered') {
+          this.metrics.recordMessageAlreadyDelivered(
+            event.originChain,
+            event.destinationChain,
+          );
+        }
+        break;
+      case 'retry':
+        this.metrics.recordRetry(event.originChain, event.destinationChain);
+        break;
+      case 'backlog':
+        this.metrics.updateBacklogSize(event.size);
+        break;
+      default: {
+        const _exhaustive: never = event;
+        return _exhaustive;
+      }
+    }
   }
 
   private async initialize(
@@ -58,42 +108,18 @@ export class RelayerService {
 
     const relayerWhitelist = whitelist ?? this.buildWhitelistFromConfig();
 
-    const eventCallbacks: RelayerEventCallbacks = {
-      onMessageRelayed: (origin, destination, _msgId, durationMs) => {
-        this.metrics.recordMessageSuccess(origin, destination);
-        this.metrics.recordRelayDuration(
-          origin,
-          destination,
-          durationMs / 1000,
-        );
-      },
-      onMessageFailed: (origin, destination) => {
-        this.metrics.recordMessageFailure(origin, destination);
-      },
-      onMessageSkipped: (origin, destination, _msgId, reason) => {
-        if (reason === 'whitelist') {
-          this.metrics.recordMessageSkipped(origin, destination);
-        } else if (reason === 'already_delivered') {
-          this.metrics.recordMessageAlreadyDelivered(origin, destination);
-        }
-      },
-      onRetry: (origin, destination) => {
-        this.metrics.recordRetry(origin, destination);
-      },
-      onBacklogUpdate: (size) => {
-        this.metrics.updateBacklogSize(size);
-      },
+    const observer: RelayerObserver = {
+      onEvent: (event: RelayerEvent) => this.handleEvent(event),
     };
 
     this.relayer = new HyperlaneRelayer({
       core,
       whitelist: relayerWhitelist,
-      retryTimeout:
-        this.config.retryTimeout ?? this.relayerConfig?.retryTimeout,
-      eventCallbacks,
+      retryTimeout: this.config.relayerConfig?.retryTimeout,
+      observer,
     });
 
-    const cacheFile = this.config.cacheFile ?? this.relayerConfig?.cacheFile;
+    const cacheFile = this.config.relayerConfig?.cacheFile;
     if (cacheFile) {
       this.loadCache(cacheFile);
     }
@@ -102,13 +128,14 @@ export class RelayerService {
   }
 
   private buildWhitelistFromConfig(): ChainMap<Address[]> | undefined {
-    if (this.relayerConfig?.whitelist) {
-      return this.relayerConfig.whitelist as ChainMap<Address[]>;
+    const relayerConfig = this.config.relayerConfig;
+    if (relayerConfig?.whitelist) {
+      return relayerConfig.whitelist as ChainMap<Address[]>;
     }
 
-    if (this.relayerConfig?.chains) {
+    if (relayerConfig?.chains) {
       return Object.fromEntries(
-        this.relayerConfig.chains.map((chain) => [chain, []]),
+        relayerConfig.chains.map((chain) => [chain, []]),
       );
     }
 
@@ -169,7 +196,7 @@ export class RelayerService {
       this.logger.info('Metrics server stopped');
     }
 
-    const cacheFile = this.config.cacheFile ?? this.relayerConfig?.cacheFile;
+    const cacheFile = this.config.relayerConfig?.cacheFile;
     if (cacheFile) {
       this.saveCache(cacheFile);
     }

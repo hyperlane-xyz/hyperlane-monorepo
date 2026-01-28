@@ -5,7 +5,7 @@ import path from 'path';
 
 import { RelayerConfigSchema } from '../config/schema.js';
 
-import { RelayerConfig } from './RelayerConfig.js';
+import { loadConfig } from './RelayerConfig.js';
 
 describe('RelayerConfig', () => {
   describe('RelayerConfigSchema', () => {
@@ -36,7 +36,7 @@ describe('RelayerConfig', () => {
     });
   });
 
-  describe('RelayerConfig.load', () => {
+  describe('loadConfig', () => {
     let tempDir: string;
     let configPath: string;
 
@@ -58,18 +58,18 @@ retryTimeout: 3000
 `;
       fs.writeFileSync(configPath, yamlContent);
 
-      const config = RelayerConfig.load(configPath);
+      const config = loadConfig(configPath);
       expect(config.chains).to.deep.equal(['ethereum', 'arbitrum']);
       expect(config.retryTimeout).to.equal(3000);
     });
 
     it('should throw on invalid YAML', () => {
       fs.writeFileSync(configPath, 'chains: [[[invalid');
-      expect(() => RelayerConfig.load(configPath)).to.throw();
+      expect(() => loadConfig(configPath)).to.throw();
     });
 
     it('should throw on missing file', () => {
-      expect(() => RelayerConfig.load('/nonexistent/path.yaml')).to.throw();
+      expect(() => loadConfig('/nonexistent/path.yaml')).to.throw();
     });
   });
 });

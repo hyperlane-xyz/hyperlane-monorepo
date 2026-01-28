@@ -23,6 +23,7 @@ import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import { HyperlaneCore } from '@hyperlane-xyz/sdk';
 
 // Direct usage (browser-safe)
+const addresses = /* chain -> contract addresses map */;
 const core = HyperlaneCore.fromAddressesMap(addresses, multiProvider);
 const relayer = new HyperlaneRelayer({ core });
 
@@ -38,18 +39,16 @@ relayer.start();
 For Node.js environments with filesystem access, use the `/fs` export:
 
 ```typescript
-import { RelayerConfig, RelayerService } from '@hyperlane-xyz/relayer/fs';
+import { RelayerService, loadConfig } from '@hyperlane-xyz/relayer/fs';
 
 // Load config from file
-const config = RelayerConfig.load('./config.yaml');
+const relayerConfig = loadConfig('./config.yaml');
 
 // Start the service
-const service = new RelayerService(
-  multiProvider,
-  registry,
-  { mode: 'daemon', enableMetrics: true },
-  config,
-);
+const service = await RelayerService.create(multiProvider, registry, {
+  enableMetrics: true,
+  relayerConfig,
+});
 await service.start();
 ```
 
@@ -105,10 +104,10 @@ cacheFile: ./relayer-cache.json
 
 ## Package Exports
 
-| Export                      | Description                                  | Browser-safe |
-| --------------------------- | -------------------------------------------- | ------------ |
-| `@hyperlane-xyz/relayer`    | Core relayer, metadata builders, schemas     | Yes          |
-| `@hyperlane-xyz/relayer/fs` | RelayerService, RelayerConfig (file loading) | No (Node.js) |
+| Export                      | Description                               | Browser-safe |
+| --------------------------- | ----------------------------------------- | ------------ |
+| `@hyperlane-xyz/relayer`    | Core relayer, metadata builders, schemas  | Yes          |
+| `@hyperlane-xyz/relayer/fs` | RelayerService, loadConfig (file loading) | No (Node.js) |
 
 ## Prometheus Metrics
 
@@ -130,14 +129,17 @@ typescript/relayer/
 ├── src/
 │   ├── index.ts                  # Browser-safe exports
 │   ├── core/
-│   │   └── HyperlaneRelayer.ts   # Core relaying logic (browser-safe)
+│   │   ├── HyperlaneRelayer.ts   # Core relaying logic (browser-safe)
+│   │   ├── cache.ts              # Cache schema + types
+│   │   ├── events.ts             # Relayer event types
+│   │   └── whitelist.ts          # Whitelist helper
 │   ├── metadata/                  # ISM metadata builders (browser-safe)
 │   ├── config/
 │   │   └── schema.ts             # Config schema (browser-safe)
 │   └── fs/                        # Node.js specific
 │       ├── index.ts              # Node.js exports
 │       ├── RelayerService.ts     # Service with file cache + signals
-│       ├── RelayerConfig.ts      # Config file loading
+│       ├── RelayerConfig.ts      # Config file loading helper
 │       ├── service.ts            # Daemon entry point
 │       ├── relayerMetrics.ts     # Prometheus metric definitions
 │       └── metricsServer.ts      # HTTP server for /metrics
