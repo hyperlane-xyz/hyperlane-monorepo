@@ -143,6 +143,7 @@ export class MessageTracker extends EventEmitter {
     // by doing a static call first
     const processable: TrackedMessage[] = [];
 
+    const checkStartTime = Date.now();
     for (const message of ready) {
       const destDomain = this.domains[message.destination];
       const mailbox = MockMailbox__factory.connect(
@@ -150,13 +151,21 @@ export class MessageTracker extends EventEmitter {
         this.signer,
       );
 
+      const staticCallStart = Date.now();
       try {
         // Static call to check if it would succeed
         await mailbox.callStatic.processInboundMessage(
           message.destinationNonce,
         );
+        const staticCallDuration = Date.now() - staticCallStart;
+        if (staticCallDuration > 100) {
+          console.log(
+            `[MessageTracker] SLOW static call for ${message.transferId}: ${staticCallDuration}ms`,
+          );
+        }
         processable.push(message);
       } catch (error: any) {
+        const staticCallDuration = Date.now() - staticCallStart;
         const errorMsg = error.reason || error.message || '';
         // Check if message was already delivered (e.g., by bridge controller)
         // This is a permanent state, not a temporary error
@@ -168,8 +177,24 @@ export class MessageTracker extends EventEmitter {
         // Other errors - mark attempt but keep pending for retry
         message.attempts++;
         message.lastError = errorMsg;
-        // Don't emit failed event - it will retry
+
+        // Log failures with high attempt counts or slow static calls
+        if (message.attempts > 10 || staticCallDuration > 100) {
+          const waitTime = Date.now() - message.dispatchedAt;
+          console.log(
+            `[MessageTracker] ${message.transferId} (${message.origin}->${message.destination}) ` +
+              `FAILED attempt #${message.attempts} after waiting ${waitTime}ms: ${errorMsg} ` +
+              `(static call took ${staticCallDuration}ms)`,
+          );
+        }
       }
+    }
+
+    const totalCheckTime = Date.now() - checkStartTime;
+    if (totalCheckTime > 200 && ready.length > 0) {
+      console.log(
+        `[MessageTracker] Static call checks for ${ready.length} messages took ${totalCheckTime}ms`,
+      );
     }
 
     if (processable.length === 0) {
