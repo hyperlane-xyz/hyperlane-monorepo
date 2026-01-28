@@ -1,5 +1,12 @@
 import { type CommandModule } from 'yargs';
 
+import {
+  EXTRACTABLE_SIGNER_TYPES,
+  SignerFactory,
+  SignerType,
+  isSignerRef,
+} from '@hyperlane-xyz/sdk';
+
 import { createAgentConfig } from '../config/agent.js';
 import { createChainConfig } from '../config/chain.js';
 import {
@@ -28,6 +35,7 @@ export const registryCommand: CommandModule = {
       .command(createAgentConfigCommand)
       .command(initCommand)
       .command(listCommand)
+      .command(signerKeyCommand)
       .version(false)
       .demandCommand(),
   handler: () => log('Command required'),
@@ -211,5 +219,160 @@ const initCommand: CommandModuleWithContext<{}> = {
   handler: async ({ context }) => {
     await createChainConfig({ context });
     process.exit(0);
+  },
+};
+
+/**
+ * signer-key command
+ *
+ * Extracts the private key from a registry signer configuration.
+ * Useful for passing keys to external tools like Foundry.
+ */
+const signerKeyCommand: CommandModuleWithContext<{
+  name?: string;
+  chain?: string;
+  addressOnly: boolean;
+}> = {
+  command: 'signer-key',
+  describe:
+    'Extract the private key from a registry signer (for use with external tools)',
+  builder: {
+    name: {
+      type: 'string',
+      description:
+        'Name of the signer to extract (from the signers map in registry)',
+      alias: 'n',
+    },
+    chain: {
+      type: 'string',
+      description:
+        'Chain name to get the signer for (uses chain-specific or default signer)',
+      alias: 'c',
+    },
+    'address-only': {
+      type: 'boolean',
+      description: 'Only output the address, not the private key',
+      default: false,
+      alias: 'a',
+    },
+  },
+  handler: async ({ name, chain, addressOnly, context }) => {
+    const signerConfigResult = context.registry.getSignerConfiguration?.();
+    const signerConfig = signerConfigResult
+      ? await Promise.resolve(signerConfigResult)
+      : null;
+
+    if (!signerConfig) {
+      errorRed(
+        '❌ No signer configuration found in registry.\n' +
+          'Use --registry with a signer registry URI like:\n' +
+          '  --registry gcp://project/secret-name\n' +
+          '  --registry foundry://account-name',
+      );
+      process.exit(1);
+    }
+
+    // Resolve the signer config
+    let resolvedConfig;
+    let signerSource: string;
+
+    if (name) {
+      // Get a specific named signer
+      const namedSigner = signerConfig.signers?.[name];
+      if (!namedSigner) {
+        const availableSigners = Object.keys(signerConfig.signers || {});
+        errorRed(
+          `❌ Signer '${name}' not found in registry.\n` +
+            (availableSigners.length > 0
+              ? `Available signers: ${availableSigners.join(', ')}`
+              : 'No named signers configured.'),
+        );
+        process.exit(1);
+      }
+      resolvedConfig = namedSigner;
+      signerSource = `signer '${name}'`;
+    } else {
+      // Get the default signer (optionally for a specific chain)
+      const defaults = signerConfig.defaults;
+      if (!defaults) {
+        errorRed(
+          '❌ No default signer configured in registry.\n' +
+            'Specify a signer name with --name or configure defaults in the registry.',
+        );
+        process.exit(1);
+      }
+
+      // Resolution order: chain > protocol > default
+      let signerOrRef;
+      if (chain && defaults.chains?.[chain]) {
+        signerOrRef = defaults.chains[chain];
+        signerSource = `chain '${chain}' default`;
+      } else if (defaults.default) {
+        signerOrRef = defaults.default;
+        signerSource = 'default signer';
+      } else {
+        errorRed(
+          '❌ No default signer configured.\n' +
+            (chain
+              ? `No signer configured for chain '${chain}' or as default.`
+              : 'Specify --chain or --name to select a signer.'),
+        );
+        process.exit(1);
+      }
+
+      // Resolve refs
+      if (isSignerRef(signerOrRef)) {
+        const refName = signerOrRef.ref;
+        const refSigner = signerConfig.signers?.[refName];
+        if (!refSigner) {
+          errorRed(`❌ Signer ref '${refName}' not found in signers map.`);
+          process.exit(1);
+        }
+        resolvedConfig = refSigner;
+        signerSource = `${signerSource} (ref: '${refName}')`;
+      } else {
+        resolvedConfig = signerOrRef;
+      }
+    }
+
+    // Check if the signer type supports extraction
+    if (!SignerFactory.isExtractable(resolvedConfig)) {
+      const extractableTypes = EXTRACTABLE_SIGNER_TYPES.join(', ');
+
+      if (resolvedConfig.type === SignerType.FOUNDRY_KEYSTORE) {
+        errorRed(
+          `❌ Foundry keystore signers do not support key extraction via this command.\n` +
+            `Use Foundry's native command instead:\n\n` +
+            `  cast wallet decrypt-keystore ${(resolvedConfig as any).accountName}\n`,
+        );
+      } else if (resolvedConfig.type === SignerType.TURNKEY) {
+        errorRed(
+          `❌ Turnkey signers do not support key extraction.\n` +
+            `Keys are managed in secure enclaves and cannot be exported.`,
+        );
+      } else {
+        errorRed(
+          `❌ Signer type '${resolvedConfig.type}' does not support key extraction.\n` +
+            `Supported types: ${extractableTypes}`,
+        );
+      }
+      process.exit(1);
+    }
+
+    try {
+      logGray(`Extracting key from ${signerSource}...`);
+      const extracted = await SignerFactory.extractPrivateKey(resolvedConfig);
+
+      if (addressOnly) {
+        // Output only the address for scripting
+        log(extracted.address);
+      } else {
+        // Output the private key (for piping to other tools)
+        log(extracted.privateKey);
+      }
+    } catch (error: any) {
+      errorRed(`❌ Failed to extract key: ${error.message}`);
+      process.exit(1);
+    }
   },
 };

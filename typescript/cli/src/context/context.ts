@@ -34,6 +34,8 @@ import {
   SignerKeyProtocolMapSchema,
 } from './types.js';
 
+const logger = rootLogger.child({ module: 'context' });
+
 export async function contextMiddleware(argv: Record<string, any>) {
   const requiresKey = isSignCommand(argv);
 
@@ -101,13 +103,21 @@ export async function signerMiddleware(argv: Record<string, any>) {
   if (!requiresKey) return argv;
 
   /**
+   * Load signer configuration from registry if available
+   */
+  const signerConfiguration = await argv.context.registry.getSignerConfiguration();
+  if (signerConfiguration) {
+    logger.debug('Loaded signer configuration from registry');
+  }
+
+  /**
    * Extracts signer config
    */
   const multiProtocolSigner = await MultiProtocolSignerManager.init(
     strategyConfig,
     chains,
     multiProtocolProvider,
-    { key },
+    { key, signerConfiguration },
   );
 
   /**
@@ -313,6 +323,7 @@ export async function ensureEvmSignersForChains(
     multiProvider: MultiProvider;
     multiProtocolProvider: MultiProtocolProvider;
     strategyPath?: string;
+    registry?: IRegistry;
   },
   chains: ChainName[],
 ): Promise<void> {
@@ -337,13 +348,18 @@ export async function ensureEvmSignersForChains(
     ? await readChainSubmissionStrategyConfig(context.strategyPath)
     : {};
 
+  // Load signer configuration from registry if available
+  const signerConfiguration = context.registry
+    ? await context.registry.getSignerConfiguration()
+    : null;
+
   // Use MultiProtocolSignerManager to create signers properly
   // This handles ZkSync chains and strategy-based keys
   const signerManager = await MultiProtocolSignerManager.init(
     strategyConfig,
     missingSignerChains,
     context.multiProtocolProvider,
-    { key: context.key },
+    { key: context.key, signerConfiguration },
   );
 
   // Attach the created signers to multiProvider

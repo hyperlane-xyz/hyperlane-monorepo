@@ -898,3 +898,33 @@ export {
 } from './signers/turnkeyClient.js';
 export { TurnkeyEvmSigner } from './signers/evm/turnkey.js';
 export { TurnkeySealevelSigner } from './signers/svm/turnkey.js';
+
+// Signer configuration and factory
+export {
+  SignerType,
+  SignerConfigSchema,
+  SignerConfig,
+  RawKeySignerConfigSchema,
+  RawKeySignerConfig,
+  TurnkeySignerConfigSchema,
+  TurnkeySignerConfig,
+  GCPSecretSignerConfigSchema,
+  GCPSecretSignerConfig,
+  FoundryKeystoreSignerConfigSchema,
+  FoundryKeystoreSignerConfig,
+  SignerRefSchema,
+  SignerRef,
+  SignerOrRefSchema,
+  SignerOrRef,
+  isSignerRef,
+  SignerConfigMap,
+  SignerDefaultsSchema,
+  SignerDefaults,
+  SignerConfigurationSchema,
+  SignerConfiguration,
+} from './signers/config.js';
+export {
+  SignerFactory,
+  ExtractedKey,
+  EXTRACTABLE_SIGNER_TYPES,
+} from './signers/SignerFactory.js';
