@@ -12,6 +12,8 @@ on:
       - '.dockerignore'
       - '.github/workflows/monorepo-docker.yml'
       - 'pnpm-lock.yaml'
+      - '.registryrc'
+      - 'solidity/.foundryrc'
   workflow_dispatch:
     inputs:
       include_arm64:
