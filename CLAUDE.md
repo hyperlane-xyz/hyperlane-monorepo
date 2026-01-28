@@ -197,8 +197,8 @@ cd rust/main && cargo test <test_name>  # Single test
 cd rust/main && cargo run --release --bin run-locally
 
 # VM-specific e2e
-cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture
-cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture
+cd rust/main && cargo test --release --package run-locally --features cosmos -- cosmos::test --nocapture
+cd rust/main && cargo test --release --package run-locally --features sealevel -- sealevel::test --nocapture
 ```
 
 ### Linting & Formatting
