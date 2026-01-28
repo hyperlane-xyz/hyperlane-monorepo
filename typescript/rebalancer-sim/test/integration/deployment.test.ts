@@ -1,5 +1,28 @@
+/**
+ * MULTI-DOMAIN DEPLOYMENT TEST SUITE
+ * ===================================
+ *
+ * These tests verify the simulation deployment infrastructure works correctly.
+ *
+ * ARCHITECTURE:
+ * - Single Anvil instance simulates multiple "chains" via domain IDs
+ * - Each domain has its own: Mailbox, WarpToken, CollateralToken, Bridge
+ * - All domains share the same RPC endpoint (http://localhost:PORT)
+ * - Domain IDs (1000, 2000, 3000) distinguish chains, not separate processes
+ *
+ * WHY SINGLE ANVIL?
+ * - Faster test execution (no multi-process coordination)
+ * - Simpler state management (single blockchain state)
+ * - Snapshot/restore works atomically across all "chains"
+ * - Sufficient for testing rebalancer logic (doesn't need real cross-chain)
+ *
+ * DEPLOYMENT COMPONENTS PER DOMAIN:
+ * - CollateralToken: ERC20 that users deposit to send cross-chain
+ * - WarpToken: HypERC20Collateral that holds collateral and mints/burns
+ * - Mailbox: MockMailbox for instant message delivery (user transfers)
+ * - Bridge: MockValueTransferBridge for delayed delivery (rebalancer transfers)
+ */
 import { expect } from 'chai';
-import { ChildProcess, spawn } from 'child_process';
 import { ethers } from 'ethers';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
@@ -14,59 +37,37 @@ import {
   ANVIL_DEPLOYER_KEY,
   DEFAULT_SIMULATED_CHAINS,
 } from '../../src/deployment/types.js';
+import { setupAnvilTestSuite } from '../utils/anvil.js';
 
-// Skip these tests unless RUN_ANVIL_TESTS is set
-const describeIfAnvil = process.env.RUN_ANVIL_TESTS ? describe : describe.skip;
-
-async function startAnvil(port: number): Promise<ChildProcess> {
-  return new Promise((resolve, reject) => {
-    const anvil = spawn('anvil', ['--port', port.toString()], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-    let started = false;
-    const timeout = setTimeout(() => {
-      if (!started) {
-        anvil.kill();
-        reject(new Error('Anvil startup timeout'));
-      }
-    }, 10000);
-    anvil.stdout?.on('data', (data: Buffer) => {
-      if (data.toString().includes('Listening on')) {
-        started = true;
-        clearTimeout(timeout);
-        setTimeout(() => resolve(anvil), 500);
-      }
-    });
-    anvil.on('error', (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-  });
-}
-
-describeIfAnvil('Multi-Domain Deployment', function () {
-  this.timeout(120000);
-
+describe('Multi-Domain Deployment', function () {
   const anvilPort = 8546; // Use different port to avoid conflict with other tests
-  const anvilRpc = `http://localhost:${anvilPort}`;
+  const anvil = setupAnvilTestSuite(this, anvilPort);
   let provider: ethers.providers.JsonRpcProvider;
-  let anvilProcess: ChildProcess | null = null;
 
   before(async () => {
-    anvilProcess = await startAnvil(anvilPort);
-    provider = new ethers.providers.JsonRpcProvider(anvilRpc);
+    provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
   });
 
-  after(() => {
-    if (anvilProcess) {
-      anvilProcess.kill();
-      anvilProcess = null;
-    }
-  });
-
+  /**
+   * TEST: Multi-domain deployment
+   * =============================
+   *
+   * WHAT IT TESTS:
+   * Verifies that deployMultiDomainSimulation correctly deploys all
+   * required contracts for each simulated chain.
+   *
+   * VERIFICATION:
+   * - 3 domains created (chain1, chain2, chain3)
+   * - Each domain has valid addresses for all contracts
+   * - Each warp token has correct initial collateral balance (100 tokens)
+   *
+   * WHY IT MATTERS:
+   * This is the foundation for all other tests. If deployment fails,
+   * no simulation can run.
+   */
   it('should deploy multi-domain simulation', async () => {
     const result = await deployMultiDomainSimulation({
-      anvilRpc,
+      anvilRpc: anvil.rpc,
       deployerKey: ANVIL_DEPLOYER_KEY,
       chains: DEFAULT_SIMULATED_CHAINS,
       initialCollateralBalance: BigInt(toWei(100)),
@@ -92,11 +93,38 @@ describeIfAnvil('Multi-Domain Deployment', function () {
     }
   });
 
+  /**
+   * TEST: Snapshot restore
+   * ======================
+   *
+   * WHAT IT TESTS:
+   * Verifies that Anvil's evm_snapshot/evm_revert functionality works
+   * correctly for resetting simulation state between test runs.
+   *
+   * HOW IT WORKS:
+   * 1. Deploy with initial balance (50 tokens)
+   * 2. Modify state (mint 100 more tokens → 150 total)
+   * 3. Restore snapshot
+   * 4. Verify balance is back to initial (50 tokens)
+   *
+   * WHY IT MATTERS:
+   * Snapshot/restore is essential for:
+   * - Running multiple scenarios without redeploying
+   * - Comparing rebalancer strategies on identical initial states
+   * - Faster test iteration (redeploy takes seconds, restore is instant)
+   *
+   * IMPLEMENTATION NOTE:
+   * Anvil snapshots capture ALL blockchain state including:
+   * - Contract storage
+   * - Account balances
+   * - Nonces
+   * - Block number
+   */
   it('should restore snapshot correctly', async () => {
     const initialBalance = BigInt(toWei(50));
 
     const result = await deployMultiDomainSimulation({
-      anvilRpc,
+      anvilRpc: anvil.rpc,
       deployerKey: ANVIL_DEPLOYER_KEY,
       chains: [{ chainName: 'test1', domainId: 9001 }],
       initialCollateralBalance: initialBalance,

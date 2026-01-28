@@ -1,3 +1,51 @@
+/**
+ * SCENARIO GENERATOR TEST SUITE
+ * =============================
+ *
+ * These tests verify the ScenarioGenerator creates valid transfer scenarios
+ * for simulation testing.
+ *
+ * SCENARIO TYPES:
+ *
+ * 1. unidirectionalFlow:
+ *    All transfers go from one chain to another.
+ *    Use case: Testing sustained liquidity drain on destination chain.
+ *    Example: All users sending from Ethereum to Arbitrum.
+ *
+ * 2. randomTraffic:
+ *    Transfers randomly distributed across all chain pairs.
+ *    Use case: Testing balanced/organic traffic patterns.
+ *    Distributions: uniform (equal probability) or poisson (realistic bursts).
+ *
+ * 3. imbalanceScenario:
+ *    Weighted traffic favoring one chain as destination.
+ *    Use case: Testing rebalancer response to skewed traffic.
+ *    Example: 90% of transfers going TO one popular chain.
+ *
+ * 4. surgeScenario:
+ *    Baseline traffic with sudden spike in volume.
+ *    Use case: Testing rebalancer under traffic bursts.
+ *    Example: NFT mint causing sudden transfer surge.
+ *
+ * SCENARIO STRUCTURE:
+ * ```typescript
+ * interface TransferScenario {
+ *   name: string;           // Descriptive name
+ *   duration: number;       // Total scenario duration (ms)
+ *   chains: string[];       // Participating chains
+ *   transfers: Transfer[];  // Ordered list of transfers
+ * }
+ *
+ * interface Transfer {
+ *   id: string;             // Unique identifier
+ *   timestamp: number;      // When to execute (ms from start)
+ *   origin: string;         // Source chain
+ *   destination: string;    // Target chain
+ *   amount: bigint;         // Transfer amount in wei
+ *   user: string;           // User address (for tracking)
+ * }
+ * ```
+ */
 import { expect } from 'chai';
 
 import { toWei } from '@hyperlane-xyz/utils';
@@ -5,6 +53,12 @@ import { toWei } from '@hyperlane-xyz/utils';
 import { ScenarioGenerator } from '../../src/scenario/ScenarioGenerator.js';
 
 describe('ScenarioGenerator', () => {
+  /**
+   * UNIDIRECTIONAL FLOW TESTS
+   * -------------------------
+   * Tests for scenarios where all transfers go in one direction.
+   * This is the simplest scenario type and creates maximum imbalance.
+   */
   describe('unidirectionalFlow', () => {
     it('should generate correct number of transfers', () => {
       const scenario = ScenarioGenerator.unidirectionalFlow({
@@ -69,6 +123,13 @@ describe('ScenarioGenerator', () => {
     });
   });
 
+  /**
+   * RANDOM TRAFFIC TESTS
+   * --------------------
+   * Tests for scenarios with randomly distributed traffic.
+   * Should naturally balance out over large sample sizes.
+   * Tests both uniform and poisson distributions.
+   */
   describe('randomTraffic', () => {
     it('should generate correct number of transfers', () => {
       const scenario = ScenarioGenerator.randomTraffic({
@@ -128,6 +189,13 @@ describe('ScenarioGenerator', () => {
     });
   });
 
+  /**
+   * IMBALANCE SCENARIO TESTS
+   * ------------------------
+   * Tests for scenarios that deliberately create imbalanced traffic.
+   * Used to verify rebalancer triggers at correct thresholds.
+   * The 'heavyRatio' parameter controls what % of transfers go TO the heavy chain.
+   */
   describe('imbalanceScenario', () => {
     it('should create imbalanced traffic', () => {
       const scenario = ScenarioGenerator.imbalanceScenario(
@@ -150,6 +218,17 @@ describe('ScenarioGenerator', () => {
     });
   });
 
+  /**
+   * SERIALIZATION TESTS
+   * -------------------
+   * Tests for saving/loading scenarios to/from JSON files.
+   * This enables:
+   * - Sharing scenarios across test runs
+   * - Storing historic scenarios fetched from explorers
+   * - Reproducible testing with identical scenarios
+   *
+   * IMPORTANT: BigInt amounts are serialized as strings to preserve precision.
+   */
   describe('serialization', () => {
     it('should serialize and deserialize correctly', () => {
       const original = ScenarioGenerator.unidirectionalFlow({
@@ -177,6 +256,18 @@ describe('ScenarioGenerator', () => {
     });
   });
 
+  /**
+   * VALIDATION TESTS
+   * ----------------
+   * Tests for scenario validation logic.
+   * Validation catches:
+   * - Unknown chains in transfers
+   * - Invalid amounts (zero, negative)
+   * - Out-of-order timestamps
+   * - Same origin/destination
+   *
+   * Run validation before simulation to catch scenario bugs early.
+   */
   describe('validate', () => {
     it('should validate correct scenario', () => {
       const scenario = ScenarioGenerator.randomTraffic({

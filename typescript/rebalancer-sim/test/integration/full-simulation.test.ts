@@ -1,80 +1,54 @@
 import { expect } from 'chai';
-import { ChildProcess, spawn } from 'child_process';
 import { ethers } from 'ethers';
+import * as fs from 'fs';
+import * as path from 'path';
+import { fileURLToPath } from 'url';
 
-import { toWei } from '@hyperlane-xyz/utils';
-
-import { createSymmetricBridgeConfig } from '../../src/bridges/types.js';
 import {
   deployMultiDomainSimulation,
   getWarpTokenBalance,
 } from '../../src/deployment/SimulationDeployment.js';
-import {
-  ANVIL_DEPLOYER_KEY,
-  DEFAULT_SIMULATED_CHAINS,
-} from '../../src/deployment/types.js';
+import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
 import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
 import { HyperlaneRunner } from '../../src/rebalancer/HyperlaneRunner.js';
 import {
   listScenarios,
   loadScenario,
+  loadScenarioFile,
 } from '../../src/scenario/ScenarioLoader.js';
+import type { ScenarioFile } from '../../src/scenario/types.js';
+import { setupAnvilTestSuite } from '../utils/anvil.js';
 
-// Run with: RUN_ANVIL_TESTS=1 pnpm test
-const describeIfAnvil = process.env.RUN_ANVIL_TESTS ? describe : describe.skip;
+const __dirname = path.dirname(fileURLToPath(import.meta.url));
+const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
 /**
- * Start anvil process and wait for it to be ready
+ * REBALANCER SIMULATION TEST SUITE
+ * ================================
+ *
+ * These tests verify that the rebalancer correctly responds to various
+ * traffic patterns that create liquidity imbalances across chains.
+ *
+ * Each scenario JSON includes:
+ * - description: What the scenario tests
+ * - expectedBehavior: Why it should behave a certain way
+ * - transfers: The traffic pattern
+ * - defaultTiming, defaultBridgeConfig, defaultStrategyConfig: Default configs
+ * - expectations: Assertions (minCompletionRate, shouldTriggerRebalancing, etc.)
+ *
+ * Tests can use defaults from JSON or override for specific test needs.
+ * Results are saved to results/ directory for post-hoc analysis.
  */
-async function startAnvil(port: number): Promise<ChildProcess> {
-  return new Promise((resolve, reject) => {
-    const anvil = spawn('anvil', ['--port', port.toString()], {
-      stdio: ['ignore', 'pipe', 'pipe'],
-    });
-
-    let started = false;
-    const timeout = setTimeout(() => {
-      if (!started) {
-        anvil.kill();
-        reject(new Error('Anvil startup timeout'));
-      }
-    }, 10000);
-
-    anvil.stdout?.on('data', (data: Buffer) => {
-      const output = data.toString();
-      if (output.includes('Listening on')) {
-        started = true;
-        clearTimeout(timeout);
-        setTimeout(() => resolve(anvil), 500);
-      }
-    });
-
-    anvil.stderr?.on('data', (data: Buffer) => {
-      console.error('Anvil stderr:', data.toString());
-    });
-
-    anvil.on('error', (err) => {
-      clearTimeout(timeout);
-      reject(err);
-    });
-
-    anvil.on('exit', (code) => {
-      if (!started) {
-        clearTimeout(timeout);
-        reject(new Error(`Anvil exited with code ${code}`));
-      }
-    });
-  });
-}
-
-describeIfAnvil('Rebalancer Simulation', function () {
-  this.timeout(120000);
-
+describe('Rebalancer Simulation', function () {
   const anvilPort = 8545;
-  const anvilRpc = `http://localhost:${anvilPort}`;
-  let anvilProcess: ChildProcess | null = null;
+  const anvil = setupAnvilTestSuite(this, anvilPort);
 
   before(async function () {
+    // Ensure results directory exists
+    if (!fs.existsSync(RESULTS_DIR)) {
+      fs.mkdirSync(RESULTS_DIR, { recursive: true });
+    }
+
     // Check if scenarios exist
     const scenarios = listScenarios();
     if (scenarios.length === 0) {
@@ -82,83 +56,89 @@ describeIfAnvil('Rebalancer Simulation', function () {
       this.skip();
     }
     console.log(`Found ${scenarios.length} scenarios: ${scenarios.join(', ')}`);
-
-    console.log('Starting anvil...');
-    anvilProcess = await startAnvil(anvilPort);
-    console.log('Anvil started\n');
-  });
-
-  after(async function () {
-    if (anvilProcess) {
-      anvilProcess.kill();
-      anvilProcess = null;
-    }
   });
 
   /**
-   * Helper to run a scenario and return results
+   * Run a scenario using its default configuration from JSON
    */
-  async function runScenario(scenarioName: string) {
+  async function runScenarioWithDefaults(scenarioName: string) {
+    const file = loadScenarioFile(scenarioName);
     const scenario = loadScenario(scenarioName);
 
     console.log(`\n${'='.repeat(60)}`);
-    console.log(`SCENARIO: ${scenario.name}`);
+    console.log(`SCENARIO: ${file.name}`);
     console.log(`${'='.repeat(60)}`);
+    console.log(`  ${file.description}`);
     console.log(`  Transfers: ${scenario.transfers.length}`);
     console.log(`  Duration: ${scenario.duration}ms`);
     console.log(`  Chains: ${scenario.chains.join(', ')}`);
 
-    // Deploy fresh environment
+    // Build chain configs from scenario's chains
+    const chainConfigs = file.chains.map((chainName, index) => ({
+      chainName,
+      domainId: 1000 + index * 1000,
+    }));
+
+    // Deploy using scenario's chains and defaults
     const deployment = await deployMultiDomainSimulation({
-      anvilRpc,
+      anvilRpc: anvil.rpc,
       deployerKey: ANVIL_DEPLOYER_KEY,
-      chains: DEFAULT_SIMULATED_CHAINS,
-      initialCollateralBalance: BigInt(toWei(100)),
+      chains: chainConfigs,
+      initialCollateralBalance: BigInt(file.defaultInitialCollateral),
     });
 
-    // Configure rebalancer
-    const rebalancer = new HyperlaneRunner();
+    // Build strategy config with deployed bridge addresses
     const strategyConfig = {
-      type: 'weighted' as const,
-      chains: {
-        chain1: {
-          weighted: { weight: '0.333', tolerance: '0.15' },
-          bridge: deployment.domains['chain1'].bridge,
-          bridgeLockTime: 500,
-        },
-        chain2: {
-          weighted: { weight: '0.333', tolerance: '0.15' },
-          bridge: deployment.domains['chain2'].bridge,
-          bridgeLockTime: 500,
-        },
-        chain3: {
-          weighted: { weight: '0.334', tolerance: '0.15' },
-          bridge: deployment.domains['chain3'].bridge,
-          bridgeLockTime: 500,
-        },
-      },
+      type: file.defaultStrategyConfig.type,
+      chains: {} as Record<string, any>,
     };
+    for (const [chainName, chainConfig] of Object.entries(
+      file.defaultStrategyConfig.chains,
+    )) {
+      strategyConfig.chains[chainName] = {
+        ...chainConfig,
+        bridge: deployment.domains[chainName].bridge,
+      };
+    }
 
-    const bridgeConfig = createSymmetricBridgeConfig(
-      ['chain1', 'chain2', 'chain3'],
-      { deliveryDelay: 500, failureRate: 0, deliveryJitter: 100 },
-    );
+    const rebalancer = new HyperlaneRunner();
 
-    // Run simulation
+    // Run simulation with defaults from scenario
     const engine = new SimulationEngine(deployment);
     const result = await engine.runSimulation(
       scenario,
       rebalancer,
-      bridgeConfig,
-      {
-        bridgeDeliveryDelay: 500,
-        rebalancerPollingFrequency: 1000,
-        userTransferInterval: 100,
-      },
+      file.defaultBridgeConfig,
+      file.defaultTiming,
       strategyConfig,
     );
 
+    // Collect final balances
+    const provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
+    const finalBalances: Record<string, string> = {};
+    for (const [name, domain] of Object.entries(deployment.domains)) {
+      const balance = await getWarpTokenBalance(
+        provider,
+        domain.warpToken,
+        domain.collateralToken,
+      );
+      finalBalances[name] = ethers.utils.formatEther(balance.toString());
+    }
+
     // Print results
+    printResults(result, finalBalances, file);
+
+    // Save results to file
+    saveResults(scenarioName, file, result, finalBalances);
+
+    return { result, file };
+  }
+
+  function printResults(
+    result: any,
+    finalBalances: Record<string, string>,
+    file: ScenarioFile,
+  ) {
     console.log(`\nRESULTS:`);
     console.log(
       `  Completion: ${result.kpis.completedTransfers}/${result.kpis.totalTransfers} (${(result.kpis.completionRate * 100).toFixed(1)}%)`,
@@ -171,53 +151,159 @@ describeIfAnvil('Rebalancer Simulation', function () {
     );
 
     console.log(`\nFinal Balances:`);
-    const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
-    for (const [name, domain] of Object.entries(deployment.domains)) {
-      const balance = await getWarpTokenBalance(
-        provider,
-        domain.warpToken,
-        domain.collateralToken,
-      );
-      const metrics = result.kpis.perChainMetrics[name];
-      const change = Number(balance - metrics.initialBalance) / 1e18;
+    const initialCollateral = ethers.utils.formatEther(
+      file.defaultInitialCollateral,
+    );
+    for (const [name, balance] of Object.entries(finalBalances)) {
+      const change = parseFloat(balance) - parseFloat(initialCollateral);
       const changeStr =
         change >= 0 ? `+${change.toFixed(2)}` : change.toFixed(2);
-      console.log(
-        `  ${name}: ${ethers.utils.formatEther(balance.toString())} (${changeStr})`,
+      console.log(`  ${name}: ${balance} (${changeStr})`);
+    }
+  }
+
+  function saveResults(
+    scenarioName: string,
+    file: ScenarioFile,
+    result: any,
+    finalBalances: Record<string, string>,
+  ) {
+    // Convert BigInts in perChainMetrics
+    const perChainMetrics: Record<string, any> = {};
+    for (const [chain, metrics] of Object.entries(
+      result.kpis.perChainMetrics,
+    )) {
+      const m = metrics as any;
+      perChainMetrics[chain] = {
+        initialBalance: m.initialBalance?.toString(),
+        finalBalance: m.finalBalance?.toString(),
+        transfersIn: m.transfersIn,
+        transfersOut: m.transfersOut,
+      };
+    }
+
+    const output = {
+      scenario: scenarioName,
+      timestamp: new Date().toISOString(),
+      description: file.description,
+      expectedBehavior: file.expectedBehavior,
+      expectations: file.expectations,
+      kpis: {
+        totalTransfers: result.kpis.totalTransfers,
+        completedTransfers: result.kpis.completedTransfers,
+        completionRate: result.kpis.completionRate,
+        averageLatency: result.kpis.averageLatency,
+        p50Latency: result.kpis.p50Latency,
+        p95Latency: result.kpis.p95Latency,
+        p99Latency: result.kpis.p99Latency,
+        totalRebalances: result.kpis.totalRebalances,
+        rebalanceVolume: result.kpis.rebalanceVolume.toString(),
+        perChainMetrics,
+      },
+      finalBalances,
+      config: {
+        timing: file.defaultTiming,
+        initialCollateral: file.defaultInitialCollateral,
+      },
+    };
+
+    const filePath = path.join(RESULTS_DIR, `${scenarioName}.json`);
+    fs.writeFileSync(filePath, JSON.stringify(output, null, 2));
+  }
+
+  // ============================================================================
+  // EXTREME IMBALANCE SCENARIOS
+  // ============================================================================
+
+  it('extreme-drain-chain1: should trigger rebalancing', async function () {
+    const { result, file } = await runScenarioWithDefaults(
+      'extreme-drain-chain1',
+    );
+
+    // Assert expectations from scenario file
+    if (file.expectations.minCompletionRate) {
+      expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate,
+      );
+    }
+    if (file.expectations.shouldTriggerRebalancing) {
+      expect(result.kpis.totalRebalances).to.be.greaterThan(0);
+    }
+  });
+
+  it('extreme-accumulate-chain1: should trigger rebalancing', async function () {
+    const { result, file } = await runScenarioWithDefaults(
+      'extreme-accumulate-chain1',
+    );
+
+    if (file.expectations.minCompletionRate) {
+      expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate,
+      );
+    }
+    if (file.expectations.minRebalances) {
+      expect(result.kpis.totalRebalances).to.be.greaterThanOrEqual(
+        file.expectations.minRebalances,
+      );
+    }
+  });
+
+  it('large-unidirectional-to-chain1: large transfers', async function () {
+    const { result, file } = await runScenarioWithDefaults(
+      'large-unidirectional-to-chain1',
+    );
+
+    if (file.expectations.minCompletionRate) {
+      expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate,
+      );
+    }
+  });
+
+  it('whale-transfers: massive single transfers', async function () {
+    const { result, file } = await runScenarioWithDefaults('whale-transfers');
+
+    if (file.expectations.minCompletionRate) {
+      expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate,
+      );
+    }
+  });
+
+  // ============================================================================
+  // BALANCED SCENARIOS
+  // ============================================================================
+
+  it('balanced-bidirectional: minimal rebalancing needed', async function () {
+    const { result, file } = await runScenarioWithDefaults(
+      'balanced-bidirectional',
+    );
+
+    if (file.expectations.minCompletionRate) {
+      expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate,
+      );
+    }
+  });
+
+  // ============================================================================
+  // RANDOM WITH HEADROOM - Rebalancer active but transfers not blocked
+  // ============================================================================
+
+  it('random-with-headroom: low latency with random traffic', async function () {
+    const { result, file } = await runScenarioWithDefaults(
+      'random-with-headroom',
+    );
+
+    // All transfers should complete with high collateral buffer
+    if (file.expectations.minCompletionRate) {
+      expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
+        file.expectations.minCompletionRate,
       );
     }
 
-    return result;
-  }
-
-  // Test extreme scenarios that should trigger rebalancing
-  it('extreme-drain-chain1: should trigger rebalancing', async () => {
-    const result = await runScenario('extreme-drain-chain1');
-    expect(result.kpis.completionRate).to.be.greaterThan(0.9);
-  });
-
-  it('extreme-accumulate-chain1: should trigger rebalancing', async () => {
-    const result = await runScenario('extreme-accumulate-chain1');
-    // Lower completion expected because chain1 runs out of collateral
-    // when 95% of transfers originate FROM it
-    expect(result.kpis.completionRate).to.be.greaterThan(0.6);
-    // But rebalancer should still respond
-    expect(result.kpis.totalRebalances).to.be.greaterThan(0);
-  });
-
-  it('large-unidirectional-to-chain1: large transfers', async () => {
-    const result = await runScenario('large-unidirectional-to-chain1');
-    expect(result.kpis.completionRate).to.be.greaterThan(0.9);
-  });
-
-  it('whale-transfers: massive single transfers', async () => {
-    const result = await runScenario('whale-transfers');
-    expect(result.kpis.completionRate).to.be.greaterThan(0.9);
-  });
-
-  // Test balanced scenario that should NOT need rebalancing
-  it('balanced-bidirectional: minimal rebalancing needed', async () => {
-    const result = await runScenario('balanced-bidirectional');
-    expect(result.kpis.completionRate).to.be.greaterThan(0.9);
+    // Key assertion: p50 latency should be low (~200ms) since there's enough headroom
+    // that transfers don't get blocked waiting for rebalancing
+    expect(result.kpis.p50Latency).to.be.lessThan(500);
   });
 });
