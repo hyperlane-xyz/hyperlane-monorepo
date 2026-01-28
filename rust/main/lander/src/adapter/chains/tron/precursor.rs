@@ -33,8 +33,7 @@ impl TronTxPrecursor {
         let (tx, function) =
             serde_json::from_slice::<(TypedTransaction, Function)>(data).map_err(|err| {
                 DbError::Other(format!(
-                    "Failed to deserialize TronTxPrecursor from data: {}",
-                    err
+                    "Failed to deserialize TronTxPrecursor from data: {err}",
                 ))
             })?;
         Ok(TronTxPrecursor::new(tx, function))
