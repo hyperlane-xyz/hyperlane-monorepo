@@ -46,10 +46,10 @@ export const mainnetDockerTags: MainnetDockerTags = {
   validatorRC: 'a52b9e6-20260122-173915',
   scraper: '80f3635-20260123-103819',
   // monorepo services
-  keyFunder: 'f7e18fc-20260127-184855',
   kathy: '74d999b-20260108-145131',
   checkWarpDeploy: '74d999b-20260108-145131',
   // standalone services
+  keyFunder: 'b29a170-20260128-174848',
   warpMonitor: '6b6fd0b-20260123-121413',
   rebalancer: '6b6fd0b-20260123-121418',
 };
@@ -62,6 +62,7 @@ export const testnetDockerTags: BaseDockerTags = {
   validatorRC: '74d999b-20260108-145124',
   scraper: '80f3635-20260123-103819',
   // monorepo services
-  keyFunder: '74d999b-20260108-145131',
   kathy: '74d999b-20260108-145131',
+  // standalone services
+  keyFunder: 'b29a170-20260128-174848',
 };
