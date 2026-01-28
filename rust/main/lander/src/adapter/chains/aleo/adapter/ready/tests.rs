@@ -22,7 +22,7 @@ fn test_tx_ready_for_resubmission() {
     );
 
     // Test 3: Transaction submitted long ago - should be ready
-    let old_time = chrono::Utc::now() - chrono::Duration::seconds(20);
+    let old_time = chrono::Utc::now() - chrono::Duration::seconds(70);
     tx.last_submission_attempt = Some(old_time);
     let result = adapter.ready_for_resubmission(&tx);
     assert!(

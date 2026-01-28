@@ -90,8 +90,6 @@ pub async fn submit_transaction<P: AleoProviderForLander>(
         tx.tx_hashes.push(tx_hash);
     }
 
-    tx.last_submission_attempt = Some(chrono::Utc::now());
-
     info!(tx_uuid=?tx.uuid, ?tx_hash, "submitted Aleo transaction");
     Ok(())
 }
