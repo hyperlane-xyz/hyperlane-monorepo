@@ -188,7 +188,9 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
             .signed_duration_since(last_attempt)
             .num_seconds();
 
-        elapsed >= self.estimated_block_time.as_secs() as i64 * 18 // approx. 18 blocks for finality
+        // Tron doesn't state whats a good time to wait before resubmitting a tx, but Tron finality is approx. 18 blocks
+        // We use that as a heuristic for when to try resubmitting
+        elapsed >= self.estimated_block_time.as_secs() as i64 * 18
     }
 
     /// Returns the estimated block time of the chain. Used for polling pending transactions. Called in the Inclusion and Finality Stages of the PayloadDispatcher
