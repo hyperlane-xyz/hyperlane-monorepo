@@ -31,6 +31,10 @@ import { MultiProvider } from '../../providers/MultiProvider.js';
 import { CallData as SdkCallData } from '../../providers/transactions/types.js';
 import { RouterApp } from '../../router/RouterApps.js';
 import { ChainMap, ChainName } from '../../types.js';
+import {
+  estimateCallGas,
+  estimateHandleGasForRecipient,
+} from '../../utils/gas.js';
 
 import {
   InterchainAccountFactories,
@@ -39,6 +43,8 @@ import {
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 const IGP_DEFAULT_GAS = BigNumber.from(50_000);
+const ICA_OVERHEAD = BigNumber.from(50_000);
+const PER_CALL_OVERHEAD = BigNumber.from(5_000);
 const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
@@ -230,43 +236,53 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     );
 
     try {
-      const gasEstimate = await destinationRouter.estimateGas.handle(
-        originDomain,
-        addressToBytes32(localRouterAddress),
-        messageBody,
-        { from: await destinationRouter.mailbox() },
-      );
-      return addBufferToGasLimit(gasEstimate);
-    } catch (error) {
-      this.logger.warn(
-        { error, destination },
-        'Failed to estimate ICA handle gas, trying individual call estimation',
-      );
+      const mailbox = await destinationRouter.mailbox();
+      const gasEstimate = await estimateHandleGasForRecipient({
+        recipient: destinationRouter,
+        origin: originDomain,
+        sender: addressToBytes32(localRouterAddress),
+        body: messageBody,
+        mailbox,
+      });
 
-      try {
-        const individualEstimates = await Promise.all(
-          formattedCalls.map((call) =>
-            this.estimateIndividualCallGas(destination, call),
-          ),
-        );
-        const totalGas = individualEstimates.reduce(
-          (sum, gas) => sum.add(gas),
-          BigNumber.from(0),
-        );
-        // Overhead: ICA deployment check + multicall dispatch + message decoding
-        const ICA_OVERHEAD = BigNumber.from(50_000);
-        const PER_CALL_OVERHEAD = BigNumber.from(5_000);
-        const overhead = ICA_OVERHEAD.add(
-          PER_CALL_OVERHEAD.mul(formattedCalls.length),
-        );
-        return addBufferToGasLimit(totalGas.add(overhead));
-      } catch (fallbackError) {
-        this.logger.warn(
-          { error: fallbackError, destination },
-          'Individual call estimation also failed, using static fallback',
-        );
-        return ICA_HANDLE_GAS_FALLBACK;
+      if (gasEstimate) {
+        return addBufferToGasLimit(gasEstimate);
       }
+    } catch {
+      // Fall through to individual call estimation
+    }
+
+    this.logger.warn(
+      { destination },
+      'Failed to estimate ICA handle gas, trying individual call estimation',
+    );
+
+    try {
+      const provider = this.multiProvider.getProvider(destination);
+      const individualEstimates = await Promise.all(
+        formattedCalls.map((call) =>
+          estimateCallGas({
+            provider,
+            to: bytes32ToAddress(call.to),
+            data: call.data,
+            value: call.value,
+          }),
+        ),
+      );
+      const totalGas = individualEstimates.reduce(
+        (sum, gas) => sum.add(gas),
+        BigNumber.from(0),
+      );
+      const overhead = ICA_OVERHEAD.add(
+        PER_CALL_OVERHEAD.mul(formattedCalls.length),
+      );
+      return addBufferToGasLimit(totalGas.add(overhead));
+    } catch {
+      this.logger.warn(
+        { destination },
+        'Individual call estimation also failed, using static fallback',
+      );
+      return ICA_HANDLE_GAS_FALLBACK;
     }
   }
 
@@ -351,27 +367,6 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
     const parsed = parseStandardHookMetadata(metadata);
     return parsed ? BigNumber.from(parsed.gasLimit) : null;
-  }
-
-  /**
-   * Estimate gas for a single call on the destination chain.
-   * Used as fallback when full handle() estimation fails.
-   */
-  private async estimateIndividualCallGas(
-    destination: string,
-    call: { to: string; value: BigNumber; data: string },
-  ): Promise<BigNumber> {
-    const provider = this.multiProvider.getProvider(destination);
-    const PER_CALL_FALLBACK = BigNumber.from(50_000);
-    try {
-      return await provider.estimateGas({
-        to: bytes32ToAddress(call.to),
-        data: call.data,
-        value: call.value,
-      });
-    } catch {
-      return PER_CALL_FALLBACK;
-    }
   }
 
   // general helper for different overloaded callRemote functions

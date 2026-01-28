@@ -159,10 +159,10 @@ describe('InterchainAccount.getCallRemote', () => {
 describe('InterchainAccount.estimateIcaHandleGas', () => {
   const chain = TestChainName.test1;
   const destination = TestChainName.test2;
-  const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
   const ICA_OVERHEAD = BigNumber.from(50_000);
   const PER_CALL_OVERHEAD = BigNumber.from(5_000);
   const PER_CALL_FALLBACK = BigNumber.from(50_000);
+  const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
   let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProvider;
@@ -293,10 +293,9 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });
 
-  it('returns static 200k fallback when Promise.all fails', async () => {
+  it('returns static 200k fallback when getProvider fails', async () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
-    // Make getProvider throw to cause Promise.all to fail
     (multiProvider.getProvider as sinon.SinonStub).throws(
       new Error('provider error'),
     );
