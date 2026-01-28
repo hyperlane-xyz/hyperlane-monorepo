@@ -295,16 +295,11 @@ export function shouldDeployNewHook(
   const normalizedActual = normalizeConfig(actual);
   const normalizedExpected = normalizeConfig(expected);
 
-  // If configs are identical, no deployment needed
-  if (deepEquals(normalizedActual, normalizedExpected)) {
-    return false;
-  }
-
   // Check mutability based on hook type
   switch (expected.type) {
     case AltVM.HookType.MERKLE_TREE:
-      // MerkleTree hooks are immutable - must deploy new
-      return true;
+      // MerkleTree hooks are immutable - must deploy new if config changed
+      return !deepEquals(normalizedActual, normalizedExpected);
 
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated
