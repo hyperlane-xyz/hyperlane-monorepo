@@ -176,6 +176,7 @@ export abstract class BaseStrategy implements IStrategy {
           origin: surplus.chain,
           destination: deficit.chain,
           amount: transferAmount,
+          bridge: this.bridges?.[surplus.chain]?.[0],
         });
       }
 
@@ -208,6 +209,11 @@ export abstract class BaseStrategy implements IStrategy {
       },
       'Found rebalancing routes',
     );
+
+    // Record metrics for each intent created
+    for (const route of routes) {
+      this.metrics?.recordIntentCreated(route, this.name);
+    }
 
     // Filter routes based on actual balance sufficiency
     const filteredRoutes = this.filterRebalances(routes, actualBalances);
