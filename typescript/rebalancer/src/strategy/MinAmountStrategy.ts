@@ -2,13 +2,15 @@ import { BigNumber } from 'bignumber.js';
 import { type Logger } from 'pino';
 
 import { type ChainMap, type Token } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 import { fromWei, toWei } from '@hyperlane-xyz/utils';
 
 import {
   type MinAmountStrategyConfig,
   RebalancerMinAmountType,
+  RebalancerStrategyOptions,
 } from '../config/types.js';
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -18,6 +20,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * It ensures each chain has at least the specified minimum amount
  */
 export class MinAmountStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.MinAmount;
   private readonly config: MinAmountStrategyConfig = {};
   protected readonly logger: Logger;
 
@@ -27,10 +30,11 @@ export class MinAmountStrategy extends BaseStrategy {
     initialTotalCollateral: bigint,
     logger: Logger,
     metrics?: Metrics,
+    bridges?: ChainMap<Address[]>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: MinAmountStrategy.name });
-    super(chains, log, metrics);
+    super(chains, log, metrics, bridges);
     this.logger = log;
 
     const minAmountType = config[chains[0]].minAmount.type;
@@ -68,7 +72,10 @@ export class MinAmountStrategy extends BaseStrategy {
    * - For absolute values: Uses exact token amounts
    * - For relative values: Uses percentages of total balance across all chains
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    _pendingRebalances?: RebalancingRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
