@@ -200,6 +200,12 @@ export async function deployMultiDomainSimulation(
   // Create snapshot for future resets
   const snapshotId = await createSnapshot(provider);
 
+  // CRITICAL: Clean up the deployment provider to prevent accumulation
+  // Each deployment creates a provider with 100ms polling that was never cleaned up
+  // After multiple test runs, these accumulate and overwhelm anvil
+  provider.removeAllListeners();
+  provider.polling = false;
+
   // Build result
   const domains: Record<string, DeployedDomain> = {};
   for (const chain of chains) {

@@ -157,9 +157,17 @@ export class MessageTracker extends EventEmitter {
         );
         processable.push(message);
       } catch (error: any) {
-        // Would revert - mark attempt but keep pending for retry
+        const errorMsg = error.reason || error.message || '';
+        // Check if message was already delivered (e.g., by bridge controller)
+        // This is a permanent state, not a temporary error
+        if (errorMsg.includes('already delivered')) {
+          message.status = 'delivered';
+          this.emit('message_delivered', message);
+          continue;
+        }
+        // Other errors - mark attempt but keep pending for retry
         message.attempts++;
-        message.lastError = error.reason || error.message;
+        message.lastError = errorMsg;
         // Don't emit failed event - it will retry
       }
     }
