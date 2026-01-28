@@ -77,13 +77,19 @@ curl -s "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main
 
 ### Step 4: Establish Port-Forward to Relayer
 
-Start port-forwarding to access the relayer's HTTP API:
+Check if port 9090 is already in use:
+
+```bash
+lsof -i :9090
+```
+
+If not in use, start port-forward in background:
 
 ```bash
 kubectl port-forward omniscient-relayer-hyperlane-agent-relayer-0 9090:9090 -n [environment] &
 ```
 
-Verify it's working:
+Wait a few seconds for the port-forward to establish, then verify it's working:
 
 ```bash
 curl -s "localhost:9090/merkle_tree_insertions?domain_id=[domain_id]&leaf_index_start=0&leaf_index_end=1"

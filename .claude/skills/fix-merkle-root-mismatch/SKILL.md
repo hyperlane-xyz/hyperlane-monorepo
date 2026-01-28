@@ -39,18 +39,22 @@ MONOREPO_ROOT=$(git rev-parse --show-toplevel)
 
 ### Step 1: Verify Port-Forward is Active
 
-Ensure the port-forward from the investigation is still running:
+Check if port 9090 is already in use:
 
 ```bash
-curl -s localhost:9090/merkle_tree_insertions?chain=[domain_id]&limit=1
+lsof -i :9090
 ```
 
-If not connected, re-establish:
+If not in use, start port-forward in background:
 
 ```bash
-kubectl port-forward \
-    omniscient-relayer-hyperlane-agent-relayer-0 \
-    9090:9090 -n [environment]
+kubectl port-forward omniscient-relayer-hyperlane-agent-relayer-0 9090:9090 -n [environment] &
+```
+
+Wait a few seconds, then verify it's working:
+
+```bash
+curl -s "localhost:9090/merkle_tree_insertions?domain_id=[domain_id]&leaf_index_start=0&leaf_index_end=1"
 ```
 
 ### Step 2: Present Changes for Confirmation
