@@ -33,6 +33,9 @@ export interface MultiDomainDeploymentResult {
   /** Separate key for bridge controller (different nonce) */
   bridgeControllerKey: string;
   bridgeController: Address;
+  /** Separate key for mailbox processor (different nonce) */
+  mailboxProcessorKey: string;
+  mailboxProcessor: Address;
   domains: Record<string, DeployedDomain>;
   /** Snapshot ID for resetting state */
   snapshotId: string;
@@ -50,6 +53,8 @@ export interface MultiDomainDeploymentOptions {
   rebalancerKey?: string;
   /** Bridge controller private key (separate nonce from deployer and rebalancer) */
   bridgeControllerKey?: string;
+  /** Mailbox processor private key (separate nonce for processing mailbox messages) */
+  mailboxProcessorKey?: string;
   /** Chain configurations to deploy */
   chains: SimulatedChainConfig[];
   /** Initial collateral balance per chain (in wei) */
@@ -106,3 +111,15 @@ export const ANVIL_BRIDGE_CONTROLLER_KEY =
  */
 export const ANVIL_BRIDGE_CONTROLLER_ADDRESS =
   '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC';
+
+/**
+ * Fourth anvil account key (for mailbox processor - separate nonce)
+ */
+export const ANVIL_MAILBOX_PROCESSOR_KEY =
+  '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6';
+
+/**
+ * Fourth anvil account address
+ */
+export const ANVIL_MAILBOX_PROCESSOR_ADDRESS =
+  '0x90F79bf6EB2c4f870365E785982E1f101E93b906';

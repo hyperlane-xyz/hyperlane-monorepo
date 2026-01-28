@@ -61,6 +61,10 @@ export async function deployMultiDomainSimulation(
     options.bridgeControllerKey ||
     '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'; // Default anvil account #2
 
+  const mailboxProcessorKey =
+    options.mailboxProcessorKey ||
+    '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6'; // Default anvil account #3
+
   const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
   const deployer = new ethers.Wallet(deployerKey, provider);
   const deployerAddress = await deployer.getAddress();
@@ -71,6 +75,11 @@ export async function deployMultiDomainSimulation(
     provider,
   );
   const bridgeControllerAddress = await bridgeControllerWallet.getAddress();
+  const mailboxProcessorWallet = new ethers.Wallet(
+    mailboxProcessorKey,
+    provider,
+  );
+  const mailboxProcessorAddress = await mailboxProcessorWallet.getAddress();
 
   // Step 1: Deploy MockMailboxes for each domain
   const mailboxes: Record<number, ethers.Contract> = {};
@@ -96,8 +105,8 @@ export async function deployMultiDomainSimulation(
   }
 
   // Step 3: Deploy collateral tokens for each domain
-  // Mint 2x the collateral: half for warp liquidity, half for deployer to execute test transfers
-  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(2);
+  // Mint 100x the collateral: 1x for warp liquidity, 99x for deployer to execute test transfers
+  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(100);
   const collateralTokens: Record<number, ethers.Contract> = {};
   for (const chain of chains) {
     const token = await new ERC20Test__factory(deployer).deploy(
@@ -209,6 +218,8 @@ export async function deployMultiDomainSimulation(
     rebalancerKey,
     bridgeController: bridgeControllerAddress as Address,
     bridgeControllerKey,
+    mailboxProcessor: mailboxProcessorAddress as Address,
+    mailboxProcessorKey,
     domains,
     snapshotId,
   };
@@ -245,43 +256,68 @@ export function createSimulationChainMetadata(
 /**
  * Process all pending messages in the MockMailbox system
  * This simulates instant message delivery for user transfers
+ * Fires all transactions in parallel for better performance
+ * Returns per-chain count of successfully processed messages
  */
 export async function processAllPendingMessages(
   provider: ethers.providers.JsonRpcProvider,
   domains: Record<string, DeployedDomain>,
-  deployerKey: string,
-): Promise<number> {
-  const deployer = new ethers.Wallet(deployerKey, provider);
-  let totalProcessed = 0;
+  signerKey: string,
+): Promise<Record<string, number>> {
+  const signer = new ethers.Wallet(signerKey, provider);
+  const pendingTxs: Array<{
+    domain: string;
+    tx: Promise<ethers.ContractTransaction>;
+  }> = [];
+  let currentNonce = await signer.getTransactionCount();
 
+  // Fire all transactions without waiting
   for (const domain of Object.values(domains)) {
-    const mailbox = MockMailbox__factory.connect(domain.mailbox, deployer);
+    const mailbox = MockMailbox__factory.connect(domain.mailbox, signer);
 
-    // Process all pending inbound messages
-    let processedNonce = await mailbox.inboundProcessedNonce();
+    const processedNonce = await mailbox.inboundProcessedNonce();
     const unprocessedNonce = await mailbox.inboundUnprocessedNonce();
+    const pending = ethers.BigNumber.from(unprocessedNonce)
+      .sub(processedNonce)
+      .toNumber();
 
-    while (
-      ethers.BigNumber.from(processedNonce).lt(
-        ethers.BigNumber.from(unprocessedNonce),
-      )
-    ) {
-      try {
-        const tx = await mailbox.processNextInboundMessage();
-        await tx.wait();
-        totalProcessed++;
-      } catch (error: any) {
-        console.error(
-          `  ${domain.chainName}: Failed to process message:`,
-          error.reason || error.message,
-        );
-        break;
-      }
-      processedNonce = await mailbox.inboundProcessedNonce();
+    for (let i = 0; i < pending; i++) {
+      const tx = mailbox.processNextInboundMessage({ nonce: currentNonce++ });
+      pendingTxs.push({ domain: domain.chainName, tx });
     }
   }
 
-  return totalProcessed;
+  const perChainProcessed: Record<string, number> = {};
+  for (const domain of Object.values(domains)) {
+    perChainProcessed[domain.chainName] = 0;
+  }
+
+  if (pendingTxs.length === 0) return perChainProcessed;
+
+  // Wait for all transactions in parallel
+  const results = await Promise.allSettled(
+    pendingTxs.map(async ({ domain, tx }) => {
+      try {
+        const sentTx = await tx;
+        await sentTx.wait();
+        return { domain, success: true };
+      } catch (error: any) {
+        console.error(
+          `  ${domain}: Failed to process message:`,
+          error.reason || error.message,
+        );
+        return { domain, success: false };
+      }
+    }),
+  );
+
+  for (const result of results) {
+    if (result.status === 'fulfilled' && result.value.success) {
+      perChainProcessed[result.value.domain]++;
+    }
+  }
+
+  return perChainProcessed;
 }
 
 /**
