@@ -52,9 +52,30 @@ export interface IIsmWriter {
   create(
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]>;
+
+  /**
+   * @deprecated Use applyUpdate() or applyUpdateWith() instead.
+   * This method is artifact-state-driven and will be removed after Artifact API update.
+   */
   update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]>;
+
+  /**
+   * Reads current ISM state from chain and applies update.
+   * @param currentAddress Address of the deployed ISM
+   * @param desired Desired ISM configuration
+   */
   applyUpdate(
     currentAddress: string,
+    desired: ArtifactNew<IsmArtifactConfig>,
+  ): Promise<ApplyUpdateResult>;
+
+  /**
+   * Applies update using provided current state (avoids redundant chain read).
+   * @param current Current deployed ISM artifact (already read from chain)
+   * @param desired Desired ISM configuration
+   */
+  applyUpdateWith(
+    current: DeployedIsmArtifact,
     desired: ArtifactNew<IsmArtifactConfig>,
   ): Promise<ApplyUpdateResult>;
 }
@@ -154,6 +175,10 @@ export class RoutingIsmWriter
     return [deployedRoutingIsmConfig, allReceipts];
   }
 
+  /**
+   * @deprecated Use applyUpdate() or applyUpdateWith() instead.
+   * This method is artifact-state-driven and will be removed after Artifact API update.
+   */
   async update(artifact: DeployedRoutingIsmArtifact): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
 
@@ -226,5 +251,123 @@ export class RoutingIsmWriter
 
     const routingUpdateTxs = await rawRoutingWriter.update(rawRoutingArtifact);
     return [...updateTxs, ...routingUpdateTxs];
+  }
+
+  /**
+   * Reads current routing ISM state from chain and applies update.
+   * This is the preferred method - it compares by domain ID, not artifact state.
+   */
+  async applyUpdate(
+    currentAddress: string,
+    desired: ArtifactNew<RoutingIsmArtifactConfig>,
+  ): Promise<ApplyUpdateResult> {
+    const current = await this.read(currentAddress);
+    return this.applyUpdateWith(current, desired);
+  }
+
+  /**
+   * Applies routing ISM update using provided current state (avoids redundant chain read).
+   *
+   * This method is domain-ID driven:
+   * - For each desired domain, checks if it exists in current state
+   * - Existing domains: calls applyUpdate() to compare configs (may noop or recreate)
+   * - New domains: calls create()
+   */
+  async applyUpdateWith(
+    current: DeployedRoutingIsmArtifact,
+    desired: ArtifactNew<RoutingIsmArtifactConfig>,
+  ): Promise<ApplyUpdateResult> {
+    const { config: desiredConfig } = desired;
+    const currentDomains = current.config.domains;
+
+    const updateTxs: AnnotatedTx[] = [];
+    const deployedDomains: Record<
+      number,
+      ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
+    > = {};
+
+    for (const [domainIdStr, desiredDomainArtifact] of Object.entries(
+      desiredConfig.domains,
+    )) {
+      const domainId = parseInt(domainIdStr);
+
+      if (!this.chainLookup.getChainName(domainId)) {
+        this.logger.warn(
+          `Skipping update of unknown ${AltVM.IsmType.ROUTING} domain ${domainId}`,
+        );
+        continue;
+      }
+
+      const currentDomain = currentDomains[domainId];
+
+      // Extract the nested config - handle all artifact states
+      const desiredNestedConfig =
+        'config' in desiredDomainArtifact
+          ? desiredDomainArtifact.config
+          : undefined;
+
+      // Check if domain exists on-chain (has deployed address)
+      const currentDomainAddress =
+        currentDomain && 'deployed' in currentDomain
+          ? currentDomain.deployed.address
+          : undefined;
+
+      if (currentDomainAddress && desiredNestedConfig) {
+        // Domain exists on-chain - use applyUpdate to compare configs
+        const result = await this.ismWriter.applyUpdate(currentDomainAddress, {
+          config: desiredNestedConfig,
+        });
+
+        if (result.action === 'update') {
+          updateTxs.push(...result.txs);
+        }
+
+        deployedDomains[domainId] = result.deployed;
+      } else if (desiredNestedConfig) {
+        // Domain is new - create it
+        const [deployed] = await this.ismWriter.create({
+          config: desiredNestedConfig,
+        });
+        deployedDomains[domainId] = deployed;
+      } else if ('deployed' in desiredDomainArtifact) {
+        // UNDERIVED - pass through without reading
+        deployedDomains[domainId] = desiredDomainArtifact;
+      }
+    }
+
+    // Update the raw routing ISM with enrolled domains
+    const rawRoutingWriter = this.artifactManager.createWriter(
+      AltVM.IsmType.ROUTING,
+      this.signer,
+    );
+
+    const rawRoutingArtifact: ArtifactDeployed<
+      RawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: desiredConfig.type,
+        owner: desiredConfig.owner,
+        domains: deployedDomains,
+      },
+      deployed: current.deployed,
+    };
+
+    const routingUpdateTxs = await rawRoutingWriter.update(rawRoutingArtifact);
+
+    return {
+      action: 'update',
+      deployed: {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: desiredConfig.type,
+          owner: desiredConfig.owner,
+          domains: deployedDomains,
+        },
+        deployed: current.deployed,
+      },
+      txs: [...updateTxs, ...routingUpdateTxs],
+    };
   }
 }
