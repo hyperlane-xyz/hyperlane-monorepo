@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
@@ -314,6 +314,15 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     this.logger.debug(`Start creating token Hook update transactions`);
 
     const updateTransactions: AnnotatedTx[] = [];
+
+    // Only Aleo supports hook updates for AltVM chains
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    if (metadata.protocol !== ProtocolType.Aleo) {
+      this.logger.debug(
+        `Hook updates not supported for protocol ${metadata.protocol}. Skipping.`,
+      );
+      return updateTransactions;
+    }
 
     if (actualConfig.hook === expectedConfig.hook) {
       this.logger.debug(
