@@ -299,8 +299,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
     }
 
     return pendingRebalances.filter((rebalance) => {
-      const bridge = (rebalance as StrategyRoute).bridge;
-      if (!bridge) {
+      if (!('bridge' in rebalance) || !rebalance.bridge) {
         this.logger.debug(
           { origin: rebalance.origin, destination: rebalance.destination },
           'Including pending rebalance without bridge (recovered intent)',
@@ -311,7 +310,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
         rebalance.origin,
         rebalance.destination,
       );
-      return bridgeConfig?.bridge === bridge;
+      return bridgeConfig?.bridge === rebalance.bridge;
     });
   }
 

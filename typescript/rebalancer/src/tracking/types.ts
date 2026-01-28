@@ -22,7 +22,9 @@ export interface Timestamped {
 export interface TrackedActionBase
   extends Identifiable,
     CrossChainAction,
-    Timestamped {}
+    Timestamped {
+  status: string;
+}
 
 // === Status Types ===
 

@@ -16,8 +16,6 @@ export type {
 
 // Core rebalancing logic
 export { Rebalancer } from './core/Rebalancer.js';
-export { WithInflightGuard } from './core/WithInflightGuard.js';
-export { WithSemaphore } from './core/WithSemaphore.js';
 
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';

@@ -1,8 +1,11 @@
-import { expect } from 'chai';
+import chai, { expect } from 'chai';
+import chaiAsPromised from 'chai-as-promised';
 
 import type { Transfer } from '../types.js';
 
 import { InMemoryStore } from './InMemoryStore.js';
+
+chai.use(chaiAsPromised);
 
 describe('InMemoryStore', () => {
   let store: InMemoryStore<Transfer, 'in_progress' | 'complete'>;
