@@ -1,9 +1,9 @@
 import { BigNumber, providers } from 'ethers';
 
 import { IMessageRecipient } from '@hyperlane-xyz/core';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address } from '@hyperlane-xyz/utils';
 
-const DEFAULT_CALL_GAS_FALLBACK = BigNumber.from(50_000);
+export const DEFAULT_CALL_GAS_FALLBACK = BigNumber.from(50_000);
 
 export interface EstimateHandleGasParams {
   origin: number;
@@ -28,8 +28,6 @@ export interface EstimateCallGasParams {
 export async function estimateHandleGasForRecipient(
   params: EstimateHandleGasParams,
 ): Promise<BigNumber | null> {
-  const logger = rootLogger.child({ module: 'gas-estimation' });
-
   try {
     return await params.recipient.estimateGas.handle(
       params.origin,
@@ -37,8 +35,7 @@ export async function estimateHandleGasForRecipient(
       params.body,
       { from: params.mailbox },
     );
-  } catch (error) {
-    logger.debug({ error }, 'Failed to estimate handle gas, returning null');
+  } catch {
     return null;
   }
 }

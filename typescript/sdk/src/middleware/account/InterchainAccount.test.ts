@@ -162,6 +162,7 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
   const ICA_OVERHEAD = BigNumber.from(50_000);
   const PER_CALL_OVERHEAD = BigNumber.from(5_000);
   const PER_CALL_FALLBACK = BigNumber.from(50_000);
+  const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
   let sandbox: sinon.SinonSandbox;
   let multiProvider: MultiProvider;
@@ -292,23 +293,20 @@ describe('InterchainAccount.estimateIcaHandleGas', () => {
     expect(result.toString()).to.equal(expectedWithBuffer.toString());
   });
 
-  it('throws when getProvider fails', async () => {
+  it('returns static 200k fallback when getProvider fails', async () => {
     mockDestRouter.estimateGas.handle.rejects(new Error('handle failed'));
 
     (multiProvider.getProvider as sinon.SinonStub).throws(
       new Error('provider error'),
     );
 
-    try {
-      await app.estimateIcaHandleGas({
-        origin: chain,
-        destination,
-        innerCalls: baseCalls,
-        config: baseConfig,
-      });
-      expect.fail('Should have thrown');
-    } catch (e: any) {
-      expect(e.message).to.equal('provider error');
-    }
+    const result = await app.estimateIcaHandleGas({
+      origin: chain,
+      destination,
+      innerCalls: baseCalls,
+      config: baseConfig,
+    });
+
+    expect(result.toString()).to.equal(ICA_HANDLE_GAS_FALLBACK.toString());
   });
 });

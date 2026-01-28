@@ -291,23 +291,27 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     body: string;
     mailbox?: Address;
   }): Promise<string> {
-    const provider = this.multiProvider.getProvider(params.destination);
-    const mailbox =
-      params.mailbox ?? this.getAddresses(params.destination).mailbox;
-    const recipientContract = IMessageRecipient__factory.connect(
-      params.recipient,
-      provider,
-    );
+    try {
+      const provider = this.multiProvider.getProvider(params.destination);
+      const mailbox =
+        params.mailbox ?? this.getAddresses(params.destination).mailbox;
+      const recipientContract = IMessageRecipient__factory.connect(
+        params.recipient,
+        provider,
+      );
 
-    const gasEstimate = await estimateHandleGasForRecipient({
-      recipient: recipientContract,
-      origin: params.origin,
-      sender: params.sender,
-      body: params.body,
-      mailbox,
-    });
+      const gasEstimate = await estimateHandleGasForRecipient({
+        recipient: recipientContract,
+        origin: params.origin,
+        sender: params.sender,
+        body: params.body,
+        mailbox,
+      });
 
-    return gasEstimate?.toString() ?? '0';
+      return gasEstimate?.toString() ?? '0';
+    } catch {
+      return '0';
+    }
   }
 
   deliver(

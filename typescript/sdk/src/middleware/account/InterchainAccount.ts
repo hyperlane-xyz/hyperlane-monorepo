@@ -43,6 +43,9 @@ import {
 import { AccountConfig, GetCallRemoteSettings } from './types.js';
 
 const IGP_DEFAULT_GAS = BigNumber.from(50_000);
+const ICA_OVERHEAD = BigNumber.from(50_000);
+const PER_CALL_OVERHEAD = BigNumber.from(5_000);
+const ICA_HANDLE_GAS_FALLBACK = BigNumber.from(200_000);
 
 export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
   knownAccounts: Record<Address, AccountConfig | undefined>;
@@ -232,16 +235,21 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       formattedCalls,
     );
 
-    const gasEstimate = await estimateHandleGasForRecipient({
-      recipient: destinationRouter,
-      origin: originDomain,
-      sender: addressToBytes32(localRouterAddress),
-      body: messageBody,
-      mailbox: await destinationRouter.mailbox(),
-    });
+    try {
+      const mailbox = await destinationRouter.mailbox();
+      const gasEstimate = await estimateHandleGasForRecipient({
+        recipient: destinationRouter,
+        origin: originDomain,
+        sender: addressToBytes32(localRouterAddress),
+        body: messageBody,
+        mailbox,
+      });
 
-    if (gasEstimate) {
-      return addBufferToGasLimit(gasEstimate);
+      if (gasEstimate) {
+        return addBufferToGasLimit(gasEstimate);
+      }
+    } catch {
+      // Fall through to individual call estimation
     }
 
     this.logger.warn(
@@ -249,27 +257,33 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       'Failed to estimate ICA handle gas, trying individual call estimation',
     );
 
-    const provider = this.multiProvider.getProvider(destination);
-    const individualEstimates = await Promise.all(
-      formattedCalls.map((call) =>
-        estimateCallGas({
-          provider,
-          to: bytes32ToAddress(call.to),
-          data: call.data,
-          value: call.value,
-        }),
-      ),
-    );
-    const totalGas = individualEstimates.reduce(
-      (sum, gas) => sum.add(gas),
-      BigNumber.from(0),
-    );
-    const ICA_OVERHEAD = BigNumber.from(50_000);
-    const PER_CALL_OVERHEAD = BigNumber.from(5_000);
-    const overhead = ICA_OVERHEAD.add(
-      PER_CALL_OVERHEAD.mul(formattedCalls.length),
-    );
-    return addBufferToGasLimit(totalGas.add(overhead));
+    try {
+      const provider = this.multiProvider.getProvider(destination);
+      const individualEstimates = await Promise.all(
+        formattedCalls.map((call) =>
+          estimateCallGas({
+            provider,
+            to: bytes32ToAddress(call.to),
+            data: call.data,
+            value: call.value,
+          }),
+        ),
+      );
+      const totalGas = individualEstimates.reduce(
+        (sum, gas) => sum.add(gas),
+        BigNumber.from(0),
+      );
+      const overhead = ICA_OVERHEAD.add(
+        PER_CALL_OVERHEAD.mul(formattedCalls.length),
+      );
+      return addBufferToGasLimit(totalGas.add(overhead));
+    } catch {
+      this.logger.warn(
+        { destination },
+        'Individual call estimation also failed, using static fallback',
+      );
+      return ICA_HANDLE_GAS_FALLBACK;
+    }
   }
 
   // meant for ICA governance to return the populatedTx
