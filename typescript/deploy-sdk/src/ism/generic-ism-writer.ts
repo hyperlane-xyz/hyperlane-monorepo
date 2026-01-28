@@ -14,8 +14,10 @@ import {
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { deepEquals } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
 import { RoutingIsmWriter } from './routing-ism.js';
@@ -103,8 +105,12 @@ export class IsmWriter
 
   /**
    * Updates an existing ISM to match the desired configuration.
-   * Only routing ISMs support updates (domain enrollment/unenrollment, owner changes).
-   * Multisig and test ISMs are immutable - returns empty array.
+   *
+   * Behavior depends on ISM type and config changes:
+   * - Type changed: creates new ISM (returns update txs that include deployment)
+   * - Immutable type (multisig), config unchanged: no-op
+   * - Immutable type (multisig), config changed: creates new ISM
+   * - Mutable type (routing), any change: delegates to type-specific update
    *
    * @param artifact The desired ISM state (must include deployed address)
    * @returns Array of transactions needed to perform the update
@@ -112,12 +118,35 @@ export class IsmWriter
   async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
     const { artifactState, config, deployed } = artifact;
 
-    // Only routing ISMs are mutable - support domain updates and owner changes
+    // Read current on-chain config to compare
+    const currentArtifact = await this.artifactManager.readIsm(
+      deployed.address,
+    );
+    const currentConfig = currentArtifact.config;
+
+    // Type changed - must create new ISM
+    if (currentConfig.type !== config.type) {
+      await this.create({ config });
+      return [];
+    }
+
+    // For immutable (static) ISM types, compare configs
+    if (STATIC_ISM_TYPES.includes(config.type)) {
+      // Config unchanged - no-op
+      if (deepEquals(currentConfig, config)) {
+        return [];
+      }
+      // Config changed - create new ISM
+      await this.create({ config });
+      return [];
+    }
+
+    // Mutable types (routing) - delegate to type-specific update
     if (config.type === AltVM.IsmType.ROUTING) {
       return this.routingWriter.update({ artifactState, config, deployed });
     }
 
-    // Multisig and test ISMs are immutable - no updates possible
+    // Unknown type - no updates possible
     return [];
   }
 
