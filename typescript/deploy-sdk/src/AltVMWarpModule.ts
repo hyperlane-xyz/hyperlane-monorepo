@@ -331,17 +331,36 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       return updateTransactions;
     }
 
-    if (
+    const actualDeployedHook =
+      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
+    const actualHookIsNonZero =
+      actualDeployedHook && !isZeroishAddress(actualDeployedHook);
+
+    const expectedHookIsEmpty =
       !expectedConfig.hook ||
       (typeof expectedConfig.hook === 'string' &&
-        isZeroishAddress(expectedConfig.hook))
-    ) {
+        isZeroishAddress(expectedConfig.hook));
+
+    if (expectedHookIsEmpty && actualHookIsNonZero) {
+      this.logger.debug(
+        `Resetting Hook from ${actualDeployedHook} to zero address`,
+      );
+      return [
+        {
+          annotation: `Resetting ISM for Warp Route to zero address`,
+          ...(await this.signer.getSetTokenHookTransaction({
+            signer: actualConfig.owner,
+            tokenAddress: this.args.addresses.deployedTokenRoute,
+          })),
+        },
+      ];
+    }
+
+    // If both are empty/zero, no updates needed
+    if (expectedHookIsEmpty) {
       this.logger.debug(`Token Hook config is empty. No updates needed.`);
       return updateTransactions;
     }
-
-    const actualDeployedHook =
-      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
 
     // Try to update (may also deploy) Hook with the expected config
     const {
