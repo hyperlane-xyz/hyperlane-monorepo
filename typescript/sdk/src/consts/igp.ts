@@ -43,8 +43,8 @@ export function getProtocolExchangeRateDecimals(
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
     case ProtocolType.Radix:
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-    default:
-      throw new Error(`Unsupported protocol type: ${protocolType}`);
+    case ProtocolType.Starknet:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
   }
 }
 

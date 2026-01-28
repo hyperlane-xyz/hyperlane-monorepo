@@ -1,5 +1,5 @@
 import { BigNumber } from 'bignumber.js';
-import { writeFileSync } from 'fs';
+import { existsSync, mkdirSync, writeFileSync } from 'fs';
 import prompts from 'prompts';
 
 import {
@@ -62,7 +62,7 @@ function printDifference(
     const updatedCost = exampleCost(remote, provider, updated);
     const metadata = provider.getChainMetadata(chain);
 
-    if (currentCost.exampleRemoteGas !== updatedCost.exampleRemoteGas) {
+    if (currentCost.exampleRemoteGasCost !== updatedCost.exampleRemoteGasCost) {
       differences++;
       logger.info(
         `Updated gas: ${chain} -> ${remote}: ${updatedCost.exampleRemoteGas} remote gas cost: ${updatedCost.exampleRemoteGasCost
@@ -241,8 +241,8 @@ async function main() {
         );
         const file = `${filesubmitter}/igp-update-${chain}.json`;
         const dir = filesubmitter;
-        if (!require('fs').existsSync(dir)) {
-          require('fs').mkdirSync(dir, { recursive: true });
+        if (!existsSync(dir)) {
+          mkdirSync(dir, { recursive: true });
         }
         writeFileSync(file, JSON.stringify(json, null, 2));
         logger.info(
