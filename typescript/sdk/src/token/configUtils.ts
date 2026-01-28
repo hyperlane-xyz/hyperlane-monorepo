@@ -418,6 +418,43 @@ const transformWarpDeployConfigToCheck: TransformObjectTransformer = (
   return obj;
 };
 
+/**
+ * Removes derived fee fields (maxFee/halfAmount) from fee configs where
+ * they shouldn't be compared directly:
+ * - LinearFee: remove maxFee/halfAmount (compare bps only)
+ * - RoutingFee: remove maxFee/halfAmount at root (hardcoded to max uint256)
+ * - ProgressiveFee/RegressiveFee: keep maxFee/halfAmount (they ARE the config)
+ */
+function removeDerivedFeeFields(feeConfig: any): any {
+  if (!feeConfig || typeof feeConfig !== 'object') {
+    return feeConfig;
+  }
+
+  const result = { ...feeConfig };
+
+  // For LinearFee: remove maxFee/halfAmount (compare bps only)
+  // For RoutingFee: remove maxFee/halfAmount at root (hardcoded to max uint256)
+  if (
+    result.type === TokenFeeType.LinearFee ||
+    result.type === TokenFeeType.RoutingFee
+  ) {
+    delete result.maxFee;
+    delete result.halfAmount;
+  }
+
+  // Recursively process nested feeContracts
+  if (result.feeContracts && typeof result.feeContracts === 'object') {
+    result.feeContracts = Object.fromEntries(
+      Object.entries(result.feeContracts).map(([chain, nestedFee]) => [
+        chain,
+        removeDerivedFeeFields(nestedFee),
+      ]),
+    );
+  }
+
+  return result;
+}
+
 const sortArraysInConfigToCheck = (a: any, b: any): number => {
   if (a.type && b.type) {
     if (a.type < b.type) return -1;
@@ -458,6 +495,13 @@ export function transformConfigToCheck(
   );
 
   const clonedTokenConfig: HypTokenRouterConfig = deepCopy(filteredObj);
+
+  // Process fee config to remove derived fields based on fee type
+  if (clonedTokenConfig.tokenFee) {
+    clonedTokenConfig.tokenFee = removeDerivedFeeFields(
+      clonedTokenConfig.tokenFee,
+    );
+  }
 
   if (isMovableCollateralTokenConfig(clonedTokenConfig)) {
     clonedTokenConfig.allowedRebalancers = clonedTokenConfig.allowedRebalancers
