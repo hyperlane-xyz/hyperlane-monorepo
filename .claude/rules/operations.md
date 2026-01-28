@@ -1,17 +1,24 @@
 # Operations & Debugging Rules
 
-## Primary Reference
+## Skills for Common Tasks
 
-For comprehensive operational debugging guidance, **always consult**:
+| Skill                                       | Use For                                      |
+| ------------------------------------------- | -------------------------------------------- |
+| `/debug-message`                            | Debug why a specific message isn't processed |
+| `/gcp-logs`                                 | Query GCP logs with efficient filtering      |
+| `/debug-validator-checkpoint-inconsistency` | Debug validator checkpoint issues            |
+
+## Primary Reference
 
 - `docs/ai-agents/operational-debugging.md` - Detailed Grafana/GCP debugging workflows
 - [Operations Runbook](https://www.notion.so/hyperlanexyz/Runbook-AI-Agent-24a6d35200d680229b38e8501164ca66) - Manual procedures
 
 ## Debugging Priority Order
 
-1. **Start with Grafana** - Check alerts and dashboards first
-2. **Use Hyperlane Explorer** - Find stuck messages before querying logs
-3. **Query GCP logs** - Only after understanding the high-level issue
+1. **Use skills first** - `/debug-message` for message issues, `/gcp-logs` for log queries
+2. **Start with Grafana** - Check alerts and dashboards for context
+3. **Use Hyperlane Explorer** - Find stuck messages before querying logs
+4. **Query GCP logs** - Use `gcloud` CLI (not MCP server)
 
 ## Key Dashboards
 
