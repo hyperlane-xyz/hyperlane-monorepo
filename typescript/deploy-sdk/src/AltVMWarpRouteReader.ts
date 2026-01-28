@@ -80,7 +80,7 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
 
     // Hook address is not exposed by providers yet, use zero address as placeholder
     // TODO: replace with protocol-specific zero address
-    let hook;
+    let hook: DerivedWarpConfig['hook'];
     if (this.chainMetadata.protocol !== ProtocolType.Aleo) {
       hook = '0x0000000000000000000000000000000000000000';
     } else {
