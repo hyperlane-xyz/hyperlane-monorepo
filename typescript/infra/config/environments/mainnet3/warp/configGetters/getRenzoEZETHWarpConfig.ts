@@ -4,6 +4,7 @@ import { Mailbox__factory } from '@hyperlane-xyz/core';
 import {
   ChainMap,
   ChainName,
+  ChainSubmissionStrategy,
   HookConfig,
   HookType,
   HypTokenRouterConfig,
@@ -15,7 +16,6 @@ import {
 import { Address, assert, symmetricDifference } from '@hyperlane-xyz/utils';
 
 import { getEnvironmentConfig } from '../../../../../scripts/core-utils.js';
-import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 import { getRegistry as getMainnet3Registry } from '../../chains.js';
 
 export const ezEthChainsToDeploy = [
@@ -40,6 +40,7 @@ export const ezEthChainsToDeploy = [
   'monad',
   'xlayer',
   'stable',
+  'megaeth',
 ];
 export const MAX_PROTOCOL_FEE = parseEther('100').toString(); // Changing this will redeploy the PROTOCOL_FEE hook
 
@@ -65,7 +66,8 @@ export const renzoTokenPrices: ChainMap<string> = {
   ink: '3900', // ETH
   monad: '1', // MON placeholder price to avoid division by zero
   xlayer: '165', // OKB
-  stable: '1',
+  stable: '1', // USDT
+  megaeth: '3150', // ETH
 };
 export function getProtocolFee(chain: ChainName) {
   const price = renzoTokenPrices[chain];
@@ -143,6 +145,7 @@ const ezEthAddresses: Record<(typeof ezEthChainsToDeploy)[number], string> = {
   monad: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   xlayer: '0x2416092f143378750bb29b79eD961ab195CcEea5',
   stable: '0x2416092f143378750bb29b79eD961ab195CcEea5',
+  megaeth: '0x09601A65e7de7BC8A19813D263dD9E98bFdC3c57',
 };
 
 export const ezEthValidators: ChainMap<MultisigConfig> = {
@@ -356,6 +359,16 @@ export const ezEthValidators: ChainMap<MultisigConfig> = {
       { address: '0xA62f727Fc4700Fcb65668a30932eB59f8d625FAC', alias: 'Renzo' },
     ],
   },
+  megaeth: {
+    threshold: 1,
+    validators: [
+      {
+        address: '0xf1b05cf37d57c7db93bddd2276beac87aa5b56ad',
+        alias: 'Luganodes',
+      },
+      { address: '0x315449d1198d6f3D6eD6f98Ac919fC2d3dD6F82f', alias: 'Renzo' },
+    ],
+  },
 };
 
 export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
@@ -378,10 +391,13 @@ export const ezEthSafes: Record<(typeof ezEthChainsToDeploy)[number], string> =
     worldchain: '0x7Be36310285cA4e809C296526745DA983c8F8e0f',
     plasma: '0x76Cd13F5Bfb73f501795988Ef5d017606Bb16DBd',
     ink: '0x42A4E564836AE98C2522368Be2faA6e96Ff7a07f',
+    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
+    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
     stable: '0x088Bc91C5e9A278FB9c5f80a226274fF0179E69c',
+    megaeth: '0x9d6fB99C1cB12BD6e8dBFeA6889F19C23cf01cAA',
   };
 
-// Unless defined otherwise, most of these are Renzo's custom ICA-like owners
+// Unless defined otherwise, most of these are Renzo's custom ICA-like (L2Admin) owners
 export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
   {
     arbitrum: '0xE5219Cf568D366ae4b96Efb04d826E6f2e72DaA0',
@@ -402,9 +418,10 @@ export const ezEthOwners: Record<(typeof ezEthChainsToDeploy)[number], string> =
     worldchain: '0x672fb1C0F35DBD2074742765d23d18b80cbAAf22',
     plasma: '0x3eA4D0467C976e9877Adb96869Fdeb0551fd0930',
     ink: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
-    monad: '0xf2a0775ED23887F3C47Bf1f0D01cc580281dA2E4',
-    xlayer: '0x8410927C286A38883BC23721e640F31D3E3E79F8',
+    monad: '0xf25484650484DE3d554fB0b7125e7696efA4ab99',
+    xlayer: '0x81F6e9914136Da1A1d3b1eFd14F7E0761c3d4cc7',
     stable: ezEthSafes.stable,
+    megaeth: ezEthSafes.megaeth,
   };
 
 type ChainOwnerOverrides = ChainMap<Partial<{ proxyAdmin: string }>>;
@@ -464,10 +481,10 @@ export const ezEthChainOwnerOverrides: ChainOwnerOverrides = {
     proxyAdmin: ezEthSafes.ink,
   },
   monad: {
-    proxyAdmin: ezEthOwners.monad,
+    proxyAdmin: ezEthSafes.monad,
   },
   xlayer: {
-    proxyAdmin: ezEthOwners.xlayer,
+    proxyAdmin: ezEthSafes.xlayer,
   },
 };
 
@@ -611,5 +628,18 @@ export const getRenzoEZETHWarpConfig = getRenzoWarpConfigGenerator({
   chainOwnerOverrides: ezEthChainOwnerOverrides,
 });
 
-export const getEZETHGnosisSafeBuilderStrategyConfig =
-  getGnosisSafeBuilderStrategyConfigGenerator(ezEthOwners);
+export function getEZETHFileSubmitterStrategyConfig(): ChainSubmissionStrategy {
+  // 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion
+  return Object.fromEntries(
+    Object.entries(ezEthOwners).map(([chain, _]) => [
+      chain,
+      {
+        submitter: {
+          type: 'file',
+          filepath: '/tmp/ezeth-combined.json',
+          chain,
+        },
+      },
+    ]),
+  ) as unknown as ChainSubmissionStrategy;
+}

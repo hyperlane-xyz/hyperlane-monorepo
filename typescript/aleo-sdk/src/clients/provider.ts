@@ -966,7 +966,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<AleoTransaction> {
-    const { mailboxAddress } = await this.getToken({
+    const { mailboxAddress, tokenType } = await this.getToken({
       tokenAddress: req.tokenAddress,
     });
 
@@ -1038,6 +1038,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       required_hook:${mailbox.requiredHook ? fromAleoAddress(mailbox.requiredHook).address : ALEO_NULL_ADDRESS}
     }`;
 
+    const amount = `${req.amount}${tokenType === AltVM.TokenType.native ? 'u64' : 'u128'}`;
+
     if (req.customHookAddress) {
       const metadataBytes: number[] = fillArray(
         [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
@@ -1061,7 +1063,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           remoteRouterValue,
           `${req.destinationDomainId}u32`,
           recipient,
-          `${req.amount}u64`,
+          amount,
           arrayToPlaintext(creditAllowance),
           fromAleoAddress(req.customHookAddress).address,
           hookMetadata,
@@ -1080,7 +1082,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         remoteRouterValue,
         `${req.destinationDomainId}u32`,
         recipient,
-        `${req.amount}u64`,
+        amount,
         arrayToPlaintext(creditAllowance),
       ],
     };
