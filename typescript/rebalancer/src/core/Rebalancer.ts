@@ -13,29 +13,19 @@ import {
   type Token,
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
-import {
-  eqAddress,
-  isNullish,
-  mapAllSettled,
-  toWei,
-} from '@hyperlane-xyz/utils';
+import { eqAddress, isNullish, mapAllSettled } from '@hyperlane-xyz/utils';
 
 import type {
   IRebalancer,
   PreparedTransaction,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
-import {
-  type BridgeConfigWithOverride,
-  getBridgeConfig,
-} from '../utils/index.js';
 
 export class Rebalancer implements IRebalancer {
   private readonly logger: Logger;
   constructor(
-    private readonly bridges: ChainMap<BridgeConfigWithOverride>,
     private readonly warpCore: WarpCore,
     private readonly chainMetadata: ChainMap<ChainMetadata>,
     private readonly tokensByChainName: ChainMap<Token>,
@@ -47,7 +37,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   async rebalance(
-    routes: RebalancingRoute[],
+    routes: RebalanceRoute[],
   ): Promise<RebalanceExecutionResult[]> {
     if (routes.length === 0) {
       this.logger.info('No routes to execute, exiting');
@@ -62,11 +52,7 @@ export class Rebalancer implements IRebalancer {
     let executionResults: RebalanceExecutionResult[] = [];
 
     if (preparedTransactions.length > 0) {
-      const filteredTransactions =
-        this.filterTransactions(preparedTransactions);
-      if (filteredTransactions.length > 0) {
-        executionResults = await this.executeTransactions(filteredTransactions);
-      }
+      executionResults = await this.executeTransactions(preparedTransactions);
     }
 
     // Combine preparation failures with execution results
@@ -99,7 +85,7 @@ export class Rebalancer implements IRebalancer {
     return allResults;
   }
 
-  private async prepareTransactions(routes: RebalancingRoute[]): Promise<{
+  private async prepareTransactions(routes: RebalanceRoute[]): Promise<{
     preparedTransactions: PreparedTransaction[];
     preparationFailureResults: RebalanceExecutionResult[];
   }> {
@@ -142,7 +128,7 @@ export class Rebalancer implements IRebalancer {
   }
 
   private async prepareTransaction(
-    route: RebalancingRoute,
+    route: RebalanceRoute,
   ): Promise<PreparedTransaction | null> {
     const { origin, destination, amount } = route;
 
@@ -171,12 +157,8 @@ export class Rebalancer implements IRebalancer {
     const originHypAdapter = originToken.getHypAdapter(
       this.warpCore.multiProvider,
     ) as EvmMovableCollateralAdapter;
-    const { bridge, bridgeIsWarp } = getBridgeConfig(
-      this.bridges,
-      origin,
-      destination,
-      this.logger,
-    );
+
+    const { bridge } = route;
 
     // 2. Get quotes
     let quotes: InterchainGasQuote[];
@@ -186,7 +168,6 @@ export class Rebalancer implements IRebalancer {
         destinationChainMeta.domainId,
         destinationToken.addressOrDenom,
         amount,
-        bridgeIsWarp,
       );
     } catch (error) {
       this.logger.error(
@@ -228,7 +209,7 @@ export class Rebalancer implements IRebalancer {
     return { populatedTx, route, originTokenAmount };
   }
 
-  private async validateRoute(route: RebalancingRoute): Promise<boolean> {
+  private async validateRoute(route: RebalanceRoute): Promise<boolean> {
     const { origin, destination, amount } = route;
     const originToken = this.tokensByChainName[origin];
     const destinationToken = this.tokensByChainName[destination];
@@ -314,12 +295,8 @@ export class Rebalancer implements IRebalancer {
       return false;
     }
 
-    const { bridge } = getBridgeConfig(
-      this.bridges,
-      origin,
-      destination,
-      this.logger,
-    );
+    const { bridge } = route;
+
     if (
       !(await originHypAdapter.isBridgeAllowed(
         destinationDomain.domainId,
@@ -463,43 +440,6 @@ export class Rebalancer implements IRebalancer {
     return results;
   }
 
-  private filterTransactions(
-    transactions: PreparedTransaction[],
-  ): PreparedTransaction[] {
-    const filteredTransactions: PreparedTransaction[] = [];
-    for (const transaction of transactions) {
-      const { origin, destination, amount } = transaction.route;
-      const originToken = this.tokensByChainName[origin];
-      const decimalFormattedAmount =
-        transaction.originTokenAmount.getDecimalFormattedAmount();
-
-      // minimum amount check
-      const { bridgeMinAcceptedAmount } = getBridgeConfig(
-        this.bridges,
-        origin,
-        destination,
-        this.logger,
-      );
-      const minAccepted = BigInt(
-        toWei(bridgeMinAcceptedAmount, originToken.decimals),
-      );
-      if (minAccepted > amount) {
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName: originToken.name,
-          },
-          'Route skipped due to minimum threshold amount not met.',
-        );
-        continue;
-      }
-      filteredTransactions.push(transaction);
-    }
-    return filteredTransactions;
-  }
-
   // === Parallel Transaction Sending Methods ===
 
   /**
@@ -595,22 +535,25 @@ export class Rebalancer implements IRebalancer {
     receipt: providers.TransactionReceipt,
   ): RebalanceExecutionResult {
     const { origin, destination } = transaction.route;
+    const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
 
-    let messageId: string | undefined;
-    try {
-      const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
-      messageId = dispatchedMessages[0]?.id;
-    } catch {
-      this.logger.debug(
-        { origin, destination },
-        'No dispatched message found in rebalance receipt.',
+    if (dispatchedMessages.length === 0) {
+      this.logger.error(
+        { origin, destination, txHash: receipt.transactionHash },
+        'No Dispatch event found in confirmed rebalance receipt',
       );
+      return {
+        route: transaction.route,
+        success: false,
+        error: `Transaction confirmed but no Dispatch event found`,
+        txHash: receipt.transactionHash,
+      };
     }
 
     return {
       route: transaction.route,
       success: true,
-      messageId,
+      messageId: dispatchedMessages[0].id,
       txHash: receipt.transactionHash,
     };
   }

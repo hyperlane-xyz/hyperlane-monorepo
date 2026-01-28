@@ -1,2 +1,2 @@
-export { IStore } from './IStore.js';
+export type { IStore } from './IStore.js';
 export { InMemoryStore } from './InMemoryStore.js';

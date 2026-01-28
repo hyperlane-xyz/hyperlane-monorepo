@@ -1,3 +1,4 @@
+import { randomUUID } from 'crypto';
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -9,7 +10,10 @@ import {
 import { assert, toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
-import { getStrategyChainNames } from '../config/types.js';
+import {
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import {
   type ConfirmedBlockTags,
@@ -21,11 +25,12 @@ import {
 import type {
   IRebalancer,
   RebalanceExecutionResult,
+  RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
 import type {
   IStrategy,
   InflightContext,
-  RebalancingRoute,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
@@ -227,14 +232,24 @@ export class RebalancerService {
     assert(!isNaN(amountNum), 'Amount must be a valid number');
     assert(amountNum > 0, 'Amount must be greater than 0');
 
+    const originConfig = getStrategyChainConfig(
+      this.rebalancerConfig.strategyConfig,
+      origin,
+    );
+    assert(
+      originConfig?.bridge,
+      `No bridge configured for origin chain ${origin}`,
+    );
+
     try {
-      await this.rebalancer.rebalance([
-        {
-          origin,
-          destination,
-          amount: BigInt(toWei(amount, originToken.decimals)),
-        },
-      ]);
+      const route: RebalanceRoute = {
+        intentId: randomUUID(),
+        origin,
+        destination,
+        amount: BigInt(toWei(amount, originToken.decimals)),
+        bridge: originConfig.bridge,
+      };
+      await this.rebalancer.rebalance([route]);
       this.logger.info(
         `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
       );
@@ -338,15 +353,15 @@ export class RebalancerService {
     // Get inflight context for strategy decision-making
     const inflightContext = await this.getInflightContext();
 
-    const rebalancingRoutes = this.strategy!.getRebalancingRoutes(
+    const strategyRoutes = this.strategy!.getRebalancingRoutes(
       rawBalances,
       inflightContext,
     );
 
-    if (rebalancingRoutes.length > 0) {
+    if (strategyRoutes.length > 0) {
       this.logger.info(
         {
-          routes: rebalancingRoutes.map((r) => ({
+          routes: strategyRoutes.map((r) => ({
             from: r.origin,
             to: r.destination,
             amount: r.amount.toString(),
@@ -355,7 +370,7 @@ export class RebalancerService {
         'Routes proposed',
       );
       if (this.rebalancer) {
-        await this.executeWithTracking(rebalancingRoutes);
+        await this.executeWithTracking(strategyRoutes);
       }
     } else {
       this.logger.info('No rebalancing needed');
@@ -398,91 +413,83 @@ export class RebalancerService {
 
   /**
    * Execute rebalancing with intent tracking.
-   * Creates intents before execution, processes results after.
+   * Creates intents and assigns IDs to routes before execution, then processes results by ID.
    */
-  private async executeWithTracking(routes: RebalancingRoute[]): Promise<void> {
+  private async executeWithTracking(
+    strategyRoutes: StrategyRoute[],
+  ): Promise<void> {
     if (!this.rebalancer || !this.actionTracker) {
       this.logger.warn('Rebalancer or ActionTracker not available, skipping');
       return;
     }
 
-    // 1. Create intents paired with their routes BEFORE execution
-    // This coupling ensures we can match results back to intents by route fields
-    const intentRoutes = await Promise.all(
-      routes.map(async (route) => ({
-        intent: await this.actionTracker!.createRebalanceIntent({
-          origin: this.multiProvider.getDomainId(route.origin),
-          destination: this.multiProvider.getDomainId(route.destination),
-          amount: route.amount,
-          bridge: route.bridge,
-        }),
-        route,
-      })),
-    );
+    // 1. Convert strategy routes to rebalance routes with IDs and create intents
+    // The route ID is used as the intent ID for direct matching
+    const rebalanceRoutes: RebalanceRoute[] = [];
+    const intentIds: string[] = [];
+
+    for (const route of strategyRoutes) {
+      const intent = await this.actionTracker.createRebalanceIntent({
+        origin: this.multiProvider.getDomainId(route.origin),
+        destination: this.multiProvider.getDomainId(route.destination),
+        amount: route.amount,
+        bridge: route.bridge,
+      });
+      intentIds.push(intent.id);
+      rebalanceRoutes.push({
+        ...route,
+        intentId: intent.id,
+      });
+    }
 
     this.logger.debug(
-      { intentCount: intentRoutes.length },
+      { intentCount: rebalanceRoutes.length },
       'Created rebalance intents',
     );
 
-    // 2. Execute rebalance
+    // 2. Execute rebalance with routes that have IDs
     let results: RebalanceExecutionResult[];
     try {
-      results = await this.rebalancer.rebalance(routes);
-      this.metrics?.recordRebalancerSuccess();
-      this.logger.info('Rebalancer completed a cycle successfully');
+      results = await this.rebalancer.rebalance(rebalanceRoutes);
+      const failedResults = results.filter((r) => !r.success);
+      if (failedResults.length > 0) {
+        this.metrics?.recordRebalancerFailure();
+        this.logger.warn(
+          { failureCount: failedResults.length, total: results.length },
+          'Rebalancer cycle completed with failures',
+        );
+      } else {
+        this.metrics?.recordRebalancerSuccess();
+        this.logger.info('Rebalancer completed a cycle successfully');
+      }
     } catch (error: any) {
       this.metrics?.recordRebalancerFailure();
       this.logger.error({ error }, 'Error while rebalancing');
 
       // Mark all intents as failed
       await Promise.all(
-        intentRoutes.map((ir) =>
-          this.actionTracker!.failRebalanceIntent(ir.intent.id),
-        ),
+        intentIds.map((id) => this.actionTracker!.failRebalanceIntent(id)),
       );
       return;
     }
 
-    // 3. Process results - create action for successful txs, mark intent appropriately
-    await this.processExecutionResults(results, intentRoutes);
+    // 3. Process results - results have IDs that match intents directly
+    await this.processExecutionResults(results);
   }
 
   /**
    * Process execution results and update tracking state.
-   * Creates actions for successful transactions and updates intent statuses.
-   *
-   * Results are matched to intents by route (origin + destination) since
-   * Rebalancer may return results in different order than input routes.
+   * Results are matched to intents by the route ID (which equals the intent ID).
    */
   private async processExecutionResults(
     results: RebalanceExecutionResult[],
-    intentRoutes: Array<{ intent: { id: string }; route: RebalancingRoute }>,
   ): Promise<void> {
     for (const result of results) {
-      // Match result to intent by route fields
-      const match = intentRoutes.find(
-        (ir) =>
-          ir.route.origin === result.route.origin &&
-          ir.route.destination === result.route.destination,
-      );
-
-      if (!match) {
-        this.logger.error(
-          { route: result.route },
-          'No matching intent found for result',
-        );
-        continue;
-      }
-
-      const intent = match.intent;
+      const intentId = result.route.intentId;
 
       if (result.success && result.messageId) {
-        // Create action for successful transaction with messageId
-        // Note: createRebalanceAction() automatically transitions intent to 'in_progress'.
-        // The intent will be marked 'complete' when the action is delivered (in syncRebalanceActions).
         await this.actionTracker!.createRebalanceAction({
-          intentId: intent.id,
+          intentId,
           origin: this.multiProvider.getDomainId(result.route.origin),
           destination: this.multiProvider.getDomainId(result.route.destination),
           amount: result.route.amount,
@@ -492,7 +499,7 @@ export class RebalancerService {
 
         this.logger.info(
           {
-            intentId: intent.id,
+            intentId,
             messageId: result.messageId,
             txHash: result.txHash,
             origin: result.route.origin,
@@ -500,28 +507,12 @@ export class RebalancerService {
           },
           'Rebalance action created successfully',
         );
-      } else if (result.success && !result.messageId) {
-        // TODO: Handle successful execution without messageId (e.g., non-Hyperlane bridges)
-        // For now, mark as failed since we can't track delivery without messageId
-        await this.actionTracker!.failRebalanceIntent(intent.id);
-
-        this.logger.warn(
-          {
-            intentId: intent.id,
-            success: result.success,
-            txHash: result.txHash,
-            origin: result.route.origin,
-            destination: result.route.destination,
-          },
-          'Rebalance succeeded but no messageId - cannot track delivery',
-        );
       } else {
-        // Mark intent as failed for failed transactions
-        await this.actionTracker!.failRebalanceIntent(intent.id);
+        await this.actionTracker!.failRebalanceIntent(intentId);
 
         this.logger.warn(
           {
-            intentId: intent.id,
+            intentId,
             success: result.success,
             error: result.error,
             origin: result.route.origin,
