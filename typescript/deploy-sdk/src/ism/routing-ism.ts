@@ -30,6 +30,18 @@ type DeployedRoutingIsmArtifact = ArtifactDeployed<
   DeployedIsmAddress
 >;
 
+/**
+ * Interface for IsmWriter to avoid circular dependency.
+ * RoutingIsmWriter needs to call IsmWriter for nested ISM operations,
+ * but IsmWriter creates RoutingIsmWriter.
+ */
+export interface IIsmWriter {
+  create(
+    artifact: ArtifactNew<IsmArtifactConfig>,
+  ): Promise<[DeployedIsmArtifact, TxReceipt[]]>;
+  update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]>;
+}
+
 export class RoutingIsmWriter
   implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddress>
 {
@@ -38,13 +50,16 @@ export class RoutingIsmWriter
   });
 
   private readonly ismReader: IsmReader;
+  private readonly ismWriter: IIsmWriter;
 
   constructor(
     protected readonly artifactManager: IRawIsmArtifactManager,
     protected readonly chainLookup: ChainLookup,
     private readonly signer: ISigner<AnnotatedTx, TxReceipt>,
+    ismWriter: IIsmWriter,
   ) {
     this.ismReader = new IsmReader(artifactManager, chainLookup);
+    this.ismWriter = ismWriter;
   }
 
   async read(address: string): Promise<DeployedRoutingIsmArtifact> {
@@ -77,7 +92,7 @@ export class RoutingIsmWriter
         deployedDomainIsms[domain] = nestedArtifact;
       } else if (isArtifactNew(nestedArtifact)) {
         const [deployedNested, receipts] =
-          await this.deployDomainIsm(nestedArtifact);
+          await this.ismWriter.create(nestedArtifact);
         deployedDomainIsms[domain] = deployedNested;
         allReceipts.push(...receipts);
       } else {
@@ -144,27 +159,8 @@ export class RoutingIsmWriter
       const domain = parseInt(domainId);
 
       if (isArtifactDeployed(domainIsmConfig)) {
-        const { artifactState, config, deployed } = domainIsmConfig;
-
-        const domainIsmWriter = this.artifactManager.createWriter(
-          domainIsmConfig.config.type,
-          this.signer,
-        );
-
-        let domainIsmUpdateTxs: AnnotatedTx[];
-        if (config.type === AltVM.IsmType.ROUTING) {
-          domainIsmUpdateTxs = await this.update({
-            artifactState,
-            config,
-            deployed,
-          });
-        } else {
-          domainIsmUpdateTxs = await domainIsmWriter.update({
-            artifactState,
-            config,
-            deployed,
-          });
-        }
+        // Use IsmWriter.update() for nested ISMs to get proper type/config change detection
+        const domainIsmUpdateTxs = await this.ismWriter.update(domainIsmConfig);
         updateTxs.push(...domainIsmUpdateTxs);
 
         deployedDomains[domain] = domainIsmConfig;
@@ -174,7 +170,8 @@ export class RoutingIsmWriter
         // Note: We don't generate update transactions for UNDERIVED artifacts
         // since they represent existing ISMs that we're just referencing
       } else if (isArtifactNew(domainIsmConfig)) {
-        [deployedDomains[domain]] = await this.deployDomainIsm(domainIsmConfig);
+        [deployedDomains[domain]] =
+          await this.ismWriter.create(domainIsmConfig);
       } else {
         // This should never happen - all artifact states are handled above
         const _exhaustiveCheck: never = domainIsmConfig;
@@ -204,24 +201,5 @@ export class RoutingIsmWriter
 
     const routingUpdateTxs = await rawRoutingWriter.update(rawRoutingArtifact);
     return [...updateTxs, ...routingUpdateTxs];
-  }
-
-  private async deployDomainIsm(
-    artifact: ArtifactNew<IsmArtifactConfig>,
-  ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
-    const { config, artifactState } = artifact;
-    if (config.type === AltVM.IsmType.ROUTING) {
-      return this.create({
-        config,
-        artifactState,
-      });
-    }
-
-    const writer = this.artifactManager.createWriter(config.type, this.signer);
-
-    return writer.create({
-      config,
-      artifactState,
-    });
   }
 }

@@ -77,6 +77,7 @@ export class IsmWriter
       artifactManager,
       chainLookup,
       signer,
+      this, // Pass this IsmWriter for nested ISM operations
     );
   }
 
@@ -91,16 +92,16 @@ export class IsmWriter
   async create(
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
-    const { artifactState, config } = artifact;
+    const { config } = artifact;
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
     if (config.type === AltVM.IsmType.ROUTING) {
-      return this.routingWriter.create({ artifactState, config });
+      return this.routingWriter.create({ ...artifact, config });
     }
 
     // For other ISM types, request typed writer from artifact manager
     const writer = this.artifactManager.createWriter(config.type, this.signer);
-    return writer.create({ artifactState, config });
+    return writer.create({ ...artifact, config });
   }
 
   /**
@@ -116,7 +117,7 @@ export class IsmWriter
    * @returns Array of transactions needed to perform the update
    */
   async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
-    const { artifactState, config, deployed } = artifact;
+    const { config, deployed } = artifact;
 
     // Read current on-chain config to compare
     const currentArtifact = await this.artifactManager.readIsm(
@@ -143,7 +144,7 @@ export class IsmWriter
 
     // Mutable types (routing) - delegate to type-specific update
     if (config.type === AltVM.IsmType.ROUTING) {
-      return this.routingWriter.update({ artifactState, config, deployed });
+      return this.routingWriter.update({ ...artifact, config });
     }
 
     // Unknown type - no updates possible
