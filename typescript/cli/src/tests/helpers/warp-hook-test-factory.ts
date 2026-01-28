@@ -289,7 +289,7 @@ export function createHookUpdateTests(
         oracleConfig: {
           [config.chainName]: {
             gasPrice: '2', // Changed gas price
-            tokenExchangeRate: '1.5', // Changed token exchange rate
+            tokenExchangeRate: '15', // Changed token exchange rate
           },
         },
       };
@@ -333,7 +333,7 @@ export function createHookUpdateTests(
       expect(finalHook.oracleConfig[config.chainName].gasPrice).to.equal('2');
       expect(
         finalHook.oracleConfig[config.chainName].tokenExchangeRate,
-      ).to.equal('1.5');
+      ).to.equal('15');
     });
 
     it('should not redeploy Hook when applying same config twice (idempotency)', async function () {
