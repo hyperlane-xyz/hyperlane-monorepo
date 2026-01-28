@@ -169,7 +169,10 @@ function getProtocolExchangeRate(
     .times(multiplier)
     .integerValue(BigNumberJs.ROUND_FLOOR)
     .toString(10);
-  return BigNumber.from(integer);
+  const result = BigNumber.from(integer);
+
+  // Ensure exchange rate is at least 1
+  return result.lt(1) ? BigNumber.from(1) : result;
 }
 
 // Gets the StorageGasOracleConfig for each remote chain for a particular local chain.
@@ -302,20 +305,22 @@ function adjustForPrecisionLoss(
     const recoveredExchangeRate = adjustedExchangeRate.mul(
       gasPriceScalingFactor,
     );
-    if (recoveredExchangeRate.mul(100).div(newExchangeRate).lt(99)) {
-      throw new Error(
-        `Too much underflow when downscaling exchange rate for remote chain ${remote}`,
-      );
+    // Ensure we recover at least 99% of the original exchange rate
+    if (recoveredExchangeRate.mul(100).div(newExchangeRate).gte(99)) {
+      newGasPrice = newGasPrice.times(gasPriceScalingFactor);
+      newExchangeRate = adjustedExchangeRate;
     }
-
-    newGasPrice = newGasPrice.times(gasPriceScalingFactor);
-    newExchangeRate = adjustedExchangeRate;
   }
 
   const newGasPriceInteger = newGasPrice.integerValue(BigNumberJs.ROUND_CEIL);
   assert(
     newGasPriceInteger.gt(0),
     'Gas price must be greater than 0, possible loss of precision',
+  );
+
+  assert(
+    newExchangeRate.gt(0),
+    `Token exchange rate must be greater than 0, possible loss of precision. Original exchange rate: ${exchangeRate.toString()}`,
   );
 
   return {

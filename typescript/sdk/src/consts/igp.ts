@@ -23,6 +23,8 @@ export const TOKEN_EXCHANGE_RATE_SCALE_COSMOS = ethers.utils.parseUnits(
   TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS,
 );
 
+export const TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM = 10;
+
 // Gets the number of decimals for the exchange rate on a particular origin protocol.
 // Different smart contract implementations require different levels of precision.
 export function getProtocolExchangeRateDecimals(
@@ -36,7 +38,11 @@ export function getProtocolExchangeRateDecimals(
     case ProtocolType.Cosmos:
       return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
     case ProtocolType.CosmosNative:
-      return TOKEN_EXCHANGE_RATE_DECIMALS_COSMOS;
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    case ProtocolType.Aleo:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    case ProtocolType.Radix:
+      return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
     default:
       throw new Error(`Unsupported protocol type: ${protocolType}`);
   }

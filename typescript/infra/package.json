@@ -21,6 +21,7 @@
     "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/deploy-sdk": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@inquirer/input": "^1.0.0",

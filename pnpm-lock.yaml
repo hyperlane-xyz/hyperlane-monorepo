@@ -1427,6 +1427,9 @@ importers:
       '@hyperlane-xyz/core':
         specifier: workspace:*
         version: link:../../solidity
+      '@hyperlane-xyz/deploy-sdk':
+        specifier: workspace:*
+        version: link:../deploy-sdk
       '@hyperlane-xyz/helloworld':
         specifier: workspace:*
         version: link:../helloworld
