@@ -8,6 +8,14 @@ export type RebalancingRoute = {
   amount: bigint;
 };
 
+export type InflightContext = {
+  pendingRebalances: RebalancingRoute[];
+  pendingTransfers: RebalancingRoute[];
+};
+
 export interface IStrategy {
-  getRebalancingRoutes(rawBalances: RawBalances): RebalancingRoute[];
+  getRebalancingRoutes(
+    rawBalances: RawBalances,
+    inflightContext?: InflightContext,
+  ): RebalancingRoute[];
 }
