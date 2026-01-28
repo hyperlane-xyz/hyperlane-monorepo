@@ -54,7 +54,7 @@ function findPackageJsonFiles(dir: string, files: string[] = []): string[] {
       entry.startsWith('.') ||
       entry === 'dist' ||
       entry === 'cache' ||
-      entry === 'cli-bundle' ||
+      entry === 'bundle' ||
       entry === 'dependencies' // Vendored third-party contracts in solidity/dependencies
     ) {
       continue;
