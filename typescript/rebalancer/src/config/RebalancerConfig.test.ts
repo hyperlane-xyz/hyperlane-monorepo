@@ -12,6 +12,8 @@ import {
   type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  type StrategyConfig,
+  getAllBridges,
 } from './types.js';
 
 const TEST_CONFIG_PATH = join(tmpdir(), 'rebalancer-config-test.yaml');
@@ -495,5 +497,187 @@ describe('RebalancerConfig', () => {
 
       expect(() => RebalancerConfig.load(TEST_CONFIG_PATH)).to.not.throw();
     });
+  });
+});
+
+describe('getAllBridges', () => {
+  const BRIDGE_A = '0xAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA';
+  const BRIDGE_B = '0xBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBBB';
+  const BRIDGE_C = '0xCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCCC';
+
+  it('should return empty array for empty strategies', () => {
+    const result = getAllBridges([]);
+    expect(result).to.deep.equal([]);
+  });
+
+  it('should return bridge from single strategy', () => {
+    const strategies: StrategyConfig[] = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+          chain2: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+    ];
+
+    const result = getAllBridges(strategies);
+    expect(result).to.deep.equal([BRIDGE_A]);
+  });
+
+  it('should return all bridges from multiple strategies', () => {
+    const strategies: StrategyConfig[] = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
+        chains: {
+          chain1: {
+            buffer: 1000,
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+          chain2: {
+            buffer: 1000,
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_B,
+            bridgeLockTime: 1000,
+          },
+          chain2: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_B,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+    ];
+
+    const result = getAllBridges(strategies);
+    expect(result).to.have.members([BRIDGE_A, BRIDGE_B]);
+    expect(result).to.have.lengthOf(2);
+  });
+
+  it('should include bridges from per-destination overrides', () => {
+    const strategies: StrategyConfig[] = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+            override: {
+              chain2: {
+                bridge: BRIDGE_B,
+              },
+              chain3: {
+                bridge: BRIDGE_C,
+              },
+            },
+          },
+          chain2: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+          chain3: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+    ];
+
+    const result = getAllBridges(strategies);
+    expect(result).to.have.members([BRIDGE_A, BRIDGE_B, BRIDGE_C]);
+    expect(result).to.have.lengthOf(3);
+  });
+
+  it('should deduplicate bridges across strategies and overrides', () => {
+    const strategies: StrategyConfig[] = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
+        chains: {
+          chain1: {
+            buffer: 1000,
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+          chain2: {
+            buffer: 1000,
+            bridge: BRIDGE_B,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A, // Same as first strategy
+            bridgeLockTime: 1000,
+            override: {
+              chain2: {
+                bridge: BRIDGE_B, // Same as chain2 default
+              },
+            },
+          },
+          chain2: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_B,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+    ];
+
+    const result = getAllBridges(strategies);
+    expect(result).to.have.members([BRIDGE_A, BRIDGE_B]);
+    expect(result).to.have.lengthOf(2);
+  });
+
+  it('should handle overrides without bridge property', () => {
+    const strategies: StrategyConfig[] = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          chain1: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+            override: {
+              chain2: {
+                bridgeMinAcceptedAmount: 5000, // Override without bridge
+              },
+            },
+          },
+          chain2: {
+            weighted: { weight: 100n, tolerance: 0n },
+            bridge: BRIDGE_A,
+            bridgeLockTime: 1000,
+          },
+        },
+      },
+    ];
+
+    const result = getAllBridges(strategies);
+    expect(result).to.deep.equal([BRIDGE_A]);
   });
 });

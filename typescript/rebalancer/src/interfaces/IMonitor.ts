@@ -35,10 +35,11 @@ export type MonitorEvent = {
 export interface IMonitor {
   /**
    * Allows subscribers to listen to hyperlane's tokens info.
+   * Handler can be async - Monitor will await it before starting next cycle.
    */
   on(
     eventName: MonitorEventType.TokenInfo,
-    fn: (event: MonitorEvent) => void,
+    fn: (event: MonitorEvent) => void | Promise<void>,
   ): this;
 
   /**
