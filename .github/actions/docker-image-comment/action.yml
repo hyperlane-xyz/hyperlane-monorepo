@@ -50,6 +50,7 @@ runs:
           declare -A SERVICE_EMOJI=(
             ["rebalancer"]="♻️"
             ["warp-monitor"]="🕵️"
+            ["key-funder"]="🔑"
             ["offchain-lookup-server"]="🔍"
             ["monorepo"]="📦"
           )
