@@ -31,6 +31,8 @@ import { HookReader } from './hook-reader.js';
 export type HookDeploymentContext = {
   /** Mailbox address on the chain where hooks are being deployed */
   mailbox?: string;
+  /** Proxy Admin address on the chain where hooks are being deployed */
+  proxyAdmin?: string;
 };
 
 /**

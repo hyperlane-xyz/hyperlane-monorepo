@@ -20,6 +20,7 @@ import { type TronHookQueryClient, getIgpHookConfig } from './hook-query.js';
 import {
   getCreateIgpTx,
   getCreateOracleTx,
+  getCreateProxyTx,
   getInitIgpTx,
   getSetIgpDestinationGasConfigTx,
   getSetIgpOwnerTx,
@@ -91,6 +92,7 @@ export class TronIgpHookWriter
   constructor(
     query: TronHookQueryClient,
     private readonly signer: TronSigner,
+    private readonly proxyAdminAddress: string,
   ) {
     super(query);
   }
@@ -112,10 +114,23 @@ export class TronIgpHookWriter
     );
 
     const createReceipt = await this.signer.sendAndConfirmTransaction(createTx);
-    const igpAddress = this.signer
+    const implAddress = this.signer
       .getTronweb()
       .address.fromHex(createReceipt.contract_address);
     receipts.push(createReceipt);
+
+    const createProxyTx = await getCreateProxyTx(
+      this.signer.getTronweb(),
+      deployerAddress,
+      implAddress,
+      this.proxyAdminAddress,
+    );
+    const createProxyReceipt =
+      await this.signer.sendAndConfirmTransaction(createProxyTx);
+    const igpAddress = this.signer
+      .getTronweb()
+      .address.fromHex(createProxyReceipt.contract_address);
+    receipts.push(createProxyReceipt);
 
     const initTx = await getInitIgpTx(
       this.signer.getTronweb(),

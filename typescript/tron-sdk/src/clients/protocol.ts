@@ -73,7 +73,7 @@ export class TronProtocolProvider implements ProtocolProvider {
 
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: { mailbox?: string; proxyAdmin?: string },
   ): IRawHookArtifactManager {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
@@ -87,9 +87,14 @@ export class TronProtocolProvider implements ProtocolProvider {
       privateKey: strip0x(privateKey),
     });
 
-    const mailboxAddress = context?.mailbox;
+    const mailboxAddress = context?.mailbox ?? '';
+    const proxyAdminAddress = context?.proxyAdmin ?? '';
 
-    return new TronHookArtifactManager(tronweb, mailboxAddress || '');
+    return new TronHookArtifactManager(
+      tronweb,
+      mailboxAddress,
+      proxyAdminAddress,
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {

@@ -81,7 +81,7 @@ export interface ProtocolProvider {
    */
   createHookArtifactManager(
     chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string },
+    context?: { mailbox?: string; proxyAdmin?: string },
   ): IRawHookArtifactManager;
 
   getMinGas(): MinimumRequiredGasByAction;

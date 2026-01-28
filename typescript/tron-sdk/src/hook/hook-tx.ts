@@ -5,6 +5,7 @@ import { assert } from '@hyperlane-xyz/utils';
 import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import TransparentUpgradeableProxyAbi from '../abi/TransparentUpgradeableProxy.json' with { type: 'json' };
 import { TRON_MAX_FEE, createDeploymentTransaction } from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 
@@ -27,6 +28,20 @@ export async function getCreateIgpTx(
     InterchainGasPaymasterAbi,
     fromAddress,
     [],
+  );
+}
+
+export async function getCreateProxyTx(
+  tronweb: Readonly<TronWeb>,
+  fromAddress: string,
+  implAddress: string,
+  proxyAdminAddress: string,
+): Promise<TronTransaction> {
+  return createDeploymentTransaction(
+    tronweb,
+    TransparentUpgradeableProxyAbi,
+    fromAddress,
+    [implAddress, proxyAdminAddress, '0x'],
   );
 }
 

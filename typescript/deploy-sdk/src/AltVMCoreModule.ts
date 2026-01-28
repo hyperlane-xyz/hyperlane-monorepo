@@ -144,6 +144,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       // Deploy new hook with mailbox context
       const writer = createHookWriter(metadata, chainLookup, signer, {
         mailbox: mailbox.mailboxAddress,
+        proxyAdmin: proxyAdminAddress,
       });
       const artifact = hookConfigToArtifact(config.defaultHook, chainLookup);
       const [deployed] = await writer.create(artifact);
@@ -159,6 +160,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       // Deploy new hook with mailbox context
       const writer = createHookWriter(metadata, chainLookup, signer, {
         mailbox: mailbox.mailboxAddress,
+        proxyAdmin: proxyAdminAddress,
       });
       const artifact = hookConfigToArtifact(config.requiredHook, chainLookup);
       const [deployed] = await writer.create(artifact);

@@ -52,6 +52,7 @@ export class TronHookArtifactManager implements IRawHookArtifactManager {
   constructor(
     private readonly tronweb: TronWeb,
     private readonly mailboxAddress: string,
+    private readonly proxyAdminAddress: string,
   ) {}
 
   /**
@@ -113,6 +114,7 @@ export class TronHookArtifactManager implements IRawHookArtifactManager {
         return new TronIgpHookWriter(
           this.tronweb,
           signer,
+          this.proxyAdminAddress,
         ) as unknown as ArtifactWriter<
           RawHookArtifactConfigs[T],
           DeployedHookAddress
