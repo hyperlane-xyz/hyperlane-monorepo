@@ -1,7 +1,14 @@
 import type { Address } from '@hyperlane-xyz/utils';
 
 /**
- * Bridge mock configuration per route
+ * Bridge mock configuration for REBALANCER transfers.
+ *
+ * This configures the simulated bridge delays for when the rebalancer moves
+ * funds between chains. In production, these bridges (CCTP, etc.) can have
+ * delays ranging from ~10 seconds to 7 days depending on the bridge type.
+ *
+ * NOTE: This is separate from user transfer delivery, which goes through
+ * Hyperlane/Mailbox and is configured via SimulationTiming.userTransferDeliveryDelay.
  */
 export interface BridgeMockConfig {
   [origin: string]: {

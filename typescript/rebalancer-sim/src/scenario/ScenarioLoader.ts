@@ -2,16 +2,17 @@ import * as fs from 'fs';
 import * as path from 'path';
 import { fileURLToPath } from 'url';
 
-import { ScenarioGenerator } from './ScenarioGenerator.js';
-import type { SerializedScenario, TransferScenario } from './types.js';
+import type { Address } from '@hyperlane-xyz/utils';
+
+import type { ScenarioFile, TransferScenario } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const SCENARIOS_DIR = path.join(__dirname, '..', '..', 'scenarios');
 
 /**
- * Load a scenario from the scenarios directory by name
+ * Load a scenario file (full format with metadata and defaults)
  */
-export function loadScenario(name: string): TransferScenario {
+export function loadScenarioFile(name: string): ScenarioFile {
   const filePath = path.join(SCENARIOS_DIR, `${name}.json`);
 
   if (!fs.existsSync(filePath)) {
@@ -20,10 +21,34 @@ export function loadScenario(name: string): TransferScenario {
     );
   }
 
-  const data = JSON.parse(
-    fs.readFileSync(filePath, 'utf-8'),
-  ) as SerializedScenario;
-  return ScenarioGenerator.deserialize(data);
+  return JSON.parse(fs.readFileSync(filePath, 'utf-8')) as ScenarioFile;
+}
+
+/**
+ * Load just the transfer scenario (runtime format with bigints)
+ */
+export function loadScenario(name: string): TransferScenario {
+  const file = loadScenarioFile(name);
+  return deserializeTransfers(file);
+}
+
+/**
+ * Convert scenario file transfers to runtime format
+ */
+function deserializeTransfers(file: ScenarioFile): TransferScenario {
+  return {
+    name: file.name,
+    duration: file.duration,
+    chains: file.chains,
+    transfers: file.transfers.map((t) => ({
+      id: t.id,
+      timestamp: t.timestamp,
+      origin: t.origin,
+      destination: t.destination,
+      amount: BigInt(t.amount),
+      user: t.user as Address,
+    })),
+  };
 }
 
 /**
@@ -41,34 +66,8 @@ export function listScenarios(): string[] {
 }
 
 /**
- * Get scenario metadata without loading full transfer data
+ * Get the scenarios directory path
  */
-export function getScenarioMetadata(name: string): {
-  name: string;
-  duration: number;
-  chains: string[];
-  transferCount: number;
-} {
-  const filePath = path.join(SCENARIOS_DIR, `${name}.json`);
-
-  if (!fs.existsSync(filePath)) {
-    throw new Error(`Scenario not found: ${name}`);
-  }
-
-  const data = JSON.parse(
-    fs.readFileSync(filePath, 'utf-8'),
-  ) as SerializedScenario;
-  return {
-    name: data.name,
-    duration: data.duration,
-    chains: data.chains,
-    transferCount: data.transfers.length,
-  };
-}
-
-/**
- * Load all scenarios
- */
-export function loadAllScenarios(): TransferScenario[] {
-  return listScenarios().map(loadScenario);
+export function getScenariosDir(): string {
+  return SCENARIOS_DIR;
 }
