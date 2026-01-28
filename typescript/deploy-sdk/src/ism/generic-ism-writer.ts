@@ -120,4 +120,24 @@ export class IsmWriter
     // Multisig and test ISMs are immutable - no updates possible
     return [];
   }
+
+  // TODO: Implement applyUpdate to consolidate update logic from AltVMCoreModule/AltVMWarpModule
+  // This method should:
+  // - Compare current deployed config with desired config
+  // - Decide action: 'noop' (unchanged), 'create' (type change or immutable config change), 'update' (mutable config change)
+  // - Execute the appropriate action and return result
+  //
+  // type ApplyUpdateResult =
+  //   | { action: 'noop'; deployed: DeployedIsmArtifact }
+  //   | { action: 'create'; deployed: DeployedIsmArtifact; receipts: TxReceipt[] }
+  //   | { action: 'update'; deployed: DeployedIsmArtifact; txs: AnnotatedTx[] };
+  //
+  // async applyUpdate(
+  //   current: DeployedIsmArtifact,
+  //   desired: ArtifactNew<IsmArtifactConfig>,
+  // ): Promise<ApplyUpdateResult> {
+  //   // 1. If type changed -> create new ISM
+  //   // 2. If same type and immutable (STATIC_ISM_TYPES) -> compare configs, create if changed
+  //   // 3. If same type and mutable -> call update()
+  // }
 }
