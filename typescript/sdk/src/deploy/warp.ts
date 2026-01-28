@@ -43,7 +43,7 @@ import { altVmChainLookup } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { TypedAnnotatedTransaction } from '../providers/ProviderType.js';
 import { DestinationGas, RemoteRouters } from '../router/types.js';
-import { EvmERC20WarpModule } from '../token/EvmERC20WarpModule.js';
+import { EvmWarpModule } from '../token/EvmWarpModule.js';
 import { gasOverhead } from '../token/config.js';
 import { HypERC20Factories, hypERC20factories } from '../token/contracts.js';
 import { HypERC20Deployer, HypERC721Deployer } from '../token/deploy.js';
@@ -134,7 +134,7 @@ export async function executeWarpDeploy(
       case ProtocolType.Ethereum: {
         const deployer = warpDeployConfig.isNft
           ? new HypERC721Deployer(multiProvider)
-          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmERC20WarpModule
+          : new HypERC20Deployer(multiProvider); // TODO: replace with EvmWarpModule
 
         const evmContracts = await deployer.deploy(protocolSpecificConfig);
         deployedContracts = {
@@ -449,7 +449,7 @@ export async function enrollCrossChainRouters(
             staticMessageIdWeightedMultisigIsmFactory,
           } = registryAddresses[currentChain];
 
-          const evmWarpModule = new EvmERC20WarpModule(multiProvider, {
+          const evmWarpModule = new EvmWarpModule(multiProvider, {
             chain: currentChain,
             config: resolvedConfigMap[currentChain],
             addresses: {

@@ -60,9 +60,9 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap } from '../types.js';
 
 import {
-  EvmERC20WarpRouteReader,
+  EvmWarpRouteReader,
   TOKEN_FEE_CONTRACT_VERSION,
-} from './EvmERC20WarpRouteReader.js';
+} from './EvmWarpRouteReader.js';
 import { EverclearTokenBridgeTokenType, TokenType } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
 import {
@@ -73,7 +73,7 @@ import {
   derivedIsmAddress,
 } from './types.js';
 
-describe('ERC20WarpRouterReader', async () => {
+describe('EvmWarpRouteReader', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
@@ -93,7 +93,7 @@ describe('ERC20WarpRouterReader', async () => {
   let routerConfigMap: ChainMap<RouterConfig>;
   let baseConfig: RouterConfig;
   let mailbox: Mailbox;
-  let evmERC20WarpRouteReader: EvmERC20WarpRouteReader;
+  let evmERC20WarpRouteReader: EvmWarpRouteReader;
   let vault: ERC4626;
   let collateralFiatToken: FiatTokenTest;
   let everclearBridgeAdapterMockFactory: MockEverclearAdapter__factory;
@@ -163,7 +163,7 @@ describe('ERC20WarpRouterReader', async () => {
       coreBuildArtifact,
       ExplorerLicenseType.MIT,
     );
-    evmERC20WarpRouteReader = new EvmERC20WarpRouteReader(
+    evmERC20WarpRouteReader = new EvmWarpRouteReader(
       multiProvider,
       chain,
       1,
