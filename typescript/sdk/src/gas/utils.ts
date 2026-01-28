@@ -256,7 +256,7 @@ export function getLocalStorageGasOracleConfig({
     // Get a prospective gasOracleConfig, adjusting the gas price and exchange rate
     // as needed to account for precision loss (e.g. if the gas price is super small).
     let gasOracleConfig: ProtocolAgnositicGasOracleConfigWithTypicalCost =
-      adjustForPrecisionLoss(gasPrice, exchangeRate, remoteDecimals, remote);
+      adjustForPrecisionLoss(gasPrice, exchangeRate, remoteDecimals);
 
     // Apply the modifier if provided.
     if (gasPriceModifier) {
@@ -265,7 +265,6 @@ export function getLocalStorageGasOracleConfig({
         gasPriceModifier(local, remote, gasOracleConfig),
         BigNumber.from(gasOracleConfig.tokenExchangeRate),
         remoteDecimals,
-        remote,
       );
     }
 
@@ -287,7 +286,6 @@ function adjustForPrecisionLoss(
   gasPrice: Parameters<typeof BigNumberJs>[0],
   exchangeRate: BigNumber,
   remoteDecimals: number,
-  remote?: ChainName,
 ): ProtocolAgnositicGasOracleConfig {
   let newGasPrice = new BigNumberJs(gasPrice);
   let newExchangeRate = exchangeRate;
