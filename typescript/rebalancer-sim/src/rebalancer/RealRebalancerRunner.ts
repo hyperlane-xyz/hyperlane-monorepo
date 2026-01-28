@@ -19,6 +19,10 @@ let currentRunningService: RebalancerService | null = null;
 let currentProvider: ethers.providers.JsonRpcProvider | null = null;
 let currentMultiProvider: MultiProvider | null = null;
 
+// Track signal handlers registered by RebalancerService for cleanup
+let registeredSigintHandler: (() => void) | null = null;
+let registeredSigtermHandler: (() => void) | null = null;
+
 /**
  * Force stop any running service with a timeout
  */
@@ -36,6 +40,17 @@ async function forceStopCurrentService(): Promise<void> {
     } catch {
       // Ignore errors
     }
+  }
+
+  // Remove signal handlers that RebalancerService may have registered
+  // These handlers are registered in RebalancerService.start() but not removed by stop()
+  if (registeredSigintHandler) {
+    process.removeListener('SIGINT', registeredSigintHandler);
+    registeredSigintHandler = null;
+  }
+  if (registeredSigtermHandler) {
+    process.removeListener('SIGTERM', registeredSigtermHandler);
+    registeredSigtermHandler = null;
   }
 
   // Clean up provider connections
@@ -238,6 +253,10 @@ export class RealRebalancerRunner
     this.running = true;
     currentRunningService = this.service;
 
+    // Track signal listener counts before start() to identify handlers added by RebalancerService
+    const sigintCountBefore = process.listenerCount('SIGINT');
+    const sigtermCountBefore = process.listenerCount('SIGTERM');
+
     // Start the service (this runs the polling loop internally)
     // We need to catch the SIGINT/SIGTERM handlers that RebalancerService sets up
     // and prevent them from exiting the process during simulation
@@ -251,6 +270,24 @@ export class RealRebalancerRunner
       this.service.start().catch(() => {
         // Ignore errors - daemon stopped
       });
+
+      // Small delay to allow RebalancerService to register its handlers
+      await new Promise((resolve) => setTimeout(resolve, 50));
+
+      // Track the handlers RebalancerService added for cleanup
+      const sigintListeners = process.listeners('SIGINT');
+      const sigtermListeners = process.listeners('SIGTERM');
+
+      if (sigintListeners.length > sigintCountBefore) {
+        registeredSigintHandler = sigintListeners[
+          sigintListeners.length - 1
+        ] as () => void;
+      }
+      if (sigtermListeners.length > sigtermCountBefore) {
+        registeredSigtermHandler = sigtermListeners[
+          sigtermListeners.length - 1
+        ] as () => void;
+      }
     } finally {
       process.exit = originalExit;
     }
