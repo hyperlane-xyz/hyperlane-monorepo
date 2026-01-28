@@ -62,7 +62,7 @@ const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 // e.g., REBALANCERS=hyperlane,real for comparison
 // Default: run HyperlaneRunner only (stable), opt-in to RealRebalancerService
 type RebalancerType = 'hyperlane' | 'real';
-const REBALANCER_ENV = process.env.REBALANCERS || 'hyperlane';
+const REBALANCER_ENV = process.env.REBALANCERS || 'hyperlane,real';
 const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
   .map((r) => r.trim().toLowerCase())
   .filter((r): r is RebalancerType => r === 'hyperlane' || r === 'real');
