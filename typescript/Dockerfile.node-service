@@ -130,8 +130,7 @@ ENV LOG_LEVEL=info
 ENV SERVICE_VERSION=${SERVICE_VERSION}
 ENV SERVER_PORT=${SERVICE_PORT}
 
-# Expose service port (if set) and metrics port
-EXPOSE ${SERVICE_PORT:-9090}
+# Expose metrics port; service port published at runtime with -p if needed
 EXPOSE 9090
 
 # Run the service from the bundle
