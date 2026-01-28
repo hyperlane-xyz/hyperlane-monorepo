@@ -546,7 +546,7 @@ export class RadixSigner
     });
 
     return {
-      ismAddress: req.ismAddress,
+      ismAddress: req.ismAddress ?? '',
     };
   }
 

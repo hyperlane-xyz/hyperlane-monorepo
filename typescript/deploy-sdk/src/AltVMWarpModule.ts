@@ -30,10 +30,7 @@ import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { createHookWriter } from './hook/hook-writer.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
-import {
-  ismConfigToArtifact,
-  shouldDeployNewIsm,
-} from './ism/ism-config-utils.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -274,11 +271,14 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     // the protocol type is not cosmos as the underlying implementation does not support
     // resetting to the default ism yet (will be fixed in the next release of the cosmos sdk)
     const metadata = this.chainLookup.getChainMetadata(this.args.chain);
-    if (
-      expectedIsmIsEmpty &&
-      actualIsmIsNonZero &&
-      metadata.protocol !== ProtocolType.CosmosNative
-    ) {
+    if (expectedIsmIsEmpty && actualIsmIsNonZero) {
+      if (metadata.protocol === ProtocolType.CosmosNative) {
+        this.logger.warn(
+          `CosmosNative does not support unsetting token ISM. Skipping reset from ${actualDeployedIsm} to zero address.`,
+        );
+        return updateTransactions;
+      }
+
       this.logger.debug(
         `Resetting ISM from ${actualDeployedIsm} to zero address`,
       );
@@ -288,7 +288,6 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
           ...(await this.signer.getSetTokenIsmTransaction({
             signer: actualConfig.owner,
             tokenAddress: this.args.addresses.deployedTokenRoute,
-            ismAddress: '0x0000000000000000000000000000000000000000',
           })),
         },
       ];
@@ -484,16 +483,6 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-
-    // Decide: deploy new ISM or update existing one
-    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
-      // Deploy new ISM
-      const [deployed] = await writer.create(expectedArtifact);
-      return {
-        deployedIsm: deployed.deployed.address,
-        updateTransactions: [],
-      };
-    }
 
     // Update existing ISM (only routing ISMs support updates)
     // Merge artifacts to preserve DEPLOYED state for unchanged nested ISMs

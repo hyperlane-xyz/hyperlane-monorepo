@@ -1,4 +1,9 @@
-import { WithAddress, deepEquals, normalizeConfig } from '@hyperlane-xyz/utils';
+import {
+  WithAddress,
+  assert,
+  deepEquals,
+  normalizeConfig,
+} from '@hyperlane-xyz/utils';
 
 import { IsmType as AltVMIsmType } from './altvm.js';
 import {
@@ -8,6 +13,8 @@ import {
   ArtifactState,
   IArtifactManager,
   RawArtifact,
+  isArtifactDeployed,
+  isArtifactNew,
 } from './artifact.js';
 
 export type IsmModuleType = {
@@ -28,6 +35,7 @@ export type IsmConfig = IsmConfigs[IsmType];
 export type DerivedIsmConfig = WithAddress<IsmConfig>;
 
 export const STATIC_ISM_TYPES: IsmType[] = [
+  'testIsm',
   'merkleRootMultisigIsm',
   'messageIdMultisigIsm',
 ];
@@ -211,10 +219,9 @@ export function mergeIsmArtifacts(
       };
     }
 
-    const deployedAddress =
-      expectedArtifact.artifactState === ArtifactState.DEPLOYED
-        ? expectedArtifact.deployed
-        : currentArtifact.deployed;
+    const deployedAddress = isArtifactDeployed(expectedArtifact)
+      ? expectedArtifact.deployed
+      : currentArtifact.deployed;
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -223,22 +230,11 @@ export function mergeIsmArtifacts(
     };
   }
 
-  // Routing ISM - recursively merge domains
-  if (
-    currentConfig.type !== 'domainRoutingIsm' ||
-    expectedConfig.type !== 'domainRoutingIsm'
-  ) {
-    const deployedAddress =
-      expectedArtifact.artifactState === ArtifactState.DEPLOYED
-        ? expectedArtifact.deployed
-        : currentArtifact.deployed;
-
-    return {
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedConfig,
-      deployed: deployedAddress,
-    };
-  }
+  assert(
+    currentConfig.type === 'domainRoutingIsm' &&
+      expectedConfig.type === 'domainRoutingIsm',
+    'Expected both configs to be of type domainRoutingIsm',
+  );
 
   // Merge domain ISMs recursively
   const mergedDomains: Record<
@@ -253,16 +249,13 @@ export function mergeIsmArtifacts(
     const currentDomainIsm = currentConfig.domains[domainId];
 
     let currentDeployedIsm: DeployedIsmArtifact | undefined;
-    if (
-      currentDomainIsm &&
-      currentDomainIsm.artifactState === ArtifactState.DEPLOYED
-    ) {
-      currentDeployedIsm = currentDomainIsm as DeployedIsmArtifact;
+    if (currentDomainIsm && isArtifactDeployed(currentDomainIsm)) {
+      currentDeployedIsm = currentDomainIsm;
     }
 
     if (
-      expectedDomainIsm.artifactState === ArtifactState.NEW ||
-      expectedDomainIsm.artifactState === ArtifactState.DEPLOYED
+      isArtifactNew(expectedDomainIsm) ||
+      isArtifactDeployed(expectedDomainIsm)
     ) {
       mergedDomains[domainId] = mergeIsmArtifacts(
         currentDeployedIsm,
@@ -273,10 +266,9 @@ export function mergeIsmArtifacts(
     }
   }
 
-  const deployedAddress =
-    expectedArtifact.artifactState === ArtifactState.DEPLOYED
-      ? expectedArtifact.deployed
-      : currentArtifact.deployed;
+  const deployedAddress = isArtifactDeployed(expectedArtifact)
+    ? expectedArtifact.deployed
+    : currentArtifact.deployed;
 
   return {
     artifactState: ArtifactState.DEPLOYED,

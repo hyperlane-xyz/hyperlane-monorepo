@@ -209,7 +209,9 @@ export function fromAleoAddress(aleoAddress: string): {
   // because it passed validation
   if (!address) {
     return {
-      programId: aleoAddress,
+      // FIXME, change this function return type signature to make it explicit
+      // that the programId might not be found
+      programId: '',
       address: aleoAddress,
     };
   }

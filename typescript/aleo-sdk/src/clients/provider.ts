@@ -5,6 +5,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import {
   assert,
   ensure0x,
+  isNullish,
   isZeroishAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -880,9 +881,10 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
     // Handle zero address - use Aleo null address to unset ISM
-    const ismAddress = isZeroishAddress(req.ismAddress)
-      ? ALEO_NULL_ADDRESS
-      : req.ismAddress;
+    const ismAddress =
+      isNullish(req.ismAddress) || isZeroishAddress(req.ismAddress)
+        ? ALEO_NULL_ADDRESS
+        : req.ismAddress;
 
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
