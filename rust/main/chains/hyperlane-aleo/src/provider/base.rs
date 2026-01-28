@@ -200,6 +200,7 @@ impl HttpClient for JWTBaseHttpClient {
             .await
             .map_err(HyperlaneAleoError::from)?;
 
+        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
             self.clear_auth_token().await;
         }
@@ -229,6 +230,7 @@ impl HttpClient for JWTBaseHttpClient {
             .await
             .map_err(HyperlaneAleoError::from)?;
 
+        // Two instances of the relayer might compete for the same JWT, if so clear the token early and request a new one
         if response.status() == reqwest::StatusCode::UNAUTHORIZED {
             self.clear_auth_token().await;
         }
