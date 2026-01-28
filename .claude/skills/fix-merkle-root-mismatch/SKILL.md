@@ -128,11 +128,7 @@ Use `AskUserQuestion` to confirm:
 Once confirmed, restart the relayer to rebuild its in-memory merkle tree:
 
 ```bash
-cd $MONOREPO_ROOT/typescript/infra && \
-pnpm tsx ./scripts/agents/restart-agents.ts \
-    -e [environment] \
-    --context hyperlane \
-    --role relayer
+pnpm --dir typescript/infra exec tsx ./scripts/agents/restart-agents.ts -e [environment] --context hyperlane --role relayer
 ```
 
 ### Step 5: Validate Fix
