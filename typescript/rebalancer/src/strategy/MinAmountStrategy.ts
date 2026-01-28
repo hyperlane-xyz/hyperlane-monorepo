@@ -71,40 +71,60 @@ export class MinAmountStrategy extends BaseStrategy {
    * Gets balances categorized by surplus and deficit based on minimum amounts and targets
    * - For absolute values: Uses exact token amounts
    * - For relative values: Uses percentages of total balance across all chains
+   *
+   * Simulates both types of rebalances before calculating surpluses/deficits:
+   * - pendingRebalances: in-flight intents (origin tx confirmed, add to destination only)
+   * - proposedRebalances: routes from earlier strategies (subtract from origin AND add to destination)
+   *
+   * This prevents over-rebalancing when multiple strategies run in sequence.
    */
   protected getCategorizedBalances(
     rawBalances: RawBalances,
-    _pendingRebalances?: RebalancingRoute[],
+    pendingRebalances?: RebalancingRoute[],
+    proposedRebalances?: RebalancingRoute[],
   ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
+      rawBalances,
+      pendingRebalances ?? [],
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      proposedRebalances ?? [],
+    );
     const totalCollateral = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
+      (sum, chain) => sum + simulatedBalances[chain],
       0n,
     );
 
     return this.chains.reduce(
       (acc, chain) => {
-        const config = this.config[chain];
-        const balance = rawBalances[chain];
+        const chainConfig = this.config[chain];
+        const balance = simulatedBalances[chain];
         let minAmount: bigint;
         let targetAmount: bigint;
 
-        if (config.minAmount.type === RebalancerMinAmountType.Absolute) {
+        if (chainConfig.minAmount.type === RebalancerMinAmountType.Absolute) {
           const token = this.getTokenByChainName(chain);
 
-          minAmount = BigInt(toWei(config.minAmount.min, token.decimals));
-          targetAmount = BigInt(toWei(config.minAmount.target, token.decimals));
+          minAmount = BigInt(toWei(chainConfig.minAmount.min, token.decimals));
+          targetAmount = BigInt(
+            toWei(chainConfig.minAmount.target, token.decimals),
+          );
         } else {
           minAmount = BigInt(
             BigNumber(totalCollateral.toString())
-              .times(config.minAmount.min)
+              .times(chainConfig.minAmount.min)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
           targetAmount = BigInt(
             BigNumber(totalCollateral.toString())
-              .times(config.minAmount.target)
+              .times(chainConfig.minAmount.target)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
         }

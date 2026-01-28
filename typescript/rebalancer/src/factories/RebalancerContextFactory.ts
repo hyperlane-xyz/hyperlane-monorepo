@@ -11,6 +11,10 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
+import {
+  getStrategyChainConfig,
+  getStrategyChainNames,
+} from '../config/types.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
@@ -19,6 +23,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import { type BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
 export class RebalancerContextFactory {
@@ -141,10 +146,14 @@ export class RebalancerContextFactory {
   }
 
   public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
+    const strategyTypes = this.config.strategyConfig.map(
+      (s) => s.rebalanceStrategy,
+    );
     this.logger.debug(
       {
         warpRouteId: this.config.warpRouteId,
-        strategyType: this.config.strategyConfig.rebalanceStrategy,
+        strategyTypes,
+        strategyCount: this.config.strategyConfig.length,
       },
       'Creating Strategy',
     );
@@ -162,13 +171,29 @@ export class RebalancerContextFactory {
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
     );
+
+    // Build chain config from all strategies (first strategy with chain takes precedence)
+    const chainNames = getStrategyChainNames(this.config.strategyConfig);
+    const chainConfig: ChainMap<BridgeConfigWithOverride> = {};
+
+    for (const chainName of chainNames) {
+      const strategyChainConfig = getStrategyChainConfig(
+        this.config.strategyConfig,
+        chainName,
+      );
+      if (strategyChainConfig) {
+        chainConfig[chainName] = {
+          bridge: strategyChainConfig.bridge,
+          bridgeMinAcceptedAmount:
+            strategyChainConfig.bridgeMinAcceptedAmount ?? 0,
+          bridgeIsWarp: strategyChainConfig.bridgeIsWarp ?? false,
+          override: strategyChainConfig.override,
+        };
+      }
+    }
+
     const rebalancer = new Rebalancer(
-      objMap(this.config.strategyConfig.chains, (_, v) => ({
-        bridge: v.bridge,
-        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
-        bridgeIsWarp: v.bridgeIsWarp ?? false,
-        override: v.override,
-      })),
+      chainConfig,
       this.warpCore,
       this.multiProvider.metadata,
       this.tokensByChainName,
@@ -190,7 +215,9 @@ export class RebalancerContextFactory {
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
-    const chainNames = new Set(Object.keys(this.config.strategyConfig.chains));
+    const chainNames = new Set(
+      getStrategyChainNames(this.config.strategyConfig),
+    );
 
     await Promise.all(
       this.warpCore.tokens.map(async (token) => {
