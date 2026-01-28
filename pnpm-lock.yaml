@@ -135,6 +135,9 @@ catalogs:
     '@types/sinon-chai':
       specifier: ^3.2.12
       version: 3.2.12
+    '@types/uuid':
+      specifier: ^10.0.0
+      version: 10.0.0
     '@types/ws':
       specifier: ^8.5.5
       version: 8.18.1
@@ -255,6 +258,9 @@ catalogs:
     typescript-eslint:
       specifier: ^8.37.0
       version: 8.47.0
+    uuid:
+      specifier: ^10.0.0
+      version: 10.0.0
     viem:
       specifier: ^2.21.45
       version: 2.39.3
@@ -1860,6 +1866,9 @@ importers:
       prom-client:
         specifier: 'catalog:'
         version: 14.2.0
+      uuid:
+        specifier: 'catalog:'
+        version: 10.0.0
       yaml:
         specifier: 'catalog:'
         version: 2.4.5
@@ -1891,6 +1900,9 @@ importers:
       '@types/sinon':
         specifier: 'catalog:'
         version: 17.0.4
+      '@types/uuid':
+        specifier: 'catalog:'
+        version: 10.0.0
       '@vercel/ncc':
         specifier: 'catalog:'
         version: 0.38.4
@@ -8357,6 +8369,9 @@ packages:
 
   '@types/unzipper@0.10.11':
     resolution: {integrity: sha512-D25im2zjyMCcgL9ag6N46+wbtJBnXIr7SI4zHf9eJD2Dw2tEB5e+p5MYkrxKIVRscs5QV0EhtU9rgXSPx90oJg==}
+
+  '@types/uuid@10.0.0':
+    resolution: {integrity: sha512-7gqG38EyHgyP1S+7+xomFtL+ZNHcKv6DwNaCZmJmo1vgMugyF3TCnXVg4t1uk89mLNwnLtnY3TpOpCOyp1/xHQ==}
 
   '@types/uuid@8.3.4':
     resolution: {integrity: sha512-c/I8ZRb51j+pYGAu5CrFMRxqZ2ke4y2grEBO5AUjgSkSk+qT2Ea+OdWElz/OiMf5MNpn2b17kuVBwZLQJXzihw==}
@@ -25950,6 +25965,8 @@ snapshots:
   '@types/unzipper@0.10.11':
     dependencies:
       '@types/node': 24.10.9
+
+  '@types/uuid@10.0.0': {}
 
   '@types/uuid@8.3.4': {}
 
