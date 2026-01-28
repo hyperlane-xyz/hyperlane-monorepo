@@ -193,8 +193,11 @@ export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
   defaultIsmAddress?: string;
+  proxyAdminAddress?: string;
 };
-export type ResCreateMailbox = { mailboxAddress: string };
+export type ResCreateMailbox = {
+  mailboxAddress: string;
+};
 
 export type ReqSetDefaultIsm = {
   signer: string;
@@ -364,6 +367,14 @@ export type ReqCreateValidatorAnnounce = {
 };
 export type ResCreateValidatorAnnounce = {
   validatorAnnounceId: string;
+};
+
+export type ReqCreateProxyAdmin = {
+  signer: string;
+  owner?: string;
+};
+export type ResCreateProxyAdmin = {
+  proxyAdminAddress: string;
 };
 
 // ### POPULATE WARP ###
@@ -588,6 +599,8 @@ export interface IProvider<T = any> {
     req: ReqCreateValidatorAnnounce,
   ): Promise<T>;
 
+  getCreateProxyAdminTransaction(req: ReqCreateProxyAdmin): Promise<T>;
+
   // ### GET WARP TXS ###
 
   getCreateNativeTokenTransaction(req: ReqCreateNativeToken): Promise<T>;
@@ -701,6 +714,10 @@ export interface ISigner<T, R> extends IProvider<T> {
   createValidatorAnnounce(
     req: Omit<ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<ResCreateValidatorAnnounce>;
+
+  createProxyAdmin(
+    req: Omit<ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<ResCreateProxyAdmin>;
 
   // ### TX WARP ###
 

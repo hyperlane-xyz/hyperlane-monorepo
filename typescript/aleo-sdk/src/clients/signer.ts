@@ -188,6 +188,12 @@ export class AleoSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+      );
+    }
+
     const mailboxSuffix = this.generateSuffix(SUFFIX_LENGTH_LONG);
     const programs = await this.deployProgram('dispatch_proxy', mailboxSuffix);
 
@@ -702,6 +708,12 @@ export class AleoSigner
     return {
       validatorAnnounceId: toAleoAddress(validatorAnnounceId),
     };
+  }
+
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
   }
 
   // ### TX WARP ###

@@ -4,6 +4,7 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
+import TransparentUpgradeableProxyAbi from '../abi/TransparentUpgradeableProxy.json' with { type: 'json' };
 import {
   getCreateOracleTx,
   getInitIgpTx,
@@ -83,19 +84,36 @@ export class TronSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const tx = await this.getCreateMailboxTransaction({
+    // Tron always uses proxy deployment - proxyAdminAddress must be provided
+    if (!req.proxyAdminAddress) {
+      throw new Error(
+        'proxyAdminAddress is required for Tron mailbox deployment',
+      );
+    }
+
+    // 1. Deploy Mailbox implementation
+    const implTx = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.getSignerAddress(),
     });
-
-    const receipt = await this.sendAndConfirmTransaction(tx);
-
-    const mailboxAddress = this.tronweb.address.fromHex(
-      receipt.contract_address,
+    const implReceipt = await this.sendAndConfirmTransaction(implTx);
+    const implementationAddress = this.tronweb.address.fromHex(
+      implReceipt.contract_address,
     );
 
-    // init mailbox with own mailbox address as placeholder. the sdk
-    // will treat the mailbox address as a null address
+    // 2. Deploy TransparentUpgradeableProxy
+    // Note: We pass empty bytes for _data and initialize separately below
+    const proxyTx = await this.createDeploymentTransaction(
+      TransparentUpgradeableProxyAbi,
+      this.getSignerAddress(),
+      [implementationAddress, req.proxyAdminAddress, '0x'],
+    );
+    const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
+    const mailboxAddress = this.tronweb.address.fromHex(
+      proxyReceipt.contract_address,
+    );
+
+    // 3. Initialize the Mailbox through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         mailboxAddress,
@@ -111,15 +129,15 @@ export class TronSigner
           },
           {
             type: 'address',
-            value: mailboxAddress,
+            value: implementationAddress, // placeholder
           },
           {
             type: 'address',
-            value: mailboxAddress,
+            value: implementationAddress, // placeholder
           },
           {
             type: 'address',
-            value: mailboxAddress,
+            value: implementationAddress, // placeholder
           },
         ],
         this.tronweb.address.toHex(this.getSignerAddress()),
@@ -464,6 +482,46 @@ export class TronSigner
       validatorAnnounceId: this.tronweb.address.fromHex(
         receipt.contract_address,
       ),
+    };
+  }
+
+  async createProxyAdmin(
+    req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    const tx = await this.getCreateProxyAdminTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    const receipt = await this.sendAndConfirmTransaction(tx);
+    const proxyAdminAddress = this.tronweb.address.fromHex(
+      receipt.contract_address,
+    );
+
+    // Transfer ownership if owner is provided and different from signer
+    if (req.owner && req.owner !== this.getSignerAddress()) {
+      const { transaction } =
+        await this.tronweb.transactionBuilder.triggerSmartContract(
+          proxyAdminAddress,
+          'transferOwnership(address)',
+          {
+            feeLimit: TRON_MAX_FEE,
+            callValue: 0,
+          },
+          [
+            {
+              type: 'address',
+              value: req.owner,
+            },
+          ],
+          this.tronweb.address.toHex(this.getSignerAddress()),
+        );
+
+      await this.sendAndConfirmTransaction(transaction);
+    }
+
+    return {
+      proxyAdminAddress,
     };
   }
 

@@ -155,6 +155,12 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error(`not implemented`);
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(

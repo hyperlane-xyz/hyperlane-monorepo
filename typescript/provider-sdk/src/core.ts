@@ -12,6 +12,10 @@ export interface CoreConfig {
   defaultIsm: IsmConfig | string;
   defaultHook: HookConfig | string;
   requiredHook: HookConfig | string;
+  proxyAdmin?: {
+    owner: string;
+    address?: string;
+  };
 }
 
 export interface DerivedCoreConfig extends CoreConfig {

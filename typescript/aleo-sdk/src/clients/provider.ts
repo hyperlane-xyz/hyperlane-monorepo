@@ -791,6 +791,12 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     };
   }
 
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
   // ### GET WARP TXS ###
 
   async getCreateNativeTokenTransaction(

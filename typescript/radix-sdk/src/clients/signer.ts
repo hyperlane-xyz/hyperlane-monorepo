@@ -170,6 +170,12 @@ export class RadixSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
+    if (req.proxyAdminAddress) {
+      throw new Error(
+        'ProxyAdmin is not supported on Radix. Remove proxyAdmin from config.',
+      );
+    }
+
     const transactionManifest = await getCreateMailboxTx(
       this.base,
       this.account.address,
@@ -490,6 +496,12 @@ export class RadixSigner
     return {
       validatorAnnounceId,
     };
+  }
+
+  async createProxyAdmin(
+    _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    throw new Error('ProxyAdmin is not supported on Radix');
   }
 
   // ### TX WARP ###

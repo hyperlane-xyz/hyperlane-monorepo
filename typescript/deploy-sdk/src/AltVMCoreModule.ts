@@ -115,13 +115,27 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       defaultIsm = deployed.deployed.address;
     }
 
-    // 2. Deploy Mailbox with initial configuration
+    // 2. Get or deploy ProxyAdmin
+    let proxyAdminAddress: string | undefined;
+    if (config.proxyAdmin?.address) {
+      // Use existing ProxyAdmin address
+      proxyAdminAddress = config.proxyAdmin.address;
+    } else if (config.proxyAdmin?.owner) {
+      // Deploy new ProxyAdmin with specified owner
+      const proxyAdmin = await signer.createProxyAdmin({
+        owner: config.proxyAdmin.owner,
+      });
+      proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+    }
+
+    // 3. Deploy Mailbox with initial configuration
     const mailbox = await signer.createMailbox({
       domainId: domainId,
       defaultIsmAddress: defaultIsm,
+      proxyAdminAddress: proxyAdminAddress,
     });
 
-    // 3. Deploy default hook
+    // 4. Deploy default hook
     let defaultHook: string;
     if (typeof config.defaultHook === 'string') {
       // Address reference - use existing hook
@@ -136,7 +150,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       defaultHook = deployed.deployed.address;
     }
 
-    // 4. Deploy required hook
+    // 5. Deploy required hook
     let requiredHook: string;
     if (typeof config.requiredHook === 'string') {
       // Address reference - use existing hook
@@ -151,7 +165,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       requiredHook = deployed.deployed.address;
     }
 
-    // 5. Update the configuration with the newly created hooks
+    // 6. Update the configuration with the newly created hooks
     await signer.setDefaultIsm({
       mailboxAddress: mailbox.mailboxAddress,
       ismAddress: defaultIsm,
@@ -179,7 +193,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
     const addresses: DeployedCoreAddresses = {
       mailbox: mailbox.mailboxAddress,
       staticMerkleRootMultisigIsmFactory: '',
-      proxyAdmin: '',
+      proxyAdmin: proxyAdminAddress || '',
       staticMerkleRootWeightedMultisigIsmFactory: '',
       staticAggregationHookFactory: '',
       staticAggregationIsmFactory: '',

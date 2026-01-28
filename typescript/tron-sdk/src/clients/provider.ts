@@ -12,6 +12,7 @@ import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with 
 import MailboxAbi from '../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
 import PausableHookAbi from '../abi/PausableHook.json' with { type: 'json' };
+import ProxyAdminAbi from '../abi/ProxyAdmin.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../abi/ValidatorAnnounce.json' with { type: 'json' };
 import { getHookType } from '../hook/hook-query.js';
@@ -778,6 +779,12 @@ export class TronProvider implements AltVM.IProvider {
     return this.createDeploymentTransaction(ValidatorAnnounceAbi, req.signer, [
       req.mailboxAddress,
     ]);
+  }
+
+  async getCreateProxyAdminTransaction(
+    req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<TronTransaction> {
+    return this.createDeploymentTransaction(ProxyAdminAbi, req.signer, []);
   }
 
   // ### GET WARP TXS ###
