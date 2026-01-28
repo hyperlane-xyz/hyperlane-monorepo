@@ -10,7 +10,7 @@ import type {
 /**
  * Composite strategy that runs multiple sub-strategies sequentially.
  *
- * Key behavior: Routes from earlier strategies are passed as pendingRebalances
+ * Key behavior: Routes from earlier strategies are passed as proposedRebalances
  * to later strategies, allowing coordination between strategies.
  *
  * Requires at least 2 sub-strategies.
