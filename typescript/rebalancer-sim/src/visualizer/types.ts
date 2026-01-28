@@ -25,7 +25,17 @@ export type TimelineEvent =
       data: TransferRecord;
     }
   | {
-      type: 'rebalance';
+      type: 'rebalance_start';
+      timestamp: number;
+      data: RebalanceRecord;
+    }
+  | {
+      type: 'rebalance_complete';
+      timestamp: number;
+      data: RebalanceRecord;
+    }
+  | {
+      type: 'rebalance_failed';
       timestamp: number;
       data: RebalanceRecord;
     }
@@ -107,13 +117,25 @@ export function toVisualizationData(
     }
   }
 
-  // Add rebalance events
+  // Add rebalance events (start and complete/fail)
   for (const rebalance of result.rebalanceRecords) {
+    // Rebalance start
     events.push({
-      type: 'rebalance',
-      timestamp: rebalance.timestamp,
+      type: 'rebalance_start',
+      timestamp: rebalance.startTime,
       data: rebalance,
     });
+    // Rebalance complete/fail
+    if (rebalance.endTime) {
+      events.push({
+        type:
+          rebalance.status === 'failed'
+            ? 'rebalance_failed'
+            : 'rebalance_complete',
+        timestamp: rebalance.endTime,
+        data: rebalance,
+      });
+    }
   }
 
   // Add balance snapshots

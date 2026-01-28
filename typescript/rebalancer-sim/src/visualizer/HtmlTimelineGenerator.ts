@@ -5,7 +5,7 @@ import { toVisualizationData } from './types.js';
 
 const DEFAULT_OPTIONS: Required<HtmlGeneratorOptions> = {
   width: 1200,
-  rowHeight: 120,
+  rowHeight: 150,
   showBalances: true,
   showRebalances: true,
   title: '',
@@ -43,7 +43,6 @@ ${getStyles(opts)}
 <body>
   <div class="container">
     <h1>${escapeHtml(title)}</h1>
-    <div id="kpi-summary"></div>
     <div id="timeline-container"></div>
     <div id="legend"></div>
     <div id="details-panel"></div>
@@ -89,7 +88,7 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
     }
 
     .container {
-      max-width: ${opts.width + 100}px;
+      max-width: ${opts.width + 150}px;
       margin: 0 auto;
     }
 
@@ -97,46 +96,6 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
       margin-bottom: 20px;
       color: #fff;
       font-size: 1.5rem;
-    }
-
-    h2 {
-      margin: 20px 0 10px;
-      color: #ccc;
-      font-size: 1.1rem;
-    }
-
-    #kpi-summary {
-      display: flex;
-      gap: 20px;
-      flex-wrap: wrap;
-      margin-bottom: 30px;
-    }
-
-    .kpi-card {
-      background: #252542;
-      padding: 15px 20px;
-      border-radius: 8px;
-      min-width: 150px;
-    }
-
-    .kpi-card .label {
-      font-size: 0.8rem;
-      color: #888;
-      text-transform: uppercase;
-    }
-
-    .kpi-card .value {
-      font-size: 1.5rem;
-      font-weight: bold;
-      color: #4ecdc4;
-    }
-
-    .kpi-card.warning .value {
-      color: #f9c74f;
-    }
-
-    .kpi-card.error .value {
-      color: #f94144;
     }
 
     .rebalancer-section {
@@ -163,84 +122,139 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
       border-radius: 4px;
     }
 
+    .kpi-row {
+      display: flex;
+      gap: 15px;
+      margin-bottom: 15px;
+      flex-wrap: wrap;
+    }
+
+    .kpi-card {
+      background: #1e1e30;
+      padding: 12px 16px;
+      border-radius: 6px;
+      min-width: 120px;
+    }
+
+    .kpi-card .label {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+    }
+
+    .kpi-card .value {
+      font-size: 1.3rem;
+      font-weight: bold;
+      color: #4ecdc4;
+    }
+
+    .kpi-card.warning .value {
+      color: #f9c74f;
+    }
+
+    .timeline-wrapper {
+      position: relative;
+      margin-top: 20px;
+    }
+
     .timeline-svg {
       background: #1e1e30;
       border-radius: 8px;
-      overflow: visible;
-    }
-
-    .chain-row {
-      stroke: #333;
+      display: block;
     }
 
     .chain-label {
       font-size: 12px;
-      fill: #888;
+      fill: #aaa;
+      font-family: monospace;
+      font-weight: bold;
+    }
+
+    .balance-label {
+      font-size: 9px;
+      fill: #666;
       font-family: monospace;
     }
 
-    .time-axis text {
+    .time-axis-label {
       font-size: 10px;
       fill: #666;
     }
 
-    .time-axis line {
-      stroke: #333;
+    .transfer-group {
+      cursor: pointer;
+    }
+
+    .transfer-group:hover .transfer-bar {
+      filter: brightness(1.2);
     }
 
     .transfer-bar {
-      cursor: pointer;
-      transition: opacity 0.2s;
+      transition: filter 0.2s;
     }
 
-    .transfer-bar:hover {
-      opacity: 0.8;
+    .transfer-label {
+      font-size: 10px;
+      fill: #fff;
+      font-weight: bold;
+      pointer-events: none;
     }
 
-    .transfer-bar.completed {
-      fill: #4ecdc4;
+    .transfer-time-label {
+      font-size: 8px;
+      fill: #888;
+      font-family: monospace;
     }
 
-    .transfer-bar.failed {
-      fill: #f94144;
+    .start-marker {
+      fill: #fff;
+      stroke: none;
     }
 
-    .transfer-bar.pending {
-      fill: #f9c74f;
+    .end-marker {
+      stroke-width: 2;
     }
 
     .rebalance-marker {
       cursor: pointer;
     }
 
-    .rebalance-marker circle {
-      fill: #9b59b6;
-      stroke: #fff;
-      stroke-width: 1;
-    }
-
     .rebalance-arrow {
-      stroke: #9b59b6;
       stroke-width: 2;
       stroke-dasharray: 4,2;
-      marker-end: url(#arrowhead);
     }
 
     .balance-line {
       fill: none;
-      stroke-width: 1.5;
-      opacity: 0.6;
+      stroke-width: 2;
+      opacity: 0.7;
     }
 
     .balance-area {
-      opacity: 0.1;
+      opacity: 0.15;
     }
 
     #legend {
       display: flex;
-      gap: 20px;
+      gap: 25px;
       margin-top: 20px;
       flex-wrap: wrap;
+      padding: 15px;
+      background: #252542;
+      border-radius: 8px;
+    }
+
+    .legend-section {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+    }
+
+    .legend-title {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 4px;
     }
 
     .legend-item {
@@ -251,9 +265,21 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
     }
 
     .legend-color {
-      width: 20px;
+      width: 24px;
       height: 12px;
       border-radius: 2px;
+    }
+
+    .legend-line {
+      width: 24px;
+      height: 3px;
+      border-radius: 1px;
+    }
+
+    .legend-marker {
+      width: 10px;
+      height: 10px;
+      border-radius: 50%;
     }
 
     #details-panel {
@@ -261,7 +287,6 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
       padding: 15px;
       background: #252542;
       border-radius: 8px;
-      min-height: 100px;
       display: none;
     }
 
@@ -292,14 +317,20 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
 
     .tooltip {
       position: absolute;
-      background: #333;
+      background: rgba(30, 30, 48, 0.95);
       color: #fff;
-      padding: 8px 12px;
-      border-radius: 4px;
+      padding: 10px 14px;
+      border-radius: 6px;
       font-size: 12px;
       pointer-events: none;
       z-index: 1000;
       max-width: 300px;
+      border: 1px solid #444;
+      box-shadow: 0 4px 12px rgba(0,0,0,0.3);
+    }
+
+    .tooltip strong {
+      color: #4ecdc4;
     }
   `;
 }
@@ -310,63 +341,64 @@ const WIDTH = ${opts.width};
 const ROW_HEIGHT = ${opts.rowHeight};
 const SHOW_BALANCES = ${opts.showBalances};
 const SHOW_REBALANCES = ${opts.showRebalances};
-const MARGIN = { top: 40, right: 20, bottom: 30, left: 80 };
-const CHAIN_COLORS = ['#4ecdc4', '#f9c74f', '#f94144', '#90be6d', '#577590', '#9b59b6'];
+const MARGIN = { top: 50, right: 30, bottom: 40, left: 100 };
+
+// Distinct colors for transfers (T1, T2, T3, etc.)
+const TRANSFER_COLORS = [
+  '#00b4d8', // cyan
+  '#06d6a0', // green
+  '#ffd166', // yellow
+  '#ef476f', // pink
+  '#118ab2', // blue
+  '#073b4c', // dark blue
+  '#e76f51', // orange
+  '#2a9d8f', // teal
+];
+
+// Colors for balance curves per chain
+const CHAIN_COLORS = {
+  chain1: '#f9c74f',  // yellow/gold
+  chain2: '#4ecdc4',  // teal
+  chain3: '#f94144',  // red
+  chain4: '#90be6d',  // green
+  chain5: '#577590',  // blue-gray
+};
+
+const REBALANCE_COLOR = '#9b59b6';  // purple
 
 function renderVisualization(data) {
   const container = document.getElementById('timeline-container');
-  const kpiSummary = document.getElementById('kpi-summary');
   const legend = document.getElementById('legend');
 
   // Render each rebalancer's results
   data.forEach((viz, index) => {
-    // Create section
     const section = document.createElement('div');
     section.className = 'rebalancer-section';
-    section.innerHTML = '<div class="rebalancer-title">' +
-      '<span>' + viz.rebalancerName + '</span>' +
-      '<span class="rebalancer-badge">Rebalancer ' + (index + 1) + '</span>' +
-      '</div>';
 
-    // KPI summary for this rebalancer
-    const kpis = renderKPIs(viz);
-    section.appendChild(kpis);
+    // Title
+    const titleDiv = document.createElement('div');
+    titleDiv.className = 'rebalancer-title';
+    titleDiv.innerHTML = '<span>' + viz.rebalancerName + '</span>' +
+      '<span class="rebalancer-badge">Rebalancer ' + (index + 1) + '</span>';
+    section.appendChild(titleDiv);
+
+    // KPIs
+    section.appendChild(renderKPIs(viz));
 
     // Timeline SVG
-    const svg = renderTimeline(viz, index);
-    section.appendChild(svg);
+    section.appendChild(renderTimeline(viz, index));
 
     container.appendChild(section);
   });
 
   // Legend
-  legend.innerHTML = \`
-    <div class="legend-item">
-      <div class="legend-color" style="background: #4ecdc4"></div>
-      <span>Completed Transfer</span>
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background: #f94144"></div>
-      <span>Failed Transfer</span>
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background: #f9c74f"></div>
-      <span>Pending Transfer</span>
-    </div>
-    <div class="legend-item">
-      <div class="legend-color" style="background: #9b59b6"></div>
-      <span>Rebalance</span>
-    </div>
-  \`;
+  renderLegend(legend, data[0]);
 }
 
 function renderKPIs(viz) {
   const kpis = viz.kpis;
   const div = document.createElement('div');
-  div.style.display = 'flex';
-  div.style.gap = '15px';
-  div.style.marginBottom = '15px';
-  div.style.flexWrap = 'wrap';
+  div.className = 'kpi-row';
 
   const completionClass = kpis.completionRate < 0.95 ? 'warning' : '';
   const latencyClass = kpis.p95Latency > 1000 ? 'warning' : '';
@@ -393,7 +425,6 @@ function renderKPIs(viz) {
       <div class="value">\${kpis.totalRebalances}</div>
     </div>
   \`;
-
   return div;
 }
 
@@ -401,31 +432,31 @@ function renderTimeline(viz, vizIndex) {
   const chains = viz.chains;
   const height = MARGIN.top + chains.length * ROW_HEIGHT + MARGIN.bottom;
   const innerWidth = WIDTH - MARGIN.left - MARGIN.right;
-  const innerHeight = height - MARGIN.top - MARGIN.bottom;
 
   // Time scale
   const timeExtent = [viz.startTime, viz.endTime];
-  const xScale = (t) => MARGIN.left + ((t - timeExtent[0]) / (timeExtent[1] - timeExtent[0])) * innerWidth;
-
-  // Chain scale
-  const yScale = (chain) => MARGIN.top + chains.indexOf(chain) * ROW_HEIGHT + ROW_HEIGHT / 2;
+  const duration = timeExtent[1] - timeExtent[0];
+  const xScale = (t) => MARGIN.left + ((t - timeExtent[0]) / duration) * innerWidth;
 
   // Create SVG
+  const wrapper = document.createElement('div');
+  wrapper.className = 'timeline-wrapper';
+
   const svg = document.createElementNS('http://www.w3.org/2000/svg', 'svg');
   svg.setAttribute('class', 'timeline-svg');
   svg.setAttribute('width', WIDTH);
   svg.setAttribute('height', height);
 
-  // Defs for arrow marker
+  // Defs for markers
   const defs = document.createElementNS('http://www.w3.org/2000/svg', 'defs');
   defs.innerHTML = \`
-    <marker id="arrowhead-\${vizIndex}" markerWidth="10" markerHeight="7" refX="9" refY="3.5" orient="auto">
-      <polygon points="0 0, 10 3.5, 0 7" fill="#9b59b6"/>
+    <marker id="rebalance-arrow-\${vizIndex}" markerWidth="8" markerHeight="6" refX="7" refY="3" orient="auto">
+      <polygon points="0 0, 8 3, 0 6" fill="\${REBALANCE_COLOR}"/>
     </marker>
   \`;
   svg.appendChild(defs);
 
-  // Background grid
+  // Background and chain rows
   chains.forEach((chain, i) => {
     const y = MARGIN.top + i * ROW_HEIGHT;
 
@@ -435,178 +466,532 @@ function renderTimeline(viz, vizIndex) {
     rect.setAttribute('y', y);
     rect.setAttribute('width', innerWidth);
     rect.setAttribute('height', ROW_HEIGHT);
-    rect.setAttribute('fill', i % 2 === 0 ? '#1e1e30' : '#222240');
+    rect.setAttribute('fill', i % 2 === 0 ? '#1a1a2e' : '#1e1e35');
     svg.appendChild(rect);
 
     // Chain label
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
     text.setAttribute('class', 'chain-label');
-    text.setAttribute('x', MARGIN.left - 10);
+    text.setAttribute('x', MARGIN.left - 15);
     text.setAttribute('y', y + ROW_HEIGHT / 2 + 4);
     text.setAttribute('text-anchor', 'end');
     text.textContent = chain;
     svg.appendChild(text);
+
+    // Horizontal line at center of row
+    const centerLine = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+    centerLine.setAttribute('x1', MARGIN.left);
+    centerLine.setAttribute('y1', y + ROW_HEIGHT / 2);
+    centerLine.setAttribute('x2', MARGIN.left + innerWidth);
+    centerLine.setAttribute('y2', y + ROW_HEIGHT / 2);
+    centerLine.setAttribute('stroke', '#333');
+    centerLine.setAttribute('stroke-width', '1');
+    svg.appendChild(centerLine);
   });
 
   // Time axis
-  const tickCount = 10;
-  const tickStep = (timeExtent[1] - timeExtent[0]) / tickCount;
+  const tickCount = Math.min(10, Math.ceil(duration / 500));
   for (let i = 0; i <= tickCount; i++) {
-    const t = timeExtent[0] + i * tickStep;
+    const t = timeExtent[0] + (i / tickCount) * duration;
     const x = xScale(t);
 
+    // Vertical grid line
     const line = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-    line.setAttribute('class', 'time-axis');
     line.setAttribute('x1', x);
     line.setAttribute('y1', MARGIN.top);
     line.setAttribute('x2', x);
     line.setAttribute('y2', height - MARGIN.bottom);
-    line.setAttribute('stroke', '#333');
-    line.setAttribute('stroke-dasharray', '2,2');
+    line.setAttribute('stroke', '#2a2a45');
+    line.setAttribute('stroke-width', '1');
     svg.appendChild(line);
 
+    // Time label
     const text = document.createElementNS('http://www.w3.org/2000/svg', 'text');
-    text.setAttribute('class', 'time-axis');
+    text.setAttribute('class', 'time-axis-label');
     text.setAttribute('x', x);
-    text.setAttribute('y', height - 10);
+    text.setAttribute('y', height - 15);
     text.setAttribute('text-anchor', 'middle');
     text.textContent = ((t - timeExtent[0]) / 1000).toFixed(1) + 's';
     svg.appendChild(text);
   }
 
-  // Balance curves (if enabled and data available)
+  // Balance curves (render first, behind transfers)
   if (SHOW_BALANCES && viz.balanceTimeline.length > 0) {
-    renderBalanceCurves(svg, viz, xScale, chains, innerWidth);
+    renderBalanceCurves(svg, viz, xScale, chains);
   }
 
-  // Transfer bars
-  viz.transfers.forEach((transfer) => {
-    const startX = xScale(transfer.startTime);
-    const endX = transfer.endTime ? xScale(transfer.endTime) : xScale(viz.endTime);
-    const y = yScale(transfer.origin);
-    const barHeight = 8;
-
-    const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
-    rect.setAttribute('class', 'transfer-bar ' + transfer.status);
-    rect.setAttribute('x', startX);
-    rect.setAttribute('y', y - barHeight / 2);
-    rect.setAttribute('width', Math.max(endX - startX, 3));
-    rect.setAttribute('height', barHeight);
-    rect.setAttribute('rx', 2);
-
-    // Tooltip
-    rect.addEventListener('mouseenter', (e) => showTooltip(e, transfer));
-    rect.addEventListener('mouseleave', hideTooltip);
-    rect.addEventListener('click', () => showDetails(transfer, 'transfer'));
-
-    svg.appendChild(rect);
-
-    // Arrow to destination if completed
-    if (transfer.status === 'completed' && transfer.endTime) {
-      const destY = yScale(transfer.destination);
-      if (destY !== y) {
-        const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-        arrow.setAttribute('x1', endX);
-        arrow.setAttribute('y1', y);
-        arrow.setAttribute('x2', endX);
-        arrow.setAttribute('y2', destY);
-        arrow.setAttribute('stroke', '#4ecdc4');
-        arrow.setAttribute('stroke-width', '1');
-        arrow.setAttribute('stroke-dasharray', '3,2');
-        arrow.setAttribute('opacity', '0.5');
-        svg.appendChild(arrow);
-      }
+  // Group transfers by origin chain for vertical stacking
+  const transfersByChain = {};
+  chains.forEach(c => transfersByChain[c] = []);
+  viz.transfers.forEach((t, i) => {
+    t._index = i;  // Store original index for coloring
+    if (transfersByChain[t.origin]) {
+      transfersByChain[t.origin].push(t);
     }
   });
 
-  // Rebalance markers (if enabled)
-  if (SHOW_REBALANCES) {
-    viz.rebalances.forEach((rebalance) => {
-      const x = xScale(rebalance.timestamp);
-      const originY = yScale(rebalance.origin);
-      const destY = yScale(rebalance.destination);
+  // Render transfers with distinct colors and labels
+  chains.forEach((chain, chainIndex) => {
+    const chainY = MARGIN.top + chainIndex * ROW_HEIGHT;
+    const transfers = transfersByChain[chain] || [];
+    const barHeight = 16;
+    const barSpacing = 20;
+    const startY = chainY + ROW_HEIGHT / 2 - ((transfers.length - 1) * barSpacing) / 2;
 
-      // Arrow from origin to destination
-      const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
-      arrow.setAttribute('class', 'rebalance-arrow');
-      arrow.setAttribute('x1', x);
-      arrow.setAttribute('y1', originY);
-      arrow.setAttribute('x2', x);
-      arrow.setAttribute('y2', destY > originY ? destY - 8 : destY + 8);
-      arrow.setAttribute('marker-end', 'url(#arrowhead-' + vizIndex + ')');
-      svg.appendChild(arrow);
+    transfers.forEach((transfer, stackIndex) => {
+      const color = TRANSFER_COLORS[transfer._index % TRANSFER_COLORS.length];
+      const y = startY + stackIndex * barSpacing;
+      const startX = xScale(transfer.startTime);
+      const endX = transfer.endTime ? xScale(transfer.endTime) : xScale(viz.endTime);
+      const width = Math.max(endX - startX, 20);
 
-      // Circle marker at origin
       const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
-      g.setAttribute('class', 'rebalance-marker');
+      g.setAttribute('class', 'transfer-group');
 
-      const circle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
-      circle.setAttribute('cx', x);
-      circle.setAttribute('cy', originY);
-      circle.setAttribute('r', 5);
-      g.appendChild(circle);
+      // Transfer bar
+      const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+      rect.setAttribute('class', 'transfer-bar');
+      rect.setAttribute('x', startX);
+      rect.setAttribute('y', y - barHeight / 2);
+      rect.setAttribute('width', width);
+      rect.setAttribute('height', barHeight);
+      rect.setAttribute('rx', 3);
+      rect.setAttribute('fill', color);
+      if (transfer.status === 'failed') {
+        rect.setAttribute('fill', '#f94144');
+        rect.setAttribute('opacity', '0.7');
+      } else if (transfer.status === 'pending') {
+        rect.setAttribute('fill', color);
+        rect.setAttribute('opacity', '0.5');
+        rect.setAttribute('stroke', color);
+        rect.setAttribute('stroke-width', '2');
+        rect.setAttribute('stroke-dasharray', '4,2');
+      }
+      g.appendChild(rect);
 
-      g.addEventListener('mouseenter', (e) => showTooltip(e, rebalance, 'rebalance'));
+      // Start marker (circle)
+      const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+      startCircle.setAttribute('class', 'start-marker');
+      startCircle.setAttribute('cx', startX);
+      startCircle.setAttribute('cy', y);
+      startCircle.setAttribute('r', 4);
+      startCircle.setAttribute('fill', '#fff');
+      g.appendChild(startCircle);
+
+      // End marker (diamond) if completed
+      if (transfer.status === 'completed' && transfer.endTime) {
+        const endMarker = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+        endMarker.setAttribute('class', 'end-marker');
+        const ex = endX;
+        const ey = y;
+        const s = 5;
+        endMarker.setAttribute('points', \`\${ex},\${ey-s} \${ex+s},\${ey} \${ex},\${ey+s} \${ex-s},\${ey}\`);
+        endMarker.setAttribute('fill', color);
+        endMarker.setAttribute('stroke', '#fff');
+        g.appendChild(endMarker);
+      }
+
+      // Transfer ID label inside bar
+      const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+      label.setAttribute('class', 'transfer-label');
+      label.setAttribute('x', startX + 6);
+      label.setAttribute('y', y + 4);
+      label.textContent = 'T' + (transfer._index + 1);
+      g.appendChild(label);
+
+      // Latency label above bar
+      if (transfer.latency) {
+        const latencyLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        latencyLabel.setAttribute('class', 'transfer-time-label');
+        latencyLabel.setAttribute('x', startX + width / 2);
+        latencyLabel.setAttribute('y', y - barHeight / 2 - 3);
+        latencyLabel.setAttribute('text-anchor', 'middle');
+        latencyLabel.textContent = transfer.latency + 'ms';
+        g.appendChild(latencyLabel);
+      }
+
+      // Arrow to destination
+      if (transfer.status === 'completed' && transfer.endTime) {
+        const destChainIndex = chains.indexOf(transfer.destination);
+        if (destChainIndex !== -1 && destChainIndex !== chainIndex) {
+          const destY = MARGIN.top + destChainIndex * ROW_HEIGHT + ROW_HEIGHT / 2;
+          const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          arrow.setAttribute('x1', endX);
+          arrow.setAttribute('y1', y);
+          arrow.setAttribute('x2', endX);
+          arrow.setAttribute('y2', destY > y ? destY - 10 : destY + 10);
+          arrow.setAttribute('stroke', color);
+          arrow.setAttribute('stroke-width', '2');
+          arrow.setAttribute('stroke-dasharray', '4,3');
+          arrow.setAttribute('opacity', '0.6');
+          g.appendChild(arrow);
+
+          // Arrow head at destination
+          const arrowHead = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          const ay = destY > y ? destY - 10 : destY + 10;
+          const dir = destY > y ? 1 : -1;
+          arrowHead.setAttribute('points', \`\${endX-4},\${ay} \${endX+4},\${ay} \${endX},\${ay + dir * 8}\`);
+          arrowHead.setAttribute('fill', color);
+          arrowHead.setAttribute('opacity', '0.6');
+          g.appendChild(arrowHead);
+        }
+      }
+
+      // Event handlers
+      g.addEventListener('mouseenter', (e) => showTooltip(e, transfer, 'transfer'));
       g.addEventListener('mouseleave', hideTooltip);
-      g.addEventListener('click', () => showDetails(rebalance, 'rebalance'));
+      g.addEventListener('click', () => showDetails(transfer, 'transfer'));
 
       svg.appendChild(g);
     });
+  });
+
+  // Rebalance bars (similar to transfers but with distinct styling)
+  if (SHOW_REBALANCES) {
+    // Group rebalances by origin chain for vertical stacking
+    const rebalancesByChain = {};
+    chains.forEach(c => rebalancesByChain[c] = []);
+    viz.rebalances.forEach((r, i) => {
+      r._index = i;
+      if (rebalancesByChain[r.origin]) {
+        rebalancesByChain[r.origin].push(r);
+      }
+    });
+
+    chains.forEach((chain, chainIndex) => {
+      const chainY = MARGIN.top + chainIndex * ROW_HEIGHT;
+      const rebalances = rebalancesByChain[chain] || [];
+      const barHeight = 12;
+      const barSpacing = 16;
+      // Position rebalances below center line (transfers above)
+      const startY = chainY + ROW_HEIGHT / 2 + 20 + ((rebalances.length - 1) * barSpacing) / 2;
+
+      rebalances.forEach((rebalance, stackIndex) => {
+        const y = startY - stackIndex * barSpacing;
+        const startX = xScale(rebalance.startTime);
+        const endX = rebalance.endTime ? xScale(rebalance.endTime) : xScale(viz.endTime);
+        const width = Math.max(endX - startX, 20);
+
+        const g = document.createElementNS('http://www.w3.org/2000/svg', 'g');
+        g.setAttribute('class', 'rebalance-marker');
+
+        // Rebalance bar
+        const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('x', startX);
+        rect.setAttribute('y', y - barHeight / 2);
+        rect.setAttribute('width', width);
+        rect.setAttribute('height', barHeight);
+        rect.setAttribute('rx', 2);
+        rect.setAttribute('fill', REBALANCE_COLOR);
+        if (rebalance.status === 'failed') {
+          rect.setAttribute('fill', '#f94144');
+          rect.setAttribute('opacity', '0.7');
+        } else if (rebalance.status === 'pending') {
+          rect.setAttribute('opacity', '0.5');
+          rect.setAttribute('stroke', REBALANCE_COLOR);
+          rect.setAttribute('stroke-width', '2');
+          rect.setAttribute('stroke-dasharray', '4,2');
+        }
+        g.appendChild(rect);
+
+        // Start marker (small circle)
+        const startCircle = document.createElementNS('http://www.w3.org/2000/svg', 'circle');
+        startCircle.setAttribute('cx', startX);
+        startCircle.setAttribute('cy', y);
+        startCircle.setAttribute('r', 3);
+        startCircle.setAttribute('fill', '#fff');
+        g.appendChild(startCircle);
+
+        // End marker (diamond) if completed
+        if (rebalance.status === 'completed' && rebalance.endTime) {
+          const endMarker = document.createElementNS('http://www.w3.org/2000/svg', 'polygon');
+          const ex = endX;
+          const ey = y;
+          const s = 4;
+          endMarker.setAttribute('points', \`\${ex},\${ey-s} \${ex+s},\${ey} \${ex},\${ey+s} \${ex-s},\${ey}\`);
+          endMarker.setAttribute('fill', REBALANCE_COLOR);
+          endMarker.setAttribute('stroke', '#fff');
+          g.appendChild(endMarker);
+        }
+
+        // R label inside bar
+        const label = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+        label.setAttribute('x', startX + 5);
+        label.setAttribute('y', y + 3);
+        label.setAttribute('fill', '#fff');
+        label.setAttribute('font-size', '8');
+        label.setAttribute('font-weight', 'bold');
+        label.textContent = 'R' + (rebalance._index + 1);
+        g.appendChild(label);
+
+        // Latency label above bar
+        if (rebalance.latency) {
+          const latencyLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+          latencyLabel.setAttribute('class', 'transfer-time-label');
+          latencyLabel.setAttribute('x', startX + width / 2);
+          latencyLabel.setAttribute('y', y - barHeight / 2 - 3);
+          latencyLabel.setAttribute('text-anchor', 'middle');
+          latencyLabel.textContent = rebalance.latency + 'ms';
+          g.appendChild(latencyLabel);
+        }
+
+        // Arrow to destination chain
+        const destChainIndex = chains.indexOf(rebalance.destination);
+        if (destChainIndex !== -1 && destChainIndex !== chainIndex && rebalance.endTime) {
+          const destY = MARGIN.top + destChainIndex * ROW_HEIGHT + ROW_HEIGHT / 2 + 20;
+          const arrow = document.createElementNS('http://www.w3.org/2000/svg', 'line');
+          arrow.setAttribute('class', 'rebalance-arrow');
+          arrow.setAttribute('x1', endX);
+          arrow.setAttribute('y1', y);
+          arrow.setAttribute('x2', endX);
+          arrow.setAttribute('y2', destY > y ? destY - 10 : destY + 10);
+          arrow.setAttribute('stroke', REBALANCE_COLOR);
+          arrow.setAttribute('marker-end', 'url(#rebalance-arrow-' + vizIndex + ')');
+          g.appendChild(arrow);
+        }
+
+        g.addEventListener('mouseenter', (e) => showTooltip(e, rebalance, 'rebalance'));
+        g.addEventListener('mouseleave', hideTooltip);
+        g.addEventListener('click', () => showDetails(rebalance, 'rebalance'));
+
+        svg.appendChild(g);
+      });
+    });
   }
 
-  return svg;
+  wrapper.appendChild(svg);
+  return wrapper;
 }
 
-function renderBalanceCurves(svg, viz, xScale, chains, innerWidth) {
-  const timeline = viz.balanceTimeline;
-  if (timeline.length < 2) return;
+function renderBalanceCurves(svg, viz, xScale, chains) {
+  // Compute expected balances from transfer/rebalance events rather than using
+  // the actual on-chain snapshots (which are affected by mock minting behavior).
+  //
+  // Correct balance flow:
+  // - User transfer start (origin): +amount (user deposits into warp token)
+  // - User transfer complete (destination): -amount (warp token pays recipient)
+  // - Rebalance start (origin): -amount (warp token sends to bridge)
+  // - Rebalance complete (destination): +amount (warp token receives from bridge)
 
-  // Find max balance for scaling
+  // Build timeline of balance-changing events
+  const balanceEvents = [];
+
+  // User transfers
+  for (const t of viz.transfers) {
+    // Origin: user deposits -> balance increases
+    balanceEvents.push({
+      timestamp: t.startTime,
+      chain: t.origin,
+      delta: BigInt(t.amount),
+      type: 'transfer_deposit'
+    });
+    // Destination: warp pays recipient -> balance decreases
+    if (t.endTime && t.status === 'completed') {
+      balanceEvents.push({
+        timestamp: t.endTime,
+        chain: t.destination,
+        delta: -BigInt(t.amount),
+        type: 'transfer_payout'
+      });
+    }
+  }
+
+  // Rebalances (bridge transfers)
+  for (const r of viz.rebalances) {
+    // Origin: warp sends to bridge -> balance decreases
+    balanceEvents.push({
+      timestamp: r.startTime,
+      chain: r.origin,
+      delta: -BigInt(r.amount),
+      type: 'rebalance_send'
+    });
+    // Destination: bridge delivers -> balance increases
+    if (r.endTime && r.status === 'completed') {
+      balanceEvents.push({
+        timestamp: r.endTime,
+        chain: r.destination,
+        delta: BigInt(r.amount),
+        type: 'rebalance_receive'
+      });
+    }
+  }
+
+  // Sort events by timestamp
+  balanceEvents.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Get initial balances from first snapshot
+  const initialBalances = {};
+  if (viz.balanceTimeline.length > 0) {
+    for (const chain of chains) {
+      initialBalances[chain] = BigInt(viz.balanceTimeline[0].balances[chain] || '0');
+    }
+  } else {
+    for (const chain of chains) {
+      initialBalances[chain] = BigInt('100000000000000000000'); // 100 tokens default
+    }
+  }
+
+  // Build computed timeline with balance snapshots at each event
+  const computedTimeline = [];
+  const runningBalances = { ...initialBalances };
+
+  // Add initial point
+  computedTimeline.push({
+    timestamp: viz.startTime,
+    balances: { ...runningBalances }
+  });
+
+  // Process each event
+  for (const event of balanceEvents) {
+    runningBalances[event.chain] = runningBalances[event.chain] + event.delta;
+    computedTimeline.push({
+      timestamp: event.timestamp,
+      balances: { ...runningBalances }
+    });
+  }
+
+  // Add final point
+  computedTimeline.push({
+    timestamp: viz.endTime,
+    balances: { ...runningBalances }
+  });
+
+  if (computedTimeline.length < 2) return;
+
+  // Find min/max balance for scaling
+  let minBalance = BigInt('999999999999999999999999999');
   let maxBalance = 0n;
-  timeline.forEach(snapshot => {
+  computedTimeline.forEach(snapshot => {
     Object.values(snapshot.balances).forEach(b => {
-      const bal = BigInt(b);
-      if (bal > maxBalance) maxBalance = bal;
+      if (b > maxBalance) maxBalance = b;
+      if (b < minBalance) minBalance = b;
     });
   });
 
   if (maxBalance === 0n) return;
+  const balanceRange = maxBalance - minBalance || 1n;
 
   chains.forEach((chain, chainIndex) => {
     const chainY = MARGIN.top + chainIndex * ROW_HEIGHT;
-    const curveHeight = ROW_HEIGHT * 0.4;
-    const baseY = chainY + ROW_HEIGHT - 10;
+    const curveTop = chainY + 15;
+    const curveBottom = chainY + ROW_HEIGHT - 15;
+    const curveHeight = curveBottom - curveTop;
+    const color = CHAIN_COLORS[chain] || TRANSFER_COLORS[chainIndex % TRANSFER_COLORS.length];
 
-    // Build path data
-    const points = timeline.map(snapshot => {
+    // Build path data from computed timeline
+    const points = computedTimeline.map(snapshot => {
       const x = xScale(snapshot.timestamp);
-      const balance = BigInt(snapshot.balances[chain] || '0');
-      const y = baseY - (Number(balance * BigInt(Math.floor(curveHeight))) / Number(maxBalance));
-      return { x, y };
+      const balance = snapshot.balances[chain] || 0n;
+      // Scale: high balance = top, low balance = bottom
+      const normalizedY = balanceRange > 0n
+        ? Number((balance - minBalance) * BigInt(Math.floor(curveHeight * 100)) / balanceRange) / 100
+        : curveHeight / 2;
+      const y = curveBottom - normalizedY;
+      return { x, y, balance };
     });
 
-    // Line path
-    const pathD = points.map((p, i) => (i === 0 ? 'M' : 'L') + p.x + ',' + p.y).join(' ');
-
-    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    path.setAttribute('class', 'balance-line');
-    path.setAttribute('d', pathD);
-    path.setAttribute('stroke', CHAIN_COLORS[chainIndex % CHAIN_COLORS.length]);
-    svg.appendChild(path);
-
     // Area fill
-    const areaD = pathD + ' L' + points[points.length-1].x + ',' + baseY + ' L' + points[0].x + ',' + baseY + ' Z';
+    const areaD = 'M' + points.map(p => p.x + ',' + p.y).join(' L') +
+      ' L' + points[points.length-1].x + ',' + curveBottom +
+      ' L' + points[0].x + ',' + curveBottom + ' Z';
     const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
     area.setAttribute('class', 'balance-area');
     area.setAttribute('d', areaD);
-    area.setAttribute('fill', CHAIN_COLORS[chainIndex % CHAIN_COLORS.length]);
+    area.setAttribute('fill', color);
     svg.appendChild(area);
+
+    // Line path (step function for clearer visualization)
+    let pathD = 'M' + points[0].x + ',' + points[0].y;
+    for (let i = 1; i < points.length; i++) {
+      // Horizontal then vertical for step effect
+      pathD += ' L' + points[i].x + ',' + points[i-1].y;
+      pathD += ' L' + points[i].x + ',' + points[i].y;
+    }
+    const path = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    path.setAttribute('class', 'balance-line');
+    path.setAttribute('d', pathD);
+    path.setAttribute('stroke', color);
+    svg.appendChild(path);
+
+    // Balance labels (start and end values)
+    const startBal = points[0].balance;
+    const endBal = points[points.length - 1].balance;
+
+    const startLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    startLabel.setAttribute('class', 'balance-label');
+    startLabel.setAttribute('x', points[0].x + 3);
+    startLabel.setAttribute('y', points[0].y - 3);
+    startLabel.textContent = formatBalanceShort(startBal);
+    startLabel.setAttribute('fill', color);
+    svg.appendChild(startLabel);
+
+    const endLabel = document.createElementNS('http://www.w3.org/2000/svg', 'text');
+    endLabel.setAttribute('class', 'balance-label');
+    endLabel.setAttribute('x', points[points.length-1].x - 3);
+    endLabel.setAttribute('y', points[points.length-1].y - 3);
+    endLabel.setAttribute('text-anchor', 'end');
+    endLabel.textContent = formatBalanceShort(endBal);
+    endLabel.setAttribute('fill', color);
+    svg.appendChild(endLabel);
   });
+}
+
+function renderLegend(container, viz) {
+  const transferCount = viz.transfers.length;
+
+  let transferItems = '';
+  for (let i = 0; i < transferCount; i++) {
+    const t = viz.transfers[i];
+    const color = TRANSFER_COLORS[i % TRANSFER_COLORS.length];
+    transferItems += \`
+      <div class="legend-item">
+        <div class="legend-color" style="background: \${color}"></div>
+        <span>T\${i + 1}: \${t.origin} → \${t.destination} (\${formatBalanceShort(BigInt(t.amount))})</span>
+      </div>
+    \`;
+  }
+
+  let chainItems = '';
+  viz.chains.forEach(chain => {
+    const color = CHAIN_COLORS[chain] || '#888';
+    chainItems += \`
+      <div class="legend-item">
+        <div class="legend-line" style="background: \${color}"></div>
+        <span>\${chain} collateral balance</span>
+      </div>
+    \`;
+  });
+
+  container.innerHTML = \`
+    <div class="legend-section">
+      <div class="legend-title">Transfers</div>
+      \${transferItems}
+    </div>
+    <div class="legend-section">
+      <div class="legend-title">Markers</div>
+      <div class="legend-item">
+        <div class="legend-marker" style="background: #fff"></div>
+        <span>Transfer start</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-marker" style="background: #4ecdc4; transform: rotate(45deg)"></div>
+        <span>Transfer delivered</span>
+      </div>
+      <div class="legend-item">
+        <div class="legend-marker" style="background: \${REBALANCE_COLOR}"></div>
+        <span>Rebalance (R)</span>
+      </div>
+    </div>
+    <div class="legend-section">
+      <div class="legend-title">Balance Curves</div>
+      \${chainItems}
+    </div>
+  \`;
 }
 
 let tooltipEl = null;
 
-function showTooltip(event, data, type = 'transfer') {
+function showTooltip(event, data, type) {
   if (!tooltipEl) {
     tooltipEl = document.createElement('div');
     tooltipEl.className = 'tooltip';
@@ -615,26 +1000,30 @@ function showTooltip(event, data, type = 'transfer') {
 
   let content = '';
   if (type === 'transfer') {
-    const latency = data.latency ? data.latency + 'ms' : 'pending';
+    const status = data.status === 'completed' ? '✓ Delivered' :
+                   data.status === 'failed' ? '✗ Failed' : '⏳ Pending';
     content = \`
-      <strong>Transfer \${data.id}</strong><br>
-      \${data.origin} → \${data.destination}<br>
-      Amount: \${formatAmount(data.amount)}<br>
-      Latency: \${latency}<br>
-      Status: \${data.status}
+      <strong>Transfer T\${data._index + 1}</strong><br>
+      <b>Route:</b> \${data.origin} → \${data.destination}<br>
+      <b>Amount:</b> \${formatAmount(data.amount)}<br>
+      <b>Latency:</b> \${data.latency ? data.latency + 'ms' : 'N/A'}<br>
+      <b>Status:</b> \${status}
     \`;
   } else {
+    const status = data.status === 'completed' ? '✓ Delivered' :
+                   data.status === 'failed' ? '✗ Failed' : '⏳ Pending';
     content = \`
-      <strong>Rebalance \${data.id}</strong><br>
-      \${data.origin} → \${data.destination}<br>
-      Amount: \${formatAmount(data.amount)}<br>
-      Success: \${data.success ? 'Yes' : 'No'}
+      <strong>Rebalance R\${data._index + 1}</strong><br>
+      <b>Route:</b> \${data.origin} → \${data.destination}<br>
+      <b>Amount:</b> \${formatAmount(data.amount)}<br>
+      <b>Latency:</b> \${data.latency ? data.latency + 'ms' : 'N/A'}<br>
+      <b>Status:</b> \${status}
     \`;
   }
 
   tooltipEl.innerHTML = content;
-  tooltipEl.style.left = (event.pageX + 10) + 'px';
-  tooltipEl.style.top = (event.pageY + 10) + 'px';
+  tooltipEl.style.left = (event.pageX + 15) + 'px';
+  tooltipEl.style.top = (event.pageY + 15) + 'px';
   tooltipEl.style.display = 'block';
 }
 
@@ -651,7 +1040,7 @@ function showDetails(data, type) {
   let html = '';
   if (type === 'transfer') {
     html = \`
-      <h3>Transfer Details</h3>
+      <h3>Transfer T\${data._index + 1} Details</h3>
       <div class="detail-row"><span class="detail-label">ID:</span><span class="detail-value">\${data.id}</span></div>
       <div class="detail-row"><span class="detail-label">Route:</span><span class="detail-value">\${data.origin} → \${data.destination}</span></div>
       <div class="detail-row"><span class="detail-label">Amount:</span><span class="detail-value">\${formatAmount(data.amount)}</span></div>
@@ -662,13 +1051,15 @@ function showDetails(data, type) {
     \`;
   } else {
     html = \`
-      <h3>Rebalance Details</h3>
+      <h3>Rebalance R\${data._index + 1} Details</h3>
       <div class="detail-row"><span class="detail-label">ID:</span><span class="detail-value">\${data.id}</span></div>
       <div class="detail-row"><span class="detail-label">Route:</span><span class="detail-value">\${data.origin} → \${data.destination}</span></div>
       <div class="detail-row"><span class="detail-label">Amount:</span><span class="detail-value">\${formatAmount(data.amount)}</span></div>
-      <div class="detail-row"><span class="detail-label">Time:</span><span class="detail-value">\${new Date(data.timestamp).toISOString()}</span></div>
+      <div class="detail-row"><span class="detail-label">Start:</span><span class="detail-value">\${new Date(data.startTime).toISOString()}</span></div>
+      <div class="detail-row"><span class="detail-label">End:</span><span class="detail-value">\${data.endTime ? new Date(data.endTime).toISOString() : 'N/A'}</span></div>
+      <div class="detail-row"><span class="detail-label">Latency:</span><span class="detail-value">\${data.latency ? data.latency + 'ms' : 'N/A'}</span></div>
       <div class="detail-row"><span class="detail-label">Gas Cost:</span><span class="detail-value">\${formatAmount(data.gasCost)}</span></div>
-      <div class="detail-row"><span class="detail-label">Success:</span><span class="detail-value">\${data.success ? 'Yes' : 'No'}</span></div>
+      <div class="detail-row"><span class="detail-label">Status:</span><span class="detail-value">\${data.status}</span></div>
     \`;
   }
 
@@ -678,9 +1069,16 @@ function showDetails(data, type) {
 function formatAmount(amount) {
   const val = BigInt(amount);
   const eth = Number(val) / 1e18;
-  if (eth >= 1) return eth.toFixed(4) + ' ETH';
-  if (eth >= 0.001) return (eth * 1000).toFixed(4) + ' mETH';
+  if (eth >= 1) return eth.toFixed(2) + ' tokens';
+  if (eth >= 0.001) return (eth * 1000).toFixed(2) + ' mTokens';
   return val.toString() + ' wei';
+}
+
+function formatBalanceShort(balance) {
+  const eth = Number(balance) / 1e18;
+  if (eth >= 1000) return (eth / 1000).toFixed(1) + 'k';
+  if (eth >= 1) return eth.toFixed(0);
+  return eth.toFixed(2);
 }
   `;
 }
