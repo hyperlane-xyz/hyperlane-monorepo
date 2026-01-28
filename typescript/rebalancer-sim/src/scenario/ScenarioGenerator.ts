@@ -218,6 +218,71 @@ export class ScenarioGenerator {
   }
 
   /**
+   * Generates truly balanced traffic where each chain has equal in/out flows.
+   * For every transfer A→B, generates a matching B→A transfer.
+   */
+  static balancedTraffic(options: {
+    chains: string[];
+    pairCount: number; // Number of balanced pairs
+    duration: number;
+    amountRange: [bigint, bigint];
+  }): TransferScenario {
+    const { chains, pairCount, duration, amountRange } = options;
+
+    if (chains.length < 2) {
+      throw new Error('Balanced traffic requires at least 2 chains');
+    }
+
+    const transfers: TransferEvent[] = [];
+    let txIndex = 0;
+
+    // Generate chain pairs
+    const chainPairs: Array<[string, string]> = [];
+    for (let i = 0; i < chains.length; i++) {
+      for (let j = i + 1; j < chains.length; j++) {
+        chainPairs.push([chains[i], chains[j]]);
+      }
+    }
+
+    // For each pair count, create a balanced pair of transfers
+    for (let i = 0; i < pairCount; i++) {
+      const pair = chainPairs[i % chainPairs.length];
+      const amount = randomBigIntInRange(amountRange[0], amountRange[1]);
+      const baseTime = Math.floor((i / pairCount) * duration * 0.9); // Leave 10% buffer
+
+      // A → B
+      transfers.push({
+        id: generateTransferId(txIndex++, 'bal'),
+        timestamp: baseTime,
+        origin: pair[0],
+        destination: pair[1],
+        amount,
+        user: randomAddress() as Address,
+      });
+
+      // B → A (same amount, slightly later)
+      transfers.push({
+        id: generateTransferId(txIndex++, 'bal'),
+        timestamp: baseTime + Math.floor(Math.random() * 500), // 0-500ms later
+        origin: pair[1],
+        destination: pair[0],
+        amount,
+        user: randomAddress() as Address,
+      });
+    }
+
+    // Sort by timestamp
+    transfers.sort((a, b) => a.timestamp - b.timestamp);
+
+    return {
+      name: `balanced-${chains.length}chains-${pairCount * 2}tx`,
+      duration,
+      transfers,
+      chains,
+    };
+  }
+
+  /**
    * Creates an imbalance scenario where one chain receives more than others.
    * Useful for testing rebalancer response to imbalanced liquidity.
    */
