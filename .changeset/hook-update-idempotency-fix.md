@@ -2,6 +2,7 @@
 '@hyperlane-xyz/provider-sdk': patch
 '@hyperlane-xyz/deploy-sdk': patch
 '@hyperlane-xyz/cli': patch
+'@hyperlane-xyz/aleo-sdk': patch
 ---
 
-Hook update logic now compares actual and expected configs to prevent unnecessary redeployments when applying the same config multiple times. Protocol capability check ensures hook updates only attempted on Aleo. Test suite added for hook update validation.
+Fixed hook update logic for warp routes. The warp route reader now properly reads hook addresses from deployed contracts instead of hardcoding zero address. Hook update idempotency check fixed to use deepEquals with config normalization instead of reference equality, preventing unnecessary redeployments when applying identical configs. Aleo provider updated to handle null/zero hook addresses correctly. Protocol capability check added to restrict hook updates to Aleo only. Comprehensive test suite added covering hook type transitions (none→MerkleTree, MerkleTree→IGP, MerkleTree→none), IGP config updates (gas configs, beneficiary), and idempotency validation.

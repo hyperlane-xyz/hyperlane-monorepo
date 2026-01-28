@@ -6,6 +6,7 @@ import { readYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
+  BURN_ADDRESS_BY_PROTOCOL,
   CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
@@ -92,6 +93,7 @@ describe('hyperlane warp apply Hook updates (Aleo E2E tests)', async function ()
       warpDeployPath: WARP_DEPLOY_PATH,
       warpRouteId: WARP_ROUTE_ID,
       warpReadOutputPath: WARP_READ_OUTPUT_PATH,
+      otherOwnerAddress: BURN_ADDRESS_BY_PROTOCOL.aleo,
     },
     hyperlaneWarp,
   );

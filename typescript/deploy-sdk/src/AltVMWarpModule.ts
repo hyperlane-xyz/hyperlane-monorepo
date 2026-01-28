@@ -22,7 +22,9 @@ import {
   Address,
   addressToBytes32,
   assert,
+  deepEquals,
   isZeroishAddress,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -324,7 +326,12 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       return updateTransactions;
     }
 
-    if (actualConfig.hook === expectedConfig.hook) {
+    if (
+      deepEquals(
+        normalizeConfig(actualConfig.hook),
+        normalizeConfig(expectedConfig.hook),
+      )
+    ) {
       this.logger.debug(
         `Token Hook config is the same as target. No updates needed.`,
       );
@@ -347,7 +354,7 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       );
       return [
         {
-          annotation: `Resetting ISM for Warp Route to zero address`,
+          annotation: `Resetting Hook for Warp Route to zero address`,
           ...(await this.signer.getSetTokenHookTransaction({
             signer: actualConfig.owner,
             tokenAddress: this.args.addresses.deployedTokenRoute,

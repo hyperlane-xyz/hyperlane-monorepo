@@ -23,6 +23,7 @@ export interface HookUpdateTestConfig {
   warpDeployPath: string;
   warpRouteId: string;
   warpReadOutputPath: string;
+  otherOwnerAddress: string;
   /**
    * Optional map of test names to skip flags
    * Set to true to skip a specific test
@@ -464,7 +465,7 @@ export function createHookUpdateTests(
       // Get a different owner address (use the private key's address for simplicity,
       // assuming it's different from the initial owner)
       // In real tests, you'd provide an alternate owner address
-      const newOwner = initialOwner; // This would be a different address in practice
+      const newOwner = config.otherOwnerAddress; // This would be a different address in practice
 
       // Update hook config - change owner
       const updatedHookConfig: HookConfig = {
