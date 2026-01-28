@@ -10,6 +10,7 @@ on:
       - 'typescript/rebalancer/**'
       - 'typescript/warp-monitor/**'
       - 'typescript/ccip-server/**'
+      - 'typescript/keyfunder/**'
       - 'typescript/Dockerfile.node-service'
       - 'pnpm-lock.yaml'
       - '.github/workflows/node-services-docker.yml'
@@ -125,6 +126,7 @@ jobs:
           TAGS=$(cat << EOF
           ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
+          ${REGISTRY}/hyperlane-key-funder:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}
           EOF
           )
@@ -140,6 +142,7 @@ jobs:
           |---------|-----|
           | ♻️ rebalancer | \`${TAG_SHA_DATE}\` |
           | 🕵️ warp-monitor | \`${TAG_SHA_DATE}\` |
+          | 🔑 key-funder | \`${TAG_SHA_DATE}\` |
           | 🔍 offchain-lookup-server | \`${TAG_SHA_DATE}\` |
 
           **Full image paths:**

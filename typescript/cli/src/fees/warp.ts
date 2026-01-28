@@ -4,7 +4,12 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, toWei } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  bytesToAddressCosmos,
+  toWei,
+} from '@hyperlane-xyz/utils';
 
 import { type CommandContext } from '../context/types.js';
 import { logBlue, logGreen, logTable, warnYellow } from '../logger.js';
@@ -19,21 +24,52 @@ interface FeeRow {
   'USD Cost': string;
 }
 
-// Placeholder addresses for fee quotes
-// Note: Sealevel fee quotes require a funded sender for transaction simulation,
-// so we use the Hyperlane relayer account as a known funded address
-// Note: EVM can't use zero address as it fails "address bytes must not be empty" validation
-const PLACEHOLDER_ADDRESSES: Record<ProtocolType, string> = {
+// Placeholder addresses for fee quotes (used for sender/recipient in simulations)
+// Notes:
+// - EVM: Can't use zero address as it fails "address bytes must not be empty" validation
+// - Sealevel: Requires a funded sender for transaction simulation, so we use the
+//   Hyperlane relayer account as a known funded address
+// - Cosmos/CosmosNative: Not included here because WarpCore.validateRecipient checks
+//   that the recipient's bech32 prefix matches the destination chain's prefix.
+//   Different Cosmos chains use different prefixes (cosmos1, osmo1, inj1, etc.),
+//   so we generate these dynamically using getPlaceholderRecipient().
+const PLACEHOLDER_ADDRESSES: Partial<Record<ProtocolType, string>> = {
   [ProtocolType.Ethereum]: '0x0000000000000000000000000000000000000001',
-  [ProtocolType.Sealevel]: 'G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp', // Hyperlane relayer (funded)
-  [ProtocolType.Cosmos]: 'cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a',
-  [ProtocolType.CosmosNative]: 'cosmos1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqnrql8a',
+  [ProtocolType.Sealevel]: 'G5FM3UKwcBJ47PwLWLLY1RQpqNtTMgnqnd6nZGcJqaBp',
   [ProtocolType.Starknet]: '0x0',
   [ProtocolType.Aleo]:
     'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc',
   [ProtocolType.Radix]:
     'resource_rdx1tknxxxxxxxxxradxrdxxxxxxxxx009923554798xxxxxxxxxradxrd',
 };
+
+/**
+ * Gets a placeholder recipient address for fee quotes.
+ * For Cosmos chains, generates address dynamically using the chain's bech32 prefix
+ * since WarpCore.validateRecipient requires the prefix to match.
+ */
+function getPlaceholderRecipient(
+  protocol: ProtocolType,
+  bech32Prefix?: string,
+): string {
+  if (
+    protocol === ProtocolType.Cosmos ||
+    protocol === ProtocolType.CosmosNative
+  ) {
+    if (!bech32Prefix) {
+      throw new Error(`bech32Prefix required for Cosmos protocol`);
+    }
+    // Generate valid bech32 address with 20-byte zero data. Some Cosmos chains
+    // use different lengths for contracts vs EOAs, but given our available info
+    // it's hard to know the ideal length—20 bytes works for most account addresses.
+    return bytesToAddressCosmos(new Uint8Array(20), bech32Prefix);
+  }
+  const placeholder = PLACEHOLDER_ADDRESSES[protocol];
+  if (!placeholder) {
+    throw new Error(`No placeholder address for protocol: ${protocol}`);
+  }
+  return placeholder;
+}
 
 export async function runWarpRouteFees({
   context,
@@ -116,9 +152,18 @@ export async function runWarpRouteFees({
         const originTokenAmount = token.amount(amountWei);
 
         // Use protocol-appropriate placeholder addresses
-        const senderAddress = PLACEHOLDER_ADDRESSES[token.protocol];
-        const recipientAddress =
-          PLACEHOLDER_ADDRESSES[connection.token.protocol];
+        const originMetadata = warpCore.multiProvider.getChainMetadata(
+          token.chainName,
+        );
+        const destMetadata = warpCore.multiProvider.getChainMetadata(destChain);
+        const senderAddress = getPlaceholderRecipient(
+          token.protocol,
+          originMetadata.bech32Prefix,
+        );
+        const recipientAddress = getPlaceholderRecipient(
+          connection.token.protocol,
+          destMetadata.bech32Prefix,
+        );
 
         const { igpQuote, tokenFeeQuote } =
           await warpCore.getInterchainTransferFee({

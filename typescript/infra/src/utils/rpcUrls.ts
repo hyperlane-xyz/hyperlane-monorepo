@@ -499,7 +499,10 @@ async function selectCronJobs(
   const cronjobManagers: [string, HelmManager<any>][] = [];
 
   try {
-    const keyFunder = KeyFunderHelmManager.forEnvironment(environment);
+    const keyFunder = KeyFunderHelmManager.forEnvironment(
+      environment,
+      '', // registryCommit not needed for refresh
+    );
     cronjobManagers.push(['Key Funder', keyFunder]);
   } catch (e) {
     // Environment may not have key funder configured
