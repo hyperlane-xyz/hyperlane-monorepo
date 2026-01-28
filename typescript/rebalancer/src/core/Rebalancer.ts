@@ -1,9 +1,11 @@
-import { type PopulatedTransaction } from 'ethers';
+import { type PopulatedTransaction, type providers } from 'ethers';
 import { type Logger } from 'pino';
 
 import {
   type ChainMap,
   type ChainMetadata,
+  type ChainName,
+  type EthJsonRpcBlockParameterTag,
   EvmMovableCollateralAdapter,
   HyperlaneCore,
   type InterchainGasQuote,
@@ -393,86 +395,69 @@ export class Rebalancer implements IRebalancer {
       return results;
     }
 
-    // 3. Send transactions
+    // 3. Group transactions by origin chain
+    const txsByOrigin = new Map<ChainName, PreparedTransaction[]>();
+    for (const tx of validTransactions) {
+      const origin = tx.route.origin;
+      if (!txsByOrigin.has(origin)) {
+        txsByOrigin.set(origin, []);
+      }
+      txsByOrigin.get(origin)!.push(tx);
+    }
+
+    // 4. Send transactions - parallel across chains, sequential within each chain
     this.logger.info(
-      { numTransactions: validTransactions.length },
-      'Sending valid transactions.',
+      {
+        numChains: txsByOrigin.size,
+        numTransactions: validTransactions.length,
+      },
+      'Sending transactions (parallel across chains, sequential within chain).',
     );
 
-    for (const transaction of validTransactions) {
-      try {
-        const { origin, destination } = transaction.route;
-        const decimalFormattedAmount =
-          transaction.originTokenAmount.getDecimalFormattedAmount();
-        const tokenName = transaction.originTokenAmount.token.name;
+    const chainSendResults = await Promise.allSettled(
+      Array.from(txsByOrigin.entries()).map(([origin, txs]) =>
+        this.sendTransactionsForChain(origin, txs),
+      ),
+    );
 
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName,
-          },
-          'Sending rebalance transaction for route.',
-        );
+    // 5. Collect successful sends and record send failures
+    const successfulSends: Array<{
+      transaction: PreparedTransaction;
+      receipt: providers.TransactionReceipt;
+    }> = [];
 
-        const rebalanceReceipt = await this.multiProvider.sendTransaction(
-          origin,
-          transaction.populatedTx,
-        );
-
-        this.logger.info(
-          {
-            origin,
-            destination,
-            amount: decimalFormattedAmount,
-            tokenName,
-            txHash: rebalanceReceipt.transactionHash,
-          },
-          'Rebalance transaction confirmed for route.',
-        );
-
-        // Extract messageId from the rebalance transaction receipt
-        let messageId: string | undefined;
-        if (rebalanceReceipt) {
-          try {
-            const dispatchedMessages =
-              HyperlaneCore.getDispatchedMessages(rebalanceReceipt);
-            messageId = dispatchedMessages[0]?.id;
-          } catch {
-            // Not all rebalance transactions dispatch messages (e.g., CCTP)
-            this.logger.debug(
-              { origin, destination },
-              'No dispatched message found in rebalance receipt.',
+    chainSendResults.forEach((chainResult) => {
+      if (chainResult.status === 'fulfilled') {
+        for (const txResult of chainResult.value) {
+          if ('receipt' in txResult) {
+            successfulSends.push(txResult);
+          } else {
+            results.push({
+              route: txResult.transaction.route,
+              success: false,
+              error: `Transaction send failed: ${txResult.error}`,
+            });
+            this.metrics?.recordActionAttempt(
+              txResult.transaction.route,
+              false,
             );
           }
         }
-
-        results.push({
-          route: transaction.route,
-          success: true,
-          messageId,
-          txHash: rebalanceReceipt?.transactionHash,
-        });
-        this.metrics?.recordActionAttempt(transaction.route, true);
-      } catch (error) {
+      } else {
+        // This shouldn't happen since sendTransactionsForChain catches errors internally,
+        // but handle it just in case
         this.logger.error(
-          {
-            origin: transaction.route.origin,
-            destination: transaction.route.destination,
-            amount: transaction.originTokenAmount.getDecimalFormattedAmount(),
-            tokenName: transaction.originTokenAmount.token.name,
-            error,
-          },
-          'Transaction failed for route.',
+          { error: chainResult.reason },
+          'Unexpected error during chain transaction sending.',
         );
-        results.push({
-          route: transaction.route,
-          success: false,
-          error: String(error),
-        });
-        this.metrics?.recordActionAttempt(transaction.route, false);
       }
+    });
+
+    // 6. Build results from confirmed receipts
+    for (const { transaction, receipt } of successfulSends) {
+      const result = this.buildResult(transaction, receipt);
+      results.push(result);
+      this.metrics?.recordActionAttempt(result.route, result.success);
     }
 
     return results;
@@ -513,5 +498,125 @@ export class Rebalancer implements IRebalancer {
       filteredTransactions.push(transaction);
     }
     return filteredTransactions;
+  }
+
+  // === Parallel Transaction Sending Methods ===
+
+  /**
+   * Send all transactions for a single origin chain sequentially.
+   * Sequential sending is required to avoid nonce contention when using the same signing key.
+   */
+  private async sendTransactionsForChain(
+    origin: ChainName,
+    transactions: PreparedTransaction[],
+  ): Promise<
+    Array<
+      | {
+          transaction: PreparedTransaction;
+          receipt: providers.TransactionReceipt;
+        }
+      | { transaction: PreparedTransaction; error: string }
+    >
+  > {
+    const results: Array<
+      | {
+          transaction: PreparedTransaction;
+          receipt: providers.TransactionReceipt;
+        }
+      | { transaction: PreparedTransaction; error: string }
+    > = [];
+
+    // Send sequentially to avoid nonce contention
+    for (const transaction of transactions) {
+      try {
+        const decimalFormattedAmount =
+          transaction.originTokenAmount.getDecimalFormattedAmount();
+        const tokenName = transaction.originTokenAmount.token.name;
+
+        const reorgPeriod = this.getReorgPeriod(origin);
+
+        this.logger.info(
+          {
+            origin,
+            destination: transaction.route.destination,
+            amount: decimalFormattedAmount,
+            tokenName,
+            reorgPeriod,
+          },
+          'Sending rebalance transaction and waiting for reorgPeriod confirmations.',
+        );
+
+        const receipt = await this.multiProvider.sendTransaction(
+          origin,
+          transaction.populatedTx,
+          {
+            waitConfirmations: reorgPeriod as
+              | number
+              | EthJsonRpcBlockParameterTag,
+          },
+        );
+
+        this.logger.info(
+          {
+            origin,
+            destination: transaction.route.destination,
+            amount: decimalFormattedAmount,
+            tokenName,
+            txHash: receipt.transactionHash,
+          },
+          'Rebalance transaction confirmed at reorgPeriod depth.',
+        );
+
+        results.push({ transaction, receipt });
+      } catch (error) {
+        this.logger.error(
+          {
+            origin,
+            destination: transaction.route.destination,
+            amount: transaction.originTokenAmount.getDecimalFormattedAmount(),
+            tokenName: transaction.originTokenAmount.token.name,
+            error,
+          },
+          'Transaction send failed for route.',
+        );
+        results.push({ transaction, error: String(error) });
+      }
+    }
+
+    return results;
+  }
+
+  /**
+   * Build the execution result from a confirmed transaction receipt.
+   * Receipt is already confirmed at reorgPeriod depth from sendTransaction.
+   */
+  private buildResult(
+    transaction: PreparedTransaction,
+    receipt: providers.TransactionReceipt,
+  ): RebalanceExecutionResult {
+    const { origin, destination } = transaction.route;
+
+    let messageId: string | undefined;
+    try {
+      const dispatchedMessages = HyperlaneCore.getDispatchedMessages(receipt);
+      messageId = dispatchedMessages[0]?.id;
+    } catch {
+      this.logger.debug(
+        { origin, destination },
+        'No dispatched message found in rebalance receipt.',
+      );
+    }
+
+    return {
+      route: transaction.route,
+      success: true,
+      messageId,
+      txHash: receipt.transactionHash,
+    };
+  }
+
+  private getReorgPeriod(chainName: string): number | string {
+    const metadata = this.multiProvider.getChainMetadata(chainName);
+    return metadata.blocks?.reorgPeriod ?? 32;
   }
 }
