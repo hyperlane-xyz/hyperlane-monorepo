@@ -65,7 +65,10 @@ export async function deployMultiDomainSimulation(
     options.mailboxProcessorKey ||
     '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6'; // Default anvil account #3
 
+  // Create fresh provider with no caching
   const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
+  provider.pollingInterval = 100; // Reduce polling interval to minimize stale cache
+
   const deployer = new ethers.Wallet(deployerKey, provider);
   const deployerAddress = await deployer.getAddress();
   const rebalancerWallet = new ethers.Wallet(rebalancerKey, provider);
