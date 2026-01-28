@@ -436,6 +436,9 @@ export function generateWarpConfigs(
     // No adapter has been implemented yet
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
+    // TIP-20 requires Tempo-specific TIP20Factory precompile
+    TokenType.syntheticTip20,
+    TokenType.collateralTip20,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(
