@@ -973,13 +973,18 @@ export class TronProvider implements AltVM.IProvider {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<TronTransaction> {
+    const { tokenType } = await this.getToken({
+      tokenAddress: req.tokenAddress,
+    });
+
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'transferRemote(uint32,bytes32,uint256)',
         {
           feeLimit: TRON_MAX_FEE,
-          callValue: Number(req.amount),
+          callValue:
+            tokenType === AltVM.TokenType.native ? Number(req.amount) : 0,
         },
         [
           {
