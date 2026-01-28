@@ -6,9 +6,13 @@ use ethers::{
     types::{transaction::eip2718::TypedTransaction, H160},
 };
 use ethers_core::types::transaction::eip2718::TypedTransaction::{Eip1559, Eip2930, Legacy};
+use hyperlane_base::db::DbError;
 
-use crate::payload::{FullPayload, PayloadDetails};
 use crate::transaction::{Transaction, VmSpecificTxData};
+use crate::{
+    payload::{FullPayload, PayloadDetails},
+    LanderError,
+};
 
 #[derive(new, Clone, serde::Deserialize, serde::Serialize, Debug, PartialEq)]
 pub struct TronTxPrecursor {
@@ -25,9 +29,15 @@ impl From<TronTxPrecursor> for VmSpecificTxData {
 }
 
 impl TronTxPrecursor {
-    pub fn from_data(data: &[u8]) -> Self {
-        let (tx, function) = serde_json::from_slice::<(TypedTransaction, Function)>(data).expect("PayloadDetails should contain (TypedTransaction, Function) for Tron as success_criteria");
-        TronTxPrecursor::new(tx, function)
+    pub fn from_data(data: &[u8]) -> Result<Self, LanderError> {
+        let (tx, function) =
+            serde_json::from_slice::<(TypedTransaction, Function)>(data).map_err(|err| {
+                DbError::Other(format!(
+                    "Failed to deserialize TronTxPrecursor from data: {}",
+                    err
+                ))
+            })?;
+        Ok(TronTxPrecursor::new(tx, function))
     }
 }
 

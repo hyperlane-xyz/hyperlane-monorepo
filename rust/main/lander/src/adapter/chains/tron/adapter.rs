@@ -18,8 +18,8 @@ use crate::{
 };
 
 pub struct TronAdapter<P: TronProviderForLander> {
-    provider: Arc<P>,
-    estimated_block_time: Duration,
+    pub provider: Arc<P>,
+    pub estimated_block_time: Duration,
 }
 
 impl TronAdapter<TronProvider> {
@@ -70,11 +70,12 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
         payloads
             .iter()
             .map(|payload| {
-                let precursor = TronTxPrecursor::from_data(&payload.data);
-                let tx = Transaction::new(precursor, vec![payload.details.clone()]);
+                let tx = TronTxPrecursor::from_data(&payload.data)
+                    .map(|cursor| Transaction::new(cursor, vec![payload.details.clone()]))
+                    .ok();
                 TxBuildingResult {
                     payloads: vec![payload.details.clone()],
-                    maybe_tx: Some(tx),
+                    maybe_tx: tx,
                 }
             })
             .collect::<Vec<_>>()
@@ -167,7 +168,7 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
         let mut reverted = Vec::new();
 
         for (data, payload) in payloads {
-            let precursor = TronTxPrecursor::from_data(&data);
+            let precursor = TronTxPrecursor::from_data(&data)?;
             let success = self
                 .provider
                 .call::<bool>(&precursor.tx, &precursor.function)

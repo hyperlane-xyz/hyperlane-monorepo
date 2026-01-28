@@ -19,3 +19,6 @@ pub mod tron;
 
 #[cfg(all(test, feature = "aleo"))]
 pub use aleo::AleoAdapter;
+
+#[cfg(test)]
+pub use tron::TronAdapter;

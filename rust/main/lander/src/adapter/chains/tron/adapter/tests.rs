@@ -738,14 +738,23 @@ async fn test_simulate_tx_returns_empty() {
 }
 
 #[tokio::test]
-async fn test_tx_ready_for_resubmission_always_true() {
+async fn test_tx_ready_for_resubmission_respects_block_time() {
     let provider = MockTronProvider::new();
     let adapter = create_test_adapter(provider);
 
+    // A just-created transaction should NOT be ready for resubmission
     let tx = create_test_transaction();
     let result = adapter.tx_ready_for_resubmission(&tx).await;
+    assert!(
+        !result,
+        "Newly created tx should not be ready for resubmission"
+    );
 
-    assert!(result, "Tron should always be ready for resubmission");
+    // A transaction with an old timestamp should be ready for resubmission
+    let mut old_tx = create_test_transaction();
+    old_tx.creation_timestamp = chrono::Utc::now() - chrono::Duration::seconds(60);
+    let result = adapter.tx_ready_for_resubmission(&old_tx).await;
+    assert!(result, "Old tx should be ready for resubmission");
 }
 
 #[tokio::test]
