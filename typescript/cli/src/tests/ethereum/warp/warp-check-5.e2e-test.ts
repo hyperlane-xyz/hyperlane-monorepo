@@ -253,4 +253,101 @@ describe('hyperlane warp check e2e tests', async function () {
       );
     });
   });
+
+  describe('--chains filtering', () => {
+    it('should only check specified chains and skip violations on other chains', async function () {
+      // Deploy warp route with merkle tree hook on chain2
+      warpConfig[CHAIN_NAME_2].hook = {
+        type: HookType.MERKLE_TREE,
+      };
+
+      const mailboxInstance = Mailbox__factory.connect(
+        chain2Addresses.mailbox,
+        signer,
+      );
+      const hookAddress = await mailboxInstance.callStatic.defaultHook();
+
+      const warpDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
+      );
+      writeYamlOrJson(warpDeployPath, warpConfig);
+
+      const currentWarpId = createWarpRouteConfigId(
+        await token.symbol(),
+        CHAIN_NAME_3,
+      );
+      await hyperlaneWarpDeploy(warpDeployPath, currentWarpId);
+
+      // Introduce a violation on chain2's hook config (change from merkle tree to fallback routing)
+      const expectedOwner = (await signer.getAddress()).toLowerCase();
+      warpConfig[CHAIN_NAME_2].hook = {
+        type: HookType.FALLBACK_ROUTING,
+        domains: {},
+        fallback: hookAddress,
+        owner: expectedOwner,
+      };
+      writeYamlOrJson(warpDeployPath, warpConfig);
+
+      // Check only chain3 - should find no violations since chain2's violation is filtered out
+      const chain3Output = await hyperlaneWarpCheckRaw({
+        warpDeployPath,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        chains: [CHAIN_NAME_3],
+      }).nothrow();
+
+      expect(chain3Output.exitCode).to.equal(0);
+      expect(chain3Output.text()).to.include('No violations found');
+
+      // Check only chain2 - should find violations since chain2 has a hook mismatch
+      const chain2Output = await hyperlaneWarpCheckRaw({
+        warpDeployPath,
+        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        chains: [CHAIN_NAME_2],
+      }).nothrow();
+
+      expect(chain2Output.exitCode).to.equal(1);
+      expect(chain2Output.text()).to.include(HookType.FALLBACK_ROUTING);
+    });
+
+    it('should warn about unknown chains but continue', async function () {
+      await deployAndExportWarpRoute();
+      const currentWarpId = createWarpRouteConfigId(
+        await token.symbol(),
+        CHAIN_NAME_3,
+      );
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: currentWarpId,
+        chains: [CHAIN_NAME_2, 'unknown-chain'],
+      }).nothrow();
+
+      expect(output.text()).to.include(
+        'Chain "unknown-chain" is not part of the warp config, skipping',
+      );
+      // Should still check anvil2 and complete
+      expect(output.exitCode).to.be.oneOf([0, 1]);
+    });
+
+    it('should warn when all chains are unknown', async function () {
+      await deployAndExportWarpRoute();
+      const currentWarpId = createWarpRouteConfigId(
+        await token.symbol(),
+        CHAIN_NAME_3,
+      );
+
+      const output = await hyperlaneWarpCheckRaw({
+        warpRouteId: currentWarpId,
+        chains: ['unknown1', 'unknown2'],
+      }).nothrow();
+
+      // Should warn about each unknown chain
+      expect(output.text()).to.include(
+        'Chain "unknown1" is not part of the warp config, skipping',
+      );
+      expect(output.text()).to.include(
+        'Chain "unknown2" is not part of the warp config, skipping',
+      );
+    });
+  });
 });

@@ -112,29 +112,23 @@ export async function runWarpIcaOwnerCheck({
   warpDeployConfig,
   origin,
   originOwner: originOwnerOverride,
-  chains,
 }: {
   context: CommandContext;
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   origin: string;
   originOwner?: string;
-  chains?: string[];
 }): Promise<void> {
   const { registry, multiProvider } = context;
-  const configChains = new Set(Object.keys(warpDeployConfig));
+  const configChains = Object.keys(warpDeployConfig);
   const originOwner = originOwnerOverride ?? warpDeployConfig[origin]?.owner;
   assert(
     originOwner,
     `Origin chain "${origin}" does not have an owner configured and --originOwner was not provided`,
   );
 
-  // Filter chains: must be in config, EVM, and not the origin chain
-  const chainsToCheck = (chains ?? [...configChains]).filter((chain) => {
+  // Filter chains: must be EVM and not the origin chain
+  const chainsToCheck = configChains.filter((chain) => {
     if (chain === origin) {
-      return false;
-    }
-    if (!configChains.has(chain)) {
-      warnYellow(`Chain "${chain}" is not part of the warp config, skipping`);
       return false;
     }
     if (multiProvider.tryGetProtocol(chain) !== ProtocolType.Ethereum) {
