@@ -1,5 +1,7 @@
 {
-  "name": "imbalance-chain1-95pct",
+  "name": "extreme-drain-chain1",
+  "description": "Tests rebalancer response when one chain is rapidly drained by incoming transfers.",
+  "expectedBehavior": "95% of transfers go TO chain1, draining its collateral as recipients withdraw.\nChain1 drops from 100 to potentially negative without rebalancer.\nRebalancer should detect chain1 < 85 threshold and send tokens FROM chain2/chain3.\nCompletion rate should stay >90% due to rebalancing replenishing liquidity.",
   "duration": 10000,
   "chains": [
     "chain1",
@@ -12,160 +14,234 @@
       "timestamp": 0,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "5095498074024726880",
-      "user": "0xf53274d861e63df51ddb69eaef24257b9c51e029"
+      "amount": "9504489747998985216",
+      "user": "0x15f5db144e26a84054a65be0d93253709c928d34"
     },
     {
       "id": "imb-000001",
       "timestamp": 500,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "9758943237845424128",
-      "user": "0xdd4f8d0dc341ab8c20f95b8db6eaa3f70b5fa2ff"
+      "amount": "8428394969271612928",
+      "user": "0x5340260430a13bfb28d62942bdffaa5e1c234d5b"
     },
     {
       "id": "imb-000002",
       "timestamp": 1000,
-      "origin": "chain3",
+      "origin": "chain2",
       "destination": "chain1",
-      "amount": "7067365366800231168",
-      "user": "0x88b62edd9293b155311b2a6fcfbbf654782229ef"
+      "amount": "7137660126487517184",
+      "user": "0x7fec968fa015ae3a09b44d7fc3df090ed21f0e3c"
     },
     {
       "id": "imb-000003",
       "timestamp": 1500,
-      "origin": "chain3",
+      "origin": "chain2",
       "destination": "chain1",
-      "amount": "9036094789828407296",
-      "user": "0x26b33fc145b9eee7f206286dffe418a392594efc"
+      "amount": "5926656156523788544",
+      "user": "0x2a4ca2965be3d44392208b2377811f849ddc544b"
     },
     {
       "id": "imb-000004",
       "timestamp": 2000,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "8039560335852253696",
-      "user": "0xc481cffa62a98ffadcc994f164e0ac3a60edc403"
+      "amount": "5981214797188405504",
+      "user": "0x267ef3deb7c3743df2b4298e5b0439e2978c7815"
     },
     {
       "id": "imb-000005",
       "timestamp": 2500,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "9797044460390169600",
-      "user": "0xb29c3fd3a716f60d8493808b30c8c7f4c9b90f5c"
+      "amount": "5653789791003863680",
+      "user": "0x7d9773271009915a8f8748caadf490f34f8d1a4c"
     },
     {
       "id": "imb-000006",
       "timestamp": 3000,
-      "origin": "chain2",
+      "origin": "chain3",
       "destination": "chain1",
-      "amount": "8705889254672436224",
-      "user": "0x9fa3c9abf107b26f6753287a2713d18e7d3b9d9c"
+      "amount": "8790048851136472576",
+      "user": "0x5c8b69968191da5944d6dda6b70d1e572d8b3fa2"
     },
     {
       "id": "imb-000007",
       "timestamp": 3500,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "5585792282229268224",
-      "user": "0xc779c38e2893f9aa85c0d3b84f1d7636d29eaad8"
+      "amount": "6274550598431426560",
+      "user": "0x81db56773e7796812d86733c5f1a3c8123ed20e4"
     },
     {
       "id": "imb-000008",
       "timestamp": 4000,
-      "origin": "chain2",
+      "origin": "chain3",
       "destination": "chain1",
-      "amount": "8508702508399215104",
-      "user": "0x918e5a71abc1a2dd452ae21c5ddb18253baecf4b"
+      "amount": "6746841943127800320",
+      "user": "0x5e41bae4657089ba506cb23eacbe00857d9d43b1"
     },
     {
       "id": "imb-000009",
       "timestamp": 4500,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "9890919630579398656",
-      "user": "0xfff9ae6be29b91ecd06a81490672bf39c64ca0d6"
+      "amount": "6390276943265038592",
+      "user": "0xdbc0af1e563db0ac0386e2570a427c56ff5b0c5e"
     },
     {
       "id": "imb-000010",
       "timestamp": 5000,
-      "origin": "chain2",
+      "origin": "chain3",
       "destination": "chain1",
-      "amount": "9503734590537074176",
-      "user": "0x9b8f4112f2b767874dcca51868beba864ce727ae"
+      "amount": "7742414878714109952",
+      "user": "0x49ce1cac5d8fdb1fdc80c70c8df04a627f2ccb57"
     },
     {
       "id": "imb-000011",
       "timestamp": 5500,
-      "origin": "chain3",
+      "origin": "chain2",
       "destination": "chain1",
-      "amount": "5079021028628398768",
-      "user": "0x04c8292acb153153d34cf8975da857b490955428"
+      "amount": "6403809084904088576",
+      "user": "0xd04a74c6ca23dff343c3a44063352164efa071ba"
     },
     {
       "id": "imb-000012",
       "timestamp": 6000,
-      "origin": "chain1",
-      "destination": "chain2",
-      "amount": "7879526251439862272",
-      "user": "0xb7952de833039c0421445d8120faf873d9ca83ec"
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "9830814724242363392",
+      "user": "0x1562d9884c1f698fddbe2de9a8983225196a48ed"
     },
     {
       "id": "imb-000013",
       "timestamp": 6500,
-      "origin": "chain2",
+      "origin": "chain3",
       "destination": "chain1",
-      "amount": "6680730765597865472",
-      "user": "0x2307004effd648e11d95f88eb9d3ece74259d638"
+      "amount": "5628411349780301184",
+      "user": "0x51d663db3d7f7f7a03050c264b04f251ca6f79df"
     },
     {
       "id": "imb-000014",
       "timestamp": 7000,
-      "origin": "chain3",
-      "destination": "chain1",
-      "amount": "8068587025763866112",
-      "user": "0x594ffbbcf199dc864784d82afcfefa0918fb91cd"
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "9427061826210123776",
+      "user": "0x6ecd5a766146bdf8d72aeb205758da7b105f6294"
     },
     {
       "id": "imb-000015",
       "timestamp": 7500,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "8959567834448834048",
-      "user": "0x733e0e20e2a48fba665a58137b95ad4c754a0d92"
+      "amount": "6788769258548758016",
+      "user": "0x6b7e0d3853a6a417d1e6426d4d03f72a5bc76a7e"
     },
     {
       "id": "imb-000016",
       "timestamp": 8000,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "8303142294311130112",
-      "user": "0x011cee405e1df9731a7bd0668f4796dd2ad9f5af"
+      "amount": "7732978056499013632",
+      "user": "0x66f3655b4abb9085cb26c968874cfad4328ebe45"
     },
     {
       "id": "imb-000017",
       "timestamp": 8500,
-      "origin": "chain2",
+      "origin": "chain3",
       "destination": "chain1",
-      "amount": "9808581993897774080",
-      "user": "0xe218ae9f9e86d13766bae986e40d146e910c90a4"
+      "amount": "6848522861879296000",
+      "user": "0x8972f37a0348c67f2da4d1735869cc9063a1ebd0"
     },
     {
       "id": "imb-000018",
       "timestamp": 9000,
-      "origin": "chain3",
+      "origin": "chain2",
       "destination": "chain1",
-      "amount": "9504579639772230656",
-      "user": "0xca581900c8296880743cd2c5bd461e528d69b0a6"
+      "amount": "5626643744096488960",
+      "user": "0xe27133dbddae9457d3930d7fd5e82ac2cc8aa606"
     },
     {
       "id": "imb-000019",
       "timestamp": 9500,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "9483271051621679104",
-      "user": "0x164a852d5c74626c87bfdabb50f4856878519e05"
+      "amount": "7457511967638691328",
+      "user": "0x11da90bc90e71f62efa3b4e9aeba3fe59772c075"
     }
-  ]
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain1": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.9,
+    "shouldTriggerRebalancing": true
+  }
 }
