@@ -1,6 +1,7 @@
 import type { Logger } from 'pino';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
+import { getStrategyChainConfig } from '../config/types.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { RebalancingRoute } from '../interfaces/IStrategy.js';
 
@@ -75,7 +76,10 @@ export class WithSemaphore implements IRebalancer {
 
   private getHighestLockTime(routes: RebalancingRoute[]) {
     return routes.reduce((highest, route) => {
-      const origin = this.config.strategyConfig.chains[route.origin];
+      const origin = getStrategyChainConfig(
+        this.config.strategyConfig,
+        route.origin,
+      );
 
       if (!origin) {
         this.logger.error({ route }, 'Chain not found in config. Skipping.');

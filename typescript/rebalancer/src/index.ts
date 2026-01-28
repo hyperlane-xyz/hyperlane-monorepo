@@ -22,11 +22,14 @@ export { WithSemaphore } from './core/WithSemaphore.js';
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
+  getStrategyChainConfig,
+  getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  RebalancerStrategySchema,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
 } from './config/types.js';
@@ -42,6 +45,7 @@ export type {
 
 // Strategy
 export { BaseStrategy } from './strategy/BaseStrategy.js';
+export { CompositeStrategy } from './strategy/CompositeStrategy.js';
 export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';

@@ -1,4 +1,7 @@
-import { RebalancerConfig } from '@hyperlane-xyz/rebalancer';
+import {
+  RebalancerConfig,
+  getStrategyChainNames,
+} from '@hyperlane-xyz/rebalancer';
 import {
   type ChainName,
   type DeployedCoreAddresses,
@@ -138,9 +141,9 @@ async function resolveWarpRebalancerChains(
   // Load rebalancer config to get the configured chains
   const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-  // Extract chain names from the rebalancer config's strategy.chains
+  // Extract chain names from all strategies in the rebalancer config
   // This ensures we only create signers for chains we can actually rebalance
-  const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
+  const chains = getStrategyChainNames(rebalancerConfig.strategyConfig);
 
   assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
