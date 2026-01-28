@@ -23,6 +23,28 @@ import { getInfraPath, isEthereumProtocolChain } from '../utils/utils.js';
 const RC_FUNDING_DISCOUNT_NUMERATOR = BigNumber.from(2);
 const RC_FUNDING_DISCOUNT_DENOMINATOR = BigNumber.from(10);
 
+// Chains to sweep excess funds from (must match fund-keys-from-deployer.ts)
+const CHAINS_TO_SWEEP = new Set([
+  'arbitrum',
+  'avalanche',
+  'base',
+  'blast',
+  'bsc',
+  'celo',
+  'ethereum',
+  'fraxtal',
+  'hyperevm',
+  'ink',
+  'linea',
+  'lisk',
+  'mitosis',
+  'optimism',
+  'polygon',
+  'soneium',
+  'superseed',
+  'unichain',
+]);
+
 export class KeyFunderHelmManager extends HelmManager {
   readonly helmReleaseName: string = 'key-funder';
   readonly helmChartPath: string = join(getInfraPath(), './helm/key-funder/');
@@ -113,17 +135,23 @@ export class KeyFunderHelmManager extends HelmManager {
         };
       }
 
-      const sweepThreshold = this.config.lowUrgencyKeyFunderBalances?.[chain];
-      if (sweepThreshold && parseFloat(sweepThreshold) > 0) {
-        const override = this.config.sweepOverrides?.[chain];
-        chainConfig.sweep = {
-          enabled: true,
-          address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
-          threshold: sweepThreshold,
-          targetMultiplier: override?.targetMultiplier ?? 1.5,
-          triggerMultiplier: override?.triggerMultiplier ?? 2.0,
-        };
+      if (!CHAINS_TO_SWEEP.has(chain)) {
+        continue;
       }
+
+      const sweepThreshold = this.config.lowUrgencyKeyFunderBalances?.[chain];
+      if (!sweepThreshold || parseFloat(sweepThreshold) <= 0) {
+        throw new Error(`Sweep threshold is invalid for chain ${chain}`);
+      }
+
+      const override = this.config.sweepOverrides?.[chain];
+      chainConfig.sweep = {
+        enabled: true,
+        address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
+        threshold: sweepThreshold,
+        targetMultiplier: override?.targetMultiplier ?? 1.5,
+        triggerMultiplier: override?.triggerMultiplier ?? 2.0,
+      };
 
       if (Object.keys(chainConfig).length > 0) {
         chains[chain] = chainConfig;
