@@ -61,52 +61,20 @@ async function main(): Promise<void> {
     logger.info('Initialized MultiProvider with signer');
 
     let igp: HyperlaneIgp | undefined;
-    const chainsWithIgp = Object.entries(config.chains)
+    const igpEntries = Object.entries(config.chains)
       .filter(([, cfg]) => cfg.igp)
-      .map(([chain]) => chain);
+      .map(([chain, cfg]) => [
+        chain,
+        { interchainGasPaymaster: cfg.igp!.address },
+      ]);
 
-    if (chainsWithIgp.length > 0) {
-      const addresses = await registry.getAddresses();
-      const igpAddresses = Object.fromEntries(
-        chainsWithIgp.flatMap((chain) => {
-          const igpConfig = config.chains[chain]?.igp;
-          if (!igpConfig) {
-            return [];
-          }
-
-          const registryChainAddresses = addresses[chain] ?? {};
-          const merged = {
-            ...registryChainAddresses,
-            // Prefer config-provided IGP address, fall back to registry if needed.
-            interchainGasPaymaster:
-              igpConfig.address ??
-              registryChainAddresses.interchainGasPaymaster,
-          };
-
-          if (!merged.interchainGasPaymaster) {
-            logger.warn(
-              { chain },
-              'No IGP address found (config or registry), skipping IGP initialization for chain',
-            );
-            return [];
-          }
-
-          return [[chain, merged]];
-        }),
+    if (igpEntries.length > 0) {
+      const igpAddresses = Object.fromEntries(igpEntries);
+      igp = HyperlaneIgp.fromAddressesMap(igpAddresses, multiProvider);
+      logger.info(
+        { chains: Object.keys(igpAddresses) },
+        'Initialized IGP contracts',
       );
-
-      if (Object.keys(igpAddresses).length === 0) {
-        logger.warn(
-          { chainsWithIgp },
-          'IGP configured but no usable IGP addresses were found; skipping IGP initialization',
-        );
-      } else {
-        igp = HyperlaneIgp.fromAddressesMap(igpAddresses, multiProvider);
-        logger.info(
-          { chains: Object.keys(igpAddresses) },
-          'Initialized IGP contracts',
-        );
-      }
     }
 
     const metrics = new KeyFunderMetrics(

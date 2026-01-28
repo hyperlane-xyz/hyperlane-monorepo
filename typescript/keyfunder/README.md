@@ -47,7 +47,7 @@ chains:
     balances:
       hyperlane-relayer: '0.1'
     igp:
-      # address is optional - falls back to registry's interchainGasPaymaster
+      address: '0x3b6044acd6767f017e99318AA6Ef93b7B06A5a22'
       claimThreshold: '0.1'
 
 metrics:
@@ -68,7 +68,7 @@ chainsToSkip: []
 | `chains.<chain>.balances`                | Map of role name to desired balance                                                              |
 | `chains.<chain>.balances.<role>`         | Target balance decimal string (e.g., "0.5" ETH; up to 18 decimals)                               |
 | `chains.<chain>.igp`                     | IGP claim configuration                                                                          |
-| `chains.<chain>.igp.address`             | IGP contract address (optional; falls back to registry's `interchainGasPaymaster` if omitted)    |
+| `chains.<chain>.igp.address`             | IGP contract address (required when `igp` is specified)                                          |
 | `chains.<chain>.igp.claimThreshold`      | Minimum IGP balance before claiming (decimal string; up to 18 decimals)                          |
 | `chains.<chain>.sweep`                   | Sweep excess funds configuration                                                                 |
 | `chains.<chain>.sweep.enabled`           | Enable sweep functionality                                                                       |
