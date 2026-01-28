@@ -53,6 +53,7 @@ import {
   loadScenarioFile,
 } from '../../src/scenario/ScenarioLoader.js';
 import type { ScenarioFile } from '../../src/scenario/types.js';
+import { generateTimelineHtml } from '../../src/visualizer/index.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
@@ -337,8 +338,17 @@ describe('Rebalancer Simulation', function () {
       output.comparison = comparison;
     }
 
-    const filePath = path.join(RESULTS_DIR, `${scenarioName}.json`);
-    fs.writeFileSync(filePath, JSON.stringify(output, null, 2));
+    // Save JSON results
+    const jsonPath = path.join(RESULTS_DIR, `${scenarioName}.json`);
+    fs.writeFileSync(jsonPath, JSON.stringify(output, null, 2));
+
+    // Generate HTML timeline visualization
+    const html = generateTimelineHtml(results, {
+      title: `${file.name}: ${file.description}`,
+    });
+    const htmlPath = path.join(RESULTS_DIR, `${scenarioName}.html`);
+    fs.writeFileSync(htmlPath, html);
+    console.log(`  Timeline saved to: ${htmlPath}`);
   }
 
   // ============================================================================

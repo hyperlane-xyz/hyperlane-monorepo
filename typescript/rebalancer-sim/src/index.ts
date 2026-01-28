@@ -7,3 +7,4 @@ export * from './mailbox/index.js';
 export * from './rebalancer/index.js';
 export * from './engine/index.js';
 export * from './harness/index.js';
+export * from './visualizer/index.js';

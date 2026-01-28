@@ -18,14 +18,13 @@ import {
 import {
   DEFAULT_TIMING,
   SimulationEngine,
-  type SimulationTiming,
 } from '../engine/SimulationEngine.js';
 import type { ComparisonReport, SimulationResult } from '../kpi/types.js';
 import type {
   IRebalancerRunner,
   RebalancerSimConfig,
 } from '../rebalancer/types.js';
-import type { TransferScenario } from '../scenario/types.js';
+import type { SimulationTiming, TransferScenario } from '../scenario/types.js';
 
 /**
  * Configuration for the simulation harness
