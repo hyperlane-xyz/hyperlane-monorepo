@@ -12,7 +12,7 @@ The rebalancer monitors collateral balances across warp route deployments and au
 - **Flexible Strategies**: Weighted, minimum-amount, and collateral-deficit rebalancing strategies
 - **Composite Strategies**: Combine multiple strategies with different bridges for layered rebalancing
 - **Inflight Tracking**: Monitors pending rebalances to prevent duplicate transfers
-- **Safety Features**: Inflight guards, semaphores, and comprehensive validation
+- **Safety Features**: Inflight tracking and comprehensive validation
 - **Observability**: Built-in Prometheus metrics and structured logging
 - **Dual Mode**: Manual CLI execution or continuous daemon service
 - **Bridge Support**: Integration with Hyperlane warp routes and external bridges
@@ -237,9 +237,7 @@ typescript/rebalancer/
 ├── src/
 │   ├── core/
 │   │   ├── RebalancerService.ts    # Main orchestrator
-│   │   ├── Rebalancer.ts           # Core rebalancing logic
-│   │   ├── WithInflightGuard.ts    # Concurrency protection
-│   │   └── WithSemaphore.ts        # Semaphore wrapper
+│   │   └── Rebalancer.ts           # Core rebalancing logic
 │   ├── strategy/
 │   │   ├── WeightedStrategy.ts          # Weighted distribution
 │   │   ├── MinAmountStrategy.ts         # Minimum threshold strategy
