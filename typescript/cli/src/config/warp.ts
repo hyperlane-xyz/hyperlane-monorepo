@@ -1,4 +1,5 @@
 import { confirm, input, select } from '@inquirer/prompts';
+import { constants } from 'ethers';
 import { stringify as yamlStringify } from 'yaml';
 
 import {
@@ -60,6 +61,10 @@ const TYPE_DESCRIPTIONS: Record<TokenType, string> = {
     'Extends an existing ERC4626 with remote transfer functionality. Rebases yields to token holders.',
   [TokenType.collateralFiat]:
     'Extends an existing FiatToken with remote transfer functionality',
+  [TokenType.collateralTip20]:
+    'Extends an existing TIP-20 token with remote transfer functionality and memo support',
+  [TokenType.syntheticTip20]:
+    'Creates a NEW TIP-20 token via Tempo factory (for wrapping existing TIP-20, use collateralTip20)',
   [TokenType.XERC20]:
     'Extends an existing xERC20 with Warp Route functionality',
   [TokenType.XERC20Lockbox]:
@@ -245,6 +250,7 @@ export async function createWarpRouteDeployConfig({
       case TokenType.XERC20:
       case TokenType.XERC20Lockbox:
       case TokenType.collateralFiat:
+      case TokenType.collateralTip20:
         result[chain] = {
           type,
           owner,
@@ -321,6 +327,31 @@ export async function createWarpRouteDeployConfig({
           proxyAdmin,
           interchainSecurityModule,
           isNft: false,
+        };
+        break;
+      case TokenType.syntheticTip20:
+        result[chain] = {
+          type,
+          owner,
+          proxyAdmin,
+          interchainSecurityModule,
+          name: await input({
+            message: `Enter the token name for chain ${chain}`,
+          }),
+          symbol: await input({
+            message: `Enter the token symbol for chain ${chain}`,
+          }),
+          currency: await input({
+            message: `Enter the currency identifier (e.g., "USD") for chain ${chain}`,
+          }),
+          quoteToken: await input({
+            message: `Enter the quote token address for DEX pricing (or leave empty for none)`,
+            default: constants.AddressZero,
+          }),
+          tip403Registry: await input({
+            message: `Enter TIP-403 registry address (or leave empty to disable)`,
+            default: constants.AddressZero,
+          }),
         };
         break;
       default:
