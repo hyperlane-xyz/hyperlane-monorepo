@@ -1,4 +1,3 @@
-import EventEmitter from 'events';
 import { type Logger } from 'pino';
 
 import type { Token, WarpCore } from '@hyperlane-xyz/sdk';
@@ -14,9 +13,12 @@ import {
 
 /**
  * Simple monitor implementation that polls warp route collateral balances and emits them as MonitorEvent.
+ * Awaits the TokenInfo handler before starting the next cycle to prevent race conditions.
  */
 export class Monitor implements IMonitor {
-  private readonly emitter = new EventEmitter();
+  private tokenInfoHandler?: (event: MonitorEvent) => void | Promise<void>;
+  private errorHandler?: (event: Error) => void;
+  private startHandler?: () => void;
   private isMonitorRunning = false;
   private resolveStop: (() => void) | null = null;
   private stopPromise: Promise<void> | null = null;
@@ -33,22 +35,31 @@ export class Monitor implements IMonitor {
   // overloads from IMonitor
   on(
     eventName: MonitorEventType.TokenInfo,
-    fn: (event: MonitorEvent) => void,
+    fn: (event: MonitorEvent) => void | Promise<void>,
   ): this;
   on(eventName: MonitorEventType.Error, fn: (event: Error) => void): this;
   on(eventName: MonitorEventType.Start, fn: () => void): this;
-  on(eventName: string, fn: (...args: any[]) => void): this {
-    this.emitter.on(eventName, fn);
+  on(eventName: string, fn: (...args: any[]) => void | Promise<void>): this {
+    switch (eventName) {
+      case MonitorEventType.TokenInfo:
+        this.tokenInfoHandler = fn as (
+          event: MonitorEvent,
+        ) => void | Promise<void>;
+        break;
+      case MonitorEventType.Error:
+        this.errorHandler = fn as (event: Error) => void;
+        break;
+      case MonitorEventType.Start:
+        this.startHandler = fn as () => void;
+        break;
+    }
     return this;
   }
 
   async start() {
     if (this.isMonitorRunning) {
       // Cannot start the same monitor multiple times
-      this.emitter.emit(
-        MonitorEventType.Error,
-        new MonitorStartError('Monitor already running'),
-      );
+      this.errorHandler?.(new MonitorStartError('Monitor already running'));
       return;
     }
 
@@ -58,9 +69,11 @@ export class Monitor implements IMonitor {
         { checkFrequency: this.checkFrequency },
         'Monitor started',
       );
-      this.emitter.emit(MonitorEventType.Start);
+      this.startHandler?.();
 
       while (this.isMonitorRunning) {
+        const cycleStart = Date.now();
+
         try {
           this.logger.debug('Polling cycle started');
           const event: MonitorEvent = {
@@ -84,12 +97,13 @@ export class Monitor implements IMonitor {
             });
           }
 
-          // Emit the event warp routes info
-          this.emitter.emit(MonitorEventType.TokenInfo, event);
+          // Await the handler to ensure cycle completes before next poll
+          if (this.tokenInfoHandler) {
+            await this.tokenInfoHandler(event);
+          }
           this.logger.debug('Polling cycle completed');
         } catch (error) {
-          this.emitter.emit(
-            MonitorEventType.Error,
+          this.errorHandler?.(
             new MonitorPollingError(
               `Error during monitor execution cycle: ${(error as Error).message}`,
               error as Error,
@@ -97,12 +111,16 @@ export class Monitor implements IMonitor {
           );
         }
 
-        // Wait for the specified check frequency before the next iteration
-        await sleep(this.checkFrequency);
+        // Smart sleep: only wait for remaining time after cycle completes
+        const elapsed = Date.now() - cycleStart;
+        const remaining = this.checkFrequency - elapsed;
+        if (remaining > 0) {
+          await sleep(remaining);
+        }
+        // If elapsed >= checkFrequency, start next cycle immediately
       }
     } catch (error) {
-      this.emitter.emit(
-        MonitorEventType.Error,
+      this.errorHandler?.(
         new MonitorStartError(
           `Error starting monitor: ${(error as Error).message}`,
           error as Error,
@@ -111,7 +129,9 @@ export class Monitor implements IMonitor {
     }
 
     // After the loop has been gracefully terminated, we can clean up.
-    this.emitter.removeAllListeners();
+    this.tokenInfoHandler = undefined;
+    this.errorHandler = undefined;
+    this.startHandler = undefined;
     this.logger.info('Monitor stopped');
 
     // If stop() was called, resolve the promise to signal that we're done.

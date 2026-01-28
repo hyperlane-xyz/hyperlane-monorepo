@@ -3,7 +3,7 @@ import {
   type TokenAmount,
 } from '@hyperlane-xyz/sdk';
 
-import { type RebalancingRoute } from './IStrategy.js';
+import type { RebalancingRoute } from './IStrategy.js';
 
 export type PreparedTransaction = {
   populatedTx: Awaited<
@@ -18,6 +18,14 @@ export type RebalanceMetrics = {
   originTokenAmount: TokenAmount;
 };
 
+export type RebalanceExecutionResult = {
+  route: RebalancingRoute;
+  success: boolean;
+  messageId?: string;
+  txHash?: string;
+  error?: string;
+};
+
 export interface IRebalancer {
-  rebalance(routes: RebalancingRoute[]): Promise<void>;
+  rebalance(routes: RebalancingRoute[]): Promise<RebalanceExecutionResult[]>;
 }
