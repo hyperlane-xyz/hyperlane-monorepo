@@ -22,7 +22,7 @@ import {
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { IsmWriter } from './generic-ism-writer.js';
-import { RoutingIsmWriter } from './routing-ism.js';
+import { ApplyUpdateResult, RoutingIsmWriter } from './routing-ism.js';
 
 /**
  * TDD tests for RoutingIsmWriter.update() operation.
@@ -45,6 +45,7 @@ describe('RoutingIsmWriter update', () => {
   // Spies for tracking IsmWriter method calls
   let ismWriterCreateSpy: Sinon.SinonStub;
   let ismWriterUpdateSpy: Sinon.SinonStub;
+  let ismWriterApplyUpdateSpy: Sinon.SinonStub;
 
   // Spies for raw routing writer (for the routing ISM itself, not nested)
   let rawRoutingCreateSpy: Sinon.SinonStub;
@@ -93,10 +94,30 @@ describe('RoutingIsmWriter update', () => {
       { annotation: 'nested ism update tx' } as AnnotatedTx,
     ]);
 
+    // Default applyUpdate spy - returns create action with new address
+    ismWriterApplyUpdateSpy = Sinon.stub().callsFake(
+      async (
+        currentAddress: string,
+        desired: { config: MultisigIsmConfig },
+      ): Promise<ApplyUpdateResult> => {
+        // By default, return create action with new address to simulate ISM replacement
+        return {
+          action: 'create',
+          deployed: {
+            artifactState: ArtifactState.DEPLOYED,
+            config: desired.config,
+            deployed: { address: newIsmAddress },
+          },
+          receipts: [],
+        };
+      },
+    );
+
     // Create mock IsmWriter
     mockIsmWriter = {
       create: ismWriterCreateSpy,
       update: ismWriterUpdateSpy,
+      applyUpdate: ismWriterApplyUpdateSpy,
       read: Sinon.stub().resolves({
         artifactState: ArtifactState.DEPLOYED,
         config: {
@@ -259,16 +280,17 @@ describe('RoutingIsmWriter update', () => {
   });
 
   /**
-   * Test: Update routing ISM with existing domain change should call update on nested artifact.
+   * Test: Update routing ISM with existing domain change should call applyUpdate on nested artifact.
    *
    * When a routing ISM update includes an existing domain with DEPLOYED state
-   * (indicating config was read and potentially changed), IsmWriter.update()
-   * should be called to handle the nested ISM update.
+   * (indicating config was read and potentially changed), IsmWriter.applyUpdate()
+   * should be called to handle the nested ISM update, and the resulting address
+   * should be used (which may be different if the ISM was replaced).
    *
-   * Current behavior: uses artifactManager.createWriter().update() directly (raw writer)
-   * Expected behavior: uses IsmWriter.update() for proper type/config change detection
+   * Current behavior: uses IsmWriter.applyUpdate() for proper type/config change detection
+   * and uses the resulting address for routing enrollment
    */
-  it('update with existing domain change -> call update on nested artifact', async () => {
+  it('update with existing domain change -> call applyUpdate on nested artifact and use resulting address', async () => {
     // ARRANGE
     const routingIsmWriter = new RoutingIsmWriter(
       mockArtifactManager,
@@ -276,6 +298,21 @@ describe('RoutingIsmWriter update', () => {
       signer,
       mockIsmWriter,
     );
+
+    // Configure applyUpdate to return a create action with NEW address (simulating ISM replacement)
+    ismWriterApplyUpdateSpy.resolves({
+      action: 'create',
+      deployed: {
+        artifactState: ArtifactState.DEPLOYED,
+        config: {
+          type: 'messageIdMultisigIsm',
+          validators: ['0xValidator1', '0xValidator2'],
+          threshold: 2,
+        },
+        deployed: { address: newIsmAddress }, // NEW address!
+      },
+      receipts: [],
+    } satisfies ApplyUpdateResult);
 
     // Desired: routing ISM with domain 1 having DEPLOYED state (config read/changed)
     const domain1Config: MultisigIsmConfig = {
@@ -294,7 +331,7 @@ describe('RoutingIsmWriter update', () => {
         owner: '0xOwner',
         domains: {
           1: {
-            // DEPLOYED state - should trigger update
+            // DEPLOYED state - should trigger applyUpdate
             artifactState: ArtifactState.DEPLOYED,
             config: domain1Config,
             deployed: { address: domain1IsmAddress },
@@ -308,21 +345,25 @@ describe('RoutingIsmWriter update', () => {
     await routingIsmWriter.update(desiredArtifact);
 
     // ASSERT
-    // IsmWriter.update() should be called for the existing domain 1 ISM
+    // IsmWriter.applyUpdate() should be called for the existing domain 1 ISM
     expect(
-      ismWriterUpdateSpy.calledOnce,
-      'Expected IsmWriter.update() for existing domain',
+      ismWriterApplyUpdateSpy.calledOnce,
+      'Expected IsmWriter.applyUpdate() for existing domain',
     ).to.be.true;
 
-    // Verify it was called with the correct artifact
-    const updateCall = ismWriterUpdateSpy.getCall(0);
-    expect(updateCall.args[0].config.type).to.equal('messageIdMultisigIsm');
-    expect(updateCall.args[0].deployed.address).to.equal(domain1IsmAddress);
+    // Verify it was called with the correct arguments
+    const applyUpdateCall = ismWriterApplyUpdateSpy.getCall(0);
+    expect(applyUpdateCall.args[0]).to.equal(domain1IsmAddress); // currentAddress
+    expect(applyUpdateCall.args[1].config.type).to.equal(
+      'messageIdMultisigIsm',
+    );
 
-    // IsmWriter.create() should NOT be called
-    expect(ismWriterCreateSpy.called).to.be.false;
-
-    // Raw routing writer update should still be called
+    // Raw routing writer update should be called with the NEW address (from applyUpdate result)
     expect(rawRoutingUpdateSpy.calledOnce).to.be.true;
+    const rawRoutingCall = rawRoutingUpdateSpy.getCall(0);
+    // The domains[1] should have the NEW address from applyUpdate result
+    expect(rawRoutingCall.args[0].config.domains[1].deployed.address).to.equal(
+      newIsmAddress,
+    );
   });
 });

@@ -31,6 +31,19 @@ type DeployedRoutingIsmArtifact = ArtifactDeployed<
 >;
 
 /**
+ * Result of applying an ISM update operation.
+ *
+ * This type captures the three possible outcomes:
+ * - 'noop': No changes needed - config unchanged for immutable ISM
+ * - 'create': New ISM was deployed - type changed or immutable config changed
+ * - 'update': Existing ISM was updated in-place - mutable ISM config changed
+ */
+export type ApplyUpdateResult =
+  | { action: 'noop'; deployed: DeployedIsmArtifact }
+  | { action: 'create'; deployed: DeployedIsmArtifact; receipts: TxReceipt[] }
+  | { action: 'update'; deployed: DeployedIsmArtifact; txs: AnnotatedTx[] };
+
+/**
  * Interface for IsmWriter to avoid circular dependency.
  * RoutingIsmWriter needs to call IsmWriter for nested ISM operations,
  * but IsmWriter creates RoutingIsmWriter.
@@ -40,6 +53,10 @@ export interface IIsmWriter {
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]>;
   update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]>;
+  applyUpdate(
+    currentAddress: string,
+    desired: ArtifactNew<IsmArtifactConfig>,
+  ): Promise<ApplyUpdateResult>;
 }
 
 export class RoutingIsmWriter
@@ -159,11 +176,19 @@ export class RoutingIsmWriter
       const domain = parseInt(domainId);
 
       if (isArtifactDeployed(domainIsmConfig)) {
-        // Use IsmWriter.update() for nested ISMs to get proper type/config change detection
-        const domainIsmUpdateTxs = await this.ismWriter.update(domainIsmConfig);
-        updateTxs.push(...domainIsmUpdateTxs);
+        // Use applyUpdate() for nested ISMs to get proper type/config change detection
+        // and the correct resulting address (which may be new if ISM was recreated)
+        const result = await this.ismWriter.applyUpdate(
+          domainIsmConfig.deployed.address,
+          { config: domainIsmConfig.config },
+        );
 
-        deployedDomains[domain] = domainIsmConfig;
+        if (result.action === 'update') {
+          updateTxs.push(...result.txs);
+        }
+
+        // Use the address from the result - it may be different if a new ISM was created
+        deployedDomains[domain] = result.deployed;
       } else if (isArtifactUnderived(domainIsmConfig)) {
         // UNDERIVED means predeployed ISM - just pass through without reading
         deployedDomains[domain] = domainIsmConfig;

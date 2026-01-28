@@ -1,11 +1,7 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import {
-  DeployedIsmArtifact,
-  DerivedIsmConfig,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -30,10 +26,7 @@ import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { createHookWriter } from './hook/hook-writer.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
-import {
-  ismConfigToArtifact,
-  shouldDeployNewIsm,
-} from './ism/ism-config-utils.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -399,6 +392,12 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
   /**
    * Updates or deploys the ISM using the provided configuration.
    *
+   * Uses IsmWriter.applyUpdate() to handle all update scenarios:
+   * - Type change: creates new ISM
+   * - Immutable type, config unchanged: no-op
+   * - Immutable type, config changed: creates new ISM
+   * - Mutable type (routing): updates in-place
+   *
    * @returns Object with deployedIsm address, and update Transactions
    */
   async deployOrUpdateIsm(
@@ -412,14 +411,13 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     assert(expectedConfig.interchainSecurityModule, 'Ism derived incorrectly');
 
-    // Validate ISM configuration is supported by provider-sdk
     validateIsmConfig(
       expectedConfig.interchainSecurityModule,
       this.chainName,
       'warp route ISM',
     );
 
-    // If ISM is an address reference, use it directly without updates
+    // If ISM is an address reference, use it directly
     if (typeof expectedConfig.interchainSecurityModule === 'string') {
       return {
         deployedIsm: expectedConfig.interchainSecurityModule,
@@ -429,18 +427,16 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     const metadata = this.chainLookup.getChainMetadata(this.args.chain);
     const writer = createIsmWriter(metadata, this.chainLookup, this.signer);
-
-    const actualIsmAddress =
-      (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
-      '';
-
-    // Convert expected config to artifact format
     const expectedArtifact = ismConfigToArtifact(
       expectedConfig.interchainSecurityModule,
       this.chainLookup,
     );
 
-    // If no existing ISM, deploy new one directly (no comparison needed)
+    const actualIsmAddress =
+      (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
+      '';
+
+    // If no existing ISM, deploy new one directly
     if (!actualIsmAddress) {
       this.logger.debug(`No existing ISM found, deploying new one`);
       const [deployed] = await writer.create(expectedArtifact);
@@ -450,35 +446,15 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       };
     }
 
-    // Read actual ISM state (only when we have existing ISM to compare)
-    const actualArtifact = await writer.read(actualIsmAddress);
-
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
 
-    // Decide: deploy new ISM or update existing one
-    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
-      // Deploy new ISM
-      const [deployed] = await writer.create(expectedArtifact);
-      return {
-        deployedIsm: deployed.deployed.address,
-        updateTransactions: [],
-      };
-    }
-
-    // Update existing ISM (only routing ISMs support updates)
-    const deployedArtifact: DeployedIsmArtifact = {
-      ...expectedArtifact,
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config,
-      deployed: actualArtifact.deployed,
-    };
-    const updateTransactions = await writer.update(deployedArtifact);
+    const result = await writer.applyUpdate(actualIsmAddress, expectedArtifact);
 
     return {
-      deployedIsm: actualIsmAddress,
-      updateTransactions,
+      deployedIsm: result.deployed.deployed.address,
+      updateTransactions: result.action === 'update' ? result.txs : [],
     };
   }
 
