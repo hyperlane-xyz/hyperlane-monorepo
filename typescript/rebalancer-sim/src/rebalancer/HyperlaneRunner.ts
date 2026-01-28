@@ -61,6 +61,8 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
     this.provider = new ethers.providers.JsonRpcProvider(
       config.deployment.anvilRpc,
     );
+    // Disable automatic polling to reduce RPC contention in simulation
+    this.provider.polling = false;
     // Track for cleanup
     currentHyperlaneProvider = this.provider;
 

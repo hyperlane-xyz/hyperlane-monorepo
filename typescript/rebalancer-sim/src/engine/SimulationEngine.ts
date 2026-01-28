@@ -41,6 +41,8 @@ export class SimulationEngine {
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
+    // Disable automatic polling to reduce RPC contention in simulation
+    this.provider.polling = false;
   }
 
   /**

@@ -67,7 +67,8 @@ export async function deployMultiDomainSimulation(
 
   // Create fresh provider with no caching
   const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
-  provider.pollingInterval = 100; // Reduce polling interval to minimize stale cache
+  // Disable automatic polling - we don't need event subscriptions during deployment
+  provider.polling = false;
 
   const deployer = new ethers.Wallet(deployerKey, provider);
   const deployerAddress = await deployer.getAddress();

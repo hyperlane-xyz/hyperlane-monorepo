@@ -8,7 +8,7 @@ import {
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/rebalancer';
 import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
-import { MultiProvider } from '@hyperlane-xyz/sdk';
+import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { SimulationRegistry } from './SimulationRegistry.js';
@@ -18,6 +18,7 @@ import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
 let currentRunningService: RebalancerService | null = null;
 let currentProvider: ethers.providers.JsonRpcProvider | null = null;
 let currentMultiProvider: MultiProvider | null = null;
+let currentMultiProtocolProvider: MultiProtocolProvider | null = null;
 
 // Track signal handlers registered by RebalancerService for cleanup
 let registeredSigintHandler: (() => void) | null = null;
@@ -72,6 +73,21 @@ async function forceStopCurrentService(): Promise<void> {
       // Ignore cleanup errors
     }
     currentMultiProvider = null;
+  }
+
+  if (currentMultiProtocolProvider) {
+    // Remove any listeners on MultiProtocolProvider's internal providers
+    try {
+      for (const chain of currentMultiProtocolProvider.getKnownChainNames()) {
+        const provider = currentMultiProtocolProvider.getProvider(chain);
+        if (provider && 'removeAllListeners' in provider) {
+          (provider as any).removeAllListeners();
+        }
+      }
+    } catch {
+      // Ignore cleanup errors
+    }
+    currentMultiProtocolProvider = null;
   }
 
   // Force garbage collection if available (Node.js with --expose-gc)
@@ -151,10 +167,39 @@ export class RealRebalancerRunner
     const provider = new ethers.providers.JsonRpcProvider(
       config.deployment.anvilRpc,
     );
+    // Disable automatic polling to reduce RPC contention in simulation
+    provider.polling = false;
     // Track for cleanup
     currentProvider = provider;
     const wallet = new ethers.Wallet(config.deployment.rebalancerKey, provider);
     this.multiProvider.setSharedSigner(wallet);
+
+    // Disable polling on MultiProvider's internal providers to reduce RPC load
+    for (const chainName of this.multiProvider.getKnownChainNames()) {
+      const chainProvider = this.multiProvider.tryGetProvider(chainName);
+      if (chainProvider && 'polling' in chainProvider) {
+        (chainProvider as ethers.providers.JsonRpcProvider).polling = false;
+      }
+    }
+
+    // Create MultiProtocolProvider and disable polling on its internal providers
+    // This prevents the WarpCore/token adapters from doing background polling
+    const multiProtocolProvider = MultiProtocolProvider.fromMultiProvider(
+      this.multiProvider,
+    );
+    currentMultiProtocolProvider = multiProtocolProvider;
+
+    // Disable polling on MultiProtocolProvider's internal providers
+    for (const chainName of multiProtocolProvider.getKnownChainNames()) {
+      try {
+        const mppProvider = multiProtocolProvider.getProvider(chainName);
+        if (mppProvider && 'polling' in mppProvider) {
+          (mppProvider as ethers.providers.JsonRpcProvider).polling = false;
+        }
+      } catch {
+        // Some chains might not have providers yet
+      }
+    }
 
     // Convert simulation strategy config to RebalancerService format
     const strategyConfig = this.buildStrategyConfig(config);
@@ -166,9 +211,10 @@ export class RealRebalancerRunner
     );
 
     // Create RebalancerService in daemon mode
+    // Pass our pre-configured MultiProtocolProvider to avoid creating new providers
     this.service = new RebalancerService(
       this.multiProvider,
-      undefined, // Let it create MultiProtocolProvider from MultiProvider
+      multiProtocolProvider,
       this.registry,
       rebalancerConfig,
       {

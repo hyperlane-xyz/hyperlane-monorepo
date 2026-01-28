@@ -163,6 +163,8 @@ export class RebalancerSimulationHarness {
 
     const results: SimulationResult[] = [];
     const provider = new ethers.providers.JsonRpcProvider(this.config.anvilRpc);
+    // Disable automatic polling to reduce RPC contention
+    provider.polling = false;
 
     for (const rebalancer of rebalancers) {
       // Reset state before each run
@@ -240,6 +242,8 @@ export class RebalancerSimulationHarness {
       const provider = new ethers.providers.JsonRpcProvider(
         this.config.anvilRpc,
       );
+      // Disable automatic polling
+      provider.polling = false;
       await restoreSnapshot(provider, this.deployment.snapshotId);
     }
   }
