@@ -199,18 +199,27 @@ Location: `solidity/contracts/mock/SimulatedTokenBridge.sol`
 typescript/cli/src/tests/rebalancer/
 ├── harness/
 │   ├── setup.ts                    # Contract deployment
+│   ├── mock-explorer.ts            # MockExplorerServer for inflight tracking
 │   └── index.ts                    # Exports
 ├── simulation/
 │   ├── PLAN-v2.md                  # This file
 │   └── v2/
 │       ├── IntegratedSimulation.ts # Main simulation with real RebalancerService
 │       ├── MockRegistry.ts         # IRegistry implementation
-│       ├── FastSimulation.ts       # Simpler version (strategy only, no service)
 │       ├── OptimizedTrafficGenerator.ts
 │       ├── TrafficPatterns.ts
 │       ├── SimulationVisualizer.ts
+│       ├── SimulationClock.ts      # Time advancement for EVM and JS
 │       ├── types.ts
-│       └── integrated-simulation.e2e-test.ts
+│       │
+│       │ # Test Files
+│       ├── fast-simulation.e2e-test.ts       # Quick tests (~10s each)
+│       ├── integrated-simulation.e2e-test.ts # Comprehensive tests
+│       ├── inflight-tracking.e2e-test.ts     # Inflight message tracking tests
+│       ├── scenario-tests.e2e-test.ts        # Traffic pattern scenarios
+│       ├── edge-cases.e2e-test.ts            # Boundary condition tests
+│       ├── failures.e2e-test.ts              # Bridge failure tests
+│       └── simulation-v2.e2e-test.ts         # Component unit tests
 ```
 
 ## Implementation Status
@@ -263,7 +272,6 @@ typescript/cli/src/tests/rebalancer/
 
 ### 📋 TODO
 - [ ] Test with more complex multi-domain scenarios (4+ domains)
-- [ ] Add bridge failure simulation (test rebalancer behavior when bridges fail)
 - [ ] Enhanced metrics and reporting dashboards
 
 ### ✅ Recently Completed (January 2026)
@@ -273,6 +281,22 @@ typescript/cli/src/tests/rebalancer/
   - `enableMockExplorer: true` in `IntegratedSimulationConfig` to enable
   - Messages marked as delivered when `Mailbox.process()` completes
   - Strategy now reserves collateral for pending transfers
+- [x] **Test isolation fix: fresh Anvil per test**
+  - Anvil snapshot/restore caused block height caching issues with ethers providers
+  - Each test now gets a fresh Anvil instance + fresh contract deployment (~1.5s overhead)
+  - Tests are fully isolated and reproducible
+- [x] **Merged FastSimulation into IntegratedSimulation**
+  - Deleted `FastSimulation.ts` - all tests now use `IntegratedSimulation`
+  - IntegratedSimulation runs the real RebalancerService in daemon mode
+  - `fast-simulation.e2e-test.ts` uses IntegratedSimulation with 100ms delays
+- [x] **Test file cleanup**
+  - Deleted `comprehensive-simulation.e2e-test.ts` (redundant, used deleted FastSimulation)
+  - Fixed `simulation-v2.e2e-test.ts` - now contains only component unit tests
+  - Removed broken FastSimulation imports
+- [x] **Bridge failure simulation** (`failures.e2e-test.ts`)
+  - Tests rebalancer behavior when bridges fail
+  - Uses `SimulatedTokenBridge.failNextTransfer` flag
+  - Tests graceful degradation, recovery, and no-hang guarantees
 
 ## Test Scenarios
 

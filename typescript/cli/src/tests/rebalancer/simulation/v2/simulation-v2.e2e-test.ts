@@ -1,8 +1,16 @@
 /**
- * Simulation Harness v2 E2E Tests
+ * Simulation Harness v2 Component Tests
  *
- * Tests the end-to-end simulation environment that uses real warp routes
- * and SimulatedTokenBridge for controllable bridge behavior.
+ * Tests the individual components of the simulation environment:
+ * - SimulationClock: Time advancement for EVM and JS
+ * - OptimizedTrafficGenerator: Warp route transfer execution and delivery
+ * - MockExplorerServer: Inflight message tracking
+ * - SimulatedTokenBridge: Bridge deployment verification
+ * - WeightedStrategy: Imbalance detection (standalone, no simulation)
+ *
+ * For full end-to-end simulation tests, see:
+ * - fast-simulation.e2e-test.ts (quick tests)
+ * - integrated-simulation.e2e-test.ts (comprehensive tests)
  */
 import { expect } from 'chai';
 import { pino } from 'pino';
@@ -19,7 +27,6 @@ import {
   DOMAIN_2,
   DOMAIN_3,
   createRebalancerTestSetup,
-  getAllWarpRouteBalances,
   type RebalancerTestSetup,
   type SnapshotInfo,
   startAnvil,
@@ -27,14 +34,12 @@ import {
 import { MockExplorerServer } from '../../harness/mock-explorer.js';
 import { SimulationClock } from './SimulationClock.js';
 import { OptimizedTrafficGenerator } from './OptimizedTrafficGenerator.js';
-import { FastSimulation } from './FastSimulation.js';
-import { visualizeSimulation } from './SimulationVisualizer.js';
-import type { SimulationRun, ScheduledTransfer } from './types.js';
+import type { ScheduledTransfer } from './types.js';
 
 // Silent logger for tests
 const logger = pino({ level: 'silent' });
 
-describe('Simulation Harness v2', function () {
+describe('Simulation Harness v2 Components', function () {
   // Longer timeout for setup
   this.timeout(180_000);
 
@@ -48,7 +53,7 @@ describe('Simulation Harness v2', function () {
   const INITIAL_COLLATERAL = toWei('100'); // 100 tokens per domain
 
   before(async function () {
-    console.log('Starting anvil for simulation v2 tests...');
+    console.log('Starting anvil for simulation v2 component tests...');
     anvil = await startAnvil(8545, logger);
 
     console.log('Setting up simulation v2 test environment...');
@@ -210,111 +215,6 @@ describe('Simulation Harness v2', function () {
     });
   });
 
-  // ========== FAST SIMULATION TESTS ==========
-
-  describe('FastSimulation', function () {
-    async function createSimulation(): Promise<FastSimulation> {
-      const strategyConfig = {
-        chains: {
-          [DOMAIN_1.name]: {
-            weight: 50,
-            tolerance: 10,
-            bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
-          },
-          [DOMAIN_2.name]: {
-            weight: 50,
-            tolerance: 10,
-            bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
-          },
-        },
-      };
-
-      const simulation = new FastSimulation({
-        setup,
-        messageDeliveryDelayMs: 2000,
-        deliveryCheckIntervalMs: 500,
-        recordingIntervalMs: 1000,
-        rebalancerIntervalMs: 5000,
-        bridgeConfigs: {
-          [`${DOMAIN_1.name}-${DOMAIN_2.name}`]: {
-            fixedFee: BigInt(toWei('0.1')),
-            variableFeeBps: 10,
-            transferTimeMs: 3000,
-          },
-          [`${DOMAIN_2.name}-${DOMAIN_1.name}`]: {
-            fixedFee: BigInt(toWei('0.1')),
-            variableFeeBps: 10,
-            transferTimeMs: 3000,
-          },
-        },
-        strategyConfig,
-        logger,
-      });
-
-      await simulation.initialize();
-      return simulation;
-    }
-
-    it('should run a simple simulation', async function () {
-      const simulation = await createSimulation();
-
-      const schedule: SimulationRun = {
-        name: 'basic-test',
-        durationMs: 30_000, // 30 seconds
-        transfers: [
-          {
-            time: 0,
-            origin: DOMAIN_1.name,
-            destination: DOMAIN_3.name,
-            amount: BigInt(toWei('5')),
-          },
-          {
-            time: 10_000,
-            origin: DOMAIN_2.name,
-            destination: DOMAIN_3.name,
-            amount: BigInt(toWei('3')),
-          },
-        ],
-      };
-
-      const results = await simulation.run(schedule);
-
-      expect(results.name).to.equal('basic-test');
-      expect(results.transfers.total).to.equal(2);
-      expect(results.transfers.completed).to.equal(2);
-      expect(results.transfers.stuck).to.equal(0);
-    });
-
-    it('should record time series data', async function () {
-      const simulation = await createSimulation();
-
-      const schedule: SimulationRun = {
-        name: 'timeseries-test',
-        durationMs: 30_000,
-        transfers: [
-          {
-            time: 5_000,
-            origin: DOMAIN_1.name,
-            destination: DOMAIN_3.name,
-            amount: BigInt(toWei('10')),
-          },
-        ],
-      };
-
-      const results = await simulation.run(schedule);
-
-      // Should have time series points
-      expect(results.timeSeries.length).to.be.greaterThan(0);
-
-      // Time series should show balance changes
-      const firstPoint = results.timeSeries[0];
-      const lastPoint = results.timeSeries[results.timeSeries.length - 1];
-
-      expect(firstPoint.balances[DOMAIN_1.name]).to.be.a('bigint');
-      expect(lastPoint.balances[DOMAIN_1.name]).to.be.a('bigint');
-    });
-  });
-
   // ========== SIMULATED TOKEN BRIDGE TESTS ==========
 
   describe('SimulatedTokenBridge', function () {
@@ -326,11 +226,12 @@ describe('Simulation Harness v2', function () {
     });
   });
 
-  // ========== REBALANCER STRATEGY INTEGRATION ==========
+  // ========== REBALANCER STRATEGY TESTS (STANDALONE) ==========
 
-  describe('Rebalancer Strategy Integration', function () {
+  describe('WeightedStrategy (standalone)', function () {
     /**
      * Run the weighted strategy directly and get proposed routes.
+     * This tests the strategy logic without running a full simulation.
      */
     async function runWeightedStrategy(
       balances: RawBalances,
@@ -355,46 +256,16 @@ describe('Simulation Harness v2', function () {
     }
 
     it('should detect imbalance and propose rebalancing routes', async function () {
-      this.timeout(120000);
-
-      const simulation = new FastSimulation({
-        setup,
-        messageDeliveryDelayMs: 2000,
-        deliveryCheckIntervalMs: 500,
-        recordingIntervalMs: 1000,
-        rebalancerIntervalMs: 60_000, // Don't auto-rebalance
-        bridgeConfigs: {},
-        strategyConfig: null, // No auto-rebalancing
-        logger,
-      });
-      await simulation.initialize();
-
-      // Simulate traffic that creates significant imbalance
-      const schedule: SimulationRun = {
-        name: 'imbalance-detection-test',
-        durationMs: 60_000,
-        transfers: [
-          { time: 0, origin: DOMAIN_1.name, destination: DOMAIN_3.name, amount: BigInt(toWei('10')) },
-          { time: 10_000, origin: DOMAIN_1.name, destination: DOMAIN_3.name, amount: BigInt(toWei('10')) },
-          { time: 20_000, origin: DOMAIN_1.name, destination: DOMAIN_3.name, amount: BigInt(toWei('10')) },
-        ],
+      // Create an imbalanced state directly (no simulation needed)
+      const imbalancedBalances: RawBalances = {
+        [DOMAIN_1.name]: BigInt(toWei('70')), // 70% of total
+        [DOMAIN_2.name]: BigInt(toWei('30')), // 30% of total
       };
 
-      const results = await simulation.run(schedule);
-      console.log(visualizeSimulation(results));
-
-      // Get final balances from last time series point
-      const finalBalances = results.timeSeries[results.timeSeries.length - 1].balances;
-      console.log('Final balances after simulation:', {
-        [DOMAIN_1.name]: `${Number(finalBalances[DOMAIN_1.name]) / 1e18} tokens`,
-        [DOMAIN_2.name]: `${Number(finalBalances[DOMAIN_2.name]) / 1e18} tokens`,
-      });
-
-      // Run strategy to see what rebalancing it would propose
       const strategyConfig = {
         [DOMAIN_1.name]: {
           weight: 50,
-          tolerance: 5,
+          tolerance: 5, // 5% tolerance
           bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
         },
         [DOMAIN_2.name]: {
@@ -404,34 +275,58 @@ describe('Simulation Harness v2', function () {
         },
       };
 
-      const rawBalances: RawBalances = {};
-      for (const [chain, balance] of Object.entries(finalBalances)) {
-        rawBalances[chain] = balance;
-      }
-
-      const routes = await runWeightedStrategy(rawBalances, strategyConfig);
+      const routes = await runWeightedStrategy(imbalancedBalances, strategyConfig);
       
-      console.log('\n🔄 REBALANCER STRATEGY ANALYSIS');
+      console.log('\nWeightedStrategy Analysis:');
+      console.log(`  Input balances: ${DOMAIN_1.name}=70, ${DOMAIN_2.name}=30`);
+      console.log(`  Target weights: 50/50 with 5% tolerance`);
+      
       if (routes.length > 0) {
         console.log(`  Proposed rebalancing routes:`);
         for (const route of routes) {
-          console.log(`    ${route.origin} → ${route.destination}: ${Number(route.amount) / 1e18} tokens`);
+          console.log(`    ${route.origin} -> ${route.destination}: ${Number(route.amount) / 1e18} tokens`);
         }
       } else {
         console.log(`  No rebalancing needed (within tolerance)`);
       }
 
-      // Verify imbalance was created - domain1 should have more collateral
-      expect(Number(finalBalances[DOMAIN_1.name])).to.be.greaterThan(
-        Number(finalBalances[DOMAIN_2.name])
-      );
-
       // The strategy should propose rebalancing from domain1 to domain2
       expect(routes.length).to.be.greaterThan(0);
       expect(routes[0].origin).to.equal(DOMAIN_1.name);
       expect(routes[0].destination).to.equal(DOMAIN_2.name);
+      // Should move ~20 tokens to balance (from 70/30 to 50/50)
+      expect(Number(routes[0].amount) / 1e18).to.be.closeTo(20, 1);
+    });
 
-      console.log('\n✅ Simulation successfully detected imbalance and strategy proposed rebalancing');
+    it('should not propose rebalancing when within tolerance', async function () {
+      // Create a balanced state
+      const balancedBalances: RawBalances = {
+        [DOMAIN_1.name]: BigInt(toWei('52')), // 52% - within 5% tolerance of 50%
+        [DOMAIN_2.name]: BigInt(toWei('48')), // 48% - within 5% tolerance of 50%
+      };
+
+      const strategyConfig = {
+        [DOMAIN_1.name]: {
+          weight: 50,
+          tolerance: 5, // 5% tolerance
+          bridge: setup.getBridge(DOMAIN_1.name, DOMAIN_2.name),
+        },
+        [DOMAIN_2.name]: {
+          weight: 50,
+          tolerance: 5,
+          bridge: setup.getBridge(DOMAIN_2.name, DOMAIN_1.name),
+        },
+      };
+
+      const routes = await runWeightedStrategy(balancedBalances, strategyConfig);
+      
+      console.log('\nWeightedStrategy Analysis (balanced):');
+      console.log(`  Input balances: ${DOMAIN_1.name}=52, ${DOMAIN_2.name}=48`);
+      console.log(`  Target weights: 50/50 with 5% tolerance`);
+      console.log(`  Proposed routes: ${routes.length}`);
+
+      // Should not propose any rebalancing since we're within tolerance
+      expect(routes.length).to.equal(0);
     });
   });
 });
