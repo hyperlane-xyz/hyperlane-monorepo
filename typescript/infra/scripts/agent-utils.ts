@@ -70,7 +70,6 @@ export enum Modules {
   INTERCHAIN_QUERY_SYSTEM = 'iqs',
   TEST_QUERY_SENDER = 'testquerysender',
   TEST_RECIPIENT = 'testrecipient',
-  HELLO_WORLD = 'helloworld',
   WARP = 'warp',
   HAAS = 'haas',
   CCIP = 'ccip',
@@ -698,8 +697,6 @@ export function getModuleDirectory(
         return 'middleware/accounts';
       case Modules.INTERCHAIN_QUERY_SYSTEM:
         return 'middleware/queries';
-      case Modules.HELLO_WORLD:
-        return `helloworld/${context}`;
       default:
         return module;
     }
