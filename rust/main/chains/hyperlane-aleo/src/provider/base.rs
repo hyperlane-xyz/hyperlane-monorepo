@@ -173,6 +173,11 @@ impl JWTBaseHttpClient {
         *auth_token = Some((result.clone(), expires));
         Ok(result.clone())
     }
+
+    async fn clear_auth_token(&self) {
+        let mut auth_token = self.auth_token.write().await;
+        *auth_token = None;
+    }
 }
 
 #[async_trait]
@@ -194,9 +199,15 @@ impl HttpClient for JWTBaseHttpClient {
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
+
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            self.clear_auth_token().await;
+        }
+
         let response = response
             .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
+
         let json = response.json().await.map_err(HyperlaneAleoError::from)?;
         Ok(json)
     }
@@ -217,6 +228,11 @@ impl HttpClient for JWTBaseHttpClient {
             .send()
             .await
             .map_err(HyperlaneAleoError::from)?;
+
+        if response.status() == reqwest::StatusCode::UNAUTHORIZED {
+            self.clear_auth_token().await;
+        }
+
         let response = response
             .error_for_status()
             .map_err(HyperlaneAleoError::from)?;
