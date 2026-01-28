@@ -20,6 +20,7 @@ import {
   SimulationEngine,
 } from '../engine/SimulationEngine.js';
 import type { ComparisonReport, SimulationResult } from '../kpi/types.js';
+import { cleanupRealRebalancer } from '../rebalancer/RealRebalancerRunner.js';
 import type {
   IRebalancerRunner,
   RebalancerSimConfig,
@@ -174,9 +175,16 @@ export class RebalancerSimulationHarness {
       const newSnapshotId = await provider.send('evm_snapshot', []);
       this.deployment.snapshotId = newSnapshotId;
 
+      // Small delay after snapshot restore to let anvil stabilize
+      // This helps prevent race conditions with cached nonce/block data
+      await new Promise((resolve) => setTimeout(resolve, 500));
+
       // Run simulation
       const result = await this.runSimulation(scenario, rebalancer, options);
       results.push(result);
+
+      // Cleanup between runs to ensure fresh state
+      await cleanupRealRebalancer();
     }
 
     // Generate comparison

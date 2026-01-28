@@ -164,6 +164,14 @@ export class MessageTracker extends EventEmitter {
           );
         }
         processable.push(message);
+        // Log successful processing after retries
+        if (message.attempts > 0) {
+          const waitTime = Date.now() - message.dispatchedAt;
+          console.log(
+            `[MessageTracker] ${message.transferId} (${message.origin}->${message.destination}) ` +
+              `READY after ${message.attempts} retries, waited ${waitTime}ms`,
+          );
+        }
       } catch (error: any) {
         const staticCallDuration = Date.now() - staticCallStart;
         const errorMsg = error.reason || error.message || '';
@@ -178,13 +186,12 @@ export class MessageTracker extends EventEmitter {
         message.attempts++;
         message.lastError = errorMsg;
 
-        // Log failures with high attempt counts or slow static calls
-        if (message.attempts > 10 || staticCallDuration > 100) {
+        // Log failures - every 5 attempts or on slow static calls
+        if (message.attempts % 5 === 0 || staticCallDuration > 100) {
           const waitTime = Date.now() - message.dispatchedAt;
           console.log(
             `[MessageTracker] ${message.transferId} (${message.origin}->${message.destination}) ` +
-              `FAILED attempt #${message.attempts} after waiting ${waitTime}ms: ${errorMsg} ` +
-              `(static call took ${staticCallDuration}ms)`,
+              `FAILED attempt #${message.attempts} after waiting ${waitTime}ms: ${errorMsg}`,
           );
         }
       }
