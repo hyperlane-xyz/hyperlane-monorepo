@@ -306,3 +306,4 @@ cargo test --release --package run-locally --features sealevel -- sealevel::test
 4. **Solidity inheritance** - Many contracts inherit from base classes; check the hierarchy
 5. **Config-driven** - Most deployments are config-driven; check `typescript/infra/config/` for examples
 6. **Registry is external** - Chain metadata lives in `@hyperlane-xyz/registry`, not this repo
+7. **Rebuild modified packages** - After changing `typescript/sdk` or `typescript/utils`, run `pnpm -C <path> build` before testing in consumers (cli, infra)
