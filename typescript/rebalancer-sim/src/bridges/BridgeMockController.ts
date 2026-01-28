@@ -363,15 +363,26 @@ export class BridgeMockController extends EventEmitter {
 
   /**
    * Wait for all pending transfers to complete
+   * On timeout, marks remaining transfers as failed and clears them
    */
   async waitForAllDeliveries(timeoutMs: number = 30000): Promise<void> {
     const startTime = Date.now();
 
     while (this.hasPendingTransfers()) {
       if (Date.now() - startTime > timeoutMs) {
-        throw new Error(
-          `Timeout waiting for bridge deliveries. ${this.getPendingCount()} transfers still pending.`,
+        const pendingCount = this.getPendingCount();
+        console.warn(
+          `Timeout waiting for bridge deliveries. ${pendingCount} transfers still pending - marking as failed.`,
         );
+        // Mark all pending as failed and clear
+        for (const transfer of this.pendingTransfers.values()) {
+          this.emit('transfer_failed', {
+            transfer,
+            error: 'Timeout waiting for delivery',
+          });
+        }
+        this.pendingTransfers.clear();
+        break;
       }
       await new Promise((resolve) => setTimeout(resolve, 100));
     }

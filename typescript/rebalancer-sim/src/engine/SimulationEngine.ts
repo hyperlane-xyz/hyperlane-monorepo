@@ -330,14 +330,18 @@ export class SimulationEngine {
       if (Date.now() - startTime > timeout) {
         const pending = this.messageTracker.getPendingMessages();
         console.warn(
-          `Timeout waiting for user transfer deliveries. ${pending.length} still pending.`,
+          `Timeout waiting for user transfer deliveries. ${pending.length} still pending - marking as failed.`,
         );
-        // Log details about stuck messages
+        // Mark pending messages as failed so KPIs reflect reality
         for (const msg of pending) {
           console.warn(
-            `  - ${msg.id} (${msg.origin}->${msg.destination}): ${msg.status}, attempts=${msg.attempts}, error=${msg.lastError || 'none'}`,
+            `  - ${msg.id} (${msg.origin}->${msg.destination}): ${msg.status}, attempts=${msg.attempts}, error=${msg.lastError || 'timeout'}`,
           );
+          // Record as failed in KPI collector
+          this.kpiCollector?.recordTransferFailed(msg.id);
         }
+        // Clear pending messages so they don't block
+        this.messageTracker.clear();
         break;
       }
 

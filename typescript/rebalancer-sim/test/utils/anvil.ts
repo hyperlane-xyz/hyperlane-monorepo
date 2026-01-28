@@ -79,8 +79,34 @@ export async function startAnvil(port: number): Promise<ChildProcess> {
 }
 
 /**
+ * Stop an anvil process and wait for cleanup
+ */
+export async function stopAnvil(process: ChildProcess): Promise<void> {
+  return new Promise((resolve) => {
+    if (!process || process.killed) {
+      resolve();
+      return;
+    }
+
+    process.on('exit', () => {
+      resolve();
+    });
+
+    process.kill('SIGTERM');
+
+    // Force kill after timeout
+    setTimeout(() => {
+      if (!process.killed) {
+        process.kill('SIGKILL');
+      }
+      resolve();
+    }, 2000);
+  });
+}
+
+/**
  * Setup function for Mocha tests that require Anvil.
- * Automatically starts Anvil if available, skips tests if not.
+ * Starts a fresh Anvil for EACH TEST to ensure complete isolation.
  *
  * Usage:
  * ```typescript
@@ -102,8 +128,9 @@ export function setupAnvilTestSuite(
     process: null,
   };
 
-  suite.timeout(120000);
+  suite.timeout(180000); // 3 minutes per test
 
+  // Check anvil availability once at suite start
   suite.beforeAll(async function () {
     const available = await isAnvilAvailable();
     if (!available) {
@@ -114,22 +141,35 @@ export function setupAnvilTestSuite(
       this.skip();
       return;
     }
+  });
 
-    console.log('Starting Anvil...');
+  // Start fresh anvil before EACH test
+  suite.beforeEach(async function () {
+    // Kill any existing anvil on this port
+    if (state.process) {
+      await stopAnvil(state.process);
+      state.process = null;
+    }
+
+    // Wait for port to be free
+    await new Promise((resolve) => setTimeout(resolve, 500));
+
     try {
       state.process = await startAnvil(port);
-      console.log('Anvil started\n');
     } catch (err) {
       console.log(`Failed to start Anvil: ${err}`);
       this.skip();
     }
   });
 
-  suite.afterAll(async function () {
+  // Stop anvil after EACH test for clean slate
+  suite.afterEach(async function () {
     if (state.process) {
-      state.process.kill();
+      await stopAnvil(state.process);
       state.process = null;
     }
+    // Wait for cleanup
+    await new Promise((resolve) => setTimeout(resolve, 300));
   });
 
   return state;

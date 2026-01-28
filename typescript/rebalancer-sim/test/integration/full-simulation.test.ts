@@ -96,23 +96,10 @@ describe('Rebalancer Simulation', function () {
     );
   });
 
-  // Cleanup between tests to ensure rebalancers are fully stopped
+  // Cleanup rebalancers between tests (anvil restarts automatically via setupAnvilTestSuite)
   afterEach(async function () {
     await cleanupHyperlaneRunner();
     await cleanupRealRebalancer();
-
-    // Mine a few blocks to ensure any pending transactions are processed
-    const provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
-    try {
-      await provider.send('anvil_mine', [5, 1]); // Mine 5 blocks with 1 second intervals
-    } catch {
-      // Ignore if mining fails
-    }
-
-    // Give time for any async cleanup to complete
-    await new Promise((resolve) => setTimeout(resolve, 500));
-    provider.removeAllListeners();
-    provider.polling = false;
   });
 
   /**
