@@ -68,7 +68,11 @@ export type {
   RawBalances,
   InflightContext,
 } from './interfaces/IStrategy.js';
-export type { IMonitor } from './interfaces/IMonitor.js';
+export type {
+  ConfirmedBlockTag,
+  ConfirmedBlockTags,
+  IMonitor,
+} from './interfaces/IMonitor.js';
 export {
   MonitorEventType,
   MonitorEvent,

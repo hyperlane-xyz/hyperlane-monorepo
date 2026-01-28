@@ -12,6 +12,7 @@ import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { getStrategyChainNames } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import {
+  type ConfirmedBlockTags,
   MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
@@ -305,9 +306,6 @@ export class RebalancerService {
     process.exit(0);
   }
 
-  /**
-   * Event handler for token info updates from monitor
-   */
   private async onTokenInfo(event: MonitorEvent): Promise<void> {
     this.logger.info('Polling cycle started');
 
@@ -319,8 +317,7 @@ export class RebalancerService {
       );
     }
 
-    // Sync ActionTracker state with on-chain and Explorer data
-    await this.syncActionTracker();
+    await this.syncActionTracker(event.confirmedBlockTags);
 
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
@@ -367,23 +364,20 @@ export class RebalancerService {
     this.logger.info('Polling cycle completed');
   }
 
-  /**
-   * Sync ActionTracker state from Explorer and on-chain data
-   */
-  private async syncActionTracker(): Promise<void> {
+  private async syncActionTracker(
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<void> {
     if (!this.actionTracker) return;
 
     try {
       await Promise.all([
-        this.actionTracker.syncTransfers(),
+        this.actionTracker.syncTransfers(confirmedBlockTags),
         this.actionTracker.syncRebalanceIntents(),
-        this.actionTracker.syncRebalanceActions(),
+        this.actionTracker.syncRebalanceActions(confirmedBlockTags),
       ]);
 
-      // Log store contents for debugging
       await this.actionTracker.logStoreContents();
     } catch (error) {
-      // Log error but continue with stale data (best effort)
       this.logger.warn(
         { error },
         'ActionTracker sync failed, using stale data',
