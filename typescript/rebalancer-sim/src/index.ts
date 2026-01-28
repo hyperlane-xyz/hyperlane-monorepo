@@ -3,6 +3,7 @@ export * from './deployment/index.js';
 export * from './scenario/index.js';
 export * from './bridges/index.js';
 export * from './kpi/index.js';
+export * from './mailbox/index.js';
 export * from './rebalancer/index.js';
 export * from './engine/index.js';
 export * from './harness/index.js';

@@ -7,36 +7,25 @@ import {
 
 import { BridgeMockController } from '../bridges/BridgeMockController.js';
 import type { BridgeMockConfig } from '../bridges/types.js';
-import {
-  processAllPendingMessages,
-  restoreSnapshot,
-} from '../deployment/SimulationDeployment.js';
+import { restoreSnapshot } from '../deployment/SimulationDeployment.js';
 import type { MultiDomainDeploymentResult } from '../deployment/types.js';
 import { KPICollector } from '../kpi/KPICollector.js';
 import type { SimulationResult } from '../kpi/types.js';
+import { MessageTracker } from '../mailbox/MessageTracker.js';
 import type {
   IRebalancerRunner,
   RebalancerSimConfig,
 } from '../rebalancer/types.js';
-import type { TransferScenario } from '../scenario/types.js';
+import type { SimulationTiming, TransferScenario } from '../scenario/types.js';
 
-/**
- * Timing configuration for simulation
- */
-export interface SimulationTiming {
-  /** Bridge delivery delay in ms */
-  bridgeDeliveryDelay: number;
-  /** Rebalancer polling frequency in ms */
-  rebalancerPollingFrequency: number;
-  /** Interval between user transfers in ms */
-  userTransferInterval: number;
-}
+// Re-export for backwards compatibility
+export type { SimulationTiming } from '../scenario/types.js';
 
 /**
  * Default timing for fast simulations
  */
 export const DEFAULT_TIMING: SimulationTiming = {
-  bridgeDeliveryDelay: 500,
+  userTransferDeliveryDelay: 0, // Instant for fast tests
   rebalancerPollingFrequency: 1000,
   userTransferInterval: 100,
 };
@@ -49,7 +38,9 @@ export class SimulationEngine {
   private provider: ethers.providers.JsonRpcProvider;
   private bridgeController?: BridgeMockController;
   private kpiCollector?: KPICollector;
+  private messageTracker?: MessageTracker;
   private isRunning = false;
+  private mailboxProcessingInterval?: NodeJS.Timeout;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
@@ -84,8 +75,28 @@ export class SimulationEngine {
         500, // Snapshot every 500ms
       );
 
+      // Initialize MessageTracker for off-chain message tracking
+      this.messageTracker = new MessageTracker(
+        this.provider,
+        this.deployment.domains,
+        this.deployment.mailboxProcessorKey,
+      );
+
       await this.kpiCollector.initialize();
+      await this.messageTracker.initialize();
       await this.bridgeController.start();
+
+      // Wire up MessageTracker events for KPI tracking
+      this.messageTracker.on('message_delivered', (message) => {
+        this.kpiCollector!.recordTransferComplete(message.transferId);
+      });
+
+      this.messageTracker.on('message_failed', ({ message }) => {
+        // Don't record as failed yet - it will retry
+        console.log(
+          `Message ${message.id} failed (attempt ${message.attempts}): ${message.lastError}`,
+        );
+      });
 
       // Set up bridge event handlers for KPI tracking
       this.bridgeController.on('transfer_delivered', (event) => {
@@ -145,27 +156,25 @@ export class SimulationEngine {
       // Start rebalancer daemon
       await rebalancer.start();
 
+      // Start periodic mailbox processing for delayed user transfer delivery
+      this.startMailboxProcessing(timing.userTransferDeliveryDelay);
+
       // Execute transfers according to scenario
       await this.executeTransfers(scenario, timing);
 
-      // Wait for bridge deliveries to complete
-      await this.bridgeController.waitForAllDeliveries(30000);
-
-      // Process any pending mailbox messages
-      // This delivers the user transfers to their destinations
-      await processAllPendingMessages(
-        this.provider,
-        this.deployment.domains,
-        this.deployment.deployerKey,
+      // Wait for all user transfer deliveries (respecting delay)
+      await this.waitForUserTransferDeliveries(
+        timing.userTransferDeliveryDelay,
       );
 
-      // Mark all pending transfers as complete since mailbox delivery is instant
-      this.kpiCollector!.markAllPendingAsComplete();
+      // Wait for bridge deliveries to complete (rebalancer transfers)
+      await this.bridgeController.waitForAllDeliveries(30000);
 
       // Wait for rebalancer to become idle
       await rebalancer.waitForIdle(10000);
 
       // Stop components
+      this.stopMailboxProcessing();
       await rebalancer.stop();
       await this.bridgeController.stop();
       this.kpiCollector.stopSnapshotCollection();
@@ -195,17 +204,13 @@ export class SimulationEngine {
    */
   private async executeTransfers(
     scenario: TransferScenario,
-    _timing: SimulationTiming,
+    timing: SimulationTiming,
   ): Promise<void> {
     const deployer = new ethers.Wallet(
       this.deployment.deployerKey,
       this.provider,
     );
     const startTime = Date.now();
-
-    // Process mailbox messages periodically (every 5 transfers or 500ms)
-    let lastMailboxProcessTime = Date.now();
-    const MAILBOX_PROCESS_INTERVAL = 500;
 
     for (let i = 0; i < scenario.transfers.length; i++) {
       const transfer = scenario.transfers[i];
@@ -215,18 +220,6 @@ export class SimulationEngine {
       const waitTime = targetTime - Date.now();
       if (waitTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, waitTime));
-      }
-
-      // Process mailbox messages periodically to simulate relayer
-      const now = Date.now();
-      if (now - lastMailboxProcessTime >= MAILBOX_PROCESS_INTERVAL) {
-        await processAllPendingMessages(
-          this.provider,
-          this.deployment.domains,
-          this.deployment.deployerKey,
-        );
-        this.kpiCollector!.markAllPendingAsComplete();
-        lastMailboxProcessTime = now;
       }
 
       // Record transfer start
@@ -270,6 +263,14 @@ export class SimulationEngine {
           { value: gasPayment },
         );
         await transferTx.wait();
+
+        // Track message for delayed delivery via MessageTracker
+        await this.messageTracker!.trackMessage(
+          transfer.id,
+          transfer.origin,
+          transfer.destination,
+          timing.userTransferDeliveryDelay,
+        );
       } catch (error: any) {
         console.error(
           `Transfer ${transfer.id} failed: ${error.reason || error.message}`,
@@ -278,6 +279,69 @@ export class SimulationEngine {
       }
     }
     console.log('All transfers executed');
+  }
+
+  /**
+   * Start periodic processing of mailbox messages (simulates relayer with delay)
+   */
+  private startMailboxProcessing(_deliveryDelay: number): void {
+    // Process mailbox every 100ms to check for deliveries due
+    const PROCESS_INTERVAL = 100;
+
+    this.mailboxProcessingInterval = setInterval(async () => {
+      await this.processReadyMailboxDeliveries();
+    }, PROCESS_INTERVAL);
+  }
+
+  /**
+   * Stop mailbox processing
+   */
+  private stopMailboxProcessing(): void {
+    if (this.mailboxProcessingInterval) {
+      clearInterval(this.mailboxProcessingInterval);
+      this.mailboxProcessingInterval = undefined;
+    }
+  }
+
+  /**
+   * Process mailbox deliveries that are ready (past their delivery time)
+   * Uses MessageTracker for off-chain tracking with per-message control
+   */
+  private async processReadyMailboxDeliveries(): Promise<void> {
+    if (!this.messageTracker) return;
+    await this.messageTracker.processReadyMessages();
+  }
+
+  /**
+   * Wait for all pending user transfer deliveries to complete
+   */
+  private async waitForUserTransferDeliveries(
+    _deliveryDelay: number,
+    timeout: number = 30000,
+  ): Promise<void> {
+    if (!this.messageTracker) return;
+
+    const startTime = Date.now();
+
+    while (this.messageTracker.hasPendingMessages()) {
+      if (Date.now() - startTime > timeout) {
+        const pending = this.messageTracker.getPendingMessages();
+        console.warn(
+          `Timeout waiting for user transfer deliveries. ${pending.length} still pending.`,
+        );
+        // Log details about stuck messages
+        for (const msg of pending) {
+          console.warn(
+            `  - ${msg.id} (${msg.origin}->${msg.destination}): ${msg.status}, attempts=${msg.attempts}, error=${msg.lastError || 'none'}`,
+          );
+        }
+        break;
+      }
+
+      // Process any ready messages
+      await this.processReadyMailboxDeliveries();
+      await new Promise((resolve) => setTimeout(resolve, 100));
+    }
   }
 
   /**
@@ -309,6 +373,10 @@ export class SimulationEngine {
    */
   async reset(): Promise<void> {
     await restoreSnapshot(this.provider, this.deployment.snapshotId);
+    // Clear message tracker state
+    if (this.messageTracker) {
+      this.messageTracker.clear();
+    }
   }
 
   /**
