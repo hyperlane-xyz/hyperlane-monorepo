@@ -1,7 +1,13 @@
 import { type Logger } from 'pino';
 
-import type { WeightedStrategyConfig } from '../config/types.js';
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type { ChainMap } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
+
+import {
+  RebalancerStrategyOptions,
+  type WeightedStrategyConfig,
+} from '../config/types.js';
+import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
@@ -11,6 +17,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * It distributes funds across chains based on their weights
  */
 export class WeightedStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.Weighted;
   private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
   protected readonly logger: Logger;
@@ -19,10 +26,11 @@ export class WeightedStrategy extends BaseStrategy {
     config: WeightedStrategyConfig,
     logger: Logger,
     metrics?: Metrics,
+    bridges?: ChainMap<Address[]>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: WeightedStrategy.name });
-    super(chains, log, metrics);
+    super(chains, log, metrics, bridges);
     this.logger = log;
 
     let totalWeight = 0n;
@@ -55,7 +63,10 @@ export class WeightedStrategy extends BaseStrategy {
   /**
    * Gets balances categorized by surplus and deficit based on weights
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    _pendingRebalances?: RebalancingRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
