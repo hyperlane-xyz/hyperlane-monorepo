@@ -9,7 +9,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type { RawBalances, RebalancingRoute } from '../interfaces/IStrategy.js';
+import type {
+  RawBalances,
+  Route,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
+import { extractBridgeConfigs } from '../test/helpers.js';
 
 import { CollateralDeficitStrategy } from './CollateralDeficitStrategy.js';
 
@@ -54,6 +59,7 @@ describe('CollateralDeficitStrategy', () => {
             },
             tokensByChainName,
             testLogger,
+            {},
           ),
       ).to.throw('At least two chains must be configured');
     });
@@ -72,6 +78,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
       expect(strategy).to.be.instanceOf(CollateralDeficitStrategy);
     });
@@ -86,6 +93,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
 
       const rawBalances: RawBalances = {
@@ -114,6 +122,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
 
       const rawBalances: RawBalances = {
@@ -136,6 +145,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
 
       const rawBalances: RawBalances = {
@@ -150,20 +160,17 @@ describe('CollateralDeficitStrategy', () => {
     });
 
     it('should filter pending rebalances by configured bridges and simulate', () => {
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
       const rawBalances: RawBalances = {
@@ -171,12 +178,12 @@ describe('CollateralDeficitStrategy', () => {
         [chain2]: 20_000_000n, // 20 USDC
       };
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n, // 5 USDC pending to chain1
-          bridge: BRIDGE2, // Matches chain2's bridge (origin)
+          bridge: BRIDGE2, // Matches chain2's bridge for chain2->chain1 route
         },
       ];
 
@@ -199,20 +206,17 @@ describe('CollateralDeficitStrategy', () => {
     });
 
     it('should filter out pending rebalances with different bridge', () => {
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
       const rawBalances: RawBalances = {
@@ -220,12 +224,12 @@ describe('CollateralDeficitStrategy', () => {
         [chain2]: 20_000_000n,
       };
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
-          bridge: OTHER_BRIDGE, // Does NOT match chain1's bridge
+          bridge: OTHER_BRIDGE, // Does NOT match chain2's configured bridge for chain2->chain1
         },
       ];
 
@@ -244,20 +248,17 @@ describe('CollateralDeficitStrategy', () => {
     });
 
     it('should handle pending rebalance that fully covers deficit', () => {
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
       const rawBalances: RawBalances = {
@@ -265,12 +266,12 @@ describe('CollateralDeficitStrategy', () => {
         [chain2]: 20_000_000n,
       };
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
           amount: 10_000_000n, // 10 USDC pending - more than enough
-          bridge: BRIDGE2, // Matches chain2's bridge (origin)
+          bridge: BRIDGE2, // Matches chain2's configured bridge for chain2->chain1
         },
       ];
 
@@ -293,6 +294,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
 
       const rawBalances: RawBalances = {
@@ -323,6 +325,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
 
       const rawBalances: RawBalances = {
@@ -340,20 +343,17 @@ describe('CollateralDeficitStrategy', () => {
 
   describe('getRebalancingRoutes', () => {
     it('should set bridge field on output routes', () => {
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
       // Start with positive balances
@@ -370,8 +370,8 @@ describe('CollateralDeficitStrategy', () => {
             destination: chain1,
             amount: 7_000_000n, // 7 USDC pending to chain1
           },
-        ] as RebalancingRoute[],
-        pendingRebalances: [] as RebalancingRoute[],
+        ],
+        pendingRebalances: [] as StrategyRoute[],
       };
 
       // After reserveCollateral: chain1 = 2 - 7 = -5 USDC (deficit)
@@ -387,22 +387,18 @@ describe('CollateralDeficitStrategy', () => {
     });
 
     it('should generate routes from surplus to deficit chains', () => {
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
-        [chain3]: [BRIDGE1],
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
+        [chain3]: { bridge: BRIDGE1, buffer: '100' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-          [chain3]: { bridge: BRIDGE1, buffer: '100' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
       // Start with positive balances
@@ -420,8 +416,8 @@ describe('CollateralDeficitStrategy', () => {
             destination: chain1,
             amount: 15_000_000n, // 15 USDC pending to chain1
           },
-        ] as RebalancingRoute[],
-        pendingRebalances: [] as RebalancingRoute[],
+        ],
+        pendingRebalances: [] as StrategyRoute[],
       };
 
       // After reserveCollateral: chain1 = 5 - 15 = -10 USDC (deficit)
@@ -440,113 +436,96 @@ describe('CollateralDeficitStrategy', () => {
   });
 
   describe('filterByConfiguredBridges', () => {
-    it('should filter rebalances by origin chain configured bridges', () => {
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+    it('should filter rebalances by configured bridge for route', () => {
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: Array<Route & { bridge?: Address }> = [
         {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
-          bridge: BRIDGE2, // Matches chain2 (origin) → INCLUDED
+          bridge: BRIDGE2,
         },
         {
           origin: chain1,
           destination: chain2,
           amount: 3_000_000n,
-          bridge: OTHER_BRIDGE, // Does NOT match chain1 (origin) → EXCLUDED
+          bridge: OTHER_BRIDGE,
         },
         {
           origin: chain2,
           destination: chain1,
           amount: 2_000_000n,
-          bridge: undefined, // No bridge specified → INCLUDED
         },
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
 
-      // Should include: BRIDGE2 matches origin (chain2) + undefined bridge (recovered intent)
-      // Should exclude: OTHER_BRIDGE (doesn't match origin chain1's configured bridges)
       expect(filtered).to.have.lengthOf(2);
-      expect(filtered[0].bridge).to.equal(BRIDGE2);
-      expect(filtered[1].bridge).to.be.undefined;
+      expect((filtered[0] as StrategyRoute).bridge).to.equal(BRIDGE2);
+      expect((filtered[1] as StrategyRoute).bridge).to.be.undefined;
     });
 
-    it('should include rebalance when bridge matches origin, not destination', () => {
-      // This test verifies the fix: we check ORIGIN bridges, not DESTINATION bridges
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+    it('should include rebalance when bridge matches configured bridge for the route', () => {
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
-      // Route from chain2 → chain1 with chain2's bridge (origin bridge)
-      // This should be INCLUDED because bridge matches origin's configured bridges
-      const pendingRebalances: RebalancingRoute[] = [
+      const pendingRebalances: Array<Route & { bridge?: Address }> = [
         {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
-          bridge: BRIDGE2, // chain2's bridge (origin)
+          bridge: BRIDGE2,
         },
       ];
 
       const filtered = strategy['filterByConfiguredBridges'](pendingRebalances);
       expect(filtered).to.have.lengthOf(1);
-      expect(filtered[0].bridge).to.equal(BRIDGE2);
+      expect((filtered[0] as StrategyRoute).bridge).to.equal(BRIDGE2);
     });
 
-    it('should exclude rebalance when bridge matches destination but not origin', () => {
-      // This test verifies we do NOT match by destination
-      const bridges: ChainMap<Address[]> = {
-        [chain1]: [BRIDGE1],
-        [chain2]: [BRIDGE2],
+    it('should exclude rebalance when bridge does not match configured bridge for the route', () => {
+      const config = {
+        [chain1]: { bridge: BRIDGE1, buffer: '1000' },
+        [chain2]: { bridge: BRIDGE2, buffer: '500' },
       };
+      const bridgeConfigs = extractBridgeConfigs(config);
 
       const strategy = new CollateralDeficitStrategy(
-        {
-          [chain1]: { bridge: BRIDGE1, buffer: '1000' },
-          [chain2]: { bridge: BRIDGE2, buffer: '500' },
-        },
+        config,
         tokensByChainName,
         testLogger,
-        undefined,
-        bridges,
+        bridgeConfigs,
       );
 
-      // Route from chain2 → chain1 with chain1's bridge (destination bridge)
-      // This should be EXCLUDED because bridge doesn't match origin's (chain2's) bridges
-      const pendingRebalances: RebalancingRoute[] = [
+      // Route from chain2 → chain1 with a different bridge
+      const pendingRebalances: StrategyRoute[] = [
         {
           origin: chain2,
           destination: chain1,
           amount: 5_000_000n,
-          bridge: BRIDGE1, // chain1's bridge (destination, NOT origin)
+          bridge: BRIDGE1, // Does NOT match configured bridge for chain2->chain1 (should be BRIDGE2)
         },
       ];
 
@@ -562,6 +541,7 @@ describe('CollateralDeficitStrategy', () => {
         },
         tokensByChainName,
         testLogger,
+        {},
       );
 
       const filtered = strategy['filterByConfiguredBridges'](undefined);
