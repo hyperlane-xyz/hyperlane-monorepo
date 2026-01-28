@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { isArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
@@ -270,8 +270,15 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       (typeof expectedConfig.interchainSecurityModule === 'string' &&
         isZeroishAddress(expectedConfig.interchainSecurityModule));
 
-    // If expected ISM is empty/zero but actual ISM exists, reset to zero address
-    if (expectedIsmIsEmpty && actualIsmIsNonZero) {
+    // If expected ISM is empty/zero but actual ISM exists, reset to zero address if
+    // the protocol type is not cosmos as the underlying implementation does not support
+    // resetting to the default ism yet (will be fixed in the next release of the cosmos sdk)
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    if (
+      expectedIsmIsEmpty &&
+      actualIsmIsNonZero &&
+      metadata.protocol !== ProtocolType.CosmosNative
+    ) {
       this.logger.debug(
         `Resetting ISM from ${actualDeployedIsm} to zero address`,
       );
