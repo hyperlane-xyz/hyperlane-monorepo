@@ -2,7 +2,13 @@ import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isNullish,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import {
   getHookType,
@@ -886,12 +892,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenHookTransaction(
     req: AltVM.ReqSetTokenHook,
   ): Promise<AleoTransaction> {
+    const hook =
+      !isNullish(req.hookAddress) && !isZeroishAddress(req.hookAddress)
+        ? fromAleoAddress(req.hookAddress).address
+        : ALEO_NULL_ADDRESS;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.hookAddress).address],
+      inputs: [hook],
     };
   }
 

@@ -885,7 +885,7 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      hookAddress: req.hookAddress,
+      hookAddress: req.hookAddress ?? '',
     };
   }
 
