@@ -4,7 +4,7 @@ import type {
   IStrategy,
   InflightContext,
   RawBalances,
-  RebalancingRoute,
+  StrategyRoute,
 } from '../interfaces/IStrategy.js';
 
 /**
@@ -39,12 +39,12 @@ export class CompositeStrategy implements IStrategy {
   getRebalancingRoutes(
     rawBalances: RawBalances,
     inflightContext?: InflightContext,
-  ): RebalancingRoute[] {
-    const allRoutes: RebalancingRoute[] = [];
+  ): StrategyRoute[] {
+    const allRoutes: StrategyRoute[] = [];
 
     // Track routes from earlier strategies in this cycle as proposedRebalances
     // These are NOT yet executed, so strategies need to simulate both origin and destination
-    let accumulatedProposedRebalances: RebalancingRoute[] = [];
+    let accumulatedProposedRebalances: StrategyRoute[] = [];
 
     for (let i = 0; i < this.strategies.length; i++) {
       const strategy = this.strategies[i];

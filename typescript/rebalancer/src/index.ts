@@ -61,10 +61,12 @@ export { PriceGetter } from './metrics/PriceGetter.js';
 export type {
   IRebalancer,
   PreparedTransaction,
+  RebalanceRoute,
+  RebalanceExecutionResult,
 } from './interfaces/IRebalancer.js';
 export type {
   IStrategy,
-  RebalancingRoute,
+  StrategyRoute,
   RawBalances,
   InflightContext,
 } from './interfaces/IStrategy.js';
