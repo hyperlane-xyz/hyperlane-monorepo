@@ -133,17 +133,61 @@ pnpm --dir typescript/infra exec tsx ./scripts/agents/restart-agents.ts -e [envi
 
 ### Step 5: Validate Fix
 
-After the relayer restarts, verify the fix by re-running the integrity check:
+After the relayer restarts, verify the fix:
 
-```bash
-cd $MONOREPO_ROOT/rust/scripts && \
-./check_merkle_db_integrity_relayer_validator.sh \
-    --chain-name [origin] \
-    --domain-id [domain_id] \
-    --leaf-index-start [first_fixed_index]
+#### 5.1: Get Latest Index
+
+Query Grafana for the current tree size:
+
+```
+Use mcp__grafana__query_prometheus with:
+- datasourceUid: grafanacloud-prom
+- expr: hyperlane_latest_tree_insertion_index{origin="[origin]", hyperlane_deployment="[environment]"}
+- startTime: now-1h
+- queryType: instant
 ```
 
-**Expected result:** All checksums should match.
+#### 5.2: Spot-Check Roots at Key Indices
+
+Compare validator and relayer roots at three points: first fixed index, middle, and latest.
+
+```bash
+index=[INDEX]
+validator_root=$(curl -s "https://hyperlane-[environment]-[origin]-validator-0.s3.us-east-1.amazonaws.com/checkpoint_${index}_with_id.json" | jq -r '.value.checkpoint.root')
+relayer_root=$(curl -s "localhost:9090/merkle_proofs?domain_id=[domain_id]&leaf_index=${index}&root_index=${index}" | jq -r '.root')
+echo "Index $index:"
+echo "  Validator: $validator_root"
+echo "  Relayer:   0x$relayer_root"
+if [ "$validator_root" = "0x$relayer_root" ]; then echo "  ✓ Match"; else echo "  ❌ MISMATCH"; fi
+```
+
+Run this for:
+
+1. First fixed index (e.g., 37352)
+2. Middle index (e.g., 39000)
+3. Latest index (e.g., 41172)
+
+#### 5.3: Verify Mismatch Metric is Clear
+
+```
+Use mcp__grafana__query_prometheus with:
+- datasourceUid: grafanacloud-prom
+- expr: hyperlane_merkle_root_mismatch{origin="[origin]"}
+- startTime: now-1h
+- queryType: instant
+```
+
+**Expected result:** Empty result or value of 0.
+
+#### 5.4: Report Results
+
+Present validation results in a table:
+
+| Index | Location    | Result  |
+| ----- | ----------- | ------- |
+| 37352 | First fixed | ✓ Match |
+| 39000 | Middle      | ✓ Match |
+| 41172 | Latest      | ✓ Match |
 
 If still mismatched:
 
