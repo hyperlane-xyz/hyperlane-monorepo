@@ -71,8 +71,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   // For these tests we mostly care about the first run
   const CHECK_FREQUENCY = 60000;
 
-  const DEFAULT_METRICS_SERVER = 'http://localhost:9090/metrics';
-
   let tokenSymbol: string;
   let warpRouteId: string;
   let snapshots: { rpcUrl: string; snapshotId: string }[] = [];
