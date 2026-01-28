@@ -17,7 +17,9 @@ import type {
  */
 export class KPICollector {
   private transferRecords: Map<string, TransferRecord> = new Map();
-  private rebalanceRecords: RebalanceRecord[] = [];
+  private rebalanceRecords: Map<string, RebalanceRecord> = new Map();
+  /** Maps bridge transfer ID to rebalance ID for correlation */
+  private bridgeToRebalanceMap: Map<string, string> = new Map();
   private timeline: StateSnapshot[] = [];
   private initialBalances: Record<string, bigint> = {};
   private snapshotInterval: NodeJS.Timeout | null = null;
@@ -87,8 +89,7 @@ export class KPICollector {
       (t) => t.status === 'pending',
     ).length;
 
-    // Rebalances are tracked via events, not as pending state
-    const pendingRebalances = 0;
+    const pendingRebalances = this.getPendingRebalancesCount();
 
     const snapshot: StateSnapshot = {
       timestamp: Date.now(),
@@ -158,24 +159,75 @@ export class KPICollector {
   }
 
   /**
-   * Record a rebalance operation
+   * Record a rebalance operation start (when SentTransferRemote fires)
+   * Returns the rebalance ID for correlation
    */
-  recordRebalance(
+  recordRebalanceStart(
     origin: string,
     destination: string,
     amount: bigint,
     gasCost: bigint,
-    success: boolean,
-  ): void {
-    this.rebalanceRecords.push({
-      id: `rebalance-${this.rebalanceRecords.length}`,
+  ): string {
+    const id = `rebalance-${this.rebalanceRecords.size}`;
+    this.rebalanceRecords.set(id, {
+      id,
       origin,
       destination,
       amount,
-      timestamp: Date.now(),
+      startTime: Date.now(),
       gasCost,
-      success,
+      status: 'pending',
     });
+    return id;
+  }
+
+  /**
+   * Link a bridge transfer ID to a rebalance ID for delivery tracking
+   */
+  linkBridgeTransfer(bridgeTransferId: string, rebalanceId: string): void {
+    this.bridgeToRebalanceMap.set(bridgeTransferId, rebalanceId);
+    const record = this.rebalanceRecords.get(rebalanceId);
+    if (record) {
+      record.bridgeTransferId = bridgeTransferId;
+    }
+  }
+
+  /**
+   * Record rebalance completion (when bridge delivers)
+   */
+  recordRebalanceComplete(bridgeTransferId: string): void {
+    const rebalanceId = this.bridgeToRebalanceMap.get(bridgeTransferId);
+    if (!rebalanceId) return;
+
+    const record = this.rebalanceRecords.get(rebalanceId);
+    if (record && record.status === 'pending') {
+      record.endTime = Date.now();
+      record.latency = record.endTime - record.startTime;
+      record.status = 'completed';
+    }
+  }
+
+  /**
+   * Record rebalance failure
+   */
+  recordRebalanceFailed(bridgeTransferId: string): void {
+    const rebalanceId = this.bridgeToRebalanceMap.get(bridgeTransferId);
+    if (!rebalanceId) return;
+
+    const record = this.rebalanceRecords.get(rebalanceId);
+    if (record) {
+      record.endTime = Date.now();
+      record.status = 'failed';
+    }
+  }
+
+  /**
+   * Get pending rebalances count
+   */
+  getPendingRebalancesCount(): number {
+    return Array.from(this.rebalanceRecords.values()).filter(
+      (r) => r.status === 'pending',
+    ).length;
   }
 
   /**
@@ -216,18 +268,19 @@ export class KPICollector {
         (t) => t.origin === chainName && t.status === 'completed',
       ).length;
 
-      const rebalancesIn = this.rebalanceRecords.filter(
-        (r) => r.destination === chainName && r.success,
+      const allRebalances = Array.from(this.rebalanceRecords.values());
+      const rebalancesIn = allRebalances.filter(
+        (r) => r.destination === chainName && r.status === 'completed',
       ).length;
-      const rebalancesOut = this.rebalanceRecords.filter(
-        (r) => r.origin === chainName && r.success,
+      const rebalancesOut = allRebalances.filter(
+        (r) => r.origin === chainName && r.status === 'completed',
       ).length;
 
-      const rebalanceVolumeIn = this.rebalanceRecords
-        .filter((r) => r.destination === chainName && r.success)
+      const rebalanceVolumeIn = allRebalances
+        .filter((r) => r.destination === chainName && r.status === 'completed')
         .reduce((sum, r) => sum + r.amount, BigInt(0));
-      const rebalanceVolumeOut = this.rebalanceRecords
-        .filter((r) => r.origin === chainName && r.success)
+      const rebalanceVolumeOut = allRebalances
+        .filter((r) => r.origin === chainName && r.status === 'completed')
         .reduce((sum, r) => sum + r.amount, BigInt(0));
 
       const finalBalance = await this.getBalance(chainName);
@@ -246,12 +299,15 @@ export class KPICollector {
     }
 
     // Calculate rebalance totals
-    const successfulRebalances = this.rebalanceRecords.filter((r) => r.success);
-    const totalRebalanceVolume = successfulRebalances.reduce(
+    const allRebalanceRecords = Array.from(this.rebalanceRecords.values());
+    const completedRebalances = allRebalanceRecords.filter(
+      (r) => r.status === 'completed',
+    );
+    const totalRebalanceVolume = completedRebalances.reduce(
       (sum, r) => sum + r.amount,
       BigInt(0),
     );
-    const totalGasCost = successfulRebalances.reduce(
+    const totalGasCost = completedRebalances.reduce(
       (sum, r) => sum + r.gasCost,
       BigInt(0),
     );
@@ -266,7 +322,7 @@ export class KPICollector {
       p50Latency: this.percentile(latencies, 50),
       p95Latency: this.percentile(latencies, 95),
       p99Latency: this.percentile(latencies, 99),
-      totalRebalances: successfulRebalances.length,
+      totalRebalances: completedRebalances.length,
       rebalanceVolume: totalRebalanceVolume,
       totalGasCost,
       perChainMetrics,
@@ -291,7 +347,7 @@ export class KPICollector {
    * Get rebalance records
    */
   getRebalanceRecords(): RebalanceRecord[] {
-    return [...this.rebalanceRecords];
+    return Array.from(this.rebalanceRecords.values());
   }
 
   /**
@@ -299,7 +355,8 @@ export class KPICollector {
    */
   reset(): void {
     this.transferRecords.clear();
-    this.rebalanceRecords = [];
+    this.rebalanceRecords.clear();
+    this.bridgeToRebalanceMap.clear();
     this.timeline = [];
     this.initialBalances = {};
     this.stopSnapshotCollection();

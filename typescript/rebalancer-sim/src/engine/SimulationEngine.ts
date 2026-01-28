@@ -3,7 +3,6 @@ import { ethers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
-  MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
 
 import { BridgeMockController } from '../bridges/BridgeMockController.js';
@@ -39,10 +38,6 @@ export class SimulationEngine {
   private messageTracker?: MessageTracker;
   private isRunning = false;
   private mailboxProcessingInterval?: NodeJS.Timeout;
-  private bridgeEventListeners: Array<{
-    contract: ethers.Contract;
-    listener: ethers.providers.Listener;
-  }> = [];
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
@@ -100,19 +95,26 @@ export class SimulationEngine {
         );
       });
 
-      // Set up bridge event handlers for KPI tracking
+      // Set up bridge event handlers for rebalance KPI tracking
+      // Bridge transfers are rebalancer operations (user transfers go through warp token)
+      this.bridgeController.on('transfer_initiated', (event) => {
+        const rebalanceId = this.kpiCollector!.recordRebalanceStart(
+          event.transfer.origin,
+          event.transfer.destination,
+          event.transfer.amount,
+          BigInt(0), // Gas cost not tracked yet
+        );
+        // Link bridge transfer ID to rebalance ID for completion tracking
+        this.kpiCollector!.linkBridgeTransfer(event.transfer.id, rebalanceId);
+      });
+
       this.bridgeController.on('transfer_delivered', (event) => {
-        this.kpiCollector!.recordTransferComplete(event.transfer.id);
+        this.kpiCollector!.recordRebalanceComplete(event.transfer.id);
       });
 
       this.bridgeController.on('transfer_failed', (event) => {
-        this.kpiCollector!.recordTransferFailed(event.transfer.id);
+        this.kpiCollector!.recordRebalanceFailed(event.transfer.id);
       });
-
-      // Set up bridge event listeners for rebalance tracking
-      // Any SentTransferRemote event from a bridge contract is a rebalance
-      // (user transfers go through warp token, not bridge)
-      await this.setupBridgeEventListeners();
 
       // Build warp config for rebalancer
       const warpConfig = this.buildWarpConfig();
@@ -171,7 +173,6 @@ export class SimulationEngine {
       // Always cleanup, even if we timeout or error
       this.isRunning = false;
       this.stopMailboxProcessing();
-      this.cleanupBridgeEventListeners();
 
       try {
         await rebalancer.stop();
@@ -373,67 +374,6 @@ export class SimulationEngine {
     );
 
     return { tokens };
-  }
-
-  /**
-   * Set up listeners for SentTransferRemote events on all bridge contracts.
-   * These events indicate rebalance operations (user transfers go through warp tokens).
-   *
-   * Note: The event's origin field is block.chainid (always 31337 on anvil),
-   * so we determine the origin chain from which bridge contract emitted the event.
-   */
-  private async setupBridgeEventListeners(): Promise<void> {
-    // Build domain ID to chain name mapping (for destination lookup)
-    const domainIdToChain: Record<number, string> = {};
-    for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
-      domainIdToChain[domain.domainId] = chainName;
-    }
-
-    // Build bridge address to chain name mapping (for origin lookup)
-    const bridgeToChain: Record<string, string> = {};
-    for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
-      bridgeToChain[domain.bridge.toLowerCase()] = chainName;
-    }
-
-    for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
-      const bridge = MockValueTransferBridge__factory.connect(
-        domain.bridge,
-        this.provider,
-      );
-
-      const listener = (
-        _origin: number, // Ignore - always 31337 on anvil
-        destination: number,
-        _recipient: string,
-        amount: ethers.BigNumber,
-      ) => {
-        // Origin chain is determined by which bridge contract emitted the event
-        const originChain = chainName;
-        const destChain =
-          domainIdToChain[destination] || `domain-${destination}`;
-
-        this.kpiCollector?.recordRebalance(
-          originChain,
-          destChain,
-          amount.toBigInt(),
-          BigInt(0), // Gas cost not tracked yet
-          true,
-        );
-      };
-
-      bridge.on('SentTransferRemote', listener);
-      this.bridgeEventListeners.push({ contract: bridge, listener });
-    }
-  }
-
-  /**
-   * Remove all bridge event listeners
-   */
-  private cleanupBridgeEventListeners(): void {
-    for (const { contract, listener } of this.bridgeEventListeners) {
-      contract.off('SentTransferRemote', listener);
-    }
-    this.bridgeEventListeners = [];
   }
 
   /**

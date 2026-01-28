@@ -60,12 +60,16 @@ export interface TransferRecord {
  */
 export interface RebalanceRecord {
   id: string;
+  /** Bridge transfer ID for correlation */
+  bridgeTransferId?: string;
   origin: string;
   destination: string;
   amount: bigint;
-  timestamp: number;
+  startTime: number;
+  endTime?: number;
+  latency?: number;
   gasCost: bigint;
-  success: boolean;
+  status: 'pending' | 'completed' | 'failed';
 }
 
 /**
