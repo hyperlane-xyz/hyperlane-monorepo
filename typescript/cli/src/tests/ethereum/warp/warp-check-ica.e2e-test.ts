@@ -14,6 +14,7 @@ import {
   type ChainMetadata,
   InterchainAccount,
   TokenType,
+  type WarpCoreConfig,
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -373,5 +374,49 @@ describe('hyperlane warp check --ica e2e tests', async function () {
     expect(output.text()).to.include('ACTUAL');
     expect(output.text()).to.include('EXPECTED');
     expect(output.text()).to.include(normalizeAddressEvm(nonConfigOwnerIca));
+  });
+
+  it('should work with non-deployed chains using deploy config and empty warpCoreConfig', async function () {
+    // Create a warp deploy config WITHOUT deploying it
+    // This tests that --ica works before warp apply/extension
+    const nonDeployedConfig: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.collateral,
+        token: token.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: icaOwnerAddress,
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.synthetic,
+        mailbox: chain3Addresses.mailbox,
+        owner: expectedIcaAddress,
+      },
+    };
+
+    const warpDeployPath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-ica-non-deployed-deploy.yaml',
+    );
+    writeYamlOrJson(warpDeployPath, nonDeployedConfig);
+
+    // Create an empty warpCoreConfig (no deployed tokens yet)
+    const emptyWarpCoreConfig: WarpCoreConfig = { tokens: [] };
+    const warpCorePath = combinedWarpCoreConfigPath.replace(
+      '-config.yaml',
+      '-ica-non-deployed-core.yaml',
+    );
+    writeYamlOrJson(warpCorePath, emptyWarpCoreConfig);
+
+    // Run ICA check with both configs - the deploy config has chains, warpCoreConfig is empty
+    // This simulates checking ICA ownership before warp apply/extension
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath,
+      warpCoreConfigPath: warpCorePath,
+      ica: true,
+      origin: CHAIN_NAME_2,
+    }).nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
   });
 });

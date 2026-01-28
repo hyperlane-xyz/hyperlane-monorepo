@@ -454,12 +454,8 @@ export const check: CommandModuleWithContext<
       warpCoreConfigPath: warp,
     });
 
-    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
-      warpDeployConfig,
-      warpCoreConfig,
-    ));
-
     // If --ica flag is set, run ICA owner check instead of the regular config check
+    // Note: ICA check uses full warpDeployConfig (not filtered) to support pre-deployed chains
     if (ica) {
       assert(origin, '--origin is required when using --ica');
 
@@ -473,6 +469,11 @@ export const check: CommandModuleWithContext<
 
       process.exit(0);
     }
+
+    ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
+      warpDeployConfig,
+      warpCoreConfig,
+    ));
 
     const deployedRoutersAddresses =
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
