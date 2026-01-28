@@ -22,12 +22,12 @@ fn test_tx_ready_for_resubmission() {
     );
 
     // Test 3: Transaction submitted long ago - should be ready
-    let old_time = chrono::Utc::now() - chrono::Duration::seconds(70);
+    let old_time = chrono::Utc::now() - chrono::Duration::seconds(201);
     tx.last_submission_attempt = Some(old_time);
     let result = adapter.ready_for_resubmission(&tx);
     assert!(
         result,
-        "Transaction submitted 20 seconds ago (> 10s block time) should be ready"
+        "Transaction submitted 201 seconds ago (> 200s block time) should be ready"
     );
 
     // Test 4: Transaction with future submission time (negative duration edge case)
