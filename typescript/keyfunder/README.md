@@ -110,7 +110,7 @@ docker run -v /path/to/config.yaml:/config/keyfunder.yaml \
   -e KEYFUNDER_CONFIG_FILE=/config/keyfunder.yaml \
   -e HYP_KEY=0x... \
   -e RPC_URL_ETHEREUM=https://... \
-  gcr.io/abacus-labs-dev/hyperlane-keyfunder:latest
+  gcr.io/abacus-labs-dev/hyperlane-key-funder:latest
 ```
 
 ### Local Development
