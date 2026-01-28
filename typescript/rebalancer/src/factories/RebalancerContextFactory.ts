@@ -36,7 +36,8 @@ import {
 import { ExplorerClient } from '../utils/ExplorerClient.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
 
-const DEFAULT_EXPLORER_URL = 'https://explorer4.hasura.app/v1/graphql';
+const DEFAULT_EXPLORER_URL =
+  process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
 export class RebalancerContextFactory {
   /**

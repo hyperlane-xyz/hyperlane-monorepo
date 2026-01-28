@@ -241,13 +241,17 @@ export class RebalancerService {
       `No bridge configured for origin chain ${origin}`,
     );
 
+    // Use destination-specific bridge override if configured, otherwise use default
+    const bridge =
+      originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
+
     try {
       const route: RebalanceRoute = {
         intentId: randomUUID(),
         origin,
         destination,
         amount: BigInt(toWei(amount, originToken.decimals)),
-        bridge: originConfig.bridge,
+        bridge,
       };
       await this.rebalancer.rebalance([route]);
       this.logger.info(

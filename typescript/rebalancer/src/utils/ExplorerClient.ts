@@ -227,6 +227,7 @@ export class ExplorerClient {
           recipient
           origin_tx_hash
           origin_tx_sender
+          origin_tx_recipient
           is_delivered
           message_body
         }

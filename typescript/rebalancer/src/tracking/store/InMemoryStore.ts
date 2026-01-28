@@ -46,7 +46,7 @@ export class InMemoryStore<T extends TrackedActionBase, Status extends string>
 
   async getByStatus(status: Status): Promise<T[]> {
     return Array.from(this.data.values()).filter(
-      (entity) => (entity as any).status === status,
+      (entity) => entity.status === status,
     );
   }
 
