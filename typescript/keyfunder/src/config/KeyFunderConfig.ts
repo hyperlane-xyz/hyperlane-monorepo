@@ -19,14 +19,7 @@ export class KeyFunderConfigLoader {
     const content = fs.readFileSync(filePath, 'utf8');
     const rawConfig: KeyFunderConfigInput = YAML.parse(content);
 
-    const validationResult = KeyFunderConfigSchema.safeParse(rawConfig);
-    if (!validationResult.success) {
-      throw new Error(
-        `Invalid keyfunder config: ${fromZodError(validationResult.error).message}`,
-      );
-    }
-
-    return new KeyFunderConfigLoader(validationResult.data);
+    return KeyFunderConfigLoader.fromObject(rawConfig);
   }
 
   static fromObject(config: KeyFunderConfigInput): KeyFunderConfigLoader {
