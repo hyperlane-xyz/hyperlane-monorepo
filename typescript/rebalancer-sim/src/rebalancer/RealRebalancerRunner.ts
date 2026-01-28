@@ -312,13 +312,20 @@ export class RealRebalancerRunner
     }) as never;
 
     try {
-      // Start in background - don't await since it runs forever
+      // Start the service in background - it runs forever until stopped
       this.service.start().catch(() => {
         // Ignore errors - daemon stopped
       });
 
-      // Small delay to allow RebalancerService to register its handlers
-      await new Promise((resolve) => setTimeout(resolve, 50));
+      // Wait for RebalancerService to fully initialize before continuing.
+      // The initialization does heavy async work:
+      // 1. RebalancerContextFactory.create() - creates WarpCore with RPC calls
+      // 2. createStrategy() - calls getInitialTotalCollateral() with RPC calls per token
+      // 3. createRebalancer() - wraps with WithSemaphore
+      // 4. monitor.start() begins the polling loop
+      // This typically takes 2-3 seconds. Without this wait, the rebalancer
+      // won't be polling when transfers start, causing liquidity issues.
+      await new Promise((resolve) => setTimeout(resolve, 3000));
 
       // Track the handlers RebalancerService added for cleanup
       const sigintListeners = process.listeners('SIGINT');
