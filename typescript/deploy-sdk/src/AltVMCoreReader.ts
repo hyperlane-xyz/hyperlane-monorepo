@@ -45,6 +45,7 @@ export class AltVMCoreReader implements HypReader<CoreModuleType> {
       requiredHook: await this.hookReader.deriveHookConfig(
         mailbox.requiredHook,
       ),
+      proxyAdmin: mailbox.proxyAdmin,
     };
   }
 }

@@ -244,6 +244,46 @@ export class TronProvider implements AltVM.IProvider {
       await mailbox.requiredHook().call(),
     );
 
+    const EIP1967_ADMIN_SLOT =
+      '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
+
+    let proxyAdmin = undefined;
+
+    try {
+      const response: { result: string } = await this.tronweb.fullNode.request(
+        'jsonrpc',
+        {
+          jsonrpc: '2.0',
+          method: 'eth_getStorageAt',
+          params: [
+            ensure0x(this.tronweb.address.toHex(req.mailboxAddress)),
+            EIP1967_ADMIN_SLOT,
+            'latest',
+          ],
+          id: 1,
+        },
+        'POST',
+      );
+
+      const ethAddress = strip0x(response.result).slice(-40);
+      const tronHex = '41' + ethAddress;
+
+      const proxyAdminAddress = this.tronweb.address.fromHex(tronHex);
+      const proxyAdminContract = this.tronweb.contract(
+        ProxyAdminAbi.abi,
+        proxyAdminAddress,
+      );
+
+      proxyAdmin = {
+        address: proxyAdminAddress,
+        owner: this.tronweb.address.fromHex(
+          await proxyAdminContract.owner().call(),
+        ),
+      };
+    } catch (error) {
+      // If query fails, leave proxyAdmin empty
+    }
+
     return {
       address: req.mailboxAddress,
       owner: this.tronweb.address.fromHex(await mailbox.owner().call()),
@@ -252,6 +292,7 @@ export class TronProvider implements AltVM.IProvider {
       defaultHook: defaultHook === req.mailboxAddress ? '' : defaultHook,
       requiredHook: requiredHook === req.mailboxAddress ? '' : requiredHook,
       nonce: Number(await mailbox.nonce().call()),
+      proxyAdmin,
     };
   }
 

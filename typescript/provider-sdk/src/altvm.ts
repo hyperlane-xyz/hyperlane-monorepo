@@ -29,6 +29,10 @@ export type ResGetMailbox = {
   defaultHook: string;
   requiredHook: string;
   nonce: number;
+  proxyAdmin?: {
+    owner: string;
+    address: string;
+  };
 };
 
 export type ReqIsMessageDelivered = {
