@@ -5,11 +5,11 @@
 Inflight-aware rebalancing system with ActionTracker, new strategies, and type safety improvements.
 
 Breaking changes:
-- IRebalancer.rebalance() now returns RebalanceExecutionResult[] instead of void
-- IStrategy.getRebalancingRoutes() accepts optional inflightContext parameter
-- IStrategy now requires a name property
+- IRebalancer.rebalance() returned RebalanceExecutionResult[] instead of void
+- IStrategy.getRebalancingRoutes() accepted optional inflightContext parameter
+- IStrategy required a name property
 - RebalancingRoute renamed to StrategyRoute with required bridge field
-- MonitorEvent now includes confirmedBlockTags for confirmed block queries
+- MonitorEvent included confirmedBlockTags for confirmed block queries
 
 New features:
 - ActionTracker for tracking pending transfers and rebalance actions with Explorer integration
