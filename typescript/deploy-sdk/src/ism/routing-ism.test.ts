@@ -1,28 +1,24 @@
 import { expect } from 'chai';
 import Sinon from 'sinon';
 
-import { AltVM, MockSigner, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ArtifactDeployed,
-  ArtifactReader,
   ArtifactState,
-  ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
-import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   DeployedIsmAddress,
-  DeployedIsmArtifact,
-  DeployedRawIsmArtifact,
-  IRawIsmArtifactManager,
-  MultisigIsmConfig,
-  RawIsmArtifactConfig,
-  RawRoutingIsmArtifactConfig,
+  IsmArtifactConfig,
   RoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
-import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 
 import { IsmWriter } from './generic-ism-writer.js';
 import { ApplyUpdateResult, RoutingIsmWriter } from './routing-ism.js';
+import {
+  RoutingIsmWriterTestFixture,
+  TEST_ADDRESSES,
+  TEST_CONFIGS,
+  createRoutingIsmWriterTestFixture,
+} from './test-fixtures.js';
 
 /**
  * Tests for RoutingIsmWriter.applyUpdate() operation.
@@ -38,169 +34,10 @@ import { ApplyUpdateResult, RoutingIsmWriter } from './routing-ism.js';
  * already exist on-chain with the same config.
  */
 describe('RoutingIsmWriter applyUpdate', () => {
-  let signer: AltVM.ISigner<AnnotatedTx, TxReceipt>;
-  let chainLookup: ChainLookup;
-  let mockArtifactManager: IRawIsmArtifactManager;
-  let mockIsmWriter: IsmWriter;
-
-  // Spies
-  let ismWriterCreateSpy: Sinon.SinonStub;
-  let ismWriterApplyUpdateSpy: Sinon.SinonStub;
-  let rawRoutingUpdateSpy: Sinon.SinonStub;
-
-  // Test addresses
-  const routingIsmAddress = '0xRoutingIsm';
-  const domain2IsmAddress = '0xDomain2Ism';
-  const newIsmAddress = '0xNewIsm';
-
-  // Test configs
-  const domain1Config: MultisigIsmConfig = {
-    type: 'messageIdMultisigIsm',
-    validators: ['0xValidator1'],
-    threshold: 1,
-  };
-  const domain2Config: MultisigIsmConfig = {
-    type: 'messageIdMultisigIsm',
-    validators: ['0xValidator2'],
-    threshold: 1,
-  };
-  const domain2ChangedConfig: MultisigIsmConfig = {
-    type: 'messageIdMultisigIsm',
-    validators: ['0xValidator2', '0xValidator3'],
-    threshold: 2,
-  };
+  let fixture: RoutingIsmWriterTestFixture;
 
   beforeEach(async () => {
-    signer = await MockSigner.connectWithSigner();
-
-    chainLookup = {
-      getChainMetadata: () => ({
-        name: 'test',
-        domainId: 1,
-        chainId: 1,
-        protocol: ProtocolType.Cosmos,
-      }),
-      getChainName: (domainId: number) =>
-        domainId === 1 ? 'test' : domainId === 2 ? 'test2' : null,
-      getDomainId: (chain: string | number) => {
-        if (typeof chain === 'number') return chain;
-        return chain === 'test' ? 1 : chain === 'test2' ? 2 : null;
-      },
-      getKnownChainNames: () => ['test', 'test2'],
-    } satisfies ChainLookup;
-
-    // Create spy for IsmWriter.create()
-    ismWriterCreateSpy = Sinon.stub().callsFake(async (artifact) => {
-      return [
-        {
-          artifactState: ArtifactState.DEPLOYED,
-          config: artifact.config,
-          deployed: { address: newIsmAddress },
-        } satisfies DeployedIsmArtifact,
-        [] as TxReceipt[],
-      ];
-    });
-
-    // Create spy for IsmWriter.applyUpdate() - will be configured per test
-    ismWriterApplyUpdateSpy = Sinon.stub();
-
-    // Create mock IsmWriter
-    mockIsmWriter = {
-      create: ismWriterCreateSpy,
-      update: Sinon.stub().resolves([]),
-      applyUpdate: ismWriterApplyUpdateSpy,
-      read: Sinon.stub().resolves({
-        artifactState: ArtifactState.DEPLOYED,
-        config: domain2Config,
-        deployed: { address: domain2IsmAddress },
-      } satisfies DeployedIsmArtifact),
-    } as unknown as IsmWriter;
-
-    // Create spy for raw routing writer
-    rawRoutingUpdateSpy = Sinon.stub().resolves([
-      { annotation: 'routing ism update tx' } as AnnotatedTx,
-    ]);
-
-    const mockRawRoutingWriter: ArtifactWriter<
-      RawRoutingIsmArtifactConfig,
-      DeployedIsmAddress
-    > = {
-      create: Sinon.stub().resolves([
-        {
-          artifactState: ArtifactState.DEPLOYED,
-          config: { type: 'domainRoutingIsm', owner: '0xOwner', domains: {} },
-          deployed: { address: routingIsmAddress },
-        } satisfies DeployedRawIsmArtifact,
-        [] as TxReceipt[],
-      ]),
-      update: rawRoutingUpdateSpy,
-      read: Sinon.stub().resolves({
-        artifactState: ArtifactState.DEPLOYED,
-        config: {
-          type: 'domainRoutingIsm',
-          owner: '0xOwner',
-          domains: {
-            2: {
-              artifactState: ArtifactState.UNDERIVED,
-              deployed: { address: domain2IsmAddress },
-            },
-          },
-        },
-        deployed: { address: routingIsmAddress },
-      } satisfies DeployedRawIsmArtifact),
-    };
-
-    // Create mock artifact manager - returns different ISM types based on address
-    // This is critical to avoid infinite recursion in IsmReader.expandRoutingIsm()
-    const readIsmStub = Sinon.stub();
-    readIsmStub.callsFake(async (address: string) => {
-      if (address === routingIsmAddress) {
-        // Top-level routing ISM with domain 2 pointing to domain2IsmAddress
-        return {
-          artifactState: ArtifactState.DEPLOYED,
-          config: {
-            type: 'domainRoutingIsm',
-            owner: '0xOwner',
-            domains: {
-              2: {
-                artifactState: ArtifactState.UNDERIVED,
-                deployed: { address: domain2IsmAddress },
-              },
-            },
-          },
-          deployed: { address: routingIsmAddress },
-        } satisfies DeployedRawIsmArtifact;
-      } else if (address === domain2IsmAddress) {
-        // Nested multisig ISM (non-routing to avoid infinite recursion)
-        return {
-          artifactState: ArtifactState.DEPLOYED,
-          config: domain2Config,
-          deployed: { address: domain2IsmAddress },
-        } satisfies DeployedIsmArtifact;
-      }
-      throw new Error(`Unexpected readIsm call for address: ${address}`);
-    });
-
-    mockArtifactManager = {
-      readIsm: readIsmStub,
-
-      createReader: ((_type: string) => {
-        return mockRawRoutingWriter as ArtifactReader<
-          RawIsmArtifactConfig,
-          DeployedIsmAddress
-        >;
-      }) as IRawIsmArtifactManager['createReader'],
-
-      createWriter: ((type: string, _signer: unknown) => {
-        if (type === AltVM.IsmType.ROUTING) {
-          return mockRawRoutingWriter as ArtifactWriter<
-            RawIsmArtifactConfig,
-            DeployedIsmAddress
-          >;
-        }
-        throw new Error(`Unexpected createWriter for ${type}`);
-      }) as IRawIsmArtifactManager['createWriter'],
-    } satisfies Partial<IRawIsmArtifactManager> as IRawIsmArtifactManager;
+    fixture = await createRoutingIsmWriterTestFixture();
   });
 
   afterEach(() => {
@@ -219,19 +56,28 @@ describe('RoutingIsmWriter applyUpdate', () => {
    * - Domain 2 keeps its existing address
    */
   it('existing domain unchanged -> noop, new domain -> create', async () => {
+    const {
+      signer,
+      chainLookup,
+      mockArtifactManager,
+      mockIsmWriter,
+      ismWriterCreateSpy,
+      ismWriterApplyUpdateSpy,
+    } = fixture;
+
     // Configure applyUpdate to return noop for domain 2 (config unchanged)
     ismWriterApplyUpdateSpy.callsFake(
       async (
         currentAddress: string,
-        desired: { config: MultisigIsmConfig },
+        desired: { config: IsmArtifactConfig },
       ): Promise<ApplyUpdateResult> => {
-        if (currentAddress === domain2IsmAddress) {
+        if (currentAddress === TEST_ADDRESSES.DOMAIN2_ISM) {
           return {
             action: 'noop',
             deployed: {
               artifactState: ArtifactState.DEPLOYED,
               config: desired.config,
-              deployed: { address: domain2IsmAddress },
+              deployed: { address: TEST_ADDRESSES.DOMAIN2_ISM },
             },
           };
         }
@@ -243,7 +89,7 @@ describe('RoutingIsmWriter applyUpdate', () => {
       mockArtifactManager,
       chainLookup,
       signer,
-      mockIsmWriter,
+      mockIsmWriter as unknown as IsmWriter,
     );
 
     // Desired: domains 1 (NEW) + domain 2 (NEW but same config as on-chain)
@@ -258,30 +104,31 @@ describe('RoutingIsmWriter applyUpdate', () => {
         domains: {
           1: {
             artifactState: ArtifactState.NEW,
-            config: domain1Config,
+            config: TEST_CONFIGS.multisig.domain1,
           },
           2: {
-            artifactState: ArtifactState.NEW, // Marked NEW but actually exists with same config
-            config: domain2Config,
+            artifactState: ArtifactState.NEW,
+            config: TEST_CONFIGS.multisig.domain2,
           },
         },
       },
-      deployed: { address: routingIsmAddress },
+      deployed: { address: TEST_ADDRESSES.ROUTING_ISM },
     };
 
-    // ACT - call applyUpdate (not update) to use domain-ID driven logic
-    const result = await routingIsmWriter.applyUpdate(routingIsmAddress, {
-      config: desiredArtifact.config,
-    });
+    const result = await routingIsmWriter.applyUpdate(
+      TEST_ADDRESSES.ROUTING_ISM,
+      {
+        config: desiredArtifact.config,
+      },
+    );
 
-    // ASSERT
     // create() should be called once for domain 1 only
     expect(
       ismWriterCreateSpy.callCount,
       'create() should be called once for domain 1',
     ).to.equal(1);
     expect(ismWriterCreateSpy.getCall(0).args[0].config).to.deep.equal(
-      domain1Config,
+      TEST_CONFIGS.multisig.domain1,
     );
 
     // applyUpdate() should be called once for domain 2
@@ -290,7 +137,7 @@ describe('RoutingIsmWriter applyUpdate', () => {
       'applyUpdate() should be called once for domain 2',
     ).to.equal(1);
     expect(ismWriterApplyUpdateSpy.getCall(0).args[0]).to.equal(
-      domain2IsmAddress,
+      TEST_ADDRESSES.DOMAIN2_ISM,
     );
 
     // Result should have domain 2 with its original address (not newIsmAddress)
@@ -298,13 +145,11 @@ describe('RoutingIsmWriter applyUpdate', () => {
     if (result.action === 'update') {
       const domains = (result.deployed.config as RoutingIsmArtifactConfig)
         .domains;
-      const domain2 = domains[2];
-      const domain1 = domains[1];
-      expect('deployed' in domain2 && domain2.deployed.address).to.equal(
-        domain2IsmAddress,
+      expect('deployed' in domains[2] && domains[2].deployed.address).to.equal(
+        TEST_ADDRESSES.DOMAIN2_ISM,
       );
-      expect('deployed' in domain1 && domain1.deployed.address).to.equal(
-        newIsmAddress,
+      expect('deployed' in domains[1] && domains[1].deployed.address).to.equal(
+        TEST_ADDRESSES.NEW_ISM,
       );
     }
   });
@@ -321,15 +166,24 @@ describe('RoutingIsmWriter applyUpdate', () => {
    * - Domain 2 gets new address
    */
   it('existing domain changed -> create new, new domain -> create', async () => {
+    const {
+      signer,
+      chainLookup,
+      mockArtifactManager,
+      mockIsmWriter,
+      ismWriterCreateSpy,
+      ismWriterApplyUpdateSpy,
+    } = fixture;
+
     const newDomain2Address = '0xNewDomain2Ism';
 
     // Configure applyUpdate to return create for domain 2 (config changed)
     ismWriterApplyUpdateSpy.callsFake(
       async (
         currentAddress: string,
-        desired: { config: MultisigIsmConfig },
+        desired: { config: IsmArtifactConfig },
       ): Promise<ApplyUpdateResult> => {
-        if (currentAddress === domain2IsmAddress) {
+        if (currentAddress === TEST_ADDRESSES.DOMAIN2_ISM) {
           return {
             action: 'create',
             deployed: {
@@ -348,7 +202,7 @@ describe('RoutingIsmWriter applyUpdate', () => {
       mockArtifactManager,
       chainLookup,
       signer,
-      mockIsmWriter,
+      mockIsmWriter as unknown as IsmWriter,
     );
 
     // Desired: domains 1 (NEW) + domain 2 (NEW with CHANGED config)
@@ -363,30 +217,31 @@ describe('RoutingIsmWriter applyUpdate', () => {
         domains: {
           1: {
             artifactState: ArtifactState.NEW,
-            config: domain1Config,
+            config: TEST_CONFIGS.multisig.domain1,
           },
           2: {
             artifactState: ArtifactState.NEW,
-            config: domain2ChangedConfig, // Different from current on-chain
+            config: TEST_CONFIGS.multisig.domain2Changed,
           },
         },
       },
-      deployed: { address: routingIsmAddress },
+      deployed: { address: TEST_ADDRESSES.ROUTING_ISM },
     };
 
-    // ACT
-    const result = await routingIsmWriter.applyUpdate(routingIsmAddress, {
-      config: desiredArtifact.config,
-    });
+    const result = await routingIsmWriter.applyUpdate(
+      TEST_ADDRESSES.ROUTING_ISM,
+      {
+        config: desiredArtifact.config,
+      },
+    );
 
-    // ASSERT
     // create() should be called once for domain 1 only
     expect(
       ismWriterCreateSpy.callCount,
       'create() should be called once for domain 1',
     ).to.equal(1);
     expect(ismWriterCreateSpy.getCall(0).args[0].config).to.deep.equal(
-      domain1Config,
+      TEST_CONFIGS.multisig.domain1,
     );
 
     // applyUpdate() should be called once for domain 2
@@ -395,10 +250,10 @@ describe('RoutingIsmWriter applyUpdate', () => {
       'applyUpdate() should be called once for domain 2',
     ).to.equal(1);
     expect(ismWriterApplyUpdateSpy.getCall(0).args[0]).to.equal(
-      domain2IsmAddress,
+      TEST_ADDRESSES.DOMAIN2_ISM,
     );
     expect(ismWriterApplyUpdateSpy.getCall(0).args[1].config).to.deep.equal(
-      domain2ChangedConfig,
+      TEST_CONFIGS.multisig.domain2Changed,
     );
 
     // Result should have domain 2 with NEW address (config changed, so recreated)
@@ -406,13 +261,11 @@ describe('RoutingIsmWriter applyUpdate', () => {
     if (result.action === 'update') {
       const domains = (result.deployed.config as RoutingIsmArtifactConfig)
         .domains;
-      const domain2 = domains[2];
-      const domain1 = domains[1];
-      expect('deployed' in domain2 && domain2.deployed.address).to.equal(
+      expect('deployed' in domains[2] && domains[2].deployed.address).to.equal(
         newDomain2Address,
       );
-      expect('deployed' in domain1 && domain1.deployed.address).to.equal(
-        newIsmAddress,
+      expect('deployed' in domains[1] && domains[1].deployed.address).to.equal(
+        TEST_ADDRESSES.NEW_ISM,
       );
     }
   });
