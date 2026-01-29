@@ -71,7 +71,7 @@ impl<P: TronProviderForLander> AdaptsChain for TronAdapter<P> {
             .iter()
             .map(|payload| {
                 let tx = TronTxPrecursor::from_data(&payload.data)
-                    .map(|cursor| Transaction::new(cursor, vec![payload.details.clone()]))
+                    .map(|precursor| Transaction::new(precursor, vec![payload.details.clone()]))
                     .ok();
                 TxBuildingResult {
                     payloads: vec![payload.details.clone()],
