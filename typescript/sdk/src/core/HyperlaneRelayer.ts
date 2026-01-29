@@ -316,12 +316,25 @@ export class HyperlaneRelayer {
           { messageId: message.id, value: value.toString() },
           `Simulation with value succeeded`,
         );
-      } catch (error) {
-        this.logger.info(
-          { messageId: message.id, value: value.toString(), error },
-          `Value delivery would fail, relaying without value`,
+      } catch (error: any) {
+        // Only retry without value if the error is specifically due to
+        // the recipient being unable to receive ETH (e.g., contract without receive())
+        // OpenZeppelin's Address.sendValue reverts with this message
+        const errorMessage = error?.message || error?.reason || String(error);
+        const isSendValueError = errorMessage.includes(
+          'unable to send value, recipient may have reverted',
         );
-        value = undefined;
+
+        if (isSendValueError) {
+          this.logger.info(
+            { messageId: message.id, value: value.toString() },
+            `Recipient cannot receive value, relaying without value`,
+          );
+          value = undefined;
+        } else {
+          // Re-throw other errors (e.g., ISM verification failure, gas issues)
+          throw error;
+        }
       }
     }
 

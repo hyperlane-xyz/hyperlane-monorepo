@@ -135,20 +135,30 @@ function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
 **File:** `typescript/sdk/src/core/HyperlaneRelayer.ts`
 
 - Before delivering with value, simulate the transaction
-- If simulation fails (recipient can't receive ETH), retry without value
-- Prevents failed deliveries to contracts without `receive()`
+- If simulation fails **specifically due to sendValue revert**, retry without value
+- Only catches OpenZeppelin's `"unable to send value, recipient may have reverted"` error
+- Other errors (ISM verification, gas issues) are re-thrown
 
 ```typescript
 if (value && BigNumber.from(value).gt(0)) {
   try {
     await this.core.estimateProcess(message, metadata, value);
     this.logger.debug({ messageId, value }, `Simulation with value succeeded`);
-  } catch (error) {
-    this.logger.info(
-      { messageId, value, error },
-      `Value delivery would fail, relaying without value`,
+  } catch (error: any) {
+    const errorMessage = error?.message || error?.reason || String(error);
+    const isSendValueError = errorMessage.includes(
+      'unable to send value, recipient may have reverted',
     );
-    value = undefined;
+
+    if (isSendValueError) {
+      this.logger.info(
+        { messageId, value },
+        `Recipient cannot receive value, relaying without value`,
+      );
+      value = undefined;
+    } else {
+      throw error; // Re-throw other errors
+    }
   }
 }
 ```
