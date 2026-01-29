@@ -9,6 +9,12 @@ runs:
       shell: bash
       run: echo "version=$(cat solidity/.foundryrc)" >> $GITHUB_OUTPUT
 
+    - name: Cache Foundry
+      uses: actions/cache@v5
+      with:
+        path: ~/.foundry
+        key: foundry-${{ runner.os }}-${{ steps.foundry-version.outputs.version }}
+
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
