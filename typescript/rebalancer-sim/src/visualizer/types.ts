@@ -46,6 +46,22 @@ export type TimelineEvent =
     };
 
 /**
+ * Simulation config for display
+ */
+export interface SimulationConfig {
+  /** Per-chain target weights (percentage) */
+  targetWeights?: Record<string, number>;
+  /** Per-chain tolerance (percentage) */
+  tolerances?: Record<string, number>;
+  /** Bridge delivery delay in ms */
+  bridgeDeliveryDelay?: number;
+  /** Rebalancer polling frequency in ms */
+  rebalancerPollingFrequency?: number;
+  /** Initial collateral per chain */
+  initialCollateral?: Record<string, string>;
+}
+
+/**
  * Processed data ready for visualization
  */
 export interface VisualizationData {
@@ -60,6 +76,7 @@ export interface VisualizationData {
   rebalances: RebalanceRecord[];
   balanceTimeline: StateSnapshot[];
   kpis: SimulationResult['kpis'];
+  config?: SimulationConfig;
 }
 
 /**
@@ -83,6 +100,7 @@ export interface HtmlGeneratorOptions {
  */
 export function toVisualizationData(
   result: SimulationResult,
+  config?: SimulationConfig,
 ): VisualizationData {
   const events: TimelineEvent[] = [];
 
@@ -162,5 +180,6 @@ export function toVisualizationData(
     rebalances: result.rebalanceRecords,
     balanceTimeline: result.timeline,
     kpis: result.kpis,
+    config,
   };
 }

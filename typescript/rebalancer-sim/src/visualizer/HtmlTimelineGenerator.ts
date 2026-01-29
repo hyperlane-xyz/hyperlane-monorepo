@@ -1,6 +1,6 @@
 import type { SimulationResult } from '../kpi/types.js';
 
-import type { HtmlGeneratorOptions } from './types.js';
+import type { HtmlGeneratorOptions, SimulationConfig } from './types.js';
 import { toVisualizationData } from './types.js';
 
 const DEFAULT_OPTIONS: Required<HtmlGeneratorOptions> = {
@@ -17,9 +17,10 @@ const DEFAULT_OPTIONS: Required<HtmlGeneratorOptions> = {
 export function generateTimelineHtml(
   results: SimulationResult[],
   options: HtmlGeneratorOptions = {},
+  config?: SimulationConfig,
 ): string {
   const opts = { ...DEFAULT_OPTIONS, ...options };
-  const visualizations = results.map(toVisualizationData);
+  const visualizations = results.map((r) => toVisualizationData(r, config));
   const title =
     opts.title || `Simulation: ${visualizations[0]?.scenario || 'Unknown'}`;
 
@@ -43,6 +44,7 @@ ${getStyles(opts)}
 <body>
   <div class="container">
     <h1>${escapeHtml(title)}</h1>
+    <div id="config-panel"></div>
     <div id="timeline-container"></div>
     <div id="legend"></div>
     <div id="details-panel"></div>
@@ -230,6 +232,53 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
       opacity: 0.7;
     }
 
+    .balance-hover-area {
+      fill: transparent;
+      stroke: transparent;
+      stroke-width: 20;
+      cursor: crosshair;
+    }
+
+    #config-panel {
+      display: flex;
+      gap: 30px;
+      margin-bottom: 20px;
+      padding: 15px;
+      background: #252542;
+      border-radius: 8px;
+      flex-wrap: wrap;
+    }
+
+    .config-section {
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+    }
+
+    .config-title {
+      font-size: 0.75rem;
+      color: #888;
+      text-transform: uppercase;
+      margin-bottom: 4px;
+    }
+
+    .config-item {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      font-size: 0.85rem;
+    }
+
+    .config-label {
+      color: #888;
+      min-width: 80px;
+    }
+
+    .config-value {
+      color: #fff;
+      font-family: monospace;
+    }
+
     #legend {
       display: flex;
       gap: 25px;
@@ -365,6 +414,12 @@ const REBALANCE_COLOR = '#9b59b6';  // purple
 function renderVisualization(data) {
   const container = document.getElementById('timeline-container');
   const legend = document.getElementById('legend');
+  const configPanel = document.getElementById('config-panel');
+
+  // Render config panel (from first viz)
+  if (data[0]?.config) {
+    renderConfig(configPanel, data[0].config, data[0].chains);
+  }
 
   // Render each rebalancer's results
   data.forEach((viz, index) => {
@@ -532,11 +587,21 @@ function renderTimeline(viz, vizIndex) {
     const transfers = transfersByChain[chain] || [];
     const barHeight = 16;
     const barSpacing = 20;
-    const startY = chainY + ROW_HEIGHT / 2 - ((transfers.length - 1) * barSpacing) / 2;
+
+    // Calculate usable vertical space for transfer bars (leave room for balance curves and rebalances)
+    const minY = chainY + 20;                      // Top margin within row
+    const maxY = chainY + ROW_HEIGHT / 2 + 10;    // Stop above center + rebalance area
+    const usableHeight = maxY - minY;
+    const maxBarsPerColumn = Math.max(1, Math.floor(usableHeight / barSpacing));
+
+    // Start from top of usable area
+    const startY = minY + barHeight / 2;
 
     transfers.forEach((transfer, stackIndex) => {
       const color = TRANSFER_COLORS[transfer._index % TRANSFER_COLORS.length];
-      const y = startY + stackIndex * barSpacing;
+      // Wrap stackIndex to stay within row boundaries
+      const wrappedIndex = stackIndex % maxBarsPerColumn;
+      const y = startY + wrappedIndex * barSpacing;
       const startX = xScale(transfer.startTime);
       const endX = transfer.endTime ? xScale(transfer.endTime) : xScale(viz.endTime);
       const width = Math.max(endX - startX, 20);
@@ -659,11 +724,20 @@ function renderTimeline(viz, vizIndex) {
       const rebalances = rebalancesByChain[chain] || [];
       const barHeight = 12;
       const barSpacing = 16;
-      // Position rebalances below center line (transfers above)
-      const startY = chainY + ROW_HEIGHT / 2 + 20 + ((rebalances.length - 1) * barSpacing) / 2;
+
+      // Calculate usable vertical space for rebalance bars (below center line)
+      const minY = chainY + ROW_HEIGHT / 2 + 15;    // Start below center
+      const maxY = chainY + ROW_HEIGHT - 20;        // Bottom margin within row
+      const usableHeight = maxY - minY;
+      const maxBarsPerColumn = Math.max(1, Math.floor(usableHeight / barSpacing));
+
+      // Start from top of rebalance area
+      const startY = minY + barHeight / 2;
 
       rebalances.forEach((rebalance, stackIndex) => {
-        const y = startY - stackIndex * barSpacing;
+        // Wrap stackIndex to stay within row boundaries
+        const wrappedIndex = stackIndex % maxBarsPerColumn;
+        const y = startY + wrappedIndex * barSpacing;
         const startX = xScale(rebalance.startTime);
         const endX = rebalance.endTime ? xScale(rebalance.endTime) : xScale(viz.endTime);
         const width = Math.max(endX - startX, 20);
@@ -963,6 +1037,82 @@ function renderLegend(container, viz) {
   \`;
 }
 
+function renderConfig(container, config, chains) {
+  if (!config) {
+    container.style.display = 'none';
+    return;
+  }
+
+  let targetHtml = '';
+  if (config.targetWeights) {
+    chains.forEach(chain => {
+      const weight = config.targetWeights[chain] || 0;
+      const tolerance = config.tolerances?.[chain] || 0;
+      targetHtml += \`
+        <div class="config-item">
+          <span class="config-label">\${chain}:</span>
+          <span class="config-value">\${weight}% ± \${tolerance}%</span>
+        </div>
+      \`;
+    });
+  }
+
+  let timingHtml = '';
+  if (config.bridgeDeliveryDelay !== undefined) {
+    timingHtml += \`
+      <div class="config-item">
+        <span class="config-label">Bridge delay:</span>
+        <span class="config-value">\${config.bridgeDeliveryDelay}ms</span>
+      </div>
+    \`;
+  }
+  if (config.rebalancerPollingFrequency !== undefined) {
+    timingHtml += \`
+      <div class="config-item">
+        <span class="config-label">Rebal poll:</span>
+        <span class="config-value">\${config.rebalancerPollingFrequency}ms</span>
+      </div>
+    \`;
+  }
+
+  let initialHtml = '';
+  if (config.initialCollateral) {
+    chains.forEach(chain => {
+      const initial = config.initialCollateral[chain];
+      if (initial) {
+        const formatted = formatBalanceShort(BigInt(initial));
+        initialHtml += \`
+          <div class="config-item">
+            <span class="config-label">\${chain}:</span>
+            <span class="config-value">\${formatted} tokens</span>
+          </div>
+        \`;
+      }
+    });
+  }
+
+  container.innerHTML = \`
+    \${targetHtml ? \`
+      <div class="config-section">
+        <div class="config-title">Target Weights</div>
+        \${targetHtml}
+      </div>
+    \` : ''}
+    \${timingHtml ? \`
+      <div class="config-section">
+        <div class="config-title">Timing</div>
+        \${timingHtml}
+      </div>
+    \` : ''}
+    \${initialHtml ? \`
+      <div class="config-section">
+        <div class="config-title">Initial Collateral</div>
+        \${initialHtml}
+      </div>
+    \` : ''}
+  \`;
+}
+
 let tooltipEl = null;
 
 function showTooltip(event, data, type) {
@@ -983,7 +1133,7 @@ function showTooltip(event, data, type) {
       <b>Latency:</b> \${data.latency ? data.latency + 'ms' : 'N/A'}<br>
       <b>Status:</b> \${status}
     \`;
-  } else {
+  } else if (type === 'rebalance') {
     const status = data.status === 'completed' ? '✓ Delivered' :
                    data.status === 'failed' ? '✗ Failed' : '⏳ Pending';
     content = \`
@@ -992,6 +1142,17 @@ function showTooltip(event, data, type) {
       <b>Amount:</b> \${formatAmount(data.amount)}<br>
       <b>Latency:</b> \${data.latency ? data.latency + 'ms' : 'N/A'}<br>
       <b>Status:</b> \${status}
+    \`;
+  } else if (type === 'balance') {
+    const totalBalance = data.totalBalance || 0n;
+    const percentage = totalBalance > 0n
+      ? (Number(data.balance) / Number(totalBalance) * 100).toFixed(1)
+      : '0.0';
+    content = \`
+      <strong>\${data.chain} Collateral</strong><br>
+      <b>Balance:</b> \${formatBalanceShort(data.balance)} tokens<br>
+      <b>Share:</b> \${percentage}% of total<br>
+      <b>Time:</b> \${((data.timestamp - data.startTime) / 1000).toFixed(2)}s
     \`;
   }
 
