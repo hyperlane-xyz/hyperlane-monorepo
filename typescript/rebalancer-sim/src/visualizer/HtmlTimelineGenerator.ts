@@ -230,10 +230,6 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
       opacity: 0.7;
     }
 
-    .balance-area {
-      opacity: 0.15;
-    }
-
     #legend {
       display: flex;
       gap: 25px;
@@ -764,22 +760,94 @@ function renderTimeline(viz, vizIndex) {
 }
 
 function renderBalanceCurves(svg, viz, xScale, chains) {
-  // Use actual on-chain balance snapshots directly.
-  // The mock bridge doesn't pull tokens from origin (it just emits events),
-  // so computing balances from events would be inaccurate.
-  // The actual snapshots from KPICollector.takeSnapshot() are correct.
+  // Compute balance curve from transfer/rebalance events for instant visual feedback
+  // Transfer start: origin +amount (user deposits collateral)
+  // Transfer complete: destination -amount (collateral released to recipient)
+  // Rebalance start: origin +amount (rebalancer deposits)
+  // Rebalance complete: destination -amount (collateral released)
 
-  const balanceTimeline = viz.balanceTimeline;
-  if (balanceTimeline.length < 2) return;
+  // Get initial balances from first snapshot
+  const initialSnapshot = viz.balanceTimeline[0];
+  if (!initialSnapshot) return;
 
-  // Find min/max balance for scaling
+  // Build event-driven balance timeline
+  const balanceEvents = [];
+
+  // Process transfers - instant balance changes at start and end
+  viz.transfers.forEach(t => {
+    const amount = BigInt(t.amount);
+    // Transfer START: origin receives deposit (+amount)
+    balanceEvents.push({
+      timestamp: t.startTime,
+      chain: t.origin,
+      delta: amount,
+    });
+    // Transfer COMPLETE: destination releases to recipient (-amount)
+    if (t.endTime && t.status === 'completed') {
+      balanceEvents.push({
+        timestamp: t.endTime,
+        chain: t.destination,
+        delta: -amount,
+      });
+    }
+  });
+
+  // Process rebalances - INVERSE of transfers (moving liquidity)
+  viz.rebalances.forEach(r => {
+    const amount = BigInt(r.amount);
+    // Rebalance START: origin SENDS funds away (-amount)
+    balanceEvents.push({
+      timestamp: r.startTime,
+      chain: r.origin,
+      delta: -amount,
+    });
+    // Rebalance COMPLETE: destination RECEIVES funds (+amount)
+    if (r.endTime && r.status === 'completed') {
+      balanceEvents.push({
+        timestamp: r.endTime,
+        chain: r.destination,
+        delta: amount,
+      });
+    }
+  });
+
+  // Sort events by timestamp
+  balanceEvents.sort((a, b) => a.timestamp - b.timestamp);
+
+  // Build per-chain balance timelines
+  const chainBalances = {};
+  const chainTimelines = {};
+  chains.forEach(chain => {
+    chainBalances[chain] = BigInt(initialSnapshot.balances[chain] || '0');
+    chainTimelines[chain] = [{ timestamp: viz.startTime, balance: chainBalances[chain] }];
+  });
+
+  // Apply deltas to build timeline
+  balanceEvents.forEach(event => {
+    if (event.delta !== undefined) {
+      chainBalances[event.chain] += event.delta;
+      chainTimelines[event.chain].push({
+        timestamp: event.timestamp,
+        balance: chainBalances[event.chain],
+      });
+    }
+  });
+
+  // Add final state
+  chains.forEach(chain => {
+    chainTimelines[chain].push({
+      timestamp: viz.endTime,
+      balance: chainBalances[chain],
+    });
+  });
+
+  // Find global min/max for scaling
   let minBalance = BigInt('999999999999999999999999999');
   let maxBalance = 0n;
-  balanceTimeline.forEach(snapshot => {
-    Object.values(snapshot.balances).forEach(b => {
-      const bal = BigInt(b);
-      if (bal > maxBalance) maxBalance = bal;
-      if (bal < minBalance) minBalance = bal;
+  chains.forEach(chain => {
+    chainTimelines[chain].forEach(pt => {
+      if (pt.balance > maxBalance) maxBalance = pt.balance;
+      if (pt.balance < minBalance) minBalance = pt.balance;
     });
   });
 
@@ -793,27 +861,18 @@ function renderBalanceCurves(svg, viz, xScale, chains) {
     const curveHeight = curveBottom - curveTop;
     const color = CHAIN_COLORS[chain] || TRANSFER_COLORS[chainIndex % TRANSFER_COLORS.length];
 
-    // Build path data from actual balance timeline
-    const points = balanceTimeline.map(snapshot => {
-      const x = xScale(snapshot.timestamp);
-      const balance = BigInt(snapshot.balances[chain] || '0');
-      // Scale: high balance = top, low balance = bottom
+    // Build path data from event-driven timeline
+    const timeline = chainTimelines[chain];
+    const points = timeline.map(pt => {
+      const x = xScale(pt.timestamp);
+      const balance = pt.balance;
+      // Scale: high balance = top (low y), low balance = bottom (high y)
       const normalizedY = balanceRange > 0n
         ? Number((balance - minBalance) * BigInt(Math.floor(curveHeight * 100)) / balanceRange) / 100
         : curveHeight / 2;
       const y = curveBottom - normalizedY;
       return { x, y, balance };
     });
-
-    // Area fill
-    const areaD = 'M' + points.map(p => p.x + ',' + p.y).join(' L') +
-      ' L' + points[points.length-1].x + ',' + curveBottom +
-      ' L' + points[0].x + ',' + curveBottom + ' Z';
-    const area = document.createElementNS('http://www.w3.org/2000/svg', 'path');
-    area.setAttribute('class', 'balance-area');
-    area.setAttribute('d', areaD);
-    area.setAttribute('fill', color);
-    svg.appendChild(area);
 
     // Line path (step function for clearer visualization)
     let pathD = 'M' + points[0].x + ',' + points[0].y;
