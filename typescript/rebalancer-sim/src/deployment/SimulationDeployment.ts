@@ -26,14 +26,23 @@ async function createSnapshot(
 }
 
 /**
- * Restores an anvil snapshot
+ * Restores an anvil snapshot (no-op if snapshots not supported)
  */
 export async function restoreSnapshot(
   provider: ethers.providers.JsonRpcProvider,
   snapshotId: string,
 ): Promise<boolean> {
-  const response = await provider.send('evm_revert', [snapshotId]);
-  return response;
+  if (!snapshotId) {
+    // Snapshots not supported (e.g., reth)
+    return false;
+  }
+  try {
+    const response = await provider.send('evm_revert', [snapshotId]);
+    return response;
+  } catch (err) {
+    console.log('Note: evm_revert not supported. State reset skipped.');
+    return false;
+  }
 }
 
 /**
@@ -67,6 +76,8 @@ export async function deployMultiDomainSimulation(
 
   // Create fresh provider with no caching
   const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
+  // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
+  provider.pollingInterval = 100;
   // Disable automatic polling - we don't need event subscriptions during deployment
   provider.polling = false;
 
@@ -198,8 +209,15 @@ export async function deployMultiDomainSimulation(
     await tx.wait();
   }
 
-  // Create snapshot for future resets
-  const snapshotId = await createSnapshot(provider);
+  // Create snapshot for future resets (optional - not supported by all nodes like reth)
+  let snapshotId = '';
+  try {
+    snapshotId = await createSnapshot(provider);
+  } catch (err) {
+    console.log(
+      'Note: evm_snapshot not supported (normal for reth). State reset disabled.',
+    );
+  }
 
   // CRITICAL: Clean up the deployment provider to prevent accumulation
   // Each deployment creates a provider with 100ms polling that was never cleaned up

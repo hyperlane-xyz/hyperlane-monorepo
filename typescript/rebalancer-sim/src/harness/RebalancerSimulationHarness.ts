@@ -164,19 +164,28 @@ export class RebalancerSimulationHarness {
 
     const results: SimulationResult[] = [];
     const provider = new ethers.providers.JsonRpcProvider(this.config.anvilRpc);
+    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
+    provider.pollingInterval = 100;
     // Disable automatic polling to reduce RPC contention
     provider.polling = false;
 
     for (const rebalancer of rebalancers) {
-      // Reset state before each run
+      // Reset state before each run (only if snapshots supported)
       await restoreSnapshot(provider, this.deployment.snapshotId);
 
-      // Create fresh snapshot for this run
-      const newSnapshotId = await provider.send('evm_snapshot', []);
-      this.deployment.snapshotId = newSnapshotId;
+      // Create fresh snapshot for this run (optional - not supported by all nodes)
+      try {
+        const newSnapshotId = await provider.send('evm_snapshot', []);
+        this.deployment.snapshotId = newSnapshotId;
+      } catch {
+        // Snapshots not supported (e.g., reth) - state reset disabled
+      }
+
+      // Recreate engine with fresh provider to avoid cached RPC state
+      // This is important because ethers v5 caches chainId, nonces, etc.
+      this.engine = new SimulationEngine(this.deployment);
 
       // Small delay after snapshot restore to let anvil stabilize
-      // This helps prevent race conditions with cached nonce/block data
       await new Promise((resolve) => setTimeout(resolve, 500));
 
       // Run simulation
@@ -250,6 +259,8 @@ export class RebalancerSimulationHarness {
       const provider = new ethers.providers.JsonRpcProvider(
         this.config.anvilRpc,
       );
+      // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
+      provider.pollingInterval = 100;
       // Disable automatic polling
       provider.polling = false;
       await restoreSnapshot(provider, this.deployment.snapshotId);

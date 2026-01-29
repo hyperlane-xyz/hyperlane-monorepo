@@ -41,7 +41,9 @@ export class SimulationEngine {
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
-    // Disable automatic polling to reduce RPC contention in simulation
+    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
+    this.provider.pollingInterval = 100;
+    // Disable automatic polling (event subscriptions) but keep pollingInterval for tx.wait()
     this.provider.polling = false;
   }
 
@@ -246,6 +248,8 @@ export class SimulationEngine {
       );
 
       try {
+        const txStartTime = Date.now();
+
         // Approve collateral token for warp transfer
         const collateralToken = ERC20__factory.connect(
           originDomain.collateralToken,
@@ -256,6 +260,8 @@ export class SimulationEngine {
           transfer.amount,
         );
         await approveTx.wait();
+
+        const approveTime = Date.now() - txStartTime;
 
         // Quote gas payment (mock mailbox should return 0)
         const gasPayment = await warpToken.quoteGasPayment(destDomain.domainId);
@@ -269,6 +275,15 @@ export class SimulationEngine {
           { value: gasPayment },
         );
         await transferTx.wait();
+
+        const totalTxTime = Date.now() - txStartTime;
+
+        // Log slow transfers (>1000ms suggests significant RPC contention)
+        if (totalTxTime > 1000) {
+          console.log(
+            `[SimulationEngine] SLOW transfer ${transfer.id}: ${totalTxTime}ms (approve: ${approveTime}ms)`,
+          );
+        }
 
         // Track message for delayed delivery via MessageTracker
         await this.messageTracker!.trackMessage(

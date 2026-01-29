@@ -61,6 +61,8 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
     this.provider = new ethers.providers.JsonRpcProvider(
       config.deployment.anvilRpc,
     );
+    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
+    this.provider.pollingInterval = 100;
     // Disable automatic polling to reduce RPC contention in simulation
     this.provider.polling = false;
     // Track for cleanup

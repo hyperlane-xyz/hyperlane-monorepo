@@ -198,9 +198,9 @@ export class MessageTracker extends EventEmitter {
     }
 
     const totalCheckTime = Date.now() - checkStartTime;
-    if (totalCheckTime > 200 && ready.length > 0) {
+    if (totalCheckTime > 500) {
       console.log(
-        `[MessageTracker] Static call checks for ${ready.length} messages took ${totalCheckTime}ms`,
+        `[MessageTracker] SLOW static call checks: ${ready.length} messages took ${totalCheckTime}ms`,
       );
     }
 

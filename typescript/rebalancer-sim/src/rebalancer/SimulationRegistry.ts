@@ -52,7 +52,7 @@ export class SimulationRegistry implements IRegistry {
           decimals: 18,
         },
         blocks: {
-          confirmations: 1,
+          confirmations: 0,
           estimateBlockTime: 1,
         },
       };
