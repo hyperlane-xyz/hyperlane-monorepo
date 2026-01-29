@@ -1,6 +1,5 @@
 import { Registry } from 'prom-client';
 
-import { HelloWorldChecker } from '@hyperlane-xyz/helloworld';
 import {
   CheckerViolation,
   HypERC20App,
@@ -52,7 +51,6 @@ import {
 } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 import { withRegistryUris } from '../github-utils.js';
-import { getHelloWorldApp } from '../helloworld/utils.js';
 
 export function getCheckBaseArgs() {
   return withAsDeployer(
@@ -224,24 +222,6 @@ export async function getGovernor(
       multiProvider,
       iqs,
       routerConfig,
-    );
-    governor = new ProxiedRouterGovernor(checker);
-  } else if (module === Modules.HELLO_WORLD) {
-    const app = await getHelloWorldApp(
-      envConfig,
-      context,
-      Role.Deployer,
-      Contexts.Hyperlane, // Owner should always be from the hyperlane context
-    );
-    const ismFactory = HyperlaneIsmFactory.fromAddressesMap(
-      chainAddresses,
-      multiProvider,
-    );
-    const checker = new HelloWorldChecker(
-      multiProvider,
-      app,
-      routerConfig,
-      ismFactory,
     );
     governor = new ProxiedRouterGovernor(checker);
   } else if (module === Modules.WARP) {
