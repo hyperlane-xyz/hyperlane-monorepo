@@ -14,11 +14,13 @@ import {
   DeployedIsmArtifact,
   IRawIsmArtifactManager,
   IsmArtifactConfig,
+  STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
+import { deepEquals } from '@hyperlane-xyz/utils';
 
 import { IsmReader } from './generic-ism.js';
-import { RoutingIsmWriter } from './routing-ism.js';
+import { ApplyUpdateResult, RoutingIsmWriter } from './routing-ism.js';
 
 /**
  * Factory function to create an IsmWriter instance.
@@ -75,6 +77,7 @@ export class IsmWriter
       artifactManager,
       chainLookup,
       signer,
+      this, // Pass this IsmWriter for nested ISM operations
     );
   }
 
@@ -89,35 +92,104 @@ export class IsmWriter
   async create(
     artifact: ArtifactNew<IsmArtifactConfig>,
   ): Promise<[DeployedIsmArtifact, TxReceipt[]]> {
-    const { artifactState, config } = artifact;
+    const { config } = artifact;
 
     // Routing ISMs are composite - use RoutingIsmWriter for nested deployments
     if (config.type === AltVM.IsmType.ROUTING) {
-      return this.routingWriter.create({ artifactState, config });
+      return this.routingWriter.create({ ...artifact, config });
     }
 
     // For other ISM types, request typed writer from artifact manager
     const writer = this.artifactManager.createWriter(config.type, this.signer);
-    return writer.create({ artifactState, config });
+    return writer.create({ ...artifact, config });
   }
 
   /**
-   * Updates an existing ISM to match the desired configuration.
-   * Only routing ISMs support updates (domain enrollment/unenrollment, owner changes).
-   * Multisig and test ISMs are immutable - returns empty array.
-   *
-   * @param artifact The desired ISM state (must include deployed address)
-   * @returns Array of transactions needed to perform the update
+   * @deprecated Use applyUpdate() or applyUpdateWith() instead.
+   * This method is artifact-state-driven and will be removed after Artifact API update.
    */
   async update(artifact: DeployedIsmArtifact): Promise<AnnotatedTx[]> {
-    const { artifactState, config, deployed } = artifact;
+    const result = await this.applyUpdate(artifact.deployed.address, {
+      config: artifact.config,
+    });
 
-    // Only routing ISMs are mutable - support domain updates and owner changes
-    if (config.type === AltVM.IsmType.ROUTING) {
-      return this.routingWriter.update({ artifactState, config, deployed });
+    // Return transactions only for 'update' action
+    // For 'create' and 'noop', return empty array (backward compatible)
+    return result.action === 'update' ? result.txs : [];
+  }
+
+  /**
+   * Reads current ISM state from chain and applies update.
+   *
+   * This method consolidates update logic and properly communicates:
+   * - What action was taken (noop, create, update)
+   * - The correct deployed address (which may be different if a new ISM was created)
+   * - Any transactions that need to be executed
+   *
+   * @param currentAddress The address of the currently deployed ISM
+   * @param desired The desired ISM configuration
+   * @returns The result of the update operation with action type and deployed address
+   */
+  async applyUpdate(
+    currentAddress: string,
+    desired: ArtifactNew<IsmArtifactConfig>,
+  ): Promise<ApplyUpdateResult> {
+    // Read current on-chain config
+    const current = await this.artifactManager.readIsm(currentAddress);
+    return this.applyUpdateWith(current, desired);
+  }
+
+  /**
+   * Applies update using provided current state (avoids redundant chain read).
+   *
+   * Behavior depends on ISM type and config changes:
+   * - Type changed: creates new ISM
+   * - Immutable type (multisig), config unchanged: no-op
+   * - Immutable type (multisig), config changed: creates new ISM
+   * - Mutable type (routing): delegates to RoutingIsmWriter.applyUpdateWith()
+   *
+   * @param current Current deployed ISM artifact (already read from chain)
+   * @param desired Desired ISM configuration
+   * @returns The result of the update operation with action type and deployed address
+   */
+  async applyUpdateWith(
+    current: DeployedIsmArtifact,
+    desired: ArtifactNew<IsmArtifactConfig>,
+  ): Promise<ApplyUpdateResult> {
+    const { config } = desired;
+    const currentConfig = current.config;
+
+    // Type changed - must create new ISM
+    if (currentConfig.type !== config.type) {
+      const [deployed, receipts] = await this.create(desired);
+      return { action: 'create', deployed, receipts };
     }
 
-    // Multisig and test ISMs are immutable - no updates possible
-    return [];
+    // For immutable (static) ISM types, compare configs
+    if (STATIC_ISM_TYPES.includes(config.type)) {
+      if (deepEquals(currentConfig, config)) {
+        // Config unchanged - no-op
+        return { action: 'noop', deployed: current };
+      }
+      // Config changed - create new ISM
+      const [deployed, receipts] = await this.create(desired);
+      return { action: 'create', deployed, receipts };
+    }
+
+    // Mutable types (routing) - delegate to type-specific applyUpdateWith
+    if (config.type === AltVM.IsmType.ROUTING) {
+      // Cast to routing types - we've already verified the type matches
+      return this.routingWriter.applyUpdateWith(
+        current as DeployedIsmArtifact & {
+          config: { type: 'domainRoutingIsm' };
+        },
+        desired as ArtifactNew<
+          IsmArtifactConfig & { type: 'domainRoutingIsm' }
+        >,
+      );
+    }
+
+    // Unknown mutable type - no-op
+    return { action: 'noop', deployed: current };
   }
 }

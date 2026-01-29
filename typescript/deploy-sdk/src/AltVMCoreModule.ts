@@ -1,5 +1,4 @@
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import {
   CoreConfig,
@@ -12,11 +11,7 @@ import {
   HookConfig,
   hookConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import {
-  DeployedIsmArtifact,
-  DerivedIsmConfig,
-  IsmConfig,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import { DerivedIsmConfig, IsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -28,10 +23,7 @@ import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { createHookWriter } from './hook/hook-writer.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
-import {
-  ismConfigToArtifact,
-  shouldDeployNewIsm,
-} from './ism/ism-config-utils.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
@@ -321,6 +313,12 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
   /**
    * Updates or deploys the ISM using the provided configuration.
    *
+   * Uses IsmWriter.applyUpdate() to handle all update scenarios:
+   * - Type change: creates new ISM
+   * - Immutable type, config unchanged: no-op
+   * - Immutable type, config changed: creates new ISM
+   * - Mutable type (routing): updates in-place
+   *
    * @returns Object with deployedIsm address, and update Transactions
    */
   public async deployOrUpdateIsm(
@@ -332,10 +330,7 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
   }> {
     // If expected ISM is an address reference, use it directly
     if (typeof expectDefaultIsmConfig === 'string') {
-      return {
-        deployedIsm: expectDefaultIsmConfig,
-        ismUpdateTxs: [],
-      };
+      return { deployedIsm: expectDefaultIsmConfig, ismUpdateTxs: [] };
     }
 
     const chainMetadata = this.chainLookup.getChainMetadata(this.args.chain);
@@ -344,11 +339,6 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       this.chainLookup,
       this.signer,
     );
-
-    // Read actual ISM state
-    const actualArtifact = await writer.read(actualDefaultIsmConfig.address);
-
-    // Convert expected config to artifact format
     const expectedArtifact = ismConfigToArtifact(
       expectDefaultIsmConfig,
       this.chainLookup,
@@ -358,28 +348,14 @@ export class AltVMCoreModule implements HypModule<CoreModuleType> {
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
 
-    // Decide: deploy new ISM or update existing one
-    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
-      // Deploy new ISM
-      const [deployed] = await writer.create(expectedArtifact);
-      return {
-        deployedIsm: deployed.deployed.address,
-        ismUpdateTxs: [],
-      };
-    }
-
-    // Update existing ISM (only routing ISMs support updates)
-    const deployedArtifact: DeployedIsmArtifact = {
-      ...expectedArtifact,
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config,
-      deployed: actualArtifact.deployed,
-    };
-    const ismUpdateTxs = await writer.update(deployedArtifact);
+    const result = await writer.applyUpdate(
+      actualDefaultIsmConfig.address,
+      expectedArtifact,
+    );
 
     return {
-      deployedIsm: actualDefaultIsmConfig.address,
-      ismUpdateTxs,
+      deployedIsm: result.deployed.deployed.address,
+      ismUpdateTxs: result.action === 'update' ? result.txs : [],
     };
   }
 

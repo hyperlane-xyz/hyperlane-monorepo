@@ -13,10 +13,8 @@ export { createHookReader } from './hook/hook-reader.js';
 export { HookWriter, createHookWriter } from './hook/hook-writer.js';
 export { createIsmReader } from './ism/generic-ism.js';
 export { IsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
-export {
-  ismConfigToArtifact,
-  shouldDeployNewIsm,
-} from './ism/ism-config-utils.js';
+export { ismConfigToArtifact } from './ism/ism-config-utils.js';
+export { ApplyUpdateResult } from './ism/routing-ism.js';
 export { warpModuleProvider } from './warp-module.js';
 export {
   validateIsmConfig,
