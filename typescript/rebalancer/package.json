@@ -20,6 +20,7 @@
     "lint": "eslint -c ./eslint.config.mjs ./src",
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:e2e": "mocha --config .mocharc.e2e.json",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
     "start:dev": "tsx src/service.ts"
@@ -47,6 +48,7 @@
   },
   "devDependencies": {
     "@ethersproject/constants": "*",
+    "execa": "^9.5.3",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "catalog:",
     "@types/express": "^5.0.3",

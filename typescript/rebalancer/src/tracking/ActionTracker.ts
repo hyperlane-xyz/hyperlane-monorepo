@@ -7,8 +7,8 @@ import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
-  ExplorerClient,
   ExplorerMessage,
+  IExplorerClient,
 } from '../utils/ExplorerClient.js';
 import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
@@ -40,7 +40,7 @@ export class ActionTracker implements IActionTracker {
     private readonly transferStore: ITransferStore,
     private readonly rebalanceIntentStore: IRebalanceIntentStore,
     private readonly rebalanceActionStore: IRebalanceActionStore,
-    private readonly explorerClient: ExplorerClient,
+    private readonly explorerClient: IExplorerClient,
     private readonly core: MultiProtocolCore,
     private readonly config: ActionTrackerConfig,
     private readonly logger: Logger,
