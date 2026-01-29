@@ -127,7 +127,6 @@ describe('InterchainAccount.getCallRemote', () => {
 
     // Create a mock provider with proper call responses for mailbox contract
     const defaultHookAddress = randomAddress();
-    const quoteAmount = BigNumber.from(789);
     const mockProvider = {
       _isProvider: true,
       // Respond to defaultHook() call - returns address
