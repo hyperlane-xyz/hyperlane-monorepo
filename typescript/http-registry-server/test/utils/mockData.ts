@@ -1,6 +1,7 @@
 import {
   ChainAddresses,
   RegistryContent,
+  WarpDeployConfigMap,
   WarpRouteConfigMap,
 } from '@hyperlane-xyz/registry';
 import {
@@ -78,6 +79,10 @@ export const mockWarpRouteDeploys: WarpRouteDeployConfig[] = [
 
 export const mockWarpRouteMap: WarpRouteConfigMap = {
   'test-warp-route': mockWarpRoutes[0],
+};
+
+export const mockWarpDeployConfigMap: WarpDeployConfigMap = {
+  'test-warp-route': mockWarpRouteDeploys[0],
 };
 
 export const mockRegistryContent: RegistryContent = {

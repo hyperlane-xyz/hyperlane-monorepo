@@ -1,1 +1,1 @@
-export { HttpServer } from './HttpServer.js';
+export { HttpServer, HttpServerOptions } from './HttpServer.js';

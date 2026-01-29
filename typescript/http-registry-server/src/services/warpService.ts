@@ -1,5 +1,7 @@
 import {
+  AddWarpRouteConfigOptions,
   IRegistry,
+  WarpDeployConfigMap,
   WarpRouteFilterParams,
   WarpRouteId,
 } from '@hyperlane-xyz/registry';
@@ -40,6 +42,32 @@ export class WarpService extends AbstractService {
         throw new NotFoundError(`Warp deploy config not found for id ${id}`);
       }
       return warpDeployConfig;
+    });
+  }
+
+  async getWarpDeployConfigs(
+    filter?: WarpRouteFilterParams,
+  ): Promise<WarpDeployConfigMap> {
+    return this.withRegistry(async (registry) => {
+      return registry.getWarpDeployConfigs(filter);
+    });
+  }
+
+  async addWarpRoute(
+    config: WarpCoreConfig,
+    options?: AddWarpRouteConfigOptions,
+  ): Promise<void> {
+    return this.withRegistry(async (registry) => {
+      await registry.addWarpRoute(config, options);
+    });
+  }
+
+  async addWarpRouteConfig(
+    config: WarpRouteDeployConfig,
+    options: AddWarpRouteConfigOptions,
+  ): Promise<void> {
+    return this.withRegistry(async (registry) => {
+      await registry.addWarpRouteConfig(config, options);
     });
   }
 }

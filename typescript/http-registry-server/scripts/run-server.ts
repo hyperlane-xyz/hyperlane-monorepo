@@ -8,7 +8,7 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { HttpServer } from '../HttpServer.js';
 
 async function main() {
-  const { registry, port, refreshInterval, authToken } = await yargs(
+  const { registry, port, refreshInterval, authToken, writeMode } = await yargs(
     hideBin(process.argv),
   )
     .option('registry', {
@@ -33,10 +33,18 @@ async function main() {
       describe: 'An optional authentication token for the registry',
       type: 'string',
     })
+    .option('writeMode', {
+      alias: 'w',
+      describe: 'Enable write operations (disabled by default)',
+      type: 'boolean',
+      default: false,
+    })
     .help()
     .parse();
 
-  rootLogger.info(`Starting server on port ${port} for registry ${registry}`);
+  rootLogger.info(
+    `Starting server on port ${port} for registry ${registry} (writeMode: ${writeMode})`,
+  );
 
   const getRegistryInstance = async (): Promise<IRegistry> => {
     return getRegistry({
@@ -47,7 +55,7 @@ async function main() {
     });
   };
 
-  const server = await HttpServer.create(getRegistryInstance);
+  const server = await HttpServer.create(getRegistryInstance, { writeMode });
   await server.start(port?.toString(), refreshInterval?.toString());
 }
 

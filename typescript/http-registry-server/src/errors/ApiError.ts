@@ -16,3 +16,9 @@ export class NotFoundError extends ApiError {
     super(`${resource} not found`, AppConstants.HTTP_STATUS_NOT_FOUND);
   }
 }
+
+export class MethodNotAllowedError extends ApiError {
+  constructor(message: string = 'Write operations are disabled') {
+    super(message, AppConstants.HTTP_STATUS_METHOD_NOT_ALLOWED);
+  }
+}
