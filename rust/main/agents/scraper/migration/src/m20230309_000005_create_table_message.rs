@@ -54,8 +54,8 @@ impl MigrationTrait for Migration {
                     .index(
                         Index::create()
                             .unique()
-                            .col(Message::OriginMailbox)
                             .col(Message::Origin)
+                            .col(Message::OriginMailbox)
                             .col(Message::Nonce),
                     )
                     .to_owned(),
