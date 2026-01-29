@@ -1,6 +1,6 @@
 import { type EncodeObject } from '@cosmjs/proto-signing';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { type Annotated } from '@hyperlane-xyz/utils';
 
 /**
