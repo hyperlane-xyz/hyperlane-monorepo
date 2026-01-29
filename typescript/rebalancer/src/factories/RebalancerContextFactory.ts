@@ -3,6 +3,7 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
+  HyperlaneCore,
   MultiProtocolProvider,
   MultiProvider,
   type Token,
@@ -11,15 +12,32 @@ import {
 import { objMap } from '@hyperlane-xyz/utils';
 
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
+import { getAllBridges, getStrategyChainNames } from '../config/types.js';
 import { Rebalancer } from '../core/Rebalancer.js';
-import { WithSemaphore } from '../core/WithSemaphore.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
 import { Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
+import {
+  ActionTracker,
+  type ActionTrackerConfig,
+  type IActionTracker,
+  InMemoryStore,
+  InflightContextAdapter,
+  type RebalanceAction,
+  type RebalanceActionStatus,
+  type RebalanceIntent,
+  type RebalanceIntentStatus,
+  type Transfer,
+  type TransferStatus,
+} from '../tracking/index.js';
+import { ExplorerClient } from '../utils/ExplorerClient.js';
 import { isCollateralizedTokenEligibleForRebalancing } from '../utils/index.js';
+
+const DEFAULT_EXPLORER_URL =
+  process.env.EXPLORER_API_URL || 'https://explorer4.hasura.app/v1/graphql';
 
 export class RebalancerContextFactory {
   /**
@@ -141,10 +159,14 @@ export class RebalancerContextFactory {
   }
 
   public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
+    const strategyTypes = this.config.strategyConfig.map(
+      (s) => s.rebalanceStrategy,
+    );
     this.logger.debug(
       {
         warpRouteId: this.config.warpRouteId,
-        strategyType: this.config.strategyConfig.rebalanceStrategy,
+        strategyTypes,
+        strategyCount: this.config.strategyConfig.length,
       },
       'Creating Strategy',
     );
@@ -162,13 +184,8 @@ export class RebalancerContextFactory {
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
     );
+
     const rebalancer = new Rebalancer(
-      objMap(this.config.strategyConfig.chains, (_, v) => ({
-        bridge: v.bridge,
-        bridgeMinAcceptedAmount: v.bridgeMinAcceptedAmount ?? 0,
-        bridgeIsWarp: v.bridgeIsWarp ?? false,
-        override: v.override,
-      })),
       this.warpCore,
       this.multiProvider.metadata,
       this.tokensByChainName,
@@ -177,20 +194,104 @@ export class RebalancerContextFactory {
       metrics,
     );
 
-    // Wrap with semaphore for concurrency control
-    const withSemaphore = new WithSemaphore(
-      this.config,
-      rebalancer,
+    return rebalancer;
+  }
+
+  /**
+   * Creates an ActionTracker for tracking inflight rebalance actions and user transfers.
+   * Returns both the tracker and adapter for use by RebalancerService.
+   *
+   * @param explorerUrl - Optional explorer URL (defaults to production Hyperlane Explorer)
+   */
+  public async createActionTracker(
+    explorerUrl: string = DEFAULT_EXPLORER_URL,
+  ): Promise<{
+    tracker: IActionTracker;
+    adapter: InflightContextAdapter;
+  }> {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating ActionTracker',
+    );
+
+    // 1. Create in-memory stores
+    const transferStore = new InMemoryStore<Transfer, TransferStatus>();
+    const intentStore = new InMemoryStore<
+      RebalanceIntent,
+      RebalanceIntentStatus
+    >();
+    const actionStore = new InMemoryStore<
+      RebalanceAction,
+      RebalanceActionStatus
+    >();
+
+    // 2. Create ExplorerClient
+    const explorerClient = new ExplorerClient(explorerUrl);
+
+    // 3. Get HyperlaneCore from registry
+    const addresses = await this.registry.getAddresses();
+    const hyperlaneCore = HyperlaneCore.fromAddressesMap(
+      addresses,
+      this.multiProvider,
+    );
+
+    // 4. Get rebalancer address from signer
+    // Use the first chain in the strategy to get the signer address
+    const chainNames = getStrategyChainNames(this.config.strategyConfig);
+    if (chainNames.length === 0) {
+      throw new Error('No chains configured in strategy');
+    }
+    const signer = this.multiProvider.getSigner(chainNames[0]);
+    const rebalancerAddress = await signer.getAddress();
+
+    const bridges = getAllBridges(this.config.strategyConfig);
+
+    // Build router→domain mapping (source of truth for routers and domains)
+    const routersByDomain: Record<number, string> = {};
+    for (const token of this.warpCore.tokens) {
+      const domain = this.multiProvider.getDomainId(token.chainName);
+      routersByDomain[domain] = token.addressOrDenom;
+    }
+
+    const trackerConfig: ActionTrackerConfig = {
+      routersByDomain,
+      bridges,
+      rebalancerAddress,
+    };
+
+    // 6. Create ActionTracker
+    const tracker = new ActionTracker(
+      transferStore,
+      intentStore,
+      actionStore,
+      explorerClient,
+      hyperlaneCore,
+      trackerConfig,
       this.logger,
     );
 
-    return withSemaphore;
+    // 7. Create InflightContextAdapter
+    const adapter = new InflightContextAdapter(tracker, this.multiProvider);
+
+    this.logger.debug(
+      {
+        warpRouteId: this.config.warpRouteId,
+        routerCount: Object.keys(routersByDomain).length,
+        bridgeCount: bridges.length,
+        domainCount: Object.keys(routersByDomain).length,
+      },
+      'ActionTracker created successfully',
+    );
+
+    return { tracker, adapter };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {
     let initialTotalCollateral = 0n;
 
-    const chainNames = new Set(Object.keys(this.config.strategyConfig.chains));
+    const chainNames = new Set(
+      getStrategyChainNames(this.config.strategyConfig),
+    );
 
     await Promise.all(
       this.warpCore.tokens.map(async (token) => {
