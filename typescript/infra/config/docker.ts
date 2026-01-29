@@ -1,9 +1,23 @@
-export const DockerImageRepos = {
-  AGENT: 'gcr.io/abacus-labs-dev/hyperlane-agent',
-  MONOREPO: 'gcr.io/abacus-labs-dev/hyperlane-monorepo',
-  WARP_MONITOR: 'gcr.io/abacus-labs-dev/hyperlane-warp-monitor',
-  REBALANCER: 'gcr.io/abacus-labs-dev/hyperlane-rebalancer',
+const GCR_REGISTRY = 'gcr.io/abacus-labs-dev';
+
+export const DockerImageNames = {
+  AGENT: 'hyperlane-agent',
+  MONOREPO: 'hyperlane-monorepo',
+  KEY_FUNDER: 'hyperlane-key-funder',
+  WARP_MONITOR: 'hyperlane-warp-monitor',
+  REBALANCER: 'hyperlane-rebalancer',
 } as const;
+
+type DockerImageReposType = {
+  [K in keyof typeof DockerImageNames]: `${typeof GCR_REGISTRY}/${(typeof DockerImageNames)[K]}`;
+};
+
+export const DockerImageRepos = Object.fromEntries(
+  Object.entries(DockerImageNames).map(([key, name]) => [
+    key,
+    `${GCR_REGISTRY}/${name}`,
+  ]),
+) as DockerImageReposType;
 
 interface AgentDockerTags {
   relayer: string;
@@ -32,10 +46,10 @@ export const mainnetDockerTags: MainnetDockerTags = {
   validatorRC: 'a52b9e6-20260122-173915',
   scraper: '80f3635-20260123-103819',
   // monorepo services
-  keyFunder: 'f7e18fc-20260127-184855',
   kathy: '74d999b-20260108-145131',
   checkWarpDeploy: '74d999b-20260108-145131',
   // standalone services
+  keyFunder: 'b29a170-20260128-174848',
   warpMonitor: '6b6fd0b-20260123-121413',
   rebalancer: '6b6fd0b-20260123-121418',
 };
@@ -48,6 +62,7 @@ export const testnetDockerTags: BaseDockerTags = {
   validatorRC: '74d999b-20260108-145124',
   scraper: '80f3635-20260123-103819',
   // monorepo services
-  keyFunder: '74d999b-20260108-145131',
   kathy: '74d999b-20260108-145131',
+  // standalone services
+  keyFunder: 'b29a170-20260128-174848',
 };

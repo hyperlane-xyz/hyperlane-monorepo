@@ -7,9 +7,15 @@ import { fromWei, toWei } from '@hyperlane-xyz/utils';
 import {
   type MinAmountStrategyConfig,
   RebalancerMinAmountType,
+  RebalancerStrategyOptions,
 } from '../config/types.js';
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type {
+  RawBalances,
+  Route,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -18,19 +24,21 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * It ensures each chain has at least the specified minimum amount
  */
 export class MinAmountStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.MinAmount;
   private readonly config: MinAmountStrategyConfig = {};
   protected readonly logger: Logger;
 
   constructor(
     config: MinAmountStrategyConfig,
-    private readonly tokensByChainName: ChainMap<Token>,
+    tokensByChainName: ChainMap<Token>,
     initialTotalCollateral: bigint,
     logger: Logger,
+    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: MinAmountStrategy.name });
-    super(chains, log, metrics);
+    super(chains, log, bridgeConfigs, metrics, tokensByChainName);
     this.logger = log;
 
     const minAmountType = config[chains[0]].minAmount.type;
@@ -67,37 +75,60 @@ export class MinAmountStrategy extends BaseStrategy {
    * Gets balances categorized by surplus and deficit based on minimum amounts and targets
    * - For absolute values: Uses exact token amounts
    * - For relative values: Uses percentages of total balance across all chains
+   *
+   * Simulates both types of rebalances before calculating surpluses/deficits:
+   * - pendingRebalances: in-flight intents (origin tx confirmed, add to destination only)
+   * - proposedRebalances: routes from earlier strategies (subtract from origin AND add to destination)
+   *
+   * This prevents over-rebalancing when multiple strategies run in sequence.
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    pendingRebalances?: Route[],
+    proposedRebalances?: StrategyRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
+      rawBalances,
+      pendingRebalances ?? [],
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      proposedRebalances ?? [],
+    );
     const totalCollateral = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
+      (sum, chain) => sum + simulatedBalances[chain],
       0n,
     );
 
     return this.chains.reduce(
       (acc, chain) => {
-        const config = this.config[chain];
-        const balance = rawBalances[chain];
+        const chainConfig = this.config[chain];
+        const balance = simulatedBalances[chain];
         let minAmount: bigint;
         let targetAmount: bigint;
 
-        if (config.minAmount.type === RebalancerMinAmountType.Absolute) {
+        if (chainConfig.minAmount.type === RebalancerMinAmountType.Absolute) {
           const token = this.getTokenByChainName(chain);
 
-          minAmount = BigInt(toWei(config.minAmount.min, token.decimals));
-          targetAmount = BigInt(toWei(config.minAmount.target, token.decimals));
+          minAmount = BigInt(toWei(chainConfig.minAmount.min, token.decimals));
+          targetAmount = BigInt(
+            toWei(chainConfig.minAmount.target, token.decimals),
+          );
         } else {
           minAmount = BigInt(
             BigNumber(totalCollateral.toString())
-              .times(config.minAmount.min)
+              .times(chainConfig.minAmount.min)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
           targetAmount = BigInt(
             BigNumber(totalCollateral.toString())
-              .times(config.minAmount.target)
+              .times(chainConfig.minAmount.target)
               .toFixed(0, BigNumber.ROUND_FLOOR),
           );
         }
@@ -123,7 +154,7 @@ export class MinAmountStrategy extends BaseStrategy {
   }
 
   protected getTokenByChainName(chainName: string): Token {
-    const token = this.tokensByChainName[chainName];
+    const token = this.tokensByChainName![chainName];
 
     if (token === undefined) {
       throw new Error(`Token not found for chain ${chainName}`);

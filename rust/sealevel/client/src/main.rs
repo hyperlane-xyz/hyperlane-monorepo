@@ -215,6 +215,8 @@ enum MailboxSubCmd {
     Delivered(Delivered),
     TransferOwnership(TransferOwnership),
     SetDefaultIsm(SetDefaultIsm),
+    /// Simulate processing a message to debug delivery failures
+    Simulate(Simulate),
 }
 
 const MAILBOX_PROG_ID: Pubkey = pubkey!("692KZJaoe2KRcD6uhCQDLLXnLNA5ZLnfvdqjE4aX9iu1");
@@ -291,6 +293,13 @@ struct Delivered {
     program_id: Pubkey,
     #[arg(long, short)]
     message_id: H256,
+}
+
+#[derive(Args)]
+struct Simulate {
+    /// Base58-encoded transaction to simulate
+    #[arg(long)]
+    transaction: String,
 }
 
 #[derive(Args)]
@@ -925,6 +934,42 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                     format!("Setting default ISM to {}", set_default_ism.default_ism),
                 )
                 .send_with_payer();
+        }
+        MailboxSubCmd::Simulate(simulate) => {
+            // Decode the base58 transaction
+            let tx_bytes = bs58::decode(&simulate.transaction)
+                .into_vec()
+                .expect("Failed to decode base58 transaction");
+            let transaction: solana_sdk::transaction::Transaction =
+                bincode::deserialize(&tx_bytes).expect("Failed to deserialize transaction");
+
+            println!("Simulating transaction...");
+            println!("Transaction signatures: {:?}", transaction.signatures);
+
+            // Simulate the transaction
+            let result = ctx
+                .client
+                .simulate_transaction(&transaction)
+                .expect("Failed to simulate transaction");
+
+            println!("\n=== Simulation Result ===");
+            if let Some(err) = result.value.err {
+                println!("❌ Transaction would FAIL");
+                println!("Error: {:?}", err);
+            } else {
+                println!("✅ Transaction would SUCCEED");
+            }
+
+            if let Some(logs) = result.value.logs {
+                println!("\n=== Program Logs ===");
+                for log in logs {
+                    println!("{}", log);
+                }
+            }
+
+            if let Some(units) = result.value.units_consumed {
+                println!("\nCompute units consumed: {}", units);
+            }
         }
     };
 }
