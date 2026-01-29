@@ -396,7 +396,7 @@ export function warpArtifactToDerivedConfig(
   assert(
     isNullish(config.interchainSecurityModule) ||
       !isArtifactNew(config.interchainSecurityModule),
-    '',
+    'Expected ISM to be a deployed or underived artifact',
   );
   let ismConfig: DerivedWarpConfig['interchainSecurityModule'];
   if (isNullish(config.interchainSecurityModule)) {
@@ -411,7 +411,10 @@ export function warpArtifactToDerivedConfig(
   }
 
   // Convert hook artifact to config if present
-  assert(isNullish(config.hook) || !isArtifactNew(config.hook), '');
+  assert(
+    isNullish(config.hook) || !isArtifactNew(config.hook),
+    'Expected hook to be a deployed or underived artifact',
+  );
   let hookConfig: DerivedWarpConfig['hook'];
   if (isNullish(config.hook)) {
     hookConfig = '0x0000000000000000000000000000000000000000';
