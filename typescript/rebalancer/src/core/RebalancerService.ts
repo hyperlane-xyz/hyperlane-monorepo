@@ -27,8 +27,6 @@ import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 
 import { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
-import { InflightContextAdapter } from '../tracking/InflightContextAdapter.js';
-import { IActionTracker } from '../tracking/IActionTracker.js';
 
 export interface RebalancerServiceConfig {
   /** Execution mode: 'manual' for one-off execution, 'daemon' for continuous monitoring */
@@ -116,8 +114,6 @@ export class RebalancerService {
   private rebalancer?: IRebalancer;
   private metrics?: Metrics;
   private mode: 'manual' | 'daemon';
-  private actionTracker?: IActionTracker;
-  private inflightContextAdapter?: InflightContextAdapter;
   private orchestrator!: RebalancerOrchestrator;
 
   constructor(
@@ -177,24 +173,36 @@ export class RebalancerService {
       );
     }
 
-    // Create or use provided ActionTracker for tracking inflight actions
-    if (this.config.actionTracker) {
-      // Use externally provided ActionTracker (e.g., for simulation/testing)
-      this.actionTracker = this.config.actionTracker;
-      this.inflightContextAdapter = new InflightContextAdapter(
-        this.actionTracker,
-        this.multiProvider,
-      );
-      await this.actionTracker.initialize();
-      this.logger.info('Using externally provided ActionTracker');
-    } else {
-      const { tracker, adapter } =
-        await this.contextFactory.createActionTracker();
-      this.actionTracker = tracker;
-      this.inflightContextAdapter = adapter;
-      await this.actionTracker.initialize();
-      this.logger.info('ActionTracker initialized');
-    }
+<<<<<<< HEAD
+     // Create or use provided ActionTracker for tracking inflight actions
+     if (this.config.actionTracker) {
+       // Use externally provided ActionTracker (e.g., for simulation/testing)
+       this.actionTracker = this.config.actionTracker;
+       this.inflightContextAdapter = new InflightContextAdapter(
+         this.actionTracker,
+         this.multiProvider,
+       );
+       await this.actionTracker.initialize();
+       this.logger.info('Using externally provided ActionTracker');
+     } else {
+       const { tracker, adapter } =
+         await this.contextFactory.createActionTracker();
+       this.actionTracker = tracker;
+       this.inflightContextAdapter = adapter;
+       await this.actionTracker.initialize();
+       this.logger.info('ActionTracker initialized');
+     }
+
+     this.orchestrator = new RebalancerOrchestrator({
+       strategy: this.strategy!,
+       rebalancer: this.rebalancer,
+       actionTracker: this.actionTracker,
+       inflightContextAdapter: this.inflightContextAdapter,
+       multiProvider: this.multiProvider,
+       rebalancerConfig: this.rebalancerConfig,
+       logger: this.logger,
+       metrics: this.metrics,
+     });
 
     this.orchestrator = new RebalancerOrchestrator({
       strategy: this.strategy!,
