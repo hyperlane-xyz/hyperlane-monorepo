@@ -58,9 +58,6 @@ export const chainsToSkip: ChainName[] = [
   'zeronetwork',
   'abstract',
   'sophon',
-
-  // legacy ICAs
-  'viction',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
