@@ -28,10 +28,6 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-/**
- * Reader for Cosmos synthetic warp tokens.
- * Reads deployed synthetic token configuration from the chain.
- */
 export class CosmosSyntheticTokenReader
   implements ArtifactReader<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>
 {
@@ -73,10 +69,6 @@ export class CosmosSyntheticTokenReader
   }
 }
 
-/**
- * Writer for Cosmos synthetic warp tokens.
- * Handles deployment and updates of synthetic tokens.
- */
 export class CosmosSyntheticTokenWriter
   extends CosmosSyntheticTokenReader
   implements ArtifactWriter<RawSyntheticWarpArtifactConfig, DeployedWarpAddress>

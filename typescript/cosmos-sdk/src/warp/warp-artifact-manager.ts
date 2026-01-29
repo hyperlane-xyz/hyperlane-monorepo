@@ -27,26 +27,12 @@ import {
 } from './synthetic-token.js';
 import { type CosmosWarpQueryClient, getWarpTokenType } from './warp-query.js';
 
-/**
- * Cosmos Warp Artifact Manager implementing IRawWarpArtifactManager.
- *
- * This manager:
- * - Lazily initializes the query client on first use
- * - Detects warp token types and delegates to specialized readers
- * - Provides factory methods for creating readers and writers
- *
- * Design: Uses lazy initialization to keep the constructor synchronous while
- * deferring the async query client creation until actually needed.
- */
+// Uses lazy initialization to keep constructor synchronous while deferring async query client creation
 export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
   private queryPromise?: Promise<CosmosWarpQueryClient>;
 
   constructor(private readonly rpcUrls: string[]) {}
 
-  /**
-   * Lazy initialization - creates query client on first use.
-   * Subsequent calls return the cached promise.
-   */
   private async getQuery(): Promise<CosmosWarpQueryClient> {
     if (!this.queryPromise) {
       this.queryPromise = this.createQuery();
@@ -54,20 +40,11 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     return this.queryPromise;
   }
 
-  /**
-   * Creates a Cosmos query client with Warp extension.
-   */
   private async createQuery(): Promise<CosmosWarpQueryClient> {
     const cometClient = await connectComet(this.rpcUrls[0]);
     return QueryClient.withExtensions(cometClient, setupWarpExtension);
   }
 
-  /**
-   * Read a warp token of unknown type from the blockchain.
-   *
-   * @param address - Address of the token to read
-   * @returns Deployed warp token artifact with configuration
-   */
   async readWarpToken(address: string): Promise<DeployedWarpArtifact> {
     const query = await this.getQuery();
     const altVMType = await getWarpTokenType(query, address);
@@ -91,12 +68,6 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     return reader.read(address);
   }
 
-  /**
-   * Factory method to create type-specific warp token readers.
-   *
-   * @param type - Warp token type to create reader for
-   * @returns Type-specific warp token reader
-   */
   createReader<T extends WarpType>(
     type: T,
   ): ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress> {
@@ -110,13 +81,6 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     } satisfies ArtifactReader<RawWarpArtifactConfigs[T], DeployedWarpAddress>;
   }
 
-  /**
-   * Internal helper to create type-specific warp token readers with query client.
-   *
-   * @param type - Warp token type to create reader for
-   * @param query - Query client to use for reading
-   * @returns Type-specific warp token reader
-   */
   private createReaderWithQuery<T extends WarpType>(
     type: T,
     query: CosmosWarpQueryClient,
@@ -137,13 +101,6 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     return readers[type]();
   }
 
-  /**
-   * Factory method to create type-specific warp token writers.
-   *
-   * @param type - Warp token type to create writer for
-   * @param signer - Signer to use for writing transactions
-   * @returns Type-specific warp token writer
-   */
   createWriter<T extends WarpType>(
     type: T,
     signer: CosmosNativeSigner,
@@ -168,14 +125,6 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     } satisfies ArtifactWriter<RawWarpArtifactConfigs[T], DeployedWarpAddress>;
   }
 
-  /**
-   * Internal helper to create type-specific warp token writers with query client and signer.
-   *
-   * @param type - Warp token type to create writer for
-   * @param query - Query client to use for reading
-   * @param signer - Signer to use for writing
-   * @returns Type-specific warp token writer
-   */
   private createWriterWithQuery<T extends WarpType>(
     type: T,
     query: CosmosWarpQueryClient,

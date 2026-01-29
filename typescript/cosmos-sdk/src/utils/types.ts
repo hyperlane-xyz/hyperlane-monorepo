@@ -27,26 +27,17 @@ export interface BaseCosmosWarpTokenConfig {
   decimals: number; // 0 on Cosmos
 }
 
-/**
- * Collateral warp token configuration.
- */
 export interface CosmosCollateralWarpTokenConfig
   extends BaseCosmosWarpTokenConfig {
   type: AltVM.TokenType.collateral;
   token: string; // origin denom
 }
 
-/**
- * Synthetic warp token configuration.
- */
 export interface CosmosSyntheticWarpTokenConfig
   extends BaseCosmosWarpTokenConfig {
   type: AltVM.TokenType.synthetic;
 }
 
-/**
- * Union of all Cosmos warp token configurations.
- */
 export type CosmosWarpTokenConfig =
   | CosmosCollateralWarpTokenConfig
   | CosmosSyntheticWarpTokenConfig;
