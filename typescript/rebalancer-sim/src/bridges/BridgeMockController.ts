@@ -189,9 +189,8 @@ export class BridgeMockController extends EventEmitter {
       12,
     ) as Address;
 
-    // Note: MockValueTransferBridge doesn't actually pull tokens, so the accounting
-    // won't be perfect. The bridge delivery will mint to destination, inflating total supply.
-    // This is acceptable for simulation purposes - the rebalancer behavior is what we're testing.
+    // MockValueTransferBridge pulls tokens from origin warp token.
+    // Bridge delivery mints to destination, preserving total warp token collateral.
 
     const pendingTransfer: PendingTransfer = {
       id: transferId,

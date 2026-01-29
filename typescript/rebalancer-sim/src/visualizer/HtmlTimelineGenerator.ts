@@ -764,107 +764,22 @@ function renderTimeline(viz, vizIndex) {
 }
 
 function renderBalanceCurves(svg, viz, xScale, chains) {
-  // Compute expected balances from transfer/rebalance events rather than using
-  // the actual on-chain snapshots (which are affected by mock minting behavior).
-  //
-  // Correct balance flow:
-  // - User transfer start (origin): +amount (user deposits into warp token)
-  // - User transfer complete (destination): -amount (warp token pays recipient)
-  // - Rebalance start (origin): -amount (warp token sends to bridge)
-  // - Rebalance complete (destination): +amount (warp token receives from bridge)
+  // Use actual on-chain balance snapshots directly.
+  // The mock bridge doesn't pull tokens from origin (it just emits events),
+  // so computing balances from events would be inaccurate.
+  // The actual snapshots from KPICollector.takeSnapshot() are correct.
 
-  // Build timeline of balance-changing events
-  const balanceEvents = [];
-
-  // User transfers
-  for (const t of viz.transfers) {
-    // Origin: user deposits -> balance increases
-    balanceEvents.push({
-      timestamp: t.startTime,
-      chain: t.origin,
-      delta: BigInt(t.amount),
-      type: 'transfer_deposit'
-    });
-    // Destination: warp pays recipient -> balance decreases
-    if (t.endTime && t.status === 'completed') {
-      balanceEvents.push({
-        timestamp: t.endTime,
-        chain: t.destination,
-        delta: -BigInt(t.amount),
-        type: 'transfer_payout'
-      });
-    }
-  }
-
-  // Rebalances (bridge transfers)
-  for (const r of viz.rebalances) {
-    // Origin: warp sends to bridge -> balance decreases
-    balanceEvents.push({
-      timestamp: r.startTime,
-      chain: r.origin,
-      delta: -BigInt(r.amount),
-      type: 'rebalance_send'
-    });
-    // Destination: bridge delivers -> balance increases
-    if (r.endTime && r.status === 'completed') {
-      balanceEvents.push({
-        timestamp: r.endTime,
-        chain: r.destination,
-        delta: BigInt(r.amount),
-        type: 'rebalance_receive'
-      });
-    }
-  }
-
-  // Sort events by timestamp
-  balanceEvents.sort((a, b) => a.timestamp - b.timestamp);
-
-  // Get initial balances from first snapshot
-  const initialBalances = {};
-  if (viz.balanceTimeline.length > 0) {
-    for (const chain of chains) {
-      initialBalances[chain] = BigInt(viz.balanceTimeline[0].balances[chain] || '0');
-    }
-  } else {
-    for (const chain of chains) {
-      initialBalances[chain] = BigInt('100000000000000000000'); // 100 tokens default
-    }
-  }
-
-  // Build computed timeline with balance snapshots at each event
-  const computedTimeline = [];
-  const runningBalances = { ...initialBalances };
-
-  // Add initial point
-  computedTimeline.push({
-    timestamp: viz.startTime,
-    balances: { ...runningBalances }
-  });
-
-  // Process each event
-  for (const event of balanceEvents) {
-    runningBalances[event.chain] = runningBalances[event.chain] + event.delta;
-    computedTimeline.push({
-      timestamp: event.timestamp,
-      balances: { ...runningBalances }
-    });
-  }
-
-  // Add final point
-  computedTimeline.push({
-    timestamp: viz.endTime,
-    balances: { ...runningBalances }
-  });
-
-  if (computedTimeline.length < 2) return;
+  const balanceTimeline = viz.balanceTimeline;
+  if (balanceTimeline.length < 2) return;
 
   // Find min/max balance for scaling
   let minBalance = BigInt('999999999999999999999999999');
   let maxBalance = 0n;
-  computedTimeline.forEach(snapshot => {
+  balanceTimeline.forEach(snapshot => {
     Object.values(snapshot.balances).forEach(b => {
-      if (b > maxBalance) maxBalance = b;
-      if (b < minBalance) minBalance = b;
+      const bal = BigInt(b);
+      if (bal > maxBalance) maxBalance = bal;
+      if (bal < minBalance) minBalance = bal;
     });
   });
 
@@ -878,10 +793,10 @@ function renderBalanceCurves(svg, viz, xScale, chains) {
     const curveHeight = curveBottom - curveTop;
     const color = CHAIN_COLORS[chain] || TRANSFER_COLORS[chainIndex % TRANSFER_COLORS.length];
 
-    // Build path data from computed timeline
-    const points = computedTimeline.map(snapshot => {
+    // Build path data from actual balance timeline
+    const points = balanceTimeline.map(snapshot => {
       const x = xScale(snapshot.timestamp);
-      const balance = snapshot.balances[chain] || 0n;
+      const balance = BigInt(snapshot.balances[chain] || '0');
       // Scale: high balance = top, low balance = bottom
       const normalizedY = balanceRange > 0n
         ? Number((balance - minBalance) * BigInt(Math.floor(curveHeight * 100)) / balanceRange) / 100
