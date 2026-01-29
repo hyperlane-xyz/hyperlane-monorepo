@@ -15,7 +15,9 @@ import {
   RawArtifact,
   isArtifactDeployed,
   isArtifactNew,
+  isArtifactUnderived,
 } from './artifact.js';
+import { ChainLookup } from './chain.js';
 
 export type IsmModuleType = {
   config: IsmConfig;
@@ -299,4 +301,73 @@ export function altVMIsmTypeToProviderSdkType(
   // After validation, we know altVMType is one of the supported types
   // which map directly to IsmType string literals
   return altVMType as IsmType;
+}
+
+export function ismArtifactToDerivedConfig(
+  artifact: DeployedIsmArtifact,
+  chainLookup: ChainLookup,
+): DerivedIsmConfig {
+  const config = artifact.config;
+  const address = artifact.deployed.address;
+
+  switch (config.type) {
+    case 'domainRoutingIsm': {
+      // For routing ISMs, convert domain IDs back to chain names
+      // and convert nested artifacts to IsmConfig or address strings
+      const domains: Record<string, IsmConfig | string> = {};
+
+      for (const [domainIdStr, domainArtifact] of Object.entries(
+        config.domains,
+      )) {
+        const domainId = parseInt(domainIdStr);
+        const chainName = chainLookup.getChainName(domainId);
+        if (!chainName) {
+          // Skip unknown domains
+          continue;
+        }
+
+        if (isArtifactDeployed(domainArtifact)) {
+          // Recursively convert nested ISM artifacts
+          domains[chainName] = ismArtifactToDerivedConfig(
+            domainArtifact,
+            chainLookup,
+          );
+        } else if (isArtifactUnderived(domainArtifact)) {
+          // Use the address string for underived artifacts
+          domains[chainName] = domainArtifact.deployed.address;
+        } else if (isArtifactNew(domainArtifact)) {
+          throw new Error(
+            `Cannot convert routing ISM to derived config: nested ISM for domain ${chainName} (${domainId}) is NEW and has no address`,
+          );
+        }
+      }
+
+      return {
+        type: 'domainRoutingIsm',
+        owner: config.owner,
+        domains,
+        address,
+      };
+    }
+
+    case 'merkleRootMultisigIsm':
+    case 'messageIdMultisigIsm':
+      // Multisig ISMs have identical structure between Artifact and Config APIs
+      return {
+        ...config,
+        address,
+      };
+
+    case 'testIsm':
+      // Test ISMs have identical structure between Artifact and Config APIs
+      return {
+        ...config,
+        address,
+      };
+
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(`Unhandled ISM type: ${(invalidConfig as any).type}`);
+    }
+  }
 }

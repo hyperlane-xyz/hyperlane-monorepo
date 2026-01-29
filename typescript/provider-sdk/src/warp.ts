@@ -8,14 +8,22 @@ import {
   ArtifactState,
   IArtifactManager,
   RawArtifact,
+  isArtifactDeployed,
+  isArtifactNew,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
-import type { DerivedHookConfig, HookConfig } from './hook.js';
-import type {
-  DeployedIsmAddress,
-  DerivedIsmConfig,
-  IsmArtifactConfig,
-  IsmConfig,
+import {
+  type DerivedHookConfig,
+  type HookArtifactConfig,
+  type HookConfig,
+  hookArtifactToDerivedConfig,
+} from './hook.js';
+import {
+  type DeployedIsmAddress,
+  type DerivedIsmConfig,
+  type IsmArtifactConfig,
+  type IsmConfig,
+  ismArtifactToDerivedConfig,
 } from './ism.js';
 
 export type TokenRouterModuleType = {
@@ -117,6 +125,7 @@ interface BaseWarpArtifactConfig {
   owner: string;
   mailbox: string;
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
+  hook?: Artifact<HookArtifactConfig, DeployedIsmAddress>;
   remoteRouters: Record<number, { address: string }>;
   destinationGas: Record<number, string>;
   name?: string;
@@ -125,19 +134,19 @@ interface BaseWarpArtifactConfig {
 }
 
 export interface CollateralWarpArtifactConfig extends BaseWarpArtifactConfig {
-  type: 'collateral';
+  type: typeof TokenType.collateral;
   token: string;
 }
 
 export interface SyntheticWarpArtifactConfig extends BaseWarpArtifactConfig {
-  type: 'synthetic';
+  type: typeof TokenType.synthetic;
   name: string;
   symbol: string;
   decimals: number;
 }
 
 export interface NativeWarpArtifactConfig extends BaseWarpArtifactConfig {
-  type: 'native';
+  type: typeof TokenType.native;
 }
 
 export interface WarpArtifactConfigs {
@@ -181,11 +190,12 @@ export type IWarpArtifactManager = IArtifactManager<
  * @template T - The WarpArtifactConfig type
  */
 type RawWarpTokenConfig<T extends WarpArtifactConfig> = RawArtifact<
-  Omit<T, 'interchainSecurityModule'> & {
+  Omit<T, 'interchainSecurityModule' | 'hook'> & {
     interchainSecurityModule?: ArtifactOnChain<
       IsmArtifactConfig,
       DeployedIsmAddress
     >;
+    hook?: ArtifactOnChain<HookArtifactConfig, DeployedIsmAddress>;
   },
   DeployedWarpAddress
 >;
@@ -355,7 +365,6 @@ export function warpConfigToArtifact(
 export function warpArtifactToDerivedConfig(
   artifact: DeployedWarpArtifact,
   chainLookup: ChainLookup,
-  derivedIsm?: DerivedIsmConfig | string,
 ): DerivedWarpConfig {
   const config = artifact.config;
 
@@ -383,12 +392,40 @@ export function warpArtifactToDerivedConfig(
     destinationGas[chainName] = gas;
   }
 
+  // Convert ISM artifact to config if present
+  assert(
+    isNullish(config.interchainSecurityModule) ||
+      !isArtifactNew(config.interchainSecurityModule),
+    '',
+  );
+  let ismConfig: DerivedWarpConfig['interchainSecurityModule'];
+  if (isNullish(config.interchainSecurityModule)) {
+    ismConfig = '0x0000000000000000000000000000000000000000';
+  } else if (isArtifactDeployed(config.interchainSecurityModule)) {
+    ismConfig = ismArtifactToDerivedConfig(
+      config.interchainSecurityModule,
+      chainLookup,
+    );
+  } else {
+    ismConfig = config.interchainSecurityModule.deployed.address;
+  }
+
+  // Convert hook artifact to config if present
+  assert(isNullish(config.hook) || !isArtifactNew(config.hook), '');
+  let hookConfig: DerivedWarpConfig['hook'];
+  if (isNullish(config.hook)) {
+    hookConfig = '0x0000000000000000000000000000000000000000';
+  } else if (isArtifactDeployed(config.hook)) {
+    hookConfig = hookArtifactToDerivedConfig(config.hook, chainLookup);
+  } else {
+    hookConfig = config.hook.deployed.address;
+  }
+
   const baseDerivedConfig = {
     owner: config.owner,
     mailbox: config.mailbox,
-    interchainSecurityModule:
-      derivedIsm ?? '0x0000000000000000000000000000000000000000',
-    hook: '0x0000000000000000000000000000000000000000',
+    interchainSecurityModule: ismConfig,
+    hook: hookConfig,
     remoteRouters,
     destinationGas,
     name: config.name,
