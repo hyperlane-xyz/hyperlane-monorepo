@@ -134,34 +134,32 @@ function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
 
 **File:** `typescript/sdk/src/core/HyperlaneRelayer.ts`
 
-- Extract `ValueRequested` event value **before** simulating handle
-- If value requested, simulate with value first
-- If sendValue error, clear value and re-simulate without it
+- Always simulate handle first (without value)
+- If IGP present and value requested, simulate again with value
+- If sendValue error, clear value (handle already verified to work)
 - Other errors propagate normally
 
 ```typescript
-if (value && BigNumber.from(value).gt(0)) {
-  try {
-    await this.core.estimateHandle(message, value);
-  } catch (error: any) {
-    const errorMessage = error?.message || error?.reason || String(error);
-    const isSendValueError = errorMessage.includes(
-      'unable to send value, recipient may have reverted',
-    );
+// Always simulate handle first
+await this.core.estimateHandle(message);
 
-    if (isSendValueError) {
-      this.logger.info(
-        { messageId, value },
-        `Recipient cannot receive value, relaying without value`,
-      );
-      value = undefined;
-      await this.core.estimateHandle(message); // Re-estimate without value
-    } else {
-      throw error;
+// Extract and validate value from IGP if present
+if (igp) {
+  value = valueRequested?.args?.value;
+
+  // If value requested, verify recipient can receive it
+  if (value && BigNumber.from(value).gt(0)) {
+    try {
+      await this.core.estimateHandle(message, value);
+    } catch (error: any) {
+      const isSendValueError = errorMessage.includes('unable to send value...');
+      if (isSendValueError) {
+        value = undefined; // Handle already verified, just clear value
+      } else {
+        throw error;
+      }
     }
   }
-} else {
-  await this.core.estimateHandle(message);
 }
 ```
 

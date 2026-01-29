@@ -279,7 +279,11 @@ export class HyperlaneRelayer {
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
-    // Extract value from ValueRequested event before simulating handle
+    // Simulate recipient message handling
+    this.logger.debug({ message }, `Simulating recipient message handling`);
+    await this.core.estimateHandle(message);
+
+    // Extract and validate value from IGP if present
     let value: BigNumberish | undefined;
     const igp = deepFind(
       hook,
@@ -296,41 +300,31 @@ export class HyperlaneRelayer {
       const [gasPayment, valueRequested] = matchingEvents;
       this.logger.debug({ gasPayment, valueRequested }, `Parsed IGP request`);
       value = valueRequested?.args?.value;
-    }
 
-    // Simulate recipient message handling
-    this.logger.debug(
-      { message, value },
-      `Simulating recipient message handling`,
-    );
-    if (value && BigNumber.from(value).gt(0)) {
-      // If value requested, simulate with value first
-      try {
-        await this.core.estimateHandle(message, value);
-      } catch (error: any) {
-        // Check if error is due to recipient unable to receive value
-        // OpenZeppelin's Address.sendValue reverts with this message
-        const errorMessage = error?.message || error?.reason || String(error);
-        const isSendValueError = errorMessage.includes(
-          'unable to send value, recipient may have reverted',
-        );
-
-        if (isSendValueError) {
-          this.logger.info(
-            { messageId: message.id, value: value.toString() },
-            `Recipient cannot receive value, relaying without value`,
+      // If value requested, verify recipient can receive it
+      if (value && BigNumber.from(value).gt(0)) {
+        try {
+          await this.core.estimateHandle(message, value);
+        } catch (error: any) {
+          // Check if error is due to recipient unable to receive value
+          // OpenZeppelin's Address.sendValue reverts with this message
+          const errorMessage = error?.message || error?.reason || String(error);
+          const isSendValueError = errorMessage.includes(
+            'unable to send value, recipient may have reverted',
           );
-          value = undefined;
-          // Re-estimate without value to ensure handle itself works
-          await this.core.estimateHandle(message);
-        } else {
-          // Re-throw other errors (handle reverts, etc.)
-          throw error;
+
+          if (isSendValueError) {
+            this.logger.info(
+              { messageId: message.id, value: value.toString() },
+              `Recipient cannot receive value, relaying without value`,
+            );
+            value = undefined;
+          } else {
+            // Re-throw other errors (handle reverts, etc.)
+            throw error;
+          }
         }
       }
-    } else {
-      // No value, just simulate handle
-      await this.core.estimateHandle(message);
     }
 
     const metadata = await this.metadataBuilder.build({
