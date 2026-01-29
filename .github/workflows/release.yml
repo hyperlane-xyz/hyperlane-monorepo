@@ -132,7 +132,7 @@ jobs:
     if: needs.check-latest-published.outputs.all_latest == 'false'
     strategy:
       matrix:
-        os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-latest]
+        os: [depot-ubuntu-latest, depot-macos-latest, depot-windows-2025-8]
         node-version: [24, 25]
     runs-on: ${{ matrix.os }}
     steps:
