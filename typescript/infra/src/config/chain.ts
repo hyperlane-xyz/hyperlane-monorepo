@@ -51,7 +51,6 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
   // downtime
-  'flowmainnet',
   'molten',
 
   // not AW owned
@@ -63,9 +62,6 @@ export const chainsToSkip: ChainName[] = [
   'zeronetwork',
   'abstract',
   'sophon',
-
-  // testnets
-  'abstracttestnet',
 
   // legacy ICAs
   'viction',
