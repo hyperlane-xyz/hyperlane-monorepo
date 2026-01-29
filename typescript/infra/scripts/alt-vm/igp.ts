@@ -271,7 +271,11 @@ function printDifference(
     const updatedCost = exampleCost(remote, provider, updated);
     const metadata = provider.getChainMetadata(chain);
 
-    if (currentCost.exampleRemoteGasCost !== updatedCost.exampleRemoteGasCost) {
+    if (
+      !currentCost.exampleRemoteGasCost.isEqualTo(
+        updatedCost.exampleRemoteGasCost,
+      )
+    ) {
       differences++;
 
       let decimals = metadata.nativeToken?.decimals || 18;
