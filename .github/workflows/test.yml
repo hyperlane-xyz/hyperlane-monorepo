@@ -332,6 +332,7 @@ jobs:
           - core-deploy
           - core-read
           # Warp Commands
+          - warp-apply-ism-updates
           - warp-deploy
           - warp-read
     steps:
@@ -368,6 +369,7 @@ jobs:
           - core-apply
           # Warp Commands
           - warp-deploy
+          - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
@@ -439,6 +441,7 @@ jobs:
           - core-read
           # Warp Commands
           - warp-apply-hook-updates
+          - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
           - warp-deploy

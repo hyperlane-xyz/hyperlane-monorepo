@@ -8,8 +8,10 @@ import {
   DeployedIsmAddress,
   IsmArtifactConfig,
   IsmConfig,
-  STATIC_ISM_TYPES,
 } from '@hyperlane-xyz/provider-sdk/ism';
+
+// Re-export ISM utility functions from provider-sdk for convenience
+export { shouldDeployNewIsm } from '@hyperlane-xyz/provider-sdk/ism';
 
 /**
  * Converts IsmConfig (Config API) to IsmArtifactConfig (Artifact API).
@@ -87,27 +89,4 @@ export function ismConfigToArtifact(
   // Other ISM types (multisig, testIsm) have identical config structure
   // between Config API and Artifact API - just wrap in artifact object
   return { artifactState: ArtifactState.NEW, config };
-}
-
-/**
- * Determines if a new ISM should be deployed instead of updating the existing one.
- * Deploy new ISM if:
- * - ISM type changed
- * - ISM is static/immutable (multisig types, testIsm)
- *
- * @param actual The current deployed ISM configuration
- * @param expected The desired ISM configuration
- * @returns true if a new ISM should be deployed, false if existing can be updated
- */
-export function shouldDeployNewIsm(
-  actual: IsmArtifactConfig,
-  expected: IsmArtifactConfig,
-): boolean {
-  // Type changed - must deploy new
-  if (actual.type !== expected.type) return true;
-
-  // Static ISM types are immutable - must deploy new
-  if (STATIC_ISM_TYPES.includes(expected.type)) return true;
-
-  return false;
 }

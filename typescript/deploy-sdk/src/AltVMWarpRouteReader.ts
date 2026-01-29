@@ -73,10 +73,11 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     // Derive ISM config if present, otherwise use zero address
-    const interchainSecurityModule = token.ismAddress
-      ? await this.ismReader.deriveIsmConfig(token.ismAddress)
-      : // TODO: replace with protocol-specific zero address
-        '0x0000000000000000000000000000000000000000';
+    const interchainSecurityModule =
+      token.ismAddress && !isZeroishAddress(token.ismAddress)
+        ? await this.ismReader.deriveIsmConfig(token.ismAddress)
+        : // TODO: replace with protocol-specific zero address
+          '0x0000000000000000000000000000000000000000';
 
     // Hook address is not exposed by providers yet, use zero address as placeholder
     // TODO: replace with protocol-specific zero address

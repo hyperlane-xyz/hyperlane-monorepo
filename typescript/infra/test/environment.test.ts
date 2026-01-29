@@ -36,11 +36,6 @@ describe('Environment', () => {
         );
 
         for (const chain of Object.keys(ethereumCoreConfigs)) {
-          // Skip testing rometestnet2 because its non-standard gas metering
-          // requires custom configuration
-          if (chain === 'rometestnet2') {
-            continue;
-          }
           // Skip eden as it has limited connectivity (only connected to celestia)
           if (chain === 'eden') {
             continue;

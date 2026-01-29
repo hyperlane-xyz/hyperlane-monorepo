@@ -870,7 +870,8 @@ export class AleoSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: req.ismAddress,
+      ismAddress:
+        req.ismAddress ?? '0x0000000000000000000000000000000000000000',
     };
   }
 

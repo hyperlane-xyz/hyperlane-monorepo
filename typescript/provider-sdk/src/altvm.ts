@@ -411,7 +411,8 @@ export type ResSetTokenOwner = {
 export type ReqSetTokenIsm = {
   signer: string;
   tokenAddress: string;
-  ismAddress: string;
+  // Not supplying an ism address means setting it to the default ism
+  ismAddress?: string;
 };
 export type ResSetTokenIsm = {
   ismAddress: string;

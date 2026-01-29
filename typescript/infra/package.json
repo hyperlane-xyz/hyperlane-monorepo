@@ -21,6 +21,7 @@
     "@hyperlane-xyz/keyfunder": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/rebalancer": "workspace:*",
+    "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",

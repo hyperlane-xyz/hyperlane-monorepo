@@ -498,6 +498,10 @@ export class CosmosNativeSigner
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
+    assert(
+      req.ismAddress,
+      'Cosmos does not support setting ism to the default ism yet',
+    );
     const msg = await this.getSetTokenIsmTransaction({
       ...req,
       signer: this.account.address,

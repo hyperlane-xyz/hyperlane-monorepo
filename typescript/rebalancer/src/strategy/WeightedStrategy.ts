@@ -1,8 +1,18 @@
 import { type Logger } from 'pino';
 
-import type { WeightedStrategyConfig } from '../config/types.js';
-import type { RawBalances } from '../interfaces/IStrategy.js';
+import type { ChainMap, Token } from '@hyperlane-xyz/sdk';
+
+import {
+  RebalancerStrategyOptions,
+  type WeightedStrategyConfig,
+} from '../config/types.js';
+import type {
+  RawBalances,
+  Route,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
 import { type Metrics } from '../metrics/Metrics.js';
+import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -11,6 +21,7 @@ import { BaseStrategy, type Delta } from './BaseStrategy.js';
  * It distributes funds across chains based on their weights
  */
 export class WeightedStrategy extends BaseStrategy {
+  readonly name = RebalancerStrategyOptions.Weighted;
   private readonly config: WeightedStrategyConfig;
   private readonly totalWeight: bigint;
   protected readonly logger: Logger;
@@ -18,11 +29,13 @@ export class WeightedStrategy extends BaseStrategy {
   constructor(
     config: WeightedStrategyConfig,
     logger: Logger,
+    bridgeConfigs: ChainMap<BridgeConfigWithOverride>,
     metrics?: Metrics,
+    tokensByChainName?: ChainMap<Token>,
   ) {
     const chains = Object.keys(config);
     const log = logger.child({ class: WeightedStrategy.name });
-    super(chains, log, metrics);
+    super(chains, log, bridgeConfigs, metrics, tokensByChainName);
     this.logger = log;
 
     let totalWeight = 0n;
@@ -54,14 +67,35 @@ export class WeightedStrategy extends BaseStrategy {
 
   /**
    * Gets balances categorized by surplus and deficit based on weights
+   *
+   * Simulates both types of rebalances before calculating surpluses/deficits:
+   * - pendingRebalances: in-flight intents (origin tx confirmed, add to destination only)
+   * - proposedRebalances: routes from earlier strategies (subtract from origin AND add to destination)
+   *
+   * This prevents over-rebalancing when multiple strategies run in sequence.
    */
-  protected getCategorizedBalances(rawBalances: RawBalances): {
+  protected getCategorizedBalances(
+    rawBalances: RawBalances,
+    pendingRebalances?: Route[],
+    proposedRebalances?: StrategyRoute[],
+  ): {
     surpluses: Delta[];
     deficits: Delta[];
   } {
-    // Get the total balance from all chains
+    // Step 1: Simulate pending rebalances (in-flight, origin already deducted on-chain)
+    let simulatedBalances = this.simulatePendingRebalances(
+      rawBalances,
+      pendingRebalances ?? [],
+    );
+
+    // Step 2: Simulate proposed rebalances (from earlier strategies, not yet executed)
+    simulatedBalances = this.simulateProposedRebalances(
+      simulatedBalances,
+      proposedRebalances ?? [],
+    );
+    // Get the total balance from all chains (using simulated balances)
     const total = this.chains.reduce(
-      (sum, chain) => sum + rawBalances[chain],
+      (sum, chain) => sum + simulatedBalances[chain],
       0n,
     );
 
@@ -70,7 +104,7 @@ export class WeightedStrategy extends BaseStrategy {
         const { weight, tolerance } = this.config[chain].weighted;
         const target = (total * weight) / this.totalWeight;
         const toleranceAmount = (target * tolerance) / 100n;
-        const balance = rawBalances[chain];
+        const balance = simulatedBalances[chain];
 
         // Apply the tolerance to deficits to prevent small imbalances
         if (balance < target - toleranceAmount) {
