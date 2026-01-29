@@ -28,10 +28,6 @@ import {
   getWarpTokenUpdateTxs,
 } from './warp-tx.js';
 
-/**
- * Reader for Cosmos collateral warp tokens.
- * Reads deployed collateral token configuration from the chain.
- */
 export class CosmosCollateralTokenReader
   implements
     ArtifactReader<RawCollateralWarpArtifactConfig, DeployedWarpAddress>
@@ -75,10 +71,6 @@ export class CosmosCollateralTokenReader
   }
 }
 
-/**
- * Writer for Cosmos collateral warp tokens.
- * Handles deployment and updates of collateral tokens.
- */
 export class CosmosCollateralTokenWriter
   extends CosmosCollateralTokenReader
   implements
