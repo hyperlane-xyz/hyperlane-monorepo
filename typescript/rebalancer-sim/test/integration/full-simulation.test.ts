@@ -345,6 +345,13 @@ describe('Rebalancer Simulation', function () {
     // Generate HTML timeline visualization
     // Build config for visualization from scenario file
     const vizConfig: Record<string, any> = {
+      // Scenario metadata
+      scenarioName: file.name,
+      description: file.description,
+      expectedBehavior: file.expectedBehavior,
+      transferCount: file.transfers.length,
+      duration: file.duration,
+      // Timing config
       bridgeDeliveryDelay: file.defaultTiming.rebalanceBridgeDeliveryDelay,
       rebalancerPollingFrequency: file.defaultTiming.rebalancerPollingFrequency,
       userTransferDelay: file.defaultTiming.userTransferDeliveryDelay,

@@ -1106,6 +1106,33 @@ function renderConfig(container, config, chains) {
     return;
   }
 
+  // Scenario metadata section
+  let scenarioHtml = '';
+  if (config.description) {
+    scenarioHtml += \`
+      <div class="config-item" style="flex-direction: column; align-items: flex-start;">
+        <span class="config-label">Description:</span>
+        <span class="config-value" style="white-space: normal; margin-top: 4px;">\${config.description}</span>
+      </div>
+    \`;
+  }
+  if (config.expectedBehavior) {
+    scenarioHtml += \`
+      <div class="config-item" style="flex-direction: column; align-items: flex-start; margin-top: 8px;">
+        <span class="config-label">Expected Behavior:</span>
+        <span class="config-value expected-behavior" style="white-space: pre-wrap; margin-top: 4px; font-size: 0.8rem; color: #aaa;">\${config.expectedBehavior}</span>
+      </div>
+    \`;
+  }
+  if (config.transferCount !== undefined || config.duration !== undefined) {
+    scenarioHtml += \`
+      <div class="config-item" style="margin-top: 8px;">
+        \${config.transferCount !== undefined ? \`<span><b>\${config.transferCount}</b> transfers</span>\` : ''}
+        \${config.duration !== undefined ? \`<span style="margin-left: 15px;"><b>\${(config.duration / 1000).toFixed(1)}s</b> duration</span>\` : ''}
+      </div>
+    \`;
+  }
+
   let targetHtml = '';
   if (config.targetWeights) {
     chains.forEach(chain => {
@@ -1163,6 +1190,12 @@ function renderConfig(container, config, chains) {
   }
 
   container.innerHTML = \`
+    \${scenarioHtml ? \`
+      <div class="config-section scenario-section" style="flex-basis: 100%; margin-bottom: 15px; padding-bottom: 15px; border-bottom: 1px solid #3a3a5a;">
+        <div class="config-title">Scenario</div>
+        \${scenarioHtml}
+      </div>
+    \` : ''}
     \${targetHtml ? \`
       <div class="config-section">
         <div class="config-title">Target Weights</div>

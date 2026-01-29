@@ -49,6 +49,12 @@ export type TimelineEvent =
  * Simulation config for display
  */
 export interface SimulationConfig {
+  /** Scenario name */
+  scenarioName?: string;
+  /** Scenario description */
+  description?: string;
+  /** Expected behavior explanation */
+  expectedBehavior?: string;
   /** Per-chain target weights (percentage) */
   targetWeights?: Record<string, number>;
   /** Per-chain tolerance (percentage) */
@@ -61,6 +67,10 @@ export interface SimulationConfig {
   rebalancerPollingFrequency?: number;
   /** Initial collateral per chain */
   initialCollateral?: Record<string, string>;
+  /** Transfer count */
+  transferCount?: number;
+  /** Simulation duration in ms */
+  duration?: number;
 }
 
 /**
