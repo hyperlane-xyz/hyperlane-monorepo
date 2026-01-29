@@ -2,4 +2,4 @@
 '@hyperlane-xyz/aleo-sdk': patch
 ---
 
-fix: aleo routing ism creation
+Fixed routing ISM creation to correctly transfer ownership to the correct owner.
