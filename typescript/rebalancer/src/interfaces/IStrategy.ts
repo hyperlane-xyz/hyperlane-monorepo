@@ -9,16 +9,16 @@ export interface Route {
   origin: ChainName;
   destination: ChainName;
   amount: bigint;
-}
-
-export interface StrategyRoute extends Route {
-  bridge: Address;
   /** For inventory intents: sum of complete inventory_deposit actions (message delivered) */
   deliveredAmount?: bigint;
   /** For inventory intents: sum of in_progress inventory_deposit actions (tx confirmed, message pending) */
   awaitingDeliveryAmount?: bigint;
   /** Execution method used for this rebalance */
   executionMethod?: ExecutionMethod;
+}
+
+export interface StrategyRoute extends Route {
+  bridge: Address;
 }
 
 export type InflightContext = {

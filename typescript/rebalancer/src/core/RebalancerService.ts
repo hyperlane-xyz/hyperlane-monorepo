@@ -398,8 +398,6 @@ export class RebalancerService {
       inflightContext,
     );
 
-    await this.continuePartialInventoryIntents();
-
     if (strategyRoutes.length > 0) {
       this.logger.info(
         {
@@ -421,7 +419,7 @@ export class RebalancerService {
     // TODO: we should refactor this
     // Always check for existing inventory intents to continue, even when no new routes proposed.
     // This handles the case where the bridge completed but the transferRemote hasn't been sent yet.
-    if (this.inventoryRebalancer && rebalancingRoutes.length === 0) {
+    if (this.inventoryRebalancer && strategyRoutes.length === 0) {
       await this.executeInventoryRoutes([]);
     }
 
@@ -563,10 +561,16 @@ export class RebalancerService {
       'Created movable collateral rebalance intents',
     );
 
-    // 2. Execute rebalance
+    // 2. Build RebalanceRoutes with intentIds
+    const rebalanceRoutes: RebalanceRoute[] = routes.map((route, idx) => ({
+      ...route,
+      intentId: intents[idx].id,
+    }));
+
+    // 3. Execute rebalance
     let results: RebalanceExecutionResult[];
     try {
-      results = await this.rebalancer.rebalance(routes);
+      results = await this.rebalancer.rebalance(rebalanceRoutes);
       const failedResults = results.filter((r) => !r.success);
       if (failedResults.length > 0) {
         this.metrics?.recordRebalancerFailure();
@@ -669,6 +673,7 @@ export class RebalancerService {
           origin: this.multiProvider.getDomainId(result.route.origin),
           destination: this.multiProvider.getDomainId(result.route.destination),
           amount: result.route.amount,
+          type: 'rebalance_message',
           messageId: result.messageId,
           txHash: result.txHash,
         });

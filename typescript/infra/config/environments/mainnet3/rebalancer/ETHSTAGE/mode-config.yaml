@@ -5,7 +5,7 @@ inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5'
 lifiIntegrator: 'rebalancer'
 
 strategy:
-  rebalanceStrategy: weight
+  rebalanceStrategy: weighted
   chains:
     # Native ETH chains (collateral)
     arbitrum:

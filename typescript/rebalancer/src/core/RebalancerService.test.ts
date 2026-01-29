@@ -114,11 +114,19 @@ function createMockActionTracker(): IActionTracker {
     syncTransfers: Sinon.stub().resolves(),
     syncRebalanceIntents: Sinon.stub().resolves(),
     syncRebalanceActions: Sinon.stub().resolves(),
+    syncInventoryMovementActions: Sinon.stub().resolves({
+      completed: 0,
+      failed: 0,
+    }),
     logStoreContents: Sinon.stub().resolves(),
     getInProgressTransfers: Sinon.stub().resolves([]),
     getActiveRebalanceIntents: Sinon.stub().resolves([]),
     getTransfersByDestination: Sinon.stub().resolves([]),
     getRebalanceIntentsByDestination: Sinon.stub().resolves([]),
+    getPartiallyFulfilledInventoryIntents: Sinon.stub().resolves([]),
+    getActionsByType: Sinon.stub().resolves([]),
+    getActionsForIntent: Sinon.stub().resolves([]),
+    getInflightInventoryMovements: Sinon.stub().resolves(0n),
   };
 }
 
@@ -249,6 +257,7 @@ async function setupDaemonTest(
   const service = new RebalancerService(
     createMockMultiProvider(),
     undefined,
+    undefined,
     {} as any,
     createMockRebalancerConfig(),
     { mode: 'daemon', checkFrequency: 60000, logger: testLogger },
@@ -308,6 +317,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -343,6 +353,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -369,6 +380,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -394,6 +406,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -445,6 +458,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         configWithoutBridge,
         config,
@@ -471,6 +485,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -501,6 +516,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -525,6 +541,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -554,6 +571,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -586,6 +604,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -669,6 +688,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -761,6 +781,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -870,6 +891,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),
@@ -1089,6 +1111,7 @@ describe('RebalancerService', () => {
       const service = new RebalancerService(
         createMockMultiProvider(),
         undefined,
+        undefined,
         {} as any,
         createMockRebalancerConfig(),
         config,
@@ -1125,6 +1148,7 @@ describe('RebalancerService', () => {
 
       const service = new RebalancerService(
         createMockMultiProvider(),
+        undefined,
         undefined,
         {} as any,
         createMockRebalancerConfig(),

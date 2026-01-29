@@ -757,7 +757,7 @@ describe('ActionTracker', () => {
 
       const params = call.args[0];
       expect(params.routersByDomain).to.deep.equal(config.routersByDomain);
-      expect(params.excludeTxSender).to.equal(config.rebalancerAddress);
+      expect(params.excludeTxSenders).to.deep.equal([config.rebalancerAddress]);
     });
   });
 
@@ -798,13 +798,13 @@ describe('ActionTracker', () => {
         origin: 1,
         destination: 2,
         amount: 100n,
-        fulfilledAmount: 0n,
         createdAt: Date.now(),
         updatedAt: Date.now(),
       };
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',

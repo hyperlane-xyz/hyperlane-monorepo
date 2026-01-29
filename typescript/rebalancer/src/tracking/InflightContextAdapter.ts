@@ -1,9 +1,6 @@
 import type { MultiProvider } from '@hyperlane-xyz/sdk';
 
-import type {
-  InflightContext,
-  RebalancingRoute,
-} from '../interfaces/IStrategy.js';
+import type { InflightContext, Route } from '../interfaces/IStrategy.js';
 
 import type { IActionTracker } from './IActionTracker.js';
 
@@ -25,7 +22,7 @@ export class InflightContextAdapter {
     const intents = await this.actionTracker.getActiveRebalanceIntents();
     const transfers = await this.actionTracker.getInProgressTransfers();
 
-    const pendingRebalances: RebalancingRoute[] = await Promise.all(
+    const pendingRebalances: Route[] = await Promise.all(
       intents.map(async (intent) => {
         let deliveredAmount = 0n;
         let awaitingDeliveryAmount = 0n;

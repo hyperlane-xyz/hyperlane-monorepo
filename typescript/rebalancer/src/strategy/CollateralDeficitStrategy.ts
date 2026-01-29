@@ -273,18 +273,12 @@ export class CollateralDeficitStrategy extends BaseStrategy {
       'Found rebalancing routes',
     );
 
-    // Filter routes below minimum amount threshold before creating intents
-    const minAmountFilteredRoutes = this.filterRoutesByMinAmount(routes);
+    const filteredRoutes = this.filterRoutes(routes, actualBalances);
 
-    // Record metrics for each intent created (only for routes that pass min amount filter)
-    for (const route of minAmountFilteredRoutes) {
+    // Record metrics for each intent created
+    for (const route of filteredRoutes) {
       this.metrics?.recordIntentCreated(route, this.name);
     }
-
-    const filteredRoutes = this.filterRoutes(
-      minAmountFilteredRoutes,
-      actualBalances,
-    );
 
     this.logger.debug(
       {
