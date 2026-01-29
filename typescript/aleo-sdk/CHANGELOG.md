@@ -1,5 +1,24 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 22.0.0
+
+### Minor Changes
+
+- ade2653: Implemented hook artifact API for Aleo. Added hook query functions, transaction builders, and artifact readers/writers for IGP and MerkleTree hooks. The AleoHookArtifactManager provides factory methods for creating type-specific hook readers and writers, with optional mailbox address that is validated only when creating writers for deployment. Hook writers support creating new hooks and updating mutable configurations (IGP owner and gas configs). Existing provider implementation was refactored to use the new shared query and transaction functions, reducing code duplication. Comprehensive e2e tests verify all hook operations following the established artifact API patterns.
+- 8b3f8da: Implemented ISM writers for Aleo SDK. Added Test ISM, MessageId Multisig ISM, and Routing ISM writers with full CRUD support through the artifact API.
+- 0acaa0e: The Aleo SDK e2e test infrastructure was refactored to use testcontainers and expose reusable testing utilities for client packages. A new testing module (`@hyperlane-xyz/aleo-sdk/testing`) exports test chain metadata, node management functions, and signer creation helpers following the Cosmos SDK pattern. The testcontainers library replaced docker-compose for automatic container lifecycle management with proper port binding and environment configuration. A global test setup file handles before/after hooks for starting and stopping the devnode. All 54 e2e tests pass with the new infrastructure, and the shell script was simplified to only set environment variables while testcontainers manages the container.
+- 7f31d77: Migrated deploy-sdk to use Hook Artifact API, replacing AltVMHookReader and AltVMHookModule with unified reader/writer pattern. The migration adds deployment context support (mailbox address, nativeTokenDenom) for hook creation, following the same pattern as the ISM artifact migration. Key changes include new factory functions (createHookReader, createHookWriter), config conversion utilities (hookConfigToArtifact, shouldDeployNewHook), and removal of deprecated hook module classes.
+
+### Patch Changes
+
+- 44fbfd6: fix: aleo wasm runtime error
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.0
+
 ## 21.1.0
 
 ### Minor Changes

@@ -22,6 +22,7 @@ import {
   assert,
   bytes32ToAddress,
   eqAddress,
+  formatStandardHookMetadata,
   objMap,
   retryAsync,
   rootLogger,
@@ -448,26 +449,39 @@ export abstract class HyperlaneAppGovernor<
       };
     }
 
+    const refundAddress = bytes32ToAddress(accountConfig.owner);
     rootLogger.info(
       chalk.gray(
-        `Inferred call for ICA remote owner ${bytes32ToAddress(
-          accountConfig.owner,
-        )} on ${origin} to ${chain}`,
+        `Inferred call for ICA remote owner ${refundAddress} on ${origin} to ${chain}`,
       ),
     );
 
-    // Get the encoded call to the remote ICA
+    const innerCalls = [
+      {
+        to: call.to,
+        data: call.data,
+        value: call.value?.toString() || '0',
+      },
+    ];
+
+    const gasLimit = await this.interchainAccount.estimateIcaHandleGas({
+      origin,
+      destination: chain,
+      innerCalls,
+      config: accountConfig,
+    });
+
+    const hookMetadata = formatStandardHookMetadata({
+      gasLimit: gasLimit.toBigInt(),
+      refundAddress,
+    });
+
     const callRemoteArgs: GetCallRemoteSettings = {
       chain: origin,
       destination: chain,
-      innerCalls: [
-        {
-          to: call.to,
-          data: call.data,
-          value: call.value?.toString() || '0',
-        },
-      ],
+      innerCalls,
       config: accountConfig,
+      hookMetadata,
     };
     const callRemote =
       await this.interchainAccount.getCallRemote(callRemoteArgs);

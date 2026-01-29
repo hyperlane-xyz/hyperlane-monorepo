@@ -19,6 +19,7 @@ import { DeployEnvironment } from '../config/environment.js';
 import { REBALANCER_HELM_RELEASE_PREFIX } from '../utils/consts.js';
 import {
   HelmManager,
+  getDeployedRegistryCommit,
   getHelmReleaseName,
   removeHelmRelease,
 } from '../utils/helm.js';
@@ -63,7 +64,10 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return `${DEFAULT_GITHUB_REGISTRY}/tree/${this.registryCommit}`;
   }
 
-  async runPreflightChecks(multiProtocolProvider: MultiProtocolProvider) {
+  async runPreflightChecks(
+    multiProtocolProvider: MultiProtocolProvider,
+    skipConfirmation = false,
+  ) {
     const rebalancerReleaseName = getHelmReleaseName(
       this.warpRouteId,
       REBALANCER_HELM_RELEASE_PREFIX,
@@ -95,7 +99,11 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
         token.standard === TokenStandard.SealevelHypCollateral ||
         token.standard === TokenStandard.SealevelHypSynthetic
       ) {
-        await this.ensureAtaPayerBalanceSufficient(warpCore, token);
+        await this.ensureAtaPayerBalanceSufficient(
+          warpCore,
+          token,
+          skipConfirmation,
+        );
       }
     }
   }
@@ -122,6 +130,17 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
   get helmReleaseName() {
     return getHelmReleaseName(
       this.warpRouteId,
+      WarpRouteMonitorHelmManager.helmReleasePrefix,
+    );
+  }
+
+  static getDeployedRegistryCommit(
+    warpRouteId: string,
+    namespace: string,
+  ): Promise<string | undefined> {
+    return getDeployedRegistryCommit(
+      warpRouteId,
+      namespace,
       WarpRouteMonitorHelmManager.helmReleasePrefix,
     );
   }
@@ -211,7 +230,11 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
     return helmManagers;
   }
 
-  async ensureAtaPayerBalanceSufficient(warpCore: WarpCore, token: IToken) {
+  async ensureAtaPayerBalanceSufficient(
+    warpCore: WarpCore,
+    token: IToken,
+    skipConfirmation = false,
+  ) {
     if (!ataPayerAlertThreshold[token.chainName]) {
       rootLogger.warn(
         `No ATA payer alert threshold set for chain: ${token.chainName}. Skipping balance check.`,
@@ -249,9 +272,11 @@ export class WarpRouteMonitorHelmManager extends HelmManager {
           token.chainName
         }`,
       );
-      await confirm({
-        message: 'Continue?',
-      });
+      if (!skipConfirmation) {
+        await confirm({
+          message: 'Continue?',
+        });
+      }
     } else {
       rootLogger.info(
         `ATA payer balance for ${

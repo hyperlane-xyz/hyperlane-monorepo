@@ -6,9 +6,10 @@ import { fromZodError } from 'zod-validation-error';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
+  getStrategyChainNames,
 } from '@hyperlane-xyz/rebalancer';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { isObjEmpty, rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
@@ -17,6 +18,7 @@ import { DeployEnvironment } from '../config/environment.js';
 import { WARP_ROUTE_MONITOR_HELM_RELEASE_PREFIX } from '../utils/consts.js';
 import {
   HelmManager,
+  getDeployedRegistryCommit,
   getHelmReleaseName,
   removeHelmRelease,
 } from '../utils/helm.js';
@@ -63,8 +65,8 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { chains } = validationResult.data.strategy;
-    if (isObjEmpty(chains)) {
+    const chainNames = getStrategyChainNames(validationResult.data.strategy);
+    if (chainNames.length === 0) {
       throw new Error('No chains configured');
     }
 
@@ -93,6 +95,7 @@ export class RebalancerHelmManager extends HelmManager {
         repository: DockerImageRepos.REBALANCER,
         tag: mainnetDockerTags.rebalancer,
       },
+      warpRouteId: this.warpRouteId,
       withMetrics: this.withMetrics,
       fullnameOverride: this.helmReleaseName,
       hyperlane: {
@@ -187,6 +190,17 @@ export class RebalancerHelmManager extends HelmManager {
   }
 
   // TODO: allow for a rebalancer to be uninstalled
+
+  static getDeployedRegistryCommit(
+    warpRouteId: string,
+    environment: DeployEnvironment,
+  ): Promise<string | undefined> {
+    return getDeployedRegistryCommit(
+      warpRouteId,
+      environment,
+      RebalancerHelmManager.helmReleasePrefix,
+    );
+  }
 }
 
 export interface RebalancerPodInfo {
@@ -236,6 +250,25 @@ export async function getDeployedRebalancerWarpRouteIds(
       if (warpRouteIdArgIndex !== -1 && allArgs[warpRouteIdArgIndex + 1]) {
         warpRouteId = allArgs[warpRouteIdArgIndex + 1];
         break;
+      }
+    }
+
+    // Fallback: parse warpRouteId from configmap (for existing deployments without env var)
+    if (!warpRouteId) {
+      try {
+        const configMapName = `${helmReleaseName}-config`;
+        const cm = await execCmdAndParseJson(
+          `kubectl get configmap ${configMapName} -n ${namespace} -o json`,
+        );
+        const configYaml = cm.data?.['rebalancer-config.yaml'];
+        if (configYaml) {
+          const match = configYaml.match(/^warpRouteId:\s*(.+)$/m);
+          warpRouteId = match?.[1]?.trim();
+        }
+      } catch (e) {
+        rootLogger.debug(
+          `Failed to read configmap for ${helmReleaseName}: ${e}`,
+        );
       }
     }
 

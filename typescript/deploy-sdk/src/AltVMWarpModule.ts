@@ -1,10 +1,10 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { isArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
 import {
-  DeployedIsmArtifact,
   DerivedIsmConfig,
+  mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
@@ -30,10 +30,7 @@ import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
 import { createHookWriter } from './hook/hook-writer.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
-import {
-  ismConfigToArtifact,
-  shouldDeployNewIsm,
-} from './ism/ism-config-utils.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -259,18 +256,48 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       return updateTransactions;
     }
 
-    if (
-      !expectedConfig.interchainSecurityModule ||
-      (typeof expectedConfig.interchainSecurityModule === 'string' &&
-        isZeroishAddress(expectedConfig.interchainSecurityModule))
-    ) {
-      this.logger.debug(`Token ISM config is empty. No updates needed.`);
-      return updateTransactions;
-    }
-
     const actualDeployedIsm =
       (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
       '';
+    const actualIsmIsNonZero =
+      actualDeployedIsm && !isZeroishAddress(actualDeployedIsm);
+
+    const expectedIsmIsEmpty =
+      !expectedConfig.interchainSecurityModule ||
+      (typeof expectedConfig.interchainSecurityModule === 'string' &&
+        isZeroishAddress(expectedConfig.interchainSecurityModule));
+
+    // If expected ISM is empty/zero but actual ISM exists, reset to zero address if
+    // the protocol type is not cosmos as the underlying implementation does not support
+    // resetting to the default ism yet (will be fixed in the next release of the cosmos sdk)
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    if (expectedIsmIsEmpty && actualIsmIsNonZero) {
+      if (metadata.protocol === ProtocolType.CosmosNative) {
+        this.logger.warn(
+          `CosmosNative does not support unsetting token ISM. Skipping reset from ${actualDeployedIsm} to zero address.`,
+        );
+        return updateTransactions;
+      }
+
+      this.logger.debug(
+        `Resetting ISM from ${actualDeployedIsm} to zero address`,
+      );
+      return [
+        {
+          annotation: `Resetting ISM for Warp Route to zero address`,
+          ...(await this.signer.getSetTokenIsmTransaction({
+            signer: actualConfig.owner,
+            tokenAddress: this.args.addresses.deployedTokenRoute,
+          })),
+        },
+      ];
+    }
+
+    // If both are empty/zero, no updates needed
+    if (expectedIsmIsEmpty) {
+      this.logger.debug(`Token ISM config is empty. No updates needed.`);
+      return updateTransactions;
+    }
 
     // Try to update (may also deploy) Ism with the expected config
     const {
@@ -457,29 +484,25 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
 
-    // Decide: deploy new ISM or update existing one
-    if (shouldDeployNewIsm(actualArtifact.config, expectedArtifact.config)) {
-      // Deploy new ISM
-      const [deployed] = await writer.create(expectedArtifact);
+    // Update existing ISM (only routing ISMs support updates)
+    // Merge artifacts to preserve DEPLOYED state for unchanged nested ISMs
+    const mergedArtifact = mergeIsmArtifacts(actualArtifact, expectedArtifact);
+
+    // If merge resulted in NEW state, deploy it
+    if (isArtifactNew(mergedArtifact)) {
+      const [deployed] = await writer.create(mergedArtifact);
       return {
         deployedIsm: deployed.deployed.address,
         updateTransactions: [],
       };
+    } else {
+      // Otherwise update in-place (artifact is DEPLOYED)
+      const updateTransactions = await writer.update(mergedArtifact);
+      return {
+        deployedIsm: mergedArtifact.deployed.address,
+        updateTransactions,
+      };
     }
-
-    // Update existing ISM (only routing ISMs support updates)
-    const deployedArtifact: DeployedIsmArtifact = {
-      ...expectedArtifact,
-      artifactState: ArtifactState.DEPLOYED,
-      config: expectedArtifact.config,
-      deployed: actualArtifact.deployed,
-    };
-    const updateTransactions = await writer.update(deployedArtifact);
-
-    return {
-      deployedIsm: actualIsmAddress,
-      updateTransactions,
-    };
   }
 
   /**

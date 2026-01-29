@@ -1,6 +1,7 @@
 image:
   repository: gcr.io/abacus-labs-dev/hyperlane-rebalancer
   tag:
+warpRouteId: ''
 hyperlane:
   runEnv:
   context: hyperlane

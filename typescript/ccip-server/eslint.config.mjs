@@ -17,6 +17,8 @@ export default [
       '**/tests/*',
       'src/**/*.js',
       'src/generated/**',
+      'bundle/**',
+      'prisma/config.ts',
     ],
   },
 ];

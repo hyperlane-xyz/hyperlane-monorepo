@@ -2,7 +2,13 @@ import { Plaintext, U128 } from '@provablehq/sdk/mainnet.js';
 import { BigNumber } from 'bignumber.js';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  ensure0x,
+  isNullish,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import {
   getHookType,
@@ -54,7 +60,15 @@ import {
 
 import { AleoBase } from './base.js';
 
+interface TransactionFeeCache {
+  [key: string]: {
+    fee: bigint;
+  };
+}
+
 export class AleoProvider extends AleoBase implements AltVM.IProvider {
+  private transactionFeeCache: TransactionFeeCache = {};
+
   static async connect(
     rpcUrls: string[],
     chainId: string | number,
@@ -139,11 +153,26 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<AleoTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
+    const cacheKey = `${req.transaction.programName}:${req.transaction.functionName}`;
+
+    const cached = this.transactionFeeCache[cacheKey];
+    if (cached) {
+      return {
+        fee: cached.fee,
+        gasUnits: 0n,
+        gasPrice: 0,
+      };
+    }
+
     const programManager = this.getProgramManager();
     const fee = await programManager.estimateExecutionFee({
       programName: req.transaction.programName,
       functionName: req.transaction.functionName,
     });
+
+    this.transactionFeeCache[cacheKey] = {
+      fee,
+    };
 
     return {
       fee,
@@ -851,12 +880,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
   ): Promise<AleoTransaction> {
+    // Handle zero address - use Aleo null address to unset ISM
+    const ismAddress =
+      isNullish(req.ismAddress) || isZeroishAddress(req.ismAddress)
+        ? ALEO_NULL_ADDRESS
+        : req.ismAddress;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_ism',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.ismAddress).address],
+      inputs: [fromAleoAddress(ismAddress).address],
     };
   }
 
@@ -933,7 +968,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getRemoteTransferTransaction(
     req: AltVM.ReqRemoteTransfer,
   ): Promise<AleoTransaction> {
-    const { mailboxAddress } = await this.getToken({
+    const { mailboxAddress, tokenType } = await this.getToken({
       tokenAddress: req.tokenAddress,
     });
 
@@ -1005,6 +1040,8 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       required_hook:${mailbox.requiredHook ? fromAleoAddress(mailbox.requiredHook).address : ALEO_NULL_ADDRESS}
     }`;
 
+    const amount = `${req.amount}${tokenType === AltVM.TokenType.native ? 'u64' : 'u128'}`;
+
     if (req.customHookAddress) {
       const metadataBytes: number[] = fillArray(
         [...Buffer.from(strip0x(req.customHookMetadata || ''), 'hex')],
@@ -1028,7 +1065,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
           remoteRouterValue,
           `${req.destinationDomainId}u32`,
           recipient,
-          `${req.amount}u64`,
+          amount,
           arrayToPlaintext(creditAllowance),
           fromAleoAddress(req.customHookAddress).address,
           hookMetadata,
@@ -1047,7 +1084,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
         remoteRouterValue,
         `${req.destinationDomainId}u32`,
         recipient,
-        `${req.amount}u64`,
+        amount,
         arrayToPlaintext(creditAllowance),
       ],
     };
