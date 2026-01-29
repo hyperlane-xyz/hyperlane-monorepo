@@ -9,7 +9,12 @@ import {
 } from '@radixdlt/radix-engine-toolkit';
 import { BigNumber } from 'bignumber.js';
 
-import { assert, strip0x } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  isNullish,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { EntityDetails, INSTRUCTIONS } from '../utils/types.js';
@@ -108,13 +113,18 @@ export class RadixWarpPopulate {
   }: {
     from_address: string;
     token: string;
-    ism: string;
+    ism: string | null | undefined;
   }) {
+    const ismAddress =
+      isNullish(ism) || isZeroishAddress(ism)
+        ? enumeration(0)
+        : enumeration(1, address(ism));
+
     return this.base.createCallMethodManifestWithOwner(
       from_address,
       token,
       'set_ism',
-      [enumeration(1, address(ism))],
+      [ismAddress],
     );
   }
 
