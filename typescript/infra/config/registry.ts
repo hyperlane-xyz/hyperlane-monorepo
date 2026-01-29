@@ -46,6 +46,15 @@ export function setRegistry(reg: FileSystemRegistry) {
 }
 
 /**
+ * Resets the registry singleton, forcing it to be recreated on the next
+ * getRegistry() call. Used by the HTTP registry server to pick up new files
+ * when file watching detects changes.
+ */
+export function resetRegistry() {
+  registry = undefined as any;
+}
+
+/**
  * Gets a FileSystemRegistry whose contents are found at the environment
  * variable `REGISTRY_URI`, or `DEFAULT_REGISTRY_URI` if no env var is specified.
  * This registry will not have any environment-specific overrides applied,
