@@ -15,15 +15,22 @@ import { RegistryService } from './src/services/registryService.js';
 import { RootService } from './src/services/rootService.js';
 import { WarpService } from './src/services/warpService.js';
 
+export interface HttpServerOptions {
+  writeMode?: boolean;
+}
+
 export class HttpServer {
   app: Express;
   protected readonly logger: Logger;
+  protected readonly writeMode: boolean;
 
   private constructor(
     protected getRegistry: () => Promise<IRegistry>,
     logger: Logger,
+    options: HttpServerOptions = {},
   ) {
     this.logger = logger;
+    this.writeMode = options.writeMode ?? false;
     this.app = express();
     this.app.set('trust proxy', true); // trust proxy for x-forwarded-for header
     this.app.use(express.json());
@@ -31,12 +38,13 @@ export class HttpServer {
 
   static async create(
     getRegistry: () => Promise<IRegistry>,
+    options: HttpServerOptions = {},
   ): Promise<HttpServer> {
     const logger = await createServiceLogger({
       service: 'http-registry-server',
       version: packageJson.version,
     });
-    return new HttpServer(getRegistry, logger);
+    return new HttpServer(getRegistry, logger, options);
   }
 
   async start(
@@ -96,7 +104,9 @@ export class HttpServer {
       );
       this.app.use(
         '/warp-route',
-        createWarpRouter(new WarpService(registryService)),
+        createWarpRouter(new WarpService(registryService), {
+          writeMode: this.writeMode,
+        }),
       );
 
       // add error handler to the end of the middleware stack
