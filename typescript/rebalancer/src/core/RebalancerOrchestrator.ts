@@ -5,7 +5,7 @@ import { type MultiProvider } from '@hyperlane-xyz/sdk';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { getStrategyChainNames } from '../config/types.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
-import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import {
@@ -13,6 +13,13 @@ import {
   InflightContextAdapter,
 } from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
+
+export interface CycleResult {
+  balances: Record<string, bigint>;
+  proposedRoutes: StrategyRoute[];
+  executedCount: number;
+  failedCount: number;
+}
 
 export interface RebalancerOrchestratorDeps {
   strategy: IStrategy;
@@ -46,13 +53,14 @@ export class RebalancerOrchestrator {
     this.metrics = deps.metrics;
   }
 
-  async executeCycle(event: MonitorEvent): Promise<void> {
+  async executeCycle(event: MonitorEvent): Promise<CycleResult> {
     this.logger.info('Polling cycle started');
 
-    const { metrics } = this;
-    if (metrics) {
+    if (this.metrics) {
       await Promise.all(
-        event.tokensInfo.map((tokenInfo) => metrics.processToken(tokenInfo)),
+        event.tokensInfo.map((tokenInfo) =>
+          this.metrics!.processToken(tokenInfo),
+        ),
       );
     }
 
@@ -80,6 +88,9 @@ export class RebalancerOrchestrator {
       inflightContext,
     );
 
+    let executedCount = 0;
+    let failedCount = 0;
+
     if (strategyRoutes.length > 0) {
       this.logger.info(
         {
@@ -93,13 +104,22 @@ export class RebalancerOrchestrator {
       );
 
       if (this.rebalancer) {
-        await this.executeWithTracking(strategyRoutes);
+        const results = await this.executeWithTracking(strategyRoutes);
+        executedCount = results.filter((r) => r.success).length;
+        failedCount = results.filter((r) => !r.success).length;
       }
     } else {
       this.logger.info('No rebalancing needed');
     }
 
     this.logger.info('Polling cycle completed');
+
+    return {
+      balances: rawBalances,
+      proposedRoutes: strategyRoutes,
+      executedCount,
+      failedCount,
+    };
   }
 
   private async syncActionTracker(
@@ -124,15 +144,13 @@ export class RebalancerOrchestrator {
     return this.inflightContextAdapter.getInflightContext();
   }
 
-  private async executeWithTracking(
-    strategyRoutes: StrategyRoute[],
-  ): Promise<void> {
+  private async executeWithTracking(strategyRoutes: StrategyRoute[]) {
     if (!this.rebalancer) {
       this.logger.warn('Rebalancer not available, skipping execution');
-      return;
+      return [];
     }
 
-    const rebalanceRoutes: RebalanceRoute[] = [];
+    const rebalanceRoutes: Array<StrategyRoute & { intentId: string }> = [];
     const intentIds: string[] = [];
 
     for (const route of strategyRoutes) {
@@ -174,17 +192,19 @@ export class RebalancerOrchestrator {
       await Promise.all(
         intentIds.map((id) => this.actionTracker.failRebalanceIntent(id)),
       );
-      return;
+      return [];
     }
 
     await this.processExecutionResults(results);
+    return results;
   }
 
   private async processExecutionResults(
     results: Awaited<ReturnType<IRebalancer['rebalance']>>,
   ): Promise<void> {
     for (const result of results) {
-      const intentId = result.route.intentId;
+      const intentId = (result.route as StrategyRoute & { intentId: string })
+        .intentId;
       if (result.success && result.messageId) {
         await this.actionTracker.createRebalanceAction({
           intentId,

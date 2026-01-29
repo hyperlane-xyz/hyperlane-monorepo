@@ -5,9 +5,9 @@ import {
   HypERC20Collateral__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
-import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
   HyperlaneCore,
+  HyperlaneRelayer,
   type MultiProvider,
   impersonateAccounts,
   setBalance,
@@ -115,12 +115,7 @@ export async function relayMessage(
 ): Promise<ContractReceipt> {
   const relayer = new HyperlaneRelayer({ core });
   const receipts = await relayer.relayAll(transferResult.dispatchTx);
-  // relayAll keys receipts by domain ID, so look up by domain ID or chain name
-  const destinationDomain = core.multiProvider.getDomainId(
-    transferResult.destination,
-  );
-  const destinationReceipts =
-    receipts[transferResult.destination] ?? receipts[destinationDomain];
+  const destinationReceipts = receipts[transferResult.destination];
   if (!destinationReceipts || destinationReceipts.length === 0) {
     throw new Error('Message relay failed');
   }

@@ -1,14 +1,11 @@
 import type { Logger } from 'pino';
 
-import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type {
   ExplorerMessage,
   IExplorerClient,
   RebalanceActionQueryParams,
   UserTransferQueryParams,
 } from '../../utils/ExplorerClient.js';
-
-import type { ForkIndexer } from './ForkIndexer.js';
 
 export interface MockExplorerConfig {
   userTransfers?: ExplorerMessage[];
@@ -19,11 +16,7 @@ export class MockExplorerClient implements IExplorerClient {
   private userTransfers: ExplorerMessage[];
   private rebalanceActions: ExplorerMessage[];
 
-  constructor(
-    config: MockExplorerConfig = {},
-    private readonly forkIndexer?: ForkIndexer,
-    private readonly getBlockTags?: () => Promise<ConfirmedBlockTags>,
-  ) {
+  constructor(config: MockExplorerConfig = {}) {
     this.userTransfers = config.userTransfers ?? [];
     this.rebalanceActions = config.rebalanceActions ?? [];
   }
@@ -32,16 +25,6 @@ export class MockExplorerClient implements IExplorerClient {
     _params: UserTransferQueryParams,
     _logger?: Logger,
   ): Promise<ExplorerMessage[]> {
-    if (this.forkIndexer && this.getBlockTags) {
-      await this.forkIndexer.sync(await this.getBlockTags());
-      const indexedTransfers = this.forkIndexer
-        .getUserTransfers()
-        .filter((msg) => !msg.is_delivered);
-      const configTransfers = this.userTransfers.filter(
-        (msg) => !msg.is_delivered,
-      );
-      return [...configTransfers, ...indexedTransfers];
-    }
     return this.userTransfers.filter((msg) => !msg.is_delivered);
   }
 
@@ -49,16 +32,6 @@ export class MockExplorerClient implements IExplorerClient {
     _params: RebalanceActionQueryParams,
     _logger?: Logger,
   ): Promise<ExplorerMessage[]> {
-    if (this.forkIndexer && this.getBlockTags) {
-      await this.forkIndexer.sync(await this.getBlockTags());
-      const indexedActions = this.forkIndexer
-        .getRebalanceActions()
-        .filter((msg) => !msg.is_delivered);
-      const configActions = this.rebalanceActions.filter(
-        (msg) => !msg.is_delivered,
-      );
-      return [...configActions, ...indexedActions];
-    }
     return this.rebalanceActions.filter((msg) => !msg.is_delivered);
   }
 
