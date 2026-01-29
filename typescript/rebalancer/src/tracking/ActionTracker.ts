@@ -5,6 +5,7 @@ import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
+import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type {
   ConfirmedBlockTag,
   ConfirmedBlockTags,
@@ -20,6 +21,7 @@ import type {
   IActionTracker,
 } from './IActionTracker.js';
 import type {
+  ActionType,
   IRebalanceActionStore,
   IRebalanceIntentStore,
   ITransferStore,
@@ -32,6 +34,7 @@ export interface ActionTrackerConfig {
   routersByDomain: Record<number, string>; // Domain ID → router address (source of truth for routers and domains)
   bridges: Address[]; // Bridge contract addresses for rebalance action queries
   rebalancerAddress: Address;
+  inventorySignerAddress?: Address; // Optional - for excluding inventory signer from user transfers query
 }
 
 /**
@@ -70,6 +73,7 @@ export class ActionTracker implements IActionTracker {
           bridges: this.config.bridges,
           routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
+          inventorySignerAddress: this.config.inventorySignerAddress,
         },
         this.logger,
       );
@@ -100,10 +104,16 @@ export class ActionTracker implements IActionTracker {
   async syncTransfers(confirmedBlockTags?: ConfirmedBlockTags): Promise<void> {
     this.logger.debug('Syncing transfers');
 
+    // Build list of addresses to exclude (rebalancer + optional inventory signer)
+    const excludeTxSenders = [this.config.rebalancerAddress];
+    if (this.config.inventorySignerAddress) {
+      excludeTxSenders.push(this.config.inventorySignerAddress);
+    }
+
     const inflightMessages = await this.explorerClient.getInflightUserTransfers(
       {
         routersByDomain: this.config.routersByDomain,
-        excludeTxSender: this.config.rebalancerAddress,
+        excludeTxSenders,
       },
       this.logger,
     );
@@ -232,6 +242,7 @@ export class ActionTracker implements IActionTracker {
           bridges: this.config.bridges,
           routersByDomain: this.config.routersByDomain,
           rebalancerAddress: this.config.rebalancerAddress,
+          inventorySignerAddress: this.config.inventorySignerAddress,
         },
         this.logger,
       );
@@ -260,9 +271,17 @@ export class ActionTracker implements IActionTracker {
       }
     }
 
+    // Check delivery status for all in-progress actions in our store
+    // Only check delivery for actions that have a messageId (rebalance_message, inventory_deposit)
+    // inventory_movement actions are synced separately via LiFi status API
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
+      // Skip actions without messageId (e.g., inventory_movement)
+      if (!action.messageId) {
+        continue;
+      }
+
       const chainName = this.core.multiProvider.getChainName(
         action.destination,
       );
@@ -333,13 +352,20 @@ export class ActionTracker implements IActionTracker {
       bridge: params.bridge,
       priority: params.priority,
       strategyType: params.strategyType,
+      executionMethod: params.executionMethod,
+      originalDeficit: params.originalDeficit,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };
 
     await this.rebalanceIntentStore.save(intent);
     this.logger.debug(
-      { id: intent.id, origin: intent.origin, destination: intent.destination },
+      {
+        id: intent.id,
+        origin: intent.origin,
+        destination: intent.destination,
+        executionMethod: intent.executionMethod,
+      },
       'Created RebalanceIntent',
     );
 
@@ -369,9 +395,12 @@ export class ActionTracker implements IActionTracker {
     const action: RebalanceAction = {
       id: uuidv4(),
       status: 'in_progress',
+      type: params.type,
       intentId: params.intentId,
       messageId: params.messageId,
       txHash: params.txHash,
+      bridgeTransferId: params.bridgeTransferId,
+      bridgeId: params.bridgeId,
       origin: params.origin,
       destination: params.destination,
       amount: params.amount,
@@ -394,7 +423,7 @@ export class ActionTracker implements IActionTracker {
     }
 
     this.logger.debug(
-      { id: action.id, intentId: action.intentId },
+      { id: action.id, intentId: action.intentId, type: action.type },
       'Created RebalanceAction',
     );
 
@@ -412,7 +441,17 @@ export class ActionTracker implements IActionTracker {
     // Update parent intent's fulfilledAmount
     const intent = await this.rebalanceIntentStore.get(action.intentId);
     if (intent) {
-      const newFulfilledAmount = intent.fulfilledAmount + action.amount;
+      // Only count actions that actually deposit collateral as fulfillment.
+      // inventory_movement is just a bridge transit - the follow-up transferRemote
+      // (inventory_deposit) is what actually fulfills the intent.
+      const countsTowardFulfillment =
+        action.type === 'inventory_deposit' ||
+        action.type === 'rebalance_message';
+
+      const newFulfilledAmount = countsTowardFulfillment
+        ? intent.fulfilledAmount + action.amount
+        : intent.fulfilledAmount;
+
       const updates: Partial<RebalanceIntent> = {
         fulfilledAmount: newFulfilledAmount,
       };
@@ -421,7 +460,7 @@ export class ActionTracker implements IActionTracker {
       if (newFulfilledAmount >= intent.amount) {
         updates.status = 'complete';
         this.logger.debug(
-          { intentId: intent.id },
+          { intentId: intent.id, actionType: action.type },
           'RebalanceIntent fully fulfilled',
         );
       }
@@ -429,12 +468,169 @@ export class ActionTracker implements IActionTracker {
       await this.rebalanceIntentStore.update(intent.id, updates);
     }
 
-    this.logger.info({ id, intentId: action.intentId }, 'Action completed');
+    this.logger.info(
+      { id, intentId: action.intentId, type: action.type },
+      'Action completed',
+    );
   }
 
   async failRebalanceAction(id: string): Promise<void> {
     await this.rebalanceActionStore.update(id, { status: 'failed' });
     this.logger.info({ id }, 'Action failed');
+  }
+
+  // === RebalanceAction Queries ===
+
+  async getActionsByType(type: ActionType): Promise<RebalanceAction[]> {
+    const allActions = await this.rebalanceActionStore.getAll();
+    return allActions.filter((action) => action.type === type);
+  }
+
+  async getInflightInventoryMovements(origin: Domain): Promise<bigint> {
+    const allActions = await this.rebalanceActionStore.getAll();
+    const inflightMovements = allActions.filter(
+      (action) =>
+        action.type === 'inventory_movement' &&
+        action.status === 'in_progress' &&
+        action.origin === origin,
+    );
+
+    return inflightMovements.reduce(
+      (sum, action) => sum + action.amount,
+      BigInt(0),
+    );
+  }
+
+  /**
+   * Get inventory intents that are in_progress but not fully fulfilled,
+   * and have no in-flight actions (safe to continue).
+   */
+  async getPartiallyFulfilledInventoryIntents(): Promise<RebalanceIntent[]> {
+    const inProgressIntents =
+      await this.rebalanceIntentStore.getByStatus('in_progress');
+
+    const partialIntents: RebalanceIntent[] = [];
+
+    for (const intent of inProgressIntents) {
+      // Only inventory execution method
+      if (intent.executionMethod !== 'inventory') continue;
+
+      // Must have remaining amount
+      if (intent.fulfilledAmount >= intent.amount) continue;
+
+      // Check for in-flight actions (don't continue if action is pending)
+      const actions = await this.getActionsForIntent(intent.id);
+      const hasInflightAction = actions.some((a) => a.status === 'in_progress');
+      if (hasInflightAction) continue;
+
+      partialIntents.push(intent);
+    }
+
+    return partialIntents;
+  }
+
+  /**
+   * Get all actions associated with a specific intent.
+   */
+  async getActionsForIntent(intentId: string): Promise<RebalanceAction[]> {
+    const allActions = await this.rebalanceActionStore.getAll();
+    return allActions.filter((a) => a.intentId === intentId);
+  }
+
+  async syncInventoryMovementActions(
+    bridge: IExternalBridge,
+  ): Promise<{ completed: number; failed: number }> {
+    this.logger.debug('Syncing inventory movement actions');
+
+    let completed = 0;
+    let failed = 0;
+
+    // Get all in-progress inventory_movement actions
+    const inProgressActions =
+      await this.rebalanceActionStore.getByStatus('in_progress');
+    const inventoryMovements = inProgressActions.filter(
+      (a) => a.type === 'inventory_movement',
+    );
+
+    this.logger.debug(
+      { count: inventoryMovements.length },
+      'Found in-progress inventory movements',
+    );
+
+    for (const action of inventoryMovements) {
+      // Skip if no txHash (shouldn't happen but be safe)
+      if (!action.txHash) {
+        this.logger.warn(
+          { actionId: action.id },
+          'Inventory movement action has no txHash',
+        );
+        continue;
+      }
+
+      try {
+        const status = await bridge.getStatus(
+          action.txHash,
+          action.origin,
+          action.destination,
+        );
+
+        if (status.status === 'complete') {
+          await this.completeRebalanceAction(action.id);
+          completed++;
+          this.logger.info(
+            {
+              actionId: action.id,
+              txHash: action.txHash,
+              receivedAmount: status.receivedAmount?.toString(),
+            },
+            'Inventory movement completed',
+          );
+        } else if (status.status === 'failed') {
+          await this.failRebalanceAction(action.id);
+          failed++;
+          this.logger.warn(
+            {
+              actionId: action.id,
+              txHash: action.txHash,
+              error: status.error,
+            },
+            'Inventory movement failed',
+          );
+        } else if (status.status === 'pending') {
+          this.logger.debug(
+            {
+              actionId: action.id,
+              txHash: action.txHash,
+              substatus: status.substatus,
+            },
+            'Inventory movement still pending',
+          );
+        }
+        // status === 'not_found' - wait for next cycle
+      } catch (error) {
+        this.logger.debug(
+          {
+            actionId: action.id,
+            txHash: action.txHash,
+            error: (error as Error).message,
+          },
+          'Failed to get inventory movement status',
+        );
+      }
+    }
+
+    if (inventoryMovements.length > 0) {
+      this.logger.info(
+        {
+          completed,
+          failed,
+          pending: inventoryMovements.length - completed - failed,
+        },
+        'Inventory movements synced',
+      );
+    }
+
+    return { completed, failed };
   }
 
   // === Debug Helpers ===
@@ -610,10 +806,11 @@ export class ActionTracker implements IActionTracker {
         'Created synthetic RebalanceIntent',
       );
 
-      // Create action
+      // Create action (recovered actions are always rebalance_message type)
       const action: RebalanceAction = {
         id: msg.msg_id,
         status: 'in_progress',
+        type: 'rebalance_message',
         intentId: intent.id,
         messageId: msg.msg_id,
         txHash: msg.origin_tx_hash,

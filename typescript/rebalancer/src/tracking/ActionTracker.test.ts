@@ -149,6 +149,7 @@ describe('ActionTracker', () => {
       // Pre-create action
       await rebalanceActionStore.save({
         id: '0xmsg1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'existing-intent',
         messageId: '0xmsg1',
@@ -325,6 +326,7 @@ describe('ActionTracker', () => {
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -355,6 +357,7 @@ describe('ActionTracker', () => {
     it('should not mark actions as complete if not delivered', async () => {
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -492,6 +495,7 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
 
       const result = await tracker.createRebalanceAction({
+        type: 'rebalance_message',
         intentId: 'intent-1',
         origin: 1,
         destination: 2,
@@ -523,6 +527,7 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
 
       await tracker.createRebalanceAction({
+        type: 'rebalance_message',
         intentId: 'intent-1',
         origin: 1,
         destination: 2,
@@ -552,6 +557,7 @@ describe('ActionTracker', () => {
 
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',
@@ -608,6 +614,7 @@ describe('ActionTracker', () => {
     it('should mark action as failed', async () => {
       const action: RebalanceAction = {
         id: 'action-1',
+        type: 'rebalance_message',
         status: 'in_progress',
         intentId: 'intent-1',
         messageId: '0xmsg1',

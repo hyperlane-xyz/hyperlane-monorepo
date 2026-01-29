@@ -25,9 +25,8 @@ export class InflightContextAdapter {
     const pendingRebalances = intents.map((intent) => ({
       origin: this.multiProvider.getChainName(intent.origin),
       destination: this.multiProvider.getChainName(intent.destination),
-      // TODO: Review once inventory rebalancing is implemented and we expect
-      // partially fulfilled intents. May need to use (amount - fulfilledAmount).
-      amount: intent.amount,
+      // Use remaining amount for partially fulfilled intents
+      amount: intent.amount - intent.fulfilledAmount,
       bridge: intent.bridge,
     }));
 

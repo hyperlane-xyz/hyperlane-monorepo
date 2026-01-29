@@ -1,0 +1,66 @@
+warpRouteId: ETHSTAGE/mode
+
+# Deployer EOA address (used for inventory operations)
+inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5'
+lifiIntegrator: 'rebalancer'
+
+strategy:
+  rebalanceStrategy: weight
+  chains:
+    # Native ETH chains (collateral)
+    arbitrum:
+      weighted:
+        weight: 30
+        tolerance: 5
+      executionType: inventory
+      # bridgeMinAcceptedAmount: 0.001
+
+    base:
+      weighted:
+        weight: 40
+        tolerance: 5
+      executionType: inventory
+      # bridgeMinAcceptedAmount: 0.001
+
+    optimism:
+      weighted:
+        weight: 30
+        tolerance: 5
+      executionType: inventory
+      # bridgeMinAcceptedAmount: 0.001
+
+    # arbitrum:
+    #   minAmount:
+    #     min: 0.01        # DEFICIT - Arbitrum has 0 collateral, needs 0.015 ETH
+    #     target: 0.015
+    #     type: 'absolute'
+    #   bridgeLockTime: 1200
+    #   executionType: inventory
+    #   bridgeMinAcceptedAmount: 0.001
+
+    # base:
+    #   minAmount:
+    #     min: 0.001       # SURPLUS - Base has ~0.177 ETH collateral
+    #     target: 0.002    # Surplus = ~0.175 ETH available to send
+    #     type: 'absolute'
+    #   bridgeLockTime: 1200
+    #   executionType: inventory
+    #   bridgeMinAcceptedAmount: 0.001
+
+    # ethereum:
+    #   minAmount:
+    #     min: 0.001       # LOW - makes Ethereum surplus (but only 0.005 ETH available!)
+    #     target: 0.002
+    #     type: 'absolute'
+    #   bridgeLockTime: 1800
+    #   executionType: inventory
+    #   bridgeMinAcceptedAmount: 0.01
+
+    # optimism:
+    #   minAmount:
+    #     min: 0.001       # LOW - makes Optimism surplus
+    #     target: 0.002
+    #     type: 'absolute'
+    #   bridgeLockTime: 1200
+    #   executionType: inventory
+    #   bridgeMinAcceptedAmount: 0.001

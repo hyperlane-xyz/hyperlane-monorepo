@@ -15,6 +15,7 @@ export enum WarpRouteIds {
   EclipseEthereumApxEth = 'APXETH/eclipsemainnet-ethereum',
   EclipseUSDC = 'USDC/eclipsemainnet',
   EclipseUSDCSTAGE = 'USDCSTAGE/eclipsemainnet',
+  ModeETHSTAGE = 'ETHSTAGE/mode',
   EclipseEthereumSolanaUSDT = 'USDT/eclipsemainnet-ethereum-solanamainnet',
   EclipseEthereumTETH = 'tETH/eclipsemainnet-ethereum',
   EclipseEthereumWBTC = 'WBTC/eclipsemainnet-ethereum',

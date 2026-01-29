@@ -34,6 +34,7 @@
     "@hyperlane-xyz/metrics": "workspace:*",
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
+    "@lifi/sdk": "catalog:",
     "bignumber.js": "catalog:",
     "ethers": "catalog:",
     "express": "^5.1.0",
@@ -41,6 +42,7 @@
     "pino-pretty": "catalog:",
     "prom-client": "catalog:",
     "uuid": "catalog:",
+    "viem": "catalog:",
     "yaml": "catalog:",
     "zod": "catalog:",
     "zod-validation-error": "catalog:"

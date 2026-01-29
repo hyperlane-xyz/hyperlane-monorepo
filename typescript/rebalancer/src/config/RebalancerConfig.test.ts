@@ -98,6 +98,8 @@ describe('RebalancerConfig', () => {
           },
         },
       ],
+      inventorySigner: undefined,
+      lifiIntegrator: undefined,
     });
   });
 
