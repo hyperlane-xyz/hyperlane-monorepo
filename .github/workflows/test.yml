@@ -440,6 +440,7 @@ jobs:
           - core-deploy
           - core-read
           # Warp Commands
+          - warp-apply-hook-updates
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
