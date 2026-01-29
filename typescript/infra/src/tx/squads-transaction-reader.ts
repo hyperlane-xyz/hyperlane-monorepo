@@ -461,8 +461,8 @@ export class SquadsTransactionReader {
       };
     }
 
-    // Read discriminator to determine instruction type
-    const discriminator = instructionData.readUInt32LE(0);
+    // Read discriminator to determine instruction type (Borsh u8 enum)
+    const discriminator = instructionData[0];
 
     try {
       switch (discriminator) {
