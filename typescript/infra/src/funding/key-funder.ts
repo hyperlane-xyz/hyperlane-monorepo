@@ -12,7 +12,7 @@ import rebalancerAddresses from '../../config/rebalancer.json' with { type: 'jso
 import { getEnvAddresses } from '../../config/registry.js';
 import { getAgentConfig } from '../../scripts/agent-utils.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
-import { kathyAddresses, relayerAddresses } from '../agents/key-utils.js';
+import { relayerAddresses } from '../agents/key-utils.js';
 import { AgentContextConfig } from '../config/agent/agent.js';
 import { DeployEnvironment, EnvironmentConfig } from '../config/environment.js';
 import { DEFAULT_SWEEP_ADDRESS, KeyFunderConfig } from '../config/funding.js';
@@ -254,11 +254,6 @@ export class KeyFunderHelmManager extends HelmManager {
           DeployEnvironment,
           Record<Contexts, string>
         >;
-      case Role.Kathy:
-        return kathyAddresses as Record<
-          DeployEnvironment,
-          Record<Contexts, string>
-        >;
       case Role.Rebalancer:
         return rebalancerAddresses as Record<
           DeployEnvironment,
@@ -276,8 +271,6 @@ export class KeyFunderHelmManager extends HelmManager {
     switch (role) {
       case Role.Relayer:
         return this.config.desiredBalancePerChain[chain];
-      case Role.Kathy:
-        return this.config.desiredKathyBalancePerChain?.[chain];
       case Role.Rebalancer:
         return this.config.desiredRebalancerBalancePerChain?.[chain];
       default:

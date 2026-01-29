@@ -42,7 +42,6 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
-import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
@@ -54,10 +53,6 @@ import {
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
-
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -697,7 +692,6 @@ const stagingStHyperMatchingList = chainMapMatchingList({
 });
 
 // Gets metric app contexts, including:
-// - helloworld
 // - all warp routes defined in WarpRouteIds, using addresses from the registry
 // - misc important applications not defined in the registry, e.g. merkly
 const metricAppContextsGetter = (): MetricAppContext[] => {
@@ -725,12 +719,6 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
 
   return [
     ...warpContexts,
-    {
-      name: 'helloworld',
-      matchingList: routerMatchingList(
-        helloWorld[Contexts.Hyperlane].addresses,
-      ),
-    },
     {
       name: 'merkly_erc20',
       matchingList: routerMatchingList(merklyErc20Addresses),
@@ -940,7 +928,7 @@ const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
   contextChainNames: hyperlaneContextAgentChainNames,
-  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -948,9 +936,6 @@ const releaseCandidate: RootAgentConfig = {
       tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
-    // We're temporarily (ab)using the RC relayer as a way to increase
-    // message throughput.
-    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,

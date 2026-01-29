@@ -20,7 +20,6 @@ import {
 } from '../agents/index.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { KeyFunderHelmManager } from '../funding/key-funder.js';
-import { KathyHelmManager } from '../helloworld/kathy.js';
 import { RebalancerHelmManager } from '../rebalancer/helm.js';
 import { WarpRouteMonitorHelmManager } from '../warp-monitor/helm.js';
 
@@ -506,16 +505,6 @@ async function selectCronJobs(
     cronjobManagers.push(['Key Funder', keyFunder]);
   } catch (e) {
     // Environment may not have key funder configured
-  }
-
-  try {
-    const kathy = KathyHelmManager.forEnvironment(
-      environment,
-      Contexts.Hyperlane,
-    );
-    cronjobManagers.push(['Kathy', kathy]);
-  } catch (e) {
-    // Environment may not have kathy configured
   }
 
   if (cronjobManagers.length === 0) {
