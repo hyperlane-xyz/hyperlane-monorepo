@@ -45,7 +45,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   validatorRC: 'a52b9e6-20260122-173915',
   scraper: '80f3635-20260123-103819',
   // monorepo services
-  checkWarpDeploy: '74d999b-20260108-145131',
+  checkWarpDeploy: 'main',
   // standalone services
   keyFunder: 'b29a170-20260128-174848',
   warpMonitor: '6b6fd0b-20260123-121413',
