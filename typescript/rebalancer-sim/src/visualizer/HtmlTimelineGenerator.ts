@@ -829,8 +829,58 @@ function renderTimeline(viz, vizIndex) {
     });
   }
 
+  // Setup balance hover listeners after all elements are added
+  setupBalanceHoverListeners(svg, xScale, viz.startTime);
+
   wrapper.appendChild(svg);
   return wrapper;
+}
+
+function setupBalanceHoverListeners(svg, xScale, startTime) {
+  const hoverAreas = svg.querySelectorAll('.balance-hover-area');
+  hoverAreas.forEach(hoverPath => {
+    hoverPath.addEventListener('mousemove', (e) => {
+      const chain = hoverPath.getAttribute('data-chain');
+      const timeline = JSON.parse(hoverPath.getAttribute('data-timeline'));
+      const totalBalance = BigInt(hoverPath.getAttribute('data-total-balance'));
+      const simStartTime = parseInt(hoverPath.getAttribute('data-start-time'));
+
+      // Get mouse X position relative to SVG
+      const svgRect = svg.getBoundingClientRect();
+      const mouseX = e.clientX - svgRect.left;
+
+      // Find the timestamp at this X position (inverse of xScale)
+      const innerWidth = svg.clientWidth - MARGIN.left - MARGIN.right;
+      const duration = timeline[timeline.length - 1].timestamp - simStartTime;
+      const timestamp = simStartTime + ((mouseX - MARGIN.left) / innerWidth) * duration;
+
+      // Find the balance at this timestamp (step function - find last point before timestamp)
+      let balance = BigInt(timeline[0].balance);
+      for (let i = 0; i < timeline.length; i++) {
+        if (timeline[i].timestamp <= timestamp) {
+          balance = BigInt(timeline[i].balance);
+        } else {
+          break;
+        }
+      }
+
+      // Calculate percentage of total
+      const percentage = totalBalance > 0n
+        ? (Number(balance) / Number(totalBalance) * 100).toFixed(1)
+        : '0.0';
+
+      showTooltip(e, {
+        chain,
+        balance,
+        totalBalance,
+        timestamp,
+        startTime: simStartTime,
+        percentage
+      }, 'balance');
+    });
+
+    hoverPath.addEventListener('mouseleave', hideTooltip);
+  });
 }
 
 function renderBalanceCurves(svg, viz, xScale, chains) {
@@ -961,6 +1011,19 @@ function renderBalanceCurves(svg, viz, xScale, chains) {
     path.setAttribute('stroke', color);
     svg.appendChild(path);
 
+    // Invisible hover area for tooltips (wider stroke for easier hovering)
+    const hoverPath = document.createElementNS('http://www.w3.org/2000/svg', 'path');
+    hoverPath.setAttribute('class', 'balance-hover-area');
+    hoverPath.setAttribute('d', pathD);
+    hoverPath.setAttribute('data-chain', chain);
+    hoverPath.setAttribute('data-timeline', JSON.stringify(timeline.map(pt => ({
+      timestamp: pt.timestamp,
+      balance: pt.balance.toString()
+    }))));
+    hoverPath.setAttribute('data-total-balance', maxBalance.toString());
+    hoverPath.setAttribute('data-start-time', viz.startTime.toString());
+    svg.appendChild(hoverPath);
+
     // Balance labels (start and end values)
     const startBal = points[0].balance;
     const endBal = points[points.length - 1].balance;
@@ -1058,10 +1121,18 @@ function renderConfig(container, config, chains) {
   }
 
   let timingHtml = '';
+  if (config.userTransferDelay !== undefined) {
+    timingHtml += \`
+      <div class="config-item">
+        <span class="config-label">User xfer:</span>
+        <span class="config-value">\${config.userTransferDelay}ms</span>
+      </div>
+    \`;
+  }
   if (config.bridgeDeliveryDelay !== undefined) {
     timingHtml += \`
       <div class="config-item">
-        <span class="config-label">Bridge delay:</span>
+        <span class="config-label">Rebal bridge:</span>
         <span class="config-value">\${config.bridgeDeliveryDelay}ms</span>
       </div>
     \`;
@@ -1144,14 +1215,10 @@ function showTooltip(event, data, type) {
       <b>Status:</b> \${status}
     \`;
   } else if (type === 'balance') {
-    const totalBalance = data.totalBalance || 0n;
-    const percentage = totalBalance > 0n
-      ? (Number(data.balance) / Number(totalBalance) * 100).toFixed(1)
-      : '0.0';
     content = \`
       <strong>\${data.chain} Collateral</strong><br>
       <b>Balance:</b> \${formatBalanceShort(data.balance)} tokens<br>
-      <b>Share:</b> \${percentage}% of total<br>
+      <b>Share:</b> \${data.percentage}% of total<br>
       <b>Time:</b> \${((data.timestamp - data.startTime) / 1000).toFixed(2)}s
     \`;
   }

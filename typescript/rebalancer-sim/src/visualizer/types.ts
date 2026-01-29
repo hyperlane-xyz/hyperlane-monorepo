@@ -53,7 +53,9 @@ export interface SimulationConfig {
   targetWeights?: Record<string, number>;
   /** Per-chain tolerance (percentage) */
   tolerances?: Record<string, number>;
-  /** Bridge delivery delay in ms */
+  /** User transfer delivery delay in ms (Hyperlane finality) */
+  userTransferDelay?: number;
+  /** Rebalancer bridge delivery delay in ms */
   bridgeDeliveryDelay?: number;
   /** Rebalancer polling frequency in ms */
   rebalancerPollingFrequency?: number;

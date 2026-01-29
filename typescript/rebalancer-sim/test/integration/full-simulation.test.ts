@@ -343,9 +343,42 @@ describe('Rebalancer Simulation', function () {
     fs.writeFileSync(jsonPath, JSON.stringify(output, null, 2));
 
     // Generate HTML timeline visualization
-    const html = generateTimelineHtml(results, {
-      title: `${file.name}: ${file.description}`,
-    });
+    // Build config for visualization from scenario file
+    const vizConfig: Record<string, any> = {
+      bridgeDeliveryDelay: file.defaultTiming.rebalanceBridgeDeliveryDelay,
+      rebalancerPollingFrequency: file.defaultTiming.rebalancerPollingFrequency,
+      userTransferDelay: file.defaultTiming.userTransferDeliveryDelay,
+    };
+
+    // Extract target weights and tolerances from strategy config
+    if (file.defaultStrategyConfig.type === 'weighted') {
+      vizConfig.targetWeights = {};
+      vizConfig.tolerances = {};
+      for (const [chain, chainConfig] of Object.entries(
+        file.defaultStrategyConfig.chains,
+      )) {
+        if (chainConfig.weighted) {
+          vizConfig.targetWeights[chain] = Math.round(
+            parseFloat(chainConfig.weighted.weight) * 100,
+          );
+          vizConfig.tolerances[chain] = Math.round(
+            parseFloat(chainConfig.weighted.tolerance) * 100,
+          );
+        }
+      }
+    }
+
+    // Add initial collateral per chain
+    vizConfig.initialCollateral = {};
+    for (const chain of file.chains) {
+      vizConfig.initialCollateral[chain] = file.defaultInitialCollateral;
+    }
+
+    const html = generateTimelineHtml(
+      results,
+      { title: `${file.name}: ${file.description}` },
+      vizConfig,
+    );
     const htmlPath = path.join(RESULTS_DIR, `${scenarioName}.html`);
     fs.writeFileSync(htmlPath, html);
     console.log(`  Timeline saved to: ${htmlPath}`);
