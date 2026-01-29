@@ -157,4 +157,8 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   eni: '0x2C5418067111F7e728D64C5D63bc87F3A7f8C6FC',
   krown: '0x9F48298FF8c32F423fe14e71e6CBAcBa3c061e17',
+
+  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
+  // ----------------------------------------------------------
+  ontology: '0xD6d898B8A75B5D7A3438e2120FD0302B5d3c9081',
 } as const;

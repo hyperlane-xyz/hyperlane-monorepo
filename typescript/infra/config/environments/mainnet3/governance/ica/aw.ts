@@ -78,7 +78,6 @@ export const awIcas: ChainMap<Address> = {
   morph: '0x8fe7d190e657D20e1958AB1497AbC7F1Ab4503F5',
   nibiru: '0x985D77eeC388e7A8b827d8f3f7EF853b3d70320f',
   oortmainnet: '0xE92Bf41B0fd76f72274fECa87179AE6E235c3c7F',
-  // ontology: '0x6F9c6b3979E46B64bE0Cb3E29376A1e1aa54a160',
   opbnb: '0xc8B74D2bD580F122a9d5Ce40d4631afa2Ae8FB3C',
   orderly: '0x60021F107A32e7E747bDeca64e6FCC21DD45C4AC',
   peaq: '0xbeCd9B31ba4DbAC6DDc5C42cCC5fAF408CAd4921',
@@ -123,4 +122,8 @@ export const awIcas: ChainMap<Address> = {
   // Sept 22, 2025
   // ----------------------------------------------------------
   zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
+
+  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
+  // ----------------------------------------------------------
+  ontology: '0xa822324f214c2081ea6Cc50fAae011cC74fDcCA3',
 } as const;
