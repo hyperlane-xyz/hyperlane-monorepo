@@ -44,6 +44,17 @@ export {
   CosmosMerkleTreeHookWriter,
 } from './hook/merkle-tree-hook.js';
 
+// Warp Artifact Management
+export { CosmosWarpArtifactManager } from './warp/warp-artifact-manager.js';
+export {
+  CosmosCollateralTokenReader,
+  CosmosCollateralTokenWriter,
+} from './warp/collateral-token.js';
+export {
+  CosmosSyntheticTokenReader,
+  CosmosSyntheticTokenWriter,
+} from './warp/synthetic-token.js';
+
 export * from './hyperlane/core/messages.js';
 export * from './hyperlane/core/query.js';
 
