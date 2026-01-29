@@ -208,7 +208,7 @@ async function main() {
 }
 
 /**
- * Radix IGP fee calculation differes from other protocols. Instead of the default (gas * gasPrice * exchangeRate) / (1e10 * 1e{decimals}),
+ * Radix IGP fee calculation differs from other protocols. Instead of the default (gas * gasPrice * exchangeRate) / (1e10 * 1e{decimals}),
  * Radix uses (gas * gasPrice * exchangeRate) / (1e10) and uses the resulting floating point value as the decimal amount of XRD to charge.
  * This function adjusts the IGP config to account for this difference.
  *
