@@ -298,19 +298,39 @@ export class HyperlaneRelayer {
       value = valueRequested?.args?.value;
     }
 
-    // Simulate recipient message handling with value
-    // If recipient can't receive value, estimateHandle returns '0' and we clear value
+    // Simulate recipient message handling
     this.logger.debug(
       { message, value },
       `Simulating recipient message handling`,
     );
-    const handleGas = await this.core.estimateHandle(message, value);
-    if (value && BigNumber.from(value).gt(0) && handleGas === '0') {
-      this.logger.info(
-        { messageId: message.id, value: value.toString() },
-        `Recipient cannot receive value, relaying without value`,
-      );
-      value = undefined;
+    if (value && BigNumber.from(value).gt(0)) {
+      // If value requested, simulate with value first
+      try {
+        await this.core.estimateHandle(message, value);
+      } catch (error: any) {
+        // Check if error is due to recipient unable to receive value
+        // OpenZeppelin's Address.sendValue reverts with this message
+        const errorMessage = error?.message || error?.reason || String(error);
+        const isSendValueError = errorMessage.includes(
+          'unable to send value, recipient may have reverted',
+        );
+
+        if (isSendValueError) {
+          this.logger.info(
+            { messageId: message.id, value: value.toString() },
+            `Recipient cannot receive value, relaying without value`,
+          );
+          value = undefined;
+          // Re-estimate without value to ensure handle itself works
+          await this.core.estimateHandle(message);
+        } else {
+          // Re-throw other errors (handle reverts, etc.)
+          throw error;
+        }
+      }
+    } else {
+      // No value, just simulate handle
+      await this.core.estimateHandle(message);
     }
 
     const metadata = await this.metadataBuilder.build({

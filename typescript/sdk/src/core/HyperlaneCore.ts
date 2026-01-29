@@ -257,28 +257,17 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     message: DispatchedMessage,
     value?: BigNumberish,
   ): Promise<string> {
-    // This estimation overrides transaction.from which requires a funded signer
-    // on ZkSync-based chains. We catch estimation failures and return '0' to
-    // allow the caller to handle gas estimation differently.
-    try {
-      return (
-        await this.getRecipient(message).estimateGas.handle(
-          message.parsed.origin,
-          message.parsed.sender,
-          message.parsed.body,
-          {
-            from: this.getAddresses(this.getDestination(message)).mailbox,
-            value,
-          },
-        )
-      ).toString();
-    } catch (error) {
-      this.logger.debug(
-        { error, destination: this.getDestination(message) },
-        'Failed to estimate handle gas, returning 0',
-      );
-      return '0';
-    }
+    return (
+      await this.getRecipient(message).estimateGas.handle(
+        message.parsed.origin,
+        message.parsed.sender,
+        message.parsed.body,
+        {
+          from: this.getAddresses(this.getDestination(message)).mailbox,
+          value,
+        },
+      )
+    ).toString();
   }
 
   deliver(

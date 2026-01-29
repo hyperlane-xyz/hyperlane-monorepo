@@ -135,22 +135,57 @@ function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
 **File:** `typescript/sdk/src/core/HyperlaneRelayer.ts`
 
 - Extract `ValueRequested` event value **before** simulating handle
-- Pass value to `estimateHandle()` to test if recipient can receive ETH
-- If `estimateHandle` returns '0' (failure), clear value and relay without it
+- If value requested, simulate with value first
+- If sendValue error, clear value and re-simulate without it
+- Other errors propagate normally
 
 ```typescript
-// Extract value from ValueRequested event before simulating handle
-let value: BigNumberish | undefined;
-// ... parse ValueRequested from IGP logs ...
+if (value && BigNumber.from(value).gt(0)) {
+  try {
+    await this.core.estimateHandle(message, value);
+  } catch (error: any) {
+    const errorMessage = error?.message || error?.reason || String(error);
+    const isSendValueError = errorMessage.includes(
+      'unable to send value, recipient may have reverted',
+    );
 
-// Simulate recipient message handling with value
-const handleGas = await this.core.estimateHandle(message, value);
-if (value && BigNumber.from(value).gt(0) && handleGas === '0') {
-  this.logger.info(
-    { messageId, value },
-    `Recipient cannot receive value, relaying without value`,
-  );
-  value = undefined;
+    if (isSendValueError) {
+      this.logger.info(
+        { messageId, value },
+        `Recipient cannot receive value, relaying without value`,
+      );
+      value = undefined;
+      await this.core.estimateHandle(message); // Re-estimate without value
+    } else {
+      throw error;
+    }
+  }
+} else {
+  await this.core.estimateHandle(message);
+}
+```
+
+#### 2. estimateHandle with Value in HyperlaneCore
+
+**File:** `typescript/sdk/src/core/HyperlaneCore.ts`
+
+- Add optional `value` parameter to `estimateHandle()`
+- Simulates `recipient.handle{value}()` to test value delivery
+- Throws on error (no longer swallows errors)
+
+```typescript
+async estimateHandle(
+  message: DispatchedMessage,
+  value?: BigNumberish,
+): Promise<string> {
+  return (
+    await this.getRecipient(message).estimateGas.handle(
+      message.parsed.origin,
+      message.parsed.sender,
+      message.parsed.body,
+      { from: this.getAddresses(this.getDestination(message)).mailbox, value },
+    )
+  ).toString();
 }
 ```
 
