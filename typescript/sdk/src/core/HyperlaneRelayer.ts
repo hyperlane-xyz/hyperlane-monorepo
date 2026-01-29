@@ -272,6 +272,10 @@ export class HyperlaneRelayer {
       return this.core.getProcessedReceipt(message);
     }
 
+    // Simulate recipient message handling
+    this.logger.debug({ message }, `Simulating recipient message handling`);
+    await this.core.estimateHandle(message);
+
     // parallelizable because configs are on different chains
     const [ism, hook] = await Promise.all([
       this.getRecipientIsmConfig(message),
@@ -279,51 +283,8 @@ export class HyperlaneRelayer {
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
-    // Simulate recipient message handling
-    this.logger.debug({ message }, `Simulating recipient message handling`);
-    await this.core.estimateHandle(message);
-
     // Extract and validate value from IGP if present
-    let value: BigNumberish | undefined;
-    const igp = deepFind(
-      hook,
-      (hook): hook is DerivedHookConfig =>
-        hook.type === HookType.INTERCHAIN_GAS_PAYMASTER,
-    );
-    if (igp) {
-      const matchingEvents = dispatchTx.logs
-        .filter((log) => eqAddressEvm(log.address, igp.address))
-        .map((log) =>
-          InterchainGasPaymaster__factory.createInterface().parseLog(log),
-        )
-        .filter((event) => event.args.messageId);
-      const [gasPayment, valueRequested] = matchingEvents;
-      this.logger.debug({ gasPayment, valueRequested }, `Parsed IGP request`);
-      value = valueRequested?.args?.value;
-
-      // If value requested, verify recipient can receive it
-      if (value && BigNumber.from(value).gt(0)) {
-        try {
-          await this.core.estimateHandle(message, value);
-        } catch (error: any) {
-          // Check if error is due to recipient unable to receive value
-          // OpenZeppelin's Address.sendValue reverts with this message
-          // SmartProvider may wrap errors, so check message, reason, and cause
-          const isSendValueError = this.isSendValueError(error);
-
-          if (isSendValueError) {
-            this.logger.info(
-              { messageId: message.id, value: value.toString() },
-              `Recipient cannot receive value, relaying without value`,
-            );
-            value = undefined;
-          } else {
-            // Re-throw other errors (handle reverts, etc.)
-            throw error;
-          }
-        }
-      }
-    }
+    const value = await this.extractIgpValue(message, hook, dispatchTx);
 
     const metadata = await this.metadataBuilder.build({
       message,
@@ -342,6 +303,55 @@ export class HyperlaneRelayer {
   }
 
   /**
+   * Extracts requested value from IGP ValueRequested event and validates
+   * that the recipient can receive it.
+   * @returns The value to deliver, or undefined if none requested or recipient can't receive
+   */
+  protected async extractIgpValue(
+    message: DispatchedMessage,
+    hook: DerivedHookConfig,
+    dispatchTx: providers.TransactionReceipt,
+  ): Promise<BigNumberish | undefined> {
+    const igp = deepFind(
+      hook,
+      (h): h is DerivedHookConfig =>
+        h.type === HookType.INTERCHAIN_GAS_PAYMASTER,
+    );
+
+    if (!igp) return undefined;
+
+    const matchingEvents = dispatchTx.logs
+      .filter((log) => eqAddressEvm(log.address, igp.address))
+      .map((log) =>
+        InterchainGasPaymaster__factory.createInterface().parseLog(log),
+      )
+      .filter((event) => event.args.messageId);
+
+    const [gasPayment, valueRequested] = matchingEvents;
+    this.logger.debug({ gasPayment, valueRequested }, `Parsed IGP request`);
+
+    const value = valueRequested?.args?.value;
+    if (!value || BigNumber.from(value).lte(0)) {
+      return undefined;
+    }
+
+    // Verify recipient can receive value
+    try {
+      await this.core.estimateHandle(message, value);
+      return value;
+    } catch (error: any) {
+      if (this.isSendValueError(error)) {
+        this.logger.info(
+          { messageId: message.id, value: value.toString() },
+          `Recipient cannot receive value, relaying without value`,
+        );
+        return undefined;
+      }
+      throw error;
+    }
+  }
+
+  /**
    * Checks if an error is due to recipient unable to receive ETH value.
    * OpenZeppelin's Address.sendValue reverts with a specific message.
    * SmartProvider may wrap errors in BlockchainError with cause chain.
@@ -351,8 +361,8 @@ export class HyperlaneRelayer {
       'unable to send value, recipient may have reverted';
 
     // Check error message directly
-    const message = error?.message || '';
-    if (message.includes(SEND_VALUE_ERROR)) return true;
+    const errorMsg = error?.message || '';
+    if (errorMsg.includes(SEND_VALUE_ERROR)) return true;
 
     // Check error reason (ethers)
     const reason = error?.reason || '';

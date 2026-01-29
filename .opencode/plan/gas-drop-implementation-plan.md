@@ -130,47 +130,53 @@ function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
 
 ### TypeScript SDK Changes
 
-#### 1. Value-Aware Handle Estimation in Relayer
+#### 1. Value Extraction and Validation in Relayer
 
 **File:** `typescript/sdk/src/core/HyperlaneRelayer.ts`
 
-- Always simulate handle first (without value)
-- If IGP present and value requested, simulate again with value
-- If sendValue error, clear value (handle already verified to work)
+- Always simulate handle first (without value) before deriving configs
+- Extract `extractIgpValue()` into separate method for cleaner code
+- If value requested, verify recipient can receive it
 - Uses `isSendValueError()` helper that checks error cause chain (SmartProvider wraps errors)
-- Other errors propagate normally
 
 ```typescript
-// Always simulate handle first
+// In relay():
+// Simulate recipient message handling (basic check)
 await this.core.estimateHandle(message);
 
-// Extract and validate value from IGP if present
-if (igp) {
-  value = valueRequested?.args?.value;
+// Get ISM and hook configs
+const [ism, hook] = await Promise.all([...]);
 
-  // If value requested, verify recipient can receive it
-  if (value && BigNumber.from(value).gt(0)) {
-    try {
-      await this.core.estimateHandle(message, value);
-    } catch (error: any) {
-      // Check error and cause chain for sendValue revert
-      if (this.isSendValueError(error)) {
-        value = undefined; // Handle already verified, just clear value
-      } else {
-        throw error;
-      }
+// Extract and validate value from IGP
+const value = await this.extractIgpValue(message, hook, dispatchTx);
+
+// extractIgpValue method:
+protected async extractIgpValue(
+  message: DispatchedMessage,
+  hook: DerivedHookConfig,
+  dispatchTx: providers.TransactionReceipt,
+): Promise<BigNumberish | undefined> {
+  const igp = deepFind(hook, (h) => h.type === HookType.INTERCHAIN_GAS_PAYMASTER);
+  if (!igp) return undefined;
+
+  // Parse ValueRequested event
+  const value = valueRequested?.args?.value;
+  if (!value || BigNumber.from(value).lte(0)) return undefined;
+
+  // Verify recipient can receive value
+  try {
+    await this.core.estimateHandle(message, value);
+    return value;
+  } catch (error: any) {
+    if (this.isSendValueError(error)) {
+      this.logger.info({ messageId, value }, `Recipient cannot receive value`);
+      return undefined;
     }
+    throw error;
   }
 }
 
-// Helper method checks error.message, error.reason, and error.cause recursively
-protected isSendValueError(error: any): boolean {
-  const SEND_VALUE_ERROR = 'unable to send value, recipient may have reverted';
-  if (error?.message?.includes(SEND_VALUE_ERROR)) return true;
-  if (error?.reason?.includes(SEND_VALUE_ERROR)) return true;
-  if (error?.cause) return this.isSendValueError(error.cause);
-  return false;
-}
+// isSendValueError checks error.message, error.reason, and error.cause recursively
 ```
 
 #### 2. estimateHandle with Value in HyperlaneCore
