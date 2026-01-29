@@ -211,8 +211,7 @@ export function mergeIsmArtifacts(
 
   // For static ISMs, check if config changed
   if (STATIC_ISM_TYPES.includes(expectedConfig.type)) {
-    const configChanged = shouldDeployNewIsm(currentConfig, expectedConfig);
-    if (configChanged) {
+    if (shouldDeployNewIsm(currentConfig, expectedConfig)) {
       return {
         artifactState: ArtifactState.NEW,
         config: expectedConfig,

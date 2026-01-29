@@ -14,7 +14,12 @@ import {
   TokenRouterModuleType,
   TokenType,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ensure0x,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from './hook/hook-reader.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
@@ -68,10 +73,11 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     // Derive ISM config if present, otherwise use zero address
-    const interchainSecurityModule = token.ismAddress
-      ? await this.ismReader.deriveIsmConfig(token.ismAddress)
-      : // TODO: replace with protocol-specific zero address
-        '0x0000000000000000000000000000000000000000';
+    const interchainSecurityModule =
+      token.ismAddress && !isZeroishAddress(token.ismAddress)
+        ? await this.ismReader.deriveIsmConfig(token.ismAddress)
+        : // TODO: replace with protocol-specific zero address
+          '0x0000000000000000000000000000000000000000';
 
     // Hook address is not exposed by providers yet, use zero address as placeholder
     // TODO: replace with protocol-specific zero address
