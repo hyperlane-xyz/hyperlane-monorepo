@@ -130,54 +130,54 @@ function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
 
 ### TypeScript SDK Changes
 
-#### 1. Simulation-Based Retry in Relayer
+#### 1. Value-Aware Handle Estimation in Relayer
 
 **File:** `typescript/sdk/src/core/HyperlaneRelayer.ts`
 
-- Before delivering with value, simulate the transaction
-- If simulation fails **specifically due to sendValue revert**, retry without value
-- Only catches OpenZeppelin's `"unable to send value, recipient may have reverted"` error
-- Other errors (ISM verification, gas issues) are re-thrown
+- Extract `ValueRequested` event value **before** simulating handle
+- Pass value to `estimateHandle()` to test if recipient can receive ETH
+- If `estimateHandle` returns '0' (failure), clear value and relay without it
 
 ```typescript
-if (value && BigNumber.from(value).gt(0)) {
-  try {
-    await this.core.estimateProcess(message, metadata, value);
-    this.logger.debug({ messageId, value }, `Simulation with value succeeded`);
-  } catch (error: any) {
-    const errorMessage = error?.message || error?.reason || String(error);
-    const isSendValueError = errorMessage.includes(
-      'unable to send value, recipient may have reverted',
-    );
+// Extract value from ValueRequested event before simulating handle
+let value: BigNumberish | undefined;
+// ... parse ValueRequested from IGP logs ...
 
-    if (isSendValueError) {
-      this.logger.info(
-        { messageId, value },
-        `Recipient cannot receive value, relaying without value`,
-      );
-      value = undefined;
-    } else {
-      throw error; // Re-throw other errors
-    }
-  }
+// Simulate recipient message handling with value
+const handleGas = await this.core.estimateHandle(message, value);
+if (value && BigNumber.from(value).gt(0) && handleGas === '0') {
+  this.logger.info(
+    { messageId, value },
+    `Recipient cannot receive value, relaying without value`,
+  );
+  value = undefined;
 }
 ```
 
-#### 2. estimateProcess in HyperlaneCore
+#### 2. estimateHandle with Value in HyperlaneCore
 
 **File:** `typescript/sdk/src/core/HyperlaneCore.ts`
 
-- Add method to simulate `process()` with value for gas estimation
+- Add optional `value` parameter to `estimateHandle()`
+- Simulates `recipient.handle{value}()` to test value delivery
 
 ```typescript
-async estimateProcess(
+async estimateHandle(
   message: DispatchedMessage,
-  ismMetadata: string,
   value?: BigNumberish,
-): Promise<BigNumber> {
-  const destinationChain = this.getDestination(message);
-  const mailbox = this.getContracts(destinationChain).mailbox;
-  return mailbox.estimateGas.process(ismMetadata, message.message, { value });
+): Promise<string> {
+  try {
+    return (
+      await this.getRecipient(message).estimateGas.handle(
+        message.parsed.origin,
+        message.parsed.sender,
+        message.parsed.body,
+        { from: this.getAddresses(this.getDestination(message)).mailbox, value },
+      )
+    ).toString();
+  } catch (error) {
+    return '0';
+  }
 }
 ```
 
@@ -280,8 +280,8 @@ Deploy new ValueRequestHook with updated value, then update RoutingHook to point
 | `InterchainGasPaymaster.sol`   | `maxDestinationValue` with 0=disabled semantics | Done   |
 | `InterchainGasPaymaster.t.sol` | Tests for maxDestinationValue                   | Done   |
 | `GasRouter.sol`                | Remove `destinationGasDust` (use 0)             | Done   |
-| `HyperlaneRelayer.ts`          | Simulation-based retry for value delivery       | Done   |
-| `HyperlaneCore.ts`             | Add `estimateProcess()` method                  | Done   |
+| `HyperlaneRelayer.ts`          | Extract value before estimateHandle, pass it    | Done   |
+| `HyperlaneCore.ts`             | Add `value` param to `estimateHandle()`         | Done   |
 | `EvmHookModule.ts`             | ValueRequestHook deployment support             | Done   |
 | `EvmHookReader.ts`             | ValueRequestHook config reading                 | Done   |
 | `hook/types.ts`                | Add VALUE_REQUEST hook type                     | Done   |

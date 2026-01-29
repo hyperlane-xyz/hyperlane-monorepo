@@ -253,7 +253,10 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
-  async estimateHandle(message: DispatchedMessage): Promise<string> {
+  async estimateHandle(
+    message: DispatchedMessage,
+    value?: BigNumberish,
+  ): Promise<string> {
     // This estimation overrides transaction.from which requires a funded signer
     // on ZkSync-based chains. We catch estimation failures and return '0' to
     // allow the caller to handle gas estimation differently.
@@ -263,7 +266,10 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
           message.parsed.origin,
           message.parsed.sender,
           message.parsed.body,
-          { from: this.getAddresses(this.getDestination(message)).mailbox },
+          {
+            from: this.getAddresses(this.getDestination(message)).mailbox,
+            value,
+          },
         )
       ).toString();
     } catch (error) {
@@ -291,24 +297,6 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
         { ...txOverrides, value },
       ),
     );
-  }
-
-  /**
-   * Estimates gas for processing a message with optional value.
-   * Used to simulate value delivery before actually submitting.
-   * @param message The dispatched message to process
-   * @param ismMetadata The ISM metadata for verification
-   * @param value Optional value to send with the transaction
-   * @returns The estimated gas as a BigNumber
-   */
-  async estimateProcess(
-    message: DispatchedMessage,
-    ismMetadata: string,
-    value?: BigNumberish,
-  ): Promise<ethers.BigNumber> {
-    const destinationChain = this.getDestination(message);
-    const mailbox = this.getContracts(destinationChain).mailbox;
-    return mailbox.estimateGas.process(ismMetadata, message.message, { value });
   }
 
   async getHook(

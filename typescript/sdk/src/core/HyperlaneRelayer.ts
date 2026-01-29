@@ -272,9 +272,6 @@ export class HyperlaneRelayer {
       return this.core.getProcessedReceipt(message);
     }
 
-    this.logger.debug({ message }, `Simulating recipient message handling`);
-    await this.core.estimateHandle(message);
-
     // parallelizable because configs are on different chains
     const [ism, hook] = await Promise.all([
       this.getRecipientIsmConfig(message),
@@ -282,13 +279,7 @@ export class HyperlaneRelayer {
     ]);
     this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
-    const metadata = await this.metadataBuilder.build({
-      message,
-      ism,
-      hook,
-      dispatchTx,
-    });
-
+    // Extract value from ValueRequested event before simulating handle
     let value: BigNumberish | undefined;
     const igp = deepFind(
       hook,
@@ -307,36 +298,27 @@ export class HyperlaneRelayer {
       value = valueRequested?.args?.value;
     }
 
-    // Simulation-based retry for value delivery
-    // If value is requested, simulate to check if recipient can receive it
-    if (value && BigNumber.from(value).gt(0)) {
-      try {
-        await this.core.estimateProcess(message, metadata, value);
-        this.logger.debug(
-          { messageId: message.id, value: value.toString() },
-          `Simulation with value succeeded`,
-        );
-      } catch (error: any) {
-        // Only retry without value if the error is specifically due to
-        // the recipient being unable to receive ETH (e.g., contract without receive())
-        // OpenZeppelin's Address.sendValue reverts with this message
-        const errorMessage = error?.message || error?.reason || String(error);
-        const isSendValueError = errorMessage.includes(
-          'unable to send value, recipient may have reverted',
-        );
-
-        if (isSendValueError) {
-          this.logger.info(
-            { messageId: message.id, value: value.toString() },
-            `Recipient cannot receive value, relaying without value`,
-          );
-          value = undefined;
-        } else {
-          // Re-throw other errors (e.g., ISM verification failure, gas issues)
-          throw error;
-        }
-      }
+    // Simulate recipient message handling with value
+    // If recipient can't receive value, estimateHandle returns '0' and we clear value
+    this.logger.debug(
+      { message, value },
+      `Simulating recipient message handling`,
+    );
+    const handleGas = await this.core.estimateHandle(message, value);
+    if (value && BigNumber.from(value).gt(0) && handleGas === '0') {
+      this.logger.info(
+        { messageId: message.id, value: value.toString() },
+        `Recipient cannot receive value, relaying without value`,
+      );
+      value = undefined;
     }
+
+    const metadata = await this.metadataBuilder.build({
+      message,
+      ism,
+      hook,
+      dispatchTx,
+    });
 
     this.logger.info(`Relaying message ${message.id}`);
     return this.core.deliver(message, metadata, value);
