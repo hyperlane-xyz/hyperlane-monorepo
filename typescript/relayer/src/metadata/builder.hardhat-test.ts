@@ -1,4 +1,5 @@
 import { SignerWithAddress } from '@nomiclabs/hardhat-ethers/signers.js';
+import '@nomiclabs/hardhat-waffle';
 import hre from 'hardhat';
 import sinon from 'sinon';
 
@@ -7,6 +8,24 @@ import {
   MerkleTreeHook__factory,
   TestRecipient,
 } from '@hyperlane-xyz/core';
+import {
+  ChainName,
+  EvmHookModule,
+  EvmIsmReader,
+  HookType,
+  HyperlaneAddresses,
+  HyperlaneContracts,
+  HyperlaneCore,
+  HyperlaneIsmFactory,
+  HyperlaneProxyFactoryDeployer,
+  MerkleTreeHookConfig,
+  MultiProvider,
+  ProxyFactoryFactories,
+  TestCoreDeployer,
+  TestRecipientDeployer,
+  randomDeployableIsmConfig,
+  testChains,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   BaseValidator,
@@ -19,24 +38,6 @@ import {
   objMap,
   randomElement,
 } from '@hyperlane-xyz/utils';
-
-import { testChains } from '../../consts/testChains.js';
-import {
-  HyperlaneAddresses,
-  HyperlaneContracts,
-} from '../../contracts/types.js';
-import { HyperlaneCore } from '../../core/HyperlaneCore.js';
-import { TestCoreDeployer } from '../../core/TestCoreDeployer.js';
-import { TestRecipientDeployer } from '../../core/TestRecipientDeployer.js';
-import { HyperlaneProxyFactoryDeployer } from '../../deploy/HyperlaneProxyFactoryDeployer.js';
-import { ProxyFactoryFactories } from '../../deploy/contracts.js';
-import { EvmHookModule } from '../../hook/EvmHookModule.js';
-import { HookType, MerkleTreeHookConfig } from '../../hook/types.js';
-import { MultiProvider } from '../../providers/MultiProvider.js';
-import { ChainName } from '../../types.js';
-import { EvmIsmReader } from '../EvmIsmReader.js';
-import { randomIsmConfig } from '../HyperlaneIsmFactory.hardhat-test.js';
-import { HyperlaneIsmFactory } from '../HyperlaneIsmFactory.js';
 
 import { BaseMetadataBuilder } from './builder.js';
 import { decodeIsmMetadata } from './decode.js';
@@ -154,7 +155,11 @@ describe('BaseMetadataBuilder', () => {
       const addresses = validators
         .map((s) => s.address)
         .slice(0, MAX_NUM_VALIDATORS);
-      const config = randomIsmConfig(MAX_ISM_DEPTH, addresses, relayer.address);
+      const config = randomDeployableIsmConfig(
+        MAX_ISM_DEPTH,
+        addresses,
+        relayer.address,
+      );
       const deployedIsm = await ismFactory.deploy({
         destination,
         config,
