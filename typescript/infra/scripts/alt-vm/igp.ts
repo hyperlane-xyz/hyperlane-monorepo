@@ -26,68 +26,6 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 const logger = rootLogger.child({ module: 'altvm-igp' });
 
-function exampleCost(
-  remote: string,
-  provider: MultiProvider,
-  config: IgpConfig,
-) {
-  const overhead = config.overhead[remote];
-  const exampleRemoteGas = (overhead ?? 200_000) + 50_000;
-  const oracleData = config.oracleConfig[remote] || {
-    gasPrice: 0,
-    tokenExchangeRate: 1,
-  };
-  const protocol = provider.getProtocol(remote);
-  const exampleRemoteGasCost = new BigNumber(oracleData.tokenExchangeRate)
-    .times(oracleData.gasPrice)
-    .times(exampleRemoteGas)
-    .div(getProtocolExchangeRateScale(protocol).toBigInt());
-
-  return {
-    remote,
-    exampleRemoteGas,
-    exampleRemoteGasCost,
-  };
-}
-
-function printDifference(
-  chain: string,
-  provider: MultiProvider,
-  original: IgpConfig,
-  updated: IgpConfig,
-): number {
-  let differences = 0;
-  for (const [remote, _] of Object.entries(updated.overhead)) {
-    const currentCost = exampleCost(remote, provider, original);
-    const updatedCost = exampleCost(remote, provider, updated);
-    const metadata = provider.getChainMetadata(chain);
-
-    if (currentCost.exampleRemoteGasCost !== updatedCost.exampleRemoteGasCost) {
-      differences++;
-      logger.info(
-        `Updated gas: ${chain} -> ${remote}: ${updatedCost.exampleRemoteGas} remote gas cost: ${updatedCost.exampleRemoteGasCost
-          .div(new BigNumber(10).pow(metadata.nativeToken?.decimals || 18))
-          .toFixed(4)}${metadata.nativeToken?.symbol || ''}`,
-      );
-    }
-  }
-  return differences;
-}
-
-/**
- * Creates an AltVM signer for the given chain.
- * The private key is loaded from the environment based on the protocol type.
- */
-async function createAltVMSigner(
-  multiProvider: MultiProvider,
-  chain: string,
-  privateKey: string,
-) {
-  const metadata = multiProvider.getChainMetadata(chain);
-  const protocolProvider = getProtocolProvider(metadata.protocol);
-  return protocolProvider.createSigner(metadata, { privateKey });
-}
-
 async function main() {
   const {
     context = Contexts.Hyperlane,
@@ -154,6 +92,12 @@ async function main() {
       continue;
     }
 
+    // Adjust Radix IGP config
+    const metadata = multiProvider.getChainMetadata(chain);
+    if (metadata.protocol === ProtocolType.Radix) {
+      adjustRadixIGP(igpConfig);
+    }
+
     const chainAddresses = allChainAddresses[chain];
     if (!chainAddresses?.mailbox) {
       logger.warn(
@@ -176,7 +120,6 @@ async function main() {
       let signer = await createAltVMSigner(multiProvider, chain, key);
 
       // Create the core module connected to the existing deployment
-      const metadata = multiProvider.getChainMetadata(chain);
       const reader = createHookReader(metadata, multiProvider);
 
       // Read current on-chain config
@@ -262,6 +205,104 @@ async function main() {
   }
 
   logger.info('IGP update complete for all AltVM chains');
+}
+
+/**
+ * Radix IGP fee calculation differes from other protocols. Instead of the default (gas * gasPrice * exchangeRate) / (1e10 * 1e{decimals}),
+ * Radix uses (gas * gasPrice * exchangeRate) / (1e10) and uses the resulting floating point value as the decimal amount of XRD to charge.
+ * This function adjusts the IGP config to account for this difference.
+ *
+ * @param config the proposed IGP config that has yet to be adjusted for radix
+ */
+function adjustRadixIGP(config: IgpConfig) {
+  for (const key of Object.keys(config.oracleConfig)) {
+    const value = config.oracleConfig[key];
+
+    const product = new BigNumber(value.gasPrice).times(
+      value.tokenExchangeRate,
+    );
+    // Set gasPrice to 1 and tokenExchangeRate to the product of the two values, adjusted for the decimal
+    value.gasPrice = '1';
+    value.tokenExchangeRate = product.div(new BigNumber(10).pow(18)).toFixed(0);
+
+    // Ensure neither value is zero
+    if (value.gasPrice === '0') {
+      value.gasPrice = '1';
+    }
+    if (value.tokenExchangeRate === '0') {
+      value.tokenExchangeRate = '1';
+    }
+  }
+}
+
+function exampleCost(
+  remote: string,
+  provider: MultiProvider,
+  config: IgpConfig,
+) {
+  const overhead = config.overhead[remote];
+  const exampleRemoteGas = (overhead ?? 200_000) + 50_000;
+  const oracleData = config.oracleConfig[remote] || {
+    gasPrice: 0,
+    tokenExchangeRate: 1,
+  };
+  const protocol = provider.getProtocol(remote);
+  let exampleRemoteGasCost = new BigNumber(oracleData.tokenExchangeRate)
+    .times(oracleData.gasPrice)
+    .times(exampleRemoteGas)
+    .div(getProtocolExchangeRateScale(protocol).toBigInt());
+
+  return {
+    remote,
+    exampleRemoteGas,
+    exampleRemoteGasCost,
+  };
+}
+
+function printDifference(
+  chain: string,
+  provider: MultiProvider,
+  original: IgpConfig,
+  updated: IgpConfig,
+): number {
+  let differences = 0;
+  for (const [remote, _] of Object.entries(updated.overhead)) {
+    const currentCost = exampleCost(remote, provider, original);
+    const updatedCost = exampleCost(remote, provider, updated);
+    const metadata = provider.getChainMetadata(chain);
+
+    if (currentCost.exampleRemoteGasCost !== updatedCost.exampleRemoteGasCost) {
+      differences++;
+
+      let decimals = metadata.nativeToken?.decimals || 18;
+      // Radix has a special case where the exampleRemoteGasCost is the decimal value of the gas cost in XRD already
+      // This means we scale the exampleRemoteGasCost here to keep the rest of the code consistent
+      if (metadata.protocol === ProtocolType.Radix) {
+        decimals = 0;
+      }
+
+      logger.info(
+        `Updated gas: ${chain} -> ${remote}: ${updatedCost.exampleRemoteGas} remote gas cost: ${updatedCost.exampleRemoteGasCost
+          .div(new BigNumber(10).pow(decimals))
+          .toFixed(4)}${metadata.nativeToken?.symbol || ''}`,
+      );
+    }
+  }
+  return differences;
+}
+
+/**
+ * Creates an AltVM signer for the given chain.
+ * The private key is loaded from the environment based on the protocol type.
+ */
+async function createAltVMSigner(
+  multiProvider: MultiProvider,
+  chain: string,
+  privateKey: string,
+) {
+  const metadata = multiProvider.getChainMetadata(chain);
+  const protocolProvider = getProtocolProvider(metadata.protocol);
+  return protocolProvider.createSigner(metadata, { privateKey });
 }
 
 main()
