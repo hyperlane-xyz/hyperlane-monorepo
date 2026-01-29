@@ -3,7 +3,7 @@ import {
   createIsmWriter,
   ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
-import { ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { type IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
 import {
   ContractVerifier,
@@ -20,12 +20,11 @@ import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
 import { requestAndSaveApiKeys } from '../context/context.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
-  log,
-  logBlue,
-  logCommandHeader,
-  logGreen,
-  warnYellow,
-} from '../logger.js';
+  completeDeploy,
+  getBalances,
+  runPreflightChecksForChains,
+} from '../deploy/utils.js';
+import { log, logBlue, logCommandHeader, logGreen } from '../logger.js';
 import { readYamlOrJson, writeFileAtPath } from '../utils/files.js';
 
 interface IsmDeployParams {
@@ -51,10 +50,12 @@ export async function runIsmDeploy({
   // Read and validate ISM config
   const rawConfig = await readYamlOrJson(configPath);
   const parseResult = IsmConfigSchema.safeParse(rawConfig);
-  assert(
-    parseResult.success,
-    `Invalid ISM config: ${parseResult.error?.message}`,
-  );
+  if (!parseResult.success) {
+    const firstIssue = parseResult.error.issues[0];
+    throw new Error(
+      `Invalid ISM config: ${firstIssue.path.join('.')} => ${firstIssue.message}`,
+    );
+  }
   const ismConfig: IsmConfig = parseResult.data;
 
   // Validate that config is not just an address
@@ -83,6 +84,15 @@ export async function runIsmDeploy({
   if (!skipConfirmation) {
     apiKeys = await requestAndSaveApiKeys([chain], chainMetadata, registry);
   }
+
+  // Run preflight checks
+  await runPreflightChecksForChains({
+    context,
+    chains: [chain],
+    minGas: GasAction.ISM_DEPLOY_GAS,
+  });
+
+  const initialBalances = await getBalances(context, [chain]);
 
   logBlue(`Deploying ${ismConfig.type} ISM to ${chain}...`);
 
@@ -120,6 +130,8 @@ export async function runIsmDeploy({
     writeFileAtPath(outPath, JSON.stringify(output, null, 2) + '\n');
     logGreen(`Output written to ${outPath}`);
   }
+
+  await completeDeploy(context, 'ism', initialBalances, null, [chain]);
 }
 
 async function deployEvmIsm({
@@ -178,16 +190,15 @@ async function deployNonEvmIsm({
   const writer = createIsmWriter(chainMetadata, chainLookup, signer);
 
   // Convert ISM config to artifact format
-  // Note: not all ISM types may be supported for non-EVM chains
-  try {
-    const artifact = ismConfigToArtifact(
-      ismConfig as ProviderIsmConfig,
-      chainLookup,
-    );
-    const [deployed] = await writer.create(artifact);
-    return deployed.deployed.address;
-  } catch (error) {
-    warnYellow(`Non-EVM ISM deployment may not support all ISM types`);
-    throw error;
-  }
+  const artifact = ismConfigToArtifact(
+    // FIXME: not all ISM types are supported yet (treated the same in `warp deploy`)
+    ismConfig as ProviderIsmConfig,
+    chainLookup,
+  );
+  const result = await writer.create(artifact);
+  assert(
+    result.length > 0,
+    `ISM deployment via writer.create() returned no results for chain ${chain}`,
+  );
+  return result[0].deployed.address;
 }
