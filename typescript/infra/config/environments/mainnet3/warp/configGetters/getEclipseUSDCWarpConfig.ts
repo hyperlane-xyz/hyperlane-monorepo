@@ -1,4 +1,5 @@
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import { assert, difference } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { awIcas } from '../../governance/ica/aw.js';
@@ -21,7 +22,7 @@ import {
  * A multi-chain USDC warp route connecting Eclipse with major EVM chains and Solana.
  *
  * Chains:
- * - EVM (collateral): Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain
+ * - EVM (collateral): Ethereum, Arbitrum, Base, Optimism, Polygon, Unichain, ink, worldchain, avalanche, hyperevm, linea, monad
  * - SVM (synthetic): Eclipse
  * - SVM (collateral): Solana
  *
@@ -48,15 +49,25 @@ const awProxyAdminOwners: ChainMap<string | undefined> = {
   unichain: chainOwners.unichain.ownerOverrides?.proxyAdmin,
 } as const;
 
-const deploymentChains = [
+const evmDeploymentChains = [
   'ethereum',
   'arbitrum',
   'base',
   'optimism',
   'polygon',
   'unichain',
-  'eclipsemainnet',
-  'solanamainnet',
+  'ink',
+  'worldchain',
+  'avalanche',
+  'hyperevm',
+  'linea',
+  'monad',
+];
+const nonEvmDeploymentChains = ['eclipsemainnet', 'solanamainnet'];
+
+const deploymentChains = [
+  ...evmDeploymentChains,
+  ...nonEvmDeploymentChains,
 ] as const;
 
 type DeploymentChain = (typeof deploymentChains)[number];
@@ -69,17 +80,24 @@ const rebalanceableCollateralChains = [
   'optimism',
   'polygon',
   'unichain',
+  'ink',
 ] as const satisfies DeploymentChain[];
 
 const ownersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
-  arbitrum: awSafes.arbitrum,
-  base: awSafes.base,
-  optimism: awSafes.optimism,
+  arbitrum: awIcas.arbitrum,
+  base: awIcas.base,
+  optimism: awIcas.optimism,
   polygon: awIcas.polygon,
   unichain: awIcas.unichain,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
   solanamainnet: chainOwners.solanamainnet.owner,
+  ink: awIcas.ink,
+  worldchain: awIcas.worldchain,
+  avalanche: awIcas.avalanche,
+  hyperevm: awIcas.hyperevm,
+  linea: awIcas.linea,
+  monad: awIcas.monad,
 };
 
 // TODO: can we read this from a config file?
@@ -109,7 +127,6 @@ export const getEclipseUSDCWarpConfig = async (
       rebalancingConfigByChain,
     );
 
-    const usdcTokenAddress = usdcTokenAddresses[currentChain];
     configs.push([
       currentChain,
       {
@@ -129,6 +146,32 @@ export const getEclipseUSDCWarpConfig = async (
     ]);
   }
 
+  // Configure Evm collateral for non-rebalancing chains
+  const nonRebalanceableCollateralChains = difference(
+    new Set<DeploymentChain>(evmDeploymentChains),
+    new Set<DeploymentChain>(rebalanceableCollateralChains),
+  );
+
+  nonRebalanceableCollateralChains.forEach((chain) => {
+    const usdcToken =
+      usdcTokenAddresses[chain as keyof typeof usdcTokenAddresses];
+    assert(
+      usdcToken,
+      `USDC address not defined in usdcTokenAddresses for ${chain}`,
+    );
+
+    configs.push([
+      chain,
+      {
+        type: TokenType.collateral,
+        token: usdcToken,
+        owner: ownersByChain[chain],
+        mailbox: routerConfig[chain].mailbox,
+      },
+    ]);
+  });
+
+  // Configure non-evm chains
   configs.push([
     'eclipsemainnet',
     {
