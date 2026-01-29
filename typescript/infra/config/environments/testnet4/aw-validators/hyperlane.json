@@ -5,6 +5,13 @@
   "arbitrumsepolia": {
     "validators": ["0x09fabfbca0b8bf042e2a1161ee5010d147b0f603"]
   },
+  "sepolia": {
+    "validators": [
+      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
+      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
+      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
+    ]
+  },
   "arcadiatestnet2": {
     "validators": ["0xd39cd388ce3f616bc81be6dd3ec9348d7cdf4dff"]
   },
@@ -45,13 +52,6 @@
   },
   "radixtestnet": {
     "validators": ["0xeddaf7958627cfd35400c95db19a656a4a8a92c6"]
-  },
-  "sepolia": {
-    "validators": [
-      "0xb22b65f202558adf86a8bb2847b76ae1036686a5",
-      "0x469f0940684d147defc44f3647146cb90dd0bc8e",
-      "0xd3c75dcf15056012a4d74c483a0c6ea11d8c2b83"
-    ]
   },
   "solanatestnet": {
     "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"]
