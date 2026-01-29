@@ -35,15 +35,6 @@
     ],
     "type": 3
   },
-  "scrollsepolia": {
-    "threshold": 2,
-    "validators": [
-      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
-      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
-      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
-    ],
-    "type": 3
-  },
   "sepolia": {
     "threshold": 2,
     "validators": [
@@ -55,7 +46,9 @@
   },
   "solanatestnet": {
     "threshold": 1,
-    "validators": ["0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"],
+    "validators": [
+      "0xd4ce8fa138d4e083fc0e480cca0dbfa4f5f30bd5"
+    ],
     "type": 3
   }
 }

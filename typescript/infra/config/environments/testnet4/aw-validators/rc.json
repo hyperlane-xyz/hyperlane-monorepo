@@ -1,7 +1,4 @@
 {
-  "somniatestnet": {
-    "validators": []
-  },
   "bsctestnet": {
     "validators": [
       "0x6353c7402626054c824bd0eca721f82b725e2b4d",
@@ -14,13 +11,6 @@
       "0xfc419f9ba3c56c55e28844ade491d428f5a77d55",
       "0x0a636e76df4124b092cabb4321d6aaef9defb514",
       "0xbf86037899efe97bca4cea865607e10b849b5878"
-    ]
-  },
-  "scrollsepolia": {
-    "validators": [
-      "0x50d939d66f114350f322eb8b2e9f01fbc401d4c9",
-      "0x10fa7a657a06a47bcca1bacc436d61619e5d104c",
-      "0xa0f1cf3b23bd0f8a5e2ad438657097b8287816b4"
     ]
   },
   "sepolia": {

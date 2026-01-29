@@ -56,11 +56,11 @@ export const mainnetDockerTags: MainnetDockerTags = {
 
 export const testnetDockerTags: BaseDockerTags = {
   // rust agents
-  relayer: '36d7378-20260126-141132',
-  relayerRC: '36d7378-20260126-141132',
-  validator: '74d999b-20260108-145124',
-  validatorRC: '74d999b-20260108-145124',
-  scraper: '80f3635-20260123-103819',
+  relayer: 'eeadda5-20260129-131050',
+  relayerRC: 'eeadda5-20260129-131050',
+  validator: 'eeadda5-20260129-131050',
+  validatorRC: 'eeadda5-20260129-131050',
+  scraper: 'eeadda5-20260129-131050',
   // monorepo services
   kathy: '74d999b-20260108-145131',
   // standalone services

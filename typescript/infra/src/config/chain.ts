@@ -70,10 +70,6 @@ export const chainsToSkip: ChainName[] = [
   // legacy ICAs
   'viction',
   'ontology',
-
-  // legacy icas
-  'carrchaintestnet',
-  'rometestnet',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {
