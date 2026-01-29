@@ -3,7 +3,11 @@ import {
   type DeployedWarpAddress,
   type RawWarpArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { eqAddressCosmos } from '@hyperlane-xyz/utils';
+import {
+  assert,
+  eqAddressCosmos,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 
 import {
   type MsgCreateCollateralTokenEncodeObject,
@@ -75,7 +79,7 @@ export function getSetTokenOwnerTx(
   fromAddress: string,
   config: {
     tokenAddress: string;
-    newOwner: string;
+    newOwner?: string;
   },
 ): MsgSetTokenEncodeObject {
   return {
@@ -83,7 +87,7 @@ export function getSetTokenOwnerTx(
     value: MessageRegistry.MsgSetToken.proto.converter.create({
       owner: fromAddress,
       token_id: config.tokenAddress,
-      new_owner: config.newOwner,
+      new_owner: config.newOwner ?? '',
       renounce_ownership: !config.newOwner,
     }),
   };
@@ -101,15 +105,20 @@ export function getSetTokenIsmTx(
   fromAddress: string,
   config: {
     tokenAddress: string;
-    ismAddress: string;
+    ismAddress?: string;
   },
 ): MsgSetTokenEncodeObject {
+  assert(
+    config.ismAddress && !isZeroishAddress(config.ismAddress),
+    'Cosmos does not support resetting the ism to the default one yet',
+  );
+
   return {
     typeUrl: MessageRegistry.MsgSetToken.proto.type,
     value: MessageRegistry.MsgSetToken.proto.converter.create({
       owner: fromAddress,
       token_id: config.tokenAddress,
-      ism_id: config.ismAddress,
+      ism_id: config.ismAddress ?? '',
     }),
   };
 }
