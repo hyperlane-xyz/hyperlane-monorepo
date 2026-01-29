@@ -500,7 +500,7 @@ async function persistAddressesLocally(
   );
   // recent keys fetched from aws saved to local artifacts
   const multisigValidatorKeys: ChainMap<{ validators: Address[] }> = {};
-  let relayer;
+  let relayer: Address | undefined;
   for (const key of keys) {
     // Some types of keys come in an AWS and a GCP variant. We prefer
     // to persist the AWS version of the key if AWS is enabled.
