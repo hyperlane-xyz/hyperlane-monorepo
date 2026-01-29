@@ -19,14 +19,6 @@ import {
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 import { type AnnotatedEncodeObject } from '../utils/types.js';
 
-/**
- * Build transaction to create a collateral warp token.
- * Extracted from CosmosNativeProvider.getCreateCollateralTokenTransaction.
- *
- * @param fromAddress - Address of the transaction sender
- * @param config - Configuration with mailbox address and collateral denomination
- * @returns EncodeObject for MsgCreateCollateralToken transaction
- */
 export function getCreateCollateralTokenTx(
   fromAddress: string,
   config: {
@@ -44,14 +36,6 @@ export function getCreateCollateralTokenTx(
   };
 }
 
-/**
- * Build transaction to create a synthetic warp token.
- * Extracted from CosmosNativeProvider.getCreateSyntheticTokenTransaction.
- *
- * @param fromAddress - Address of the transaction sender
- * @param config - Configuration with mailbox address
- * @returns EncodeObject for MsgCreateSyntheticToken transaction
- */
 export function getCreateSyntheticTokenTx(
   fromAddress: string,
   config: {
@@ -67,14 +51,6 @@ export function getCreateSyntheticTokenTx(
   };
 }
 
-/**
- * Build transaction to set the owner of a warp token.
- * Extracted from CosmosNativeProvider.getSetTokenOwnerTransaction.
- *
- * @param fromAddress - Address of the transaction sender (must be current owner)
- * @param config - Configuration with token address and new owner
- * @returns EncodeObject for MsgSetToken transaction
- */
 export function getSetTokenOwnerTx(
   fromAddress: string,
   config: {
@@ -93,14 +69,7 @@ export function getSetTokenOwnerTx(
   };
 }
 
-/**
- * Build transaction to set the ISM of a warp token.
- * Extracted from CosmosNativeProvider.getSetTokenIsmTransaction.
- *
- * @param fromAddress - Address of the transaction sender (must be owner)
- * @param config - Configuration with token address and ISM address
- * @returns EncodeObject for MsgSetToken transaction
- */
+// Note: Cosmos does not support resetting ISM to default yet (validation will be removed when bug is fixed)
 export function getSetTokenIsmTx(
   fromAddress: string,
   config: {
@@ -123,14 +92,6 @@ export function getSetTokenIsmTx(
   };
 }
 
-/**
- * Build transaction to enroll a remote router for a warp token.
- * Extracted from CosmosNativeProvider.getEnrollRemoteRouterTransaction.
- *
- * @param fromAddress - Address of the transaction sender (must be owner)
- * @param config - Configuration with token address, remote domain, router address, and gas
- * @returns EncodeObject for MsgEnrollRemoteRouter transaction
- */
 export function getEnrollRemoteRouterTx(
   fromAddress: string,
   config: {
@@ -154,14 +115,6 @@ export function getEnrollRemoteRouterTx(
   };
 }
 
-/**
- * Build transaction to unenroll a remote router from a warp token.
- * Extracted from CosmosNativeProvider.getUnenrollRemoteRouterTransaction.
- *
- * @param fromAddress - Address of the transaction sender (must be owner)
- * @param config - Configuration with token address and remote domain ID
- * @returns EncodeObject for MsgUnrollRemoteRouter transaction
- */
 export function getUnenrollRemoteRouterTx(
   fromAddress: string,
   config: {
@@ -179,15 +132,6 @@ export function getUnenrollRemoteRouterTx(
   };
 }
 
-/**
- * Generate update transactions for a warp token by comparing expected vs current state.
- * Follows the pattern from Radix/Aleo implementations.
- *
- * @param expectedArtifactState - The desired state of the token
- * @param currentArtifactState - The current on-chain state of the token
- * @param signerAddress - Address of the transaction sender (must be current owner)
- * @returns Array of annotated transactions to update the token
- */
 export function getWarpTokenUpdateTxs<TConfig extends RawWarpArtifactConfig>(
   expectedArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,
   currentArtifactState: ArtifactDeployed<TConfig, DeployedWarpAddress>,

@@ -10,21 +10,8 @@ import {
   type CosmosSyntheticWarpTokenConfig,
 } from '../utils/types.js';
 
-/**
- * Type alias for query client with Warp extension.
- * Used throughout Warp readers to ensure type safety.
- */
 export type CosmosWarpQueryClient = QueryClient & WarpExtension;
 
-/**
- * Query warp token type from address.
- * Extracted from CosmosNativeProvider.getToken for use by artifact API.
- *
- * @param query - Query client with WarpExtension
- * @param tokenAddress - Address of the token to query
- * @returns The AltVM token type
- * @throws Error if token not found or unknown type
- */
 export async function getWarpTokenType(
   query: CosmosWarpQueryClient,
   tokenAddress: string,
@@ -58,13 +45,6 @@ export async function getWarpTokenType(
   }
 }
 
-/**
- * Parse remote routers and destination gas from RemoteRouters query.
- *
- * @param query - Query client with WarpExtension
- * @param tokenAddress - Address of the token
- * @returns Object with remoteRouters and destinationGas keyed by domain ID
- */
 async function getRemoteRoutersAndGas(
   query: CosmosWarpQueryClient,
   tokenAddress: string,
@@ -89,15 +69,6 @@ async function getRemoteRoutersAndGas(
   return { remoteRouters, destinationGas };
 }
 
-/**
- * Query collateral warp token configuration.
- * Extracted from CosmosNativeProvider for use by artifact API.
- *
- * @param query - Query client with WarpExtension
- * @param tokenAddress - Address of the collateral token to query
- * @returns Collateral token configuration
- * @throws Error if token not found or not a collateral token
- */
 export async function getCollateralWarpTokenConfig(
   query: CosmosWarpQueryClient,
   tokenAddress: string,
@@ -137,15 +108,6 @@ export async function getCollateralWarpTokenConfig(
   }
 }
 
-/**
- * Query synthetic warp token configuration.
- * Extracted from CosmosNativeProvider for use by artifact API.
- *
- * @param query - Query client with WarpExtension
- * @param tokenAddress - Address of the synthetic token to query
- * @returns Synthetic token configuration
- * @throws Error if token not found or not a synthetic token
- */
 export async function getSyntheticWarpTokenConfig(
   query: CosmosWarpQueryClient,
   tokenAddress: string,
