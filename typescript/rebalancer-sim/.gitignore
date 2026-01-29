@@ -3,4 +3,4 @@ dist
 cache
 
 # Simulation results (generated at runtime)
-results/*.json
+results/
