@@ -116,10 +116,38 @@ describe('InterchainAccount.getCallRemote', () => {
     expect(gasLimit.toNumber()).to.equal(defaultGasLimit.toNumber());
   });
 
-  it('falls back to legacy quoteGasPayment overload when needed', async () => {
+  it('falls back to mailbox quoteDispatch when v2 quote fails', async () => {
     mockLocalRouter['quoteGasPayment(uint32,uint256)'].rejects(
       new Error('legacy router'),
     );
+
+    // Add mailbox stub for legacy fallback path
+    const mockMailboxAddress = randomAddress();
+    mockLocalRouter.mailbox = sandbox.stub().resolves(mockMailboxAddress);
+
+    // Create a mock provider with proper call responses for mailbox contract
+    const defaultHookAddress = randomAddress();
+    const quoteAmount = BigNumber.from(789);
+    const mockProvider = {
+      _isProvider: true,
+      // Respond to defaultHook() call - returns address
+      // Respond to quoteDispatch() call - returns uint256
+      call: sandbox.stub().callsFake((tx: any) => {
+        // defaultHook() selector: 0x...
+        if (tx.data?.startsWith('0x3a871cdd')) {
+          // Return encoded address
+          return Promise.resolve(
+            '0x000000000000000000000000' + defaultHookAddress.slice(2),
+          );
+        }
+        // quoteDispatch() - return encoded uint256
+        return Promise.resolve(
+          '0x0000000000000000000000000000000000000000000000000000000000000315',
+        );
+      }),
+      getNetwork: sandbox.stub().resolves({ chainId: 1, name: 'test' }),
+    };
+    sandbox.stub(multiProvider, 'getProvider').returns(mockProvider as any);
 
     await app.getCallRemote({
       chain,
@@ -128,20 +156,32 @@ describe('InterchainAccount.getCallRemote', () => {
       config: baseConfig,
     });
 
-    sinon.assert.calledOnce(mockLocalRouter['quoteGasPayment(uint32)']);
+    // Verify the fallback path was taken
+    sinon.assert.calledOnce(mockLocalRouter.mailbox);
   });
 
   it('calls isms() with origin domain when ismOverride not provided', async () => {
+    const destRouterAddress = randomAddress();
     const mockDestRouter = {
       isms: sandbox.stub().resolves(randomAddress()),
     };
-    sandbox.stub(app, 'router').returns(mockDestRouter as any);
+
+    // Restore the factory stub and recreate with address-aware logic
+    (InterchainAccountRouter__factory.connect as sinon.SinonStub).restore();
+    sandbox
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address === destRouterAddress) {
+          return mockDestRouter as any;
+        }
+        return mockLocalRouter as any;
+      });
 
     const configWithoutIsmOverride = {
       origin: chain,
       owner: randomAddress(),
       localRouter: randomAddress(),
-      routerOverride: randomAddress(),
+      routerOverride: destRouterAddress,
     };
 
     await app.getCallRemote({
