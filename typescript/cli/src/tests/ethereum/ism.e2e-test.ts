@@ -1,19 +1,17 @@
 import { expect } from 'chai';
-import { $ } from 'zx';
 
 import { normalizeConfig } from '@hyperlane-xyz/sdk';
-import { deepEquals } from '@hyperlane-xyz/utils';
+import { ProtocolType, deepEquals } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { writeYamlOrJson } from '../../utils/files.js';
+import { HyperlaneE2EIsmTestCommands } from '../commands/ism.js';
 
 import { hyperlaneCoreDeploy } from './commands/core.js';
-import { localTestRunCmdPrefix } from './commands/helpers.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
-  CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
   TEMP_PATH,
@@ -26,44 +24,20 @@ const VALIDATORS = [
   '0x3C44CdDdB6a900fa2b585dd299e03d12FA4293BC',
 ];
 
-async function hyperlaneIsmDeploy(
-  chain: string,
-  configPath: string,
-  outPath: string,
-): Promise<string> {
-  await $`${localTestRunCmdPrefix()} hyperlane ism deploy \
-    --registry ${REGISTRY_PATH} \
-    --chain ${chain} \
-    --config ${configPath} \
-    --out ${outPath} \
-    --key ${ANVIL_KEY} \
-    --verbosity debug \
-    --yes`;
-
-  const output = readYamlOrJson<{ address: string }>(outPath);
-  return output.address;
-}
-
-async function hyperlaneIsmRead(
-  chain: string,
-  address: string,
-  outPath: string,
-): Promise<any> {
-  await $`${localTestRunCmdPrefix()} hyperlane ism read \
-    --registry ${REGISTRY_PATH} \
-    --chain ${chain} \
-    --address ${address} \
-    --out ${outPath}`;
-
-  return readYamlOrJson(outPath);
-}
-
 describe('hyperlane ism e2e tests', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
+  let ismCommands: HyperlaneE2EIsmTestCommands;
+
   before(async function () {
     // Deploy core contracts to anvil2 (needed for ISM deployment)
-    await hyperlaneCoreDeploy(CHAIN_NAME_2, CORE_CONFIG_PATH);
+    await hyperlaneCoreDeploy(CHAIN_NAME_2, './examples/core-config.yaml');
+
+    ismCommands = new HyperlaneE2EIsmTestCommands(
+      ProtocolType.Ethereum,
+      CHAIN_NAME_2,
+      REGISTRY_PATH,
+    );
   });
 
   it('deploys a routing ISM with aggregation and multisig modules', async function () {
@@ -98,19 +72,15 @@ describe('hyperlane ism e2e tests', function () {
     writeYamlOrJson(configPath, config);
 
     // Deploy ISM to anvil2
-    const address = await hyperlaneIsmDeploy(
-      CHAIN_NAME_2,
+    const address = await ismCommands.deployAndGetAddress(
+      ANVIL_KEY,
       configPath,
       deployOutPath,
     );
     expect(address).to.match(/^0x[a-fA-F0-9]{40}$/);
 
     // Read back the deployed ISM config
-    const readConfig = await hyperlaneIsmRead(
-      CHAIN_NAME_2,
-      address,
-      readOutPath,
-    );
+    const readConfig = await ismCommands.readConfig(address, readOutPath);
 
     // Compare configs using normalizeConfig (strips addresses, lowercases, sorts arrays)
     const normalizedOriginal = normalizeConfig(config);
