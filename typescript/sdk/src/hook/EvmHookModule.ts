@@ -470,6 +470,17 @@ export class EvmHookModule extends HyperlaneModule<
       })),
     );
 
+    // update max destination values if specified in target config
+    if (targetConfig.maxDestinationValue) {
+      updateTxs.push(
+        ...(await this.updateIgpMaxDestinationValues({
+          interchainGasPaymaster: this.args.addresses.deployedHook,
+          currentMaxValues: currentConfig.maxDestinationValue,
+          targetMaxValues: targetConfig.maxDestinationValue,
+        })),
+      );
+    }
+
     return updateTxs;
   }
 
@@ -526,6 +537,59 @@ export class EvmHookModule extends HyperlaneModule<
         data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
           'setDestinationGasConfigs((uint32,(address,uint96))[])',
           [gasParamsToSet],
+        ),
+      },
+    ];
+  }
+
+  protected async updateIgpMaxDestinationValues({
+    interchainGasPaymaster,
+    currentMaxValues,
+    targetMaxValues,
+  }: {
+    interchainGasPaymaster: Address;
+    currentMaxValues?: IgpConfig['maxDestinationValue'];
+    targetMaxValues: NonNullable<IgpConfig['maxDestinationValue']>;
+  }): Promise<AnnotatedEV5Transaction[]> {
+    const maxValueParamsToSet: InterchainGasPaymaster.MaxValueParamStruct[] =
+      [];
+
+    for (const [remote, maxValue] of Object.entries(targetMaxValues)) {
+      const remoteDomain = this.multiProvider.tryGetDomainId(remote);
+
+      if (!remoteDomain) {
+        this.logger.warn(
+          `Skipping maxDestinationValue ${this.chain} -> ${remote}. Expected if the remote domain is not in the MultiProvider.`,
+        );
+        continue;
+      }
+
+      // only update if the max value has changed
+      if (currentMaxValues?.[remote] !== maxValue) {
+        this.logger.debug(
+          `Setting maxDestinationValue for ${this.chain} -> ${remote}: ${maxValue}`,
+        );
+        maxValueParamsToSet.push({
+          remoteDomain,
+          maxValue,
+        });
+      }
+    }
+
+    if (maxValueParamsToSet.length === 0) {
+      return [];
+    }
+
+    return [
+      {
+        annotation: `Updating maxDestinationValue for domains ${Object.keys(
+          targetMaxValues,
+        ).join(', ')}...`,
+        chainId: this.chainId,
+        to: interchainGasPaymaster,
+        data: InterchainGasPaymaster__factory.createInterface().encodeFunctionData(
+          'setMaxDestinationValues((uint32,uint96)[])',
+          [maxValueParamsToSet],
         ),
       },
     ];

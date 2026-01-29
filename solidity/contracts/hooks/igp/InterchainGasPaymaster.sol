@@ -61,6 +61,10 @@ contract InterchainGasPaymaster is
     /// @notice The benficiary that can receive native tokens paid into this contract.
     address public beneficiary;
 
+    /// @notice Destination domain => max destination value allowed per message (0 = unlimited)
+    mapping(uint32 destinationDomain => uint96 maxValue)
+        public maxDestinationValue;
+
     // ============ Events ============
 
     /**
@@ -89,6 +93,11 @@ contract InterchainGasPaymaster is
     struct GasParam {
         uint32 remoteDomain;
         DomainGasConfig config;
+    }
+
+    struct MaxValueParam {
+        uint32 remoteDomain;
+        uint96 maxValue;
     }
 
     // ============ External Functions ============
@@ -144,6 +153,23 @@ contract InterchainGasPaymaster is
      */
     function setBeneficiary(address _beneficiary) external onlyOwner {
         _setBeneficiary(_beneficiary);
+    }
+
+    /**
+     * @notice Sets the max destination value for remote domains.
+     * @param _params An array of params including the remote domain and max value to set.
+     */
+    function setMaxDestinationValues(
+        MaxValueParam[] calldata _params
+    ) external onlyOwner {
+        uint256 _len = _params.length;
+        for (uint256 i = 0; i < _len; i++) {
+            maxDestinationValue[_params[i].remoteDomain] = _params[i].maxValue;
+            emit MaxDestinationValueSet(
+                _params[i].remoteDomain,
+                _params[i].maxValue
+            );
+        }
     }
 
     // ============ Public Functions ============
@@ -219,8 +245,15 @@ contract InterchainGasPaymaster is
         uint256 _destinationGasCost = _gasLimit * uint256(_gasPrice);
 
         // add requested value to be sent on destination
-        // TODO: consider limits here
-        _destinationGasCost += _destinationValue;
+        // only if maxDestinationValue is configured (non-zero means enabled)
+        if (_destinationValue > 0) {
+            uint96 _maxValue = maxDestinationValue[_destinationDomain];
+            require(
+                _destinationValue <= _maxValue,
+                "IGP: exceeded max destination value"
+            );
+            _destinationGasCost += _destinationValue;
+        }
 
         // Convert to the local native token.
         return
@@ -233,6 +266,17 @@ contract InterchainGasPaymaster is
         uint256 _gasLimit
     ) public view virtual override returns (uint256) {
         return quoteGasPayment(_destinationDomain, _gasLimit, 0);
+    }
+
+    /**
+     * @notice Returns the max destination value for a given domain.
+     * @param _destinationDomain The destination domain.
+     * @return The max destination value allowed (0 = disabled).
+     */
+    function getMaxDestinationValue(
+        uint32 _destinationDomain
+    ) external view returns (uint96) {
+        return maxDestinationValue[_destinationDomain];
     }
 
     /**

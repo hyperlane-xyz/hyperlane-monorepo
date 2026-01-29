@@ -1,4 +1,4 @@
-import { BigNumberish, ethers, providers } from 'ethers';
+import { BigNumber, BigNumberish, ethers, providers } from 'ethers';
 import { Logger } from 'pino';
 import { z } from 'zod';
 
@@ -304,7 +304,25 @@ export class HyperlaneRelayer {
         .filter((event) => event.args.messageId);
       const [gasPayment, valueRequested] = matchingEvents;
       this.logger.debug({ gasPayment, valueRequested }, `Parsed IGP request`);
-      value = valueRequested.args.value;
+      value = valueRequested?.args?.value;
+    }
+
+    // Simulation-based retry for value delivery
+    // If value is requested, simulate to check if recipient can receive it
+    if (value && BigNumber.from(value).gt(0)) {
+      try {
+        await this.core.estimateProcess(message, metadata, value);
+        this.logger.debug(
+          { messageId: message.id, value: value.toString() },
+          `Simulation with value succeeded`,
+        );
+      } catch (error) {
+        this.logger.info(
+          { messageId: message.id, value: value.toString(), error },
+          `Value delivery would fail, relaying without value`,
+        );
+        value = undefined;
+      }
     }
 
     this.logger.info(`Relaying message ${message.id}`);

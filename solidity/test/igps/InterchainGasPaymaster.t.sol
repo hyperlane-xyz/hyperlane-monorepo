@@ -400,6 +400,16 @@ contract InterchainGasPaymasterTest is Test {
             1 // 1 wei gas price
         );
 
+        // Enable value requests by setting maxDestinationValue
+        uint96 _maxValue = 1 ether;
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            _maxValue
+        );
+        igp.setMaxDestinationValues(params);
+
         uint256 _value = 100 gwei; // Value to be delivered to recipient
         uint256 _quote = igp.quoteGasPayment(
             testDestinationDomain,
@@ -470,6 +480,15 @@ contract InterchainGasPaymasterTest is Test {
             1 // 1 wei gas price
         );
 
+        // Enable value requests by setting maxDestinationValue
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            type(uint96).max
+        );
+        igp.setMaxDestinationValues(params);
+
         uint256 _quote = igp.quoteGasPayment(
             testDestinationDomain,
             testGasLimit,
@@ -496,6 +515,15 @@ contract InterchainGasPaymasterTest is Test {
             1 // 1 wei gas price
         );
 
+        // Enable value requests by setting maxDestinationValue
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            1 ether
+        );
+        igp.setMaxDestinationValues(params);
+
         uint256 _value = 50 gwei;
         uint256 _quoteWithValue = igp.quoteGasPayment(
             testDestinationDomain,
@@ -510,6 +538,182 @@ contract InterchainGasPaymasterTest is Test {
 
         // Quote with value should be higher by the value amount
         assertEq(_quoteWithValue, _quoteWithoutValue + _value);
+    }
+
+    // ============ maxDestinationValue ============
+
+    event MaxDestinationValueSet(uint32 indexed remoteDomain, uint96 maxValue);
+
+    function testSetMaxDestinationValues_setsValues() public {
+        uint32 _domain1 = 1;
+        uint32 _domain2 = 2;
+        uint96 _maxValue1 = 1 ether;
+        uint96 _maxValue2 = 2 ether;
+
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](2);
+        params[0] = InterchainGasPaymaster.MaxValueParam(_domain1, _maxValue1);
+        params[1] = InterchainGasPaymaster.MaxValueParam(_domain2, _maxValue2);
+
+        igp.setMaxDestinationValues(params);
+
+        assertEq(igp.getMaxDestinationValue(_domain1), _maxValue1);
+        assertEq(igp.getMaxDestinationValue(_domain2), _maxValue2);
+    }
+
+    function testSetMaxDestinationValues_emitsEvent() public {
+        uint32 _domain = 1;
+        uint96 _maxValue = 1 ether;
+
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(_domain, _maxValue);
+
+        vm.expectEmit(true, false, false, true);
+        emit MaxDestinationValueSet(_domain, _maxValue);
+
+        igp.setMaxDestinationValues(params);
+    }
+
+    function testSetMaxDestinationValues_revertsIfNotOwner() public {
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(1, 1 ether);
+
+        vm.prank(ALICE);
+        vm.expectRevert("Ownable: caller is not the owner");
+        igp.setMaxDestinationValues(params);
+    }
+
+    function testGetMaxDestinationValue_returnsZeroByDefault() public {
+        assertEq(igp.getMaxDestinationValue(testDestinationDomain), 0);
+    }
+
+    function testQuoteGasPayment_revertsWhenValueExceedsLimit() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        // Set max value to 1 ether
+        uint96 _maxValue = 1 ether;
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            _maxValue
+        );
+        igp.setMaxDestinationValues(params);
+
+        // Try to quote with value exceeding limit
+        vm.expectRevert("IGP: exceeded max destination value");
+        igp.quoteGasPayment(testDestinationDomain, testGasLimit, _maxValue + 1);
+    }
+
+    function testQuoteGasPayment_allowsValueAtLimit() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        // Set max value to 1 ether
+        uint96 _maxValue = 1 ether;
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            _maxValue
+        );
+        igp.setMaxDestinationValues(params);
+
+        // Quote with value exactly at limit should succeed
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            _maxValue
+        );
+        assertGt(_quote, 0);
+    }
+
+    function testQuoteGasPayment_revertsWhenMaxValueZero() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        // maxValue is 0 by default (disabled)
+        assertEq(igp.getMaxDestinationValue(testDestinationDomain), 0);
+
+        // Should revert when trying to request value with maxValue = 0
+        vm.expectRevert("IGP: exceeded max destination value");
+        igp.quoteGasPayment(testDestinationDomain, testGasLimit, 1 ether);
+    }
+
+    function testQuoteGasPayment_noCheckWhenValueZero() public {
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        // Set a max value limit
+        uint96 _maxValue = 1 ether;
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            _maxValue
+        );
+        igp.setMaxDestinationValues(params);
+
+        // Should succeed with 0 value regardless of limit
+        uint256 _quote = igp.quoteGasPayment(
+            testDestinationDomain,
+            testGasLimit,
+            0
+        );
+        assertGt(_quote, 0);
+    }
+
+    function testFuzz_quoteGasPayment_respectsMaxValue(
+        uint96 _maxValue,
+        uint96 _requestedValue
+    ) public {
+        vm.assume(_maxValue > 0);
+        vm.assume(_requestedValue > 0);
+
+        setRemoteGasData(
+            testDestinationDomain,
+            1 * TEST_EXCHANGE_RATE,
+            1 // 1 wei gas price
+        );
+
+        InterchainGasPaymaster.MaxValueParam[]
+            memory params = new InterchainGasPaymaster.MaxValueParam[](1);
+        params[0] = InterchainGasPaymaster.MaxValueParam(
+            testDestinationDomain,
+            _maxValue
+        );
+        igp.setMaxDestinationValues(params);
+
+        if (_requestedValue > _maxValue) {
+            vm.expectRevert("IGP: exceeded max destination value");
+            igp.quoteGasPayment(
+                testDestinationDomain,
+                testGasLimit,
+                _requestedValue
+            );
+        } else {
+            uint256 _quote = igp.quoteGasPayment(
+                testDestinationDomain,
+                testGasLimit,
+                _requestedValue
+            );
+            assertGt(_quote, 0);
+        }
     }
 
     // ============ quoteDispatch ============

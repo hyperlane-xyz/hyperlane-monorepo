@@ -30,7 +30,8 @@ interface IPostDispatchHook {
         OP_L2_TO_L1,
         MAILBOX_DEFAULT_HOOK,
         AMOUNT_ROUTING,
-        CCTP
+        CCTP,
+        VALUE_REQUEST
     }
 
     /**

@@ -384,6 +384,7 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
 
     const overhead: IgpHookConfig['overhead'] = {};
     const oracleConfig: IgpHookConfig['oracleConfig'] = {};
+    const maxDestinationValue: IgpHookConfig['maxDestinationValue'] = {};
 
     let oracleKey: string | undefined;
 
@@ -404,6 +405,12 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
             gasPrice: gasPrice.toString(),
             tokenDecimals: nativeToken?.decimals,
           };
+
+          // Read max destination value if set (0 = unlimited, skip)
+          const maxValue = await hook.getMaxDestinationValue(domainId);
+          if (!maxValue.isZero()) {
+            maxDestinationValue[chainName] = maxValue.toString();
+          }
 
           const { gasOracle } = await hook.destinationGasConfigs(domainId);
           const oracle = StorageGasOracle__factory.connect(
@@ -443,6 +450,9 @@ export class EvmHookReader extends HyperlaneReader implements HookReader {
       overhead,
       oracleConfig,
       contractVersion,
+      ...(Object.keys(maxDestinationValue).length > 0 && {
+        maxDestinationValue,
+      }),
     };
 
     this._cache.set(address, config);

@@ -28,6 +28,13 @@ interface IInterchainGasPaymaster {
      */
     event ValueRequested(bytes32 indexed messageId, uint256 value);
 
+    /**
+     * @notice Emitted when the max destination value is set for a remote domain.
+     * @param remoteDomain The remote domain.
+     * @param maxValue The max destination value allowed (0 = unlimited).
+     */
+    event MaxDestinationValueSet(uint32 indexed remoteDomain, uint96 maxValue);
+
     function payForGas(
         bytes32 _messageId,
         uint32 _destinationDomain,

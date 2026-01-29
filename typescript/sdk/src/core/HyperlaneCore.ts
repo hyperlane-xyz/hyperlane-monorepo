@@ -293,6 +293,24 @@ export class HyperlaneCore extends HyperlaneApp<CoreFactories> {
     );
   }
 
+  /**
+   * Estimates gas for processing a message with optional value.
+   * Used to simulate value delivery before actually submitting.
+   * @param message The dispatched message to process
+   * @param ismMetadata The ISM metadata for verification
+   * @param value Optional value to send with the transaction
+   * @returns The estimated gas as a BigNumber
+   */
+  async estimateProcess(
+    message: DispatchedMessage,
+    ismMetadata: string,
+    value?: BigNumberish,
+  ): Promise<ethers.BigNumber> {
+    const destinationChain = this.getDestination(message);
+    const mailbox = this.getContracts(destinationChain).mailbox;
+    return mailbox.estimateGas.process(ismMetadata, message.message, { value });
+  }
+
   async getHook(
     originChain: ChainName,
     senderAddress: Address,

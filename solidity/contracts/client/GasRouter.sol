@@ -17,15 +17,8 @@ pragma solidity >=0.6.11;
 import {Router} from "./Router.sol";
 import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
-// ============ External Imports ============
-import {Address} from "@openzeppelin/contracts/utils/Address.sol";
-
 abstract contract GasRouter is Router {
-    using Address for address payable;
-
     event GasSet(uint32 domain, uint256 gas);
-
-    uint256 public immutable destinationGasDust;
 
     // ============ Mutable Storage ============
     mapping(uint32 destinationDomain => uint256 gasLimit) public destinationGas;
@@ -35,10 +28,7 @@ abstract contract GasRouter is Router {
         uint256 gas;
     }
 
-    constructor(address _mailbox) Router(_mailbox) {
-        // TODO: make configurable (per destination?)
-        destinationGasDust = 100 gwei;
-    }
+    constructor(address _mailbox) Router(_mailbox) {}
 
     /**
      * @notice Sets the gas amount dispatched for each configured domain.
@@ -83,7 +73,7 @@ abstract contract GasRouter is Router {
     ) internal view returns (bytes memory) {
         return
             StandardHookMetadata.format(
-                destinationGasDust,
+                0,
                 destinationGas[_destination],
                 msg.sender
             );

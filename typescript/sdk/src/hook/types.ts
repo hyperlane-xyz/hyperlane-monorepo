@@ -159,6 +159,7 @@ export const IgpSchema = VersionedSchema.extend(OwnableSchema.shape).extend({
   oracleKey: z.string(),
   overhead: z.record(z.number()),
   oracleConfig: z.record(ProtocolAgnositicGasOracleConfigWithTypicalCostSchema),
+  maxDestinationValue: z.record(z.string()).optional(),
 });
 
 export const DomainRoutingHookConfigSchema: z.ZodSchema<DomainRoutingHookConfig> =

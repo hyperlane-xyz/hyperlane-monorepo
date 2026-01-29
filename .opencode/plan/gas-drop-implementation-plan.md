@@ -6,10 +6,10 @@ Enable gas drop (delivering native tokens to recipients on destination chains) a
 
 ## Design Principles
 
-1. **Composable** - Gas drop is a separate hook, not baked into warp routes
-2. **Application-controlled** - Each app decides its own gas drop value
-3. **Relayer-limited** - IGP's `maxDestinationValue` provides safety cap
-4. **Simple** - ValueRequestHook is immutable, no admin functions
+1. **Composable** - Gas drop via ValueRequestHook, not baked into warp routes
+2. **Application-controlled** - Each app configures its own gas drop value per destination
+3. **Relayer-limited** - IGP's `maxDestinationValue` provides safety cap (0 = disabled)
+4. **Simulation-based delivery** - Relayer simulates with value, falls back without if recipient can't receive ETH
 
 ## Architecture
 
@@ -20,17 +20,18 @@ Origin Chain:
 1. User calls warpRoute.transferRemote()
 2. Router dispatches with hook metadata (msgValue = 0 by default)
 3. RoutingHook routes to ValueRequestHook for destination
-4. ValueRequestHook injects msgValue into metadata
-5. IGP.postDispatch() reads msgValue, emits ValueRequested(messageId, value)
+4. ValueRequestHook injects msgValue into metadata, delegates to inner hook
+5. IGP.postDispatch() reads msgValue, validates against maxDestinationValue
+6. IGP emits ValueRequested(messageId, value) and includes value in quote
 
 Off-chain:
-6. Relayer sees ValueRequested event
-7. Relayer simulates process{value: X}()
-8. If simulation succeeds, submit with value; otherwise submit without
+7. Relayer sees ValueRequested event, extracts value amount
+8. Relayer simulates process{value: X}() on destination
+9. If simulation succeeds, submit with value; otherwise submit without
 
 Destination Chain:
-9. Mailbox.process{value}() calls recipient.handle{value}()
-10. TokenRouter._handle() forwards msg.value to token recipient
+10. Mailbox.process{value}() calls recipient.handle{value}()
+11. TokenRouter._handle() forwards msg.value to token recipient via sendValue()
 ```
 
 ### Hook Tree (Example Setup)
@@ -38,75 +39,36 @@ Destination Chain:
 ```
 WarpRoute
   └─→ hook = RoutingHook
-              ├─→ chainA → ValueRequestHook(innerHook=defaultHook, value=0.001 ETH)
-              ├─→ chainB → ValueRequestHook(innerHook=defaultHook, value=0.0001 ETH)
-              └─→ chainC → defaultHook (no gas drop)
+              ├─→ chainA → ValueRequestHook(innerHook=IGP, value=0.001 ETH)
+              ├─→ chainB → ValueRequestHook(innerHook=IGP, value=0.0001 ETH)
+              └─→ chainC → IGP (no gas drop)
 ```
 
 ## Implementation
 
-### Phase 1: Solidity Changes
+### Solidity Changes
 
-#### 1.1 Remove `destinationGasDust` from GasRouter
+#### 1. ValueRequestHook Contract (NEW)
 
-**File:** `solidity/contracts/client/GasRouter.sol`
+**File:** `solidity/contracts/hooks/ValueRequestHook.sol`
 
-- Remove `uint256 public immutable destinationGasDust` (line 28)
-- Remove `destinationGasDust = 100 gwei` from constructor (line 40)
-- Update `_GasRouter_hookMetadata()` to use `0` for msgValue:
+Immutable hook that injects a configured value into hook metadata:
 
-```solidity
-function _GasRouter_hookMetadata(
-  uint32 _destination
-) internal view returns (bytes memory) {
-  return
-    StandardHookMetadata.format(
-      0, // was: destinationGasDust
-      destinationGas[_destination],
-      msg.sender
-    );
-}
-```
-
-#### 1.2 Add ValueRequestHook Contract
-
-**File:** `solidity/contracts/hooks/ValueRequestHook.sol` (new)
+- Takes `innerHook` and `value` in constructor
+- Overrides `msgValue` in metadata before delegating to inner hook
+- Adds `value` to quote dispatch result
+- Returns `VALUE_REQUEST` hook type
 
 ```solidity
-// SPDX-License-Identifier: MIT OR Apache-2.0
-pragma solidity >=0.8.0;
-
-import { AbstractPostDispatchHook } from './libs/AbstractPostDispatchHook.sol';
-import { IPostDispatchHook } from '../interfaces/hooks/IPostDispatchHook.sol';
-import { StandardHookMetadata } from './libs/StandardHookMetadata.sol';
-import { Message } from '../libs/Message.sol';
-
-/**
- * @title ValueRequestHook
- * @notice Injects a configured msgValue into hook metadata for gas drop functionality.
- * @dev Immutable configuration - deploy new instance to change value.
- */
 contract ValueRequestHook is AbstractPostDispatchHook {
-  using StandardHookMetadata for bytes;
-  using Message for bytes;
-
   IPostDispatchHook public immutable innerHook;
   uint256 public immutable value;
-
-  constructor(address _innerHook, uint256 _value) {
-    innerHook = IPostDispatchHook(_innerHook);
-    value = _value;
-  }
-
-  function hookType() external pure override returns (uint8) {
-    return uint8(IPostDispatchHook.HookTypes.ID_AUTH_ISM); // TODO: add VALUE_REQUEST type
-  }
 
   function _quoteDispatch(
     bytes calldata metadata,
     bytes calldata message
   ) internal view override returns (uint256) {
-    bytes memory newMetadata = _overrideMsgValue(metadata, value);
+    bytes memory newMetadata = _overrideMsgValue(metadata);
     return innerHook.quoteDispatch(newMetadata, message) + value;
   }
 
@@ -114,85 +76,88 @@ contract ValueRequestHook is AbstractPostDispatchHook {
     bytes calldata metadata,
     bytes calldata message
   ) internal override {
-    bytes memory newMetadata = _overrideMsgValue(metadata, value);
+    bytes memory newMetadata = _overrideMsgValue(metadata);
     innerHook.postDispatch{ value: msg.value }(newMetadata, message);
-  }
-
-  function _overrideMsgValue(
-    bytes calldata metadata,
-    uint256 _value
-  ) internal pure returns (bytes memory) {
-    return
-      StandardHookMetadata.formatMetadata(
-        _value,
-        metadata.gasLimit(0),
-        metadata.refundAddress(address(0)),
-        metadata.getCustomMetadata()
-      );
   }
 }
 ```
 
-#### 1.3 Add ValueRequestHook Tests
+#### 2. IGP: maxDestinationValue Safety Cap
 
-**File:** `solidity/test/hooks/ValueRequestHook.t.sol` (new)
+**File:** `solidity/contracts/hooks/igp/InterchainGasPaymaster.sol`
 
-Test cases:
+- Add `maxDestinationValue` mapping (uint32 domain => uint96 maxValue)
+- Add `setMaxDestinationValues()` owner function
+- Add `MaxDestinationValueSet` event
+- **`maxDestinationValue == 0` means DISABLED** (not unlimited)
+- Requesting value when disabled reverts with "IGP: exceeded max destination value"
 
-- `test_quoteDispatch_addsValueToInnerQuote`
-- `test_postDispatch_passesModifiedMetadataToInnerHook`
-- `test_postDispatch_emitsValueRequestedFromIGP`
-- `test_zeroValue_passthroughBehavior`
-- `test_integration_withRoutingHook`
+```solidity
+mapping(uint32 => uint96) public maxDestinationValue;
 
-#### 1.4 Keep Existing Changes (Already Implemented)
+function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
+    public view returns (uint256)
+{
+    // ... gas cost calculation ...
+    if (_destinationValue > 0) {
+        uint96 _maxValue = maxDestinationValue[_destinationDomain];
+        require(_destinationValue <= _maxValue, "IGP: exceeded max destination value");
+        _destinationGasCost += _destinationValue;
+    }
+    // ... return converted cost ...
+}
+```
 
-**IGP (`InterchainGasPaymaster.sol`):**
+#### 3. GasRouter: Remove Hardcoded Dust
 
-- `ValueRequested(messageId, value)` event ✓
-- `maxDestinationValue` mapping ✓
-- `setMaxDestinationValues()` setter ✓
-- `quoteGasPayment(uint32, uint256, uint256)` 3-param version ✓
+**File:** `solidity/contracts/client/GasRouter.sol`
 
-**TokenRouter (`token/libs/TokenRouter.sol`):**
+- Remove `destinationGasDust` immutable (was 100 gwei)
+- Update `_GasRouter_hookMetadata()` to use `0` for msgValue
+- Gas drop is now opt-in via ValueRequestHook, not default behavior
 
-- `msg.value` forwarding in `_handle()` ✓
-- Uses `sendValue` (reverts on failure for simulation detection) ✓
+#### 4. VALUE_REQUEST Hook Type
 
-### Phase 2: TypeScript SDK Changes
+**File:** `solidity/contracts/interfaces/hooks/IPostDispatchHook.sol`
 
-#### 2.1 Add Simulation-Based Retry to Relayer
+- Add `VALUE_REQUEST` to `HookTypes` enum
+
+#### 5. TokenRouter: Forward Value (Already in PR)
+
+**File:** `solidity/contracts/token/libs/TokenRouter.sol`
+
+- In `_handle()`, forward `msg.value` to the token recipient using `sendValue()`
+
+### TypeScript SDK Changes
+
+#### 1. Simulation-Based Retry in Relayer
 
 **File:** `typescript/sdk/src/core/HyperlaneRelayer.ts`
 
+- Before delivering with value, simulate the transaction
+- If simulation fails (recipient can't receive ETH), retry without value
+- Prevents failed deliveries to contracts without `receive()`
+
 ```typescript
-async relay(message: DispatchedMessage, dispatchTx: TransactionReceipt) {
-  // ... existing metadata building ...
-
-  let value: BigNumberish | undefined;
-  // ... existing value extraction from ValueRequested event ...
-
-  // Simulation-based retry for value delivery
-  if (value && BigNumber.from(value).gt(0)) {
-    try {
-      await this.core.estimateProcess(message, metadata, value);
-      this.logger.debug(`Simulation with value=${value} succeeded`);
-    } catch (error) {
-      this.logger.info(
-        { error, value },
-        `Value delivery would fail, relaying without value`
-      );
-      value = undefined;
-    }
+if (value && BigNumber.from(value).gt(0)) {
+  try {
+    await this.core.estimateProcess(message, metadata, value);
+    this.logger.debug({ messageId, value }, `Simulation with value succeeded`);
+  } catch (error) {
+    this.logger.info(
+      { messageId, value, error },
+      `Value delivery would fail, relaying without value`,
+    );
+    value = undefined;
   }
-
-  return this.core.deliver(message, metadata, value);
 }
 ```
 
-#### 2.2 Add `estimateProcess` to HyperlaneCore
+#### 2. estimateProcess in HyperlaneCore
 
 **File:** `typescript/sdk/src/core/HyperlaneCore.ts`
+
+- Add method to simulate `process()` with value for gas estimation
 
 ```typescript
 async estimateProcess(
@@ -206,112 +171,107 @@ async estimateProcess(
 }
 ```
 
-#### 2.3 Add ValueRequestHook Support (Optional - for deployment tooling)
+#### 3. ValueRequestHook SDK Support
 
 **File:** `typescript/sdk/src/hook/types.ts`
 
-```typescript
-export const ValueRequestHookConfigSchema = z.object({
-  type: z.literal(HookType.VALUE_REQUEST),
-  innerHook: z.string(), // address
-  value: z.string(), // wei amount
-});
-```
+- Add `VALUE_REQUEST` to `HookType` enum
 
 **File:** `typescript/sdk/src/hook/EvmHookReader.ts`
 
-- Add `deriveValueRequestHookConfig()` method
-- Read `innerHook` and `value` from contract
+- Add `deriveValueRequestHookConfig()` to read hook configuration
 
 **File:** `typescript/sdk/src/hook/EvmHookModule.ts`
 
 - Add deployment logic for `ValueRequestHook`
 
-#### 2.4 Add SDK Helper for Calculating Gas Drop Value (Optional)
-
-**File:** `typescript/sdk/src/hook/gasDropUtils.ts` (new)
-
-```typescript
-export async function suggestGasDropValue(
-  multiProvider: MultiProvider,
-  igp: InterchainGasPaymaster,
-  destination: ChainName,
-  options: { transactions: number; avgGasPerTx?: number },
-): Promise<BigNumber> {
-  const { transactions, avgGasPerTx = 50_000 } = options;
-  const destDomain = multiProvider.getDomainId(destination);
-  const { gasPrice } = await igp.getExchangeRateAndGasPrice(destDomain);
-  return gasPrice.mul(avgGasPerTx).mul(transactions);
-}
-```
-
-### Phase 3: Testing
-
-#### 3.1 Unit Tests
-
-- ValueRequestHook Solidity tests (Phase 1.3)
-- TypeScript hook reader/module tests
-
-#### 3.2 E2E Tests
-
-- Gas drop with EOA recipient (should receive value)
-- Gas drop with contract recipient that accepts ETH (should receive value)
-- Gas drop with contract recipient that rejects ETH (relayer simulation detects, delivers without value)
-
 ## Operator Workflow
 
-### Initial Setup
+### Enabling Gas Drop for a Warp Route
 
-1. Calculate desired gas drop value for each destination chain:
+1. **Set maxDestinationValue on IGP** (relayer operator):
+
+   ```solidity
+   igp.setMaxDestinationValues([{remoteDomain: chainA, maxValue: 1 ether}])
+   ```
+
+2. **Calculate desired gas drop value** per destination:
 
    ```
    value = avgGasPerTx * gasPrice * numTransactions
-   Example: 50,000 * 20 gwei * 5 = 0.005 ETH
+   Example: 50,000 gas * 20 gwei * 5 txs = 0.005 ETH
    ```
 
-   (SDK helper can assist with this calculation)
+3. **Deploy ValueRequestHook** for each destination:
 
-2. Deploy ValueRequestHook for each destination:
-
-   ```
-   ValueRequestHook(innerHook=defaultHook, value=0.005 ETH)
+   ```solidity
+   new ValueRequestHook(defaultHook, 0.005 ether)
    ```
 
-3. Configure RoutingHook to route to ValueRequestHooks:
+4. **Configure RoutingHook** to route to ValueRequestHooks:
 
-   ```
+   ```solidity
    routingHook.setHook(chainA, valueRequestHookA)
    routingHook.setHook(chainB, valueRequestHookB)
    ```
 
-4. Set warp route's hook to RoutingHook:
-   ```
+5. **Set warp route's hook** to RoutingHook:
+   ```solidity
    warpRoute.setHook(routingHook)
    ```
 
-### Updating Values
+### Updating Gas Drop Values
 
-When gas prices change significantly:
+Deploy new ValueRequestHook with updated value, then update RoutingHook to point to new instance.
 
-1. Deploy new ValueRequestHook with updated value
-2. Update RoutingHook to point to new instance
-3. (Typically done alongside IGP gas oracle updates)
+## Test Coverage
 
-## Out of Scope (Future Work)
+### Solidity Tests
+
+**ValueRequestHook** (`solidity/test/hooks/ValueRequestHook.t.sol`):
+
+- `test_hookType_returnsValueRequest`
+- `test_quoteDispatch_addsValueToInnerQuote`
+- `test_quoteDispatch_withZeroValue`
+- `test_quoteDispatch_preservesGasLimit`
+- `test_postDispatch_callsInnerHookWithModifiedMetadata`
+- `test_postDispatch_forwardsFullMsgValue`
+- `test_postDispatch_emitsValueRequestedFromIGP`
+- Integration tests with IGP and RoutingHook
+
+**IGP** (`solidity/test/igps/InterchainGasPaymaster.t.sol`):
+
+- `testQuoteGasPayment_revertsWhenMaxValueZero`
+- `testQuoteGasPayment_revertsWhenExceedsMax`
+- `testQuoteGasPayment_succeedsWhenWithinMax`
+- `testSetMaxDestinationValues`
+- Existing ValueRequested event tests
+
+### E2E Tests
+
+**File:** `typescript/cli/src/tests/ethereum/warp/warp-send.e2e-test.ts`
+
+- Test native value relaying through warp send with `--relay` flag
+
+## Future Work
 
 - **Rust relayer implementation** - Production relayer needs simulation-based retry
 - **`valueRecipient` field** - Sending value to different address than message recipient
 - **Dynamic value calculation** - Hook reading from IGP oracle at runtime
+- **Per-destination configurable dust** - If keeping GasRouter approach
 
 ## Summary of Changes
 
-| Component                    | Change                                        | Status           |
-| ---------------------------- | --------------------------------------------- | ---------------- |
-| `GasRouter.sol`              | Remove `destinationGasDust` immutable         | To do            |
-| `ValueRequestHook.sol`       | New contract                                  | To do            |
-| `ValueRequestHook.t.sol`     | New test file                                 | To do            |
-| `InterchainGasPaymaster.sol` | `ValueRequested` event, `maxDestinationValue` | Done             |
-| `TokenRouter.sol`            | `msg.value` forwarding in `_handle()`         | Done             |
-| `HyperlaneRelayer.ts`        | Simulation-based retry                        | To do            |
-| `HyperlaneCore.ts`           | Add `estimateProcess()`                       | To do            |
-| Hook types/reader/module     | ValueRequestHook support                      | To do (optional) |
+| Component                      | Change                                          | Status |
+| ------------------------------ | ----------------------------------------------- | ------ |
+| `ValueRequestHook.sol`         | New composable hook contract                    | Done   |
+| `ValueRequestHook.t.sol`       | Tests for new hook                              | Done   |
+| `IPostDispatchHook.sol`        | Add `VALUE_REQUEST` hook type                   | Done   |
+| `InterchainGasPaymaster.sol`   | `maxDestinationValue` with 0=disabled semantics | Done   |
+| `InterchainGasPaymaster.t.sol` | Tests for maxDestinationValue                   | Done   |
+| `GasRouter.sol`                | Remove `destinationGasDust` (use 0)             | Done   |
+| `HyperlaneRelayer.ts`          | Simulation-based retry for value delivery       | Done   |
+| `HyperlaneCore.ts`             | Add `estimateProcess()` method                  | Done   |
+| `EvmHookModule.ts`             | ValueRequestHook deployment support             | Done   |
+| `EvmHookReader.ts`             | ValueRequestHook config reading                 | Done   |
+| `hook/types.ts`                | Add VALUE_REQUEST hook type                     | Done   |
