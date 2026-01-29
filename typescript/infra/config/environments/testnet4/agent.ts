@@ -133,16 +133,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
   {
     type: GasPaymentEnforcementPolicyType.None,
     matchingList: [
-      // For testing nobletestnet<>auroratestnet until we control the IGP
-      {
-        originDomain: getDomainId('nobletestnet'),
-        destinationDomain: getDomainId('auroratestnet'),
-      },
-      // For testing nobletestnet<>hyperliquidevmtestnet until we control the IGP
-      {
-        originDomain: getDomainId('nobletestnet'),
-        destinationDomain: getDomainId('hyperliquidevmtestnet'),
-      },
       // Temporary workaround due to IGP not being implemented on starknet chain.
       // starknetsepolia
       { originDomain: getDomainId('starknetsepolia') },
@@ -150,17 +140,6 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
       // paradexsepolia
       { originDomain: getDomainId('paradexsepolia') },
       { destinationDomain: getDomainId('paradexsepolia') },
-    ],
-  },
-  {
-    type: GasPaymentEnforcementPolicyType.Minimum,
-    payment: '1',
-    matchingList: [
-      // Workaround for gas price fluctuations
-      // Works in tandem with increased igp overhead
-      {
-        destinationDomain: getDomainId('somniatestnet'),
-      },
     ],
   },
   // Default policy is OnChainFeeQuoting

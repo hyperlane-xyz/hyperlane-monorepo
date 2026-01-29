@@ -59,13 +59,6 @@
       "0x1f030345963c54ff8229720dd3a711c15c554aeb"
     ]
   },
-  "citreatestnet": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 1,
-    "validators": [
-      "0x60d7380a41eb95c49be18f141efd2fde5e3dba20"
-    ]
-  },
   "connextsepolia": {
     "type": "messageIdMultisigIsm",
     "threshold": 1,
@@ -129,15 +122,6 @@
     "threshold": 1,
     "validators": [
       "0xf0290b06e446b320bd4e9c4a519420354d7ddccd"
-    ]
-  },
-  "scrollsepolia": {
-    "type": "messageIdMultisigIsm",
-    "threshold": 2,
-    "validators": [
-      "0xbe18dbd758afb367180260b524e6d4bcd1cb6d05",
-      "0x9a11ed23ae962974018ab45bc133caabff7b3271",
-      "0x7867bea3c9761fe64e6d124b171f91fd5dd79644"
     ]
   },
   "sepolia": {

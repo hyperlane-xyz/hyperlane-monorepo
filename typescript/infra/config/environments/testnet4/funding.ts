@@ -25,7 +25,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
     [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'megaethtestnet'],
+  chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     aleotestnet: '0',
@@ -65,7 +65,6 @@ export const keyFunderConfig: KeyFunderConfig<
     optimismsepolia: '0',
     paradexsepolia: '0',
     polygonamoy: '0',
-    scrollsepolia: '1',
     sepolia: '1',
     starknetsepolia: '0',
     // no funding for solana
@@ -85,7 +84,6 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     optimismsepolia: '0.05',
     polygonamoy: '0.1',
-    scrollsepolia: '0.1',
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',
