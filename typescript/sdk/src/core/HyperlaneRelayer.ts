@@ -308,10 +308,8 @@ export class HyperlaneRelayer {
         } catch (error: any) {
           // Check if error is due to recipient unable to receive value
           // OpenZeppelin's Address.sendValue reverts with this message
-          const errorMessage = error?.message || error?.reason || String(error);
-          const isSendValueError = errorMessage.includes(
-            'unable to send value, recipient may have reverted',
-          );
+          // SmartProvider may wrap errors, so check message, reason, and cause
+          const isSendValueError = this.isSendValueError(error);
 
           if (isSendValueError) {
             this.logger.info(
@@ -341,6 +339,31 @@ export class HyperlaneRelayer {
   hydrate(cache: RelayerCache): void {
     assert(this.cache, 'Caching not enabled');
     this.cache = objMerge(this.cache, cache);
+  }
+
+  /**
+   * Checks if an error is due to recipient unable to receive ETH value.
+   * OpenZeppelin's Address.sendValue reverts with a specific message.
+   * SmartProvider may wrap errors in BlockchainError with cause chain.
+   */
+  protected isSendValueError(error: any): boolean {
+    const SEND_VALUE_ERROR =
+      'unable to send value, recipient may have reverted';
+
+    // Check error message directly
+    const message = error?.message || '';
+    if (message.includes(SEND_VALUE_ERROR)) return true;
+
+    // Check error reason (ethers)
+    const reason = error?.reason || '';
+    if (reason.includes(SEND_VALUE_ERROR)) return true;
+
+    // Check cause chain (SmartProvider wraps errors with cause)
+    if (error?.cause) {
+      return this.isSendValueError(error.cause);
+    }
+
+    return false;
   }
 
   // fill cache with default ISM and hook configs for quicker relaying (optional)

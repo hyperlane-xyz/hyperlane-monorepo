@@ -137,6 +137,7 @@ function quoteGasPayment(uint32 _dest, uint256 _gasLimit, uint256 _destValue)
 - Always simulate handle first (without value)
 - If IGP present and value requested, simulate again with value
 - If sendValue error, clear value (handle already verified to work)
+- Uses `isSendValueError()` helper that checks error cause chain (SmartProvider wraps errors)
 - Other errors propagate normally
 
 ```typescript
@@ -152,14 +153,23 @@ if (igp) {
     try {
       await this.core.estimateHandle(message, value);
     } catch (error: any) {
-      const isSendValueError = errorMessage.includes('unable to send value...');
-      if (isSendValueError) {
+      // Check error and cause chain for sendValue revert
+      if (this.isSendValueError(error)) {
         value = undefined; // Handle already verified, just clear value
       } else {
         throw error;
       }
     }
   }
+}
+
+// Helper method checks error.message, error.reason, and error.cause recursively
+protected isSendValueError(error: any): boolean {
+  const SEND_VALUE_ERROR = 'unable to send value, recipient may have reverted';
+  if (error?.message?.includes(SEND_VALUE_ERROR)) return true;
+  if (error?.reason?.includes(SEND_VALUE_ERROR)) return true;
+  if (error?.cause) return this.isSendValueError(error.cause);
+  return false;
 }
 ```
 
