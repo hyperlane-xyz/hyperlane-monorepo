@@ -340,13 +340,11 @@ describe('Collateral Deficit E2E', function () {
     await context.orchestrator.executeCycle(event1);
 
     // Assert: Rebalance intent was created with correct fields
-    // TODO: there should only be 1 active rebalance intent
-    // TODO: based on deterministic balances, we should be able to know the origin of the intent, aseert the origin
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(
       activeIntents.length,
-      'Should have at least 1 active rebalance intent',
-    ).to.be.greaterThan(0);
+      'Should have exactly 1 active rebalance intent',
+    ).to.equal(1);
 
     const intentToArbitrum = activeIntents.find(
       (i) => i.destination === DOMAIN_IDS.arbitrum,
@@ -395,30 +393,31 @@ describe('Collateral Deficit E2E', function () {
       USDC_ADDRESSES,
     );
 
-    // TODO: we should assert for a specific balance
+    // Assert exact balance: initial 10000 + user deposit 500 - rebalance 400 = 10100 USDC
     expect(
-      balancesAfterRebalance.ethereum.lt(balancesAfterUserTransfer.ethereum),
-      `INCENTIV ethereum collateral should decrease after rebalance. ` +
-        `Before: ${balancesAfterUserTransfer.ethereum.toString()}, After: ${balancesAfterRebalance.ethereum.toString()}`,
-    ).to.be.true;
+      balancesAfterRebalance.ethereum.toString(),
+      'INCENTIV ethereum collateral should be 10100 USDC after rebalance',
+    ).to.equal('10100000000');
 
-    // Verify entities can be retrieved by ID (demonstrates getById methods work)
-    // TODO: assert the status of these actions
+    // Verify entities can be retrieved by ID and have correct status
     const retrievedTransfer = await context.tracker.getTransfer(
       trackedTransfer.id,
     );
     expect(retrievedTransfer, 'Transfer should be retrievable by ID').to.exist;
     expect(retrievedTransfer!.id).to.equal(trackedTransfer.id);
+    expect(retrievedTransfer!.status).to.equal('in_progress');
 
     const retrievedIntent =
       await context.tracker.getRebalanceIntent(rebalanceIntentId);
     expect(retrievedIntent, 'Intent should be retrievable by ID').to.exist;
     expect(retrievedIntent!.id).to.equal(rebalanceIntentId);
+    expect(retrievedIntent!.status).to.equal('in_progress');
 
     const retrievedAction = await context.tracker.getRebalanceAction(
       actionToArbitrum!.id,
     );
     expect(retrievedAction, 'Action should be retrievable by ID').to.exist;
     expect(retrievedAction!.id).to.equal(actionToArbitrum!.id);
+    expect(retrievedAction!.status).to.equal('in_progress');
   });
 });
