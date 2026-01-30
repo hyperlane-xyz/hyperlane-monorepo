@@ -54,6 +54,7 @@ export class SimulationRegistry implements IRegistry {
         blocks: {
           confirmations: 0,
           estimateBlockTime: 1,
+          reorgPeriod: 0, // Disable historical block queries in simulation
         },
       };
     }

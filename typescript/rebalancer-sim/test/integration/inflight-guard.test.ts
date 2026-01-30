@@ -58,13 +58,11 @@ import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 // Configure which rebalancers to test via environment variable
 // e.g., REBALANCERS=simple for single rebalancer
-// Default: run both SimpleRunner and CLIRebalancerService
+// Default: run both SimpleRunner and CLIRebalancerRunner
 type RebalancerType = 'simple' | 'cli';
 const REBALANCER_ENV = process.env.REBALANCERS || 'simple,cli';
 const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
   .map((r) => r.trim().toLowerCase())
-  // Map legacy names to new names
-  .map((r) => (r === 'hyperlane' ? 'simple' : r === 'real' ? 'cli' : r))
   .filter((r): r is RebalancerType => r === 'simple' || r === 'cli');
 
 if (ENABLED_REBALANCERS.length === 0) {

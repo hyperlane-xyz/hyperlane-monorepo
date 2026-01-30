@@ -192,10 +192,6 @@ REBALANCERS=simple,cli pnpm test
 
 # Compare on specific scenario (recommended for debugging)
 REBALANCERS=simple,cli pnpm test --grep "extreme-drain"
-
-# Legacy aliases still work for backwards compatibility
-REBALANCERS=hyperlane pnpm test  # same as 'simple'
-REBALANCERS=real pnpm test       # same as 'cli'
 ```
 
 ### 4. View Results
@@ -326,7 +322,7 @@ interface SimulationKPIs {
 
 4. **No Gas Costs**: Gas costs aren't simulated. KPIs include rebalance count but not actual cost.
 
-5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=hyperlane,real`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
+5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=simple,cli`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
 
 ## Design Decisions
 

@@ -7,8 +7,8 @@
  *
  * Configuration:
  * - Set REBALANCERS env var to specify which rebalancers to test
- *   e.g., REBALANCERS=hyperlane pnpm test (for single rebalancer)
- * - Default: runs both SimpleRunner and CLIRebalancerService
+ *   e.g., REBALANCERS=simple pnpm test (for single rebalancer)
+ * - Default: runs both SimpleRunner and CLIRebalancerRunner
  *
  * Each scenario JSON includes:
  * - description: What the scenario tests
@@ -18,12 +18,12 @@
  * - expectations: Assertions (minCompletionRate, shouldTriggerRebalancing, etc.)
  *
  * KNOWN LIMITATION:
- * When running the full test suite with REBALANCERS=hyperlane,real, some tests
- * may timeout due to cumulative state from the RealRebalancerService. To run
+ * When running the full test suite with REBALANCERS=simple,cli, some tests
+ * may timeout due to cumulative state from the CLIRebalancerRunner. To run
  * comparisons reliably, run specific scenarios:
- *   REBALANCERS=hyperlane,real pnpm test --grep "scenario-name"
+ *   REBALANCERS=simple,cli pnpm test --grep "scenario-name"
  *
- * The default (REBALANCERS=hyperlane) runs reliably for all scenarios.
+ * The default (REBALANCERS=simple) runs reliably for all scenarios.
  */
 import { expect } from 'chai';
 import { ethers } from 'ethers';
@@ -60,25 +60,25 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
 // Configure which rebalancers to test via environment variable
-// e.g., REBALANCERS=hyperlane for single rebalancer
-// Default: run both HyperlaneRunner and RealRebalancerService for comparison
-type RebalancerType = 'hyperlane' | 'real';
-const REBALANCER_ENV = process.env.REBALANCERS || 'hyperlane,real';
+// e.g., REBALANCERS=simple for single rebalancer
+// Default: run both SimpleRunner and CLIRebalancerRunner for comparison
+type RebalancerType = 'simple' | 'cli';
+const REBALANCER_ENV = process.env.REBALANCERS || 'simple,cli';
 const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
   .map((r) => r.trim().toLowerCase())
-  .filter((r): r is RebalancerType => r === 'hyperlane' || r === 'real');
+  .filter((r): r is RebalancerType => r === 'simple' || r === 'cli');
 
 if (ENABLED_REBALANCERS.length === 0) {
   throw new Error(
-    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "hyperlane", "real", or both.`,
+    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "cli", or both.`,
   );
 }
 
 function createRebalancer(type: RebalancerType): IRebalancerRunner {
   switch (type) {
-    case 'hyperlane':
+    case 'simple':
       return new SimpleRunner();
-    case 'real':
+    case 'cli':
       return new CLIRebalancerRunner();
   }
 }
