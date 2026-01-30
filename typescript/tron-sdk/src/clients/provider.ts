@@ -3,7 +3,7 @@ import { TronWeb } from 'tronweb';
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, ensure0x, sleep, strip0x } from '@hyperlane-xyz/utils';
 
-import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
+import ERC20Abi from '../abi/ERC20.json' with { type: 'json' };
 import HypERC20Abi from '../abi/HypERC20.json' with { type: 'json' };
 import HypERC20CollateralAbi from '../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
@@ -488,7 +488,7 @@ export class TronProvider implements AltVM.IProvider {
       return token;
     }
 
-    const erc20 = this.tronweb.contract(ERC20TestAbi.abi, denom);
+    const erc20 = this.tronweb.contract(ERC20Abi.abi, denom);
 
     token.name = await erc20.name().call();
     token.symbol = await erc20.symbol().call();
@@ -558,15 +558,21 @@ export class TronProvider implements AltVM.IProvider {
   async quoteRemoteTransfer(
     req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
+    assert(req.recipient, `Tron quote remote transfer needs the recipient`);
+    assert(req.amount, `Tron quote remote transfer needs the amount`);
+
     const contract = this.tronweb.contract(HypNativeAbi.abi, req.tokenAddress);
 
     const { quotes } = await contract
-      .quoteTransferRemote(
-        req.destinationDomainId,
-        '0x726f757465725f61707000000000000000000000000000020000000000000005',
-        1000000,
-      )
+      .quoteTransferRemote(req.destinationDomainId, req.recipient, req.amount)
       .call();
+
+    if (!quotes.length) {
+      return {
+        denom: '',
+        amount: BigInt(0),
+      };
+    }
 
     const denom = this.tronweb.address.fromHex(quotes[0].token);
 

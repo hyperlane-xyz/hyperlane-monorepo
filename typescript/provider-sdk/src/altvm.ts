@@ -190,6 +190,8 @@ export type ReqGetBridgedSupply = { tokenAddress: string };
 export type ReqQuoteRemoteTransfer = {
   tokenAddress: string;
   destinationDomainId: number;
+  recipient?: string;
+  amount?: string;
   customHookAddress?: string;
   customHookMetadata?: string;
 };

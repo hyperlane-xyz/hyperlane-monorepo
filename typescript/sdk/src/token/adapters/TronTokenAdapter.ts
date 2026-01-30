@@ -234,17 +234,20 @@ export class TronHypCollateralAdapter
 
   async quoteTransferRemoteGas({
     destination,
+    recipient,
+    amount,
   }: QuoteTransferRemoteParams): Promise<InterchainGasQuote> {
-    const { denom: addressOrDenom, amount } =
-      await this.provider.quoteRemoteTransfer({
-        tokenAddress: this.tokenAddress,
-        destinationDomainId: destination,
-      });
+    const quote = await this.provider.quoteRemoteTransfer({
+      tokenAddress: this.tokenAddress,
+      destinationDomainId: destination,
+      recipient,
+      amount: amount?.toString(),
+    });
 
     return {
       igpQuote: {
-        addressOrDenom,
-        amount,
+        addressOrDenom: quote.denom,
+        amount: quote.amount,
       },
     };
   }
