@@ -1,14 +1,17 @@
 # @hyperlane-xyz/core
 
-## 11.0.0-beta.0
-
-### Major Changes
-
-- e62d604: Update TokenRouter with fractional scaling
+## 10.1.5
 
 ### Patch Changes
 
-- @hyperlane-xyz/utils@20.2.0-beta.0
+- @hyperlane-xyz/utils@21.1.0
+
+## 10.1.4
+
+### Patch Changes
+
+- Updated dependencies [0bce4e7]
+  - @hyperlane-xyz/utils@21.0.0
 
 ## 10.1.3
 
