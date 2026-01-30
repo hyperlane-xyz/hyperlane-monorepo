@@ -16,6 +16,7 @@ import {
   inKubernetes,
   objFilter,
   objMerge,
+  rootLogger,
 } from '@hyperlane-xyz/utils';
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
@@ -161,7 +162,12 @@ export async function getSecretMetadataOverrides(
 
   for (const { chain, rpcUrls } of secretRpcUrls) {
     if (rpcUrls.length === 0) {
-      throw Error(`No secret RPC URLs found for chain: ${chain}`);
+      // Don't throw - just skip the override. The registry will use public RPCs.
+      // This allows warp routes with deprecated chains to still be checked on supported chains.
+      rootLogger.warn(
+        `No secret RPC URLs found for chain: ${chain}. Using public RPCs from registry.`,
+      );
+      continue;
     }
     // Need explicit casting here because Zod expects a non-empty array.
     const metadataRpcUrls = rpcUrls.map((rpcUrl: string) => ({

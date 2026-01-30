@@ -91,21 +91,30 @@ async function main() {
     );
   });
 
-  console.log(
-    `Found warp configs for chains: ${Array.from(warpConfigChains).join(', ')}`,
-  );
-
-  // Get the multiprovider once to avoid recreating it for each warp route
-  // We specify the chains to avoid creating a multiprovider for all chains.
-  // This ensures that we don't fail to fetch secrets for new chains in the cron job.
   const envConfig = getEnvironmentConfig(environment);
 
-  // Use default values for context, role, and useSecrets
+  const unsupportedChains = Array.from(warpConfigChains).filter(
+    (chain) => !envConfig.supportedChainNames.includes(chain),
+  );
+  if (unsupportedChains.length > 0) {
+    console.log(
+      chalk.yellow(
+        `Skipping unsupported chain legs: ${unsupportedChains.join(', ')}`,
+      ),
+    );
+  }
+
+  const supportedWarpChains = Array.from(warpConfigChains).filter((chain) =>
+    envConfig.supportedChainNames.includes(chain),
+  );
+
+  console.log(`Checking chains: ${supportedWarpChains.join(', ')}`);
+
   const multiProvider = await envConfig.getMultiProvider(
     undefined,
     undefined,
     undefined,
-    Array.from(warpConfigChains),
+    supportedWarpChains,
   );
 
   // TODO: consider retrying this if check throws an error
