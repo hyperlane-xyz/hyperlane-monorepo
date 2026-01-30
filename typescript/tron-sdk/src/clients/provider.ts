@@ -8,15 +8,22 @@ import HypERC20Abi from '../abi/HypERC20.json' with { type: 'json' };
 import HypERC20CollateralAbi from '../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
 import IERC20Abi from '../abi/IERC20.json' with { type: 'json' };
-import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
 import PausableHookAbi from '../abi/PausableHook.json' with { type: 'json' };
 import ProxyAdminAbi from '../abi/ProxyAdmin.json' with { type: 'json' };
-import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../abi/ValidatorAnnounce.json' with { type: 'json' };
-import { getHookType } from '../hook/hook-query.js';
-import { getSetIgpDestinationGasConfigTx } from '../hook/hook-tx.js';
+import {
+  getHookType,
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
+  getCreateIgpTx,
+  getRemoveIgpOwnerTx,
+  getSetIgpDestinationGasConfigTx,
+  getSetIgpOwnerTx,
+} from '../hook/hook-tx.js';
 import {
   getIsmType,
   getMerkleRootMultisigIsmConfig,
@@ -341,71 +348,13 @@ export class TronProvider implements AltVM.IProvider {
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const igp = this.tronweb.contract(
-      InterchainGasPaymasterAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = await igp.hookType().call();
-    assert(
-      Number(hookType) === 4,
-      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
-    );
-
-    const domainIds = await igp.domains().call();
-
-    let destinationGasConfigs = {} as {
-      [domainId: string]: {
-        gasOracle: {
-          tokenExchangeRate: string;
-          gasPrice: string;
-        };
-        gasOverhead: string;
-      };
-    };
-
-    for (const domainId of domainIds) {
-      const c = await igp.destinationGasConfigs(domainId).call();
-
-      const gasOracle = this.tronweb.contract(
-        StorageGasOracleAbi.abi,
-        this.tronweb.address.fromHex(c.gasOracle),
-      );
-
-      const { tokenExchangeRate, gasPrice } = await gasOracle
-        .remoteGasData(domainId)
-        .call();
-
-      destinationGasConfigs[domainId.toString()] = {
-        gasOracle: {
-          tokenExchangeRate: tokenExchangeRate.toString(),
-          gasPrice: gasPrice.toString(),
-        },
-        gasOverhead: c.gasOverhead.toString(),
-      };
-    }
-
-    return {
-      address: req.hookAddress,
-      owner: this.tronweb.address.fromHex(await igp.owner().call()),
-      destinationGasConfigs,
-    };
+    return getIgpHookConfig(this.tronweb, req.hookAddress);
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const contract = this.tronweb.contract(
-      MerkleTreeHookAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = await contract.hookType().call();
-    assert(Number(hookType) === 3, `hook type does not equal MERKLE_TREE`);
-
-    return {
-      address: req.hookAddress,
-    };
+    return getMerkleTreeHookConfig(this.tronweb, req.hookAddress);
   }
 
   async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
@@ -728,34 +677,16 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<TronTransaction> {
-    return createDeploymentTransaction(
-      this.tronweb,
-      InterchainGasPaymasterAbi,
-      req.signer,
-      [],
-    );
+    return getCreateIgpTx(this.tronweb, req.signer);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.hookAddress,
-        'transferOwnership(address)',
-        {
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: req.newOwner,
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getSetIgpOwnerTx(this.tronweb, req.signer, {
+      igpAddress: req.hookAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getSetDestinationGasConfigTransaction(
@@ -775,23 +706,10 @@ export class TronProvider implements AltVM.IProvider {
   async getRemoveDestinationGasConfigTransaction(
     req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.hookAddress,
-        'removeDestinationGasConfigs(uint32[])',
-        {
-          callValue: 0,
-        },
-        [
-          {
-            type: 'uint32[]',
-            value: [req.remoteDomainId],
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getRemoveIgpOwnerTx(this.tronweb, req.signer, {
+      igpAddress: req.hookAddress,
+      remoteDomainId: req.remoteDomainId,
+    });
   }
 
   async getCreateNoopHookTransaction(

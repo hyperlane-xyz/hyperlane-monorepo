@@ -228,3 +228,29 @@ export async function getSetIgpDestinationGasConfigTx(
 
   return transaction;
 }
+
+export async function getRemoveIgpOwnerTx(
+  tronweb: Readonly<TronWeb>,
+  fromAddress: string,
+  config: {
+    igpAddress: string;
+    remoteDomainId: number;
+  },
+): Promise<TronTransaction> {
+  const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
+    config.igpAddress,
+    'removeDestinationGasConfigs(uint32[])',
+    {
+      callValue: 0,
+    },
+    [
+      {
+        type: 'uint32[]',
+        value: [config.remoteDomainId],
+      },
+    ],
+    tronweb.address.toHex(fromAddress),
+  );
+
+  return transaction;
+}
