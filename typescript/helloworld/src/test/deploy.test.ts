@@ -17,7 +17,7 @@ import { HelloWorldChecker } from '../deploy/check.js';
 import { HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
 
-describe('deploy', async () => {
+describe('deploy', () => {
   let multiProvider: MultiProvider;
   let core: TestCoreApp;
   let config: ChainMap<HelloWorldConfig>;
@@ -39,10 +39,12 @@ describe('deploy', async () => {
     deployer = new HelloWorldDeployer(multiProvider);
   });
 
+  // eslint-disable-next-line jest/expect-expect -- testing deploy doesn't throw
   it('deploys', async () => {
     contracts = await deployer.deploy(config);
   });
 
+  // eslint-disable-next-line jest/expect-expect -- testing app construction doesn't throw
   it('builds app', async () => {
     contracts = await deployer.deploy(config);
     app = new HelloWorldApp(core, contracts, multiProvider);
