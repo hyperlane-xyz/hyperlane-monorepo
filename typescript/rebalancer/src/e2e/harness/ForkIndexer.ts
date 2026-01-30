@@ -8,70 +8,41 @@ import {
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
-import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
+
+import type { MockExplorerClient } from './MockExplorerClient.js';
 
 export class ForkIndexer {
   private lastScannedBlock: Map<string, number> = new Map();
   private seenMessageIds: Set<string> = new Set();
   private initialized: boolean = false;
-  private userTransfers: ExplorerMessage[] = [];
-  private rebalanceActions: ExplorerMessage[] = [];
 
   constructor(
     private readonly providers: Map<string, providers.JsonRpcProvider>,
     private readonly core: HyperlaneCore,
-    private readonly rebalancerAddresses: string[],
+    private readonly mockExplorer: MockExplorerClient,
+    private readonly rebalancerAddress: string,
     private readonly logger: Logger,
   ) {}
 
-  getUserTransfers(): ExplorerMessage[] {
-    return this.userTransfers;
-  }
-
-  getRebalanceActions(): ExplorerMessage[] {
-    return this.rebalanceActions;
-  }
-
-  async initialize(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
-    for (const [chain] of this.providers) {
-      const blockNumber = confirmedBlockTags[chain];
-      if (blockNumber === undefined) {
-        throw new Error(`Missing confirmed block tag for chain ${chain}`);
-      }
-      this.lastScannedBlock.set(chain, blockNumber as number);
-      this.logger.debug(
-        { chain, blockNumber },
-        'ForkIndexer initialized lastScannedBlock',
-      );
+  async initialize(): Promise<void> {
+    for (const [chain, provider] of this.providers) {
+      const blockNumber = await provider.getBlockNumber();
+      this.lastScannedBlock.set(chain, blockNumber);
     }
     this.initialized = true;
   }
 
-  async sync(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
+  async sync(): Promise<void> {
     if (!this.initialized) {
-      return; // No-op: nothing to scan yet
+      throw new Error('ForkIndexer not initialized. Call initialize() first.');
     }
 
-    for (const [chain] of this.providers) {
-      const currentBlock = confirmedBlockTags[chain];
-      if (currentBlock === undefined) {
-        throw new Error(`Missing confirmed block tag for chain ${chain}`);
-      }
+    for (const [chain, provider] of this.providers) {
+      const currentBlock = await provider.getBlockNumber();
       const lastBlock = this.lastScannedBlock.get(chain) ?? 0;
-      const currentBlockNumber = currentBlock as number;
 
-      this.logger.debug(
-        {
-          chain,
-          lastBlock,
-          currentBlock: currentBlockNumber,
-          skip: lastBlock >= currentBlockNumber,
-        },
-        'ForkIndexer sync check',
-      );
-
-      if (lastBlock >= currentBlockNumber) {
+      if (lastBlock >= currentBlock) {
         continue;
       }
 
@@ -79,7 +50,7 @@ export class ForkIndexer {
       const events = await mailbox.queryFilter(
         mailbox.filters.Dispatch(),
         lastBlock + 1,
-        currentBlockNumber,
+        currentBlock,
       );
 
       this.logger.debug(
@@ -87,7 +58,7 @@ export class ForkIndexer {
           chain,
           eventCount: events.length,
           fromBlock: lastBlock + 1,
-          toBlock: currentBlockNumber,
+          toBlock: currentBlock,
         },
         'Scanned Dispatch events',
       );
@@ -123,19 +94,17 @@ export class ForkIndexer {
         };
 
         if (
-          this.rebalancerAddresses.some(
-            (addr) => receipt.from.toLowerCase() === addr.toLowerCase(),
-          )
+          receipt.from.toLowerCase() === this.rebalancerAddress.toLowerCase()
         ) {
-          this.rebalanceActions.push(msg);
+          this.mockExplorer.addRebalanceAction(msg);
         } else {
-          this.userTransfers.push(msg);
+          this.mockExplorer.addUserTransfer(msg);
         }
 
         this.seenMessageIds.add(msgId);
       }
 
-      this.lastScannedBlock.set(chain, currentBlockNumber);
+      this.lastScannedBlock.set(chain, currentBlock);
     }
   }
 }
