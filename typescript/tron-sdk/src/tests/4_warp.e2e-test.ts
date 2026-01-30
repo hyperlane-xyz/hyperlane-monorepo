@@ -14,13 +14,12 @@ describe('4. aleo sdk warp e2e tests', async function () {
   const localnetRpc = 'http://127.0.0.1:9090';
 
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let proxyAdminAddress: string;
 
   let mailboxAddress: string;
   let collateralDenom: string;
 
   let nativeTokenAddress: string;
-  let collateralTokenAddress: string;
-  let syntheticTokenAddress: string;
 
   const domainId = 1234;
 
@@ -35,8 +34,14 @@ describe('4. aleo sdk warp e2e tests', async function () {
       },
     });
 
+    const proxyAdmin = await signer.createProxyAdmin({
+      owner: signer.getSignerAddress(),
+    });
+    proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+
     const mailbox = await signer.createMailbox({
       domainId: domainId,
+      proxyAdminAddress,
     });
     mailboxAddress = mailbox.mailboxAddress;
 
@@ -71,6 +76,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     // ACT
     const txResponse = await signer.createNativeToken({
       mailboxAddress,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -100,6 +106,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     const txResponse = await signer.createCollateralToken({
       mailboxAddress,
       collateralDenom,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -118,8 +125,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.collateral);
-
-    collateralTokenAddress = txResponse.tokenAddress;
   });
 
   step('create new synthetic token', async () => {
@@ -131,6 +136,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
       name: 'test',
       denom: 'test',
       decimals: 6,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -149,8 +155,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
     expect(token.decimals).to.equal(6);
     expect(token.ismAddress).to.be.empty;
     expect(token.tokenType).to.equal(AltVM.TokenType.synthetic);
-
-    syntheticTokenAddress = txResponse.tokenAddress;
   });
 
   step('set token ISM', async () => {
@@ -203,6 +207,7 @@ describe('4. aleo sdk warp e2e tests', async function () {
     // ARRANGE
     const { tokenAddress: newTokenAddress } = await signer.createNativeToken({
       mailboxAddress,
+      proxyAdminAddress,
     });
 
     let token = await signer.getToken({
@@ -283,95 +288,21 @@ describe('4. aleo sdk warp e2e tests', async function () {
       hookAddress,
     });
 
+    const recipient =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+
     // ACT
     const quote = await signer.quoteRemoteTransfer({
       tokenAddress: nativeTokenAddress,
       destinationDomainId: domainId,
+      recipient,
+      amount: '1000000',
     });
 
     // ASSERT
     expect(quote.denom).to.equal('');
     expect(quote.amount).to.equal(25n);
   });
-
-  // step('quote remote transfer with custom hook', async () => {
-  //   // ARRANGE
-  //   const { hookAddress: noopHook } = await signer.createNoopHook({
-  //     mailboxAddress,
-  //   });
-
-  //   await signer.setRequiredHook({
-  //     mailboxAddress,
-  //     hookAddress: noopHook,
-  //   });
-
-  //   const { hookAddress } = await signer.createInterchainGasPaymasterHook({
-  //     mailboxAddress,
-  //   });
-  //   await signer.setDestinationGasConfig({
-  //     hookAddress,
-  //     destinationGasConfig: {
-  //       remoteDomainId: domainId,
-  //       gasOracle: {
-  //         tokenExchangeRate: '1000',
-  //         gasPrice: '1000',
-  //       },
-  //       gasOverhead: '50000',
-  //     },
-  //   });
-
-  //   // ACT
-  //   const quote = await signer.quoteRemoteTransfer({
-  //     tokenAddress: nativeTokenAddress,
-  //     destinationDomainId: domainId,
-  //     customHookAddress: hookAddress,
-  //   });
-
-  //   // ASSERT
-  //   expect(quote.denom).to.equal(ALEO_NATIVE_DENOM);
-  //   expect(quote.amount).to.equal(25n);
-  // });
-
-  // step('quote remote transfer with custom hook and metadata', async () => {
-  //   // ARRANGE
-  //   const { hookAddress: noopHook } = await signer.createNoopHook({
-  //     mailboxAddress,
-  //   });
-
-  //   await signer.setRequiredHook({
-  //     mailboxAddress,
-  //     hookAddress: noopHook,
-  //   });
-
-  //   const { hookAddress } = await signer.createInterchainGasPaymasterHook({
-  //     mailboxAddress,
-  //   });
-  //   await signer.setDestinationGasConfig({
-  //     hookAddress,
-  //     destinationGasConfig: {
-  //       remoteDomainId: domainId,
-  //       gasOracle: {
-  //         tokenExchangeRate: '1000',
-  //         gasPrice: '1000',
-  //       },
-  //       gasOverhead: '50000',
-  //     },
-  //   });
-
-  //   // ACT
-  //   const quote = await signer.quoteRemoteTransfer({
-  //     tokenAddress: nativeTokenAddress,
-  //     destinationDomainId: domainId,
-  //     customHookAddress: hookAddress,
-  //     customHookMetadata: ensure0x(
-  //       Buffer.from(U128.fromString('400000u128').toBytesLe()).toString('hex'),
-  //     ),
-  //   });
-
-  //   // ASSERT
-  //   expect(quote.denom).to.equal(ALEO_NATIVE_DENOM);
-  //   expect(quote.amount).to.equal(45n);
-  // });
 
   step('remote transfer', async () => {
     // ARRANGE
@@ -425,147 +356,6 @@ describe('4. aleo sdk warp e2e tests', async function () {
     });
     expect(mailbox.nonce).to.equal(1);
   });
-
-  // step('remote transfer with custom hook', async () => {
-  //   // ARRANGE
-  //   const { ismAddress } = await signer.createNoopIsm({});
-  //   const { hookAddress } = await signer.createMerkleTreeHook({
-  //     mailboxAddress,
-  //   });
-  //   const { hookAddress: noopHook } = await signer.createNoopHook({
-  //     mailboxAddress,
-  //   });
-
-  //   await signer.setDefaultIsm({
-  //     mailboxAddress,
-  //     ismAddress,
-  //   });
-
-  //   await signer.setDefaultHook({
-  //     mailboxAddress,
-  //     hookAddress,
-  //   });
-
-  //   await signer.setRequiredHook({
-  //     mailboxAddress,
-  //     hookAddress: noopHook,
-  //   });
-
-  //   const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook({
-  //     mailboxAddress,
-  //   });
-  //   await signer.setDestinationGasConfig({
-  //     hookAddress: igp,
-  //     destinationGasConfig: {
-  //       remoteDomainId: domainId,
-  //       gasOracle: {
-  //         tokenExchangeRate: '1000',
-  //         gasPrice: '1000',
-  //       },
-  //       gasOverhead: '50000',
-  //     },
-  //   });
-
-  //   let mailbox = await signer.getMailbox({
-  //     mailboxAddress,
-  //   });
-  //   expect(mailbox.nonce).to.equal(1);
-
-  //   const recipient =
-  //     '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
-
-  //   // ACT
-  //   await signer.remoteTransfer({
-  //     tokenAddress: nativeTokenAddress,
-  //     destinationDomainId: domainId,
-  //     recipient,
-  //     amount: '1000000',
-  //     gasLimit: '200000',
-  //     maxFee: {
-  //       denom: ALEO_NATIVE_DENOM,
-  //       amount: '100',
-  //     },
-  //     customHookAddress: igp,
-  //   });
-
-  //   // ASSERT
-  //   mailbox = await signer.getMailbox({
-  //     mailboxAddress,
-  //   });
-  //   expect(mailbox.nonce).to.equal(2);
-  // });
-
-  // step('remote transfer with custom hook and metadata', async () => {
-  //   // ARRANGE
-  //   const { ismAddress } = await signer.createNoopIsm({});
-  //   const { hookAddress } = await signer.createMerkleTreeHook({
-  //     mailboxAddress,
-  //   });
-  //   const { hookAddress: noopHook } = await signer.createNoopHook({
-  //     mailboxAddress,
-  //   });
-
-  //   await signer.setDefaultIsm({
-  //     mailboxAddress,
-  //     ismAddress,
-  //   });
-
-  //   await signer.setDefaultHook({
-  //     mailboxAddress,
-  //     hookAddress,
-  //   });
-
-  //   await signer.setRequiredHook({
-  //     mailboxAddress,
-  //     hookAddress: noopHook,
-  //   });
-
-  //   const { hookAddress: igp } = await signer.createInterchainGasPaymasterHook({
-  //     mailboxAddress,
-  //   });
-  //   await signer.setDestinationGasConfig({
-  //     hookAddress: igp,
-  //     destinationGasConfig: {
-  //       remoteDomainId: domainId,
-  //       gasOracle: {
-  //         tokenExchangeRate: '1000',
-  //         gasPrice: '1000',
-  //       },
-  //       gasOverhead: '50000',
-  //     },
-  //   });
-
-  //   let mailbox = await signer.getMailbox({
-  //     mailboxAddress,
-  //   });
-  //   expect(mailbox.nonce).to.equal(2);
-
-  //   const recipient =
-  //     '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
-
-  //   // ACT
-  //   await signer.remoteTransfer({
-  //     tokenAddress: nativeTokenAddress,
-  //     destinationDomainId: domainId,
-  //     recipient,
-  //     amount: '1000000',
-  //     gasLimit: '200000',
-  //     maxFee: {
-  //       denom: ALEO_NATIVE_DENOM,
-  //       amount: '100',
-  //     },
-  //     customHookAddress: igp,
-  //     customHookMetadata: ensure0x(
-  //       Buffer.from(U128.fromString('400000u128').toBytesLe()).toString('hex'),
-  //     ),
-  //   });
-
-  //   // ASSERT
-  //   mailbox = await signer.getMailbox({
-  //     mailboxAddress,
-  //   });
-  //   expect(mailbox.nonce).to.equal(3);
-  // });
 
   step('unenroll remote router', async () => {
     // ARRANGE

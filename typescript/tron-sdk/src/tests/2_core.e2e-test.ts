@@ -13,6 +13,7 @@ describe('2. aleo sdk core e2e tests', async function () {
   const localnetRpc = 'http://127.0.0.1:9090';
 
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let proxyAdminAddress: string;
 
   let mailboxAddress: string;
   let ismAddress: string;
@@ -29,6 +30,11 @@ describe('2. aleo sdk core e2e tests', async function () {
       },
     });
 
+    const proxyAdmin = await signer.createProxyAdmin({
+      owner: signer.getSignerAddress(),
+    });
+    proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+
     const noopIsm = await signer.createNoopIsm({});
     ismAddress = noopIsm.ismAddress;
   });
@@ -41,6 +47,7 @@ describe('2. aleo sdk core e2e tests', async function () {
     const txResponse = await signer.createMailbox({
       domainId: domainId,
       defaultIsmAddress: ismAddress,
+      proxyAdminAddress,
     });
 
     // ASSERT

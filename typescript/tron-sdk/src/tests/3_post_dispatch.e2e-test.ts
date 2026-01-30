@@ -13,6 +13,7 @@ describe('3. aleo sdk post dispatch e2e tests', async function () {
   const localnetRpc = 'http://127.0.0.1:9090';
 
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let proxyAdminAddress: string;
 
   let mailboxAddress: string;
   let igpAddress: string;
@@ -28,10 +29,16 @@ describe('3. aleo sdk post dispatch e2e tests', async function () {
       },
     });
 
+    const proxyAdmin = await signer.createProxyAdmin({
+      owner: signer.getSignerAddress(),
+    });
+    proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+
     const domainId = 1234;
 
     const mailbox = await signer.createMailbox({
       domainId: domainId,
+      proxyAdminAddress,
     });
     mailboxAddress = mailbox.mailboxAddress;
   });

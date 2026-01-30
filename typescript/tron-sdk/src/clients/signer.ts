@@ -122,15 +122,15 @@ export class TronSigner
           },
           {
             type: 'address',
-            value: implementationAddress, // placeholder
+            value: mailboxAddress,
           },
           {
             type: 'address',
-            value: implementationAddress, // placeholder
+            value: mailboxAddress,
           },
           {
             type: 'address',
-            value: implementationAddress, // placeholder
+            value: mailboxAddress,
           },
         ],
         this.tronweb.address.toHex(this.getSignerAddress()),
