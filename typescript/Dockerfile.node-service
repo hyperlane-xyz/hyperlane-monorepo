@@ -1,4 +1,12 @@
-FROM node:20-slim AS builder
+# Unified Dockerfile for NCC-bundled TypeScript node services
+# Used by: rebalancer, warp-monitor, ccip-server
+#
+# Build args (passed from docker-bake.hcl):
+#   SERVICE_DIR - Directory name under typescript/ (e.g., "rebalancer")
+#   SERVICE_PACKAGE - Package name for turbo filter (e.g., "@hyperlane-xyz/rebalancer")
+#   SERVICE_PORT - Optional HTTP port (default: none, only metrics on 9090)
+
+FROM node:24-slim AS builder
 
 WORKDIR /hyperlane-monorepo
 
@@ -26,8 +34,12 @@ COPY pnpm-lock.yaml pnpm-workspace.yaml ./
 # Copy patches directory (required for pnpm install)
 COPY patches ./patches
 
-# Copy only the packages needed for warp-monitor
-COPY typescript/warp-monitor/package.json ./typescript/warp-monitor/
+# Service-specific arg for the directory
+ARG SERVICE_DIR
+
+# Copy package.json files for all workspace dependencies
+# Note: Using a common set that covers all NCC-bundled services
+COPY typescript/${SERVICE_DIR}/package.json ./typescript/${SERVICE_DIR}/
 COPY typescript/metrics/package.json ./typescript/metrics/
 COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/sdk/package.json ./typescript/sdk/
@@ -43,11 +55,19 @@ COPY solidity/package.json ./solidity/
 COPY solhint-plugin/package.json ./solhint-plugin/
 COPY starknet/package.json ./starknet/
 
+# Copy prisma schema if present (needed for postinstall prisma generate in ccip-server)
+RUN --mount=type=bind,source=typescript/${SERVICE_DIR},target=/tmp/service-src \
+    if [ -d /tmp/service-src/prisma ]; then \
+      mkdir -p typescript/${SERVICE_DIR} && \
+      cp -r /tmp/service-src/prisma typescript/${SERVICE_DIR}/prisma; \
+    fi
+
 RUN pnpm install --frozen-lockfile
 
 # Copy source files
 COPY turbo.json ./
-COPY typescript/warp-monitor ./typescript/warp-monitor
+COPY scripts ./scripts
+COPY typescript/${SERVICE_DIR} ./typescript/${SERVICE_DIR}
 COPY typescript/metrics ./typescript/metrics
 COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/sdk ./typescript/sdk
@@ -80,30 +100,38 @@ RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
     curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
     chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
-# Build and bundle the warp-monitor (ncc creates a single-file bundle with all deps)
-RUN pnpm turbo run bundle --filter=@hyperlane-xyz/warp-monitor
+# Build and bundle the service (ncc creates a single-file bundle with all deps)
+ARG SERVICE_PACKAGE
+RUN pnpm turbo run bundle --filter=${SERVICE_PACKAGE}
 
 # Production stage - minimal Alpine image with just the bundled code
-FROM node:20-alpine AS runner
+FROM node:24-alpine AS runner
 
 WORKDIR /app
 
 RUN apk add --no-cache ca-certificates
 
 # Copy only the bundled output (includes all dependencies)
-COPY --from=builder /hyperlane-monorepo/typescript/warp-monitor/bundle ./bundle
+ARG SERVICE_DIR
+COPY --from=builder /hyperlane-monorepo/typescript/${SERVICE_DIR}/bundle ./bundle
 
 # Install external dependencies that ncc doesn't bundle (dynamic imports)
-RUN npm install @google-cloud/pino-logging-gcp-config
+# Version read from pnpm-workspace.yaml catalog for consistency
+COPY --from=builder /hyperlane-monorepo/pnpm-workspace.yaml /tmp/
+RUN GCP_LOGGER_VERSION=$(grep "pino-logging-gcp-config" /tmp/pnpm-workspace.yaml | sed "s/.*': //" | tr -d "^") && \
+    npm install "@google-cloud/pino-logging-gcp-config@${GCP_LOGGER_VERSION}" && \
+    rm /tmp/pnpm-workspace.yaml
 
 # Environment variables
 ARG SERVICE_VERSION=dev
+ARG SERVICE_PORT
 ENV NODE_ENV=production
 ENV LOG_LEVEL=info
 ENV SERVICE_VERSION=${SERVICE_VERSION}
+ENV SERVER_PORT=${SERVICE_PORT}
 
-# Expose metrics port
+# Expose metrics port; service port published at runtime with -p if needed
 EXPOSE 9090
 
-# Run the warp-monitor service from the bundle
+# Run the service from the bundle
 CMD ["node", "bundle/index.js"]

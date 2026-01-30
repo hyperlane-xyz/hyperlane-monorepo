@@ -641,6 +641,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
+      // Temporary workaround
+      { destinationDomain: getDomainId('citrea') },
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
