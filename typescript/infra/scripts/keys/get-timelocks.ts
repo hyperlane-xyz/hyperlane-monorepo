@@ -14,7 +14,8 @@ import {
 import { icaOwnerChain } from '../../config/environments/mainnet3/owners.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { baseDeploy } from '../../src/deployment/deploy.js';
-import { GovernanceType, withGovernanceType } from '../../src/governance.js';
+import { withGovernanceType } from '../../src/governance.js';
+import { GovernanceType } from '../../src/governanceTypes.js';
 import {
   getTimelockConfigs,
   timelockConfigMatches,
