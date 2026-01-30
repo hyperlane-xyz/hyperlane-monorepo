@@ -22,12 +22,12 @@ This simulator helps answer questions like:
         ▼                    ▼                    ▼
 ┌───────────────┐   ┌────────────────┐   ┌─────────────────┐
 │   Scenario    │   │  Rebalancer    │   │ BridgeMock      │
-│   Generator   │   │  Runner        │   │ Controller      │
+│   Generator   │   │  Runners       │   │ Controller      │
 │               │   │                │   │                 │
-│ Creates       │   │ Simplified     │   │ Simulates slow  │
-│ transfer      │   │ rebalancer     │   │ bridge delivery │
-│ patterns      │   │ for testing    │   │ with config-    │
-│               │   │                │   │ urable delays   │
+│ Creates       │   │ HyperlaneRunner│   │ Simulates slow  │
+│ transfer      │   │ (simplified)   │   │ bridge delivery │
+│ patterns      │   │ RealRebalancer │   │ with config-    │
+│               │   │ (production)   │   │ urable delays   │
 └───────────────┘   └────────────────┘   └─────────────────┘
         │                    │                    │
         └────────────────────┼────────────────────┘
@@ -71,25 +71,47 @@ The simulator uses two different delivery mechanisms:
 
 This separation is important because rebalancer transfers go through external bridges (CCTP, etc.) which have significant delays, while user transfers use Hyperlane's fast messaging.
 
+### Rebalancer Runners
+
+Two rebalancer implementations are available:
+
+| Runner                 | Description                                            | Use Case                        |
+| ---------------------- | ------------------------------------------------------ | ------------------------------- |
+| `HyperlaneRunner`      | Simplified rebalancer with weighted/minAmount strategy | Fast tests, baseline comparison |
+| `RealRebalancerRunner` | Wraps actual `@hyperlane-xyz/rebalancer` service       | Production behavior validation  |
+
 ## Directory Structure
 
 ```
 typescript/rebalancer-sim/
 ├── src/
 │   ├── deployment/          # Anvil + contract deployment
-│   │   └── SimulationDeployment.ts
+│   │   ├── SimulationDeployment.ts
+│   │   └── types.ts
 │   ├── scenario/            # Scenario generation & loading
 │   │   ├── ScenarioGenerator.ts  # Create synthetic scenarios
 │   │   ├── ScenarioLoader.ts     # Load from JSON files
 │   │   └── types.ts              # ScenarioFile, TransferScenario, etc.
 │   ├── bridges/             # Bridge delay simulation
-│   │   └── BridgeMockController.ts
-│   ├── rebalancer/          # Rebalancer wrapper
-│   │   └── HyperlaneRunner.ts    # Simplified rebalancer for testing
+│   │   ├── BridgeMockController.ts
+│   │   └── types.ts
+│   ├── rebalancer/          # Rebalancer wrappers
+│   │   ├── HyperlaneRunner.ts      # Simplified rebalancer for testing
+│   │   ├── RealRebalancerRunner.ts # Wraps @hyperlane-xyz/rebalancer
+│   │   ├── SimulationRegistry.ts   # IRegistry impl for simulation
+│   │   └── types.ts
 │   ├── engine/              # Simulation orchestration
 │   │   └── SimulationEngine.ts
-│   └── kpi/                 # Metrics collection
-│       └── KPICollector.ts
+│   ├── harness/             # Main entry point
+│   │   └── RebalancerSimulationHarness.ts
+│   ├── kpi/                 # Metrics collection
+│   │   ├── KPICollector.ts
+│   │   └── types.ts
+│   ├── mailbox/             # Message tracking
+│   │   └── MessageTracker.ts
+│   └── visualizer/          # HTML timeline generation
+│       ├── HtmlTimelineGenerator.ts
+│       └── types.ts
 ├── scenarios/               # Pre-generated scenario JSON files
 ├── results/                 # Test results (gitignored)
 ├── scripts/
@@ -147,11 +169,22 @@ pnpm test
 
 Tests automatically detect if Anvil is available. If not installed, integration tests are skipped.
 
-### 3. Run Specific Test
+### 3. Select Rebalancers
+
+By default, tests run with both rebalancers. Use the `REBALANCERS` env var to select:
 
 ```bash
-pnpm mocha test/integration/full-simulation.test.ts
-pnpm mocha test/integration/inflight-guard.test.ts
+# Run with simplified rebalancer only (faster)
+REBALANCERS=hyperlane pnpm test
+
+# Run with production rebalancer only
+REBALANCERS=real pnpm test
+
+# Run with both (default) - compare behavior
+REBALANCERS=hyperlane,real pnpm test
+
+# Compare on specific scenario (recommended for debugging)
+REBALANCERS=hyperlane,real pnpm test --grep "extreme-drain"
 ```
 
 ### 4. View Results
@@ -159,7 +192,11 @@ pnpm mocha test/integration/inflight-guard.test.ts
 Test results are saved to `results/` directory (gitignored):
 
 ```bash
+# JSON results with KPIs
 cat results/extreme-drain-chain1.json
+
+# HTML timeline visualization
+open results/extreme-drain-chain1-HyperlaneRebalancer.html
 ```
 
 **Note:** If Anvil is not installed, integration tests will be skipped. Install Foundry with:
@@ -168,21 +205,45 @@ cat results/extreme-drain-chain1.json
 curl -L https://foundry.paradigm.xyz | bash && foundryup
 ```
 
+## Visualization
+
+The simulator generates interactive HTML timelines for each test run:
+
+```
+Time →
+═══════════════════════════════════════════════════════════════════
+chain1 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓ (balance curve)
+       │ ──▶ T1 ──▶ T3     ←── R1 (rebalance from chain2)
+───────┼───────────────────────────────────────────────────────────
+chain2 │ ▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓▓
+       │     ──▶ T2          R1 ──▶
+═══════════════════════════════════════════════════════════════════
+```
+
+Features:
+
+- **Transfer bars**: Horizontal bars showing transfer start → delivery (length = latency)
+- **Rebalance markers**: Arrows showing rebalancer actions with direction
+- **Balance curves**: Per-chain collateral over time
+- **Hover tooltips**: Details on transfers, amounts, timing
+- **KPI summary**: Completion rate, latencies, rebalance count
+
 ## Scenario Types
 
 ### Predefined Scenarios (in `scenarios/`)
 
-| Scenario                         | Description                        | Expected Behavior         |
-| -------------------------------- | ---------------------------------- | ------------------------- |
-| `extreme-drain-chain1`           | 95% of transfers TO chain1         | Heavy rebalancing needed  |
-| `extreme-accumulate-chain1`      | 95% of transfers FROM chain1       | Heavy rebalancing needed  |
-| `large-unidirectional-to-chain1` | 5 large (20 token) transfers       | Immediate imbalance       |
-| `whale-transfers`                | 3 massive (30 token) transfers     | Stress test response time |
-| `balanced-bidirectional`         | Uniform random traffic             | Minimal rebalancing       |
-| `surge-to-chain1`                | Traffic spike mid-scenario         | Tests burst handling      |
-| `stress-high-volume`             | 50 transfers, Poisson distribution | Load testing              |
-| `moderate-imbalance-chain1`      | 70% of transfers to chain1         | Moderate rebalancing      |
-| `sustained-drain-chain3`         | 30 transfers over 30s              | Endurance test            |
+| Scenario                         | Description                         | Expected Behavior         |
+| -------------------------------- | ----------------------------------- | ------------------------- |
+| `extreme-drain-chain1`           | 95% of transfers TO chain1          | Heavy rebalancing needed  |
+| `extreme-accumulate-chain1`      | 95% of transfers FROM chain1        | Heavy rebalancing needed  |
+| `large-unidirectional-to-chain1` | 5 large (20 token) transfers        | Immediate imbalance       |
+| `whale-transfers`                | 3 massive (30 token) transfers      | Stress test response time |
+| `balanced-bidirectional`         | Uniform random traffic              | Minimal rebalancing       |
+| `surge-to-chain1`                | Traffic spike mid-scenario          | Tests burst handling      |
+| `stress-high-volume`             | 50 transfers, Poisson distribution  | Load testing              |
+| `moderate-imbalance-chain1`      | 70% of transfers to chain1          | Moderate rebalancing      |
+| `sustained-drain-chain3`         | 30 transfers over 30s               | Endurance test            |
+| `random-with-headroom`           | Random traffic with extra liquidity | Tests steady-state        |
 
 ## Test Organization
 
@@ -246,26 +307,20 @@ interface SimulationKPIs {
 
 ## Current Limitations
 
-1. **Simplified Rebalancer**: The current `HyperlaneRunner` is a simplified implementation for testing, not the actual production rebalancer from `@hyperlane-xyz/rebalancer`.
+1. **No Inflight Guard**: Neither rebalancer implementation tracks pending transfers, causing over-rebalancing when bridge delays are long relative to polling frequency. The `inflight-guard.test.ts` demonstrates this.
 
-2. **No Inflight Guard**: The simplified rebalancer doesn't track pending transfers, causing over-rebalancing when bridge delays are long relative to polling frequency.
+2. **Single Anvil**: All "chains" run on one Anvil instance. Real cross-chain timing differences aren't simulated.
 
-3. **Single Anvil**: All "chains" run on one Anvil instance. Real cross-chain timing differences aren't simulated.
+3. **Instant User Transfers**: User transfers via MockMailbox are instant. Real Hyperlane has ~15-30 second finality.
 
-4. **Instant User Transfers**: User transfers via MockMailbox are instant. Real Hyperlane has ~15-30 second finality.
+4. **No Gas Costs**: Gas costs aren't simulated. KPIs include rebalance count but not actual cost.
 
-5. **No Gas Costs**: Gas costs aren't simulated. KPIs include rebalance count but not actual cost.
+5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=hyperlane,real`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
 
 ## Future Work
 
-### Phase 1: Integrate Real Rebalancer
-
-- Wrap the actual `@hyperlane-xyz/rebalancer` service
-- Add API for mocks (time stepping, explorer API mock)
-- Support daemon mode with configurable polling
-
-### Phase 2: Inflight Guard Testing
+### Mock Explorer API for Inflight Guard
 
 - Mock Explorer API for inflight transfer tracking
 - Test scenarios that specifically require inflight awareness
-- Validate that real rebalancer avoids over-correction
+- Validate that real rebalancer avoids over-correction with inflight guard enabled
