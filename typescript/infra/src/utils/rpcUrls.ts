@@ -6,7 +6,6 @@ import { ethers } from 'ethers';
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { ProtocolType, timeout } from '@hyperlane-xyz/utils';
 
-import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { getEnvironmentConfig } from '../../scripts/core-utils.js';
 import {
@@ -265,7 +264,7 @@ async function updateSecretAndDisablePrevious(
     try {
       await disableGCPSecretVersion(latestVersionName);
       console.log(`Disabled previous version of the secret!`);
-    } catch (e) {
+    } catch {
       console.log(`Could not disable previous version of the secret`);
     }
   }
@@ -503,7 +502,7 @@ async function selectCronJobs(
       '', // registryCommit not needed for refresh
     );
     cronjobManagers.push(['Key Funder', keyFunder]);
-  } catch (e) {
+  } catch {
     // Environment may not have key funder configured
   }
 
@@ -558,7 +557,7 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
       `✅  Valid provider for ${url} with block number ${blockNumber}`,
     );
     return true;
-  } catch (e) {
+  } catch {
     console.error(`Provider failed: ${url}\nError: ${e}`);
     return false;
   }

@@ -73,7 +73,7 @@ export class AgentGCPKey extends CloudAgentKey {
     try {
       await this.fetch();
       this.logger.debug('Key already exists');
-    } catch (err) {
+    } catch {
       this.logger.warn('Key does not exist, creating new key');
       await this.create();
     }
@@ -83,7 +83,7 @@ export class AgentGCPKey extends CloudAgentKey {
     try {
       await this.fetch();
       return true;
-    } catch (err) {
+    } catch {
       return false;
     }
   }
@@ -245,7 +245,7 @@ export class AgentGCPKey extends CloudAgentKey {
       try {
         await this.fetch();
         this.logger.debug(`Found existing Starknet key: ${this.identifier}`);
-      } catch (error) {
+      } catch {
         this.logger.warn(
           `Cannot create Starknet key for ${this.chainName}. Please manually add it to GCP Secret Manager.`,
         );

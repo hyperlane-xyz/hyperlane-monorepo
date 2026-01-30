@@ -43,7 +43,7 @@ describe('ProofsService', () => {
   test('should set currentProofId, if proof is not ready', async () => {
     try {
       await proofsService.getProofs([TARGET_ADDR, STORAGE_KEY, MESSAGE_ID]);
-    } catch (e) {
+    } catch {
       expect(proofsService.pendingProof.get(pendingProofKey)).toEqual(
         'pendingProofId12',
       );
@@ -61,7 +61,7 @@ describe('ProofsService', () => {
       expect(proofsService.pendingProof.get(pendingProofKey)).toEqual(
         'pendingProofId12',
       );
-    } catch (e) {
+    } catch {
       // Try to get the proof again
       const proofs = await proofsService.getProofs([
         TARGET_ADDR,

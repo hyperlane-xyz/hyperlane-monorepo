@@ -282,10 +282,9 @@ export const randomMultisigIsmConfig = (
   n: number,
   addresses?: string[],
 ): MultisigIsmConfig => {
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray
-    .map(() => (addresses ? randomElement(addresses) : randomAddress()))
-    .sort();
+  const validators = Array.from({ length: n }, () =>
+    addresses ? randomElement(addresses) : randomAddress(),
+  ).sort();
   return {
     type: IsmType.MERKLE_ROOT_MULTISIG,
     validators,
@@ -298,8 +297,7 @@ export const randomWeightedMultisigIsmConfig = (
   addresses?: string[],
 ): WeightedMultisigIsmConfig => {
   const totalWeight = 1e10;
-  const emptyArray = new Array<number>(n).fill(0);
-  const validators = emptyArray.map(() => ({
+  const validators = Array.from({ length: n }, () => ({
     signingAddress: addresses ? randomElement(addresses) : randomAddress(),
     weight: 0,
   }));
@@ -370,7 +368,7 @@ export const randomIsmConfig = (
     case ModuleType.AGGREGATION: {
       const n = randomInt(2, 1);
       const moduleTypes = new Set();
-      const modules = new Array<number>(n).fill(0).map(() => {
+      const modules = Array.from({ length: n }, () => {
         let moduleConfig: Exclude<IsmConfig, string>;
         let moduleType: IsmType;
 
@@ -427,14 +425,9 @@ export const randomDeployableIsmConfig = (
   if (moduleType === ModuleType.MESSAGE_ID_MULTISIG) {
     const n = randomInt(validatorAddresses?.length ?? 5, 1);
     const m = randomInt(n, 1);
-    const emptyArray = new Array<number>(n).fill(0);
-    const validators = emptyArray
-      .map(() =>
-        validatorAddresses
-          ? randomElement(validatorAddresses)
-          : randomAddress(),
-      )
-      .sort();
+    const validators = Array.from({ length: n }, () =>
+      validatorAddresses ? randomElement(validatorAddresses) : randomAddress(),
+    ).sort();
     return {
       type: IsmType.MESSAGE_ID_MULTISIG,
       validators,
@@ -461,15 +454,13 @@ export const randomDeployableIsmConfig = (
     return config;
   } else if (moduleType === ModuleType.AGGREGATION) {
     const n = randomInt(5, 2);
-    const modules = new Array<number>(n)
-      .fill(0)
-      .map(() =>
-        randomDeployableIsmConfig(
-          maxDepth - 1,
-          validatorAddresses,
-          relayerAddress,
-        ),
-      );
+    const modules = Array.from({ length: n }, () =>
+      randomDeployableIsmConfig(
+        maxDepth - 1,
+        validatorAddresses,
+        relayerAddress,
+      ),
+    );
     const config: AggregationIsmConfig = {
       type: IsmType.AGGREGATION,
       threshold: randomInt(n, 1),

@@ -2,9 +2,9 @@ import ETH_GET_PROOFS from '../../../../../solidity/test/test-data/getProof-data
 
 class RPCService {
   getProofs = async (
-    address: string,
-    storageKeys: string[],
-    block: string,
+    _address: string,
+    _storageKeys: string[],
+    _block: string,
   ): Promise<any> => {
     return ETH_GET_PROOFS;
   };

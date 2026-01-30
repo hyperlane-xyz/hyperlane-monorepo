@@ -66,7 +66,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateralFiat,
       token: '0x679Dc08cC3A4acFeea2f7CAFAa37561aE0b41Ce7', // Not in common tokens yet
       ...tokenConfig(decimals.matchain),
-      ...(rebalancing.matchain || {}),
+      ...rebalancing.matchain,
     },
     base: {
       ...routerConfig.base,
@@ -74,7 +74,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateral,
       token: tokens.base.USDC,
       ...tokenConfig(decimals.base),
-      ...(rebalancing.base || {}),
+      ...rebalancing.base,
     },
     bsc: {
       ...routerConfig.bsc,
@@ -82,7 +82,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateral,
       token: tokens.bsc.USDC,
       ...tokenConfig(decimals.bsc),
-      ...(rebalancing.bsc || {}),
+      ...rebalancing.bsc,
     },
     ethereum: {
       ...routerConfig.ethereum,
@@ -90,7 +90,7 @@ export async function getMatchainUSDCWarpConfig(
       type: TokenType.collateral,
       token: tokens.ethereum.USDC,
       ...tokenConfig(decimals.ethereum),
-      ...(rebalancing.ethereum || {}),
+      ...rebalancing.ethereum,
     },
   };
   return config as Record<RouteChains, HypTokenRouterConfig>;

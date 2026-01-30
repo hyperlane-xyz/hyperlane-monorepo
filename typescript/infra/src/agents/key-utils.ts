@@ -471,7 +471,7 @@ async function persistAddressesInGcp(
       );
       return;
     }
-  } catch (e) {
+  } catch {
     // If the secret doesn't exist, we'll create it below.
     logger.debug(
       `No existing secret found for ${context} context in ${environment} environment`,
@@ -585,7 +585,7 @@ export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
 
     logger.debug(`Fetching addresses locally for ${role} role ...`);
     return addresses;
-  } catch (e) {
+  } catch {
     throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
   }
 }

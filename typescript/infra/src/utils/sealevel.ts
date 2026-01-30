@@ -17,6 +17,7 @@ import {
   IsmType,
   MultiProtocolProvider,
   MultisigIsmConfig,
+  SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType,
   SealevelDomainData,
   SealevelDomainDataSchema,
   SealevelInstructionWrapper,
@@ -26,7 +27,6 @@ import {
   SealevelRemoteGasData,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -502,7 +502,7 @@ export function loadCoreProgramIds(
 
   try {
     return readJson(programIdsPath);
-  } catch (error) {
+  } catch {
     throw new Error(`Failed to load program IDs from ${programIdsPath}.`);
   }
 }
@@ -653,7 +653,7 @@ export async function fetchMultisigIsmState(
       validators: domainData.validatorsAndThreshold.validatorAddresses,
       threshold: domainData.validatorsAndThreshold.threshold,
     };
-  } catch (error) {
+  } catch {
     // Log deserialization errors with account data for debugging
     rootLogger.info(
       `Failed to deserialize domain ${domain} (PDA: ${domainDataPda.toBase58()}): ${error}`,

@@ -109,7 +109,7 @@ export const getEclipseUSDCWarpConfig = async (
       rebalancingConfigByChain,
     );
 
-    const usdcTokenAddress = usdcTokenAddresses[currentChain];
+    const _usdcTokenAddress = usdcTokenAddresses[currentChain];
     configs.push([
       currentChain,
       {

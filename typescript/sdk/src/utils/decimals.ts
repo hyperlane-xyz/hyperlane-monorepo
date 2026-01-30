@@ -46,7 +46,7 @@ export function verifyScale(
 function areDecimalsUniform(
   configMap: ChainMap<{ decimals: number; scale?: number }>,
 ): boolean {
-  const values = [...Object.values(configMap)];
+  const values = Object.values(configMap);
   const [first, ...rest] = values;
   for (const d of rest) {
     if (d.decimals !== first.decimals) {

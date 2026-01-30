@@ -11,16 +11,7 @@ import {
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
-import {
-  Hex,
-  bytesToHex,
-  decodeFunctionData,
-  encodePacked,
-  getAddress,
-  isHex,
-  parseAbi,
-  toBytes,
-} from 'viem';
+import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
 import {
