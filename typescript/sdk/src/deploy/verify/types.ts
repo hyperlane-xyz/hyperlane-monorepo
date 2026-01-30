@@ -1,4 +1,4 @@
-import { ExplorerLicenseType } from '../../block-explorer/etherscan.js';
+import type { ExplorerLicenseType } from '../../block-explorer/etherscan.js';
 
 export type ContractVerificationInput = {
   name: string;

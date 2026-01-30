@@ -12,16 +12,16 @@ import { ProtocolType, objMap } from '@hyperlane-xyz/utils';
 import { Contexts } from '../../../config/contexts.js';
 import { getChain } from '../../../config/registry.js';
 import { AgentChainNames, AgentRole, Role } from '../../roles.js';
-import { DeployEnvironment } from '../environment.js';
-import { HelmImageValues } from '../infrastructure.js';
+import type { DeployEnvironment } from '../environment.js';
+import type { HelmImageValues } from '../infrastructure.js';
 
-import {
+import type {
   BaseRelayerConfig,
   HelmRelayerChainValues,
   HelmRelayerValues,
 } from './relayer.js';
-import { BaseScraperConfig, HelmScraperValues } from './scraper.js';
-import {
+import type { BaseScraperConfig, HelmScraperValues } from './scraper.js';
+import type {
   HelmValidatorValues,
   ValidatorBaseChainConfigMap,
 } from './validator.js';
