@@ -30,19 +30,12 @@ export class TronSigner
 
     const metadata = extraParams.metadata as Record<string, unknown>;
     assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
 
-    const chainId = parseInt(metadata.chainId.toString());
-
-    return new TronSigner(rpcUrls, chainId, privateKey);
+    return new TronSigner(rpcUrls, privateKey);
   }
 
-  protected constructor(
-    rpcUrls: string[],
-    chainId: string | number,
-    privateKey: string,
-  ) {
-    super(rpcUrls, chainId, privateKey);
+  protected constructor(rpcUrls: string[], privateKey: string) {
+    super(rpcUrls, privateKey);
   }
 
   getSignerAddress(): string {

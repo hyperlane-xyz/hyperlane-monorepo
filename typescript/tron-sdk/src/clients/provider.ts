@@ -48,20 +48,16 @@ import {
 
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
-  protected readonly chainId: number;
 
   protected readonly tronweb: TronWeb;
 
-  static async connect(
-    rpcUrls: string[],
-    chainId: string | number,
-  ): Promise<TronProvider> {
+  static async connect(rpcUrls: string[]): Promise<TronProvider> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     const { privateKey } = new TronWeb({
       fullHost: rpcUrls[0],
     }).createRandom();
-    return new TronProvider(rpcUrls, chainId, strip0x(privateKey));
+    return new TronProvider(rpcUrls, strip0x(privateKey));
   }
 
   constructor(
@@ -70,7 +66,6 @@ export class TronProvider implements AltVM.IProvider {
     privateKey?: string,
   ) {
     this.rpcUrls = rpcUrls;
-    this.chainId = +chainId;
 
     if (!privateKey) {
       privateKey = new TronWeb({

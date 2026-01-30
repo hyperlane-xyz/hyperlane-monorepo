@@ -28,7 +28,7 @@ export class TronProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return TronProvider.connect(rpcUrls, chainMetadata.domainId);
+    return TronProvider.connect(rpcUrls);
   }
 
   async createSigner(
