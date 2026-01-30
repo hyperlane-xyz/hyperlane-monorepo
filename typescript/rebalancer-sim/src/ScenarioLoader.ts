@@ -7,7 +7,7 @@ import type { Address } from '@hyperlane-xyz/utils';
 import type { ScenarioFile, TransferScenario } from './types.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
-const SCENARIOS_DIR = path.join(__dirname, '..', '..', 'scenarios');
+const SCENARIOS_DIR = path.join(__dirname, '..', 'scenarios');
 
 /**
  * Load a scenario file (full format with metadata and defaults)
