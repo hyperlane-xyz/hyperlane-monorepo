@@ -43,7 +43,7 @@ export const mainnetDockerTags: MainnetDockerTags = {
   relayerRC: '36d7378-20260126-141132',
   validator: 'a52b9e6-20260122-173915',
   validatorRC: 'a52b9e6-20260122-173915',
-  scraper: '80f3635-20260123-103819',
+  scraper: 'bb96c74-20260129-145233',
   // monorepo services
   checkWarpDeploy: 'main',
   // standalone services
@@ -58,7 +58,7 @@ export const testnetDockerTags: BaseDockerTags = {
   relayerRC: 'eeadda5-20260129-131050',
   validator: 'eeadda5-20260129-131050',
   validatorRC: 'eeadda5-20260129-131050',
-  scraper: 'eeadda5-20260129-131050',
+  scraper: 'bb96c74-20260129-145233',
   // standalone services
   keyFunder: 'b29a170-20260128-174848',
 };

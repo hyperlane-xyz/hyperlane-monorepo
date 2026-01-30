@@ -83,9 +83,9 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 
-export class EvmERC20WarpRouteReader extends EvmRouterReader {
+export class EvmWarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
-    module: 'EvmERC20WarpRouteReader',
+    module: 'EvmWarpRouteReader',
   });
 
   // Using null instead of undefined to force
@@ -150,10 +150,10 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
   }
 
   /**
-   * Derives the configuration for a Hyperlane ERC20 router contract at the given address.
+   * Derives the configuration for a Hyperlane warp route token router contract at the given address.
    *
-   * @param warpRouteAddress - The address of the Hyperlane ERC20 router contract.
-   * @returns The configuration for the Hyperlane ERC20 router.
+   * @param warpRouteAddress - The address of the Hyperlane warp route token router contract.
+   * @returns The configuration for the Hyperlane warp route token router.
    *
    */
   async deriveWarpRouteConfig(
