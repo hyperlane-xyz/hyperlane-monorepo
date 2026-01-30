@@ -62,7 +62,7 @@ export class RegistryService {
     } catch (err) {
       this.logger.warn(
         { err, path: watchPath },
-        'Failed to watch registry, falling back to polling',
+        'Failed to watch registry, refresh will only occur on restart',
       );
     }
   }
