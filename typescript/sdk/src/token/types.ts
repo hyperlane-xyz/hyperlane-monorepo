@@ -119,6 +119,7 @@ export const CollateralTokenConfigSchema = TokenMetadataSchema.partial().extend(
       TokenType.collateralVault,
       TokenType.collateralVaultRebase,
       TokenType.collateralFiat,
+      TokenType.collateralTip20,
       TokenType.collateralUri,
     ]),
     token: z
@@ -222,6 +223,32 @@ export const SyntheticTokenConfigSchema = TokenMetadataSchema.partial().extend({
 export type SyntheticTokenConfig = z.infer<typeof SyntheticTokenConfigSchema>;
 export const isSyntheticTokenConfig = isCompliant(SyntheticTokenConfigSchema);
 
+export const SyntheticTip20TokenConfigSchema =
+  TokenMetadataSchema.partial().extend({
+    type: z.literal(TokenType.syntheticTip20),
+    name: z.string().describe('Token name for TIP-20 factory'),
+    symbol: z.string().describe('Token symbol for TIP-20 factory'),
+    currency: z.string().describe('Currency identifier (e.g., "USD")'),
+    quoteToken: z
+      .string()
+      .optional()
+      .describe('Quote token address for DEX pricing (address(0) if none)'),
+    salt: z
+      .string()
+      .optional()
+      .describe('Salt for deterministic address generation'),
+    tip403Registry: z
+      .string()
+      .optional()
+      .describe('TIP-403 registry address (optional, address(0) to disable)'),
+  });
+export type SyntheticTip20TokenConfig = z.infer<
+  typeof SyntheticTip20TokenConfigSchema
+>;
+export const isSyntheticTip20TokenConfig = isCompliant(
+  SyntheticTip20TokenConfigSchema,
+);
+
 export const SyntheticRebaseTokenConfigSchema =
   TokenMetadataSchema.partial().extend({
     type: z.literal(TokenType.syntheticRebase),
@@ -311,6 +338,7 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   XERC20TokenConfigSchema,
   SyntheticTokenConfigSchema,
   SyntheticRebaseTokenConfigSchema,
+  SyntheticTip20TokenConfigSchema,
   CctpTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,

@@ -9,6 +9,8 @@ import {
   HypERC4626Collateral__factory,
   HypERC4626OwnerCollateral__factory,
   HypERC4626__factory,
+  HypTIP20Collateral__factory,
+  HypTIP20__factory,
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
@@ -118,6 +120,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.collateral]: this.deriveHypCollateralTokenConfig.bind(this),
       [TokenType.collateralFiat]:
         this.deriveHypCollateralFiatTokenConfig.bind(this),
+      [TokenType.collateralTip20]:
+        this.deriveHypCollateralTip20TokenConfig.bind(this),
       [TokenType.collateralVault]:
         this.deriveHypCollateralVaultTokenConfig.bind(this),
       [TokenType.collateralCctp]:
@@ -130,6 +134,8 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
       [TokenType.synthetic]: this.deriveHypSyntheticTokenConfig.bind(this),
       [TokenType.syntheticRebase]:
         this.deriveHypSyntheticRebaseConfig.bind(this),
+      [TokenType.syntheticTip20]:
+        this.deriveHypSyntheticTip20TokenConfig.bind(this),
       [TokenType.nativeScaled]: null,
       [TokenType.collateralUri]: null,
       [TokenType.syntheticUri]: null,
@@ -476,6 +482,22 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
             }
 
             try {
+              // Check for TIP-20 by calling tip403Registry() method
+              const maybeTip20 = HypTIP20Collateral__factory.connect(
+                warpRouteAddress,
+                this.provider,
+              );
+              await maybeTip20.tip403Registry();
+
+              return TokenType.collateralTip20;
+            } catch (error) {
+              this.logger.debug(
+                `Warp route token at address "${warpRouteAddress}" on chain "${this.chain}" is not a ${TokenType.collateralTip20}`,
+                error,
+              );
+            }
+
+            try {
               const maybeEverclearTokenBridge =
                 EverclearTokenBridge__factory.connect(
                   warpRouteAddress,
@@ -812,6 +834,35 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     return {
       ...erc20TokenMetadata,
       type: TokenType.collateralFiat,
+    };
+  }
+
+  private async deriveHypCollateralTip20TokenConfig(
+    hypToken: Address,
+  ): Promise<HypTokenConfig> {
+    const erc20TokenMetadata =
+      await this.deriveHypCollateralTokenConfig(hypToken);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.collateralTip20,
+    };
+  }
+
+  private async deriveHypSyntheticTip20TokenConfig(
+    hypTokenAddress: Address,
+  ): Promise<HypTokenConfig> {
+    const hypTip20 = HypTIP20__factory.connect(hypTokenAddress, this.provider);
+    const wrappedTokenAddress = await hypTip20.wrappedToken();
+    const erc20TokenMetadata =
+      await this.fetchERC20Metadata(wrappedTokenAddress);
+
+    return {
+      ...erc20TokenMetadata,
+      type: TokenType.syntheticTip20,
+      name: erc20TokenMetadata.name ?? '',
+      symbol: erc20TokenMetadata.symbol ?? '',
+      currency: '',
     };
   }
 
