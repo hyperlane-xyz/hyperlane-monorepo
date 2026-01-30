@@ -400,6 +400,7 @@ describe('Collateral Deficit E2E', function () {
       'First cycle result',
     );
 
+    // TODO: dont directly assert on cycleResult1, rely on action tracker state
     // Assert: Routes were proposed to cover the deficit
     expect(cycleResult1.proposedRoutes.length).to.be.greaterThan(0);
 
@@ -420,20 +421,72 @@ describe('Collateral Deficit E2E', function () {
       'Proposed rebalance route',
     );
 
-    const balancesAfterCycle = await getAllCollateralBalances(
+    // Assert: Rebalance was executed (not just proposed)
+    expect(
+      cycleResult1.executedCount,
+      'executedCount should be > 0 when Rebalancer is configured',
+    ).to.be.greaterThan(0);
+    expect(
+      cycleResult1.failedCount,
+      'failedCount should be 0 for successful rebalance',
+    ).to.equal(0);
+
+    // Assert: Rebalance intent was created and is in_progress
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(
+      activeIntents.length,
+      'Should have at least 1 active rebalance intent',
+    ).to.be.greaterThan(0);
+
+    const intentToArbitrum = activeIntents.find(
+      (i) => i.destination === DOMAIN_IDS.arbitrum,
+    );
+    expect(intentToArbitrum, 'Should have intent destined for arbitrum').to
+      .exist;
+    expect(
+      intentToArbitrum!.status,
+      'Intent status should be in_progress after action creation',
+    ).to.equal('in_progress');
+    expect(intentToArbitrum!.amount > 0n, 'Intent amount should be positive').to
+      .be.true;
+
+    logger.info(
+      {
+        intentId: intentToArbitrum!.id,
+        origin: intentToArbitrum!.origin,
+        destination: intentToArbitrum!.destination,
+        amount: intentToArbitrum!.amount.toString(),
+        status: intentToArbitrum!.status,
+        fulfilledAmount: intentToArbitrum!.fulfilledAmount.toString(),
+      },
+      'Rebalance intent created',
+    );
+
+    // Assert: Monitored route collateral on origin DECREASED (sent to bridge)
+    const balancesAfterRebalance = await getAllCollateralBalances(
       forkedProviders,
       TEST_CHAINS,
       USDC_INCENTIV_WARP_ROUTE.routers,
       USDC_ADDRESSES,
     );
 
+    expect(
+      balancesAfterRebalance.ethereum.lt(balancesAfterUserTransfer.ethereum),
+      `INCENTIV ethereum collateral should decrease after rebalance. ` +
+        `Before: ${balancesAfterUserTransfer.ethereum.toString()}, After: ${balancesAfterRebalance.ethereum.toString()}`,
+    ).to.be.true;
+
     logger.info(
       {
-        balances: Object.fromEntries(
-          Object.entries(balancesAfterCycle).map(([k, v]) => [k, v.toString()]),
-        ),
+        ethereum: {
+          beforeRebalance: balancesAfterUserTransfer.ethereum.toString(),
+          afterRebalance: balancesAfterRebalance.ethereum.toString(),
+          change: balancesAfterRebalance.ethereum
+            .sub(balancesAfterUserTransfer.ethereum)
+            .toString(),
+        },
       },
-      'Collateral balances after cycle',
+      'INCENTIV collateral balances after rebalance',
     );
 
     // Mark transfer as delivered in mock explorer
