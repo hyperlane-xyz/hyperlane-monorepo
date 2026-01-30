@@ -1,5 +1,25 @@
 # @hyperlane-xyz/sdk
 
+## 24.0.0
+
+### Major Changes
+
+- d0b8c24: Renamed EvmERC20WarpModule to EvmWarpModule.
+  Renamed EvmERC20WarpRouteReader to EvmWarpRouteReader.
+
+### Patch Changes
+
+- 50868ce: Fixed HypNative token checker failing in CI environments by passing `from` address as the third parameter to `estimateGas` instead of inside the transaction object.
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/deploy-sdk@1.2.2
+  - @hyperlane-xyz/provider-sdk@1.2.2
+  - @hyperlane-xyz/radix-sdk@24.0.0
+  - @hyperlane-xyz/starknet-core@24.0.0
+
 ## 23.0.0
 
 ### Major Changes

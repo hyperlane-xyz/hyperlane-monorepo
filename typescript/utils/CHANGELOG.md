@@ -1,5 +1,11 @@
 # @hyperlane-xyz/utils
 
+## 24.0.0
+
+### Patch Changes
+
+- bde05e9: Fixed GCP logging configuration not being applied to SDK components like SmartProvider. When createServiceLogger initializes a GCP logger, it now also updates rootLogger so child loggers inherit the GCP config.
+
 ## 23.0.0
 
 ### Minor Changes

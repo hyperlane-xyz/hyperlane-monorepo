@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 24.0.0
+
+### Minor Changes
+
+- 9c021b7: Added `ism deploy` command for standalone ISM deployment.
+
 ## 23.0.0
 
 ### Minor Changes
