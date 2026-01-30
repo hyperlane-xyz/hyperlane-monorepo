@@ -238,8 +238,6 @@ async function getMultiProtocolProvider(registry: IRegistry) {
   return new MultiProtocolProvider(chainMetadata);
 }
 
-export { requestAndSaveApiKeys } from './apiKeys.js';
-
 /**
  * Ensures EVM signers are attached to multiProvider for the specified chains.
  * This is useful for commands that do interactive chain selection after the

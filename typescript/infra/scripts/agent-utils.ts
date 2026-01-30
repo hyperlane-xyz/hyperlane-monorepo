@@ -50,15 +50,13 @@ import {
 } from '../src/config/environment.js';
 import { BalanceThresholdType } from '../src/config/funding/balances.js';
 import { AlertType } from '../src/config/funding/grafanaAlerts.js';
-import { getAWValidatorsPath, getEnvironmentDirectory } from '../src/paths.js';
+import { getEnvironmentDirectory } from '../src/paths.js';
 import { Role } from '../src/roles.js';
 import {
   assertContext,
   assertRole,
   filterRemoteDomainMetadata,
 } from '../src/utils/utils.js';
-
-export { getAWValidatorsPath, getEnvironmentDirectory };
 
 const logger = rootLogger.child({ module: 'infra:scripts:agent-utils' });
 
