@@ -44,6 +44,8 @@ async function main() {
     'AIXBT/base-form',
     'FORM/ethereum-form',
     'GAME/base-form',
+    // Skip until Paradex executes hyperevm upgrade on their side
+    WarpRouteIds.ParadexUSDC,
   ];
 
   const registries = [DEFAULT_REGISTRY_URI];

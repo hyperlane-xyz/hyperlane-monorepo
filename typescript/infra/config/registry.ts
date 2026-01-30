@@ -39,10 +39,19 @@ export const DEFAULT_REGISTRY_URI = join(
 
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
-let registry: FileSystemRegistry;
+let registry: FileSystemRegistry | undefined;
 
 export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
+}
+
+/**
+ * Resets the registry singleton, forcing it to be recreated on the next
+ * getRegistry() call. Used by the HTTP registry server to pick up new files
+ * when file watching detects changes.
+ */
+export function resetRegistry() {
+  registry = undefined;
 }
 
 /**

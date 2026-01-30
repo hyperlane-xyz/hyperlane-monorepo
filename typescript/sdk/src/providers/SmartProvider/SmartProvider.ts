@@ -633,7 +633,14 @@ export class HyperlaneSmartProvider
         }
       };
     } else {
-      this.logger.error(
+      this.logger.warn(
+        {
+          errors: errors.map((e) => ({
+            code: e?.code,
+            message: e?.message,
+            name: e?.name,
+          })),
+        },
         'Unhandled error case in combined provider error handler',
       );
       return class extends Error {
