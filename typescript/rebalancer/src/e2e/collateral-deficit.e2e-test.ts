@@ -280,21 +280,23 @@ describe('Collateral Deficit E2E', function () {
       USDC_ADDRESSES,
     );
 
-    // Assert: Origin collateral INCREASED (user deposited tokens into router)
+    // Assert: Origin collateral INCREASED by exactly the transfer amount (user deposited tokens into router)
+    const expectedCollateralAfterDeposit =
+      initialCollateralBalances.ethereum.add(transferAmount);
     expect(
-      balancesAfterUserTransfer.ethereum.gt(initialCollateralBalances.ethereum),
-      `Origin (ethereum) collateral should increase after user deposit. ` +
-        `Before: ${initialCollateralBalances.ethereum.toString()}, After: ${balancesAfterUserTransfer.ethereum.toString()}`,
+      balancesAfterUserTransfer.ethereum.eq(expectedCollateralAfterDeposit),
+      `Origin (ethereum) collateral should increase by transfer amount. ` +
+        `Expected: ${expectedCollateralAfterDeposit.toString()}, Actual: ${balancesAfterUserTransfer.ethereum.toString()}`,
     ).to.be.true;
 
-    const relayAttempt1 = await tryRelayMessage(
+    const userTransferRelay1 = await tryRelayMessage(
       context.multiProvider,
       hyperlaneCore,
       transferResult,
     );
 
     // Assert: Relay fails due to insufficient collateral on destination
-    expect(relayAttempt1.success).to.be.false;
+    expect(userTransferRelay1.success).to.be.false;
 
     // Assert: Destination collateral UNCHANGED (transfer not delivered)
     expect(
@@ -462,8 +464,17 @@ describe('Collateral Deficit E2E', function () {
     expect(rebalanceRelayResult.success, 'Rebalance relay should succeed').to.be
       .true;
 
+    const userTransferRelay2 = await tryRelayMessage(
+      context.multiProvider,
+      hyperlaneCore,
+      transferResult,
+    );
+    expect(userTransferRelay2.success, 'User transfer relay should succeed').to
+      .be.true;
+
     // Sync actions to detect delivery and mark complete
     await context.tracker.syncRebalanceActions();
+    await context.tracker.syncTransfers();
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(
@@ -480,5 +491,10 @@ describe('Collateral Deficit E2E', function () {
     // Assert: No more in-progress actions
     const remainingActions = await context.tracker.getInProgressActions();
     expect(remainingActions.length).to.equal(0);
+
+    const completedTransfer = await context.tracker.getTransfer(
+      transferResult.messageId,
+    );
+    expect(completedTransfer!.status).to.equal('complete');
   });
 });
