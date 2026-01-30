@@ -1,7 +1,7 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 
 import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { assertRole } from '../utils/utils.js';
 

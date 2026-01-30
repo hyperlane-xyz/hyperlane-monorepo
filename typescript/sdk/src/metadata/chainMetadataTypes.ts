@@ -6,7 +6,7 @@ import { SafeParseReturnType, z } from 'zod';
 
 import { ProtocolType, objMerge } from '@hyperlane-xyz/utils';
 
-import { ChainMap } from '../types.js';
+import type { ChainMap } from '../types.js';
 
 import { ZChainName, ZNzUint, ZUint } from './customZodTypes.js';
 

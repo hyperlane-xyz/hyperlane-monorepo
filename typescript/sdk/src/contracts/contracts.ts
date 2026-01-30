@@ -16,7 +16,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { EthersLikeProvider } from '../deploy/proxy.js';
+import type { EthersLikeProvider } from '../deploy/proxy.js';
 import { ChainMetadataManager } from '../metadata/ChainMetadataManager.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';

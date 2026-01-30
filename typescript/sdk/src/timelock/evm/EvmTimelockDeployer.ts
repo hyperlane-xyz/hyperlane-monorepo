@@ -8,9 +8,9 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import type { HyperlaneContracts } from '../../contracts/types.js';
 import { HyperlaneDeployer } from '../../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../../deploy/verify/ContractVerifier.js';
-import { HyperlaneContracts } from '../../index.js';
 import { MultiProvider } from '../../providers/MultiProvider.js';
 import { TimelockConfig } from '../types.js';
 

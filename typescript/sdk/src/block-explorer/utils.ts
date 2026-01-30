@@ -1,7 +1,5 @@
-import {
-  BlockExplorer,
-  ExplorerFamily,
-} from '../metadata/chainMetadataTypes.js';
+import type { BlockExplorer } from '../metadata/chainMetadataTypes.js';
+import { ExplorerFamily } from '../metadata/chainMetadataTypes.js';
 
 export function isEvmBlockExplorerAndNotEtherscan(
   blockExplorer: BlockExplorer,

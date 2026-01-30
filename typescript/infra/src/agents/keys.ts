@@ -5,7 +5,7 @@ import { ChainName } from '@hyperlane-xyz/sdk';
 import { HexString, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { assertChain, assertContext, assertRole } from '../utils/utils.js';
 
