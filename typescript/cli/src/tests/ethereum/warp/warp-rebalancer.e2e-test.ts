@@ -998,6 +998,15 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       },
     });
 
+    const originTkn = ERC20__factory.connect(originTknAddress, originProvider);
+    const destTkn = ERC20__factory.connect(destTknAddress, destProvider);
+
+    // Verify initial balances before rebalancing
+    let originBalance = await originTkn.balanceOf(originContractAddress);
+    let destBalance = await destTkn.balanceOf(destContractAddress);
+    expect(originBalance.toString()).to.equal(toWei(10));
+    expect(destBalance.toString()).to.equal(toWei(10));
+
     // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
     const listenForSentTransferRemote = new Promise<{
       origin: Domain;
@@ -1032,20 +1041,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     expect(sentTransferRemote.recipient).to.equal(destContractAddress);
     expect(sentTransferRemote.amount).to.equal(BigInt(toWei(5)));
 
-    const originTkn = ERC20__factory.connect(originTknAddress, originProvider);
-    const destTkn = ERC20__factory.connect(destTknAddress, destProvider);
+    // Verify that the bridge pulled tokens from origin (10 - 5 = 5)
+    originBalance = await originTkn.balanceOf(originContractAddress);
+    expect(originBalance.toString()).to.equal(toWei(5));
 
-    let originBalance = await originTkn.balanceOf(originContractAddress);
-    let destBalance = await destTkn.balanceOf(destContractAddress);
-
-    // Verify that the tokens are in the right place before the transfer
-    expect(originBalance.toString()).to.equal(toWei(10));
-    expect(destBalance.toString()).to.equal(toWei(10));
-
-    // Simulate rebalancing by transferring tokens from destination to origin chain.
-    // This process locks tokens on the destination chain and unlocks them on the origin,
-    // effectively increasing collateral on the destination while decreasing it on the origin,
-    // which achieves the desired rebalancing effect.
+    // Complete the rebalancing by transferring tokens to unlock on destination chain.
     await hyperlaneWarpSendRelay({
       origin: destName,
       destination: originName,
@@ -1241,6 +1241,18 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         },
       });
 
+      const originTkn = ERC20__factory.connect(
+        originTknAddress,
+        originProvider,
+      );
+      const destTkn = ERC20__factory.connect(destTknAddress, destProvider);
+
+      // Verify initial balances before rebalancing
+      let originBalance = await originTkn.balanceOf(originContractAddress);
+      let destBalance = await destTkn.balanceOf(destContractAddress);
+      expect(originBalance.toString()).to.equal(toWei(10));
+      expect(destBalance.toString()).to.equal(toWei(10));
+
       // Promise that will resolve with the event that is emitted by the bridge when the rebalance transaction is sent
       const listenForSentTransferRemote = new Promise<{
         origin: Domain;
@@ -1284,23 +1296,13 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         BigInt(toWei(manualRebalanceAmount)),
       );
 
-      const originTkn = ERC20__factory.connect(
-        originTknAddress,
-        originProvider,
+      // Verify that the bridge pulled tokens from origin (10 - 5 = 5)
+      originBalance = await originTkn.balanceOf(originContractAddress);
+      expect(originBalance.toString()).to.equal(
+        toWei(10 - Number(manualRebalanceAmount)),
       );
-      const destTkn = ERC20__factory.connect(destTknAddress, destProvider);
 
-      let originBalance = await originTkn.balanceOf(originContractAddress);
-      let destBalance = await destTkn.balanceOf(destContractAddress);
-
-      // Verify that the tokens are in the right place before the transfer
-      expect(originBalance.toString()).to.equal(toWei(10));
-      expect(destBalance.toString()).to.equal(toWei(10));
-
-      // Simulate rebalancing by transferring tokens from destination to origin chain.
-      // This process locks tokens on the destination chain and unlocks them on the origin,
-      // effectively increasing collateral on the destination while decreasing it on the origin,
-      // which achieves the desired rebalancing effect.
+      // Complete the rebalancing by transferring tokens to unlock on destination chain.
       await hyperlaneWarpSendRelay({
         origin: destName,
         destination: originName,
