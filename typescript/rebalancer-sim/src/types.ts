@@ -456,6 +456,9 @@ export interface ScenarioFile {
   /** Chain names involved in this scenario */
   chains: string[];
 
+  /** Optional extra tokens to mint per chain after deployment (for creating imbalanced initial state) */
+  initialImbalance?: Record<string, string>;
+
   /** Ordered list of transfer events */
   transfers: SerializedTransferEvent[];
 
