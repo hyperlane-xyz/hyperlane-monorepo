@@ -1,5 +1,19 @@
 # @hyperlane-xyz/widgets
 
+## 24.0.0
+
+### Patch Changes
+
+- Updated dependencies [50868ce]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.2
+  - @hyperlane-xyz/radix-sdk@24.0.0
+
 ## 23.0.0
 
 ### Major Changes

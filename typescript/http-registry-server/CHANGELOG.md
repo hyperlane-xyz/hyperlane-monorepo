@@ -1,5 +1,19 @@
 # @hyperlane-xyz/http-registry-server
 
+## 24.0.0
+
+### Minor Changes
+
+- 4e159b0: Added file watching for local filesystem registries. When the HTTP registry server is started with a local filesystem registry (or a MergedRegistry containing one), it now watches for changes to YAML/JSON files and automatically refreshes the registry cache when changes are detected.
+
+### Patch Changes
+
+- Updated dependencies [50868ce]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/utils@24.0.0
+
 ## 23.0.0
 
 ### Patch Changes
