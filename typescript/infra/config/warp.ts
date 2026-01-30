@@ -16,6 +16,7 @@ import {
 } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
+import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';
 import { getAncient8EthereumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAncient8EthereumUSDCWarpConfig.js';
 import { getAppChainBaseUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAppchainBaseUSDCWarpConfig.js';
 import {
@@ -200,6 +201,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.EniWBTC]: getEniWbtcWarpConfig,
   [WarpRouteIds.EniUSDC]: getEniUsdcWarpConfig,
   [WarpRouteIds.EniUSDT]: getEniUsdtWarpConfig,
+  [WarpRouteIds.AleoUSDC]: getAleoUSDCWarpConfig,
 };
 
 type StrategyConfigGetter = () => ChainSubmissionStrategy;
