@@ -67,7 +67,6 @@ import {
 } from './environments/mainnet3/warp/configGetters/getEniWarpConfigs.js';
 import { getEthereumInkUSDCConfig } from './environments/mainnet3/warp/configGetters/getEthereumInkUSDCWarpConfig.js';
 import { getEthereumLineaTurtleWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumLineaTurtleWarpConfig.js';
-import { getEthereumVictionETHWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionETHWarpConfig.js';
 import { getEthereumVictionUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDCWarpConfig.js';
 import { getEthereumVictionUSDTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumVictionUSDTWarpConfig.js';
 import { getEthereumZircuitRe7LRTWarpConfig } from './environments/mainnet3/warp/configGetters/getEthereumZircuitRe7LRTWarpConfig.js';
@@ -108,6 +107,10 @@ import {
   getSuperseedUSDCWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getSuperseedUSDCWarpConfig.js';
 import {
+  getVictionETHStrategyConfig,
+  getVictionETHWarpConfig,
+} from './environments/mainnet3/warp/configGetters/getVictionETHWarpConfig.js';
+import {
   getoUSDTTokenProductionWarpConfig,
   getoUSDTTokenStagingWarpConfig,
 } from './environments/mainnet3/warp/configGetters/getoUSDTTokenWarpConfig.js';
@@ -134,7 +137,7 @@ export const warpConfigGetterMap: Record<string, WarpConfigGetter> = {
   [WarpRouteIds.ArbitrumAvalancheBaseFlowmainnetFormOptimismSolanamainnetWorldchainTRUMP]:
     getTRUMPWarpConfig,
   [WarpRouteIds.EthereumInkUSDC]: getEthereumInkUSDCConfig,
-  [WarpRouteIds.EthereumVictionETH]: getEthereumVictionETHWarpConfig,
+  [WarpRouteIds.VictionETH]: getVictionETHWarpConfig,
   [WarpRouteIds.EthereumVictionUSDC]: getEthereumVictionUSDCWarpConfig,
   [WarpRouteIds.EthereumVictionUSDT]: getEthereumVictionUSDTWarpConfig,
   [WarpRouteIds.BerachainEthereumSwellUnichainZircuitPZETH]:
@@ -224,6 +227,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.MatchainUSDC]: getMatchainUSDCStrategyConfig,
   [WarpRouteIds.oXAUT]: getoXAUTGnosisSafeSubmitterStrategyConfig,
   [WarpRouteIds.SuperseedUSDC]: getSuperseedUSDCStrategyConfig,
+  [WarpRouteIds.VictionETH]: getVictionETHStrategyConfig,
 };
 
 /**
