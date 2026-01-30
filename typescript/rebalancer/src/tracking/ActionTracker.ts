@@ -292,6 +292,10 @@ export class ActionTracker implements IActionTracker {
 
   // === Transfer Queries ===
 
+  async getTransfer(id: string): Promise<Transfer | undefined> {
+    return this.transferStore.get(id);
+  }
+
   async getInProgressTransfers(): Promise<Transfer[]> {
     return this.transferStore.getByStatus('in_progress');
   }
@@ -301,6 +305,10 @@ export class ActionTracker implements IActionTracker {
   }
 
   // === RebalanceIntent Queries ===
+
+  async getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined> {
+    return this.rebalanceIntentStore.get(id);
+  }
 
   async getActiveRebalanceIntents(): Promise<RebalanceIntent[]> {
     // Only return in_progress intents - their origin tx is confirmed
@@ -355,6 +363,16 @@ export class ActionTracker implements IActionTracker {
   async failRebalanceIntent(id: string): Promise<void> {
     await this.rebalanceIntentStore.update(id, { status: 'failed' });
     this.logger.info({ id }, 'Intent failed');
+  }
+
+  // === RebalanceAction Queries ===
+
+  async getRebalanceAction(id: string): Promise<RebalanceAction | undefined> {
+    return this.rebalanceActionStore.get(id);
+  }
+
+  async getInProgressActions(): Promise<RebalanceAction[]> {
+    return this.rebalanceActionStore.getByStatus('in_progress');
   }
 
   // === RebalanceAction Management ===
