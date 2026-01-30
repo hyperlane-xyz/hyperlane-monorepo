@@ -821,6 +821,10 @@ export class EvmERC20WarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
+    if (!expectedConfig.remoteRouters) {
+      return [];
+    }
+
     const { toUnenroll } = this.getRouterDomainDiff(
       actualConfig,
       expectedConfig,

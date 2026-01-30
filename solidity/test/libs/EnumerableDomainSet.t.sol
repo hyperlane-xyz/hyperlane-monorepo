@@ -193,4 +193,22 @@ contract EnumerableDomainSetTest is Test {
         assertTrue(domainSet2.containsDomain(2));
         assertFalse(domainSet2.containsDomain(1));
     }
+
+    // ============ EIP-7201 Storage Location Test ============
+
+    function test_storageLocation_matchesEIP7201Formula() public pure {
+        // The storage slot should match:
+        // keccak256(abi.encode(uint256(keccak256("hyperlane.storage.EnumerableDomainSet")) - 1)) & ~bytes32(uint256(0xff))
+        bytes32 innerHash = keccak256("hyperlane.storage.EnumerableDomainSet");
+        bytes32 outerHash = keccak256(abi.encode(uint256(innerHash) - 1));
+        bytes32 expectedSlot = outerHash & ~bytes32(uint256(0xff));
+
+        bytes32 actualSlot = 0xdcbc515942dd8ef153d6dc57820c8985f8a2facbcec06feacd3986bb6c43ef00;
+
+        assertEq(
+            actualSlot,
+            expectedSlot,
+            "Storage slot does not match EIP-7201 formula"
+        );
+    }
 }
