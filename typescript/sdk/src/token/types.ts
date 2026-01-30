@@ -37,7 +37,16 @@ export const TokenMetadataSchema = z.object({
   name: z.string(),
   symbol: z.string(),
   decimals: z.number().gt(0).optional(),
-  scale: z.number().optional(),
+  scale: z
+    .union([
+      z.number().gt(0),
+      z.string(), // string representation for large values
+      z.object({
+        numerator: z.union([z.number().gt(0), z.string()]),
+        denominator: z.union([z.number().gt(0), z.string()]),
+      }),
+    ])
+    .optional(),
   isNft: z.boolean().optional(),
   contractVersion: z.string().optional(),
 });

@@ -250,10 +250,12 @@ contract TimelockRouterTest is Test {
         HypERC20 originTokenRouter = new HypERC20(
             18,
             1,
+            1,
             address(originMailbox)
         );
         HypERC20 destinationTokenRouter = new HypERC20(
             18,
+            1,
             1,
             address(destinationMailbox)
         );

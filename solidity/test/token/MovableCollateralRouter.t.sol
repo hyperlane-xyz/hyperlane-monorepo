@@ -17,7 +17,7 @@ contract MockMovableCollateralRouter is MovableCollateralRouter {
     uint256 public chargedToRebalancer;
     address _token;
 
-    constructor(address _mailbox, address __token) TokenRouter(1, _mailbox) {
+    constructor(address _mailbox, address __token) TokenRouter(1, 1, _mailbox) {
         _token = __token;
     }
 

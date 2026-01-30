@@ -38,7 +38,7 @@ contract OpL2NativeTokenBridge is TokenRouter {
     constructor(
         address _mailbox,
         address _l2Bridge
-    ) TokenRouter(SCALE, _mailbox) {
+    ) TokenRouter(SCALE, SCALE, _mailbox) {
         require(_l2Bridge.isContract(), "L2 bridge must be a contract");
         l2Bridge = IStandardBridge(payable(_l2Bridge));
     }
@@ -266,7 +266,7 @@ contract OpL1V1NativeTokenBridge is
     constructor(
         address _mailbox,
         address _opPortal
-    ) TokenRouter(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
+    ) TokenRouter(SCALE, SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }
 
 contract OpL1V2NativeTokenBridge is
@@ -276,5 +276,5 @@ contract OpL1V2NativeTokenBridge is
     constructor(
         address _mailbox,
         address _opPortal
-    ) TokenRouter(SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
+    ) TokenRouter(SCALE, SCALE, _mailbox) OPL2ToL1CcipReadIsm(_opPortal) {}
 }
