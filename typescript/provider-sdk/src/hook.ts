@@ -12,6 +12,7 @@ import {
   ArtifactNew,
   ArtifactState,
   IArtifactManager,
+  isArtifactDeployed,
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 
@@ -309,6 +310,49 @@ export function shouldDeployNewHook(
       throw new Error(`Unhandled hook type: ${(expected as any).type}`);
     }
   }
+}
+
+/**
+ * Merges current on-chain hook artifact with expected hook artifact.
+ * Determines whether to deploy a new hook or update/reuse existing one.
+ *
+ * @param currentArtifact Current deployed hook artifact (from on-chain state)
+ * @param expectedArtifact Expected hook artifact (desired configuration)
+ * @returns Merged artifact - either NEW (deploy needed) or DEPLOYED (update/reuse)
+ */
+export function mergeHookArtifacts(
+  currentArtifact: DeployedHookArtifact | undefined,
+  expectedArtifact: ArtifactNew<HookArtifactConfig> | DeployedHookArtifact,
+): ArtifactNew<HookArtifactConfig> | DeployedHookArtifact {
+  const expectedConfig = expectedArtifact.config;
+
+  // No current hook - return expected as-is
+  if (!currentArtifact) {
+    return expectedArtifact;
+  }
+
+  const currentConfig = currentArtifact.config;
+
+  // Type changed or config requires new deployment
+  if (shouldDeployNewHook(currentConfig, expectedConfig)) {
+    return {
+      artifactState: ArtifactState.NEW,
+      config: expectedConfig,
+    };
+  }
+
+  // Hook can be updated/reused
+  // If expected is DEPLOYED (has address), use that address (switching to different deployed hook)
+  // Otherwise use current address (updating current hook)
+  const deployedAddress = isArtifactDeployed(expectedArtifact)
+    ? expectedArtifact.deployed
+    : currentArtifact.deployed;
+
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: expectedConfig,
+    deployed: deployedAddress,
+  };
 }
 
 /**
