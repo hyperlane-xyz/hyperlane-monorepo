@@ -3,10 +3,7 @@
   "description": "Tests rebalancer behavior with slow bridge and fast polling to demonstrate inflight guard importance.",
   "expectedBehavior": "With SLOW bridge (3s) and FAST polling (200ms), a rebalancer without inflight tracking will over-rebalance.\nWithout inflight guard: Multiple redundant transfers sent before first one delivers.\nWith inflight guard: Only 1-2 transfers sent, tracking pending amounts.",
   "duration": 8000,
-  "chains": [
-    "chain1",
-    "chain2"
-  ],
+  "chains": ["chain1", "chain2"],
   "initialImbalance": {
     "chain1": "50000000000000000000"
   },
