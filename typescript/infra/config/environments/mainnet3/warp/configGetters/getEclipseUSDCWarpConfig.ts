@@ -1,7 +1,15 @@
-import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  ChainSubmissionStrategy,
+  HypTokenRouterConfig,
+  SubmissionStrategy,
+  TokenType,
+  TxSubmitterType,
+} from '@hyperlane-xyz/sdk';
 import { assert, difference } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
+import { getChainAddresses, getChainMetadata } from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
@@ -81,13 +89,14 @@ const rebalanceableCollateralChains = [
   'polygon',
   'unichain',
   'ink',
+  // No monad yet
 ] as const satisfies DeploymentChain[];
 
 const ownersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
-  arbitrum: awIcas.arbitrum,
-  base: awIcas.base,
-  optimism: awIcas.optimism,
+  arbitrum: awSafes.arbitrum,
+  base: awSafes.base,
+  optimism: awSafes.optimism,
   polygon: awIcas.polygon,
   unichain: awIcas.unichain,
   eclipsemainnet: chainOwners.eclipsemainnet.owner,
@@ -196,4 +205,80 @@ export const getEclipseUSDCWarpConfig = async (
   ]);
 
   return Object.fromEntries(configs);
+};
+
+export function getUSDCEclipseFileSubmitterStrategyConfig(): ChainSubmissionStrategy {
+  // 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion
+  return Object.fromEntries(
+    Object.entries(ownersByChain)
+      .filter(([chain, _]) => evmDeploymentChains.includes(chain))
+      .map(([chain, _]) => [
+        chain,
+        {
+          submitter: {
+            type: 'file',
+            filepath: '/tmp/eclipse-usdc-combined.json',
+            chain,
+          },
+        },
+      ]),
+  ) as unknown as ChainSubmissionStrategy;
+}
+
+export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
+  const safeChains = ['ethereum', 'arbitrum', 'base', 'optimism'] as const;
+  const originSafeChain = 'ethereum';
+  const originSafeAddress = awSafes[originSafeChain];
+
+  const originSafeSubmitter = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+    chain: originSafeChain,
+    safeAddress: originSafeAddress,
+    version: '1.0',
+  };
+
+  // Safe-owned chains get direct safe submitters
+  const safeStrategies: [string, SubmissionStrategy][] = safeChains.map(
+    (chain) => [
+      chain,
+      {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+          chain,
+          safeAddress: awSafes[chain],
+          version: '1.0',
+        },
+      },
+    ],
+  );
+
+  // ICA-owned chains use ICA submitter with ethereum safe as origin
+  const icaChains = difference(
+    new Set<(typeof evmDeploymentChains)[number]>(evmDeploymentChains),
+    new Set<(typeof evmDeploymentChains)[number]>(safeChains),
+  );
+
+  const icaStrategies: [string, SubmissionStrategy][] = [...icaChains].map(
+    (chain) => {
+      const chainAddress = getChainAddresses()[chain];
+      assert(chainAddress, `Could not fetch addresses for chain ${chain}`);
+      const originInterchainAccountRouter =
+        chainAddress.interchainAccountRouter;
+      return [
+        chain,
+        {
+          submitter: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+            chain: originSafeChain,
+            destinationChain: chain,
+            owner: originSafeAddress,
+            originInterchainAccountRouter,
+            internalSubmitter: originSafeSubmitter,
+          },
+        },
+      ];
+    },
+  );
+
+  return Object.fromEntries([...safeStrategies, ...icaStrategies]);
 };
