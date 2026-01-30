@@ -1,6 +1,8 @@
 use std::collections::HashMap;
 use std::fs::File;
 use std::io::{self, BufRead};
+#[cfg(feature = "sealevel")]
+use std::net::TcpListener;
 use std::path::{Path, PathBuf};
 use std::process::{Child, Command};
 use std::sync::{Arc, Mutex};
@@ -203,4 +205,17 @@ pub(crate) fn download(output: &str, uri: &str, dir: &str) {
         .working_dir(dir)
         .run()
         .join();
+}
+
+/// Find a free port by binding to port 0 and letting the OS assign one.
+/// The listener is dropped immediately to free the port for use.
+///
+/// Note: There's a small race window between dropping the listener and
+/// using the port, but this is acceptable for test infrastructure.
+#[cfg(feature = "sealevel")]
+pub fn find_free_port() -> u16 {
+    let listener = TcpListener::bind("127.0.0.1:0").expect("Failed to bind to free port");
+    let port = listener.local_addr().unwrap().port();
+    drop(listener);
+    port
 }
