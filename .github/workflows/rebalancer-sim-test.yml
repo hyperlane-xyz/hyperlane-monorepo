@@ -28,13 +28,13 @@ jobs:
       fail-fast: false
       matrix:
         test:
-          # Split full-simulation by scenario (file:grep-pattern)
-          - full-simulation:extreme-drain
-          - full-simulation:extreme-accumulate
-          - full-simulation:large-unidirectional
-          - full-simulation:whale-transfers
-          - full-simulation:balanced-bidirectional
-          - full-simulation:random-with-headroom
+          # Split full-simulation by scenario (file_grep-pattern, using _ as separator)
+          - full-simulation_extreme-drain
+          - full-simulation_extreme-accumulate
+          - full-simulation_large-unidirectional
+          - full-simulation_whale-transfers
+          - full-simulation_balanced-bidirectional
+          - full-simulation_random-with-headroom
           # Other test files
           - inflight-guard
           - harness-setup
@@ -54,9 +54,9 @@ jobs:
       - name: Run rebalancer-sim test (${{ matrix.test }})
         working-directory: typescript/rebalancer-sim
         run: |
-          if [[ "${{ matrix.test }}" == *":"* ]]; then
-            FILE=$(echo "${{ matrix.test }}" | cut -d: -f1)
-            PATTERN=$(echo "${{ matrix.test }}" | cut -d: -f2)
+          if [[ "${{ matrix.test }}" == *"_"* ]]; then
+            FILE=$(echo "${{ matrix.test }}" | cut -d_ -f1)
+            PATTERN=$(echo "${{ matrix.test }}" | cut -d_ -f2)
             pnpm mocha --config .mocharc.json "./test/**/*${FILE}*.test.ts" --grep "${PATTERN}" --exit
           else
             pnpm mocha --config .mocharc.json "./test/**/*${{ matrix.test }}*.test.ts" --exit
