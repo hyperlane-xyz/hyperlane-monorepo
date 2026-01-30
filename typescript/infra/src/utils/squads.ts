@@ -243,8 +243,11 @@ export async function getPendingProposalsForChains(
               balance: `${balanceFormatted} SOL`,
               submissionDate,
             });
-          } catch {
+          } catch (error) {
             // Skip if proposal doesn't exist or other error
+            rootLogger.debug(
+              `Skipping proposal due to error: ${String(error)}`,
+            );
             continue;
           }
         }
