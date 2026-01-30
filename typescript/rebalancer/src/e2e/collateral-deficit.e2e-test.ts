@@ -419,5 +419,24 @@ describe('Collateral Deficit E2E', function () {
     expect(retrievedAction, 'Action should be retrievable by ID').to.exist;
     expect(retrievedAction!.id).to.equal(actionToArbitrum!.id);
     expect(retrievedAction!.status).to.equal('in_progress');
+
+    // Simulate message delivery by completing action directly
+    await context.tracker.completeRebalanceAction(actionToArbitrum!.id);
+
+    // Assert: Action is now complete
+    const completedAction = await context.tracker.getRebalanceAction(
+      actionToArbitrum!.id,
+    );
+    expect(completedAction!.status).to.equal('complete');
+
+    // Assert: Intent is now complete (fulfilledAmount >= amount)
+    const completedIntent =
+      await context.tracker.getRebalanceIntent(rebalanceIntentId);
+    expect(completedIntent!.status).to.equal('complete');
+    expect(completedIntent!.fulfilledAmount).to.equal(400000000n);
+
+    // Assert: No more in-progress actions
+    const remainingActions = await context.tracker.getInProgressActions();
+    expect(remainingActions.length).to.equal(0);
   });
 });
