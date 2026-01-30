@@ -1414,6 +1414,7 @@ export class SquadsTransactionReader {
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
       ]:
+      // falls through
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {

@@ -130,14 +130,26 @@
   },
   "overrides": [
     {
-      "files": ["**/*.test.ts", "**/*.spec.ts", "**/*-test.ts", "**/test/**", "**/tests/**"],
+      "files": [
+        "**/*.test.ts",
+        "**/*.spec.ts",
+        "**/*-test.ts",
+        "**/test/**",
+        "**/tests/**"
+      ],
       "rules": {
         "no-console": "off",
         "no-unused-expressions": "off"
       }
     },
     {
-      "files": ["typescript/infra/**/*.ts", "typescript/cli/**/*.ts", "typescript/ccip-server/**/*.ts", "**/scripts/**", "**/*.stories.tsx"],
+      "files": [
+        "typescript/infra/**/*.ts",
+        "typescript/cli/**/*.ts",
+        "typescript/ccip-server/**/*.ts",
+        "**/scripts/**",
+        "**/*.stories.tsx"
+      ],
       "rules": {
         "no-console": "off"
       }
