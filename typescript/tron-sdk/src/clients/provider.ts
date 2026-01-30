@@ -1,7 +1,7 @@
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, sleep, strip0x } from '@hyperlane-xyz/utils';
 
 import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
 import HypERC20Abi from '../abi/HypERC20.json' with { type: 'json' };
@@ -132,7 +132,7 @@ export class TronProvider implements AltVM.IProvider {
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await sleep(2000);
     }
 
     throw new Error(`Transaction timed out: ${txid}`);
@@ -221,6 +221,8 @@ export class TronProvider implements AltVM.IProvider {
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<TronTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
+    const ENERGY_MULTIPLIER = 1.5;
+
     const value = req.transaction.raw_data.contract[0].parameter.value;
     const contractAddress = value.contract_address;
     const issuerAddress = value.owner_address;
@@ -255,7 +257,8 @@ export class TronProvider implements AltVM.IProvider {
 
     const txSize = BigInt(req.transaction.raw_data_hex.length / 2 + 134); // Signature + Result + Protobuf
 
-    const energyFee = BigInt(energy_required) * BigInt(energyPrice);
+    const energyFee =
+      BigInt(energy_required) * BigInt(ENERGY_MULTIPLIER) * BigInt(energyPrice);
     const bandwidthFee = txSize * BigInt(bandwidthPrice);
     const totalFeeSun = energyFee + bandwidthFee;
 
