@@ -35,6 +35,11 @@ export class EvmIcaTxSubmitter
   readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.INTERCHAIN_ACCOUNT;
 
+  // Memoized dynamic import to avoid runtime cost on every fromConfig call
+  private static submitterGetterPromise?: Promise<
+    typeof import('./submitterBuilderGetter.js')
+  >;
+
   protected constructor(
     protected readonly config: EvmIcaTxSubmitterConstructorConfig,
     protected readonly submitter: TxSubmitterInterface<ProtocolType.Ethereum>,
@@ -55,8 +60,11 @@ export class EvmIcaTxSubmitter
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
     );
 
-    // Dynamic import to break circular dependency
-    const { getSubmitter } = await import('./submitterBuilderGetter.js');
+    // Dynamic import to break circular dependency (memoized)
+    const module = await (EvmIcaTxSubmitter.submitterGetterPromise ??= import(
+      './submitterBuilderGetter.js'
+    ));
+    const { getSubmitter } = module;
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
