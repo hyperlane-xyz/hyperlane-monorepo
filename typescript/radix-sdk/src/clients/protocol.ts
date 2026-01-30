@@ -165,6 +165,7 @@ export class RadixProtocolProvider implements ProtocolProvider {
       WARP_DEPLOY_GAS: 0n,
       TEST_SEND_GAS: 0n,
       AVS_GAS: 0n,
+      ISM_DEPLOY_GAS: 0n,
     };
   }
 }
