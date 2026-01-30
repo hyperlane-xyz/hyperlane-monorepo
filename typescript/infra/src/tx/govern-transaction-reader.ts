@@ -706,8 +706,8 @@ export class GovernTransactionReader {
         data: tx.data,
         value: tx.value,
       });
-    } catch {
-      throw new Error('Failed to decode Managed Lockbox transaction');
+    } catch (error) {
+      throw new Error(`Failed to decode Managed Lockbox transaction: ${error}`);
     }
 
     const roleMap: Record<string, string> = {
@@ -1088,8 +1088,11 @@ export class GovernTransactionReader {
       });
 
       return this.formatFeeConfig(feeConfig);
-    } catch {
+    } catch (error) {
       // Not a fee contract or failed to read - return basic insight
+      this.logger.debug(
+        `Could not read fee contract details for ${feeRecipientAddress}: ${error}`,
+      );
       return { insight: `Set fee recipient to ${feeRecipientAddress}` };
     }
   }
