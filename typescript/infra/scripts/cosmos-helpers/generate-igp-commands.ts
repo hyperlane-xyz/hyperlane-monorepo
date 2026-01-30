@@ -73,12 +73,12 @@ async function main() {
     const token_price = parseFloat(entry.token_price);
     const origin_token_price = parseFloat(tokenPrices[originChain]);
 
-    const destNativeTokenDecimals = (
-      await registry.getChainMetadata(entry.name)
-    )?.nativeToken?.decimals!;
-    const originNativeTokenDecimals = (
-      await registry.getChainMetadata(originChain)
-    )?.nativeToken?.decimals!;
+    const destNativeTokenDecimals =
+      (await registry.getChainMetadata(entry.name))?.nativeToken?.decimals ??
+      18;
+    const originNativeTokenDecimals =
+      (await registry.getChainMetadata(originChain))?.nativeToken?.decimals ??
+      18;
 
     let ratio = token_price / origin_token_price;
 

@@ -182,18 +182,18 @@ export class RadixBase {
       name:
         (
           details.metadata.items.find((i) => i.key === 'name')?.value
-            .typed as any
-        ).value ?? '',
+            ?.typed as any
+        )?.value ?? '',
       symbol:
         (
           details.metadata.items.find((i) => i.key === 'symbol')?.value
-            .typed as any
-        ).value ?? '',
+            ?.typed as any
+        )?.value ?? '',
       description:
         (
           details.metadata.items.find((i) => i.key === 'description')?.value
-            .typed as any
-        ).value ?? '',
+            ?.typed as any
+        )?.value ?? '',
       decimals: (details.details as any).divisibility as number,
     };
 
