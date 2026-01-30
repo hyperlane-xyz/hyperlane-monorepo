@@ -317,10 +317,239 @@ interface SimulationKPIs {
 
 5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=hyperlane,real`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
 
+## Design Decisions
+
+### Single Anvil, Multiple Domains
+
+All simulated "chains" run on a single Anvil instance with different domain IDs:
+
+```typescript
+// All chains share one RPC but have unique domain IDs
+const chainMetadata = {
+  chain1: { domainId: 1000, rpcUrls: [{ http: anvilRpc }] },
+  chain2: { domainId: 2000, rpcUrls: [{ http: anvilRpc }] },
+  chain3: { domainId: 3000, rpcUrls: [{ http: anvilRpc }] },
+};
+
+// Each domain has its own:
+// - MockMailbox (for instant user transfers)
+// - HypERC20Collateral (warp token with liquidity)
+// - MockValueTransferBridge (for delayed rebalancer transfers)
+```
+
+This approach enables fast, deterministic testing without multi-process coordination.
+
+### Fast Real-Time Execution
+
+Simulations run in "compressed" real-time:
+
+| Real World    | Simulation Default |
+| ------------- | ------------------ |
+| 30s bridge    | 500ms              |
+| 60s polling   | 1000ms             |
+| 5min scenario | ~10s               |
+
+Configure via `SimulationTiming`:
+
+```typescript
+interface SimulationTiming {
+  bridgeDeliveryDelay: number; // ms - bridge transfer time
+  rebalancerPollingFrequency: number; // ms - how often rebalancer checks
+  userTransferInterval: number; // ms - spacing between user transfers
+}
+```
+
+### Observation Isolation
+
+Rebalancers can ONLY observe state via:
+
+- JSON-RPC balance queries (`eth_call` to ERC20.balanceOf)
+- Event logs (`eth_getLogs`)
+- View functions (ISM queries, router configs)
+
+NOT allowed:
+
+- Direct contract object access
+- Simulation internal state
+- Bridge controller pending queue
+
+This ensures the simulation tests realistic rebalancer behavior.
+
+## Programmatic Usage
+
+### Basic Simulation
+
+```typescript
+import {
+  HyperlaneRunner,
+  RebalancerSimulationHarness,
+  ScenarioLoader,
+} from '@hyperlane-xyz/rebalancer-sim';
+
+// Load scenario from JSON
+const scenario = ScenarioLoader.loadScenario('balanced-bidirectional');
+
+// Create and initialize harness (deploys contracts on anvil)
+const harness = new RebalancerSimulationHarness({
+  anvilRpc: 'http://localhost:8545',
+  initialCollateralBalance: BigInt(scenario.defaultInitialCollateral),
+});
+await harness.initialize();
+
+// Run simulation
+const result = await harness.runSimulation(scenario, new HyperlaneRunner(), {
+  bridgeConfig: scenario.defaultBridgeConfig,
+  timing: scenario.defaultTiming,
+  strategyConfig: scenario.defaultStrategyConfig,
+});
+
+console.log(`Completion: ${result.kpis.completionRate * 100}%`);
+console.log(`Avg Latency: ${result.kpis.averageLatency}ms`);
+console.log(`Rebalances: ${result.kpis.totalRebalances}`);
+```
+
+### Compare Rebalancers
+
+```typescript
+import {
+  HyperlaneRunner,
+  RealRebalancerRunner,
+} from '@hyperlane-xyz/rebalancer-sim';
+
+const rebalancers = [
+  new HyperlaneRunner(), // Simplified baseline
+  new RealRebalancerRunner(), // Production service
+];
+
+// compareRebalancers() handles state reset internally
+const report = await harness.compareRebalancers(scenario, rebalancers, {
+  strategyConfig: scenario.defaultStrategyConfig,
+});
+
+for (const result of report.results) {
+  console.log(`${result.rebalancerName}: ${result.kpis.completionRate * 100}%`);
+}
+console.log(`Best latency: ${report.comparison.bestLatency}`);
+```
+
+### Generate Custom Scenarios
+
+```typescript
+import { parseEther } from 'ethers/lib/utils';
+
+import { ScenarioGenerator } from '@hyperlane-xyz/rebalancer-sim';
+
+// Unidirectional flow (tests drain)
+const drainScenario = ScenarioGenerator.unidirectionalFlow({
+  origin: 'chain1',
+  destination: 'chain2',
+  transferCount: 100,
+  duration: 10000,
+  amount: parseEther('1'),
+});
+
+// Random traffic across all chains
+const randomScenario = ScenarioGenerator.randomTraffic({
+  chains: ['chain1', 'chain2', 'chain3'],
+  transferCount: 50,
+  duration: 5000,
+  amountRange: [parseEther('1'), parseEther('10')],
+});
+
+// Surge pattern (spike mid-scenario)
+const surgeScenario = ScenarioGenerator.surgeScenario({
+  chains: ['chain1', 'chain2', 'chain3'],
+  baselineRate: 1, // 1 tx/s baseline
+  surgeMultiplier: 5, // 5x during surge
+  surgeStart: 3000,
+  surgeDuration: 2000,
+  totalDuration: 10000,
+  amountRange: [parseEther('1'), parseEther('5')],
+});
+
+// Balanced bidirectional traffic (equal in/out per chain)
+const balancedScenario = ScenarioGenerator.balancedTraffic({
+  chains: ['chain1', 'chain2', 'chain3'],
+  pairCount: 10, // Creates 20 transfers (10 pairs of A→B, B→A)
+  duration: 5000,
+  amountRange: [parseEther('1'), parseEther('5')],
+});
+```
+
 ## Future Work
 
-### Mock Explorer API for Inflight Guard
+### Phase 9: Mock Explorer API for Inflight Guard
 
-- Mock Explorer API for inflight transfer tracking
-- Test scenarios that specifically require inflight awareness
-- Validate that real rebalancer avoids over-correction with inflight guard enabled
+**Goal:** Enable testing of inflight guard functionality without real Explorer infrastructure.
+
+The real rebalancer uses `WithInflightGuard` wrapper that queries Hyperlane Explorer API to track pending (inflight) transfers. This prevents over-rebalancing by accounting for transfers in the bridge pipeline.
+
+**Planned implementation:**
+
+```typescript
+// src/mocks/MockExplorerApi.ts
+export class MockExplorerApi {
+  // Called by BridgeMockController when transfer initiated
+  registerPendingTransfer(transfer: {
+    messageId;
+    origin;
+    destination;
+    amount;
+  }): void;
+
+  // Called by BridgeMockController when transfer delivered
+  markDelivered(messageId: string): void;
+
+  // Called by rebalancer's inflight guard
+  async getInflightTransfers(origin, destination): Promise<InflightTransfer[]>;
+}
+```
+
+**Integration points:**
+
+- BridgeMockController calls `registerPendingTransfer()` on bridge initiation
+- BridgeMockController calls `markDelivered()` on bridge delivery
+- RealRebalancerRunner injects mock API for inflight queries
+
+**Expected outcome:** `inflight-guard.test.ts` should PASS (1-2 rebalances instead of 30+) once mock explorer is integrated.
+
+### Phase 10: Advanced Scenarios
+
+**Bridge Failures**
+
+- Configure `failureRate > 0` in bridge config
+- Test rebalancer recovery after partial failures
+- Verify no stuck state after transient failures
+
+**Variable Delays**
+
+- Asymmetric delays: `chain1→chain2: 500ms`, `chain2→chain1: 2000ms`
+- Test rebalancer adaptation to different bridge speeds
+- Validate strategy handles heterogeneous bridge environments
+
+**Rebalancer Restart**
+
+- Stop rebalancer mid-scenario, restart
+- Verify recovery and correct state resumption
+- Test idempotency of rebalance operations
+
+**Gas Cost Tracking**
+
+- Mock gas prices per chain
+- Track total gas cost in KPIs
+- Compare strategies by cost-efficiency
+- Add `totalGasCost: bigint` to SimulationKPIs
+
+### Phase 11: Enhanced Visualization
+
+**Real-time dashboard** (stretch goal):
+
+- WebSocket updates during simulation
+- Live balance curves
+- Transfer animation
+
+**Comparison views:**
+
+- Side-by-side rebalancer comparison in single HTML
+- Diff highlighting for KPI differences
+- Strategy effectiveness scoring
