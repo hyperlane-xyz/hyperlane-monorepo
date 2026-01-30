@@ -10,6 +10,7 @@ import {
   IsmConfigSchema,
   MailboxViolation,
   MailboxViolationType,
+  RouterViolationType,
 } from '@hyperlane-xyz/sdk';
 
 interface AnyObject {
@@ -286,6 +287,11 @@ export function logViolationDetails(violations: CheckerViolation[]): void {
         `${violation.chain} connection client violation ${violation.type} details:`,
       );
       logViolationDetail(violation);
+    }
+
+    if (violation.type === RouterViolationType.MisconfiguredEnrolledRouter) {
+      console.log(`${violation.chain} router violation details:`);
+      logDiff(violation.expected, violation.actual);
     }
   }
 }
