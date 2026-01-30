@@ -1,5 +1,7 @@
 import { ethers } from 'ethers';
 
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import type { BridgeMockConfig } from '../bridges/types.js';
 import { createSymmetricBridgeConfig } from '../bridges/types.js';
 import { deployMultiDomainSimulation } from '../deployment/SimulationDeployment.js';
@@ -23,6 +25,8 @@ import type {
   RebalancerSimConfig,
 } from '../rebalancer/types.js';
 import type { SimulationTiming, TransferScenario } from '../scenario/types.js';
+
+const logger = rootLogger.child({ module: 'RebalancerSimulationHarness' });
 
 /**
  * Configuration for the simulation harness
@@ -80,17 +84,23 @@ export class RebalancerSimulationHarness {
       tokenDecimals: this.config.tokenDecimals,
     };
 
-    console.log('Deploying multi-domain simulation environment...');
+    logger.info('Deploying multi-domain simulation environment...');
     this.deployment = await deployMultiDomainSimulation(deployOptions);
-    console.log('Deployment complete.');
+    logger.info('Deployment complete');
 
     // Log deployed addresses
     for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
-      console.log(`  ${chainName} (domain ${domain.domainId}):`);
-      console.log(`    Mailbox: ${domain.mailbox}`);
-      console.log(`    WarpToken: ${domain.warpToken}`);
-      console.log(`    CollateralToken: ${domain.collateralToken}`);
-      console.log(`    Bridge: ${domain.bridge}`);
+      logger.info(
+        {
+          chainName,
+          domainId: domain.domainId,
+          mailbox: domain.mailbox,
+          warpToken: domain.warpToken,
+          collateralToken: domain.collateralToken,
+          bridge: domain.bridge,
+        },
+        'Deployed domain',
+      );
     }
 
     this.engine = new SimulationEngine(this.deployment);
@@ -118,10 +128,15 @@ export class RebalancerSimulationHarness {
 
     const timing = options.timing ?? DEFAULT_TIMING;
 
-    console.log(`Running simulation: ${scenario.name}`);
-    console.log(`  Rebalancer: ${rebalancer.name}`);
-    console.log(`  Transfers: ${scenario.transfers.length}`);
-    console.log(`  Duration: ${scenario.duration}ms`);
+    logger.info(
+      {
+        scenario: scenario.name,
+        rebalancer: rebalancer.name,
+        transfers: scenario.transfers.length,
+        duration: scenario.duration,
+      },
+      'Running simulation',
+    );
 
     const result = await this.engine.runSimulation(
       scenario,
@@ -131,14 +146,14 @@ export class RebalancerSimulationHarness {
       options.strategyConfig,
     );
 
-    console.log(`Simulation complete.`);
-    console.log(
-      `  Completion rate: ${(result.kpis.completionRate * 100).toFixed(1)}%`,
+    logger.info(
+      {
+        completionRate: `${(result.kpis.completionRate * 100).toFixed(1)}%`,
+        averageLatency: `${result.kpis.averageLatency.toFixed(0)}ms`,
+        totalRebalances: result.kpis.totalRebalances,
+      },
+      'Simulation complete',
     );
-    console.log(
-      `  Average latency: ${result.kpis.averageLatency.toFixed(0)}ms`,
-    );
-    console.log(`  Total rebalances: ${result.kpis.totalRebalances}`);
 
     return result;
   }

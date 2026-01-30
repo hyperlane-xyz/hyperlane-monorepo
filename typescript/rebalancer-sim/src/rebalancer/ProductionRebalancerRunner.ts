@@ -9,13 +9,16 @@ import {
 } from '@hyperlane-xyz/rebalancer';
 import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { SimulationRegistry } from './SimulationRegistry.js';
 import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
 
-// Silent logger for the rebalancer
-const logger = pino({ level: 'silent' });
+// Silent logger for the rebalancer service (internal)
+const silentLogger = pino({ level: 'silent' });
+
+// Logger for simulation harness output
+const logger = rootLogger.child({ module: 'ProductionRebalancerRunner' });
 
 // Track the current instance for cleanup
 let currentInstance: ProductionRebalancerRunner | null = null;
@@ -34,7 +37,7 @@ export async function cleanupProductionRebalancer(): Promise<void> {
     try {
       await instance.stop();
     } catch (error) {
-      console.debug('cleanupProductionRebalancer: stop failed', error);
+      logger.debug({ error }, 'cleanupProductionRebalancer: stop failed');
     }
   }
   // Small delay to allow any async cleanup to complete
@@ -155,8 +158,10 @@ export class ProductionRebalancerRunner
       };
     }
 
-    // Create MultiProvider
-    const multiProvider = new MultiProvider(chainMetadata, { logger });
+    // Create MultiProvider (with silent logger to suppress internal logs)
+    const multiProvider = new MultiProvider(chainMetadata, {
+      logger: silentLogger,
+    });
 
     // Create provider and wallet
     const provider = new ethers.providers.JsonRpcProvider(
@@ -195,10 +200,9 @@ export class ProductionRebalancerRunner
             false;
         }
       } catch (error) {
-        console.debug(
-          'ProductionRebalancerRunner: failed to disable polling for',
-          chainName,
-          error,
+        logger.debug(
+          { chainName, error },
+          'Failed to disable polling for chain',
         );
       }
     }
@@ -223,7 +227,7 @@ export class ProductionRebalancerRunner
         checkFrequency: this.config.pollingFrequency,
         monitorOnly: false,
         withMetrics: false,
-        logger,
+        logger: silentLogger,
       },
     );
 
@@ -233,7 +237,7 @@ export class ProductionRebalancerRunner
 
     // Start service in the background (don't await - it runs forever in daemon mode)
     this.service.start().catch((error) => {
-      console.error('RebalancerService error:', error);
+      logger.error({ error }, 'RebalancerService error');
     });
 
     // Wait a bit for the service to initialize
@@ -256,10 +260,7 @@ export class ProductionRebalancerRunner
       try {
         await this.service.stop();
       } catch (error) {
-        console.debug(
-          'ProductionRebalancerRunner.stop: service.stop() failed',
-          error,
-        );
+        logger.debug({ error }, 'service.stop() failed');
       }
       this.service = undefined;
     }

@@ -4,6 +4,7 @@ import {
   ERC20__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { BridgeMockController } from '../bridges/BridgeMockController.js';
 import type { BridgeMockConfig } from '../bridges/types.js';
@@ -16,6 +17,8 @@ import type {
   RebalancerSimConfig,
 } from '../rebalancer/types.js';
 import type { SimulationTiming, TransferScenario } from '../scenario/types.js';
+
+const logger = rootLogger.child({ module: 'SimulationEngine' });
 
 /**
  * Default timing for fast simulations
@@ -93,8 +96,13 @@ export class SimulationEngine {
 
       this.messageTracker.on('message_failed', ({ message }) => {
         // Don't record as failed yet - it will retry
-        console.log(
-          `Message ${message.id} failed (attempt ${message.attempts}): ${message.lastError}`,
+        logger.debug(
+          {
+            messageId: message.id,
+            attempts: message.attempts,
+            error: message.lastError,
+          },
+          'Message failed, will retry',
         );
       });
 
@@ -271,8 +279,9 @@ export class SimulationEngine {
 
         // Log slow transfers (>1000ms suggests significant RPC contention)
         if (totalTxTime > 1000) {
-          console.log(
-            `[SimulationEngine] SLOW transfer ${transfer.id}: ${totalTxTime}ms (approve: ${approveTime}ms)`,
+          logger.warn(
+            { transferId: transfer.id, totalTxTime, approveTime },
+            'Slow transfer detected',
           );
         }
 
@@ -284,13 +293,14 @@ export class SimulationEngine {
           timing.userTransferDeliveryDelay,
         );
       } catch (error: any) {
-        console.error(
-          `Transfer ${transfer.id} failed: ${error.reason || error.message}`,
+        logger.error(
+          { transferId: transfer.id, error: error.reason || error.message },
+          'Transfer failed',
         );
         this.kpiCollector!.recordTransferFailed(transfer.id);
       }
     }
-    console.log('All transfers executed');
+    logger.info('All transfers executed');
   }
 
   /**
@@ -345,13 +355,22 @@ export class SimulationEngine {
     while (this.messageTracker.hasPendingMessages()) {
       if (Date.now() - startTime > timeout) {
         const pending = this.messageTracker.getPendingMessages();
-        console.warn(
-          `Timeout waiting for user transfer deliveries. ${pending.length} still pending - marking as failed.`,
+        logger.warn(
+          { pendingCount: pending.length },
+          'Timeout waiting for user transfer deliveries - marking as failed',
         );
         // Mark pending messages as failed so KPIs reflect reality
         for (const msg of pending) {
-          console.warn(
-            `  - ${msg.id} (${msg.origin}->${msg.destination}): ${msg.status}, attempts=${msg.attempts}, error=${msg.lastError || 'timeout'}`,
+          logger.warn(
+            {
+              messageId: msg.id,
+              origin: msg.origin,
+              destination: msg.destination,
+              status: msg.status,
+              attempts: msg.attempts,
+              error: msg.lastError || 'timeout',
+            },
+            'Marking pending message as failed',
           );
           // Record as failed in KPI collector
           this.kpiCollector?.recordTransferFailed(msg.transferId);

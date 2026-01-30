@@ -6,6 +6,7 @@ import {
   MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import type { DeployedDomain } from '../deployment/types.js';
 
@@ -16,6 +17,8 @@ import type {
   PendingTransfer,
 } from './types.js';
 import { DEFAULT_BRIDGE_ROUTE_CONFIG } from './types.js';
+
+const logger = rootLogger.child({ module: 'BridgeMockController' });
 
 /**
  * BridgeMockController manages simulated bridge transfers with configurable
@@ -169,7 +172,7 @@ export class BridgeMockController extends EventEmitter {
     )?.[0];
 
     if (!destChain) {
-      console.error(`Unknown destination domain: ${destinationDomainId}`);
+      logger.error({ destinationDomainId }, 'Unknown destination domain');
       return;
     }
 
@@ -266,7 +269,7 @@ export class BridgeMockController extends EventEmitter {
       };
       this.emit('transfer_delivered', event);
     } catch (error) {
-      console.error(`Bridge delivery failed for ${transferId}:`, error);
+      logger.error({ transferId, error }, 'Bridge delivery failed');
       transfer.failed = true;
       this.pendingTransfers.delete(transferId);
       this.completedTransfers.push(transfer);
@@ -365,8 +368,9 @@ export class BridgeMockController extends EventEmitter {
     while (this.hasPendingTransfers()) {
       if (Date.now() - startTime > timeoutMs) {
         const pendingCount = this.getPendingCount();
-        console.warn(
-          `Timeout waiting for bridge deliveries. ${pendingCount} transfers still pending - marking as failed.`,
+        logger.warn(
+          { pendingCount },
+          'Timeout waiting for bridge deliveries - marking as failed',
         );
         // Mark all pending as failed, update state, and clear
         for (const transfer of this.pendingTransfers.values()) {

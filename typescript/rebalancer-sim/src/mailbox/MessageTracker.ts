@@ -2,8 +2,11 @@ import { ethers } from 'ethers';
 import { EventEmitter } from 'events';
 
 import { MockMailbox__factory } from '@hyperlane-xyz/core';
+import { rootLogger } from '@hyperlane-xyz/utils';
 
 import type { DeployedDomain } from '../deployment/types.js';
+
+const logger = rootLogger.child({ module: 'MessageTracker' });
 
 /**
  * Tracked message for off-chain processing control
@@ -159,17 +162,24 @@ export class MessageTracker extends EventEmitter {
         );
         const staticCallDuration = Date.now() - staticCallStart;
         if (staticCallDuration > 100) {
-          console.log(
-            `[MessageTracker] SLOW static call for ${message.transferId}: ${staticCallDuration}ms`,
+          logger.warn(
+            { transferId: message.transferId, staticCallDuration },
+            'Slow static call',
           );
         }
         processable.push(message);
         // Log successful processing after retries
         if (message.attempts > 0) {
           const waitTime = Date.now() - message.dispatchedAt;
-          console.log(
-            `[MessageTracker] ${message.transferId} (${message.origin}->${message.destination}) ` +
-              `READY after ${message.attempts} retries, waited ${waitTime}ms`,
+          logger.debug(
+            {
+              transferId: message.transferId,
+              origin: message.origin,
+              destination: message.destination,
+              attempts: message.attempts,
+              waitTime,
+            },
+            'Message ready after retries',
           );
         }
       } catch (error: any) {
@@ -189,9 +199,16 @@ export class MessageTracker extends EventEmitter {
         // Log failures - every 5 attempts or on slow static calls
         if (message.attempts % 5 === 0 || staticCallDuration > 100) {
           const waitTime = Date.now() - message.dispatchedAt;
-          console.log(
-            `[MessageTracker] ${message.transferId} (${message.origin}->${message.destination}) ` +
-              `FAILED attempt #${message.attempts} after waiting ${waitTime}ms: ${errorMsg}`,
+          logger.debug(
+            {
+              transferId: message.transferId,
+              origin: message.origin,
+              destination: message.destination,
+              attempts: message.attempts,
+              waitTime,
+              error: errorMsg,
+            },
+            'Message delivery failed, will retry',
           );
         }
       }
@@ -199,8 +216,9 @@ export class MessageTracker extends EventEmitter {
 
     const totalCheckTime = Date.now() - checkStartTime;
     if (totalCheckTime > 500) {
-      console.log(
-        `[MessageTracker] SLOW static call checks: ${ready.length} messages took ${totalCheckTime}ms`,
+      logger.warn(
+        { messageCount: ready.length, totalCheckTime },
+        'Slow static call checks',
       );
     }
 
