@@ -9,7 +9,7 @@ import {
   revertToSnapshot,
   snapshot,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32, toWei } from '@hyperlane-xyz/utils';
+import { toWei } from '@hyperlane-xyz/utils';
 
 import { RebalancerStrategyOptions } from '../config/types.js';
 import { type MonitorEvent, MonitorEventType } from '../interfaces/IMonitor.js';
@@ -59,15 +59,6 @@ async function getFirstMonitorEvent(monitor: Monitor): Promise<MonitorEvent> {
 
     void monitor.start();
   });
-}
-
-function encodeWarpRouteMessageBody(
-  recipient: string,
-  amount: BigNumber,
-): string {
-  const recipientBytes32 = addressToBytes32(recipient);
-  const amountHex = ethers.utils.hexZeroPad(amount.toHexString(), 32);
-  return recipientBytes32 + amountHex.slice(2);
 }
 
 describe('Collateral Deficit E2E', function () {
@@ -305,18 +296,8 @@ describe('Collateral Deficit E2E', function () {
         `Before: ${initialCollateralBalances.arbitrum.toString()}, After: ${balancesAfterUserTransfer.arbitrum.toString()}`,
     ).to.be.true;
 
-    context.mockExplorer.addUserTransfer({
-      msg_id: transferResult.messageId,
-      origin_domain_id: DOMAIN_IDS.ethereum,
-      destination_domain_id: DOMAIN_IDS.arbitrum,
-      sender: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-      recipient: USDC_INCENTIV_WARP_ROUTE.routers.arbitrum,
-      origin_tx_hash: transferResult.dispatchTx.transactionHash,
-      origin_tx_sender: userAddress,
-      origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-      is_delivered: false,
-      message_body: encodeWarpRouteMessageBody(userAddress, transferAmount),
-    });
+    // Index the dispatched message using ForkIndexer
+    await context.forkIndexer.sync();
 
     // Sync action tracker to pick up the new transfer
     await context.tracker.syncTransfers();
