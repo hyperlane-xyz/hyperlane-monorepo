@@ -66,4 +66,6 @@ jobs:
 
       # Compare outputs
       - name: Compare outputs
-        run: .github/scripts/check-diff-changeset.sh bytecode solidity/base-bytecode solidity/HEAD-bytecode
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: .github/scripts/check-diff-changeset.sh bytecode solidity/base-bytecode solidity/HEAD-bytecode "$BASE_REF"

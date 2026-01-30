@@ -2,7 +2,7 @@
 pragma solidity >=0.8.0;
 
 struct Quote {
-    address token; // address(0) for the native token
+    address token; // address(0) for the native token, or ERC20 for token payments
     uint256 amount;
 }
 
@@ -13,7 +13,7 @@ interface ITokenFee {
      * @param _recipient The message recipient address on `destination`
      * @param _amount The amount to send to the recipient
      * @return quotes Indicate how much of each token to approve and/or send.
-     * @dev Good practice is to use the first entry of the quotes for the native currency (i.e. ETH).
+     * @dev Good practice is to use the first entry of the quotes for the IGP fee (native or ERC20).
      * @dev Good practice is to use the last entry of the quotes for the token to be transferred.
      * @dev There should not be duplicate `token` addresses in the returned quotes.
      */

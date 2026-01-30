@@ -7,7 +7,7 @@ test = 'test'
 cache_path = 'forge-cache'
 solc_version = '0.8.22'
 evm_version= 'paris'
-optimizer_runs = 999_999
+optimizer_runs = 25_000
 fs_permissions = [
     { access = "read", path = "./script/avs/" },
     { access = "read", path = "../vectors" },
@@ -19,6 +19,7 @@ ignored_warnings_from = ['lib', 'test', 'contracts/test']
 verbosity = 4
 # disable metadata for bytecode comparison
 cbor_metadata = false
+bytecode_hash = "none"
 
 [rpc_endpoints]
 mainnet = "${RPC_URL_MAINNET}"
