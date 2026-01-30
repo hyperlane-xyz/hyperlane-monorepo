@@ -17,6 +17,8 @@ export {
   ismConfigToArtifact,
   shouldDeployNewIsm,
 } from './ism/ism-config-utils.js';
+export { WarpTokenReader, createWarpTokenReader } from './warp/warp-reader.js';
+export { WarpTokenWriter, createWarpTokenWriter } from './warp/warp-writer.js';
 export { warpModuleProvider } from './warp-module.js';
 export {
   validateIsmConfig,
