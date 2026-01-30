@@ -24,6 +24,7 @@ import {
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
+  type OnChainArtifactManagers,
   aleoWarpFieldsToArtifactApi,
 } from '../utils/types.js';
 
@@ -39,7 +40,7 @@ export class AleoNativeTokenReader
 {
   constructor(
     protected readonly aleoClient: AnyAleoNetworkClient,
-    protected readonly ismManager: string,
+    protected readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {}
 
   async read(
@@ -51,11 +52,12 @@ export class AleoNativeTokenReader
     const token = await getNativeWarpTokenConfig(
       this.aleoClient,
       address,
-      this.ismManager,
+      this.onChainArtifactManagers.ismManagerAddress,
+      this.onChainArtifactManagers.hookManagerAddress,
     );
 
     // Convert to provider-sdk artifact format
-    const { destinationGas, remoteRouters, interchainSecurityModule } =
+    const { destinationGas, remoteRouters, interchainSecurityModule, hook } =
       aleoWarpFieldsToArtifactApi(token);
     const config: RawNativeWarpArtifactConfig = {
       type: TokenType.native,
@@ -64,6 +66,7 @@ export class AleoNativeTokenReader
       destinationGas,
       remoteRouters,
       interchainSecurityModule,
+      hook,
     };
 
     return {
@@ -83,9 +86,9 @@ export class AleoNativeTokenWriter
   constructor(
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
-    ismManager: string,
+    onChainArtifactManagers: OnChainArtifactManagers,
   ) {
-    super(aleoClient, ismManager);
+    super(aleoClient, onChainArtifactManagers);
   }
 
   async create(
