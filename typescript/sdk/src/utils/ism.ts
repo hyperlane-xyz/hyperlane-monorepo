@@ -14,6 +14,7 @@ export function extractIsmAndHookFactoryAddresses(
 ) {
   return pick(registryAddresses as Record<string, string>, [
     'domainRoutingIsmFactory',
+    'incrementalDomainRoutingIsmFactory',
     'staticMerkleRootMultisigIsmFactory',
     'staticMessageIdMultisigIsmFactory',
     'staticAggregationIsmFactory',
