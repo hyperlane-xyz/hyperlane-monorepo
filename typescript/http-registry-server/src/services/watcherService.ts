@@ -15,8 +15,8 @@ export class FileSystemRegistryWatcher implements IWatcher {
   watch(path: string, callback: () => any, onError?: (err: Error) => void) {
     if (!this.watcher) {
       this.watcher = fsWatch(path, { recursive: true }, (event, filename) => {
-        // For now we just watch for yaml and json files
-        if (filename?.match(/\.(yaml|json)$/)) {
+        // For now we just watch for yaml, yml and json files
+        if (filename?.match(/\.(ya?ml|json)$/i)) {
           callback();
         }
       });
