@@ -7,7 +7,6 @@ export const TRON_EMPTY_MESSAGE =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
 export const EIP1967_ADMIN_SLOT =
   '0xb53127684a568b3173ae13b9f8a6016e243e63b6e8ee1178d6a717850b5d6103';
-export const TRON_MAX_FEE = 100_000_000; // 100 TRX should be sufficient for every reasonable transaction
 
 export function decodeRevertReason(hex: string, tronweb: any): string {
   try {
@@ -29,16 +28,15 @@ export async function createDeploymentTransaction(
   signer: string,
   parameters: unknown[],
 ): Promise<any> {
-  const options = {
-    feeLimit: 1_000_000_000,
-    callValue: 0,
-    userFeePercentage: 100,
-    originEnergyLimit: 10_000_000,
-    abi: abi.abi,
-    bytecode: abi.bytecode,
-    parameters,
-    name: abi.contractName,
-  };
-
-  return tronweb.transactionBuilder.createSmartContract(options, signer);
+  return tronweb.transactionBuilder.createSmartContract(
+    {
+      feeLimit: 1_000_000_000,
+      callValue: 0,
+      abi: abi.abi,
+      bytecode: abi.bytecode,
+      parameters,
+      name: abi.contractName,
+    },
+    signer,
+  );
 }

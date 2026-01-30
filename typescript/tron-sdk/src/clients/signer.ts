@@ -12,7 +12,10 @@ import {
   getSetRemoteGasTx,
 } from '../hook/hook-tx.js';
 import { getInitRoutingIsmTx } from '../ism/ism-tx.js';
-import { TRON_EMPTY_ADDRESS, TRON_MAX_FEE } from '../utils/index.js';
+import {
+  TRON_EMPTY_ADDRESS,
+  createDeploymentTransaction,
+} from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
@@ -96,7 +99,8 @@ export class TronSigner
 
     // 2. Deploy TransparentUpgradeableProxy
     // Note: We pass empty bytes for _data and initialize separately below
-    const proxyTx = await this.createDeploymentTransaction(
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
       [implementationAddress, req.proxyAdminAddress, '0x'],
@@ -112,7 +116,6 @@ export class TronSigner
         mailboxAddress,
         'initialize(address,address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -498,7 +501,6 @@ export class TronSigner
           proxyAdminAddress,
           'transferOwnership(address)',
           {
-            feeLimit: TRON_MAX_FEE,
             callValue: 0,
           },
           [
@@ -541,7 +543,8 @@ export class TronSigner
     );
 
     // 2. Deploy TransparentUpgradeableProxy
-    const proxyTx = await this.createDeploymentTransaction(
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
       [implementationAddress, req.proxyAdminAddress, '0x'],
@@ -557,7 +560,6 @@ export class TronSigner
         tokenAddress,
         'initialize(address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -605,7 +607,8 @@ export class TronSigner
     );
 
     // 2. Deploy TransparentUpgradeableProxy
-    const proxyTx = await this.createDeploymentTransaction(
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
       [implementationAddress, req.proxyAdminAddress, '0x'],
@@ -621,7 +624,6 @@ export class TronSigner
         tokenAddress,
         'initialize(address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -669,7 +671,8 @@ export class TronSigner
     );
 
     // 2. Deploy TransparentUpgradeableProxy
-    const proxyTx = await this.createDeploymentTransaction(
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
       [implementationAddress, req.proxyAdminAddress, '0x'],
@@ -685,7 +688,6 @@ export class TronSigner
         tokenAddress,
         'initialize(uint256,string,string,address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -787,7 +789,6 @@ export class TronSigner
         req.remoteRouter.gas,
       )
       .send({
-        feeLimit: TRON_MAX_FEE,
         callValue: 0,
         shouldPollResponse: true,
       });

@@ -4,7 +4,7 @@ import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'jso
 import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
 import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
-import { TRON_MAX_FEE, createDeploymentTransaction } from '../utils/index.js';
+import { createDeploymentTransaction } from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 
 export async function getCreateTestIsmTx(
@@ -64,7 +64,6 @@ export async function getInitRoutingIsmTx(
     config.ismAddress,
     'initialize(address,uint32[],address[])',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -99,7 +98,6 @@ export async function getSetRoutingIsmRouteTx(
     config.ismAddress,
     'set(uint32,address)',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -127,7 +125,6 @@ export async function getRemoveRoutingIsmRouteTx(
     config.ismAddress,
     'remove(uint32)',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -151,7 +148,6 @@ export async function getSetRoutingIsmOwnerTx(
     config.ismAddress,
     'transferOwnership(address)',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
