@@ -265,6 +265,8 @@ jobs:
           - core-deploy
           - core-init
           - core-read
+          # ISM Commands
+          - ism
           # Other commands
           - relay
           - status
@@ -331,6 +333,8 @@ jobs:
           - core-check
           - core-deploy
           - core-read
+          # ISM Commands
+          - ism
           # Warp Commands
           - warp-apply-ism-updates
           - warp-deploy
@@ -367,6 +371,8 @@ jobs:
           # Core Commands
           - core-deploy
           - core-apply
+          # ISM Commands
+          - ism
           # Warp Commands
           - warp-deploy
           - warp-apply-ism-updates
@@ -439,6 +445,8 @@ jobs:
           - core-apply-mailbox
           - core-deploy
           - core-read
+          # ISM Commands
+          - ism
           # Warp Commands
           - warp-apply-ism-updates
           - warp-apply-ownership-updates
