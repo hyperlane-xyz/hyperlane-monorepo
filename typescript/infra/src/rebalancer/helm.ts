@@ -265,7 +265,7 @@ export async function getDeployedRebalancerWarpRouteIds(
           const match = configYaml.match(/^warpRouteId:\s*(.+)$/m);
           warpRouteId = match?.[1]?.trim();
         }
-      } catch {
+      } catch (e) {
         rootLogger.debug(
           `Failed to read configmap for ${helmReleaseName}: ${e}`,
         );

@@ -557,7 +557,7 @@ async function testProvider(chain: ChainName, url: string): Promise<boolean> {
       `✅  Valid provider for ${url} with block number ${blockNumber}`,
     );
     return true;
-  } catch {
+  } catch (e) {
     console.error(`Provider failed: ${url}\nError: ${e}`);
     return false;
   }

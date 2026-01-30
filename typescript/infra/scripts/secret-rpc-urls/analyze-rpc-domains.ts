@@ -74,7 +74,7 @@ async function main() {
 
         domainMap[domain].chains.push(chain);
       }
-    } catch {
+    } catch (e) {
       console.error(`Error getting chain metadata for chain ${chain}: ${e}`);
       // Skip chains that error
     }

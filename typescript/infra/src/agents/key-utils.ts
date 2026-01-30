@@ -588,7 +588,7 @@ export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
 
     logger.debug(`Fetching addresses locally for ${role} role ...`);
     return addresses;
-  } catch {
+  } catch (e) {
     throw new Error(`Error fetching addresses locally for ${role} role: ${e}`);
   }
 }
