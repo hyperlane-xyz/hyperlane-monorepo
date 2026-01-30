@@ -1943,6 +1943,31 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(1_000_001);
     }
 
+    function test_constructor_setsMaxFeeBps() public {
+        uint256 constructorFee = 500; // 500 ppm = 5 bps
+        TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            address(mailboxOrigin),
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            constructorFee,
+            minFinalityThreshold
+        );
+        assertEq(v2.maxFeeBps(), constructorFee);
+    }
+
+    function test_constructor_revertsWhen_feeTooHigh() public {
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            address(mailboxOrigin),
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            1_000_000, // 100% fee - should revert
+            minFinalityThreshold
+        );
+    }
+
     function test_quoteTransferRemote_updatesAfterFeeChange() public {
         uint256 newMaxFeeBps = 10_000; // 10,000 ppm = 100 bps = 1%
         TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(newMaxFeeBps);
