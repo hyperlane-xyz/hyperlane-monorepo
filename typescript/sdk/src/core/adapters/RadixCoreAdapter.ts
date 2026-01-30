@@ -93,4 +93,15 @@ export class RadixCoreAdapter extends BaseRadixAdapter implements ICoreAdapter {
 
     return true;
   }
+
+  async isDelivered(
+    messageId: HexString,
+    _blockTag?: string | number,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getRadixProvider(this.chainName);
+    return provider.isMessageDelivered({
+      mailboxAddress: this.addresses.mailbox,
+      messageId: messageId,
+    });
+  }
 }
