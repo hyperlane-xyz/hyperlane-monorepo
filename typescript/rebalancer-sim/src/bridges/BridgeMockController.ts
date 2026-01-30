@@ -375,10 +375,12 @@ export class BridgeMockController extends EventEmitter {
         );
         // Mark all pending as failed and clear
         for (const transfer of this.pendingTransfers.values()) {
-          this.emit('transfer_failed', {
+          const event: BridgeEvent = {
+            type: 'transfer_failed',
             transfer,
-            error: 'Timeout waiting for delivery',
-          });
+            timestamp: Date.now(),
+          };
+          this.emit('transfer_failed', event);
         }
         this.pendingTransfers.clear();
         break;

@@ -49,7 +49,12 @@ export class KPICollector {
     if (this.snapshotInterval) return;
 
     this.snapshotInterval = setInterval(async () => {
-      await this.takeSnapshot();
+      try {
+        await this.takeSnapshot();
+      } catch (error) {
+        // Ignore snapshot errors to prevent interval from breaking
+        console.warn('Snapshot collection failed:', error);
+      }
     }, this.snapshotFrequencyMs);
   }
 
