@@ -1,0 +1,84 @@
+name: rebalancer-sim-test
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typescript/rebalancer/**'
+      - 'typescript/rebalancer-sim/**'
+      - 'solidity/contracts/mock/MockValueTransferBridge.sol'
+      - '.github/workflows/rebalancer-sim-test.yml'
+  pull_request:
+    paths:
+      - 'typescript/rebalancer/**'
+      - 'typescript/rebalancer-sim/**'
+      - 'solidity/contracts/mock/MockValueTransferBridge.sol'
+      - '.github/workflows/rebalancer-sim-test.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: rebalancer-sim-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  rebalancer-sim-test-matrix:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 15
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Split full-simulation by scenario (file:grep-pattern)
+          - full-simulation:extreme-drain
+          - full-simulation:extreme-accumulate
+          - full-simulation:large-unidirectional
+          - full-simulation:whale-transfers
+          - full-simulation:balanced-bidirectional
+          - full-simulation:random-with-headroom
+          # Other test files
+          - inflight-guard
+          - harness-setup
+          - unidirectional
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Run rebalancer-sim test (${{ matrix.test }})
+        working-directory: typescript/rebalancer-sim
+        run: |
+          if [[ "${{ matrix.test }}" == *":"* ]]; then
+            FILE=$(echo "${{ matrix.test }}" | cut -d: -f1)
+            PATTERN=$(echo "${{ matrix.test }}" | cut -d: -f2)
+            pnpm mocha --config .mocharc.json "./test/**/*${FILE}*.test.ts" --grep "${PATTERN}" --exit
+          else
+            pnpm mocha --config .mocharc.json "./test/**/*${{ matrix.test }}*.test.ts" --exit
+          fi
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: rebalancer-sim-results-${{ matrix.test }}
+          path: typescript/rebalancer-sim/results/*.html
+          if-no-files-found: ignore
+          retention-days: 7
+
+  rebalancer-sim-test:
+    runs-on: ubuntu-latest
+    needs: [rebalancer-sim-test-matrix]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check rebalancer-sim test status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Rebalancer Sim Test'
+          result: ${{ needs.rebalancer-sim-test-matrix.result }}
