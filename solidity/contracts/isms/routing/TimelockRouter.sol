@@ -68,7 +68,7 @@ contract TimelockRouter is
     /// @inheritdoc IRoutingHook
     function hooks(
         uint32 /*destination*/
-    ) external pure returns (IPostDispatchHook hook) {
+    ) external view returns (IPostDispatchHook) {
         // always routes to the configured hook
         return hook;
     }
