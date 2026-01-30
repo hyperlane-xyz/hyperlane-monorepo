@@ -1,3 +1,9 @@
+## [2.1.0] - 2026-01-30
+
+* feat: Store Raw Message Dispatches (#7714)
+* fix(scraper): Optimize message_view query performance
+* fix(scraper): Reorder message unique index to support origin-only queries (#7945)
+
 ## [2.0.0] - 2026-01-06
 
 * chore: deprecate form, inevm, injective, mint, neutron, osmosis, svmbnb (#7646)

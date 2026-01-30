@@ -1,3 +1,17 @@
+## [2.1.0] - 2026-01-30
+
+* feat(tron): contract indexer (#7829)
+* feat(tron): isms (#7830)
+* feat(tron): mailbox (#7831)
+* feat(tron): merkle tree hook (#7833)
+* feat(tron): protocol type (#7827)
+* feat(tron): tron provider (#7828)
+* feat(tron): validator announce (#7832)
+* feat: Allow fetching aws signer keys with container provider (#7695)
+* feat: Set Lander as the default submitter for Aleo (#7741)
+* fix: Backward cursor handling single message (#7826)
+* fix: aleo metadata builder (#7954)
+
 ## [2.0.0] - 2026-01-06
 
 * feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)

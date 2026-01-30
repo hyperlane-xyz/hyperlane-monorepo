@@ -1,3 +1,9 @@
+## [2.1.0] - 2026-01-30
+
+* feat(tron): protocol type (#7827)
+* fix: aleo metadata builder (#7954)
+* tidying up
+
 ## [2.0.0] - 2026-01-06
 
 * chore: aleo testnet deployment (#7589)
