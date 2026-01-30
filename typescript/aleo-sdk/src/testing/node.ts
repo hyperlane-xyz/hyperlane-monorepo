@@ -5,7 +5,7 @@ import {
 } from 'testcontainers';
 
 import { type TestChainMetadata } from '@hyperlane-xyz/provider-sdk/chain';
-import { sleep } from '@hyperlane-xyz/utils';
+import { retryAsync, sleep } from '@hyperlane-xyz/utils';
 
 import {
   ALEO_DEVNODE_IMAGE,
@@ -22,15 +22,27 @@ import {
 export async function runAleoNode(
   chainMetadata: TestChainMetadata = TEST_ALEO_CHAIN_METADATA,
 ): Promise<StartedTestContainer> {
-  const container = await new GenericContainer(ALEO_DEVNODE_IMAGE)
-    .withExposedPorts({
-      container: 3030,
-      host: chainMetadata.rpcPort,
-    })
-    .withEnvironment(TEST_ALEO_ENV)
-    .withCommand(['leo', 'devnode', 'start', '--listener-addr', '0.0.0.0:3030'])
-    .withWaitStrategy(Wait.forLogMessage(/connection is ready/))
-    .start();
+  // Retry container start to handle transient Docker registry 503 errors in CI
+  const container = await retryAsync(
+    () =>
+      new GenericContainer(ALEO_DEVNODE_IMAGE)
+        .withExposedPorts({
+          container: 3030,
+          host: chainMetadata.rpcPort,
+        })
+        .withEnvironment(TEST_ALEO_ENV)
+        .withCommand([
+          'leo',
+          'devnode',
+          'start',
+          '--listener-addr',
+          '0.0.0.0:3030',
+        ])
+        .withWaitStrategy(Wait.forLogMessage(/connection is ready/))
+        .start(),
+    3,
+    5000,
+  );
 
   // Wait to give enough time to the node to start
   await sleep(5000);
