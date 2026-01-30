@@ -100,12 +100,28 @@ async function main() {
   // This ensures that we don't fail to fetch secrets for new chains in the cron job.
   const envConfig = getEnvironmentConfig(environment);
 
+  // Filter to only supported chains to avoid fetching secrets for deprecated chains
+  const supportedWarpChains = Array.from(warpConfigChains).filter((chain) =>
+    envConfig.supportedChainNames.includes(chain),
+  );
+
+  const unsupportedChains = Array.from(warpConfigChains).filter(
+    (chain) => !envConfig.supportedChainNames.includes(chain),
+  );
+  if (unsupportedChains.length > 0) {
+    console.log(
+      chalk.yellow(
+        `Skipping unsupported chains: ${unsupportedChains.join(', ')}`,
+      ),
+    );
+  }
+
   // Use default values for context, role, and useSecrets
   const multiProvider = await envConfig.getMultiProvider(
     undefined,
     undefined,
     undefined,
-    Array.from(warpConfigChains),
+    supportedWarpChains,
   );
 
   // TODO: consider retrying this if check throws an error
