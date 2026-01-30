@@ -1,0 +1,6 @@
+---
+'@hyperlane-xyz/aleo-sdk': minor
+'@hyperlane-xyz/utils': patch
+---
+
+Implemented warp token artifact API for Aleo. Added warp token readers and writers for native, collateral, and synthetic tokens, with the AleoWarpArtifactManager providing factory methods for type-specific operations. Query functions fetch token configuration from on-chain state including ISM settings, remote router enrollments, and token metadata. Transaction builders generate transactions for token initialization, ISM configuration, and router enrollment/unenrollment. Writers support creating new warp tokens with automatic ISM setup and router enrollment via shared post-deployment utilities. Update operations generate transaction arrays for ISM changes, router modifications, and ownership transfers, with idempotent logic that compares current on-chain state with desired configuration. The implementation includes a transformation helper `aleoWarpFieldsToArtifactApi` that converts internal Aleo types to provider-sdk artifact format, reducing code duplication across token types. Enhanced Aleo address detection in utils to handle zero addresses without program ID prefixes. Comprehensive e2e tests verify all warp token operations including creation, updates, and artifact manager factory methods.
