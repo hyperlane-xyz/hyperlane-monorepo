@@ -1082,7 +1082,7 @@ contract TokenBridgeCctpV1Test is Test {
 contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
     using TypeCasts for address;
 
-    uint256 constant maxFee = 1;
+    uint256 constant maxFee = 100; // 100 ppm = 1 bps = 0.01%
     uint32 constant minFinalityThreshold = 1000;
 
     address constant deployer = 0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba;
@@ -1119,6 +1119,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
                 initData
             );
         tbOrigin = TokenBridgeCctpV2(address(proxyOrigin));
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(maxFee);
 
         TokenBridgeCctpV2 destinationImplementation = new TokenBridgeCctpV2(
             address(tokenDestination),
@@ -1136,6 +1137,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             );
 
         tbDestination = TokenBridgeCctpV2(address(proxyDestination));
+        TokenBridgeCctpV2(address(tbDestination)).setMaxFeeBps(maxFee);
 
         _setupTokenBridgesCctp(tbOrigin, tbDestination);
     }
@@ -1158,7 +1160,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         uint256 fee = Math.mulDiv(
             amount,
             maxFee,
-            10_000 - maxFee,
+            1_000_000 - maxFee,
             Math.Rounding.Up
         );
         bytes memory burnMessage = BurnMessageV2._formatMessageForRelay(
@@ -1243,7 +1245,9 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(deployer)
         );
 
-        return TokenBridgeCctpV2(address(deployer));
+        TokenBridgeCctpV2 v2 = TokenBridgeCctpV2(address(deployer));
+        v2.setMaxFeeBps(maxFee);
+        return v2;
     }
 
     function testFork_verify() public override {
@@ -1604,10 +1608,11 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         assertEq(quotes[1].token, address(tokenOrigin));
         assertEq(quotes[1].amount, amount);
         // rounded up using Math.mulDiv with Rounding.Up
+        // maxFee is in ppm (parts per million), where 100 ppm = 1 bps = 0.01%
         uint256 fastFee = Math.mulDiv(
             amount,
             maxFee,
-            10_000 - maxFee,
+            1_000_000 - maxFee,
             Math.Rounding.Up
         );
         assertEq(quotes[2].token, address(tokenOrigin));
@@ -1906,5 +1911,130 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
         // In a real scenario, Circle's MessageTransmitter would revert with a nonce already used error
         vm.expectRevert();
         tbDestination.verify(metadata, message);
+    }
+
+    // ============ Mutable Fee Configuration Tests ============
+
+    function test_setMaxFeeBps() public {
+        uint256 newMaxFeeBps = 50; // 0.5%
+
+        vm.expectEmit(true, true, true, true);
+        emit TokenBridgeCctpV2.MaxFeeBpsSet(newMaxFeeBps);
+
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(newMaxFeeBps);
+
+        assertEq(
+            TokenBridgeCctpV2(address(tbOrigin)).maxFeeBps(),
+            newMaxFeeBps
+        );
+    }
+
+    function test_setMaxFeeBps_revertsWhen_notOwner() public {
+        vm.prank(user);
+        vm.expectRevert("Ownable: caller is not the owner");
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(50);
+    }
+
+    function test_setMaxFeeBps_revertsWhen_feeTooHigh() public {
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(1_000_000);
+
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(1_000_001);
+    }
+
+    function test_constructor_setsMaxFeeBps() public {
+        uint256 constructorFee = 500; // 500 ppm = 5 bps
+        TokenBridgeCctpV2 v2 = new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            address(mailboxOrigin),
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            constructorFee,
+            minFinalityThreshold
+        );
+        assertEq(v2.maxFeeBps(), constructorFee);
+    }
+
+    function test_constructor_revertsWhen_feeTooHigh() public {
+        vm.expectRevert(TokenBridgeCctpV2.MaxFeeTooHigh.selector);
+        new TokenBridgeCctpV2(
+            address(tokenOrigin),
+            address(mailboxOrigin),
+            messageTransmitterOrigin,
+            tokenMessengerOrigin,
+            1_000_000, // 100% fee - should revert
+            minFinalityThreshold
+        );
+    }
+
+    function test_quoteTransferRemote_updatesAfterFeeChange() public {
+        uint256 newMaxFeeBps = 10_000; // 10,000 ppm = 100 bps = 1%
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(newMaxFeeBps);
+
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            amount
+        );
+
+        // Verify the external fee quote is updated
+        uint256 expectedFee = Math.mulDiv(
+            amount,
+            newMaxFeeBps,
+            1_000_000 - newMaxFeeBps,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+    }
+
+    function test_feeConfiguration_values() public {
+        assertEq(TokenBridgeCctpV2(address(tbOrigin)).maxFeeBps(), maxFee);
+        assertEq(
+            TokenBridgeCctpV2(address(tbOrigin)).minFinalityThreshold(),
+            minFinalityThreshold
+        );
+    }
+
+    function test_quoteTransferRemote_fractionalBps() public {
+        // 130 ppm = 1.3 bps (Circle's typical Optimism/Arbitrum/Base fee)
+        uint256 fractionalFeePpm = 130;
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(fractionalFeePpm);
+
+        uint256 transferAmount = 1_000_000; // 1 USDC (6 decimals)
+        Quote[] memory quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            transferAmount
+        );
+
+        // Expected fee: 1_000_000 * 130 / (1_000_000 - 130) = 130.016... rounds up to 131
+        uint256 expectedFee = Math.mulDiv(
+            transferAmount,
+            fractionalFeePpm,
+            1_000_000 - fractionalFeePpm,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+        assertEq(expectedFee, 131); // 0.000131 USDC = 131 micro-USDC
+
+        // Test with 150 ppm = 1.5 bps (Circle's typical Unichain fee)
+        uint256 unichainFeePpm = 150;
+        TokenBridgeCctpV2(address(tbOrigin)).setMaxFeeBps(unichainFeePpm);
+
+        quotes = tbOrigin.quoteTransferRemote(
+            destination,
+            user.addressToBytes32(),
+            transferAmount
+        );
+
+        expectedFee = Math.mulDiv(
+            transferAmount,
+            unichainFeePpm,
+            1_000_000 - unichainFeePpm,
+            Math.Rounding.Up
+        );
+        assertEq(quotes[2].amount, expectedFee);
+        assertEq(expectedFee, 151); // 0.000151 USDC = 151 micro-USDC
     }
 }

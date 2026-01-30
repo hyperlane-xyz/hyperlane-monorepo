@@ -12,6 +12,7 @@ import {IMessageHandlerV2} from "../interfaces/cctp/IMessageHandlerV2.sol";
 import {ITokenMessengerV2} from "../interfaces/cctp/ITokenMessengerV2.sol";
 import {IMessageTransmitterV2} from "../interfaces/cctp/IMessageTransmitterV2.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
+import {StorageSlot} from "@openzeppelin/contracts/utils/StorageSlot.sol";
 
 // @dev Supports only CCTP V2
 contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
@@ -21,12 +22,19 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
 
     using Message for bytes;
     using TypeCasts for bytes32;
+    using StorageSlot for bytes32;
 
     error MaxFeeTooHigh();
 
+    event MaxFeeBpsSet(uint256 maxFeeBps);
+
+    bytes32 private constant MAX_FEE_BPS_SLOT =
+        keccak256("hyperlane.storage.TokenBridgeCctpV2.maxFeeBps");
+
+    uint256 private constant MAX_FEE_DENOMINATOR = 1_000_000;
+
     // see https://developers.circle.com/cctp/cctp-finality-and-fees#defined-finality-thresholds
     uint32 public immutable minFinalityThreshold;
-    uint256 public immutable maxFeeBps;
 
     constructor(
         address _erc20,
@@ -43,9 +51,40 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
-        if (_maxFeeBps >= 10_000) revert MaxFeeTooHigh();
-        maxFeeBps = _maxFeeBps;
+        _setMaxFeeBps(_maxFeeBps);
         minFinalityThreshold = _minFinalityThreshold;
+    }
+
+    // ============ External Functions ============
+
+    /**
+     * @notice Returns the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @return The maximum fee rate in ppm.
+     */
+    function maxFeeBps() public view returns (uint256) {
+        return MAX_FEE_BPS_SLOT.getUint256Slot().value;
+    }
+
+    /**
+     * @notice Sets the maximum fee rate in parts per million (ppm).
+     * @dev 100 ppm = 1 bps = 0.01%. Examples:
+     *      - 100 ppm = 1 bps (0.01%)
+     *      - 130 ppm = 1.3 bps (0.013%, Circle's typical Optimism/Arbitrum/Base fee)
+     *      - 150 ppm = 1.5 bps (0.015%, Circle's typical Unichain fee)
+     * @param _maxFeeBps The new maximum fee in ppm (must be < 1_000_000).
+     */
+    function setMaxFeeBps(uint256 _maxFeeBps) external onlyOwner {
+        _setMaxFeeBps(_maxFeeBps);
+    }
+
+    function _setMaxFeeBps(uint256 _maxFeeBps) internal {
+        if (_maxFeeBps >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
+        MAX_FEE_BPS_SLOT.getUint256Slot().value = _maxFeeBps;
+        emit MaxFeeBpsSet(_maxFeeBps);
     }
 
     // ============ TokenRouter overrides ============
@@ -66,14 +105,17 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      * The formula solves for the fee needed such that after Circle takes their percentage,
      * the recipient receives exactly `amount`:
      *
-     *   (amount + fee) * (10_000 - maxFeeBps) / 10_000 = amount
+     *   (amount + fee) * (MAX_FEE_DENOMINATOR - maxFeeBps) / MAX_FEE_DENOMINATOR = amount
      *
      * Solving for fee:
-     *   fee = (amount * maxFeeBps) / (10_000 - maxFeeBps)
+     *   fee = (amount * maxFeeBps) / (MAX_FEE_DENOMINATOR - maxFeeBps)
      *
-     * Example: If amount = 100 USDC and maxFeeBps = 10 (0.1%):
-     *   fee = (100 * 10) / (10_000 - 10) = 1000 / 9990 ≈ 0.1001 USDC
-     *   We deposit 100.1001 USDC, Circle takes 0.1001 USDC, recipient gets exactly 100 USDC.
+     * Example: If amount = 100 USDC and maxFeeBps = 130 (1.3 bps = 0.013%):
+     *   fee = (100 * 130) / (1_000_000 - 130) = 13000 / 999870 ≈ 0.013 USDC
+     *   We deposit 100.013 USDC, Circle takes up to 0.013 USDC, recipient gets exactly 100 USDC.
+     *
+     * Note: maxFeeBps is stored in parts per million (ppm), where 100 ppm = 1 bps = 0.01%.
+     * This precision allows representing fractional basis points like Circle's 1.3 bps fees.
      */
     function _externalFeeAmount(
         uint32,
@@ -82,11 +124,12 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     ) internal view override returns (uint256 feeAmount) {
         // round up because depositForBurn maxFee is an upper bound
         // enforced offchain by the Iris attestation service without precision loss
+        uint256 _maxFeeBps = maxFeeBps();
         return
             Math.mulDiv(
                 amount,
-                maxFeeBps,
-                10_000 - maxFeeBps,
+                _maxFeeBps,
+                MAX_FEE_DENOMINATOR - _maxFeeBps,
                 Math.Rounding.Up
             );
     }

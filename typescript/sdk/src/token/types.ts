@@ -200,7 +200,14 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
       .describe('CCTP Token Messenger contract address'),
     cctpVersion: z.enum(['V1', 'V2']),
     minFinalityThreshold: z.number().optional(),
-    maxFeeBps: z.number().optional(),
+    maxFeeBps: z
+      .number()
+      .min(0)
+      .max(9_999.99)
+      .optional()
+      .describe(
+        'Maximum fee in basis points (bps), supports decimals for fractional bps. 1 bps = 0.01%. Examples: 1.3 bps for Circle Optimism/Arbitrum/Base fee, 1.5 bps for Circle Unichain fee. Internally converted to ppm (parts per million) for contract precision.',
+      ),
   })
   .merge(OffchainLookupIsmConfigSchema.omit({ type: true, owner: true }));
 

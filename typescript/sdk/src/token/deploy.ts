@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions';
 import { constants } from 'ethers';
 
 import {
@@ -11,7 +12,9 @@ import {
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
+  PackageVersioned__factory,
   TokenBridgeCctpBase__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
@@ -38,6 +41,7 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { CCTP_PPM_PRECISION_VERSION } from './EvmERC20WarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
@@ -190,7 +194,7 @@ abstract class TokenDeployer<
             config.messageTransmitter,
             config.tokenMessenger,
           ];
-        case 'V2':
+        case 'V2': {
           assert(
             config.maxFeeBps !== undefined,
             'maxFeeBps is undefined for CCTP V2 config',
@@ -199,14 +203,18 @@ abstract class TokenDeployer<
             config.minFinalityThreshold !== undefined,
             'minFinalityThreshold is undefined for CCTP V2 config',
           );
+          // Convert bps to ppm (parts per million) for contract precision
+          // 1 bps = 100 ppm, supports fractional bps (e.g., 1.3 bps = 130 ppm)
+          const maxFeePpm = Math.round(config.maxFeeBps * 100);
           return [
             config.token,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
-            config.maxFeeBps,
+            maxFeePpm,
             config.minFinalityThreshold,
           ];
+        }
         default:
           throw new Error('Unsupported CCTP version');
       }
@@ -415,6 +423,57 @@ abstract class TokenDeployer<
           chain,
           tokenBridge.addDomains(remoteDomains),
         );
+      }),
+    );
+  }
+
+  protected async configureCctpV2MaxFee(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const cctpV2Configs = objFilter(
+      configMap,
+      (_, config): config is CctpTokenConfig =>
+        isCctpTokenConfig(config) &&
+        config.cctpVersion === 'V2' &&
+        config.maxFeeBps !== undefined,
+    );
+
+    await promiseObjAll(
+      objMap(cctpV2Configs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        // Check contract version to determine if we need ppm conversion
+        const versionedContract = PackageVersioned__factory.connect(
+          router,
+          this.multiProvider.getProvider(chain),
+        );
+        const contractVersion = await versionedContract.PACKAGE_VERSION();
+        const usesPpmPrecision =
+          compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+
+        // Convert bps to ppm for contracts that use ppm precision
+        const targetFee = usesPpmPrecision
+          ? Math.round(config.maxFeeBps! * 100)
+          : config.maxFeeBps!;
+
+        const currentMaxFee = await tokenBridgeV2.maxFeeBps();
+        if (currentMaxFee.toNumber() !== targetFee) {
+          const currentFeeBps = usesPpmPrecision
+            ? currentMaxFee.toNumber() / 100
+            : currentMaxFee.toNumber();
+          this.logger.info(
+            `Setting maxFeeBps on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmPrecision ? ' (stored as ppm)' : ''}`,
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridgeV2.setMaxFeeBps(targetFee),
+          );
+        }
       }),
     );
   }
@@ -674,6 +733,9 @@ abstract class TokenDeployer<
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
+    await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
 
     await this.setRebalancers(configMap, deployedContractsMap);
 
