@@ -13,8 +13,6 @@ import {
 import { DeployEnvironment } from './config/environment.js';
 import { GovernanceType } from './governanceTypes.js';
 
-export { GovernanceType };
-
 export enum Owner {
   ICA = 'ICA',
   SAFE = 'SAFE',

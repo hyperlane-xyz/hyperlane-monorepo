@@ -74,11 +74,8 @@ import {
 import { legacyEthIcaRouter } from '../config/chain.js';
 import { DeployEnvironment } from '../config/environment.js';
 import { tokens } from '../config/warp.js';
-import {
-  GovernanceType,
-  Owner,
-  determineGovernanceType,
-} from '../governance.js';
+import { Owner, determineGovernanceType } from '../governance.js';
+import { GovernanceType } from '../governanceTypes.js';
 import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
 
 export interface GovernTransaction extends Record<string, any> {
