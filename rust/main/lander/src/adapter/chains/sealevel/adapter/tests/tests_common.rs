@@ -11,7 +11,7 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::Transaction as SealevelTransaction,
+    transaction::{Transaction as SolanaTransaction, VersionedTransaction},
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
@@ -59,7 +59,12 @@ mock! {
 
         async fn simulate_transaction(
             &self,
-            transaction: &SealevelTransaction,
+            transaction: &SolanaTransaction,
+        ) -> ChainResult<RpcSimulateTransactionResult>;
+
+        async fn simulate_versioned_transaction(
+            &self,
+            transaction: &VersionedTransaction,
         ) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
@@ -69,7 +74,7 @@ mock! {
 
     #[async_trait]
     impl PriorityFeeOracle for Oracle {
-        async fn get_priority_fee(&self, transaction: &SealevelTransaction) -> ChainResult<u64>;
+        async fn get_priority_fee(&self, transaction: &VersionedTransaction) -> ChainResult<u64>;
     }
 }
 
@@ -79,8 +84,8 @@ mock! {
     #[async_trait]
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
-        async fn send_transaction(&self, transaction: &SealevelTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction) -> ChainResult<()>;
+        async fn send_transaction(&self, transaction: &VersionedTransaction, skip_preflight: bool) -> ChainResult<Signature>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &VersionedTransaction) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
     }
 }
@@ -98,7 +103,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-        ) -> ChainResult<SealevelTransaction>;
+        ) -> ChainResult<VersionedTransaction>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
@@ -108,7 +113,7 @@ mock! {
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
-        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction)
+        async fn wait_for_transaction_confirmation(&self, transaction: &VersionedTransaction)
             -> ChainResult<()>;
 
         async fn confirm_transaction(
@@ -190,10 +195,11 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
         .expect_create_transaction_for_instruction()
         .returning(|_, _, instruction, payer, _, _| {
             let keypair = payer;
-            Ok(SealevelTransaction::new_unsigned(Message::new(
+            let tx = SolanaTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&keypair.pubkey()),
-            )))
+            ));
+            Ok(VersionedTransaction::from(tx))
         });
 
     provider
@@ -242,8 +248,12 @@ fn mock_client() -> MockClient {
     client
         .expect_get_transaction_with_commitment()
         .returning(move |_, _| Ok(encoded_svm_transaction()));
+    let result_clone = result.clone();
     client
         .expect_simulate_transaction()
+        .returning(move |_| Ok(result_clone.clone()));
+    client
+        .expect_simulate_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
