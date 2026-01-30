@@ -6,6 +6,7 @@ import { $, type ProcessPromise } from 'zx';
 
 import {
   type ERC20,
+  ERC20Test__factory,
   ERC20__factory,
   HypERC20Collateral__factory,
   MockValueTransferBridge__factory,
@@ -941,10 +942,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     const originDomain = chain3Metadata.domainId;
     const destDomain = chain2Metadata.domainId;
 
-    // Chain names
-    const originName = CHAIN_NAME_3;
-    const destName = CHAIN_NAME_2;
-
     // RPC URLs
     const originRpc = chain3Metadata.rpcUrls[0].http;
     const destRpc = chain2Metadata.rpcUrls[0].http;
@@ -1045,14 +1042,17 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     originBalance = await originTkn.balanceOf(originContractAddress);
     expect(originBalance.toString()).to.equal(toWei(5));
 
-    // Complete the rebalancing by transferring tokens to unlock on destination chain.
-    await hyperlaneWarpSendRelay({
-      origin: destName,
-      destination: originName,
-      warpCorePath: warpCoreConfigPath,
-      relay: true,
-      value: sentTransferRemote.amount.toString(),
-    });
+    // Simulate bridge delivery by minting tokens to destination warp token
+    // In a real bridge, tokens would be delivered to the destination chain
+    const destSigner = new Wallet(ANVIL_KEY, destProvider);
+    const destCollateralToken = ERC20Test__factory.connect(
+      destTknAddress,
+      destSigner,
+    );
+    await destCollateralToken.mintTo(
+      destContractAddress,
+      sentTransferRemote.amount.toString(),
+    );
 
     originBalance = await originTkn.balanceOf(originContractAddress);
     destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1302,14 +1302,16 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         toWei(10 - Number(manualRebalanceAmount)),
       );
 
-      // Complete the rebalancing by transferring tokens to unlock on destination chain.
-      await hyperlaneWarpSendRelay({
-        origin: destName,
-        destination: originName,
-        warpCorePath: warpCoreConfigPath,
-        relay: true,
-        value: sentTransferRemote.amount.toString(),
-      });
+      // Simulate bridge delivery by minting tokens to destination warp token
+      const destSigner = new Wallet(ANVIL_KEY, destProvider);
+      const destCollateralToken = ERC20Test__factory.connect(
+        destTknAddress,
+        destSigner,
+      );
+      await destCollateralToken.mintTo(
+        destContractAddress,
+        sentTransferRemote.amount.toString(),
+      );
 
       originBalance = await originTkn.balanceOf(originContractAddress);
       destBalance = await destTkn.balanceOf(destContractAddress);
