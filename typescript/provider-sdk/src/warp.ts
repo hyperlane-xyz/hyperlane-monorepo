@@ -13,6 +13,7 @@ import {
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
+  type DeployedHookAddress,
   type DerivedHookConfig,
   type HookArtifactConfig,
   type HookConfig,
@@ -125,7 +126,7 @@ interface BaseWarpArtifactConfig {
   owner: string;
   mailbox: string;
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
-  hook?: Artifact<HookArtifactConfig, DeployedIsmAddress>;
+  hook?: Artifact<HookArtifactConfig, DeployedHookAddress>;
   remoteRouters: Record<number, { address: string }>;
   destinationGas: Record<number, string>;
   name?: string;
