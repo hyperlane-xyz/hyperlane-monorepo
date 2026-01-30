@@ -99,10 +99,10 @@ export class TronProtocolProvider implements ProtocolProvider {
 
   getMinGas(): MinimumRequiredGasByAction {
     return {
-      CORE_DEPLOY_GAS: BigInt(1e6),
-      WARP_DEPLOY_GAS: BigInt(3e6),
-      TEST_SEND_GAS: BigInt(3e5),
-      AVS_GAS: BigInt(3e6),
+      CORE_DEPLOY_GAS: BigInt(1e9),
+      WARP_DEPLOY_GAS: BigInt(1e9),
+      TEST_SEND_GAS: BigInt(1e9),
+      AVS_GAS: BigInt(1e9),
     };
   }
 }
