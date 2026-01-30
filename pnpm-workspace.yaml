@@ -98,15 +98,17 @@ catalog:
   '@vercel/ncc': ^0.38.3
 
   # Linting
-  eslint: ^9.31.0
-  '@eslint/js': ^9.31.0
-  '@typescript-eslint/eslint-plugin': ^8.1.6
-  '@typescript-eslint/parser': ^8.1.6
+  oxlint: ^1.42.0
+  eslint-plugin-oxlint: ^1.42.0
+  eslint: ^9.39.0
+  '@eslint/js': ^9.39.0
+  '@typescript-eslint/eslint-plugin': ^8.54.0
+  '@typescript-eslint/parser': ^8.54.0
   eslint-config-prettier: ^10.1.8
   eslint-import-resolver-typescript: ^4.4.4
   eslint-plugin-import: ^2.32.0
   globals: ^16.3.0
-  typescript-eslint: ^8.37.0
+  typescript-eslint: ^8.54.0
 
   # Formatting
   prettier: ^3.5.3

@@ -66,12 +66,14 @@ describe('sort-yaml-arrays rule', () => {
         sourceType: 'module',
         type: 'Program',
         body: [],
+        comments: [],
+        tokens: [],
         range: [0, yamlText.length],
         loc: {
           start: { line: 1, column: 0 },
           end: { line: lineCount, column: 0 },
         },
-      });
+      } as any);
     }
 
     return lintResult;
