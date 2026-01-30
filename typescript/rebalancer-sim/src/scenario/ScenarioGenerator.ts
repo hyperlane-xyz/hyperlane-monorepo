@@ -12,10 +12,10 @@ import type {
 } from './types.js';
 
 /**
- * Generates random bigint in range [min, max]
+ * Generates random bigint in range [min, max] (inclusive)
  */
 function randomBigIntInRange(min: bigint, max: bigint): bigint {
-  const range = max - min;
+  const range = max - min + BigInt(1); // +1 to make max inclusive
   const randomFactor = BigInt(Math.floor(Math.random() * Number(range)));
   return min + randomFactor;
 }

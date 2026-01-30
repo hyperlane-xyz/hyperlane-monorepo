@@ -11,17 +11,17 @@ import type { DeployedDomain } from '../deployment/types.js';
 
 import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
 
-// Track the current HyperlaneRunner instance for cleanup
-let currentHyperlaneRunner: HyperlaneRunner | null = null;
-let currentHyperlaneProvider: ethers.providers.JsonRpcProvider | null = null;
+// Track the current SimpleRunner instance for cleanup
+let currentSimpleRunner: SimpleRunner | null = null;
+let currentSimpleProvider: ethers.providers.JsonRpcProvider | null = null;
 
 /**
  * Global cleanup function - call between test runs to ensure clean state
  */
-export async function cleanupHyperlaneRunner(): Promise<void> {
-  if (currentHyperlaneRunner) {
-    const runner = currentHyperlaneRunner;
-    currentHyperlaneRunner = null;
+export async function cleanupSimpleRunner(): Promise<void> {
+  if (currentSimpleRunner) {
+    const runner = currentSimpleRunner;
+    currentSimpleRunner = null;
     try {
       await runner.stop();
     } catch {
@@ -29,9 +29,9 @@ export async function cleanupHyperlaneRunner(): Promise<void> {
     }
   }
 
-  if (currentHyperlaneProvider) {
-    currentHyperlaneProvider.removeAllListeners();
-    currentHyperlaneProvider = null;
+  if (currentSimpleProvider) {
+    currentSimpleProvider.removeAllListeners();
+    currentSimpleProvider = null;
   }
 
   // Small delay to allow any async cleanup to complete
@@ -39,11 +39,11 @@ export async function cleanupHyperlaneRunner(): Promise<void> {
 }
 
 /**
- * HyperlaneRunner is a simplified rebalancer implementation for simulation testing.
+ * SimpleRunner is a simplified rebalancer implementation for simulation testing.
  * It monitors balances and triggers rebalances when imbalances exceed thresholds.
  */
-export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
-  readonly name = 'HyperlaneRebalancer';
+export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
+  readonly name = 'SimpleRebalancer';
 
   private config?: RebalancerSimConfig;
   private logger = pino({ level: 'warn' });
@@ -55,7 +55,7 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
-    await cleanupHyperlaneRunner();
+    await cleanupSimpleRunner();
 
     this.config = config;
     this.provider = new ethers.providers.JsonRpcProvider(
@@ -66,7 +66,7 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
     // Disable automatic polling to reduce RPC contention in simulation
     this.provider.polling = false;
     // Track for cleanup
-    currentHyperlaneProvider = this.provider;
+    currentSimpleProvider = this.provider;
 
     // Use separate rebalancer key to avoid nonce conflicts with transfer execution
     this.deployer = new ethers.Wallet(
@@ -86,7 +86,7 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
 
     this.running = true;
     // eslint-disable-next-line @typescript-eslint/no-this-alias
-    currentHyperlaneRunner = this;
+    currentSimpleRunner = this;
     this.logger.info('Starting rebalancer daemon');
 
     // Start polling loop
@@ -343,15 +343,15 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
     }
 
     // Clear global reference
-    if (currentHyperlaneRunner === this) {
-      currentHyperlaneRunner = null;
+    if (currentSimpleRunner === this) {
+      currentSimpleRunner = null;
     }
 
     // Clean up provider
     if (this.provider) {
       this.provider.removeAllListeners();
-      if (currentHyperlaneProvider === this.provider) {
-        currentHyperlaneProvider = null;
+      if (currentSimpleProvider === this.provider) {
+        currentSimpleProvider = null;
       }
       this.provider = undefined;
     }

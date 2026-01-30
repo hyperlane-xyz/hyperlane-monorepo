@@ -24,9 +24,9 @@ This simulator helps answer questions like:
 │   Scenario    │   │  Rebalancer    │   │ BridgeMock      │
 │   Generator   │   │  Runners       │   │ Controller      │
 │               │   │                │   │                 │
-│ Creates       │   │ HyperlaneRunner│   │ Simulates slow  │
+│ Creates       │   │ SimpleRunner   │   │ Simulates slow  │
 │ transfer      │   │ (simplified)   │   │ bridge delivery │
-│ patterns      │   │ RealRebalancer │   │ with config-    │
+│ patterns      │   │ CLIRebalancer  │   │ with config-    │
 │               │   │ (production)   │   │ urable delays   │
 └───────────────┘   └────────────────┘   └─────────────────┘
         │                    │                    │
@@ -66,19 +66,26 @@ The simulator uses two different delivery mechanisms:
 
 | Path                 | Mechanism               | Delay                      | Use Case                            |
 | -------------------- | ----------------------- | -------------------------- | ----------------------------------- |
-| User transfers       | MockMailbox             | Instant                    | Simulates Hyperlane message passing |
+| User transfers       | MockMailbox             | Configurable (default 0ms) | Simulates Hyperlane message passing |
 | Rebalancer transfers | MockValueTransferBridge | Configurable (e.g., 500ms) | Simulates CCTP/bridge delays        |
 
 This separation is important because rebalancer transfers go through external bridges (CCTP, etc.) which have significant delays, while user transfers use Hyperlane's fast messaging.
+
+### Message Tracking
+
+| Component        | Description                                                  |
+| ---------------- | ------------------------------------------------------------ |
+| `MessageTracker` | Off-chain tracking of pending Hyperlane messages with delays |
+| `KPICollector`   | Collects transfer/rebalance metrics and generates final KPIs |
 
 ### Rebalancer Runners
 
 Two rebalancer implementations are available:
 
-| Runner                 | Description                                            | Use Case                        |
-| ---------------------- | ------------------------------------------------------ | ------------------------------- |
-| `HyperlaneRunner`      | Simplified rebalancer with weighted/minAmount strategy | Fast tests, baseline comparison |
-| `RealRebalancerRunner` | Wraps actual `@hyperlane-xyz/rebalancer` service       | Production behavior validation  |
+| Runner                | Description                                            | Use Case                        |
+| --------------------- | ------------------------------------------------------ | ------------------------------- |
+| `SimpleRunner`        | Simplified rebalancer with weighted/minAmount strategy | Fast tests, baseline comparison |
+| `CLIRebalancerRunner` | Wraps actual `@hyperlane-xyz/rebalancer` CLI service   | Production behavior validation  |
 
 ## Directory Structure
 
@@ -96,8 +103,8 @@ typescript/rebalancer-sim/
 │   │   ├── BridgeMockController.ts
 │   │   └── types.ts
 │   ├── rebalancer/          # Rebalancer wrappers
-│   │   ├── HyperlaneRunner.ts      # Simplified rebalancer for testing
-│   │   ├── RealRebalancerRunner.ts # Wraps @hyperlane-xyz/rebalancer
+│   │   ├── SimpleRunner.ts         # Simplified rebalancer for testing
+│   │   ├── CLIRebalancerRunner.ts  # Wraps @hyperlane-xyz/rebalancer
 │   │   ├── SimulationRegistry.ts   # IRegistry impl for simulation
 │   │   └── types.ts
 │   ├── engine/              # Simulation orchestration
@@ -175,16 +182,20 @@ By default, tests run with both rebalancers. Use the `REBALANCERS` env var to se
 
 ```bash
 # Run with simplified rebalancer only (faster)
-REBALANCERS=hyperlane pnpm test
+REBALANCERS=simple pnpm test
 
-# Run with production rebalancer only
-REBALANCERS=real pnpm test
+# Run with CLI rebalancer only
+REBALANCERS=cli pnpm test
 
 # Run with both (default) - compare behavior
-REBALANCERS=hyperlane,real pnpm test
+REBALANCERS=simple,cli pnpm test
 
 # Compare on specific scenario (recommended for debugging)
-REBALANCERS=hyperlane,real pnpm test --grep "extreme-drain"
+REBALANCERS=simple,cli pnpm test --grep "extreme-drain"
+
+# Legacy aliases still work for backwards compatibility
+REBALANCERS=hyperlane pnpm test  # same as 'simple'
+REBALANCERS=real pnpm test       # same as 'cli'
 ```
 
 ### 4. View Results
@@ -261,7 +272,7 @@ Run full simulations on Anvil:
 
 | Test File                 | Purpose                                              |
 | ------------------------- | ---------------------------------------------------- |
-| `deployment.test.ts`      | Verifies multi-domain deployment works               |
+| `harness-setup.test.ts`   | Verifies multi-domain deployment and harness setup   |
 | `full-simulation.test.ts` | Runs predefined scenarios, saves results             |
 | `inflight-guard.test.ts`  | Demonstrates over-rebalancing without inflight guard |
 
@@ -381,9 +392,9 @@ This ensures the simulation tests realistic rebalancer behavior.
 
 ```typescript
 import {
-  HyperlaneRunner,
   RebalancerSimulationHarness,
   ScenarioLoader,
+  SimpleRunner,
 } from '@hyperlane-xyz/rebalancer-sim';
 
 // Load scenario from JSON
@@ -397,7 +408,7 @@ const harness = new RebalancerSimulationHarness({
 await harness.initialize();
 
 // Run simulation
-const result = await harness.runSimulation(scenario, new HyperlaneRunner(), {
+const result = await harness.runSimulation(scenario, new SimpleRunner(), {
   bridgeConfig: scenario.defaultBridgeConfig,
   timing: scenario.defaultTiming,
   strategyConfig: scenario.defaultStrategyConfig,
@@ -412,13 +423,13 @@ console.log(`Rebalances: ${result.kpis.totalRebalances}`);
 
 ```typescript
 import {
-  HyperlaneRunner,
-  RealRebalancerRunner,
+  CLIRebalancerRunner,
+  SimpleRunner,
 } from '@hyperlane-xyz/rebalancer-sim';
 
 const rebalancers = [
-  new HyperlaneRunner(), // Simplified baseline
-  new RealRebalancerRunner(), // Production service
+  new SimpleRunner(), // Simplified baseline
+  new CLIRebalancerRunner(), // Production CLI service
 ];
 
 // compareRebalancers() handles state reset internally
@@ -478,7 +489,34 @@ const balancedScenario = ScenarioGenerator.balancedTraffic({
 
 ## Future Work
 
-### Phase 9: Mock Explorer API for Inflight Guard
+### Phase 9: Backtesting with Real Warp Route History
+
+**Goal:** Replay historical warp route traffic to backtest rebalancer strategies.
+
+**Planned implementation:**
+
+```typescript
+// Load historical transfers from explorer or indexer
+const historicalTransfers = await fetchWarpRouteHistory({
+  warpRouteId: 'ETH/USDC-ethereum-arbitrum-optimism',
+  startDate: '2024-01-01',
+  endDate: '2024-03-01',
+});
+
+// Convert to scenario format
+const scenario = ScenarioGenerator.fromHistoricalData(historicalTransfers);
+
+// Run simulation with historical traffic
+const result = await harness.runSimulation(scenario, rebalancer, config);
+```
+
+**Benefits:**
+
+- Validate strategies against real-world traffic patterns
+- Identify edge cases that synthetic scenarios miss
+- Compare how different strategies would have performed historically
+
+### Phase 10: Mock Explorer API for Inflight Guard
 
 **Goal:** Enable testing of inflight guard functionality without real Explorer infrastructure.
 
@@ -513,19 +551,15 @@ export class MockExplorerApi {
 
 **Expected outcome:** `inflight-guard.test.ts` should PASS (1-2 rebalances instead of 30+) once mock explorer is integrated.
 
-### Phase 10: Advanced Scenarios
+### Phase 11: Advanced Scenarios
 
-**Bridge Failures**
+**Bridge Failures and Latency Variance**
 
 - Configure `failureRate > 0` in bridge config
 - Test rebalancer recovery after partial failures
 - Verify no stuck state after transient failures
-
-**Variable Delays**
-
 - Asymmetric delays: `chain1→chain2: 500ms`, `chain2→chain1: 2000ms`
-- Test rebalancer adaptation to different bridge speeds
-- Validate strategy handles heterogeneous bridge environments
+- Variable latency per route for heterogeneous bridge environments
 
 **Rebalancer Restart**
 
@@ -533,14 +567,20 @@ export class MockExplorerApi {
 - Verify recovery and correct state resumption
 - Test idempotency of rebalance operations
 
-**Gas Cost Tracking**
+**Scoring Based on Rebalancing Cost**
 
 - Mock gas prices per chain
-- Track total gas cost in KPIs
-- Compare strategies by cost-efficiency
-- Add `totalGasCost: bigint` to SimulationKPIs
+- Track total gas cost in KPIs (already partially implemented)
+- Add rebalancing cost as scoring metric:
+  ```typescript
+  const score =
+    completionRate * 0.5 +
+    (1 - normalizedLatency) * 0.3 +
+    (1 - normalizedCost) * 0.2;
+  ```
+- Compare strategies by cost-efficiency ratio
 
-### Phase 11: Enhanced Visualization
+### Phase 12: Enhanced Visualization
 
 **Real-time dashboard** (stretch goal):
 

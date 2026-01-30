@@ -8,12 +8,19 @@ import {
 } from '@hyperlane-xyz/core';
 import type { Address } from '@hyperlane-xyz/utils';
 
-import type {
-  DeployedDomain,
-  MultiDomainDeploymentOptions,
-  MultiDomainDeploymentResult,
-  SimulatedChainConfig,
+import {
+  ANVIL_BRIDGE_CONTROLLER_KEY,
+  ANVIL_MAILBOX_PROCESSOR_KEY,
+  ANVIL_REBALANCER_KEY,
+  type DeployedDomain,
+  type MultiDomainDeploymentOptions,
+  type MultiDomainDeploymentResult,
+  type SimulatedChainConfig,
 } from './types.js';
+
+// Collateral multiplication factor: 100x the initial balance
+// 1x for warp liquidity, 99x for deployer to execute test transfers
+const COLLATERAL_MULTIPLIER = 100;
 
 /**
  * Creates an anvil snapshot for state reset
@@ -58,7 +65,7 @@ export async function deployMultiDomainSimulation(
   const {
     anvilRpc,
     deployerKey,
-    rebalancerKey = '0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d', // Default anvil account #1
+    rebalancerKey = ANVIL_REBALANCER_KEY,
     chains,
     initialCollateralBalance,
     tokenDecimals = 18,
@@ -67,12 +74,10 @@ export async function deployMultiDomainSimulation(
   } = options;
 
   const bridgeControllerKey =
-    options.bridgeControllerKey ||
-    '0x5de4111afa1a4b94908f83103eb1f1706367c2e68ca870fc3fb9a804cdab365a'; // Default anvil account #2
+    options.bridgeControllerKey || ANVIL_BRIDGE_CONTROLLER_KEY;
 
   const mailboxProcessorKey =
-    options.mailboxProcessorKey ||
-    '0x7c852118294e51e653712a81e05800f419141751be58f605c371e15141b007a6'; // Default anvil account #3
+    options.mailboxProcessorKey || ANVIL_MAILBOX_PROCESSOR_KEY;
 
   // Create fresh provider with no caching
   const provider = new ethers.providers.JsonRpcProvider(anvilRpc);
@@ -120,8 +125,9 @@ export async function deployMultiDomainSimulation(
   }
 
   // Step 3: Deploy collateral tokens for each domain
-  // Mint 100x the collateral: 1x for warp liquidity, 99x for deployer to execute test transfers
-  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(100);
+  const totalMint = ethers.BigNumber.from(initialCollateralBalance).mul(
+    COLLATERAL_MULTIPLIER,
+  );
   const collateralTokens: Record<number, ethers.Contract> = {};
   for (const chain of chains) {
     const token = await new ERC20Test__factory(deployer).deploy(
@@ -279,73 +285,6 @@ export function createSimulationChainMetadata(
   }
 
   return metadata;
-}
-
-/**
- * Process all pending messages in the MockMailbox system
- * This simulates instant message delivery for user transfers
- * Fires all transactions in parallel for better performance
- * Returns per-chain count of successfully processed messages
- */
-export async function processAllPendingMessages(
-  provider: ethers.providers.JsonRpcProvider,
-  domains: Record<string, DeployedDomain>,
-  signerKey: string,
-): Promise<Record<string, number>> {
-  const signer = new ethers.Wallet(signerKey, provider);
-  const pendingTxs: Array<{
-    domain: string;
-    tx: Promise<ethers.ContractTransaction>;
-  }> = [];
-  let currentNonce = await signer.getTransactionCount('pending');
-
-  // Fire all transactions without waiting
-  for (const domain of Object.values(domains)) {
-    const mailbox = MockMailbox__factory.connect(domain.mailbox, signer);
-
-    const processedNonce = await mailbox.inboundProcessedNonce();
-    const unprocessedNonce = await mailbox.inboundUnprocessedNonce();
-    const pending = ethers.BigNumber.from(unprocessedNonce)
-      .sub(processedNonce)
-      .toNumber();
-
-    for (let i = 0; i < pending; i++) {
-      const tx = mailbox.processNextInboundMessage({ nonce: currentNonce++ });
-      pendingTxs.push({ domain: domain.chainName, tx });
-    }
-  }
-
-  const perChainProcessed: Record<string, number> = {};
-  for (const domain of Object.values(domains)) {
-    perChainProcessed[domain.chainName] = 0;
-  }
-
-  if (pendingTxs.length === 0) return perChainProcessed;
-
-  // Wait for all transactions in parallel
-  const results = await Promise.allSettled(
-    pendingTxs.map(async ({ domain, tx }) => {
-      try {
-        const sentTx = await tx;
-        await sentTx.wait();
-        return { domain, success: true };
-      } catch (error: any) {
-        console.error(
-          `  ${domain}: Failed to process message:`,
-          error.reason || error.message,
-        );
-        return { domain, success: false };
-      }
-    }),
-  );
-
-  for (const result of results) {
-    if (result.status === 'fulfilled' && result.value.success) {
-      perChainProcessed[result.value.domain]++;
-    }
-  }
-
-  return perChainProcessed;
 }
 
 /**

@@ -18,16 +18,16 @@ import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
 const logger = pino({ level: 'silent' });
 
 // Track the current instance for cleanup
-let currentInstance: RealRebalancerRunner | null = null;
+let currentInstance: CLIRebalancerRunner | null = null;
 
-function setCurrentInstance(instance: RealRebalancerRunner | null): void {
+function setCurrentInstance(instance: CLIRebalancerRunner | null): void {
   currentInstance = instance;
 }
 
 /**
  * Global cleanup function - call between test runs to ensure clean state
  */
-export async function cleanupRealRebalancer(): Promise<void> {
+export async function cleanupCLIRebalancer(): Promise<void> {
   if (currentInstance) {
     const instance = currentInstance;
     currentInstance = null;
@@ -96,13 +96,14 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
 }
 
 /**
- * RealRebalancerRunner runs the actual RebalancerService in-process.
+ * CLIRebalancerRunner runs the actual RebalancerService in-process.
+ * This wraps the real CLI rebalancer for simulation testing.
  */
-export class RealRebalancerRunner
+export class CLIRebalancerRunner
   extends EventEmitter
   implements IRebalancerRunner
 {
-  readonly name = 'RealRebalancerService';
+  readonly name = 'CLIRebalancerService';
 
   private config?: RebalancerSimConfig;
   private service?: RebalancerService;
@@ -110,14 +111,14 @@ export class RealRebalancerRunner
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
-    await cleanupRealRebalancer();
+    await cleanupCLIRebalancer();
 
     this.config = config;
   }
 
   async start(): Promise<void> {
     if (!this.config) {
-      throw new Error('RealRebalancerRunner not initialized');
+      throw new Error('CLIRebalancerRunner not initialized');
     }
 
     if (this.running) {
@@ -125,7 +126,7 @@ export class RealRebalancerRunner
     }
 
     // Cleanup any previously running instance
-    await cleanupRealRebalancer();
+    await cleanupCLIRebalancer();
 
     // Create registry
     const registry = new SimulationRegistry(this.config.deployment);

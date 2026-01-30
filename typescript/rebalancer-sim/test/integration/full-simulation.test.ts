@@ -8,7 +8,7 @@
  * Configuration:
  * - Set REBALANCERS env var to specify which rebalancers to test
  *   e.g., REBALANCERS=hyperlane pnpm test (for single rebalancer)
- * - Default: runs both HyperlaneRunner and RealRebalancerService
+ * - Default: runs both SimpleRunner and CLIRebalancerService
  *
  * Each scenario JSON includes:
  * - description: What the scenario tests
@@ -39,13 +39,13 @@ import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
 import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
 import type { SimulationResult } from '../../src/kpi/types.js';
 import {
-  HyperlaneRunner,
-  cleanupHyperlaneRunner,
-} from '../../src/rebalancer/HyperlaneRunner.js';
+  CLIRebalancerRunner,
+  cleanupCLIRebalancer,
+} from '../../src/rebalancer/CLIRebalancerRunner.js';
 import {
-  RealRebalancerRunner,
-  cleanupRealRebalancer,
-} from '../../src/rebalancer/RealRebalancerRunner.js';
+  SimpleRunner,
+  cleanupSimpleRunner,
+} from '../../src/rebalancer/SimpleRunner.js';
 import type { IRebalancerRunner } from '../../src/rebalancer/types.js';
 import {
   listScenarios,
@@ -77,9 +77,9 @@ if (ENABLED_REBALANCERS.length === 0) {
 function createRebalancer(type: RebalancerType): IRebalancerRunner {
   switch (type) {
     case 'hyperlane':
-      return new HyperlaneRunner();
+      return new SimpleRunner();
     case 'real':
-      return new RealRebalancerRunner();
+      return new CLIRebalancerRunner();
   }
 }
 
@@ -105,8 +105,8 @@ describe('Rebalancer Simulation', function () {
 
   // Cleanup rebalancers between tests (anvil restarts automatically via setupAnvilTestSuite)
   afterEach(async function () {
-    await cleanupHyperlaneRunner();
-    await cleanupRealRebalancer();
+    await cleanupSimpleRunner();
+    await cleanupCLIRebalancer();
   });
 
   /**
@@ -350,6 +350,16 @@ describe('Rebalancer Simulation', function () {
 
     // Generate HTML timeline visualization
     // Build config for visualization from scenario file
+    // Extract bridge delivery delay from bridge config (use first route's delay)
+    const firstOrigin = Object.keys(file.defaultBridgeConfig)[0];
+    const firstDest = firstOrigin
+      ? Object.keys(file.defaultBridgeConfig[firstOrigin])[0]
+      : undefined;
+    const bridgeDelay =
+      firstOrigin && firstDest
+        ? file.defaultBridgeConfig[firstOrigin][firstDest].deliveryDelay
+        : 0;
+
     const vizConfig: Record<string, any> = {
       // Scenario metadata
       scenarioName: file.name,
@@ -358,7 +368,7 @@ describe('Rebalancer Simulation', function () {
       transferCount: file.transfers.length,
       duration: file.duration,
       // Timing config
-      bridgeDeliveryDelay: file.defaultTiming.rebalanceBridgeDeliveryDelay,
+      bridgeDeliveryDelay: bridgeDelay,
       rebalancerPollingFrequency: file.defaultTiming.rebalancerPollingFrequency,
       userTransferDelay: file.defaultTiming.userTransferDeliveryDelay,
     };
@@ -519,9 +529,9 @@ describe('Rebalancer Simulation', function () {
         );
       }
       // Key: p50 latency should be low with enough headroom
-      // Only assert for HyperlaneRunner - the real rebalancer may have different
+      // Only assert for SimpleRunner - the CLI rebalancer may have different
       // behavior due to more aggressive rebalancing strategies
-      if (result.rebalancerName === 'HyperlaneRebalancer') {
+      if (result.rebalancerName === 'SimpleRebalancer') {
         expect(result.kpis.p50Latency).to.be.lessThan(
           500,
           `${result.rebalancerName} should have low p50 latency`,

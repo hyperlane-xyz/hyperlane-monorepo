@@ -8,7 +8,6 @@ import type {
   ChainMetrics,
   RebalanceRecord,
   SimulationKPIs,
-  StateSnapshot,
   TransferRecord,
 } from './types.js';
 
@@ -20,51 +19,23 @@ export class KPICollector {
   private rebalanceRecords: Map<string, RebalanceRecord> = new Map();
   /** Maps bridge transfer ID to rebalance ID for correlation */
   private bridgeToRebalanceMap: Map<string, string> = new Map();
-  private timeline: StateSnapshot[] = [];
   private initialBalances: Record<string, bigint> = {};
-  private snapshotInterval: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly provider: ethers.providers.JsonRpcProvider,
     private readonly domains: Record<string, DeployedDomain>,
-    private readonly snapshotFrequencyMs: number = 1000,
   ) {}
 
   /**
-   * Initialize with initial balances
+   * Initialize with initial balances (passed explicitly or fetched)
    */
-  async initialize(): Promise<void> {
-    for (const chainName of Object.keys(this.domains)) {
-      this.initialBalances[chainName] = await this.getBalance(chainName);
-    }
-
-    // Take initial snapshot
-    await this.takeSnapshot();
-  }
-
-  /**
-   * Start periodic snapshot collection
-   */
-  startSnapshotCollection(): void {
-    if (this.snapshotInterval) return;
-
-    this.snapshotInterval = setInterval(async () => {
-      try {
-        await this.takeSnapshot();
-      } catch (error) {
-        // Ignore snapshot errors to prevent interval from breaking
-        console.warn('Snapshot collection failed:', error);
+  async initialize(initialBalances?: Record<string, bigint>): Promise<void> {
+    if (initialBalances) {
+      this.initialBalances = { ...initialBalances };
+    } else {
+      for (const chainName of Object.keys(this.domains)) {
+        this.initialBalances[chainName] = await this.getBalance(chainName);
       }
-    }, this.snapshotFrequencyMs);
-  }
-
-  /**
-   * Stop snapshot collection
-   */
-  stopSnapshotCollection(): void {
-    if (this.snapshotInterval) {
-      clearInterval(this.snapshotInterval);
-      this.snapshotInterval = null;
     }
   }
 
@@ -79,32 +50,6 @@ export class KPICollector {
     );
     const balance = await token.balanceOf(domain.warpToken);
     return balance.toBigInt();
-  }
-
-  /**
-   * Take a state snapshot
-   */
-  async takeSnapshot(): Promise<StateSnapshot> {
-    const balances: Record<string, bigint> = {};
-    for (const chainName of Object.keys(this.domains)) {
-      balances[chainName] = await this.getBalance(chainName);
-    }
-
-    const pendingTransfers = Array.from(this.transferRecords.values()).filter(
-      (t) => t.status === 'pending',
-    ).length;
-
-    const pendingRebalances = this.getPendingRebalancesCount();
-
-    const snapshot: StateSnapshot = {
-      timestamp: Date.now(),
-      balances,
-      pendingTransfers,
-      pendingRebalances,
-    };
-
-    this.timeline.push(snapshot);
-    return snapshot;
   }
 
   /**
@@ -335,13 +280,6 @@ export class KPICollector {
   }
 
   /**
-   * Get timeline snapshots
-   */
-  getTimeline(): StateSnapshot[] {
-    return [...this.timeline];
-  }
-
-  /**
    * Get transfer records
    */
   getTransferRecords(): TransferRecord[] {
@@ -362,8 +300,6 @@ export class KPICollector {
     this.transferRecords.clear();
     this.rebalanceRecords.clear();
     this.bridgeToRebalanceMap.clear();
-    this.timeline = [];
     this.initialBalances = {};
-    this.stopSnapshotCollection();
   }
 }

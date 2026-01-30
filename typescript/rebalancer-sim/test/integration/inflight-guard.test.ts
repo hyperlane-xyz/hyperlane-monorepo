@@ -44,13 +44,53 @@ import {
 } from '../../src/deployment/SimulationDeployment.js';
 import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
 import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
-import { HyperlaneRunner } from '../../src/rebalancer/HyperlaneRunner.js';
+import {
+  CLIRebalancerRunner,
+  cleanupCLIRebalancer,
+} from '../../src/rebalancer/CLIRebalancerRunner.js';
+import {
+  SimpleRunner,
+  cleanupSimpleRunner,
+} from '../../src/rebalancer/SimpleRunner.js';
+import type { IRebalancerRunner } from '../../src/rebalancer/types.js';
 import type { TransferScenario } from '../../src/scenario/types.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
+
+// Configure which rebalancers to test via environment variable
+// e.g., REBALANCERS=simple for single rebalancer
+// Default: run both SimpleRunner and CLIRebalancerService
+type RebalancerType = 'simple' | 'cli';
+const REBALANCER_ENV = process.env.REBALANCERS || 'simple,cli';
+const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
+  .map((r) => r.trim().toLowerCase())
+  // Map legacy names to new names
+  .map((r) => (r === 'hyperlane' ? 'simple' : r === 'real' ? 'cli' : r))
+  .filter((r): r is RebalancerType => r === 'simple' || r === 'cli');
+
+if (ENABLED_REBALANCERS.length === 0) {
+  throw new Error(
+    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "cli", or both.`,
+  );
+}
+
+function createRebalancer(type: RebalancerType): IRebalancerRunner {
+  switch (type) {
+    case 'simple':
+      return new SimpleRunner();
+    case 'cli':
+      return new CLIRebalancerRunner();
+  }
+}
 
 describe('Inflight Guard Behavior', function () {
   const anvilPort = 8547;
   const anvil = setupAnvilTestSuite(this, anvilPort);
+
+  // Cleanup rebalancers between tests
+  afterEach(async function () {
+    await cleanupSimpleRunner();
+    await cleanupCLIRebalancer();
+  });
 
   /**
    * TEST: Rebalancer over-rebalancing without inflight guard
@@ -99,261 +139,267 @@ describe('Inflight Guard Behavior', function () {
    * Result: Only 1 transfer sent, light ends at exactly 125
    * ```
    */
-  it('should detect rebalancer over-rebalancing without inflight guard', async () => {
-    const deployment = await deployMultiDomainSimulation({
-      anvilRpc: anvil.rpc,
-      deployerKey: ANVIL_DEPLOYER_KEY,
-      chains: [
-        { chainName: 'heavy', domainId: 1000 },
-        { chainName: 'light', domainId: 2000 },
-      ],
-      initialCollateralBalance: BigInt(toWei(100)),
-    });
+  for (const rebalancerType of ENABLED_REBALANCERS) {
+    it(`[${rebalancerType}] should detect rebalancer over-rebalancing without inflight guard`, async () => {
+      const deployment = await deployMultiDomainSimulation({
+        anvilRpc: anvil.rpc,
+        deployerKey: ANVIL_DEPLOYER_KEY,
+        chains: [
+          { chainName: 'heavy', domainId: 1000 },
+          { chainName: 'light', domainId: 2000 },
+        ],
+        initialCollateralBalance: BigInt(toWei(100)),
+      });
 
-    const provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
-    const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
+      const provider = new ethers.providers.JsonRpcProvider(anvil.rpc);
+      const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
 
-    // Create imbalanced state: heavy=150, light=100
-    const { ERC20Test__factory } = await import('@hyperlane-xyz/core');
-    const heavyToken = ERC20Test__factory.connect(
-      deployment.domains['heavy'].collateralToken,
-      deployer,
-    );
-    await heavyToken.mintTo(deployment.domains['heavy'].warpToken, toWei(50));
+      // Create imbalanced state: heavy=150, light=100
+      const { ERC20Test__factory } = await import('@hyperlane-xyz/core');
+      const heavyToken = ERC20Test__factory.connect(
+        deployment.domains['heavy'].collateralToken,
+        deployer,
+      );
+      await heavyToken.mintTo(deployment.domains['heavy'].warpToken, toWei(50));
 
-    const initialHeavy = await getWarpTokenBalance(
-      provider,
-      deployment.domains['heavy'].warpToken,
-      deployment.domains['heavy'].collateralToken,
-    );
-    const initialLight = await getWarpTokenBalance(
-      provider,
-      deployment.domains['light'].warpToken,
-      deployment.domains['light'].collateralToken,
-    );
+      const initialHeavy = await getWarpTokenBalance(
+        provider,
+        deployment.domains['heavy'].warpToken,
+        deployment.domains['heavy'].collateralToken,
+      );
+      const initialLight = await getWarpTokenBalance(
+        provider,
+        deployment.domains['light'].warpToken,
+        deployment.domains['light'].collateralToken,
+      );
 
-    console.log('='.repeat(60));
-    console.log('INFLIGHT GUARD TEST: Rebalancer over-rebalancing');
-    console.log('='.repeat(60));
-    console.log('\nInitial state (IMBALANCED):');
-    console.log(
-      `  heavy: ${ethers.utils.formatEther(initialHeavy.toString())} tokens`,
-    );
-    console.log(
-      `  light: ${ethers.utils.formatEther(initialLight.toString())} tokens`,
-    );
-    const total = initialHeavy + initialLight;
-    const target = total / BigInt(2);
-    console.log(
-      `  Total: ${ethers.utils.formatEther(total.toString())} tokens`,
-    );
-    console.log(
-      `  Target per chain: ${ethers.utils.formatEther(target.toString())} tokens`,
-    );
+      console.log('='.repeat(60));
+      console.log(
+        `INFLIGHT GUARD TEST [${rebalancerType}]: Rebalancer over-rebalancing`,
+      );
+      console.log('='.repeat(60));
+      console.log('\nInitial state (IMBALANCED):');
+      console.log(
+        `  heavy: ${ethers.utils.formatEther(initialHeavy.toString())} tokens`,
+      );
+      console.log(
+        `  light: ${ethers.utils.formatEther(initialLight.toString())} tokens`,
+      );
+      const total = initialHeavy + initialLight;
+      const target = total / BigInt(2);
+      console.log(
+        `  Total: ${ethers.utils.formatEther(total.toString())} tokens`,
+      );
+      console.log(
+        `  Target per chain: ${ethers.utils.formatEther(target.toString())} tokens`,
+      );
 
-    // Create scenario with small dummy transfers spread over time
-    // This keeps the simulation running long enough for rebalancer to poll multiple times
-    const scenario: TransferScenario = {
-      name: 'rebalancer-inflight-test',
-      duration: 8000, // 8 seconds
-      transfers: [
-        // Small transfers to keep simulation alive, spread across time
+      // Create scenario with small dummy transfers spread over time
+      // This keeps the simulation running long enough for rebalancer to poll multiple times
+      const scenario: TransferScenario = {
+        name: `rebalancer-inflight-test-${rebalancerType}`,
+        duration: 8000, // 8 seconds
+        transfers: [
+          // Small transfers to keep simulation alive, spread across time
+          {
+            id: 'keepalive-1',
+            timestamp: 1000,
+            origin: 'heavy',
+            destination: 'light',
+            amount: BigInt(toWei(0.001)), // Tiny amount
+            user: '0x1111111111111111111111111111111111111111',
+          },
+          {
+            id: 'keepalive-2',
+            timestamp: 3000,
+            origin: 'heavy',
+            destination: 'light',
+            amount: BigInt(toWei(0.001)),
+            user: '0x1111111111111111111111111111111111111111',
+          },
+          {
+            id: 'keepalive-3',
+            timestamp: 5000,
+            origin: 'heavy',
+            destination: 'light',
+            amount: BigInt(toWei(0.001)),
+            user: '0x1111111111111111111111111111111111111111',
+          },
+          {
+            id: 'keepalive-4',
+            timestamp: 7000,
+            origin: 'heavy',
+            destination: 'light',
+            amount: BigInt(toWei(0.001)),
+            user: '0x1111111111111111111111111111111111111111',
+          },
+        ],
+        chains: ['heavy', 'light'],
+      };
+
+      // SLOW bridge (3 seconds) vs FAST rebalancer polling (200ms)
+      const bridgeConfig = createSymmetricBridgeConfig(['heavy', 'light'], {
+        deliveryDelay: 3000,
+        failureRate: 0,
+        deliveryJitter: 0,
+      });
+
+      const rebalancer = createRebalancer(rebalancerType);
+
+      // 5% tolerance - heavy at 150 (20% over) and light at 100 (20% under) should trigger
+      const strategyConfig = {
+        type: 'weighted' as const,
+        chains: {
+          heavy: {
+            weighted: { weight: '0.5', tolerance: '0.05' },
+            bridge: deployment.domains['heavy'].bridge,
+            bridgeLockTime: 500,
+          },
+          light: {
+            weighted: { weight: '0.5', tolerance: '0.05' },
+            bridge: deployment.domains['light'].bridge,
+            bridgeLockTime: 500,
+          },
+        },
+      };
+
+      const rebalanceEvents: Array<{
+        origin: string;
+        destination: string;
+        amount: bigint;
+        timestamp: number;
+      }> = [];
+
+      rebalancer.on('rebalance', (event) => {
+        if (
+          event.type === 'rebalance_completed' &&
+          event.origin &&
+          event.destination &&
+          event.amount
+        ) {
+          rebalanceEvents.push({
+            origin: event.origin,
+            destination: event.destination,
+            amount: event.amount,
+            timestamp: event.timestamp,
+          });
+          console.log(
+            `  >> REBALANCE #${rebalanceEvents.length}: ${event.origin} -> ${event.destination}: ${ethers.utils.formatEther(event.amount.toString())} tokens`,
+          );
+        }
+      });
+
+      console.log('\nSimulation config:');
+      console.log('  - Bridge delay: 3 seconds');
+      console.log('  - Rebalancer polling: every 200ms');
+      console.log('  - Scenario duration: 8 seconds');
+      console.log('\nExpected behavior WITHOUT inflight guard:');
+      console.log(
+        '  - Rebalancer sends transfer #1: heavy -> light (~25 tokens)',
+      );
+      console.log('  - Bridge takes 3 seconds to deliver');
+      console.log('  - Rebalancer polls again, still sees light as low');
+      console.log('  - May send additional transfers before #1 delivers\n');
+
+      const engine = new SimulationEngine(deployment);
+      const result = await engine.runSimulation(
+        scenario,
+        rebalancer,
+        bridgeConfig,
         {
-          id: 'keepalive-1',
-          timestamp: 1000,
-          origin: 'heavy',
-          destination: 'light',
-          amount: BigInt(toWei(0.001)), // Tiny amount
-          user: '0x1111111111111111111111111111111111111111',
+          userTransferDeliveryDelay: 0, // Instant user transfers (this test focuses on rebalancer behavior)
+          rebalancerPollingFrequency: 200, // Very fast polling
+          userTransferInterval: 100,
         },
-        {
-          id: 'keepalive-2',
-          timestamp: 3000,
-          origin: 'heavy',
-          destination: 'light',
-          amount: BigInt(toWei(0.001)),
-          user: '0x1111111111111111111111111111111111111111',
-        },
-        {
-          id: 'keepalive-3',
-          timestamp: 5000,
-          origin: 'heavy',
-          destination: 'light',
-          amount: BigInt(toWei(0.001)),
-          user: '0x1111111111111111111111111111111111111111',
-        },
-        {
-          id: 'keepalive-4',
-          timestamp: 7000,
-          origin: 'heavy',
-          destination: 'light',
-          amount: BigInt(toWei(0.001)),
-          user: '0x1111111111111111111111111111111111111111',
-        },
-      ],
-      chains: ['heavy', 'light'],
-    };
+        strategyConfig,
+      );
 
-    // SLOW bridge (3 seconds) vs FAST rebalancer polling (200ms)
-    const bridgeConfig = createSymmetricBridgeConfig(['heavy', 'light'], {
-      deliveryDelay: 3000,
-      failureRate: 0,
-      deliveryJitter: 0,
-    });
+      // Wait for any remaining bridge deliveries
+      await new Promise((resolve) => setTimeout(resolve, 4000));
 
-    const rebalancer = new HyperlaneRunner();
+      const finalHeavy = await getWarpTokenBalance(
+        provider,
+        deployment.domains['heavy'].warpToken,
+        deployment.domains['heavy'].collateralToken,
+      );
+      const finalLight = await getWarpTokenBalance(
+        provider,
+        deployment.domains['light'].warpToken,
+        deployment.domains['light'].collateralToken,
+      );
 
-    // 5% tolerance - heavy at 150 (20% over) and light at 100 (20% under) should trigger
-    const strategyConfig = {
-      type: 'weighted' as const,
-      chains: {
-        heavy: {
-          weighted: { weight: '0.5', tolerance: '0.05' },
-          bridge: deployment.domains['heavy'].bridge,
-          bridgeLockTime: 500,
-        },
-        light: {
-          weighted: { weight: '0.5', tolerance: '0.05' },
-          bridge: deployment.domains['light'].bridge,
-          bridgeLockTime: 500,
-        },
-      },
-    };
+      console.log('\n' + '='.repeat(60));
+      console.log('RESULTS');
+      console.log('='.repeat(60));
+      console.log('\nFinal balances:');
+      console.log(
+        `  heavy: ${ethers.utils.formatEther(finalHeavy.toString())} tokens`,
+      );
+      console.log(
+        `  light: ${ethers.utils.formatEther(finalLight.toString())} tokens`,
+      );
 
-    const rebalanceEvents: Array<{
-      origin: string;
-      destination: string;
-      amount: bigint;
-      timestamp: number;
-    }> = [];
+      console.log(
+        `\nRebalancer initiated: ${result.kpis.totalRebalances} rebalances`,
+      );
+      console.log(`Rebalance events captured: ${rebalanceEvents.length}`);
 
-    rebalancer.on('rebalance', (event) => {
-      if (
-        event.type === 'rebalance_completed' &&
-        event.origin &&
-        event.destination &&
-        event.amount
-      ) {
-        rebalanceEvents.push({
-          origin: event.origin,
-          destination: event.destination,
-          amount: event.amount,
-          timestamp: event.timestamp,
-        });
+      const rebalancesToLight = rebalanceEvents.filter(
+        (e) => e.destination === 'light',
+      );
+      const totalSentToLight = rebalancesToLight.reduce(
+        (sum, e) => sum + e.amount,
+        BigInt(0),
+      );
+
+      console.log(`\nRebalances TO light: ${rebalancesToLight.length}`);
+      if (totalSentToLight > BigInt(0)) {
         console.log(
-          `  >> REBALANCE #${rebalanceEvents.length}: ${event.origin} -> ${event.destination}: ${ethers.utils.formatEther(event.amount.toString())} tokens`,
+          `Total volume TO light: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
         );
       }
+
+      console.log('\n' + '='.repeat(60));
+      console.log('ANALYSIS');
+      console.log('='.repeat(60));
+
+      // KEY ASSERTIONS: This test EXPECTS over-rebalancing without inflight guard
+      // The rebalancer should send multiple transfers because it doesn't know
+      // previous ones are still pending in the bridge
+
+      expect(rebalancesToLight.length).to.be.greaterThan(
+        1,
+        `[${rebalancerType}] Expected multiple rebalances to light - demonstrates missing inflight guard`,
+      );
+
+      console.log('\n❌ OVER-REBALANCING DETECTED (as expected):');
+      console.log(
+        `   Rebalancer sent ${rebalancesToLight.length} separate transfers to light`,
+      );
+      console.log(
+        "   This happened because it doesn't track inflight transfers",
+      );
+      console.log(
+        `   Total sent: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
+      );
+      console.log(`   Only needed: ~25 tokens`);
+
+      if (finalLight > target) {
+        const overBy = finalLight - target;
+        console.log(
+          `\n   Light ended up ${ethers.utils.formatEther(overBy.toString())} tokens OVER target`,
+        );
+        console.log(
+          '   This demonstrates the need for inflight-aware rebalancing',
+        );
+      }
+
+      // With an inflight guard, we would expect:
+      // - Only 1 rebalance sent (or few if tolerance allows)
+      // - Light ending up near target (125), not way over
+      console.log('\n   WITH inflight guard, we would expect:');
+      console.log('   - Only 1-2 rebalances (not 30+)');
+      console.log('   - Light ending near target 125, not 300+');
     });
-
-    console.log('\nSimulation config:');
-    console.log('  - Bridge delay: 3 seconds');
-    console.log('  - Rebalancer polling: every 200ms');
-    console.log('  - Scenario duration: 8 seconds');
-    console.log('\nExpected behavior WITHOUT inflight guard:');
-    console.log(
-      '  - Rebalancer sends transfer #1: heavy -> light (~25 tokens)',
-    );
-    console.log('  - Bridge takes 3 seconds to deliver');
-    console.log('  - Rebalancer polls again, still sees light as low');
-    console.log('  - May send additional transfers before #1 delivers\n');
-
-    const engine = new SimulationEngine(deployment);
-    const result = await engine.runSimulation(
-      scenario,
-      rebalancer,
-      bridgeConfig,
-      {
-        userTransferDeliveryDelay: 0, // Instant user transfers (this test focuses on rebalancer behavior)
-        rebalancerPollingFrequency: 200, // Very fast polling
-        userTransferInterval: 100,
-      },
-      strategyConfig,
-    );
-
-    // Wait for any remaining bridge deliveries
-    await new Promise((resolve) => setTimeout(resolve, 4000));
-
-    const finalHeavy = await getWarpTokenBalance(
-      provider,
-      deployment.domains['heavy'].warpToken,
-      deployment.domains['heavy'].collateralToken,
-    );
-    const finalLight = await getWarpTokenBalance(
-      provider,
-      deployment.domains['light'].warpToken,
-      deployment.domains['light'].collateralToken,
-    );
-
-    console.log('\n' + '='.repeat(60));
-    console.log('RESULTS');
-    console.log('='.repeat(60));
-    console.log('\nFinal balances:');
-    console.log(
-      `  heavy: ${ethers.utils.formatEther(finalHeavy.toString())} tokens`,
-    );
-    console.log(
-      `  light: ${ethers.utils.formatEther(finalLight.toString())} tokens`,
-    );
-
-    console.log(
-      `\nRebalancer initiated: ${result.kpis.totalRebalances} rebalances`,
-    );
-    console.log(`Rebalance events captured: ${rebalanceEvents.length}`);
-
-    const rebalancesToLight = rebalanceEvents.filter(
-      (e) => e.destination === 'light',
-    );
-    const totalSentToLight = rebalancesToLight.reduce(
-      (sum, e) => sum + e.amount,
-      BigInt(0),
-    );
-
-    console.log(`\nRebalances TO light: ${rebalancesToLight.length}`);
-    if (totalSentToLight > BigInt(0)) {
-      console.log(
-        `Total volume TO light: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
-      );
-    }
-
-    console.log('\n' + '='.repeat(60));
-    console.log('ANALYSIS');
-    console.log('='.repeat(60));
-
-    // KEY ASSERTIONS: This test EXPECTS over-rebalancing without inflight guard
-    // The rebalancer should send multiple transfers because it doesn't know
-    // previous ones are still pending in the bridge
-
-    expect(rebalancesToLight.length).to.be.greaterThan(
-      1,
-      'Expected multiple rebalances to light - demonstrates missing inflight guard',
-    );
-
-    console.log('\n❌ OVER-REBALANCING DETECTED (as expected):');
-    console.log(
-      `   Rebalancer sent ${rebalancesToLight.length} separate transfers to light`,
-    );
-    console.log("   This happened because it doesn't track inflight transfers");
-    console.log(
-      `   Total sent: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
-    );
-    console.log(`   Only needed: ~25 tokens`);
-
-    if (finalLight > target) {
-      const overBy = finalLight - target;
-      console.log(
-        `\n   Light ended up ${ethers.utils.formatEther(overBy.toString())} tokens OVER target`,
-      );
-      console.log(
-        '   This demonstrates the need for inflight-aware rebalancing',
-      );
-    }
-
-    // With an inflight guard, we would expect:
-    // - Only 1 rebalance sent (or few if tolerance allows)
-    // - Light ending up near target (125), not way over
-    console.log('\n   WITH inflight guard, we would expect:');
-    console.log('   - Only 1-2 rebalances (not 30+)');
-    console.log('   - Light ending near target 125, not 300+');
-  });
+  }
 });
