@@ -45,9 +45,9 @@ import {
 import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
 import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
 import {
-  CLIRebalancerRunner,
-  cleanupCLIRebalancer,
-} from '../../src/rebalancer/CLIRebalancerRunner.js';
+  ProductionRebalancerRunner,
+  cleanupProductionRebalancer,
+} from '../../src/rebalancer/ProductionRebalancerRunner.js';
 import {
   SimpleRunner,
   cleanupSimpleRunner,
@@ -58,16 +58,16 @@ import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 // Configure which rebalancers to test via environment variable
 // e.g., REBALANCERS=simple for single rebalancer
-// Default: run both SimpleRunner and CLIRebalancerRunner
-type RebalancerType = 'simple' | 'cli';
-const REBALANCER_ENV = process.env.REBALANCERS || 'simple,cli';
+// Default: run both SimpleRunner and ProductionRebalancerRunner
+type RebalancerType = 'simple' | 'production';
+const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
 const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
   .map((r) => r.trim().toLowerCase())
-  .filter((r): r is RebalancerType => r === 'simple' || r === 'cli');
+  .filter((r): r is RebalancerType => r === 'simple' || r === 'production');
 
 if (ENABLED_REBALANCERS.length === 0) {
   throw new Error(
-    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "cli", or both.`,
+    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", or both.`,
   );
 }
 
@@ -75,8 +75,8 @@ function createRebalancer(type: RebalancerType): IRebalancerRunner {
   switch (type) {
     case 'simple':
       return new SimpleRunner();
-    case 'cli':
-      return new CLIRebalancerRunner();
+    case 'production':
+      return new ProductionRebalancerRunner();
   }
 }
 
@@ -87,7 +87,7 @@ describe('Inflight Guard Behavior', function () {
   // Cleanup rebalancers between tests
   afterEach(async function () {
     await cleanupSimpleRunner();
-    await cleanupCLIRebalancer();
+    await cleanupProductionRebalancer();
   });
 
   /**
@@ -363,7 +363,7 @@ describe('Inflight Guard Behavior', function () {
 
       // KEY ASSERTIONS: Behavior differs based on rebalancer type
       // - SimpleRunner: No inflight guard, expects over-rebalancing
-      // - CLIRebalancerRunner: Has inflight guard (ActionTracker), expects correct behavior
+      // - ProductionRebalancerRunner: Has inflight guard (ActionTracker), expects correct behavior
 
       if (rebalancerType === 'simple') {
         // SimpleRunner has NO inflight guard - expects over-rebalancing
@@ -397,12 +397,12 @@ describe('Inflight Guard Behavior', function () {
         }
 
         console.log(
-          '\n   WITH inflight guard (like CLIRebalancerRunner), we would expect:',
+          '\n   WITH inflight guard (like ProductionRebalancerRunner), we would expect:',
         );
         console.log('   - Only 1-2 rebalances (not 30+)');
         console.log('   - Light ending near target 125, not 300+');
       } else {
-        // CLIRebalancerRunner HAS inflight guard (ActionTracker) - expects correct behavior
+        // ProductionRebalancerRunner HAS inflight guard (ActionTracker) - expects correct behavior
         // It should send at most 2 rebalances (initial + possibly one more before tracking kicks in)
         expect(rebalancesToLight.length).to.be.lessThanOrEqual(
           2,
@@ -410,7 +410,7 @@ describe('Inflight Guard Behavior', function () {
         );
 
         console.log(
-          '\n✅ CORRECT BEHAVIOR (CLIRebalancerRunner has inflight tracking):',
+          '\n✅ CORRECT BEHAVIOR (ProductionRebalancerRunner has inflight tracking):',
         );
         console.log(
           `   Rebalancer sent only ${rebalancesToLight.length} transfer(s) to light`,

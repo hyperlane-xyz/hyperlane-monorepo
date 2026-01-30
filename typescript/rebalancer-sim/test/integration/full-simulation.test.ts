@@ -8,7 +8,7 @@
  * Configuration:
  * - Set REBALANCERS env var to specify which rebalancers to test
  *   e.g., REBALANCERS=simple pnpm test (for single rebalancer)
- * - Default: runs both SimpleRunner and CLIRebalancerRunner
+ * - Default: runs both SimpleRunner and ProductionRebalancerRunner
  *
  * Each scenario JSON includes:
  * - description: What the scenario tests
@@ -18,10 +18,10 @@
  * - expectations: Assertions (minCompletionRate, shouldTriggerRebalancing, etc.)
  *
  * KNOWN LIMITATION:
- * When running the full test suite with REBALANCERS=simple,cli, some tests
- * may timeout due to cumulative state from the CLIRebalancerRunner. To run
+ * When running the full test suite with REBALANCERS=simple,production, some tests
+ * may timeout due to cumulative state from the ProductionRebalancerRunner. To run
  * comparisons reliably, run specific scenarios:
- *   REBALANCERS=simple,cli pnpm test --grep "scenario-name"
+ *   REBALANCERS=simple,production pnpm test --grep "scenario-name"
  *
  * The default (REBALANCERS=simple) runs reliably for all scenarios.
  */
@@ -39,9 +39,9 @@ import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
 import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
 import type { SimulationResult } from '../../src/kpi/types.js';
 import {
-  CLIRebalancerRunner,
-  cleanupCLIRebalancer,
-} from '../../src/rebalancer/CLIRebalancerRunner.js';
+  ProductionRebalancerRunner,
+  cleanupProductionRebalancer,
+} from '../../src/rebalancer/ProductionRebalancerRunner.js';
 import {
   SimpleRunner,
   cleanupSimpleRunner,
@@ -61,16 +61,16 @@ const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
 // Configure which rebalancers to test via environment variable
 // e.g., REBALANCERS=simple for single rebalancer
-// Default: run both SimpleRunner and CLIRebalancerRunner for comparison
-type RebalancerType = 'simple' | 'cli';
-const REBALANCER_ENV = process.env.REBALANCERS || 'simple,cli';
+// Default: run both SimpleRunner and ProductionRebalancerRunner for comparison
+type RebalancerType = 'simple' | 'production';
+const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
 const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
   .map((r) => r.trim().toLowerCase())
-  .filter((r): r is RebalancerType => r === 'simple' || r === 'cli');
+  .filter((r): r is RebalancerType => r === 'simple' || r === 'production');
 
 if (ENABLED_REBALANCERS.length === 0) {
   throw new Error(
-    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "cli", or both.`,
+    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", or both.`,
   );
 }
 
@@ -78,8 +78,8 @@ function createRebalancer(type: RebalancerType): IRebalancerRunner {
   switch (type) {
     case 'simple':
       return new SimpleRunner();
-    case 'cli':
-      return new CLIRebalancerRunner();
+    case 'production':
+      return new ProductionRebalancerRunner();
   }
 }
 
@@ -106,7 +106,7 @@ describe('Rebalancer Simulation', function () {
   // Cleanup rebalancers between tests (anvil restarts automatically via setupAnvilTestSuite)
   afterEach(async function () {
     await cleanupSimpleRunner();
-    await cleanupCLIRebalancer();
+    await cleanupProductionRebalancer();
   });
 
   /**

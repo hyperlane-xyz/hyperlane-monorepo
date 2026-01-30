@@ -17,7 +17,7 @@ import {
   SimulationEngine,
 } from '../engine/SimulationEngine.js';
 import type { ComparisonReport, SimulationResult } from '../kpi/types.js';
-import { cleanupCLIRebalancer } from '../rebalancer/CLIRebalancerRunner.js';
+import { cleanupProductionRebalancer } from '../rebalancer/ProductionRebalancerRunner.js';
 import type {
   IRebalancerRunner,
   RebalancerSimConfig,
@@ -179,7 +179,7 @@ export class RebalancerSimulationHarness {
       results.push(result);
 
       // Cleanup between runs to ensure fresh state
-      await cleanupCLIRebalancer();
+      await cleanupProductionRebalancer();
     }
 
     // Generate comparison

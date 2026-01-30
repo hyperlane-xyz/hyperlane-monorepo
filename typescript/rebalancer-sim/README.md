@@ -26,8 +26,8 @@ This simulator helps answer questions like:
 │               │   │                │   │                 │
 │ Creates       │   │ SimpleRunner   │   │ Simulates slow  │
 │ transfer      │   │ (simplified)   │   │ bridge delivery │
-│ patterns      │   │ CLIRebalancer  │   │ with config-    │
-│               │   │ (production)   │   │ urable delays   │
+│ patterns      │   │ Production     │   │ with config-    │
+│               │   │ Rebalancer     │   │ urable delays   │
 └───────────────┘   └────────────────┘   └─────────────────┘
         │                    │                    │
         └────────────────────┼────────────────────┘
@@ -82,10 +82,10 @@ This separation is important because rebalancer transfers go through external br
 
 Two rebalancer implementations are available:
 
-| Runner                | Description                                            | Use Case                        |
-| --------------------- | ------------------------------------------------------ | ------------------------------- |
-| `SimpleRunner`        | Simplified rebalancer with weighted/minAmount strategy | Fast tests, baseline comparison |
-| `CLIRebalancerRunner` | Wraps actual `@hyperlane-xyz/rebalancer` CLI service   | Production behavior validation  |
+| Runner                       | Description                                            | Use Case                        |
+| ---------------------------- | ------------------------------------------------------ | ------------------------------- |
+| `SimpleRunner`               | Simplified rebalancer with weighted/minAmount strategy | Fast tests, baseline comparison |
+| `ProductionRebalancerRunner` | Wraps actual `@hyperlane-xyz/rebalancer` CLI service   | Production behavior validation  |
 
 ## Directory Structure
 
@@ -104,7 +104,7 @@ typescript/rebalancer-sim/
 │   │   └── types.ts
 │   ├── rebalancer/          # Rebalancer wrappers
 │   │   ├── SimpleRunner.ts         # Simplified rebalancer for testing
-│   │   ├── CLIRebalancerRunner.ts  # Wraps @hyperlane-xyz/rebalancer
+│   │   ├── ProductionRebalancerRunner.ts  # Wraps @hyperlane-xyz/rebalancer
 │   │   ├── SimulationRegistry.ts   # IRegistry impl for simulation
 │   │   └── types.ts
 │   ├── engine/              # Simulation orchestration
@@ -184,14 +184,14 @@ By default, tests run with both rebalancers. Use the `REBALANCERS` env var to se
 # Run with simplified rebalancer only (faster)
 REBALANCERS=simple pnpm test
 
-# Run with CLI rebalancer only
-REBALANCERS=cli pnpm test
+# Run with production rebalancer only
+REBALANCERS=production pnpm test
 
 # Run with both (default) - compare behavior
-REBALANCERS=simple,cli pnpm test
+REBALANCERS=simple,production pnpm test
 
 # Compare on specific scenario (recommended for debugging)
-REBALANCERS=simple,cli pnpm test --grep "extreme-drain"
+REBALANCERS=simple,production pnpm test --grep "extreme-drain"
 ```
 
 ### 4. View Results
@@ -322,7 +322,7 @@ interface SimulationKPIs {
 
 4. **No Gas Costs**: Gas costs aren't simulated. KPIs include rebalance count but not actual cost.
 
-5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=simple,cli`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
+5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=simple,production`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
 
 ## Design Decisions
 
@@ -419,13 +419,13 @@ console.log(`Rebalances: ${result.kpis.totalRebalances}`);
 
 ```typescript
 import {
-  CLIRebalancerRunner,
+  ProductionRebalancerRunner,
   SimpleRunner,
 } from '@hyperlane-xyz/rebalancer-sim';
 
 const rebalancers = [
   new SimpleRunner(), // Simplified baseline
-  new CLIRebalancerRunner(), // Production CLI service
+  new ProductionRebalancerRunner(), // Production rebalancer service
 ];
 
 // compareRebalancers() handles state reset internally

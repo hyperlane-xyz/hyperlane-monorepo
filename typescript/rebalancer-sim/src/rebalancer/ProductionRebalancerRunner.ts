@@ -18,23 +18,23 @@ import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
 const logger = pino({ level: 'silent' });
 
 // Track the current instance for cleanup
-let currentInstance: CLIRebalancerRunner | null = null;
+let currentInstance: ProductionRebalancerRunner | null = null;
 
-function setCurrentInstance(instance: CLIRebalancerRunner | null): void {
+function setCurrentInstance(instance: ProductionRebalancerRunner | null): void {
   currentInstance = instance;
 }
 
 /**
  * Global cleanup function - call between test runs to ensure clean state
  */
-export async function cleanupCLIRebalancer(): Promise<void> {
+export async function cleanupProductionRebalancer(): Promise<void> {
   if (currentInstance) {
     const instance = currentInstance;
     currentInstance = null;
     try {
       await instance.stop();
     } catch (error) {
-      console.debug('cleanupCLIRebalancer: stop failed', error);
+      console.debug('cleanupProductionRebalancer: stop failed', error);
     }
   }
   // Small delay to allow any async cleanup to complete
@@ -96,14 +96,14 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
 }
 
 /**
- * CLIRebalancerRunner runs the actual RebalancerService in-process.
+ * ProductionRebalancerRunner runs the actual RebalancerService in-process.
  * This wraps the real CLI rebalancer for simulation testing.
  */
-export class CLIRebalancerRunner
+export class ProductionRebalancerRunner
   extends EventEmitter
   implements IRebalancerRunner
 {
-  readonly name = 'CLIRebalancerService';
+  readonly name = 'ProductionRebalancerService';
 
   private config?: RebalancerSimConfig;
   private service?: RebalancerService;
@@ -111,14 +111,14 @@ export class CLIRebalancerRunner
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
-    await cleanupCLIRebalancer();
+    await cleanupProductionRebalancer();
 
     this.config = config;
   }
 
   async start(): Promise<void> {
     if (!this.config) {
-      throw new Error('CLIRebalancerRunner not initialized');
+      throw new Error('ProductionRebalancerRunner not initialized');
     }
 
     if (this.running) {
@@ -126,7 +126,7 @@ export class CLIRebalancerRunner
     }
 
     // Cleanup any previously running instance
-    await cleanupCLIRebalancer();
+    await cleanupProductionRebalancer();
 
     // Create registry
     const registry = new SimulationRegistry(this.config.deployment);
@@ -196,7 +196,7 @@ export class CLIRebalancerRunner
         }
       } catch (error) {
         console.debug(
-          'CLIRebalancerRunner: failed to disable polling for',
+          'ProductionRebalancerRunner: failed to disable polling for',
           chainName,
           error,
         );
@@ -256,7 +256,10 @@ export class CLIRebalancerRunner
       try {
         await this.service.stop();
       } catch (error) {
-        console.debug('CLIRebalancerRunner.stop: service.stop() failed', error);
+        console.debug(
+          'ProductionRebalancerRunner.stop: service.stop() failed',
+          error,
+        );
       }
       this.service = undefined;
     }
