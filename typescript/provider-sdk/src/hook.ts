@@ -149,12 +149,11 @@ export type RawHookArtifactConfig = RawHookArtifactConfigs[HookType];
  * Should be used to implement an object/closure or class that individually deploys
  * Hooks on chain
  */
-export interface IRawHookArtifactManager
-  extends IArtifactManager<
-    HookType,
-    RawHookArtifactConfigs,
-    DeployedHookAddress
-  > {
+export interface IRawHookArtifactManager extends IArtifactManager<
+  HookType,
+  RawHookArtifactConfigs,
+  DeployedHookAddress
+> {
   /**
    * Read any hook by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading hooks of unknown types.

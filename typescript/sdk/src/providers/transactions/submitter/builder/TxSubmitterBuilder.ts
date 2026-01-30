@@ -26,9 +26,9 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
  *    new EV5JsonRpcTxSubmitter(chainC)
  *  ).submit(txs);
  */
-export class TxSubmitterBuilder<TProtocol extends ProtocolType>
-  implements TxSubmitterInterface<TProtocol>
-{
+export class TxSubmitterBuilder<
+  TProtocol extends ProtocolType,
+> implements TxSubmitterInterface<TProtocol> {
   public readonly txSubmitterType: TxSubmitterType;
 
   protected readonly logger: Logger = rootLogger.child({

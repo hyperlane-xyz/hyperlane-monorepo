@@ -134,8 +134,11 @@ export type DeployedRawIsmArtifact = ArtifactDeployed<
  * Should be used to implement an object/closure or class that individually deploys
  * ISMs on chain
  */
-export interface IRawIsmArtifactManager
-  extends IArtifactManager<IsmType, RawIsmArtifactConfigs, DeployedIsmAddress> {
+export interface IRawIsmArtifactManager extends IArtifactManager<
+  IsmType,
+  RawIsmArtifactConfigs,
+  DeployedIsmAddress
+> {
   /**
    * Read any ISM by detecting its type and delegating to the appropriate reader.
    * This is the generic entry point for reading ISMs of unknown types.

@@ -26,9 +26,10 @@ import {
   getSetIgpOwnerTx,
 } from './hook-tx.js';
 
-export class RadixIgpHookReader
-  implements ArtifactReader<IgpHookConfig, DeployedHookAddress>
-{
+export class RadixIgpHookReader implements ArtifactReader<
+  IgpHookConfig,
+  DeployedHookAddress
+> {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(

@@ -28,9 +28,10 @@ import { getCreateMerkleTreeHookTx } from './hook-tx.js';
  * Reads deployed MerkleTree hook configuration from the chain.
  * MerkleTree hooks are immutable once deployed.
  */
-export class CosmosMerkleTreeHookReader
-  implements ArtifactReader<MerkleTreeHookConfig, DeployedHookAddress>
-{
+export class CosmosMerkleTreeHookReader implements ArtifactReader<
+  MerkleTreeHookConfig,
+  DeployedHookAddress
+> {
   constructor(private readonly query: CosmosHookQueryClient) {}
 
   async read(

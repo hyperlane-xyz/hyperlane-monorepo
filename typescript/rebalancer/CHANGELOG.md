@@ -7,7 +7,6 @@
 - 0e1e48a: Inflight-aware rebalancing system with ActionTracker, new strategies, and type safety improvements.
 
   Breaking changes:
-
   - IRebalancer.rebalance() returned RebalanceExecutionResult[] instead of void
   - IStrategy.getRebalancingRoutes() accepted optional inflightContext parameter
   - IStrategy required a name property
@@ -15,7 +14,6 @@
   - MonitorEvent included confirmedBlockTags for confirmed block queries
 
   New features:
-
   - ActionTracker for tracking pending transfers and rebalance actions with Explorer integration
   - CollateralDeficitStrategy for just-in-time rebalancing based on pending inbound transfers
   - CompositeStrategy for chaining multiple strategies with coordination
@@ -24,7 +22,6 @@
   - Strategy config supports array format for composing multiple strategies (backwards compatible)
 
   Bug fixes:
-
   - Record failure metrics when rebalance results contain failures
   - Treat missing Dispatch event as rebalance failure
   - Fix CompositeStrategy oscillation by separating proposed from pending rebalances
@@ -96,7 +93,6 @@
 
 - bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
 - 9963e0e: feat: separate rebalancer package
-
   - Extract rebalancer logic from CLI into dedicated `@hyperlane-xyz/rebalancer` package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
   - CLI now imports from new package, maintaining backward compatibility for manual rebalancing

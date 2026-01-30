@@ -12,7 +12,6 @@ Fork a warp route using the local HTTP registry.
 0. Check if `http://localhost:3333` is running. If not, run the start-http-registry SKILL. If that fails, use `AskUserQuestion` to prompt the user for an alternate registry URL to use instead of `http://localhost:3333`.
 
 1. First, use `AskUserQuestion` to prompt the user for the warp route ID:
-
    - Question: "Which warp route would you like to fork?"
    - Header: "Warp Route"
    - Options: Provide 2-3 common examples if known, otherwise use generic placeholders. Note that the fork may fail if the warp routes are invalid. Re-prompt the user!

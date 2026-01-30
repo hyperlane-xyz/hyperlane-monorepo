@@ -87,7 +87,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -1065,7 +1064,6 @@
 ### Minor Changes
 
 - f438d442a: Update widgets with components from explorer and warp ui
-
   - Add icons: Discord, Docs, Github, History, LinkedIn, Medium, Twitter, Wallet and Web
   - Add animation component: Fade component
   - Add components: DatetimeField and SelectField

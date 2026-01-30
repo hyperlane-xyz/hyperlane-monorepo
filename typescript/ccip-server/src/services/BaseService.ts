@@ -19,8 +19,7 @@ export interface ServiceConfigWithMultiProvider extends ServiceConfig {
   multiProvider: MultiProvider;
 }
 
-export interface ServiceConfigWithBaseUrl
-  extends ServiceConfigWithMultiProvider {
+export interface ServiceConfigWithBaseUrl extends ServiceConfigWithMultiProvider {
   baseUrl: string;
 }
 

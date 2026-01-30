@@ -49,9 +49,7 @@ interface IEvmEventLogsReaderStrategy {
   ): Promise<GetEventLogsResponse[]>;
 }
 
-export class EvmEtherscanLikeEventLogsReader
-  implements IEvmEventLogsReaderStrategy
-{
+export class EvmEtherscanLikeEventLogsReader implements IEvmEventLogsReaderStrategy {
   constructor(
     protected readonly chain: ChainNameOrId,
     protected readonly config: Awaited<

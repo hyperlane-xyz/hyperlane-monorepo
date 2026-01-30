@@ -31,9 +31,10 @@ import {
  * Reader for Cosmos Message ID Multisig ISM.
  * Uses message IDs for validator signature verification.
  */
-export class CosmosMessageIdMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
-{
+export class CosmosMessageIdMultisigIsmReader implements ArtifactReader<
+  MultisigIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(
@@ -118,9 +119,10 @@ export class CosmosMessageIdMultisigIsmWriter
  * Reader for Cosmos Merkle Root Multisig ISM.
  * Uses merkle root proofs for validator signature verification.
  */
-export class CosmosMerkleRootMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
-{
+export class CosmosMerkleRootMultisigIsmReader implements ArtifactReader<
+  MultisigIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(

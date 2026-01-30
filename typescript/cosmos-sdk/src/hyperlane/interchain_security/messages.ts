@@ -4,14 +4,12 @@ import { type isTx } from '@hyperlane-xyz/cosmos-types';
 
 import { type COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../../registry.js';
 
-export interface MsgCreateMessageIdMultisigIsmEncodeObject
-  extends EncodeObject {
+export interface MsgCreateMessageIdMultisigIsmEncodeObject extends EncodeObject {
   readonly typeUrl: typeof R.MsgCreateMessageIdMultisigIsm.proto.type;
   readonly value: Partial<isTx.MsgCreateMessageIdMultisigIsm>;
 }
 
-export interface MsgCreateMerkleRootMultisigIsmEncodeObject
-  extends EncodeObject {
+export interface MsgCreateMerkleRootMultisigIsmEncodeObject extends EncodeObject {
   readonly typeUrl: typeof R.MsgCreateMerkleRootMultisigIsm.proto.type;
   readonly value: Partial<isTx.MsgCreateMerkleRootMultisigIsm>;
 }

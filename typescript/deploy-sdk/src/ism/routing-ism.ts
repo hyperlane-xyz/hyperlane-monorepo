@@ -30,9 +30,10 @@ type DeployedRoutingIsmArtifact = ArtifactDeployed<
   DeployedIsmAddress
 >;
 
-export class RoutingIsmWriter
-  implements ArtifactWriter<RoutingIsmArtifactConfig, DeployedIsmAddress>
-{
+export class RoutingIsmWriter implements ArtifactWriter<
+  RoutingIsmArtifactConfig,
+  DeployedIsmAddress
+> {
   protected readonly logger: Logger = rootLogger.child({
     module: RoutingIsmWriter.name,
   });

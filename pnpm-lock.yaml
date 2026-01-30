@@ -43,7 +43,7 @@ catalogs:
       specifier: ^0.32.4
       version: 0.32.4
     '@eslint/js':
-      specifier: ^9.39.0
+      specifier: ^9.31.0
       version: 9.39.2
     '@eth-optimism/sdk':
       specifier: ^3.3.3
@@ -142,10 +142,10 @@ catalogs:
       specifier: ^17.0.24
       version: 17.0.35
     '@typescript-eslint/eslint-plugin':
-      specifier: ^8.54.0
+      specifier: ^8.1.6
       version: 8.54.0
     '@typescript-eslint/parser':
-      specifier: ^8.54.0
+      specifier: ^8.1.6
       version: 8.54.0
     '@vercel/ncc':
       specifier: ^0.38.3
@@ -175,7 +175,7 @@ catalogs:
       specifier: ^10.0.0
       version: 10.0.0
     eslint:
-      specifier: ^9.39.0
+      specifier: ^9.31.0
       version: 9.39.2
     eslint-config-prettier:
       specifier: ^10.1.8
@@ -186,9 +186,6 @@ catalogs:
     eslint-plugin-import:
       specifier: ^2.32.0
       version: 2.32.0
-    eslint-plugin-oxlint:
-      specifier: ^1.42.0
-      version: 1.42.0
     ethereum-waffle:
       specifier: ^4.0.10
       version: 4.0.10
@@ -213,9 +210,6 @@ catalogs:
     oxfmt:
       specifier: ^0.27.0
       version: 0.27.0
-    oxlint:
-      specifier: ^1.42.0
-      version: 1.42.0
     pino:
       specifier: ^8.19.0
       version: 8.21.0
@@ -262,7 +256,7 @@ catalogs:
       specifier: 5.8.3
       version: 5.8.3
     typescript-eslint:
-      specifier: ^8.54.0
+      specifier: ^8.37.0
       version: 8.54.0
     uuid:
       specifier: ^10.0.0
@@ -348,9 +342,6 @@ importers:
       eslint-plugin-jest:
         specifier: ^28.2.0
         version: 28.2.0(@typescript-eslint/eslint-plugin@8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(jest@29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3)))(typescript@5.8.3)
-      eslint-plugin-oxlint:
-        specifier: 'catalog:'
-        version: 1.42.0
       globals:
         specifier: ^16.3.0
         version: 16.5.0
@@ -363,9 +354,6 @@ importers:
       oxfmt:
         specifier: 'catalog:'
         version: 0.27.0
-      oxlint:
-        specifier: 'catalog:'
-        version: 1.42.0
       prettier:
         specifier: 'catalog:'
         version: 3.8.1
@@ -4603,10 +4591,6 @@ packages:
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
 
-  '@eslint-community/regexpp@4.12.1':
-    resolution: {integrity: sha512-CCZCDJuduB9OUkFkY2IgppNZMi2lBQgD2qzwXkEia16cge2pijY/aXi96CJMquDMn3nJdlPV1A5KrJEXwfLNzQ==}
-    engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
-
   '@eslint-community/regexpp@4.12.2':
     resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
@@ -5786,46 +5770,6 @@ packages:
 
   '@oxfmt/win32-x64@0.27.0':
     resolution: {integrity: sha512-cXKVkL1DuRq31QjwHqtBEUztyBmM9YZKdeFhsDLBURNdk1CFW42uWsmTsaqrXSoiCj7nCjfP0pwTOzxhQZra/A==}
-    cpu: [x64]
-    os: [win32]
-
-  '@oxlint/darwin-arm64@1.42.0':
-    resolution: {integrity: sha512-ui5CdAcDsXPQwZQEXOOSWsilJWhgj9jqHCvYBm2tDE8zfwZZuF9q58+hGKH1x5y0SV4sRlyobB2Quq6uU6EgeA==}
-    cpu: [arm64]
-    os: [darwin]
-
-  '@oxlint/darwin-x64@1.42.0':
-    resolution: {integrity: sha512-wo0M/hcpHRv7vFje99zHHqheOhVEwUOKjOgBKyi0M99xcLizv04kcSm1rTd6HSCeZgOtiJYZRVAlKhQOQw2byQ==}
-    cpu: [x64]
-    os: [darwin]
-
-  '@oxlint/linux-arm64-gnu@1.42.0':
-    resolution: {integrity: sha512-j4QzfCM8ks+OyM+KKYWDiBEQsm5RCW50H1Wz16wUyoFsobJ+X5qqcJxq6HvkE07m8euYmZelyB0WqsiDoz1v8g==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@oxlint/linux-arm64-musl@1.42.0':
-    resolution: {integrity: sha512-g5b1Uw7zo6yw4Ymzyd1etKzAY7xAaGA3scwB8tAp3QzuY7CYdfTwlhiLKSAKbd7T/JBgxOXAGNcLDorJyVTXcg==}
-    cpu: [arm64]
-    os: [linux]
-
-  '@oxlint/linux-x64-gnu@1.42.0':
-    resolution: {integrity: sha512-HnD99GD9qAbpV4q9iQil7mXZUJFpoBdDavfcC2CgGLPlawfcV5COzQPNwOgvPVkr7C0cBx6uNCq3S6r9IIiEIg==}
-    cpu: [x64]
-    os: [linux]
-
-  '@oxlint/linux-x64-musl@1.42.0':
-    resolution: {integrity: sha512-8NTe8A78HHFn+nBi+8qMwIjgv9oIBh+9zqCPNLH56ah4vKOPvbePLI6NIv9qSkmzrBuu8SB+FJ2TH/G05UzbNA==}
-    cpu: [x64]
-    os: [linux]
-
-  '@oxlint/win32-arm64@1.42.0':
-    resolution: {integrity: sha512-lAPS2YAuu+qFqoTNPFcNsxXjwSV0M+dOgAzzVTAN7Yo2ifj+oLOx0GsntWoM78PvQWI7Q827ZxqtU2ImBmDapA==}
-    cpu: [arm64]
-    os: [win32]
-
-  '@oxlint/win32-x64@1.42.0':
-    resolution: {integrity: sha512-3/KmyUOHNriL6rLpaFfm9RJxdhpXY2/Ehx9UuorJr2pUA+lrZL15FAEx/DOszYm5r10hfzj40+efAHcCilNvSQ==}
     cpu: [x64]
     os: [win32]
 
@@ -8825,12 +8769,6 @@ packages:
     peerDependencies:
       typescript: '>=4.8.4 <5.9.0'
 
-  '@typescript-eslint/tsconfig-utils@8.47.0':
-    resolution: {integrity: sha512-ybUAvjy4ZCL11uryalkKxuT3w3sXJAuWhOoGS3T/Wu+iUu1tGJmk5ytSY8gbdACNARmcYEB0COksD2j6hfGK2g==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-    peerDependencies:
-      typescript: '>=4.8.4 <6.0.0'
-
   '@typescript-eslint/tsconfig-utils@8.54.0':
     resolution: {integrity: sha512-dRgOyT2hPk/JwxNMZDsIXDgyl9axdJI3ogZ2XWhBPsnZUv+hPesa5iuhdYt2gzwA9t8RE5ytOJ6xB0moV0Ujvw==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -8850,10 +8788,6 @@ packages:
 
   '@typescript-eslint/types@8.37.0':
     resolution: {integrity: sha512-ax0nv7PUF9NOVPs+lmQ7yIE7IQmAf8LGcXbMvHX5Gm+YJUYNAl340XkGnrimxZ0elXyoQJuN5sbg6C4evKA4SQ==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
-  '@typescript-eslint/types@8.47.0':
-    resolution: {integrity: sha512-nHAE6bMKsizhA2uuYZbEbmp5z2UpffNrPEqiKIeN7VsV6UY/roxanWfoRrf6x/k9+Obf+GQdkm0nPU+vnMXo9A==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
   '@typescript-eslint/types@8.54.0':
@@ -11327,9 +11261,6 @@ packages:
       jest:
         optional: true
 
-  eslint-plugin-oxlint@1.42.0:
-    resolution: {integrity: sha512-3hB/TDbS0f+8ZnPffl0Z/wZ7Yc5NeY5slrxG60kEWInAA9047pdqRcv+Ckk/5KiL3HS2vWtHvmkavPKSFZVKxA==}
-
   eslint-plugin-react-hooks@5.2.0:
     resolution: {integrity: sha512-+f15FfK64YQwZdJNELETdn5ibXEUQmW1DZL6KXhNnc2heoy/sg9VJJeT7n8TlMWouzWqSWavFkIhHyIbIAEapg==}
     engines: {node: '>=10'}
@@ -13012,9 +12943,6 @@ packages:
     engines: {node: '>=6'}
     hasBin: true
 
-  jsonc-parser@3.3.1:
-    resolution: {integrity: sha512-HUgH65KyejrUFPvHFPbqOY0rsFip3Bo5wb4ngvdi1EpCYWUQDC5V+Y7mZws+DLkr4M//zQJoanu1SP+87Dv1oQ==}
-
   jsonfile@2.4.0:
     resolution: {integrity: sha512-PKllAqbgLgxHaj8TElYymKCAgrASebJrWpTnEkOaTowt23VKXXN0sUeriJ+eh7y6ufb/CC5ap11pz71/cM0hUw==}
 
@@ -14093,16 +14021,6 @@ packages:
     resolution: {integrity: sha512-FHR0HR3WeMKBuVEQvW3EeiRZXs/cQzNHxGbhCoAIEPr1FVcOa9GCqrKJXPqv2jkzmCg6Wqot+DvN9RzemyFJhw==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
-
-  oxlint@1.42.0:
-    resolution: {integrity: sha512-qnspC/lrp8FgKNaONLLn14dm+W5t0SSlus6V5NJpgI2YNT1tkFYZt4fBf14ESxf9AAh98WBASnW5f0gtw462Lg==}
-    engines: {node: ^20.19.0 || >=22.12.0}
-    hasBin: true
-    peerDependencies:
-      oxlint-tsgolint: '>=0.11.2'
-    peerDependenciesMeta:
-      oxlint-tsgolint:
-        optional: true
 
   p-cancelable@3.0.0:
     resolution: {integrity: sha512-mlVgR3PGuzlo0MmTdk4cXqXWlwQDLnONTAg6sm62XkMJEiRxN3GL3SffkYvqwonbkJBcrI7Uvv5Zh9yjvn2iUw==}
@@ -16241,12 +16159,6 @@ packages:
     engines: {node: '>=16'}
     peerDependencies:
       typescript: '>=4.2.0'
-
-  ts-api-utils@2.1.0:
-    resolution: {integrity: sha512-CUgTZL1irw8u29bzrOD/nH85jqyc74D6SshFgujOIA7osm2Rz7dYH77agkx7H4FBNxDq7Cjf+IjaX/8zwFW+ZQ==}
-    engines: {node: '>=18.12'}
-    peerDependencies:
-      typescript: '>=4.8.4'
 
   ts-api-utils@2.4.0:
     resolution: {integrity: sha512-3TaVTaAv2gTiMB35i3FiGJaRfwb3Pyn/j3m/bfAvGe8FB7CF6u+LMYqYlDh7reQf7UNvoTvdfAqHGmPGOSsPmA==}
@@ -19910,11 +19822,6 @@ snapshots:
   '@esbuild/win32-x64@0.23.1':
     optional: true
 
-  '@eslint-community/eslint-utils@4.7.0(eslint@9.39.2(jiti@1.21.7))':
-    dependencies:
-      eslint: 9.39.2(jiti@1.21.7)
-      eslint-visitor-keys: 3.4.3
-
   '@eslint-community/eslint-utils@4.7.0(eslint@9.39.2(jiti@2.6.1))':
     dependencies:
       eslint: 9.39.2(jiti@2.6.1)
@@ -19929,8 +19836,6 @@ snapshots:
     dependencies:
       eslint: 9.39.2(jiti@2.6.1)
       eslint-visitor-keys: 3.4.3
-
-  '@eslint-community/regexpp@4.12.1': {}
 
   '@eslint-community/regexpp@4.12.2': {}
 
@@ -21866,30 +21771,6 @@ snapshots:
     optional: true
 
   '@oxfmt/win32-x64@0.27.0':
-    optional: true
-
-  '@oxlint/darwin-arm64@1.42.0':
-    optional: true
-
-  '@oxlint/darwin-x64@1.42.0':
-    optional: true
-
-  '@oxlint/linux-arm64-gnu@1.42.0':
-    optional: true
-
-  '@oxlint/linux-arm64-musl@1.42.0':
-    optional: true
-
-  '@oxlint/linux-x64-gnu@1.42.0':
-    optional: true
-
-  '@oxlint/linux-x64-musl@1.42.0':
-    optional: true
-
-  '@oxlint/win32-arm64@1.42.0':
-    optional: true
-
-  '@oxlint/win32-x64@1.42.0':
     optional: true
 
   '@paralleldrive/cuid2@2.3.1':
@@ -26749,8 +26630,8 @@ snapshots:
 
   '@typescript-eslint/project-service@8.37.0(typescript@5.8.3)':
     dependencies:
-      '@typescript-eslint/tsconfig-utils': 8.47.0(typescript@5.8.3)
-      '@typescript-eslint/types': 8.47.0
+      '@typescript-eslint/tsconfig-utils': 8.54.0(typescript@5.8.3)
+      '@typescript-eslint/types': 8.54.0
       debug: 4.4.3(supports-color@5.5.0)
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -26781,10 +26662,6 @@ snapshots:
       '@typescript-eslint/visitor-keys': 8.54.0
 
   '@typescript-eslint/tsconfig-utils@8.37.0(typescript@5.8.3)':
-    dependencies:
-      typescript: 5.8.3
-
-  '@typescript-eslint/tsconfig-utils@8.47.0(typescript@5.8.3)':
     dependencies:
       typescript: 5.8.3
 
@@ -26820,8 +26697,6 @@ snapshots:
 
   '@typescript-eslint/types@8.37.0': {}
 
-  '@typescript-eslint/types@8.47.0': {}
-
   '@typescript-eslint/types@8.54.0': {}
 
   '@typescript-eslint/typescript-estree@6.21.0(typescript@5.8.3)':
@@ -26850,7 +26725,7 @@ snapshots:
       is-glob: 4.0.3
       minimatch: 9.0.5
       semver: 7.7.3
-      ts-api-utils: 2.1.0(typescript@5.8.3)
+      ts-api-utils: 2.4.0(typescript@5.8.3)
       typescript: 5.8.3
     transitivePeerDependencies:
       - supports-color
@@ -26886,7 +26761,7 @@ snapshots:
 
   '@typescript-eslint/utils@8.37.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.8.3)':
     dependencies:
-      '@eslint-community/eslint-utils': 4.7.0(eslint@9.39.2(jiti@1.21.7))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@1.21.7))
       '@typescript-eslint/scope-manager': 8.37.0
       '@typescript-eslint/types': 8.37.0
       '@typescript-eslint/typescript-estree': 8.37.0(typescript@5.8.3)
@@ -30555,10 +30430,6 @@ snapshots:
       - supports-color
       - typescript
 
-  eslint-plugin-oxlint@1.42.0:
-    dependencies:
-      jsonc-parser: 3.3.1
-
   eslint-plugin-react-hooks@5.2.0(eslint@9.39.2(jiti@1.21.7)):
     dependencies:
       eslint: 9.39.2(jiti@1.21.7)
@@ -30624,7 +30495,7 @@ snapshots:
   eslint@9.39.2(jiti@1.21.7):
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@1.21.7))
-      '@eslint-community/regexpp': 4.12.1
+      '@eslint-community/regexpp': 4.12.2
       '@eslint/config-array': 0.21.1
       '@eslint/config-helpers': 0.4.2
       '@eslint/core': 0.17.0
@@ -30665,7 +30536,7 @@ snapshots:
   eslint@9.39.2(jiti@2.6.1):
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@2.6.1))
-      '@eslint-community/regexpp': 4.12.1
+      '@eslint-community/regexpp': 4.12.2
       '@eslint/config-array': 0.21.1
       '@eslint/config-helpers': 0.4.2
       '@eslint/core': 0.17.0
@@ -32914,8 +32785,6 @@ snapshots:
 
   json5@2.2.3: {}
 
-  jsonc-parser@3.3.1: {}
-
   jsonfile@2.4.0:
     optionalDependencies:
       graceful-fs: 4.2.11
@@ -34288,17 +34157,6 @@ snapshots:
       '@oxfmt/linux-x64-musl': 0.27.0
       '@oxfmt/win32-arm64': 0.27.0
       '@oxfmt/win32-x64': 0.27.0
-
-  oxlint@1.42.0:
-    optionalDependencies:
-      '@oxlint/darwin-arm64': 1.42.0
-      '@oxlint/darwin-x64': 1.42.0
-      '@oxlint/linux-arm64-gnu': 1.42.0
-      '@oxlint/linux-arm64-musl': 1.42.0
-      '@oxlint/linux-x64-gnu': 1.42.0
-      '@oxlint/linux-x64-musl': 1.42.0
-      '@oxlint/win32-arm64': 1.42.0
-      '@oxlint/win32-x64': 1.42.0
 
   p-cancelable@3.0.0: {}
 
@@ -37022,10 +36880,6 @@ snapshots:
       '@trpc/server': 10.45.2
 
   ts-api-utils@1.4.1(typescript@5.8.3):
-    dependencies:
-      typescript: 5.8.3
-
-  ts-api-utils@2.1.0(typescript@5.8.3):
     dependencies:
       typescript: 5.8.3
 

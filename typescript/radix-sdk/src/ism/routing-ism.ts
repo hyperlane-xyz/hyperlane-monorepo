@@ -28,9 +28,10 @@ import {
   getSetRoutingIsmOwnerTx,
 } from './ism-tx.js';
 
-export class RadixRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
-{
+export class RadixRoutingIsmRawReader implements ArtifactReader<
+  RawRoutingIsmArtifactConfig,
+  DeployedIsmAddress
+> {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(

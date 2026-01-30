@@ -8,7 +8,6 @@ description: Investigate merkle root mismatch alerts between relayer and validat
 ## When to Use
 
 1. **Alert-based triggers:**
-
    - Alert mentions "merkle root mismatch"
    - GCP logs show: "checkpoint root does not match canonical root from merkle proof"
    - The `hyperlane_merkle_root_mismatch` metric is firing

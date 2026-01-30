@@ -23,9 +23,10 @@ import { getNewIsmAddress } from './base.js';
 import { getTestIsmConfig } from './ism-query.js';
 import { getCreateTestIsmTx } from './ism-tx.js';
 
-export class AleoTestIsmReader
-  implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
-{
+export class AleoTestIsmReader implements ArtifactReader<
+  TestIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(

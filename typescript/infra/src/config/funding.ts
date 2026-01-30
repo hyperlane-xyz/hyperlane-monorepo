@@ -30,8 +30,9 @@ export interface CronJobConfig {
   prometheusPushGateway: string;
 }
 
-export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
-  extends CronJobConfig {
+export interface KeyFunderConfig<
+  SupportedChains extends readonly ChainName[],
+> extends CronJobConfig {
   contextFundingFrom: Contexts;
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;

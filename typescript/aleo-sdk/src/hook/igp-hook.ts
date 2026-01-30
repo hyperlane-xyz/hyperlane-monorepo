@@ -30,9 +30,10 @@ import {
   getSetIgpHookOwnerTx,
 } from './hook-tx.js';
 
-export class AleoIgpHookReader
-  implements ArtifactReader<IgpHookConfig, DeployedHookAddress>
-{
+export class AleoIgpHookReader implements ArtifactReader<
+  IgpHookConfig,
+  DeployedHookAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(

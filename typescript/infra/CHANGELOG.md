@@ -5,7 +5,6 @@
 ### Patch Changes
 
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
@@ -1507,7 +1506,6 @@
 
 - 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
 - 9681df08d: Enabled verification of contracts as part of the deployment flow.
-
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
   - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.

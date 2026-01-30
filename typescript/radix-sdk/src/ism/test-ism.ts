@@ -21,9 +21,10 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getTestIsmConfig } from './ism-query.js';
 import { getCreateNoopIsmTx } from './ism-tx.js';
 
-export class RadixTestIsmReader
-  implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
-{
+export class RadixTestIsmReader implements ArtifactReader<
+  TestIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(

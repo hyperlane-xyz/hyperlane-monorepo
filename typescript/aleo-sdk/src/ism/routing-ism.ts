@@ -30,9 +30,10 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
-export class AleoRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
-{
+export class AleoRoutingIsmRawReader implements ArtifactReader<
+  RawRoutingIsmArtifactConfig,
+  DeployedIsmAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(

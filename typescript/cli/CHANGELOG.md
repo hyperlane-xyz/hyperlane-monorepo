@@ -6,7 +6,6 @@
 
 - c094f7f: Allowed `warp check --ica` to validate ICA ownership on chains before warp apply/extension by moving config filtering after the ICA check.
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
@@ -67,7 +66,6 @@
 - bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
 - 7032a7c: Added `hyperlane ica deploy` command to deploy Interchain Accounts (ICAs) on destination chains for a specified owner on an origin chain. The command accepts `--origin`, `--destinations`, `--owner`, and `--key` parameters, and outputs a table showing the deployment status for each destination chain.
 - 9963e0e: feat: separate rebalancer package
-
   - Extract rebalancer logic from CLI into dedicated `@hyperlane-xyz/rebalancer` package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
   - CLI now imports from new package, maintaining backward compatibility for manual rebalancing
@@ -83,7 +81,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -1373,7 +1370,6 @@
 
 - f44589e45: Improve warp and kurtosis deploy command UX
 - 2da6ccebe: Allow users to only configure validators for their chain
-
   - Don't restrict user to having two chains for ism config
   - If the user accidentally picks two chains, we prompt them again to confirm if they don't want to use the hyperlane validators for their multisigConfig
 
