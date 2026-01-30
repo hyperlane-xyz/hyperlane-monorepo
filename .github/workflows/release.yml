@@ -4,6 +4,7 @@ on:
   push:
     branches:
       - main
+      - speed-up-cross-platform-cli-test # TODO: revert after testing
     paths:
       - '.changeset/**'
       - '**/package.json'
@@ -127,8 +128,9 @@ jobs:
   # cli-install-test workflow to verify that the CLI installs correctly.
   # Windows is excluded here for speed but tested nightly via cli-install-test.yml.
   cli-install-cross-platform-release-test:
-    needs: [check-latest-published]
-    if: needs.check-latest-published.outputs.all_latest == 'false'
+    # TODO: revert after testing - temporarily run unconditionally
+    # needs: [check-latest-published]
+    # if: needs.check-latest-published.outputs.all_latest == 'false'
     uses: ./.github/workflows/cli-install-test.yml
     with:
       include-windows: false
@@ -136,7 +138,8 @@ jobs:
   # This job publishes the release to NPM.
   publish-release:
     needs: cli-install-cross-platform-release-test
-    if: github.ref == 'refs/heads/main'
+    # TODO: revert after testing - disabled to prevent accidental publish
+    if: false # was: github.ref == 'refs/heads/main'
     permissions:
       id-token: write
       contents: write
