@@ -49,6 +49,7 @@ contract FailingIsm is IInterchainSecurityModule {
 
 contract InterchainAccountRouterTestBase is Test {
     using TypeCasts for address;
+    using StandardHookMetadata for bytes;
 
     event InterchainAccountCreated(
         address indexed account,
@@ -233,6 +234,7 @@ contract InterchainAccountRouterTestBase is Test {
 contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
     using TypeCasts for address;
     using Message for bytes;
+    using StandardHookMetadata for bytes;
 
     function testFuzz_constructor(address _localOwner) public {
         OwnableMulticall _account = destinationIcaRouter
@@ -1508,6 +1510,104 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
             feeBalanceBefore - feeBalanceAfter,
             feeQuote,
             "Fee tokens should be charged"
+        );
+    }
+
+    function test_feeToken_shortMetadata_returnsZeroAddress() public {
+        // Test that feeToken(bytes memory) returns address(0) for short metadata
+        // This covers the early return branch when metadata.length < 106
+
+        // Empty metadata - should use native payment (feeToken returns address(0))
+        bytes memory emptyMetadata = bytes("");
+        assertEq(
+            emptyMetadata.feeToken(),
+            address(0),
+            "Empty metadata should return zero address"
+        );
+
+        // Standard 86-byte metadata without fee token - should return address(0)
+        bytes memory standardMetadata = StandardHookMetadata.format(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this)
+        );
+        assertEq(
+            standardMetadata.length,
+            86,
+            "Standard metadata should be 86 bytes"
+        );
+        assertEq(
+            standardMetadata.feeToken(),
+            address(0),
+            "86-byte metadata should return zero address"
+        );
+
+        // Metadata with fee token (106 bytes) - should return the fee token
+        bytes memory erc20Metadata = StandardHookMetadata.formatWithFeeToken(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this),
+            address(feeToken)
+        );
+        assertEq(
+            erc20Metadata.length,
+            106,
+            "ERC20 metadata should be 106 bytes"
+        );
+        assertEq(
+            erc20Metadata.feeToken(),
+            address(feeToken),
+            "106-byte metadata should return fee token"
+        );
+    }
+
+    function test_callRemote_withShortMetadata_usesNativeFee() public {
+        // Test that when passing short metadata (without fee token),
+        // the native payment path is used (no ERC20 tokens transferred)
+
+        // Enroll router for the regular ICA router
+        originIcaRouter.enrollRemoteRouterAndIsm(
+            destination,
+            routerOverride,
+            ismOverride
+        );
+
+        // Use standard 86-byte metadata (no fee token field)
+        bytes memory shortMetadata = StandardHookMetadata.format(
+            0,
+            GAS_LIMIT_OVERRIDE,
+            address(this)
+        );
+
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = CallLib.Call({
+            to: address(target).addressToBytes32(),
+            value: 0,
+            data: abi.encodeCall(target.set, (bytes32("test")))
+        });
+
+        uint256 feeTokenBalanceBefore = feeToken.balanceOf(address(this));
+
+        // Get native quote for this call using the regular ICA router
+        uint256 nativeQuote = originIcaRouter.quoteGasPayment(
+            destination,
+            GAS_LIMIT_OVERRIDE
+        );
+
+        // Call with native payment (should not touch feeToken)
+        originIcaRouter.callRemote{value: nativeQuote}(
+            destination,
+            calls,
+            shortMetadata
+        );
+
+        uint256 feeTokenBalanceAfter = feeToken.balanceOf(address(this));
+
+        // Verify no ERC20 tokens were transferred
+        assertEq(
+            feeTokenBalanceBefore,
+            feeTokenBalanceAfter,
+            "No ERC20 tokens should be charged when using short metadata"
         );
     }
 }
