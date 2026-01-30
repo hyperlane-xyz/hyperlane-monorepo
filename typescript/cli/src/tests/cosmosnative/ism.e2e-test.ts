@@ -1,6 +1,7 @@
 import { expect } from 'chai';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { normalizeConfig } from '@hyperlane-xyz/sdk';
+import { ProtocolType, deepEquals } from '@hyperlane-xyz/utils';
 
 import { writeYamlOrJson } from '../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../commands/core.js';
@@ -67,6 +68,7 @@ describe('hyperlane ism e2e tests (cosmos)', function () {
 
     const configPath = `${TEMP_PATH}/test-ism-config-cosmos.yaml`;
     const deployOutPath = `${TEMP_PATH}/deployed-ism-cosmos.json`;
+    const readOutPath = `${TEMP_PATH}/ism-read-cosmos.yaml`;
 
     writeYamlOrJson(configPath, config);
 
@@ -78,6 +80,16 @@ describe('hyperlane ism e2e tests (cosmos)', function () {
     );
     expect(address).to.be.a('string').and.not.be.empty;
 
-    // Note: ism read is not yet supported for Cosmos, so we only verify deploy
+    // Read back the deployed ISM config
+    const readConfig = await ismCommands.readConfig(address, readOutPath);
+
+    // Compare configs using normalizeConfig (strips addresses, lowercases, sorts arrays)
+    const normalizedOriginal = normalizeConfig(config);
+    const normalizedRead = normalizeConfig(readConfig);
+
+    expect(
+      deepEquals(normalizedOriginal, normalizedRead),
+      `Config mismatch:\nOriginal: ${JSON.stringify(normalizedOriginal, null, 2)}\nRead: ${JSON.stringify(normalizedRead, null, 2)}`,
+    ).to.be.true;
   });
 });

@@ -59,6 +59,7 @@ export async function resolveChains(
     case CommandType.CORE_READ:
     case CommandType.CORE_CHECK:
     case CommandType.ISM_DEPLOY:
+    case CommandType.ISM_READ:
       return resolveChain(argv);
     case CommandType.ICA_DEPLOY:
       return resolveIcaDeployChains(argv);
