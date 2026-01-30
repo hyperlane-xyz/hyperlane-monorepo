@@ -34,6 +34,12 @@ export const DOMAIN_IDS: Record<TestChain, number> = {
   base: 8453,
 };
 
+export const FORK_BLOCK_NUMBERS: Record<TestChain, number> = {
+  ethereum: 24348260,
+  arbitrum: 426829017,
+  base: 41496846,
+};
+
 export const TEST_WARP_ROUTE_CONFIG: WarpCoreConfig = {
   tokens: [
     {

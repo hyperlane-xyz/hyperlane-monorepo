@@ -58,26 +58,18 @@ export interface IActionTracker {
 
   // === Transfer Queries ===
 
-  /**
-   * Get all transfers currently in progress.
-   */
+  getTransfer(id: string): Promise<Transfer | undefined>;
+
   getInProgressTransfers(): Promise<Transfer[]>;
 
-  /**
-   * Get all transfers destined for a specific domain.
-   */
   getTransfersByDestination(destination: Domain): Promise<Transfer[]>;
 
   // === RebalanceIntent Queries ===
 
-  /**
-   * Get all active rebalance intents (not_started + in_progress).
-   */
+  getRebalanceIntent(id: string): Promise<RebalanceIntent | undefined>;
+
   getActiveRebalanceIntents(): Promise<RebalanceIntent[]>;
 
-  /**
-   * Get all rebalance intents destined for a specific domain.
-   */
   getRebalanceIntentsByDestination(
     destination: Domain,
   ): Promise<RebalanceIntent[]>;
@@ -109,13 +101,14 @@ export interface IActionTracker {
    */
   failRebalanceIntent(id: string): Promise<void>;
 
+  // === RebalanceAction Queries ===
+
+  getRebalanceAction(id: string): Promise<RebalanceAction | undefined>;
+
+  getInProgressActions(): Promise<RebalanceAction[]>;
+
   // === RebalanceAction Management ===
 
-  /**
-   * Create a new rebalance action.
-   * Initial status: 'in_progress'
-   * Also transitions parent intent from 'not_started' to 'in_progress'.
-   */
   createRebalanceAction(
     params: CreateRebalanceActionParams,
   ): Promise<RebalanceAction>;

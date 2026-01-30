@@ -33,12 +33,14 @@ export interface ForkManagerConfig {
   chains: readonly string[];
   registry: IRegistry;
   multiProvider: MultiProvider;
+  blockNumbers?: Record<string, number>;
 }
 
 async function forkChain(
   multiProvider: MultiProvider,
   chainName: string,
   port: number,
+  blockNumber?: number,
 ): Promise<ForkResult> {
   const chainMetadata = multiProvider.getChainMetadata(chainName);
   const rpcUrl = chainMetadata.rpcUrls[0];
@@ -50,6 +52,7 @@ async function forkChain(
     rpcUrl: rpcUrl.http,
     chainId: Number(chainMetadata.chainId),
     port,
+    blockNumber,
   });
 
   const kill = async (isPanicking = false): Promise<void> => {
@@ -103,7 +106,13 @@ export class ForkManager {
       for (let i = 0; i < this.config.chains.length; i++) {
         const chain = this.config.chains[i];
         const port = ports[i];
-        const result = await forkChain(this.config.multiProvider, chain, port);
+        const blockNumber = this.config.blockNumbers?.[chain];
+        const result = await forkChain(
+          this.config.multiProvider,
+          chain,
+          port,
+          blockNumber,
+        );
         forks.set(chain, result);
         forkedProviders.set(chain, result.provider);
       }
