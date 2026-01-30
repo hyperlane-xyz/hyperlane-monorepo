@@ -377,7 +377,9 @@ describe('RegistryService', () => {
       await registryService.initialize();
     });
 
-    it('should log warning on watch failure', async () => {
+    it('should log warning and fall back to polling on watch failure', async () => {
+      clock = sinon.useFakeTimers(Date.now());
+
       const fsRegistry = {
         ...mockRegistry,
         type: RegistryType.FileSystem,
@@ -401,10 +403,20 @@ describe('RegistryService', () => {
       await registryService.initialize();
 
       expect(loggerWarnStub.calledOnce).to.be.true;
-      expect(loggerWarnStub.firstCall.args[1]).to.include('Failed to watch');
+      expect(loggerWarnStub.firstCall.args[1]).to.include(
+        'falling back to polling',
+      );
+
+      // Verify polling fallback works
+      getRegistryStub.resetHistory();
+      clock.tick(REFRESH_INTERVAL + 1);
+      await registryService.getCurrentRegistry();
+      expect(getRegistryStub.calledOnce).to.be.true;
     });
 
-    it('should log warning on runtime watcher error', async () => {
+    it('should log warning and fall back to polling on runtime watcher error', async () => {
+      clock = sinon.useFakeTimers(Date.now());
+
       const fsRegistry = {
         ...mockRegistry,
         type: RegistryType.FileSystem,
@@ -429,6 +441,12 @@ describe('RegistryService', () => {
       );
 
       await registryService.initialize();
+      getRegistryStub.resetHistory();
+
+      // Verify polling is skipped while watcher is active
+      clock.tick(REFRESH_INTERVAL + 1);
+      await registryService.getCurrentRegistry();
+      expect(getRegistryStub.called).to.be.false;
 
       // Simulate runtime watcher error
       expect(capturedOnError).to.exist;
@@ -438,6 +456,11 @@ describe('RegistryService', () => {
       expect(loggerWarnStub.firstCall.args[1]).to.include(
         'falling back to polling',
       );
+
+      // Verify polling fallback works after watcher error
+      clock.tick(REFRESH_INTERVAL + 1);
+      await registryService.getCurrentRegistry();
+      expect(getRegistryStub.calledOnce).to.be.true;
     });
   });
 
