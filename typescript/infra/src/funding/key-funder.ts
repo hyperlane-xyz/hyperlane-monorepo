@@ -138,6 +138,9 @@ export class KeyFunderHelmManager extends HelmManager {
       // Add sweep config only for chains in CHAINS_TO_SWEEP with valid thresholds
       if (CHAINS_TO_SWEEP.has(chain)) {
         const sweepThreshold = this.config.lowUrgencyKeyFunderBalances?.[chain];
+        if (!sweepThreshold) {
+          throw new Error(`Sweep threshold is missing for chain ${chain}`);
+        }
         const thresholdNum = Number(sweepThreshold);
         if (!Number.isFinite(thresholdNum) || thresholdNum <= 0) {
           throw new Error(`Sweep threshold is invalid for chain ${chain}`);
