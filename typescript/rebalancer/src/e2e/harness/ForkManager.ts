@@ -1,4 +1,4 @@
-import { providers } from 'ethers';
+import { ethers, providers } from 'ethers';
 
 import {
   type IRegistry,
@@ -13,6 +13,9 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { allocatePorts, releasePorts } from './PortAllocator.js';
+
+const ANVIL_TEST_PRIVATE_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 interface ForkResult {
   endpoint: string;
@@ -166,7 +169,7 @@ export class ForkManager {
       const endpoint = provider.connection.url;
       chainMetadataOverrides[chain] = {
         rpcUrls: [{ http: endpoint }],
-        blocks: { confirmations: 1, reorgPeriod: 0 },
+        blocks: { confirmations: 0, reorgPeriod: 0 },
       };
     }
 
@@ -189,9 +192,12 @@ export class ForkManager {
       forkedMultiProvider.setProvider(chain, provider);
     }
 
-    const signer = this.config.multiProvider.getSigner(this.config.chains[0]);
+    // Create fresh wallet connected to forked providers (don't reuse original signer
+    // which has SmartProvider attached with wrong network name)
+    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
     for (const chain of this.config.chains) {
-      forkedMultiProvider.setSigner(chain, signer);
+      const chainProvider = forkedProviders.get(chain)!;
+      forkedMultiProvider.setSigner(chain, wallet.connect(chainProvider));
     }
 
     return forkedMultiProvider;

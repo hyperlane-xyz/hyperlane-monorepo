@@ -28,6 +28,7 @@ import {
   setTokenBalanceViaStorage,
 } from './harness/BridgeSetup.js';
 import { ForkManager } from './harness/ForkManager.js';
+import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
   executeWarpTransfer,
@@ -120,6 +121,29 @@ describe('Collateral Deficit E2E', function () {
     hyperlaneCore = HyperlaneCore.fromAddressesMap(
       coreAddresses,
       multiProvider,
+    );
+
+    // Set up TrustedRelayerIsm on routers so we can relay without validator signatures
+    const mailboxesByChain: Record<string, string> = {};
+    for (const chain of TEST_CHAINS) {
+      const addr = allCoreAddresses[chain]?.mailbox;
+      if (addr) mailboxesByChain[chain] = addr;
+    }
+    // Set up ISM on monitored route (for user transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
+    );
+    // Set up ISM on bridge route (for rebalance transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_SUPERSEED_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
     );
 
     snapshotIds = new Map();
@@ -420,8 +444,26 @@ describe('Collateral Deficit E2E', function () {
     expect(retrievedAction!.id).to.equal(actionToArbitrum!.id);
     expect(retrievedAction!.status).to.equal('in_progress');
 
-    // Simulate message delivery by completing action directly
-    await context.tracker.completeRebalanceAction(actionToArbitrum!.id);
+    // Relay the rebalance message to destination (use global multiProvider which has signers on all chains)
+    expect(actionToArbitrum!.txHash, 'Action should have txHash').to.exist;
+    const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
+      actionToArbitrum!.txHash!,
+    );
+    const rebalanceRelayResult = await tryRelayMessage(
+      multiProvider,
+      hyperlaneCore,
+      {
+        dispatchTx: rebalanceTxReceipt,
+        messageId: actionToArbitrum!.messageId,
+        origin: 'ethereum',
+        destination: 'arbitrum',
+      },
+    );
+    expect(rebalanceRelayResult.success, 'Rebalance relay should succeed').to.be
+      .true;
+
+    // Sync actions to detect delivery and mark complete
+    await context.tracker.syncRebalanceActions();
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(
