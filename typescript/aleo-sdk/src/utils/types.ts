@@ -51,7 +51,8 @@ export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
 interface BaseAleoWarpTokenConfig {
   owner: string;
   mailbox: string;
-  ism?: string; // ISM address or undefined if not set
+  ism?: string;
+  hook?: string;
   remoteRouters: Record<
     number,
     {
@@ -67,7 +68,7 @@ export interface AleoNativeWarpTokenConfig extends BaseAleoWarpTokenConfig {
 
 export interface AleoCollateralWarpTokenConfig extends BaseAleoWarpTokenConfig {
   type: AleoTokenType.COLLATERAL;
-  token: string; // collateral token ID
+  token: string;
   name: string;
   symbol: string;
   decimals: number;
@@ -85,16 +86,21 @@ export type AleoWarpTokenConfig =
   | AleoCollateralWarpTokenConfig
   | AleoSyntheticWarpTokenConfig;
 
+export interface OnChainArtifactManagers {
+  ismManagerAddress: string;
+  hookManagerAddress: string;
+}
+
 /**
  * Transform Aleo warp token's common fields to provider-sdk artifact format.
  * Handles ISM, remote routers, and destination gas transformations that are
  * identical across all token types.
  */
 export function aleoWarpFieldsToArtifactApi(
-  token: Pick<AleoWarpTokenConfig, 'ism' | 'remoteRouters'>,
+  token: Pick<AleoWarpTokenConfig, 'ism' | 'remoteRouters' | 'hook'>,
 ): Pick<
   RawWarpArtifactConfig,
-  'interchainSecurityModule' | 'remoteRouters' | 'destinationGas'
+  'interchainSecurityModule' | 'hook' | 'remoteRouters' | 'destinationGas'
 > {
   return {
     interchainSecurityModule: token.ism
@@ -102,6 +108,14 @@ export function aleoWarpFieldsToArtifactApi(
           artifactState: ArtifactState.UNDERIVED,
           deployed: {
             address: token.ism,
+          },
+        }
+      : undefined,
+    hook: token.hook
+      ? {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: {
+            address: token.hook,
           },
         }
       : undefined,
