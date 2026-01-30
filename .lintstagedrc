@@ -1,6 +1,6 @@
 {
-  "*.js": "prettier --write",
-  "*.ts": "prettier --write",
-  "*.md": "prettier --write",
+  "*.js": "oxfmt --write",
+  "*.ts": "oxfmt --write",
+  "*.md": "oxfmt --write",
   "*.sol": "prettier --write"
 }

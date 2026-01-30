@@ -127,11 +127,10 @@ function getFormPostRequestBody<
   };
 }
 
-interface GetContractDeploymentTransaction
-  extends BaseEtherscanLikeAPIParams<
-    EtherscanLikeExplorerApiModule.CONTRACT,
-    EtherscanLikeExplorerApiAction.GET_CONTRACT_CREATION_CODE
-  > {
+interface GetContractDeploymentTransaction extends BaseEtherscanLikeAPIParams<
+  EtherscanLikeExplorerApiModule.CONTRACT,
+  EtherscanLikeExplorerApiAction.GET_CONTRACT_CREATION_CODE
+> {
   contractaddresses: Address;
 }
 
@@ -181,11 +180,10 @@ export async function getContractDeploymentTransaction(
 }
 
 // based on https://docs.etherscan.io/api-endpoints/logs
-interface GetEventLogs
-  extends BaseEtherscanLikeAPIParams<
-    EtherscanLikeExplorerApiModule.LOGS,
-    EtherscanLikeExplorerApiAction.GET_LOGS
-  > {
+interface GetEventLogs extends BaseEtherscanLikeAPIParams<
+  EtherscanLikeExplorerApiModule.LOGS,
+  EtherscanLikeExplorerApiAction.GET_LOGS
+> {
   address: Address;
   fromBlock: number;
   toBlock: number;
@@ -238,11 +236,10 @@ export async function getLogsFromEtherscanLikeExplorerAPI(
   );
 }
 
-interface GetContractVerificationStatus
-  extends BaseEtherscanLikeAPIParams<
-    EtherscanLikeExplorerApiModule.CONTRACT,
-    EtherscanLikeExplorerApiAction.GETSOURCECODE
-  > {
+interface GetContractVerificationStatus extends BaseEtherscanLikeAPIParams<
+  EtherscanLikeExplorerApiModule.CONTRACT,
+  EtherscanLikeExplorerApiAction.GETSOURCECODE
+> {
   address: Address;
 }
 
@@ -293,11 +290,10 @@ type VerifyImplementationContractViaSolidityStandardJsonOptions = {
   constructorArguments?: HexString;
 };
 
-interface RawVerifyImplementationContractViaSolidityStandardJsonOptions
-  extends BaseEtherscanLikeAPIParams<
-    EtherscanLikeExplorerApiModule.CONTRACT,
-    EtherscanLikeExplorerApiAction.VERIFY_IMPLEMENTATION
-  > {
+interface RawVerifyImplementationContractViaSolidityStandardJsonOptions extends BaseEtherscanLikeAPIParams<
+  EtherscanLikeExplorerApiModule.CONTRACT,
+  EtherscanLikeExplorerApiAction.VERIFY_IMPLEMENTATION
+> {
   codeformat: 'solidity-standard-json-input';
   compilerversion: string; // see https://etherscan.io/solcversions for list of support versions
   licenseType?: ExplorerLicenseType;
@@ -348,11 +344,10 @@ type VerifyProxyContractOptions = {
   implementationAddress: Address;
 };
 
-interface RawVerifyProxyContractOptions
-  extends BaseEtherscanLikeAPIParams<
-    EtherscanLikeExplorerApiModule.CONTRACT,
-    EtherscanLikeExplorerApiAction.VERIFY_PROXY
-  > {
+interface RawVerifyProxyContractOptions extends BaseEtherscanLikeAPIParams<
+  EtherscanLikeExplorerApiModule.CONTRACT,
+  EtherscanLikeExplorerApiAction.VERIFY_PROXY
+> {
   address: Address;
   expectedimplementation: Address;
 }
@@ -379,12 +374,11 @@ export async function verifyProxyContract(
   return handleEtherscanResponse(response);
 }
 
-interface RawGetContractVerificationStatus
-  extends BaseEtherscanLikeAPIParams<
-    EtherscanLikeExplorerApiModule.CONTRACT,
-    | EtherscanLikeExplorerApiAction.CHECK_IMPLEMENTATION_STATUS
-    | EtherscanLikeExplorerApiAction.CHECK_PROXY_STATUS
-  > {
+interface RawGetContractVerificationStatus extends BaseEtherscanLikeAPIParams<
+  EtherscanLikeExplorerApiModule.CONTRACT,
+  | EtherscanLikeExplorerApiAction.CHECK_IMPLEMENTATION_STATUS
+  | EtherscanLikeExplorerApiAction.CHECK_PROXY_STATUS
+> {
   guid: string;
 }
 

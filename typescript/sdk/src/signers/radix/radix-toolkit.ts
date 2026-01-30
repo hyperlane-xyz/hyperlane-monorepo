@@ -10,9 +10,7 @@ import { RadixTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
-export class RadixMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Radix>
-{
+export class RadixMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Radix> {
   constructor(
     private readonly chainName: ChainName,
     private readonly signer: AltVM.ISigner<

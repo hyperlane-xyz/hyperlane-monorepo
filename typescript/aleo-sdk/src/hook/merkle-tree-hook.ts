@@ -28,9 +28,10 @@ import { getNewHookAddress } from './base.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class AleoMerkleTreeHookReader
-  implements ArtifactReader<MerkleTreeHookConfig, DeployedHookAddress>
-{
+export class AleoMerkleTreeHookReader implements ArtifactReader<
+  MerkleTreeHookConfig,
+  DeployedHookAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(

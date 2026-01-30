@@ -40,9 +40,7 @@ async function withFileLock<T>(
   }
 }
 
-export class EV5FileSubmitter
-  implements TxSubmitterInterface<ProtocolType.Ethereum>
-{
+export class EV5FileSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
   txSubmitterType: TxSubmitterType =
     CustomTxSubmitterType.FILE as TxSubmitterType;
   protected readonly logger: Logger = rootLogger.child({

@@ -2,19 +2,29 @@
   "name": "@hyperlane-xyz/metrics",
   "version": "0.1.1",
   "description": "Shared Prometheus metrics utilities for Hyperlane monitoring",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "keywords": [
+    "hyperlane",
+    "metrics",
+    "monitoring",
+    "prometheus",
+    "warp-route"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist",
     "src"
   ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "clean": "rm -rf dist",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
-    "prettier": "prettier --write ./src",
+    "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test"
   },
@@ -36,22 +46,12 @@
     "chai": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "engines": {
     "node": ">=18"
-  },
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "prometheus",
-    "monitoring",
-    "metrics",
-    "warp-route"
-  ],
-  "author": "Abacus Works, Inc.",
-  "license": "Apache-2.0"
+  }
 }

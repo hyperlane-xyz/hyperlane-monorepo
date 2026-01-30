@@ -1,10 +1,10 @@
 {
   "name": "@hyperlane-xyz/eslint-config",
   "version": "23.0.0",
-  "description": "Hyperlane ESLint config",
   "private": true,
-  "type": "module",
+  "description": "Hyperlane ESLint config",
   "license": "Apache-2.0",
+  "type": "module",
   "exports": {
     ".": "./index.js"
   },

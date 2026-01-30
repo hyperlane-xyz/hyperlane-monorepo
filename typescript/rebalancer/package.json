@@ -2,9 +2,17 @@
   "name": "@hyperlane-xyz/rebalancer",
   "version": "1.0.0",
   "description": "Hyperlane Warp Route Collateral Rebalancer Service",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "keywords": [
+    "blockchain",
+    "collateral",
+    "hyperlane",
+    "interchain",
+    "rebalancer",
+    "warp-route"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "bin": {
     "hyperlane-rebalancer": "./dist/service.js"
   },
@@ -12,13 +20,16 @@
     "dist",
     "src"
   ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
-    "prettier": "prettier --write ./src",
+    "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
@@ -27,11 +38,11 @@
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "@hyperlane-xyz/metrics": "workspace:*",
     "@inquirer/prompts": "catalog:",
     "@inquirer/select": "catalog:",
     "bignumber.js": "catalog:",
@@ -59,23 +70,12 @@
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "engines": {
     "node": ">=18"
-  },
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "rebalancer",
-    "warp-route",
-    "collateral",
-    "blockchain",
-    "interchain"
-  ],
-  "author": "Abacus Works, Inc.",
-  "license": "Apache-2.0"
+  }
 }

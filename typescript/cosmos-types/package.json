@@ -2,32 +2,35 @@
   "name": "@hyperlane-xyz/cosmos-types",
   "version": "23.0.0",
   "description": "Hyperlane TypeScript SDK types for the Cosmos Hyperlane SDK module",
-  "type": "module",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "types": "dist/index.d.ts",
-  "files": [
-    "/dist"
-  ],
-  "homepage": "https://www.hyperlane.xyz",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "keywords": [
-    "hyperlane",
-    "cosmos",
     "blockchain",
+    "cosmos",
+    "hyperlane",
     "sdk",
     "types"
   ],
+  "homepage": "https://www.hyperlane.xyz",
   "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "prettier --write .",
+    "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in cosmos-types\"",
     "test:ci": "echo \"no tests in cosmos-types\""
+  },
+  "dependencies": {
+    "long": "^5.2.4",
+    "protobufjs": "^7.4.0"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
@@ -39,12 +42,8 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
-  },
-  "dependencies": {
-    "long": "^5.2.4",
-    "protobufjs": "^7.4.0"
   }
 }

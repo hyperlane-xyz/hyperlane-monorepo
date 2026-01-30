@@ -3,20 +3,31 @@
   "version": "0.0.1",
   "private": true,
   "description": "Hyperlane Key Funder Service - funds agent keys with native tokens",
-  "type": "module",
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
+  "keywords": [
+    "agent",
+    "blockchain",
+    "funding",
+    "hyperlane",
+    "interchain",
+    "keyfunder"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist",
     "src"
   ],
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
   "scripts": {
     "build": "tsc",
     "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
-    "prettier": "prettier --write ./src",
+    "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
@@ -49,23 +60,12 @@
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "engines": {
     "node": ">=18"
-  },
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "keyfunder",
-    "funding",
-    "agent",
-    "blockchain",
-    "interchain"
-  ],
-  "author": "Abacus Works, Inc.",
-  "license": "Apache-2.0"
+  }
 }

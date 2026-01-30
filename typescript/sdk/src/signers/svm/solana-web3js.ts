@@ -62,9 +62,7 @@ export class KeypairSvmTransactionSigner implements SvmTransactionSigner {
   }
 }
 
-export class SvmMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Sealevel>
-{
+export class SvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Sealevel> {
   private readonly signer: SvmTransactionSigner;
   private readonly svmProvider: Connection;
   private readonly config: Required<SvmSignerConfig>;

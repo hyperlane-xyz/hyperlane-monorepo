@@ -1,10 +1,35 @@
 {
   "name": "@hyperlane-xyz/widgets",
-  "description": "Common react components for Hyperlane projects",
   "version": "23.0.0",
-  "peerDependencies": {
-    "react": "^18",
-    "react-dom": "^18"
+  "description": "Common react components for Hyperlane projects",
+  "keywords": [
+    "Components",
+    "Hyperlane",
+    "React",
+    "Typescript",
+    "Widgets"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./styles.css": "./dist/styles.css"
+  },
+  "scripts": {
+    "build": "pnpm build:ts && pnpm build:css",
+    "build:ts": "tsc",
+    "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
+    "clean": "rm -rf ./dist ./cache ./storybook-static",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "format": "oxfmt --write ./src",
+    "storybook": "storybook dev -p 6006",
+    "build-storybook": "storybook build"
   },
   "dependencies": {
     "@chain-registry/types": "catalog:",
@@ -73,8 +98,8 @@
     "eslint-plugin-react-hooks": "^5.0.0",
     "eslint-plugin-storybook": "^0.11.1",
     "framer-motion": "^10.16.4",
+    "oxfmt": "catalog:",
     "postcss": "^8.4.21",
-    "prettier": "catalog:",
     "react": "^18.2.0",
     "react-dom": "^18.2.0",
     "storybook": "^7.6.14",
@@ -82,33 +107,8 @@
     "typescript": "catalog:",
     "vite": "^5.1.1"
   },
-  "files": [
-    "/dist"
-  ],
-  "type": "module",
-  "exports": {
-    ".": "./dist/index.js",
-    "./styles.css": "./dist/styles.css"
-  },
-  "types": "./dist/index.d.ts",
-  "homepage": "https://www.hyperlane.xyz",
-  "keywords": [
-    "Hyperlane",
-    "Widgets",
-    "React",
-    "Components",
-    "Typescript"
-  ],
-  "license": "Apache-2.0",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "scripts": {
-    "build": "pnpm build:ts && pnpm build:css",
-    "build:ts": "tsc",
-    "build:css": "tailwindcss -c ./tailwind.config.cjs -i ./src/styles.css -o ./dist/styles.css --minify",
-    "clean": "rm -rf ./dist ./cache ./storybook-static",
-    "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src",
-    "storybook": "storybook dev -p 6006",
-    "build-storybook": "storybook build"
+  "peerDependencies": {
+    "react": "^18",
+    "react-dom": "^18"
   }
 }

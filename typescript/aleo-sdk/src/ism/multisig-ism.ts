@@ -23,9 +23,10 @@ import { getNewIsmAddress } from './base.js';
 import { getMessageIdMultisigIsmConfig } from './ism-query.js';
 import { getCreateMessageIdMultisigIsmTx } from './ism-tx.js';
 
-export class AleoMessageIdMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
-{
+export class AleoMessageIdMultisigIsmReader implements ArtifactReader<
+  MultisigIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
 
   async read(

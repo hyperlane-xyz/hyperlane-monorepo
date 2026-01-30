@@ -76,16 +76,26 @@ jobs:
         env:
           GH_TOKEN: ${{ github.token }}
 
-      - name: Run prettier (changed files)
+      - name: Run oxfmt (changed files)
         if: github.event_name == 'pull_request'
-        run: >-
-          cat changed_files.txt |
-          xargs -r pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern
+        run: |
+          cat changed_files.txt | grep -E '\.(js|ts|jsx|tsx|json|md)$' | \
+          xargs -r pnpm exec oxfmt --check --no-error-on-unmatched-pattern
 
-      - name: Run prettier (all files)
+      - name: Run prettier for Solidity (changed files)
+        if: github.event_name == 'pull_request'
+        run: |
+          cat changed_files.txt | grep -E '\.sol$' | \
+          xargs -r pnpm exec prettier --check --no-error-on-unmatched-pattern
+
+      - name: Run oxfmt (all files)
         if: github.event_name != 'pull_request'
-        run: >-
-          pnpm exec prettier --check --ignore-unknown --no-error-on-unmatched-pattern .
+        run: pnpm exec oxfmt --check .
+        continue-on-error: true
+
+      - name: Run prettier for Solidity (all files)
+        if: github.event_name != 'pull_request'
+        run: pnpm exec prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'
         continue-on-error: true
 
       - name: Clean up

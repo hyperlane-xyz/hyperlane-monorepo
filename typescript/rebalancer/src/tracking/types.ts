@@ -20,9 +20,7 @@ export interface Timestamped {
 }
 
 export interface TrackedActionBase
-  extends Identifiable,
-    CrossChainAction,
-    Timestamped {
+  extends Identifiable, CrossChainAction, Timestamped {
   status: string;
 }
 

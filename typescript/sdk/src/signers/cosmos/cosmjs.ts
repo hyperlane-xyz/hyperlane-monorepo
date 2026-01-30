@@ -8,9 +8,7 @@ import { CosmJsNativeTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
-export class CosmosNativeMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.CosmosNative>
-{
+export class CosmosNativeMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.CosmosNative> {
   constructor(
     private readonly chainName: ChainName,
     private readonly accountAddress: Address,

@@ -5,7 +5,6 @@
 ### Minor Changes
 
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments

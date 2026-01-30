@@ -32,9 +32,10 @@ import {
  * Returns nested ISMs as address-only references (UNDERIVED state).
  * The GenericIsmReader from deploy-sdk handles recursive expansion of nested ISMs.
  */
-export class CosmosRoutingIsmRawReader
-  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
-{
+export class CosmosRoutingIsmRawReader implements ArtifactReader<
+  RawRoutingIsmArtifactConfig,
+  DeployedIsmAddress
+> {
   constructor(protected readonly query: CosmosIsmQueryClient) {}
 
   async read(

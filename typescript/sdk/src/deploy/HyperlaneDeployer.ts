@@ -455,9 +455,9 @@ export abstract class HyperlaneDeployer<
         // Estimate gas for the initialize transaction
         const estimatedGas = await contract
           .connect(signer)
-          .estimateGas[
-            this.initializeFnSignature(contractName)
-          ](...initializeArgs);
+          .estimateGas[this.initializeFnSignature(contractName)](
+            ...initializeArgs,
+          );
 
         // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);

@@ -29,9 +29,10 @@ import {
  * Reader for Cosmos IGP (Interchain Gas Paymaster) Hook.
  * Reads deployed IGP hook configuration from the chain.
  */
-export class CosmosIgpHookReader
-  implements ArtifactReader<IgpHookConfig, DeployedHookAddress>
-{
+export class CosmosIgpHookReader implements ArtifactReader<
+  IgpHookConfig,
+  DeployedHookAddress
+> {
   constructor(protected readonly query: CosmosHookQueryClient) {}
 
   async read(

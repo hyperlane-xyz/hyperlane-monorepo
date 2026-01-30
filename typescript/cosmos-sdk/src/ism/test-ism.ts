@@ -24,9 +24,10 @@ import { getCreateTestIsmTx } from './ism-tx.js';
  * Reader for Cosmos NoopIsm (test ISM).
  * This is the simplest ISM type with no configuration beyond its address.
  */
-export class CosmosTestIsmReader
-  implements ArtifactReader<TestIsmConfig, DeployedIsmAddress>
-{
+export class CosmosTestIsmReader implements ArtifactReader<
+  TestIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(private readonly query: CosmosIsmQueryClient) {}
 
   async read(

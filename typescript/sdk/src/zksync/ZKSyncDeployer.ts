@@ -79,11 +79,14 @@ export class ZKSyncDeployer {
     );
 
     // Encode deploy transaction so it can be estimated.
-    const deployTx = factory.getDeployTransaction(...constructorArguments, {
-      customData: {
-        factoryDeps,
+    const deployTx = factory.getDeployTransaction(
+      ...constructorArguments,
+      {
+        customData: {
+          factoryDeps,
+        },
       },
-    });
+    );
     deployTx.from = this.zkWallet.address;
 
     return this.zkWallet.provider.estimateGas(deployTx);
@@ -123,13 +126,16 @@ export class ZKSyncDeployer {
     const { customData, ..._overrides } = overrides ?? {};
 
     // Encode and send the deploy transaction providing factory dependencies.
-    const contract = await factory.deploy(...constructorArguments, {
-      ..._overrides,
-      customData: {
-        ...customData,
-        factoryDeps,
+    const contract = await factory.deploy(
+      ...constructorArguments,
+      {
+        ..._overrides,
+        customData: {
+          ...customData,
+          factoryDeps,
+        },
       },
-    });
+    );
 
     await contract.deployed();
 

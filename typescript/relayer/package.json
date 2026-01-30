@@ -2,7 +2,33 @@
   "name": "@hyperlane-xyz/relayer",
   "version": "0.1.0",
   "description": "Hyperlane Message Relayer Service",
+  "keywords": [
+    "blockchain",
+    "hyperlane",
+    "interchain",
+    "message",
+    "relayer"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "bin": {
+    "hyperlane-relayer": "./dist/fs/service.js"
+  },
+  "files": [
+    "dist",
+    "src"
+  ],
   "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "typesVersions": {
+    "*": {
+      "fs": [
+        "./dist/fs/index.d.ts"
+      ]
+    }
+  },
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,29 +39,13 @@
       "default": "./dist/fs/index.js"
     }
   },
-  "main": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "typesVersions": {
-    "*": {
-      "fs": [
-        "./dist/fs/index.d.ts"
-      ]
-    }
-  },
-  "bin": {
-    "hyperlane-relayer": "./dist/fs/service.js"
-  },
-  "files": [
-    "dist",
-    "src"
-  ],
   "scripts": {
     "build": "tsc",
     "bundle": "rm -rf ./bundle && ncc build ./dist/fs/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
-    "prettier": "prettier --write ./src",
+    "format": "oxfmt --write ./src",
     "test": "pnpm test:unit && pnpm test:hardhat",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
@@ -62,7 +72,6 @@
   "devDependencies": {
     "@ethersproject/providers": "*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
-    "@vercel/ncc": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
@@ -71,28 +80,19 @@
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/sinon": "catalog:",
+    "@vercel/ncc": "catalog:",
     "chai": "catalog:",
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
     "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "engines": {
     "node": ">=18"
-  },
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "relayer",
-    "message",
-    "interchain",
-    "blockchain"
-  ],
-  "author": "Abacus Works, Inc.",
-  "license": "Apache-2.0"
+  }
 }
