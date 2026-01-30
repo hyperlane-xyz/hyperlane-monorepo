@@ -22,8 +22,6 @@ import { logRed } from '../logger.js';
 import { selectRegistryWarpRoute } from './tokens.js';
 import { useProvidedWarpRouteIdOrPrompt } from './warpRouteIds.js';
 
-export { useProvidedWarpRouteIdOrPrompt };
-
 /**
  * Gets a {@link WarpCoreConfig} based on the provided path or prompts the user to choose one:
  * - if `symbol` is provided the user will have to select one of the available warp routes.
