@@ -142,6 +142,9 @@ export class RadixRoutingIsmRawWriter
 
     const transactions: AnnotatedRadixTransaction[] = [];
 
+    // This is the address that has to execute the update transactions
+    const currentOwner = currentConfig.config.owner;
+
     // Find domains to add
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
@@ -157,7 +160,7 @@ export class RadixRoutingIsmRawWriter
       ) {
         const transactionManifest = await getSetRoutingIsmDomainIsmTx(
           this.base,
-          this.signer.getAddress(),
+          currentOwner,
           {
             ismAddress: deployed.address,
             domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
@@ -180,7 +183,7 @@ export class RadixRoutingIsmRawWriter
       if (isNullish(desiredIsmAddress)) {
         const transactionManifest = await getRemoveRoutingIsmDomainIsmTx(
           this.base,
-          this.signer.getAddress(),
+          currentOwner,
           {
             ismAddress: deployed.address,
             domainId: domain,
@@ -200,7 +203,7 @@ export class RadixRoutingIsmRawWriter
       const transactionManifest = await getSetRoutingIsmOwnerTx(
         this.base,
         this.gateway,
-        this.signer.getAddress(),
+        currentOwner,
         {
           ismAddress: deployed.address,
           newOwner: config.owner,

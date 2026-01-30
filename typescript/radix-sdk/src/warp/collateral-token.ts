@@ -184,7 +184,8 @@ export class RadixCollateralTokenWriter
       currentArtifactState,
       this.base,
       this.gateway,
-      this.signer.getAddress(),
+      // The current owner is the only one that can execute the update transactions
+      currentArtifactState.config.owner,
     );
   }
 }
