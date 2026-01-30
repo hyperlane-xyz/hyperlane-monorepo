@@ -18,6 +18,7 @@ import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {MailboxClient} from "../../client/MailboxClient.sol";
 import {Message} from "../../libs/Message.sol";
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
+import {IRoutingHook} from "../../interfaces/hooks/IRoutingHook.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -26,7 +27,11 @@ import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
  * @title DomainRoutingHook
  * @notice Delegates to a hook based on the destination domain of the message.
  */
-contract DomainRoutingHook is AbstractPostDispatchHook, MailboxClient {
+contract DomainRoutingHook is
+    IRoutingHook,
+    AbstractPostDispatchHook,
+    MailboxClient
+{
     using Strings for uint32;
     using Message for bytes;
 
