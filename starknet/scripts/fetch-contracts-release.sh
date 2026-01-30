@@ -9,10 +9,13 @@ readonly REPO="hyperlane-xyz/hyperlane-starknet"
 readonly GITHUB_RELEASES_API="https://api.github.com/repos/${REPO}/releases"
 readonly TARGET_DIR="./release"
 readonly VERSION="v0.3.2"
+readonly MAX_RETRIES=3
+readonly RETRY_DELAY=5
 
 # Color definitions
 declare -r COLOR_GREEN='\033[0;32m'
 declare -r COLOR_RED='\033[0;31m'
+declare -r COLOR_YELLOW='\033[0;33m'
 declare -r COLOR_RESET='\033[0m'
 
 log_error() {
@@ -21,6 +24,31 @@ log_error() {
 
 log_success() {
     echo -e "${COLOR_GREEN}$1${COLOR_RESET}"
+}
+
+log_warning() {
+    echo -e "${COLOR_YELLOW}Warning: $1${COLOR_RESET}"
+}
+
+# Retry wrapper for curl commands
+curl_with_retry() {
+    local url="$1"
+    shift
+    local attempt=1
+
+    while [ $attempt -le $MAX_RETRIES ]; do
+        if curl "$@" "$url"; then
+            return 0
+        fi
+
+        if [ $attempt -lt $MAX_RETRIES ]; then
+            log_warning "Curl failed (attempt $attempt/$MAX_RETRIES), retrying in ${RETRY_DELAY}s..."
+            sleep $RETRY_DELAY
+        fi
+        ((attempt++))
+    done
+
+    return 1
 }
 
 check_dependencies() {
@@ -44,7 +72,7 @@ check_if_contracts_exist() {
 
 verify_version_exists() {
     local version=$1
-    if ! curl --output /dev/null --silent --head --fail "${GITHUB_RELEASES_API}/tags/${version}"; then
+    if ! curl_with_retry "${GITHUB_RELEASES_API}/tags/${version}" --output /dev/null --silent --head --fail; then
         log_error "Version ${version} does not exist"
         exit 1
     fi
@@ -54,7 +82,7 @@ get_release_info() {
     local version=$1
     local release_info
 
-    release_info=$(curl -sf "${GITHUB_RELEASES_API}/tags/${version}") || {
+    release_info=$(curl_with_retry "${GITHUB_RELEASES_API}/tags/${version}" -sf) || {
         log_error "Failed to fetch release information for version ${version}"
         exit 1
     }
@@ -74,7 +102,7 @@ download_and_extract() {
 
     log_success "Downloading version ${version} from ${download_url}"
 
-    if ! curl -L "$download_url" -o "${TARGET_DIR}/release.zip"; then
+    if ! curl_with_retry "$download_url" -L -o "${TARGET_DIR}/release.zip"; then
         log_error "Download failed"
         exit 1
     fi
@@ -106,7 +134,7 @@ verify_checksum() {
     log_success "File checksum: ${downloaded_checksum}"
 
     local expected_checksum
-    if ! expected_checksum="$(curl -sL "${base_url}/${checksum_filename}")"; then
+    if ! expected_checksum="$(curl_with_retry "${base_url}/${checksum_filename}" -sL)"; then
         log_error "Failed to fetch checksum file"
         return 1
     fi
