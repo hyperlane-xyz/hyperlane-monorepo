@@ -3,15 +3,15 @@
   "version": "23.0.0",
   "private": true,
   "description": "An HTTP server for the Hyperlane registry",
-  "license": "Apache-2.0",
   "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
   "repository": {
     "type": "git",
     "url": "https://github.com/hyperlane-xyz/hyperlane-monorepo"
   },
+  "type": "module",
   "main": "dist/index.js",
   "types": "dist/index.d.ts",
-  "type": "module",
   "scripts": {
     "build": "tsc -p tsconfig.json",
     "clean": "rm -rf ./dist",
@@ -19,7 +19,7 @@
     "start:dev": "NODE_ENV=development LOG_FORMAT=pretty node dist/scripts/run-server.js",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src ./test",
+    "format": "oxfmt --write ./src ./test",
     "test": "pnpm test:unit",
     "test:ci": "pnpm test",
     "test:unit": "mocha --config .mocharc.json './test/**/*.ts' --exit"
@@ -47,8 +47,8 @@
     "chai-as-promised": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
+    "oxfmt": "catalog:",
     "pino-pretty": "catalog:",
-    "prettier": "catalog:",
     "sinon": "catalog:",
     "supertest": "^6.3.3",
     "tsx": "catalog:",

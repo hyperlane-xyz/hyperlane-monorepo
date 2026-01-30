@@ -3,6 +3,17 @@
   "version": "0.0.4",
   "private": true,
   "description": "Hyperlane Warp Route Balance Monitor Service",
+  "keywords": [
+    "balance",
+    "blockchain",
+    "hyperlane",
+    "interchain",
+    "warp-monitor",
+    "warp-route"
+  ],
+  "license": "Apache-2.0",
+  "author": "Abacus Works, Inc.",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "type": "module",
   "scripts": {
     "build": "tsc",
@@ -10,7 +21,7 @@
     "clean": "rm -rf dist cache bundle",
     "dev": "tsc --watch",
     "lint": "eslint -c ./eslint.config.mjs ./src",
-    "prettier": "prettier --write ./src",
+    "format": "oxfmt --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
@@ -19,10 +30,10 @@
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
-    "@hyperlane-xyz/metrics": "workspace:*",
     "ethers": "catalog:",
     "pino": "catalog:",
     "prom-client": "catalog:"
@@ -38,23 +49,12 @@
     "chai": "catalog:",
     "eslint": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
   "engines": {
     "node": ">=18"
-  },
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "warp-monitor",
-    "warp-route",
-    "balance",
-    "blockchain",
-    "interchain"
-  ],
-  "author": "Abacus Works, Inc.",
-  "license": "Apache-2.0"
+  }
 }

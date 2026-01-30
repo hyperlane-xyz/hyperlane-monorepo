@@ -18,7 +18,7 @@
     "clean": {
       "cache": false
     },
-    "prettier": {},
+    "format": {},
     "lint": {},
     "version:update": {
       "cache": false

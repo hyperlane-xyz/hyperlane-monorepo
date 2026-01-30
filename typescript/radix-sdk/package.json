@@ -2,7 +2,21 @@
   "name": "@hyperlane-xyz/radix-sdk",
   "version": "23.0.0",
   "description": "Hyperlane TypeScript SDK for the Radix Hyperlane SDK module",
+  "keywords": [
+    "blockchain",
+    "hyperlane",
+    "radix",
+    "sdk"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist",
+    "docker-compose.yml"
+  ],
   "type": "module",
+  "types": "dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
@@ -13,31 +27,26 @@
       "default": "./dist/testing/index.js"
     }
   },
-  "types": "dist/index.d.ts",
-  "files": [
-    "/dist",
-    "docker-compose.yml"
-  ],
-  "homepage": "https://www.hyperlane.xyz",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "hyperlane",
-    "radix",
-    "blockchain",
-    "sdk"
-  ],
-  "license": "Apache-2.0",
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "prettier --write .",
+    "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
     "test": "echo \"no tests in radix-sdk\"",
     "test:unit": "mocha --config .mocharc.json",
     "test:ci": "pnpm test:unit",
     "test:e2e": "mocha --config .mocharc.e2e.json"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@radixdlt/babylon-core-api-sdk": "^1.3.0",
+    "@radixdlt/babylon-gateway-api-sdk": "catalog:",
+    "@radixdlt/radix-engine-toolkit": "^1.0.5",
+    "bignumber.js": "catalog:",
+    "decimal.js": "^10.4.3",
+    "ethers": "catalog:"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
@@ -54,21 +63,11 @@
     "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
     "mocha-steps": "catalog:",
-    "prettier": "catalog:",
-    "ts-node": "catalog:",
+    "oxfmt": "catalog:",
     "testcontainers": "catalog:",
+    "ts-node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
-  },
-  "dependencies": {
-    "@hyperlane-xyz/provider-sdk": "workspace:*",
-    "@hyperlane-xyz/utils": "workspace:*",
-    "@radixdlt/babylon-core-api-sdk": "^1.3.0",
-    "@radixdlt/babylon-gateway-api-sdk": "catalog:",
-    "@radixdlt/radix-engine-toolkit": "^1.0.5",
-    "bignumber.js": "catalog:",
-    "decimal.js": "^10.4.3",
-    "ethers": "catalog:"
   }
 }

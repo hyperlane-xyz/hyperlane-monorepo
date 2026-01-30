@@ -1,7 +1,38 @@
 {
   "name": "@hyperlane-xyz/sdk",
-  "description": "The official SDK for the Hyperlane Network",
   "version": "23.0.0",
+  "description": "The official SDK for the Hyperlane Network",
+  "keywords": [
+    "Hyperlane",
+    "SDK",
+    "Typescript"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "sideEffects": false,
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js"
+  },
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "check": "tsc --noEmit",
+    "clean": "rm -rf ./dist ./cache",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prepublishOnly": "pnpm build",
+    "format": "oxfmt --write ./src",
+    "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
+    "test:ci": "pnpm test",
+    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
+    "test:foundry": "./scripts/foundry-test.sh"
+  },
   "dependencies": {
     "@arbitrum/sdk": "catalog:",
     "@aws-sdk/client-s3": "catalog:",
@@ -14,8 +45,8 @@
     "@cosmjs/proto-signing": "catalog:",
     "@cosmjs/stargate": "catalog:",
     "@cosmjs/tendermint-rpc": "catalog:",
-    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/aleo-sdk": "workspace:*",
+    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/cosmos-sdk": "workspace:*",
     "@hyperlane-xyz/deploy-sdk": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
@@ -64,7 +95,7 @@
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",
     "mocha": "catalog:",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "sinon": "catalog:",
     "solidity-coverage": "catalog:",
     "ts-node": "catalog:",
@@ -72,41 +103,10 @@
     "typescript": "catalog:",
     "yaml": "catalog:"
   },
-  "type": "module",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "/dist"
-  ],
-  "sideEffects": false,
-  "engines": {
-    "node": ">=16"
-  },
-  "homepage": "https://www.hyperlane.xyz",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "keywords": [
-    "Hyperlane",
-    "SDK",
-    "Typescript"
-  ],
-  "license": "Apache-2.0",
-  "scripts": {
-    "build": "tsc",
-    "dev": "tsc --watch",
-    "check": "tsc --noEmit",
-    "clean": "rm -rf ./dist ./cache",
-    "lint": "eslint -c ./eslint.config.mjs",
-    "prepublishOnly": "pnpm build",
-    "prettier": "prettier --write ./src",
-    "test": "pnpm test:unit && pnpm test:hardhat && pnpm test:foundry",
-    "test:ci": "pnpm test",
-    "test:unit": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
-    "test:hardhat": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts test $(find ./src -name \"*.hardhat-test.ts\")",
-    "test:foundry": "./scripts/foundry-test.sh"
-  },
   "peerDependencies": {
     "@ethersproject/abi": "*"
+  },
+  "engines": {
+    "node": ">=16"
   }
 }

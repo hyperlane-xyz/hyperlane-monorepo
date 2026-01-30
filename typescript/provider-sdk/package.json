@@ -2,12 +2,12 @@
   "name": "@hyperlane-xyz/provider-sdk",
   "version": "1.2.1",
   "description": "Protocol Provider SDK for the Hyperlane Protocol",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "license": "Apache-2.0",
-  "type": "module",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "files": [
     "dist"
   ],
+  "type": "module",
   "exports": {
     ".": "./dist/index.js",
     "./altvm": "./dist/altvm.js",
@@ -29,7 +29,7 @@
     "dev": "tsc --watch",
     "lint": "eslint",
     "clean": "rm -rf ./dist",
-    "prettier": "prettier --write .",
+    "format": "oxfmt --write .",
     "test": "mocha --config .mocharc.json",
     "test:ci": "mocha --config .mocharc.json"
   },

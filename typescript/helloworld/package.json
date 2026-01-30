@@ -1,7 +1,36 @@
 {
   "name": "@hyperlane-xyz/helloworld",
-  "description": "A basic skeleton of an Hyperlane app",
   "version": "23.0.0",
+  "description": "A basic skeleton of an Hyperlane app",
+  "keywords": [
+    "HelloWorld",
+    "Hyperlane",
+    "Solidity",
+    "Typescript"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist",
+    "/contracts"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": "./dist/index.js",
+  "scripts": {
+    "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
+    "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
+    "coverage": "pnpm hardhat-esm coverage",
+    "lint": "pnpm lint:sol && pnpm lint:ts",
+    "lint:sol": "solhint contracts/**/*.sol",
+    "lint:ts": "eslint -c ./eslint.config.mjs",
+    "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
+    "format": "oxfmt --write ./src",
+    "prettier": "prettier --write ./contracts",
+    "test": "pnpm hardhat-esm test $(find ./src/test -name '*.test.ts')",
+    "test:ci": "pnpm test"
+  },
   "dependencies": {
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
@@ -15,11 +44,11 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@ethereum-waffle/chai": "^4.0.10",
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
-    "@trivago/prettier-plugin-sort-imports": "catalog:",
     "@typechain/ethers-v5": "catalog:",
     "@typechain/ethers-v6": "catalog:",
     "@typechain/hardhat": "catalog:",
@@ -34,47 +63,19 @@
     "eslint-config-prettier": "catalog:",
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
-    "@ethereum-waffle/chai": "^4.0.10",
     "ethereum-waffle": "catalog:",
     "hardhat": "catalog:",
     "hardhat-gas-reporter": "catalog:",
+    "oxfmt": "catalog:",
     "prettier": "catalog:",
     "prettier-plugin-solidity": "catalog:",
     "solhint": "catalog:",
     "solhint-plugin-prettier": "catalog:",
     "solidity-coverage": "catalog:",
     "ts-node": "catalog:",
-    "typechain": "catalog:",
     "tsx": "catalog:",
+    "typechain": "catalog:",
     "typescript": "catalog:"
-  },
-  "homepage": "https://www.hyperlane.xyz",
-  "keywords": [
-    "Hyperlane",
-    "HelloWorld",
-    "Solidity",
-    "Typescript"
-  ],
-  "license": "Apache-2.0",
-  "type": "module",
-  "exports": "./dist/index.js",
-  "types": "./dist/index.d.ts",
-  "files": [
-    "/dist",
-    "/contracts"
-  ],
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "scripts": {
-    "build": "pnpm hardhat-esm clean && pnpm hardhat-esm compile && pnpm exec tsc",
-    "clean": "pnpm hardhat-esm clean && rm -rf dist cache src/types",
-    "coverage": "pnpm hardhat-esm coverage",
-    "lint": "pnpm lint:sol && pnpm lint:ts",
-    "lint:sol": "solhint contracts/**/*.sol",
-    "lint:ts": "eslint -c ./eslint.config.mjs",
-    "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
-    "prettier": "prettier --write ./contracts ./src",
-    "test": "pnpm hardhat-esm test $(find ./src/test -name '*.test.ts')",
-    "test:ci": "pnpm test"
   },
   "peerDependencies": {
     "@ethersproject/abi": "*",

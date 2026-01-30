@@ -1,34 +1,34 @@
 {
   "name": "@hyperlane-xyz/starknet-core",
-  "description": "Core cairo contracts for Hyperlane",
   "version": "23.0.0",
-  "type": "module",
+  "description": "Core cairo contracts for Hyperlane",
+  "keywords": [
+    "Cairo",
+    "Hyperlane",
+    "Starknet"
+  ],
   "homepage": "https://www.hyperlane.xyz",
   "license": "Apache-2.0",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "scripts": {
-    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
-    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
-    "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
-    "clean": "rm -rf ./dist ./release",
-    "lint": "eslint -c ./eslint.config.mjs .",
-    "prettier": "prettier --write ./src ./package.json"
-  },
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
   "exports": {
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
     }
   },
-  "types": "./dist/index.d.ts",
-  "files": [
-    "dist"
-  ],
-  "keywords": [
-    "Hyperlane",
-    "Cairo",
-    "Starknet"
-  ],
+  "scripts": {
+    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
+    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
+    "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
+    "clean": "rm -rf ./dist ./release",
+    "lint": "eslint -c ./eslint.config.mjs .",
+    "format": "oxfmt --write ./src ./package.json"
+  },
   "dependencies": {
     "starknet": "catalog:"
   },
@@ -42,7 +42,7 @@
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "globby": "^14.1.0",
-    "prettier": "catalog:",
+    "oxfmt": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }
