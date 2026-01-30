@@ -10,9 +10,7 @@ import { EthersV5Transaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
-export class EvmMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Ethereum>
-{
+export class EvmMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Ethereum> {
   private readonly multiProvider: MultiProvider;
 
   constructor(

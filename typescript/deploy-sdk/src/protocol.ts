@@ -15,23 +15,20 @@ export async function loadProtocolProviders(
     }
     switch (protocol) {
       case ProtocolType.CosmosNative: {
-        const { CosmosNativeProtocolProvider } = await import(
-          '@hyperlane-xyz/cosmos-sdk'
-        );
+        const { CosmosNativeProtocolProvider } =
+          await import('@hyperlane-xyz/cosmos-sdk');
         registerProtocol(protocol, () => new CosmosNativeProtocolProvider());
         break;
       }
       case ProtocolType.Radix: {
-        const { RadixProtocolProvider } = await import(
-          '@hyperlane-xyz/radix-sdk'
-        );
+        const { RadixProtocolProvider } =
+          await import('@hyperlane-xyz/radix-sdk');
         registerProtocol(protocol, () => new RadixProtocolProvider());
         break;
       }
       case ProtocolType.Aleo: {
-        const { AleoProtocolProvider } = await import(
-          '@hyperlane-xyz/aleo-sdk'
-        );
+        const { AleoProtocolProvider } =
+          await import('@hyperlane-xyz/aleo-sdk');
         registerProtocol(protocol, () => new AleoProtocolProvider());
         break;
       }
