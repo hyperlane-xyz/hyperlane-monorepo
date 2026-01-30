@@ -490,7 +490,8 @@ export async function routingModuleDelta(
 ): Promise<RoutingIsmDelta> {
   if (
     config.type === IsmType.FALLBACK_ROUTING ||
-    config.type === IsmType.ROUTING
+    config.type === IsmType.ROUTING ||
+    config.type === IsmType.INCREMENTAL_ROUTING
   ) {
     return domainRoutingModuleDelta(
       destination,
@@ -550,9 +551,12 @@ async function domainRoutingModuleDelta(
   );
 
   // check for exclusion of domains in the config
-  delta.domainsToUnenroll = deployedDomains.filter(
-    (domain) => !Object.values(safeConfigDomains).includes(domain),
-  );
+  // Note: Incremental routing ISMs don't support domain removal, so skip unenroll
+  if (config.type !== IsmType.INCREMENTAL_ROUTING) {
+    delta.domainsToUnenroll = deployedDomains.filter(
+      (domain) => !Object.values(safeConfigDomains).includes(domain),
+    );
+  }
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(ismByDomainName)) {
     const originDomain = safeConfigDomains[origin];
