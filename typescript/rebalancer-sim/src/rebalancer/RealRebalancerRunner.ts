@@ -20,6 +20,10 @@ const logger = pino({ level: 'silent' });
 // Track the current instance for cleanup
 let currentInstance: RealRebalancerRunner | null = null;
 
+function setCurrentInstance(instance: RealRebalancerRunner | null): void {
+  currentInstance = instance;
+}
+
 /**
  * Global cleanup function - call between test runs to ensure clean state
  */
@@ -123,10 +127,6 @@ export class RealRebalancerRunner
     // Cleanup any previously running instance
     await cleanupRealRebalancer();
 
-    this.running = true;
-    // eslint-disable-next-line @typescript-eslint/no-this-alias
-    currentInstance = this;
-
     // Create registry
     const registry = new SimulationRegistry(this.config.deployment);
 
@@ -220,6 +220,10 @@ export class RealRebalancerRunner
         logger,
       },
     );
+
+    // Mark as running after service creation to avoid inconsistent state
+    this.running = true;
+    setCurrentInstance(this);
 
     // Start service in the background (don't await - it runs forever in daemon mode)
     this.service.start().catch((error) => {

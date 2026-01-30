@@ -297,7 +297,7 @@ export async function processAllPendingMessages(
     domain: string;
     tx: Promise<ethers.ContractTransaction>;
   }> = [];
-  let currentNonce = await signer.getTransactionCount();
+  let currentNonce = await signer.getTransactionCount('pending');
 
   // Fire all transactions without waiting
   for (const domain of Object.values(domains)) {

@@ -115,7 +115,7 @@ export class MessageTracker extends EventEmitter {
   }
 
   /**
-   * Get all pending messages (including not yet ready, excluding inflight)
+   * Get all pending messages (including not yet ready and inflight)
    */
   getPendingMessages(): TrackedMessage[] {
     return Array.from(this.messages.values()).filter(
@@ -205,7 +205,8 @@ export class MessageTracker extends EventEmitter {
     }
 
     if (processable.length === 0) {
-      return { delivered: 0, failed: ready.length };
+      // No messages processable yet - not a failure, they will retry
+      return { delivered: 0, failed: 0 };
     }
 
     // Fire all processable transactions in parallel

@@ -38,6 +38,7 @@ export class SimulationEngine {
   private messageTracker?: MessageTracker;
   private isRunning = false;
   private mailboxProcessingInterval?: NodeJS.Timeout;
+  private mailboxProcessingInFlight = false;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
@@ -310,7 +311,14 @@ export class SimulationEngine {
     const PROCESS_INTERVAL = 100;
 
     this.mailboxProcessingInterval = setInterval(async () => {
-      await this.processReadyMailboxDeliveries();
+      // Guard against overlapping ticks to prevent nonce collisions
+      if (this.mailboxProcessingInFlight) return;
+      this.mailboxProcessingInFlight = true;
+      try {
+        await this.processReadyMailboxDeliveries();
+      } finally {
+        this.mailboxProcessingInFlight = false;
+      }
     }, PROCESS_INTERVAL);
   }
 
@@ -356,7 +364,7 @@ export class SimulationEngine {
             `  - ${msg.id} (${msg.origin}->${msg.destination}): ${msg.status}, attempts=${msg.attempts}, error=${msg.lastError || 'timeout'}`,
           );
           // Record as failed in KPI collector
-          this.kpiCollector?.recordTransferFailed(msg.id);
+          this.kpiCollector?.recordTransferFailed(msg.transferId);
         }
         // Clear pending messages so they don't block
         this.messageTracker.clear();

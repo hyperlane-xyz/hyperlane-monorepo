@@ -200,11 +200,18 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
       }
     }
 
-    // Execute rebalances
-    for (const { chain: fromChain, amount: excessAmount } of excess) {
-      for (const { chain: toChain, amount: deficitAmount } of deficit) {
+    // Execute rebalances - track remaining amounts to avoid over-rebalancing
+    const remainingExcess = new Map(excess.map((e) => [e.chain, e.amount]));
+    const remainingDeficit = new Map(deficit.map((d) => [d.chain, d.amount]));
+
+    for (const { chain: fromChain } of excess) {
+      for (const { chain: toChain } of deficit) {
+        const currentExcess = remainingExcess.get(fromChain) ?? BigInt(0);
+        const currentDeficit = remainingDeficit.get(toChain) ?? BigInt(0);
+        if (currentExcess <= BigInt(0) || currentDeficit <= BigInt(0)) continue;
+
         const rebalanceAmount =
-          excessAmount < deficitAmount ? excessAmount : deficitAmount;
+          currentExcess < currentDeficit ? currentExcess : currentDeficit;
         if (rebalanceAmount > BigInt(0)) {
           await this.executeRebalance(
             fromChain,
@@ -212,6 +219,8 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
             rebalanceAmount,
             domains,
           );
+          remainingExcess.set(fromChain, currentExcess - rebalanceAmount);
+          remainingDeficit.set(toChain, currentDeficit - rebalanceAmount);
         }
       }
     }
@@ -243,12 +252,24 @@ export class HyperlaneRunner extends EventEmitter implements IRebalancerRunner {
       }
     }
 
-    // Rebalance from excess to deficit
-    for (const { chain: toChain, deficit } of belowMin) {
-      for (const { chain: fromChain, excess } of aboveTarget) {
-        const amount = deficit < excess ? deficit : excess;
+    // Rebalance from excess to deficit - track remaining amounts to avoid over-rebalancing
+    const remainingDeficit = new Map(belowMin.map((d) => [d.chain, d.deficit]));
+    const remainingExcess = new Map(
+      aboveTarget.map((e) => [e.chain, e.excess]),
+    );
+
+    for (const { chain: toChain } of belowMin) {
+      for (const { chain: fromChain } of aboveTarget) {
+        const currentDeficit = remainingDeficit.get(toChain) ?? BigInt(0);
+        const currentExcess = remainingExcess.get(fromChain) ?? BigInt(0);
+        if (currentDeficit <= BigInt(0) || currentExcess <= BigInt(0)) continue;
+
+        const amount =
+          currentDeficit < currentExcess ? currentDeficit : currentExcess;
         if (amount > BigInt(0)) {
           await this.executeRebalance(fromChain, toChain, amount, domains);
+          remainingDeficit.set(toChain, currentDeficit - amount);
+          remainingExcess.set(fromChain, currentExcess - amount);
         }
       }
     }

@@ -7,8 +7,8 @@
  *
  * Configuration:
  * - Set REBALANCERS env var to specify which rebalancers to test
- *   e.g., REBALANCERS=hyperlane,real pnpm test
- * - Default: runs HyperlaneRunner only
+ *   e.g., REBALANCERS=hyperlane pnpm test (for single rebalancer)
+ * - Default: runs both HyperlaneRunner and RealRebalancerService
  *
  * Each scenario JSON includes:
  * - description: What the scenario tests
@@ -60,13 +60,19 @@ const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
 // Configure which rebalancers to test via environment variable
-// e.g., REBALANCERS=hyperlane,real for comparison
-// Default: run HyperlaneRunner only (stable), opt-in to RealRebalancerService
+// e.g., REBALANCERS=hyperlane for single rebalancer
+// Default: run both HyperlaneRunner and RealRebalancerService for comparison
 type RebalancerType = 'hyperlane' | 'real';
 const REBALANCER_ENV = process.env.REBALANCERS || 'hyperlane,real';
 const ENABLED_REBALANCERS: RebalancerType[] = REBALANCER_ENV.split(',')
   .map((r) => r.trim().toLowerCase())
   .filter((r): r is RebalancerType => r === 'hyperlane' || r === 'real');
+
+if (ENABLED_REBALANCERS.length === 0) {
+  throw new Error(
+    `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "hyperlane", "real", or both.`,
+  );
+}
 
 function createRebalancer(type: RebalancerType): IRebalancerRunner {
   switch (type) {
