@@ -704,8 +704,8 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
+export { EvmWarpModule } from './token/EvmWarpModule.js';
+export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';

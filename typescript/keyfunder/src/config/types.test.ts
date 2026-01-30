@@ -129,7 +129,7 @@ describe('KeyFunderConfig Schemas', () => {
       const config = {
         balances: {
           'hyperlane-relayer': '0.5',
-          'hyperlane-kathy': '0.3',
+          'hyperlane-rebalancer': '0.3',
         },
         igp: {
           address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7',
@@ -277,7 +277,7 @@ describe('KeyFunderConfig Schemas', () => {
           'hyperlane-relayer': {
             address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
           },
-          'hyperlane-kathy': {
+          'hyperlane-rebalancer': {
             address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20',
           },
         },
@@ -285,7 +285,7 @@ describe('KeyFunderConfig Schemas', () => {
           ethereum: {
             balances: {
               'hyperlane-relayer': '0.5',
-              'hyperlane-kathy': '0.4',
+              'hyperlane-rebalancer': '0.4',
             },
             igp: {
               address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7',
@@ -343,7 +343,7 @@ describe('KeyFunderConfig Schemas', () => {
           'hyperlane-relayer': {
             address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5',
           },
-          'hyperlane-kathy': {
+          'hyperlane-rebalancer': {
             address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20',
           },
         },
@@ -356,7 +356,7 @@ describe('KeyFunderConfig Schemas', () => {
           arbitrum: {
             balances: {
               'hyperlane-relayer': '0.1',
-              'hyperlane-kathy': '0.05',
+              'hyperlane-rebalancer': '0.05',
             },
           },
         },

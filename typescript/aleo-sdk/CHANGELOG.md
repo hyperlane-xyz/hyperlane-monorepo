@@ -1,5 +1,25 @@
 # @hyperlane-xyz/aleo-sdk
 
+## 23.0.0
+
+### Major Changes
+
+- 80f3635: feat: aleo nexus ui support
+
+### Patch Changes
+
+- c8f6f6c: Fixed routing ISM creation to correctly transfer ownership to the correct owner.
+- 0b8c4ea: Fixed hook update logic for warp routes. The warp route reader now properly reads hook addresses from deployed contracts instead of hardcoding zero address. Hook update idempotency check fixed to use deepEquals with config normalization instead of reference equality, preventing unnecessary redeployments when applying identical configs. Aleo provider updated to handle null/zero hook addresses correctly. Protocol capability check added to restrict hook updates to Aleo only. Comprehensive test suite added covering hook type transitions (none→MerkleTree, MerkleTree→IGP, MerkleTree→none), IGP config updates (gas configs, beneficiary), and idempotency validation.
+- a10cfc8: ISM update test coverage was improved by creating a shared test factory that works across AltVM protocols (Cosmos, Aleo, Radix). The factory supports explicit test skipping configuration through a `skipTests` parameter, making protocol-specific limitations clear in test configuration rather than hidden in implementation.
+
+  Aleo address handling was fixed to properly support ISM unsetting. The `isZeroishAddress` regex now matches Aleo null addresses both with and without program ID prefix. The `fromAleoAddress` helper was updated to handle addresses without the '/' separator. The `getSetTokenIsmTransaction` method now converts zero addresses to `ALEO_NULL_ADDRESS` before processing.
+
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+
 ## 22.0.0
 
 ### Minor Changes

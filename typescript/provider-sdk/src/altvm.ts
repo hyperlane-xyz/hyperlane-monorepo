@@ -421,7 +421,7 @@ export type ResSetTokenIsm = {
 export type ReqSetTokenHook = {
   signer: string;
   tokenAddress: string;
-  hookAddress: string;
+  hookAddress?: string;
 };
 export type ResSetTokenHook = {
   hookAddress: string;

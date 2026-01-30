@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/relayer",
-  "version": "0.0.0",
+  "version": "0.1.0",
   "description": "Hyperlane Message Relayer Service",
   "type": "module",
   "exports": {

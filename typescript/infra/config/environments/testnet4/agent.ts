@@ -25,16 +25,11 @@ import { DockerImageRepos, testnetDockerTags } from '../../docker.js';
 import { getDomainId } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
-import { helloWorld } from './helloworld.js';
 import {
   supportedChainNames,
   testnet4SupportedChainNames,
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
-
-const releaseCandidateHelloworldMatchingList = routerMatchingList(
-  helloWorld[Contexts.ReleaseCandidate].addresses,
-);
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -204,10 +199,6 @@ const kesselAppContext = 'kessel';
 
 const metricAppContextsGetter = (): MetricAppContext[] => [
   {
-    name: 'helloworld',
-    matchingList: routerMatchingList(helloWorld[Contexts.Hyperlane].addresses),
-  },
-  {
     name: kesselAppContext,
     matchingList: kesselMatchingList,
   },
@@ -287,7 +278,7 @@ const hyperlane: RootAgentConfig = {
       repo: DockerImageRepos.AGENT,
       tag: testnetDockerTags.relayer,
     },
-    blacklist: [...releaseCandidateHelloworldMatchingList, ...relayBlacklist],
+    blacklist: relayBlacklist,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,
@@ -325,7 +316,7 @@ const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
   contextChainNames: hyperlaneContextAgentChainNames,
-  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {

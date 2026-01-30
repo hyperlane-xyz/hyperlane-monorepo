@@ -22,8 +22,8 @@ export const keyFunderConfig: KeyFunderConfig<
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
-    [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
+    [Contexts.Hyperlane]: [Role.Relayer],
+    [Contexts.ReleaseCandidate]: [Role.Relayer],
   },
   chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
@@ -52,24 +52,6 @@ export const keyFunderConfig: KeyFunderConfig<
     solanatestnet: '0',
     // no funding for SVM chains
     sonicsvmtestnet: '0',
-  },
-  desiredKathyBalancePerChain: {
-    arbitrumsepolia: '0',
-    basesepolia: '0',
-    bsctestnet: '1',
-    connextsepolia: '0',
-    ecotestnet: '0',
-    // no funding for solana
-    eclipsetestnet: '0',
-    fuji: '1',
-    optimismsepolia: '0',
-    paradexsepolia: '0',
-    polygonamoy: '0',
-    sepolia: '1',
-    starknetsepolia: '0',
-    // no funding for solana
-    solanatestnet: '0',
-    superpositiontestnet: '0',
   },
   desiredRebalancerBalancePerChain: {},
   igpClaimThresholdPerChain: {

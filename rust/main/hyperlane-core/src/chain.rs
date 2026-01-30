@@ -683,6 +683,10 @@ impl HyperlaneDomain {
         )
     }
 
+    pub const fn is_aleo_protocol(&self) -> bool {
+        matches!(self.domain_protocol(), HyperlaneDomainProtocol::Aleo)
+    }
+
     pub const fn index_mode(&self) -> IndexMode {
         use HyperlaneDomainProtocol::*;
         let protocol = self.domain_protocol();

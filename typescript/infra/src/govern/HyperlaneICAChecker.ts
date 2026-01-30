@@ -54,7 +54,7 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
       const actualRemoteChains = await this.app.remoteChains(chain);
       // .remoteChains() already filters out the origin chain itself
       const filteredRemoteChains = actualRemoteChains.filter(
-        (c) => !legacyIcaChains.includes(c),
+        (c) => !legacyIcaChains.includes(c) && c !== 'eden',
       );
       return super.checkEnrolledRouters(chain, filteredRemoteChains);
     }
@@ -65,7 +65,7 @@ export class HyperlaneICAChecker extends InterchainAccountChecker {
       // have to manually filter out the origin chain itself
       // and then filter out legacy ica chains
       const remotes = Array.from(FULLY_CONNECTED_ICA_CHAINS).filter(
-        (c) => c !== chain && !legacyIcaChains.includes(c),
+        (c) => c !== chain && !legacyIcaChains.includes(c) && c !== 'eden',
       );
       return super.checkEnrolledRouters(chain, remotes);
     }

@@ -36,7 +36,6 @@ export interface KeyFunderConfig<SupportedChains extends readonly ChainName[]>
   contextsAndRolesToFund: ContextAndRolesMap;
   cyclesBetweenEthereumMessages?: number;
   desiredBalancePerChain: Record<SupportedChains[number], string>;
-  desiredKathyBalancePerChain: ChainMap<string>;
   desiredRebalancerBalancePerChain: ChainMap<string>;
   igpClaimThresholdPerChain: ChainMap<string>;
   chainsToSkip: ChainName[];

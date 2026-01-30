@@ -898,12 +898,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenHookTransaction(
     req: AltVM.ReqSetTokenHook,
   ): Promise<AleoTransaction> {
+    const hook =
+      !isNullish(req.hookAddress) && !isZeroishAddress(req.hookAddress)
+        ? fromAleoAddress(req.hookAddress).address
+        : ALEO_NULL_ADDRESS;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.hookAddress).address],
+      inputs: [hook],
     };
   }
 

@@ -81,7 +81,6 @@ export const awIcas: ChainMap<Address> = {
   morph: '0x8fe7d190e657D20e1958AB1497AbC7F1Ab4503F5',
   nibiru: '0x985D77eeC388e7A8b827d8f3f7EF853b3d70320f',
   oortmainnet: '0xE92Bf41B0fd76f72274fECa87179AE6E235c3c7F',
-  // ontology: '0x6F9c6b3979E46B64bE0Cb3E29376A1e1aa54a160',
   opbnb: '0xc8B74D2bD580F122a9d5Ce40d4631afa2Ae8FB3C',
   optimism: '0x1E2afA8d1B841c53eDe9474D188Cd4FcfEd40dDC',
   orderly: '0x60021F107A32e7E747bDeca64e6FCC21DD45C4AC',
@@ -111,7 +110,6 @@ export const awIcas: ChainMap<Address> = {
   torus: '0x3d3461DF23038f108ccF074947A958c93750CA9a',
   unichain: '0x20c2B4B4C7409D08AD70D5F9e317E98cfA9F49f7',
   vana: '0xcdB472A1411360151308be799cc36db7f982533E',
-  // viction: '0x23ed65DE22ac29Ec1C16E75EddB0cE3A187357b4',
   worldchain: '0xF618140B147beeD17cB83d4Bb8343484D5295cd2',
   xai: '0x0bE9B6460fb9300F88bC56B9E6668275f49DBe9b',
   xlayer: '0xda9dbF5a41eAFE58D76120Adc2442F2c02AA76dF',
@@ -127,4 +125,8 @@ export const awIcas: ChainMap<Address> = {
   // Sept 22, 2025
   // ----------------------------------------------------------
   zerogravity: '0x8d8703Ea7E7A129a581DCA59B916Cc4410a61D47',
+
+  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
+  // ----------------------------------------------------------
+  ontology: '0xa822324f214c2081ea6Cc50fAae011cC74fDcCA3',
 } as const;
