@@ -59,7 +59,16 @@ export class RegistryService {
     const watchPath = fsUri.replace(/^file:\/\//, '');
 
     try {
-      this.fileRegistryWatcher.watch(watchPath, () => this.markDirty());
+      this.fileRegistryWatcher.watch(
+        watchPath,
+        () => this.markDirty(),
+        (err) => {
+          this.logger.warn(
+            { err, path: watchPath },
+            'Watcher error, refresh will only occur on restart',
+          );
+        },
+      );
       this.logger.info({ path: watchPath }, 'Watching registry for changes');
     } catch (err) {
       this.logger.warn(

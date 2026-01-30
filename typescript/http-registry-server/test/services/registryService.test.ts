@@ -403,6 +403,40 @@ describe('RegistryService', () => {
       expect(loggerWarnStub.calledOnce).to.be.true;
       expect(loggerWarnStub.firstCall.args[1]).to.include('Failed to watch');
     });
+
+    it('should log warning on runtime watcher error', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      let capturedOnError: ((err: Error) => void) | undefined;
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub().callsFake((_path, _callback, onError) => {
+          capturedOnError = onError;
+        }),
+        stop: sinon.stub(),
+      };
+      const loggerWarnStub = sinon.stub(mockLogger, 'warn');
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+
+      // Simulate runtime watcher error
+      expect(capturedOnError).to.exist;
+      capturedOnError!(new Error('ENOENT: no such file or directory'));
+
+      expect(loggerWarnStub.calledOnce).to.be.true;
+      expect(loggerWarnStub.firstCall.args[1]).to.include('Watcher error');
+    });
   });
 
   describe('stop', () => {
