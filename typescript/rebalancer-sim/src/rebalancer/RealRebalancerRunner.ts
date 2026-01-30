@@ -200,10 +200,10 @@ export class RealRebalancerRunner
     const strategyConfig = buildStrategyConfig(this.config);
 
     // Create RebalancerConfig
-    const rebalancerConfig = new RebalancerConfig(
-      registry.getWarpRouteId(),
+    // Need explicit cast due to discriminated union type narrowing
+    const rebalancerConfig = new RebalancerConfig(registry.getWarpRouteId(), [
       strategyConfig,
-    );
+    ] as StrategyConfig[]);
 
     // Create service
     this.service = new RebalancerService(
