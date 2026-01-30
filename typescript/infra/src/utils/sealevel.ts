@@ -653,7 +653,7 @@ export async function fetchMultisigIsmState(
       validators: domainData.validatorsAndThreshold.validatorAddresses,
       threshold: domainData.validatorsAndThreshold.threshold,
     };
-  } catch {
+  } catch (error) {
     // Log deserialization errors with account data for debugging
     rootLogger.info(
       `Failed to deserialize domain ${domain} (PDA: ${domainDataPda.toBase58()}): ${error}`,

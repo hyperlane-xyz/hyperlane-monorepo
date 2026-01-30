@@ -21,7 +21,6 @@ import { CallData } from '../types.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
-import { getSubmitter } from './submitterBuilderGetter.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
   EvmIcaTxSubmitterProps,
@@ -56,6 +55,8 @@ export class EvmIcaTxSubmitter
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
     );
 
+    // Dynamic import to break circular dependency
+    const { getSubmitter } = await import('./submitterBuilderGetter.js');
     const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,

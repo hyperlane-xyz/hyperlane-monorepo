@@ -1622,7 +1622,7 @@ export class GovernTransactionReader {
             operation: formatOperationType(multisend.operation),
             decoded,
           };
-        } catch {
+        } catch (error) {
           this.logger.error(
             `Failed to decode multisend at index ${index}:`,
             error,
