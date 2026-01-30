@@ -13,7 +13,6 @@ export class RegistryService {
   private refreshPromise: Promise<IRegistry> | null = null;
   private watcher: FSWatcher | null = null;
   private isDirty = false;
-  private debounceTimer: NodeJS.Timeout | null = null;
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
@@ -72,10 +71,7 @@ export class RegistryService {
   }
 
   private markDirty() {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
-    this.debounceTimer = setTimeout(() => {
-      this.isDirty = true;
-    }, 500);
+    this.isDirty = true;
   }
 
   async getCurrentRegistry(): Promise<IRegistry> {
@@ -113,7 +109,6 @@ export class RegistryService {
   }
 
   stop() {
-    if (this.debounceTimer) clearTimeout(this.debounceTimer);
     this.watcher?.close();
   }
 }
