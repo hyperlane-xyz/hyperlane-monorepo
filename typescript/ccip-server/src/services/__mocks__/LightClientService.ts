@@ -15,7 +15,7 @@ class LightClientService {
 
   async requestProof(
     syncCommitteePoseidon: string,
-    slot: BigInt,
+    slot: bigint,
   ): Promise<string> {
     return 'pendingProofId12';
   }

@@ -234,33 +234,29 @@ export class StarknetArtifactGenerator {
   }
 
   async generate(): Promise<ReadonlyProcessedFilesMap> {
-    try {
-      await this.createOutputDirectory();
+    await this.createOutputDirectory();
 
-      const { sierraFiles } = await this.getArtifactPaths();
+    const { sierraFiles } = await this.getArtifactPaths();
 
-      const processingResults = await Promise.all(
-        sierraFiles.map((file) => this.processArtifact(file)),
-      );
+    const processingResults = await Promise.all(
+      sierraFiles.map((file) => this.processArtifact(file)),
+    );
 
-      const processedFilesMap =
-        this._aggregateProcessingResults(processingResults);
+    const processedFilesMap =
+      this._aggregateProcessingResults(processingResults);
 
-      const { jsContent, dtsContent } =
-        this.generateIndexContents(processedFilesMap);
+    const { jsContent, dtsContent } =
+      this.generateIndexContents(processedFilesMap);
 
-      await fs.writeFile(
-        join(this.rootOutputDir, 'index.js'),
-        await prettierOutputTransformer(jsContent),
-      );
-      await fs.writeFile(
-        join(this.rootOutputDir, 'index.d.ts'),
-        await prettierOutputTransformer(dtsContent),
-      );
+    await fs.writeFile(
+      join(this.rootOutputDir, 'index.js'),
+      await prettierOutputTransformer(jsContent),
+    );
+    await fs.writeFile(
+      join(this.rootOutputDir, 'index.d.ts'),
+      await prettierOutputTransformer(dtsContent),
+    );
 
-      return processedFilesMap;
-    } catch (error) {
-      throw error;
-    }
+    return processedFilesMap;
   }
 }

@@ -214,7 +214,9 @@ async function main() {
         try {
           const bal = await provider.getBalance(paymaster.address);
           balance = formatTo5SF(formatEther(bal));
-        } catch {}
+        } catch {
+          // Balance fetch failed, leave as N/A
+        }
 
         // Calculate threshold for display
         const thresholdStr = igpClaimThresholds[chain];

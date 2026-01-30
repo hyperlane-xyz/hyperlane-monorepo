@@ -249,7 +249,7 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
         );
       }
       return { type: AgentSignerKeyType.Cosmos, prefix: metadata.bech32Prefix };
-    case ProtocolType.Radix:
+    case ProtocolType.Radix: {
       // get the suffix based on the chain id
       let suffix: string;
       switch (metadata.chainId) {
@@ -263,6 +263,7 @@ export function defaultChainSignerKeyConfig(chainName: ChainName): KeyConfig {
           suffix = 'rdx';
       }
       return { type: AgentSignerKeyType.Radix, suffix: suffix };
+    }
     // Use starknet key for starknet & paradexsepolia
     case ProtocolType.Starknet: {
       return { type: AgentSignerKeyType.Starknet, legacy: false };
