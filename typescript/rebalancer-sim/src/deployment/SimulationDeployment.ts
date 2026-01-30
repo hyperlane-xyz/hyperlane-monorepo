@@ -39,7 +39,7 @@ export async function restoreSnapshot(
   try {
     const response = await provider.send('evm_revert', [snapshotId]);
     return response;
-  } catch (err) {
+  } catch (_err) {
     console.log('Note: evm_revert not supported. State reset skipped.');
     return false;
   }
@@ -213,7 +213,7 @@ export async function deployMultiDomainSimulation(
   let snapshotId = '';
   try {
     snapshotId = await createSnapshot(provider);
-  } catch (err) {
+  } catch (_err) {
     console.log(
       'Note: evm_snapshot not supported (normal for reth). State reset disabled.',
     );

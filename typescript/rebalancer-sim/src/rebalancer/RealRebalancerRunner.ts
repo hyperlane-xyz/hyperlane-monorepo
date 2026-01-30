@@ -124,6 +124,7 @@ export class RealRebalancerRunner
     await cleanupRealRebalancer();
 
     this.running = true;
+    // eslint-disable-next-line @typescript-eslint/no-this-alias
     currentInstance = this;
 
     // Create registry
