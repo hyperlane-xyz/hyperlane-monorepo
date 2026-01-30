@@ -1,3 +1,7 @@
+## [2.1.0] - 2026-01-30
+
+* feat: Store Raw Message Dispatches (#7714)
+
 ## [2.0.0] - 2026-01-06
 
 * feat!: pnpm migration (#7410)

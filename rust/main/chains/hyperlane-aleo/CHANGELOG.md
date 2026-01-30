@@ -1,3 +1,9 @@
+## [2.1.0] - 2026-01-30
+
+* chore: update chunk size again (#7825)
+* feat: clear auth token when request is unauthorzied (#7929)
+* fix: only use the first slug for provider methods (#7869)
+
 ## [2.0.0] - 2026-01-06
 
 * chore: aleo testnet deployment (#7589)

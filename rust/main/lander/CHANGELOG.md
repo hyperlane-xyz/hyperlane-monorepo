@@ -1,3 +1,12 @@
+## [2.1.0] - 2026-01-30
+
+* feat(tron): protocol type (#7827)
+* feat: Store Raw Message Dispatches (#7714)
+* fix(agents): Fix flaky CI tests in lander and relayer (#7949)
+* fix(lander): Stackoverflow for Aleo (#7757)
+* fix: Update upper nonce and finalised nonce when transaction is finalised (#7715)
+* fix: increase wait time for aleo tx resubmission (#7928)
+
 ## [2.0.0] - 2026-01-06
 
 * feat(rust): feature-gate Aleo chain support to reduce CI build times (#7569)
