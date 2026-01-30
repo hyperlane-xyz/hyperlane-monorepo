@@ -14,12 +14,12 @@ class LightClientService {
   }
 
   async requestProof(
-    syncCommitteePoseidon: string,
-    slot: bigint,
+    _syncCommitteePoseidon: string,
+    _slot: bigint,
   ): Promise<string> {
     return 'pendingProofId12';
   }
-  async getProofStatus(pendingProofId: string): Promise<ProofStatus> {
+  async getProofStatus(_pendingProofId: string): Promise<ProofStatus> {
     return ProofStatus.success;
   }
 }

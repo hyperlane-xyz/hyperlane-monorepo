@@ -17,7 +17,6 @@ import {
 import {
   BaseRelayerConfig,
   MetricAppContext,
-  routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';

@@ -96,7 +96,7 @@ async function isExternalSecretsReleaseInstalled(
       `helm status external-secrets --namespace ${infraConfig.externalSecrets.namespace}`,
     );
     return true;
-  } catch (e) {
+  } catch {
     return false;
   }
 }

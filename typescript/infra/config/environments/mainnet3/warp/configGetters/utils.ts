@@ -1,6 +1,5 @@
 import assert from 'assert';
 
-import { WarpRouteId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,

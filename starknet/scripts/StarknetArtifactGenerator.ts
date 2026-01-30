@@ -47,7 +47,7 @@ export class StarknetArtifactGenerator {
    */
   async getArtifactPaths() {
     const sierraPattern = `${this.compiledContractsDir}/**/*${CONTRACT_SUFFIXES.SIERRA_JSON}`;
-    const [sierraFiles] = await Promise.all([globby(sierraPattern)]);
+    const sierraFiles = await globby(sierraPattern);
     return { sierraFiles };
   }
 

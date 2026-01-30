@@ -220,7 +220,7 @@ export abstract class HelmManager<T = HelmValues> {
       ];
       try {
         await execCmd(cmd, {}, false, false);
-      } catch (e) {
+      } catch {
         console.error(e);
       }
     }
@@ -281,7 +281,7 @@ export abstract class HelmManager<T = HelmValues> {
         false,
       );
       return true;
-    } catch (error) {
+    } catch {
       return false;
     }
   }
@@ -338,7 +338,7 @@ export abstract class HelmManager<T = HelmValues> {
         `helm get values ${this.helmReleaseName} --namespace ${this.namespace} -o json`,
       );
       return values;
-    } catch (error) {
+    } catch {
       rootLogger.warn(
         `Failed to get deployed helm values for ${this.helmReleaseName}: ${error}`,
       );

@@ -706,7 +706,7 @@ export class GovernTransactionReader {
         data: tx.data,
         value: tx.value,
       });
-    } catch (error) {
+    } catch {
       throw new Error('Failed to decode Managed Lockbox transaction');
     }
 
@@ -1088,7 +1088,7 @@ export class GovernTransactionReader {
       });
 
       return this.formatFeeConfig(feeConfig);
-    } catch (e) {
+    } catch {
       // Not a fee contract or failed to read - return basic insight
       return { insight: `Set fee recipient to ${feeRecipientAddress}` };
     }
@@ -1373,7 +1373,7 @@ export class GovernTransactionReader {
       case proxyAdminInterface.functions[
         'upgradeAndCall(address,address,bytes)'
       ].name: {
-        const [proxy, implementation, data] = decoded.args;
+        const [proxy, implementation, _data] = decoded.args;
         insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
         break;
       }
@@ -1622,7 +1622,7 @@ export class GovernTransactionReader {
             operation: formatOperationType(multisend.operation),
             decoded,
           };
-        } catch (error) {
+        } catch {
           this.logger.error(
             `Failed to decode multisend at index ${index}:`,
             error,

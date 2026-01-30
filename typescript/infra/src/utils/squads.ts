@@ -115,7 +115,7 @@ export async function getSquadProposal(
     );
 
     return { proposal, multisig, proposalPda };
-  } catch (error) {
+  } catch {
     rootLogger.warn(
       chalk.yellow(
         `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
@@ -182,7 +182,7 @@ export async function getPendingProposalsForChains(
 
             if (!proposalData) continue;
 
-            const { proposal, proposalPda } = proposalData;
+            const { proposal } = proposalData;
 
             // Only include active proposals (skip executed, rejected, cancelled)
             if (
@@ -243,12 +243,12 @@ export async function getPendingProposalsForChains(
               balance: `${balanceFormatted} SOL`,
               submissionDate,
             });
-          } catch (error) {
+          } catch {
             // Skip if proposal doesn't exist or other error
             continue;
           }
         }
-      } catch (error) {
+      } catch {
         rootLogger.warn(
           chalk.yellow(
             `Skipping chain ${chain} as there was an error getting the squads data: ${error}`,
@@ -782,7 +782,7 @@ export async function submitProposalToSquads(
         'Proposal created and approved by proposer. Other multisig members can now approve.',
       ),
     );
-  } catch (error) {
+  } catch {
     rootLogger.error(
       chalk.red(`Failed to submit proposal to Squads: ${error}`),
     );
@@ -952,7 +952,7 @@ export async function executeProposal(
         `Executed proposal ${transactionIndex} on ${chain}: ${signature}`,
       ),
     );
-  } catch (error) {
+  } catch {
     rootLogger.error(
       chalk.red(`Error executing proposal ${transactionIndex} on ${chain}:`),
     );
