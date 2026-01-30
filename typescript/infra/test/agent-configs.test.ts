@@ -36,6 +36,7 @@ const environmentChainConfigs = {
 describe('Agent configs', () => {
   Object.entries(environmentChainConfigs).forEach(([environment, config]) => {
     describe(`Environment: ${environment}`, () => {
+      // eslint-disable-next-line jest/expect-expect -- ensureAgentChainConfigIncludesAllChainNames throws on failure
       it('AgentChainConfig specifies all chains for each role in the agent chain config', () => {
         // This will throw if there are any inconsistencies
         ensureAgentChainConfigIncludesAllChainNames(

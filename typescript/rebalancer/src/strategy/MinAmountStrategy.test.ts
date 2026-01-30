@@ -64,6 +64,7 @@ describe('MinAmountStrategy', () => {
       ).to.throw('At least two chains must be configured');
     });
 
+    // eslint-disable-next-line jest/expect-expect -- testing constructor doesn't throw
     it('should create a strategy with minAmount and target using absolute values', () => {
       new MinAmountStrategy(
         {
@@ -93,6 +94,7 @@ describe('MinAmountStrategy', () => {
       );
     });
 
+    // eslint-disable-next-line jest/expect-expect -- testing constructor doesn't throw
     it('should create a strategy with minAmount and target using relative values', () => {
       new MinAmountStrategy(
         {

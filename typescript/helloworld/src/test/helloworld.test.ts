@@ -16,7 +16,7 @@ import { HelloWorldConfig } from '../deploy/config.js';
 import { HelloWorldDeployer } from '../deploy/deploy.js';
 import { HelloWorld } from '../types/index.js';
 
-describe('HelloWorld', async () => {
+describe('HelloWorld', () => {
   const localChain = TestChainName.test1;
   const remoteChain = TestChainName.test2;
   let localDomain: number;
