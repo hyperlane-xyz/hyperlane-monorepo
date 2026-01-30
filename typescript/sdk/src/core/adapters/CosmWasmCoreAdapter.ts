@@ -210,4 +210,11 @@ export class CosmWasmCoreAdapter
   ): Promise<boolean> {
     throw new Error('Method not implemented.');
   }
+
+  async isDelivered(
+    messageId: HexString,
+    _blockTag?: string | number,
+  ): Promise<boolean> {
+    return this.delivered(messageId);
+  }
 }
