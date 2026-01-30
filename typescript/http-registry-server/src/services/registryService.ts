@@ -6,6 +6,7 @@ import {
   MergedRegistry,
   RegistryType,
 } from '@hyperlane-xyz/registry';
+import { assert } from '@hyperlane-xyz/utils';
 
 export class RegistryService {
   private registry: IRegistry | null = null;
@@ -98,7 +99,8 @@ export class RegistryService {
       }
     }
 
-    return this.registry!;
+    assert(this.registry, 'Could not fetch current registry');
+    return this.registry;
   }
 
   async withRegistry<T>(
