@@ -260,14 +260,13 @@ describe('hyperlane submit', function () {
       writeYamlOrJson(transactionsPath, { invalid: 'transaction' });
 
       const chain2MintAmount = randomInt(1, 1000);
-      const transactions = await Promise.all([
-        getMintOnlyOwnerTransaction(
-          xerc20Chain2,
-          ALICE,
-          chain2MintAmount,
-          ANVIL2_CHAIN_ID,
-        ),
-      ]);
+      const transaction = await getMintOnlyOwnerTransaction(
+        xerc20Chain2,
+        ALICE,
+        chain2MintAmount,
+        ANVIL2_CHAIN_ID,
+      );
+      const transactions = [transaction];
       writeYamlOrJson(transactionsPath, transactions);
 
       await hyperlaneSubmit({ strategyPath, transactionsPath });

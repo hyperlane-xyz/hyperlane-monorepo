@@ -1,8 +1,6 @@
-import { ChainMap } from '@hyperlane-xyz/sdk';
 import { pick } from '@hyperlane-xyz/utils';
 
 import {
-  ezEthOwners,
   ezEthSafes,
   ezEthValidators,
   getRenzoWarpConfigGenerator,

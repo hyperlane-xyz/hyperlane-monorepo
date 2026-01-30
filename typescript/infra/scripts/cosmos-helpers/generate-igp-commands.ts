@@ -73,12 +73,17 @@ async function main() {
     const token_price = parseFloat(entry.token_price);
     const origin_token_price = parseFloat(tokenPrices[originChain]);
 
-    const destNativeTokenDecimals = (
-      await registry.getChainMetadata(entry.name)
-    )?.nativeToken?.decimals!;
-    const originNativeTokenDecimals = (
-      await registry.getChainMetadata(originChain)
-    )?.nativeToken?.decimals!;
+    const destMetadata = await registry.getChainMetadata(entry.name);
+    const destNativeTokenDecimals = destMetadata?.nativeToken?.decimals;
+    if (destNativeTokenDecimals == null) {
+      throw new Error(`Missing native token decimals for ${entry.name}`);
+    }
+
+    const originMetadata = await registry.getChainMetadata(originChain);
+    const originNativeTokenDecimals = originMetadata?.nativeToken?.decimals;
+    if (originNativeTokenDecimals == null) {
+      throw new Error(`Missing native token decimals for ${originChain}`);
+    }
 
     let ratio = token_price / origin_token_price;
 

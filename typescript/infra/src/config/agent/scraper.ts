@@ -5,7 +5,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { Role } from '../../roles.js';
-import { HelmStatefulSetValues } from '../infrastructure.js';
+import type { HelmStatefulSetValues } from '../infrastructure.js';
 
 import { AgentConfigHelper, RootAgentConfig } from './agent.js';
 

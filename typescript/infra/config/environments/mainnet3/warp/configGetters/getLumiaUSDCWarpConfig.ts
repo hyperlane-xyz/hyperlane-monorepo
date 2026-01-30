@@ -27,7 +27,7 @@ const owners = {
 
 const EXISTING_CHAINS = ['ethereum', 'lumiaprism'];
 
-const submitterConfig = objMap(
+const _submitterConfig = objMap(
   owners,
   (chain, owner): { submitter: SubmitterMetadata } => {
     if (!EXISTING_CHAINS.includes(chain)) {

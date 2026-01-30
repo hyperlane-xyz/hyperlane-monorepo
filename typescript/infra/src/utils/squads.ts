@@ -182,7 +182,7 @@ export async function getPendingProposalsForChains(
 
             if (!proposalData) continue;
 
-            const { proposal, proposalPda } = proposalData;
+            const { proposal } = proposalData;
 
             // Only include active proposals (skip executed, rejected, cancelled)
             if (
@@ -245,6 +245,9 @@ export async function getPendingProposalsForChains(
             });
           } catch (error) {
             // Skip if proposal doesn't exist or other error
+            rootLogger.debug(
+              `Skipping proposal due to error: ${String(error)}`,
+            );
             continue;
           }
         }

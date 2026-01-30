@@ -119,7 +119,7 @@ function formatAndPrintLogs(rawLogs: string) {
 
       rootLogger.info(logMessage);
     });
-  } catch (err) {
+  } catch {
     rootLogger.warn('Could not parse logs as JSON, showing raw logs:');
     rootLogger.info(rawLogs);
   }

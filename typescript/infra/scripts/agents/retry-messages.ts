@@ -1,5 +1,4 @@
 import { spawn } from 'child_process';
-import yargs from 'yargs';
 
 import { Contexts } from '../../config/contexts.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
@@ -78,7 +77,7 @@ async function retryMessage(options: RetryOptions) {
         isConnected = true;
         console.log(`✅ Port-forward established on port ${port}`);
         resolve();
-      } catch (error) {
+      } catch {
         retries++;
         if (retries >= maxRetries) {
           reject(

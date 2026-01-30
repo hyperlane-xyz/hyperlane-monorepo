@@ -2,7 +2,6 @@ import { BigNumber, ethers } from 'ethers';
 
 import {
   AggregationIsmConfig,
-  ChainName,
   CoreConfig,
   FallbackRoutingHookConfig,
   HookType,
