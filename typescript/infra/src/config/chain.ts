@@ -186,6 +186,7 @@ export async function getSecretMetadataOverrides(
       const chainMetadata = getChain(chain);
       const txServiceUrl = chainMetadata.gnosisSafeTransactionServiceUrl;
       if (txServiceUrl && safeApiKeyRequired(txServiceUrl)) {
+        chainMetadataOverrides[chain] ??= {};
         chainMetadataOverrides[chain].gnosisSafeApiKey = safeApiKey;
       }
     }
