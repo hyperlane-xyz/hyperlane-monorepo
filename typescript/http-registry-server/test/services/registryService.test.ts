@@ -3,10 +3,16 @@ import chaiAsPromised from 'chai-as-promised';
 import { type Logger, pino } from 'pino';
 import sinon from 'sinon';
 
-import { IRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
+import {
+  IRegistry,
+  MergedRegistry,
+  PartialRegistry,
+  RegistryType,
+} from '@hyperlane-xyz/registry';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { RegistryService } from '../../src/services/registryService.js';
+import { IWatcher } from '../../src/services/watcherService.js';
 
 chaiUse(chaiAsPromised);
 
@@ -140,6 +146,298 @@ describe('RegistryService', () => {
 
       expect(getRegistryStub.calledOnce).to.be.true;
       expect(operation.calledWith(mockRegistry)).to.be.true;
+    });
+  });
+
+  describe('dirty flag', () => {
+    let markDirtyCallback: () => void;
+    let mockWatcher: IWatcher;
+
+    beforeEach(() => {
+      mockWatcher = {
+        watch: sinon.stub().callsFake((_path, callback) => {
+          markDirtyCallback = callback;
+        }),
+        stop: sinon.stub(),
+      };
+    });
+
+    it('should trigger refresh when dirty', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+
+      // Simulate watcher callback
+      markDirtyCallback();
+
+      await registryService.getCurrentRegistry();
+
+      expect(getRegistryStub.calledOnce).to.be.true;
+    });
+
+    it('should clear flag after refresh', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+
+      // Trigger dirty flag
+      markDirtyCallback();
+
+      // First call should refresh
+      await registryService.getCurrentRegistry();
+      expect(getRegistryStub.calledOnce).to.be.true;
+      getRegistryStub.resetHistory();
+
+      // Second call should NOT refresh (flag cleared)
+      await registryService.getCurrentRegistry();
+      expect(getRegistryStub.called).to.be.false;
+    });
+
+    it('should skip time-based refresh when watching', async () => {
+      clock = sinon.useFakeTimers(Date.now());
+
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+      getRegistryStub.resetHistory();
+
+      // Time passes but no file change
+      clock.tick(REFRESH_INTERVAL + 1);
+
+      await registryService.getCurrentRegistry();
+
+      // Should NOT refresh because we're watching and dirty flag not set
+      expect(getRegistryStub.called).to.be.false;
+    });
+  });
+
+  describe('file watching', () => {
+    it('should set up watcher for FileSystem registry', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub(),
+        stop: sinon.stub(),
+      };
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+
+      expect((mockWatcher.watch as sinon.SinonStub).calledOnce).to.be.true;
+      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).to.equal(
+        '/test/registry',
+      );
+    });
+
+    it('should extract path from MergedRegistry', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/fs-registry',
+      } as IRegistry;
+
+      const mergedRegistry = {
+        ...mockRegistry,
+        type: RegistryType.Merged,
+        registries: [fsRegistry],
+      } as unknown as MergedRegistry;
+      getRegistryStub.resolves(mergedRegistry);
+
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub(),
+        stop: sinon.stub(),
+      };
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+
+      expect((mockWatcher.watch as sinon.SinonStub).calledOnce).to.be.true;
+      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).to.equal(
+        '/test/fs-registry',
+      );
+    });
+
+    it('should strip file:// prefix from uri', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: 'file:///test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub(),
+        stop: sinon.stub(),
+      };
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+
+      expect((mockWatcher.watch as sinon.SinonStub).firstCall.args[0]).to.equal(
+        '/test/registry',
+      );
+    });
+
+    it('should skip watcher setup for non-FileSystem registry', async () => {
+      // PartialRegistry has no type, so it shouldn't trigger watching
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub(),
+        stop: sinon.stub(),
+      };
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+
+      expect((mockWatcher.watch as sinon.SinonStub).called).to.be.false;
+    });
+
+    it('should skip watcher setup when no watcher provided', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      // No watcher provided
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+      );
+
+      // Should not throw
+      await registryService.initialize();
+    });
+
+    it('should log warning on watch failure', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub().throws(new Error('Watch failed')),
+        stop: sinon.stub(),
+      };
+      const loggerWarnStub = sinon.stub(mockLogger, 'warn');
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+
+      expect(loggerWarnStub.calledOnce).to.be.true;
+      expect(loggerWarnStub.firstCall.args[1]).to.include('Failed to watch');
+    });
+  });
+
+  describe('stop', () => {
+    it('should call watcher.stop on stop', async () => {
+      const fsRegistry = {
+        ...mockRegistry,
+        type: RegistryType.FileSystem,
+        uri: '/test/registry',
+      } as IRegistry;
+      getRegistryStub.resolves(fsRegistry);
+
+      const mockWatcher: IWatcher = {
+        watch: sinon.stub(),
+        stop: sinon.stub(),
+      };
+
+      registryService = new RegistryService(
+        getRegistryStub,
+        REFRESH_INTERVAL,
+        mockLogger,
+        mockWatcher,
+      );
+
+      await registryService.initialize();
+      registryService.stop();
+
+      expect((mockWatcher.stop as sinon.SinonStub).calledOnce).to.be.true;
+    });
+
+    it('should handle stop when no watcher', async () => {
+      // No watcher provided
+      await registryService.initialize();
+
+      // Should not throw
+      expect(() => registryService.stop()).to.not.throw();
     });
   });
 });

@@ -1,4 +1,3 @@
-import { FSWatcher, watch } from 'fs';
 import type { Logger } from 'pino';
 
 import {
@@ -8,17 +7,19 @@ import {
 } from '@hyperlane-xyz/registry';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { IWatcher } from './watcherService.js';
+
 export class RegistryService {
   private registry: IRegistry | null = null;
   private lastRefresh: number = Date.now();
   private refreshPromise: Promise<IRegistry> | null = null;
-  private watcher: FSWatcher | null = null;
   private isDirty = false;
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
     private readonly refreshInterval: number,
     private readonly logger: Logger,
+    private readonly fileRegistryWatcher?: IWatcher,
   ) {}
 
   async initialize() {
@@ -46,22 +47,17 @@ export class RegistryService {
   }
 
   private startWatching() {
+    if (!this.fileRegistryWatcher) {
+      this.logger.debug('No watcher found. Skipping');
+      return;
+    }
     const fsUri = this.getFileSystemRegistryUri();
     if (!fsUri) return;
 
     const watchPath = fsUri.replace(/^file:\/\//, '');
 
     try {
-      this.watcher = watch(
-        watchPath,
-        { recursive: true },
-        (event, filename) => {
-          if (filename?.match(/\.(yaml|json)$/)) {
-            this.logger.info({ event, filename }, 'Registry file changed');
-            this.markDirty();
-          }
-        },
-      );
+      this.fileRegistryWatcher.watch(watchPath, () => this.markDirty());
       this.logger.info({ path: watchPath }, 'Watching registry for changes');
     } catch (err) {
       this.logger.warn(
@@ -111,6 +107,6 @@ export class RegistryService {
   }
 
   stop() {
-    this.watcher?.close();
+    if (this.fileRegistryWatcher) this.fileRegistryWatcher.stop();
   }
 }

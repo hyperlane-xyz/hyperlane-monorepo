@@ -14,6 +14,7 @@ import { ChainService } from './src/services/chainService.js';
 import { RegistryService } from './src/services/registryService.js';
 import { RootService } from './src/services/rootService.js';
 import { WarpService } from './src/services/warpService.js';
+import { FileSystemRegistryWatcher } from './src/services/watcherService.js';
 
 export class HttpServer {
   app: Express;
@@ -74,6 +75,7 @@ export class HttpServer {
         this.getRegistry,
         refreshInterval,
         this.logger,
+        new FileSystemRegistryWatcher(),
       );
       await this.registryService.initialize();
 
