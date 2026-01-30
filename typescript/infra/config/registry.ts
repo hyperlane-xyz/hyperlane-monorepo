@@ -39,7 +39,7 @@ export const DEFAULT_REGISTRY_URI = join(
 
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
-let registry: FileSystemRegistry;
+let registry: FileSystemRegistry | undefined;
 
 export function setRegistry(reg: FileSystemRegistry) {
   registry = reg;
@@ -51,7 +51,7 @@ export function setRegistry(reg: FileSystemRegistry) {
  * when file watching detects changes.
  */
 export function resetRegistry() {
-  registry = undefined as any;
+  registry = undefined;
 }
 
 /**
