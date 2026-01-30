@@ -1,10 +1,9 @@
 import { Plaintext } from '@provablehq/sdk';
 
-import { assert, ensure0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, isZeroishAddress } from '@hyperlane-xyz/utils';
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import {
-  ALEO_NULL_ADDRESS,
   U128ToString,
   fromAleoAddress,
   toAleoAddress,
@@ -213,11 +212,25 @@ function parseIsmAddress(
   ismAddress: string,
   ismManager: string,
 ): string | undefined {
-  if (ismAddress === ALEO_NULL_ADDRESS) {
+  if (isZeroishAddress(ismAddress)) {
     return undefined;
   }
 
   return `${ismManager}/${ismAddress}`;
+}
+
+/**
+ * Parse Hook address from metadata
+ */
+function parseHookAddress(
+  hookAddress: string,
+  hookManager: string,
+): string | undefined {
+  if (isZeroishAddress(hookAddress)) {
+    return undefined;
+  }
+
+  return `${hookManager}/${hookAddress}`;
 }
 
 /**
@@ -227,6 +240,7 @@ export async function getNativeWarpTokenConfig(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
   ismManager: string,
+  hookManager: string,
 ): Promise<AleoNativeWarpTokenConfig> {
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
@@ -250,6 +264,8 @@ export async function getNativeWarpTokenConfig(
   // Parse ISM
   const ism = parseIsmAddress(metadata.ism, ismManager);
 
+  const hook = parseHookAddress(metadata.hook, hookManager);
+
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
@@ -258,6 +274,7 @@ export async function getNativeWarpTokenConfig(
     owner: metadata.token_owner,
     mailbox: mailboxAddress,
     ism,
+    hook,
     remoteRouters,
   };
 }
@@ -269,6 +286,7 @@ export async function getCollateralWarpTokenConfig(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
   ismManager: string,
+  hookManager: string,
 ): Promise<AleoCollateralWarpTokenConfig> {
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
@@ -292,6 +310,8 @@ export async function getCollateralWarpTokenConfig(
   // Parse ISM
   const ism = parseIsmAddress(metadata.ism, ismManager);
 
+  const hook = parseHookAddress(metadata.hook, hookManager);
+
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
@@ -309,6 +329,7 @@ export async function getCollateralWarpTokenConfig(
     owner: metadata.token_owner,
     mailbox: mailboxAddress,
     ism,
+    hook,
     remoteRouters,
     token: tokenId,
     name: tokenMetadata.name,
@@ -324,6 +345,7 @@ export async function getSyntheticWarpTokenConfig(
   aleoClient: AnyAleoNetworkClient,
   tokenAddress: string,
   ismManager: string,
+  hookManager: string,
 ): Promise<AleoSyntheticWarpTokenConfig> {
   // Query metadata
   const metadata = await getWarpTokenMetadata(aleoClient, tokenAddress);
@@ -347,6 +369,8 @@ export async function getSyntheticWarpTokenConfig(
   // Parse ISM
   const ism = parseIsmAddress(metadata.ism, ismManager);
 
+  const hook = parseHookAddress(metadata.hook, hookManager);
+
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
 
@@ -364,6 +388,7 @@ export async function getSyntheticWarpTokenConfig(
     owner: metadata.token_owner,
     mailbox: mailboxAddress,
     ism,
+    hook,
     remoteRouters,
     name: tokenMetadata.name,
     symbol: tokenMetadata.symbol,

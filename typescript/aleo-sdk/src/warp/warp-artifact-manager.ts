@@ -13,6 +13,7 @@ import {
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import type { AleoSigner } from '../clients/signer.js';
 import { aleoTokenTypeToWarpType } from '../utils/helper.js';
+import { type OnChainArtifactManagers } from '../utils/types.js';
 
 import {
   AleoCollateralTokenReader,
@@ -31,7 +32,7 @@ import { getAleoWarpTokenType } from './warp-query.js';
 export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
   constructor(
     private readonly aleoClient: AnyAleoNetworkClient,
-    private readonly ismManager: string,
+    private readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {}
 
   async readWarpToken(address: string): Promise<DeployedWarpArtifact> {
@@ -55,11 +56,21 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
         DeployedWarpAddress
       >;
     } = {
-      native: () => new AleoNativeTokenReader(this.aleoClient, this.ismManager),
+      native: () =>
+        new AleoNativeTokenReader(
+          this.aleoClient,
+          this.onChainArtifactManagers,
+        ),
       collateral: () =>
-        new AleoCollateralTokenReader(this.aleoClient, this.ismManager),
+        new AleoCollateralTokenReader(
+          this.aleoClient,
+          this.onChainArtifactManagers,
+        ),
       synthetic: () =>
-        new AleoSyntheticTokenReader(this.aleoClient, this.ismManager),
+        new AleoSyntheticTokenReader(
+          this.aleoClient,
+          this.onChainArtifactManagers,
+        ),
     };
 
     return readers[type]();
@@ -76,11 +87,23 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
       >;
     } = {
       native: () =>
-        new AleoNativeTokenWriter(this.aleoClient, signer, this.ismManager),
+        new AleoNativeTokenWriter(
+          this.aleoClient,
+          signer,
+          this.onChainArtifactManagers,
+        ),
       collateral: () =>
-        new AleoCollateralTokenWriter(this.aleoClient, signer, this.ismManager),
+        new AleoCollateralTokenWriter(
+          this.aleoClient,
+          signer,
+          this.onChainArtifactManagers,
+        ),
       synthetic: () =>
-        new AleoSyntheticTokenWriter(this.aleoClient, signer, this.ismManager),
+        new AleoSyntheticTokenWriter(
+          this.aleoClient,
+          signer,
+          this.onChainArtifactManagers,
+        ),
     };
 
     return writers[type]();

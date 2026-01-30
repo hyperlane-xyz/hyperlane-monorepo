@@ -24,6 +24,7 @@ import {
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
+  type OnChainArtifactManagers,
   aleoWarpFieldsToArtifactApi,
 } from '../utils/types.js';
 
@@ -40,7 +41,7 @@ export class AleoCollateralTokenReader
 {
   constructor(
     protected readonly aleoClient: AnyAleoNetworkClient,
-    protected readonly ismManager: string,
+    protected readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {}
 
   async read(
@@ -52,11 +53,12 @@ export class AleoCollateralTokenReader
     const token = await getCollateralWarpTokenConfig(
       this.aleoClient,
       address,
-      this.ismManager,
+      this.onChainArtifactManagers.ismManagerAddress,
+      this.onChainArtifactManagers.hookManagerAddress,
     );
 
     // Convert to provider-sdk artifact format
-    const { destinationGas, remoteRouters, interchainSecurityModule } =
+    const { destinationGas, remoteRouters, interchainSecurityModule, hook } =
       aleoWarpFieldsToArtifactApi(token);
     const config: RawCollateralWarpArtifactConfig = {
       type: TokenType.collateral,
@@ -65,6 +67,7 @@ export class AleoCollateralTokenReader
       destinationGas,
       remoteRouters,
       interchainSecurityModule,
+      hook,
       token: token.token,
       name: token.name,
       symbol: token.symbol,
@@ -89,9 +92,9 @@ export class AleoCollateralTokenWriter
   constructor(
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
-    ismManager: string,
+    onChainArtifactManagers: OnChainArtifactManagers,
   ) {
-    super(aleoClient, ismManager);
+    super(aleoClient, onChainArtifactManagers);
   }
 
   async create(
