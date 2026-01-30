@@ -7,7 +7,8 @@ use async_trait::async_trait;
 use derive_new::new;
 use solana_sdk::{
     commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
-    instruction::Instruction, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+    instruction::Instruction, pubkey::Pubkey, signature::Signature,
+    transaction::VersionedTransaction,
 };
 
 use hyperlane_core::ChainResult;
@@ -25,16 +26,18 @@ pub trait TransactionSubmitter: Send + Sync {
         payer: &Pubkey,
     ) -> Instruction;
 
-    /// Send a transaction to the chain.
+    /// Send a versioned transaction to the chain.
     async fn send_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
-    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
-        -> ChainResult<()>;
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> ChainResult<()>;
 
     /// Confirm transaction
     async fn confirm_transaction(
@@ -63,18 +66,18 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
 
     async fn send_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.provider
             .rpc_client()
-            .send_transaction(transaction, skip_preflight)
+            .send_versioned_transaction(transaction, skip_preflight)
             .await
     }
 
     async fn wait_for_transaction_confirmation(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
     ) -> ChainResult<()> {
         self.provider
             .wait_for_transaction_confirmation(transaction)
@@ -134,18 +137,18 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
 
     async fn send_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.submit_provider
             .rpc_client()
-            .send_transaction(transaction, skip_preflight)
+            .send_versioned_transaction(transaction, skip_preflight)
             .await
     }
 
     async fn wait_for_transaction_confirmation(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
     ) -> ChainResult<()> {
         self.default_provider
             .wait_for_transaction_confirmation(transaction)

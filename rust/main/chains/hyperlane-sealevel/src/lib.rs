@@ -23,6 +23,8 @@ pub use tx_submitter::*;
 pub use validator_announce::*;
 
 mod account;
+/// Address Lookup Table support for transaction size reduction
+pub mod alt;
 /// Hyperlane Application specific functionality
 pub mod application;
 mod error;

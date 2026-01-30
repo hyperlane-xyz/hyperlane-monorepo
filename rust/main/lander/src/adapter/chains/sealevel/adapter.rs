@@ -13,7 +13,7 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::Transaction as SealevelTransaction,
+    transaction::VersionedTransaction as SealevelTransaction,
 };
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument, warn};
@@ -334,7 +334,7 @@ impl AdaptsChain for SealevelAdapter {
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
         self.client
-            .simulate_transaction(&svm_transaction)
+            .simulate_versioned_transaction(&svm_transaction)
             .await
             .map_err(|e| {
                 error!(?tx, ?e, "failed to simulate transaction");

@@ -8,7 +8,7 @@ use solana_sdk::commitment_config::CommitmentConfig;
 use solana_sdk::hash::Hash;
 use solana_sdk::pubkey::Pubkey;
 use solana_sdk::signature::Signature;
-use solana_sdk::transaction::Transaction;
+use solana_sdk::transaction::{Transaction, VersionedTransaction};
 use solana_sdk::{account::Account, clock::Slot};
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
@@ -53,10 +53,16 @@ pub trait SubmitSealevelRpc: Send + Sync {
         commitment: CommitmentConfig,
     ) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
 
-    /// Simulates Sealevel transaction
+    /// Simulates Sealevel legacy transaction
     async fn simulate_transaction(
         &self,
         transaction: &Transaction,
+    ) -> ChainResult<RpcSimulateTransactionResult>;
+
+    /// Simulates Sealevel versioned transaction
+    async fn simulate_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult>;
 }
 
@@ -102,7 +108,7 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
             .await
     }
 
-    /// simulate a transaction
+    /// simulate a legacy transaction
     async fn simulate_transaction(
         &self,
         transaction: &Transaction,
@@ -111,6 +117,21 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
             .call(move |client| {
                 let transaction = transaction.clone();
                 let future = async move { client.simulate_transaction(&transaction).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
+    /// simulate a versioned transaction
+    async fn simulate_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        self.fallback_provider
+            .call(move |client| {
+                let transaction = transaction.clone();
+                let future =
+                    async move { client.simulate_versioned_transaction(&transaction).await };
                 Box::pin(future)
             })
             .await
@@ -318,17 +339,20 @@ impl SealevelFallbackRpcClient {
             .await
     }
 
-    /// send transaction
-    pub async fn send_transaction(
+    /// send versioned transaction
+    pub async fn send_versioned_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.fallback_provider
             .call(move |client| {
                 let transaction = transaction.clone();
-                let future =
-                    async move { client.send_transaction(&transaction, skip_preflight).await };
+                let future = async move {
+                    client
+                        .send_versioned_transaction(&transaction, skip_preflight)
+                        .await
+                };
                 Box::pin(future)
             })
             .await

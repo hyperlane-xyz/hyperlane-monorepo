@@ -66,6 +66,7 @@ use hyperlane_sealevel_validator_announce::{
 use squads::{process_squads_cmd, SquadsCmd};
 use warp_route::parse_token_account_data;
 
+mod alt;
 mod artifacts;
 mod cmd_utils;
 mod context;
@@ -115,6 +116,7 @@ struct Cli {
 
 #[derive(Subcommand)]
 enum HyperlaneSealevelCmd {
+    Alt(AltCmd),
     Core(CoreCmd),
     Mailbox(MailboxCmd),
     Token(TokenCmd),
@@ -132,6 +134,25 @@ pub struct EnvironmentArgs {
     environment: String,
     #[arg(long)]
     environments_dir: PathBuf,
+}
+
+#[derive(Args)]
+pub(crate) struct AltCmd {
+    #[command(subcommand)]
+    cmd: AltSubCmd,
+}
+
+#[derive(Subcommand)]
+pub(crate) enum AltSubCmd {
+    /// Create an Address Lookup Table for Hyperlane
+    Create(AltCreateCmd),
+}
+
+#[derive(Args)]
+pub(crate) struct AltCreateCmd {
+    /// Mailbox program ID (inbox PDA derived from this)
+    #[arg(long)]
+    pub mailbox: Pubkey,
 }
 
 #[derive(Args)]
@@ -797,6 +818,7 @@ fn main() {
         cli.write_instructions,
     );
     match cli.cmd {
+        HyperlaneSealevelCmd::Alt(cmd) => alt::process_alt_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Mailbox(cmd) => process_mailbox_cmd(ctx, cmd),
         HyperlaneSealevelCmd::Token(cmd) => process_token_cmd(ctx, cmd),
         HyperlaneSealevelCmd::ValidatorAnnounce(cmd) => process_validator_announce_cmd(ctx, cmd),

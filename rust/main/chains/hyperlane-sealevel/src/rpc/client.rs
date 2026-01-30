@@ -10,8 +10,12 @@ use solana_client::{
 };
 use solana_program::clock::Slot;
 use solana_sdk::{
-    account::Account, commitment_config::CommitmentConfig, hash::Hash, pubkey::Pubkey,
-    signature::Signature, transaction::Transaction,
+    account::Account,
+    commitment_config::CommitmentConfig,
+    hash::Hash,
+    pubkey::Pubkey,
+    signature::Signature,
+    transaction::{Transaction, VersionedTransaction},
 };
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,
@@ -254,10 +258,10 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    /// send transaction
-    pub async fn send_transaction(
+    /// send versioned transaction
+    pub async fn send_versioned_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &VersionedTransaction,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.0
@@ -272,10 +276,32 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
-    /// simulate a transaction
+    /// simulate a legacy transaction
     pub async fn simulate_transaction(
         &self,
         transaction: &Transaction,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        let result = self
+            .0
+            .simulate_transaction_with_config(
+                transaction,
+                RpcSimulateTransactionConfig {
+                    sig_verify: false,
+                    replace_recent_blockhash: true,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)?
+            .value;
+
+        Ok(result)
+    }
+
+    /// simulate a versioned transaction
+    pub async fn simulate_versioned_transaction(
+        &self,
+        transaction: &VersionedTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult> {
         let result = self
             .0
