@@ -36,6 +36,8 @@ export class RegistryService {
 
     if (this.registry.type === RegistryType.Merged) {
       // Return the first FileSystem registry within a MergedRegistry
+      // TODO: Add support for multiple File registries when needed
+      // We should also consider using a better watcher for performances reasons
       const merged = this.registry as MergedRegistry;
       const fsRegistry = merged.registries.find(
         (r) => r.type === RegistryType.FileSystem,
