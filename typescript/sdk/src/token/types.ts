@@ -202,6 +202,7 @@ export const CctpTokenConfigSchema = TokenMetadataSchema.partial()
     minFinalityThreshold: z.number().optional(),
     maxFeeBps: z
       .number()
+      .min(0)
       .max(9_999.99)
       .optional()
       .describe(

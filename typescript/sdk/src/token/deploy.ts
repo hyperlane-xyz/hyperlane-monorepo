@@ -1,3 +1,4 @@
+import { compareVersions } from 'compare-versions';
 import { constants } from 'ethers';
 
 import {
@@ -11,6 +12,7 @@ import {
   MovableCollateralRouter__factory,
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
+  PackageVersioned__factory,
   TokenBridgeCctpBase__factory,
   TokenBridgeCctpV2__factory,
   TokenRouter,
@@ -39,6 +41,7 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
+import { CCTP_PPM_PRECISION_VERSION } from './EvmERC20WarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
@@ -444,14 +447,31 @@ abstract class TokenDeployer<
           this.multiProvider.getSigner(chain),
         );
 
-        const currentMaxFeeBps = await tokenBridgeV2.maxFeeBps();
-        if (currentMaxFeeBps.toNumber() !== config.maxFeeBps) {
+        // Check contract version to determine if we need ppm conversion
+        const versionedContract = PackageVersioned__factory.connect(
+          router,
+          this.multiProvider.getProvider(chain),
+        );
+        const contractVersion = await versionedContract.PACKAGE_VERSION();
+        const usesPpmPrecision =
+          compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+
+        // Convert bps to ppm for contracts that use ppm precision
+        const targetFee = usesPpmPrecision
+          ? Math.round(config.maxFeeBps! * 100)
+          : config.maxFeeBps!;
+
+        const currentMaxFee = await tokenBridgeV2.maxFeeBps();
+        if (currentMaxFee.toNumber() !== targetFee) {
+          const currentFeeBps = usesPpmPrecision
+            ? currentMaxFee.toNumber() / 100
+            : currentMaxFee.toNumber();
           this.logger.info(
-            `Setting maxFeeBps on ${chain} from ${currentMaxFeeBps} to ${config.maxFeeBps}`,
+            `Setting maxFeeBps on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmPrecision ? ' (stored as ppm)' : ''}`,
           );
           await this.multiProvider.handleTx(
             chain,
-            tokenBridgeV2.setMaxFeeBps(config.maxFeeBps!),
+            tokenBridgeV2.setMaxFeeBps(targetFee),
           );
         }
       }),
