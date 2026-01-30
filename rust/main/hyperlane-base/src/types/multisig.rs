@@ -7,7 +7,7 @@ use futures::StreamExt;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
-    HyperlaneDomain, MultisigSignedCheckpoint, SignedCheckpointWithMessageId, H160, H256,
+    HyperlaneDomain, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId, H160, H256,
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
@@ -149,7 +149,9 @@ impl MultisigCheckpointSyncer {
             }
 
             for index in (minimum_index..=start_index).rev() {
-                let checkpoint_res = self.fetch_checkpoint(validators, threshold, index).await;
+                let checkpoint_res = self
+                    .fetch_checkpoint(validators, threshold, index, destination)
+                    .await;
                 if let Ok(Some(checkpoint)) = checkpoint_res {
                     return Ok(Some(checkpoint));
                 }
@@ -168,6 +170,7 @@ impl MultisigCheckpointSyncer {
         validators: &[H256],
         threshold: usize,
         index: u32,
+        destination: &HyperlaneDomain,
     ) -> Result<Option<MultisigSignedCheckpoint>> {
         // Keeps track of signed validator checkpoints for a particular root.
         // In practice, it's likely that validators will all sign the same root for a
@@ -182,10 +185,10 @@ impl MultisigCheckpointSyncer {
         let batch_size = (threshold as f64 * 1.5) as usize;
         let batch_size = batch_size.clamp(1, 10);
 
-        for validators in validators.chunks(batch_size) {
+        for batched_validators in validators.chunks(batch_size) {
             // Go through each validator and get the checkpoint syncer.
             // Create a future for each validator that fetches its signed checkpoint
-            let futures = validators
+            let futures = batched_validators
                 .iter()
                 .filter_map(|address| {
                     if let Some(syncer) = self.checkpoint_syncers.get(&H160::from(*address)) {
@@ -259,7 +262,14 @@ impl MultisigCheckpointSyncer {
 
                 // If we've hit a quorum, create a MultisigSignedCheckpoint
                 if signature_count >= threshold {
-                    let checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
+                    let mut checkpoint: MultisigSignedCheckpoint = signed_checkpoints.try_into()?;
+
+                    // Ensure the signatures are in the correct order, padding with empty signatures if necessary
+                    if destination.is_aleo_protocol() {
+                        checkpoint.signatures =
+                            self.ensure_validator_ordering(validators, signed_checkpoints);
+                    }
+
                     debug!(checkpoint=?checkpoint, "Fetched multisig checkpoint");
                     return Ok(Some(checkpoint));
                 }
@@ -268,6 +278,34 @@ impl MultisigCheckpointSyncer {
 
         debug!("No quorum checkpoint found for message");
         Ok(None)
+    }
+
+    /// Aleo protocols have an exception where they need the full set of validator to be included in the metadata
+    /// This means we pad missing checkpoints with empty signatures to keep the ordering and positions correct
+    fn ensure_validator_ordering(
+        &self,
+        validators: &[H256],
+        signed_checkpoints: &[SignedCheckpointWithMessageId],
+    ) -> Vec<Signature> {
+        // Pre-compute signer to signature mapping to avoid repeated recover() calls
+        let signer_to_signature: HashMap<H256, Signature> = signed_checkpoints
+            .iter()
+            .filter_map(|sc| {
+                sc.recover()
+                    .ok()
+                    .map(|signer| (H256::from(signer), sc.signature))
+            })
+            .collect();
+
+        validators
+            .iter()
+            .map(|validator| {
+                signer_to_signature
+                    .get(validator)
+                    .copied()
+                    .unwrap_or_default()
+            })
+            .collect()
     }
 }
 
@@ -591,11 +629,156 @@ mod test {
         let threshold = 3;
         let index = 1000;
         let result = multisig_syncer
-            .fetch_checkpoint(validator_addresses.as_slice(), threshold, index)
+            .fetch_checkpoint(
+                validator_addresses.as_slice(),
+                threshold,
+                index,
+                &HyperlaneDomain::Known(KnownHyperlaneDomain::Arbitrum),
+            )
             .await
             .expect("Failed to fetch checkpoint");
 
         let expected = Some(generate_multisig_signed_checkpoint(&validators, checkpoint).await);
         assert_eq!(result, expected);
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_fetch_checkpoint_aleo_protocol_pads_signatures() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+
+        // Create 5 validators, but only 3 will return checkpoints
+        let mut validators: Vec<_> = dummy_validators().drain(..).take(5).collect();
+        validators[0].latest_index = Some(1000);
+        validators[0].fetch_checkpoint = Some(checkpoint);
+        validators[1].latest_index = Some(1000);
+        // validator[1] does NOT return a checkpoint
+        validators[2].latest_index = Some(1000);
+        validators[2].fetch_checkpoint = Some(checkpoint);
+        validators[3].latest_index = Some(1000);
+        // validator[3] does NOT return a checkpoint
+        validators[4].latest_index = Some(1000);
+        validators[4].fetch_checkpoint = Some(checkpoint);
+
+        let syncers = build_mock_checkpoint_syncs(&validators).await;
+        let validator_addresses = validators
+            .iter()
+            .map(|validator| {
+                let address: H256 = H160::from_str(&validator.public_key).unwrap().into();
+                address
+            })
+            .collect::<Vec<_>>();
+
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        let threshold = 3;
+        let index = 1000;
+
+        // Use Aleo as the destination protocol
+        let aleo_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Aleo);
+
+        let result = multisig_syncer
+            .fetch_checkpoint(
+                validator_addresses.as_slice(),
+                threshold,
+                index,
+                &aleo_domain,
+            )
+            .await
+            .expect("Failed to fetch checkpoint");
+
+        assert!(result.is_some(), "Expected to find a checkpoint");
+        let multisig_checkpoint = result.unwrap();
+
+        // The key assertion: signatures length should match validator length
+        assert_eq!(
+            multisig_checkpoint.signatures.len(),
+            validators.len(),
+            "For Aleo protocols, signatures length should match validator length"
+        );
+
+        // Verify that empty signatures are inserted at the correct positions
+        assert_ne!(multisig_checkpoint.signatures[0], Signature::default());
+        assert_eq!(multisig_checkpoint.signatures[1], Signature::default());
+        assert_ne!(multisig_checkpoint.signatures[2], Signature::default());
+        assert_eq!(multisig_checkpoint.signatures[3], Signature::default());
+        assert_ne!(multisig_checkpoint.signatures[4], Signature::default());
+    }
+
+    #[tracing_test::traced_test]
+    #[tokio::test]
+    async fn test_fetch_checkpoint_non_aleo_protocol_no_padding() {
+        let checkpoint = CheckpointWithMessageId {
+            checkpoint: Checkpoint {
+                mailbox_domain: 100,
+                merkle_tree_hook_address: H256::zero(),
+                root: H256::zero(),
+                index: 1000,
+            },
+            message_id: H256::zero(),
+        };
+
+        // Create 5 validators, but only 3 will return checkpoints
+        let mut validators: Vec<_> = dummy_validators().drain(..).take(5).collect();
+        validators[0].latest_index = Some(1000);
+        validators[0].fetch_checkpoint = Some(checkpoint);
+        validators[1].latest_index = Some(1000);
+        // validator[1] does NOT return a checkpoint
+        validators[2].latest_index = Some(1000);
+        validators[2].fetch_checkpoint = Some(checkpoint);
+        validators[3].latest_index = Some(1000);
+        // validator[3] does NOT return a checkpoint
+        validators[4].latest_index = Some(1000);
+        validators[4].fetch_checkpoint = Some(checkpoint);
+
+        let syncers = build_mock_checkpoint_syncs(&validators).await;
+        let validator_addresses = validators
+            .iter()
+            .map(|validator| {
+                let address: H256 = H160::from_str(&validator.public_key).unwrap().into();
+                address
+            })
+            .collect::<Vec<_>>();
+
+        let multisig_syncer = MultisigCheckpointSyncer::new(syncers, None);
+
+        let threshold = 3;
+        let index = 1000;
+
+        // Use non-Aleo protocol (e.g., Ethereum)
+        let ethereum_domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+
+        let result = multisig_syncer
+            .fetch_checkpoint(
+                validator_addresses.as_slice(),
+                threshold,
+                index,
+                &ethereum_domain,
+            )
+            .await
+            .expect("Failed to fetch checkpoint");
+
+        assert!(result.is_some(), "Expected to find a checkpoint");
+        let multisig_checkpoint = result.unwrap();
+
+        // For non-Aleo protocols, signatures length should equal threshold (no padding)
+        assert_eq!(
+            multisig_checkpoint.signatures.len(),
+            threshold,
+            "For non-Aleo protocols, signatures length should equal threshold"
+        );
+
+        // All signatures should be non-empty
+        for sig in &multisig_checkpoint.signatures {
+            assert_ne!(*sig, Signature::default());
+        }
     }
 }
