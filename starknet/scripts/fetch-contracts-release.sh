@@ -37,12 +37,13 @@ curl_with_retry() {
     local attempt=1
 
     while [ $attempt -le $MAX_RETRIES ]; do
-        if curl "$@" "$url"; then
+        # --retry-connrefused handles low-level connection failures
+        if curl --retry-connrefused "$@" "$url"; then
             return 0
         fi
 
         if [ $attempt -lt $MAX_RETRIES ]; then
-            log_warning "Curl failed (attempt $attempt/$MAX_RETRIES), retrying in ${RETRY_DELAY}s..."
+            log_warning "Curl failed (attempt $attempt/$MAX_RETRIES), retrying in ${RETRY_DELAY}s..." >&2
             sleep $RETRY_DELAY
         fi
         ((attempt++))
