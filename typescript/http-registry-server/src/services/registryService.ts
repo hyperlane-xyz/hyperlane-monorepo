@@ -34,6 +34,7 @@ export class RegistryService {
     }
 
     if (this.registry.type === RegistryType.Merged) {
+      // Return the first FileSystem registry within a MergedRegistry
       const merged = this.registry as MergedRegistry;
       const fsRegistry = merged.registries.find(
         (r) => r.type === RegistryType.FileSystem,
