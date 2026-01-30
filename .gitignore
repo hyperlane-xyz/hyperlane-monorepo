@@ -47,3 +47,7 @@ yalc.lock
 
 .opencode
 .sisyphus
+
+# Forge build artifacts
+cache/
+out/
