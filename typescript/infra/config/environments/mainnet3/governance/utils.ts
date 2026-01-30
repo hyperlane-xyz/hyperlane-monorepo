@@ -1,7 +1,7 @@
 import { ChainName } from '@hyperlane-xyz/sdk';
 import { Address } from '@hyperlane-xyz/utils';
 
-import { GovernanceType } from '../../../../src/governance.js';
+import { GovernanceType } from '../../../../src/governanceTypes.js';
 
 import { awIcasLegacy } from './ica/_awLegacy.js';
 import { regularIcasLegacy } from './ica/_regularLegacy.js';

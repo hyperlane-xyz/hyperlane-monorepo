@@ -22,7 +22,7 @@ import {
   getWarpConfigs,
   getWarpCoreConfigOrExit,
 } from '../../../utils/warp.js';
-import { requestAndSaveApiKeys } from '../../context.js';
+import { requestAndSaveApiKeys } from '../../apiKeys.js';
 
 /**
  * Resolves chains based on command type.

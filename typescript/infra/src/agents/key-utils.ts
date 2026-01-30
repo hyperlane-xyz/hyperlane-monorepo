@@ -15,12 +15,12 @@ import { readJsonFromDir } from '@hyperlane-xyz/utils/fs';
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import localRelayerAddresses from '../../config/relayer.json' with { type: 'json' };
-import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
 import type {
   AgentContextConfig,
   RootAgentConfig,
 } from '../config/agent/agent.js';
 import type { DeployEnvironment } from '../config/environment.js';
+import { getAWValidatorsPath } from '../paths.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
 import {
