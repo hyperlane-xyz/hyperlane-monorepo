@@ -1,10 +1,22 @@
+import { OperationType } from '@safe-global/safe-core-sdk-types';
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
-import { getOwnerChanges, parseSafeTx } from '@hyperlane-xyz/sdk';
 
-describe('Safe Utils', () => {
+import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
+
+import {
+  decodeMultiSendData,
+  formatOperationType,
+  getOwnerChanges,
+  getSafeTxStatus,
+  metaTransactionDataToEV5Transaction,
+  parseSafeTx,
+} from './safe.js';
+import { SafeTxStatus } from './types.js';
+
+describe('Safe Transaction Parsing', () => {
   describe('getOwnerChanges', () => {
     it('should identify owners to add and remove', async () => {
       const currentOwners = [
@@ -121,12 +133,10 @@ describe('Safe Utils', () => {
         newOwner,
       ]);
 
-      const tx = {
+      const tx: AnnotatedEV5Transaction = {
         to: '0x1234567890123456789012345678901234567890',
         data,
         value: BigNumber.from(0),
-        chain: 'test',
-        timestamp: Date.now(),
       };
 
       const decoded = parseSafeTx(tx);
@@ -148,12 +158,10 @@ describe('Safe Utils', () => {
         threshold,
       ]);
 
-      const tx = {
+      const tx: AnnotatedEV5Transaction = {
         to: '0x1234567890123456789012345678901234567890',
         data,
         value: BigNumber.from(0),
-        chain: 'test',
-        timestamp: Date.now(),
       };
 
       const decoded = parseSafeTx(tx);
@@ -172,12 +180,10 @@ describe('Safe Utils', () => {
         newThreshold,
       ]);
 
-      const tx = {
+      const tx: AnnotatedEV5Transaction = {
         to: '0x1234567890123456789012345678901234567890',
         data,
         value: BigNumber.from(0),
-        chain: 'test',
-        timestamp: Date.now(),
       };
 
       const decoded = parseSafeTx(tx);
@@ -188,17 +194,96 @@ describe('Safe Utils', () => {
     });
   });
 
-  // Note: Testing createSwapOwnerTransactions and findPrevOwner would require
-  // mocking the Safe SDK, which is complex. These functions should be tested
-  // in integration tests or by running the script in dry-run mode against
-  // actual Safe contracts on testnets.
-  //
-  // Key scenarios to test manually:
-  // 1. Single owner swap
-  // 2. Multiple consecutive owner swaps (to verify prevOwner calculation)
-  // 3. Multiple non-consecutive owner swaps
-  // 4. Swap first owner (prevOwner should be SENTINEL_OWNERS)
-  // 5. Swap last owner
-  // 6. Threshold change with swaps
-  // 7. Threshold change without swaps
+  describe('getSafeTxStatus', () => {
+    it('should return READY_TO_EXECUTE when confirmations >= threshold', () => {
+      expect(getSafeTxStatus(3, 3)).to.equal(SafeTxStatus.READY_TO_EXECUTE);
+      expect(getSafeTxStatus(4, 3)).to.equal(SafeTxStatus.READY_TO_EXECUTE);
+    });
+
+    it('should return NO_CONFIRMATIONS when confirmations is 0', () => {
+      expect(getSafeTxStatus(0, 3)).to.equal(SafeTxStatus.NO_CONFIRMATIONS);
+    });
+
+    it('should return ONE_AWAY when one confirmation away from threshold', () => {
+      expect(getSafeTxStatus(2, 3)).to.equal(SafeTxStatus.ONE_AWAY);
+    });
+
+    it('should return PENDING otherwise', () => {
+      expect(getSafeTxStatus(1, 3)).to.equal(SafeTxStatus.PENDING);
+      expect(getSafeTxStatus(1, 4)).to.equal(SafeTxStatus.PENDING);
+    });
+  });
+
+  describe('formatOperationType', () => {
+    it('should format Call operation', () => {
+      expect(formatOperationType(OperationType.Call)).to.equal('Call');
+    });
+
+    it('should format DelegateCall operation', () => {
+      expect(formatOperationType(OperationType.DelegateCall)).to.equal(
+        'Delegate Call',
+      );
+    });
+
+    it('should format undefined as Unknown', () => {
+      expect(formatOperationType(undefined)).to.equal('Unknown');
+    });
+  });
+
+  describe('metaTransactionDataToEV5Transaction', () => {
+    it('should convert MetaTransactionData to AnnotatedEV5Transaction', () => {
+      const metaTx = {
+        to: '0x1234567890123456789012345678901234567890',
+        value: '1000000000000000000',
+        data: '0x1234',
+        operation: OperationType.Call,
+      };
+
+      const result = metaTransactionDataToEV5Transaction(metaTx);
+
+      expect(result.to).to.equal(metaTx.to);
+      expect(result.value?.toString()).to.equal(metaTx.value);
+      expect(result.data).to.equal(metaTx.data);
+    });
+  });
+
+  describe('decodeMultiSendData', () => {
+    it('should decode a single transaction from MultiSend data', () => {
+      // Manually construct MultiSend data for a single transaction
+      // Format: operation (1 byte) + to (20 bytes) + value (32 bytes) + dataLength (32 bytes) + data
+
+      const targetAddress = '0x1234567890123456789012345678901234567890';
+      const value = BigNumber.from(0);
+      const calldata = '0xabcd';
+
+      // Build the inner transaction bytes
+      const operation = '00'; // Call
+      const toHex = targetAddress.slice(2).toLowerCase();
+      const valueHex = value.toHexString().slice(2).padStart(64, '0');
+      const dataLength = ((calldata.length - 2) / 2)
+        .toString(16)
+        .padStart(64, '0');
+      const dataHex = calldata.slice(2);
+
+      const transactionBytes =
+        '0x' + operation + toHex + valueHex + dataLength + dataHex;
+
+      // Encode as multiSend call
+      const multiSendInterface = new (require('ethers').utils.Interface)([
+        'function multiSend(bytes memory transactions) public payable',
+      ]);
+      const encodedMultiSend = multiSendInterface.encodeFunctionData(
+        'multiSend',
+        [transactionBytes],
+      );
+
+      const decoded = decodeMultiSendData(encodedMultiSend);
+
+      expect(decoded).to.have.lengthOf(1);
+      expect(decoded[0].to.toLowerCase()).to.equal(targetAddress.toLowerCase());
+      expect(decoded[0].value).to.equal('0');
+      expect(decoded[0].data.toLowerCase()).to.equal(calldata.toLowerCase());
+      expect(decoded[0].operation).to.equal(OperationType.Call);
+    });
+  });
 });

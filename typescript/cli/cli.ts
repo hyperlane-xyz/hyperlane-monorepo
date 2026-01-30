@@ -11,6 +11,7 @@ import { forkCommand } from './src/commands/fork.js';
 import { hookCommand } from './src/commands/hook.js';
 import { icaCommand } from './src/commands/ica.js';
 import { ismCommand } from './src/commands/ism.js';
+import { parseCommand } from './src/commands/parse.js';
 import {
   disableProxyCommandOption,
   githubAuthTokenOption,
@@ -65,6 +66,7 @@ try {
     .command(hookCommand)
     .command(icaCommand)
     .command(ismCommand)
+    .command(parseCommand)
     .command(registryCommand)
     .command(relayerCommand)
     .command(sendCommand)
