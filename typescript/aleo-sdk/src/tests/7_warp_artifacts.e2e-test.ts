@@ -34,7 +34,11 @@ import {
   TEST_ALEO_CHAIN_METADATA,
   TEST_ALEO_PRIVATE_KEY,
 } from '../testing/constants.js';
-import { stringToU128 } from '../utils/helper.js';
+import {
+  fromAleoAddress,
+  getProgramSuffix,
+  stringToU128,
+} from '../utils/helper.js';
 import { AleoWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 chai.use(chaiAsPromised);
@@ -46,6 +50,7 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: AleoWarpArtifactManager;
   let ismManagerProgramId: string;
+  let hookManagerProgramId: string;
   let mailboxAddress: string;
 
   const DOMAIN_1 = 42;
@@ -76,12 +81,17 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
     });
     mailboxAddress = mailbox.mailboxAddress;
 
+    const { programId } = fromAleoAddress(mailboxAddress);
+    const suffix = getProgramSuffix(programId);
+
+    hookManagerProgramId = await aleoSigner.getHookManager(suffix);
+
     // Access the aleoClient from the signer to create the artifact manager
     const aleoClient = (aleoSigner as any).aleoClient;
-    artifactManager = new AleoWarpArtifactManager(
-      aleoClient,
-      ismManagerProgramId,
-    );
+    artifactManager = new AleoWarpArtifactManager(aleoClient, {
+      ismManagerAddress: ismManagerProgramId,
+      hookManagerAddress: hookManagerProgramId,
+    });
 
     // Deploy token_registry for collateral tests
     const aleoAccount = new Account({
@@ -679,6 +689,238 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
           const txs = await writer.update(deployedToken);
 
           // Should have no transactions (ISM still undefined)
+          expect(txs).to.be.an('array').with.length(0);
+        });
+      });
+
+      describe('Hook updates', function () {
+        it('should unset hook when changed from address to undefined', async () => {
+          const initialConfig = getConfig();
+
+          const { hookAddress } = await aleoSigner.createMerkleTreeHook({
+            mailboxAddress,
+          });
+          const customHookAddress = hookAddress;
+
+          // Create with hook set
+          initialConfig.hook = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: customHookAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify hook is set
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          assert(
+            readToken1.config.hook?.deployed.address,
+            'Hook address should exist',
+          );
+          expect(
+            eqAddressAleo(
+              readToken1.config.hook.deployed.address,
+              customHookAddress,
+            ),
+          ).to.be.true;
+
+          // Update to clear hook (set to undefined)
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              hook: undefined,
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify hook is now unset
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          expect(readToken2.config.hook).to.be.undefined;
+        });
+
+        it('should set hook when changed from undefined to address', async () => {
+          const initialConfig = getConfig();
+          // Start with no hook
+          initialConfig.hook = undefined;
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify hook is unset
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          expect(readToken1.config.hook).to.be.undefined;
+
+          // Update to set hook
+          const { hookAddress } = await aleoSigner.createMerkleTreeHook({
+            mailboxAddress,
+          });
+          const customHookAddress = hookAddress;
+
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              hook: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: customHookAddress,
+                },
+              },
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify hook is now set
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          assert(
+            readToken2.config.hook?.deployed.address,
+            'Hook address should exist',
+          );
+          expect(
+            eqAddressAleo(
+              readToken2.config.hook.deployed.address,
+              customHookAddress,
+            ),
+          ).to.be.true;
+        });
+
+        it('should change hook when updated to different address', async () => {
+          const initialConfig = getConfig();
+
+          const { hookAddress: firstHookAddress } =
+            await aleoSigner.createMerkleTreeHook({
+              mailboxAddress,
+            });
+          const { hookAddress: secondHookAddress } =
+            await aleoSigner.createMerkleTreeHook({
+              mailboxAddress,
+            });
+
+          // Create with first hook
+          initialConfig.hook = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: firstHookAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify first hook is set
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+
+          assert(
+            readToken1.config.hook?.deployed.address,
+            'Hook address should exist',
+          );
+          expect(
+            eqAddressAleo(
+              readToken1.config.hook.deployed.address,
+              firstHookAddress,
+            ),
+          ).to.be.true;
+
+          // Update to second hook
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              hook: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: secondHookAddress,
+                },
+              },
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify hook changed to second address
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          assert(
+            readToken2.config.hook?.deployed.address,
+            'Hook address should exist',
+          );
+          expect(
+            eqAddressAleo(
+              readToken2.config.hook.deployed.address,
+              secondHookAddress,
+            ),
+          ).to.be.true;
+        });
+
+        it('should not generate hook update tx when hook unchanged', async () => {
+          const initialConfig = getConfig();
+          const customHookAddress = TEST_ALEO_BURN_ADDRESS;
+
+          // Create with hook
+          initialConfig.hook = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: customHookAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Update with same hook (no change)
+          const txs = await writer.update(deployedToken);
+
+          // Should have no transactions (hook unchanged)
+          expect(txs).to.be.an('array').with.length(0);
+        });
+
+        it('should not generate hook update tx when both undefined', async () => {
+          const initialConfig = getConfig();
+          // Create without hook
+          initialConfig.hook = undefined;
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Update with hook still undefined (no change)
+          const txs = await writer.update(deployedToken);
+
+          // Should have no transactions (hook still undefined)
           expect(txs).to.be.an('array').with.length(0);
         });
       });
