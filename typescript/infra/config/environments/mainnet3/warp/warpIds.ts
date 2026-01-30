@@ -34,7 +34,7 @@ export enum WarpRouteIds {
   EthereumSeiPumpBTC = 'pumpBTCsei/ethereum-sei',
   EthereumVanaETH = 'ETH/ethereum-vana',
   EthereumVanaVANA = 'VANA/ethereum-vana',
-  EthereumVictionETH = 'ETH/ethereum-viction',
+  VictionETH = 'ETH/viction',
   EthereumVictionUSDC = 'USDC/ethereum-viction',
   EthereumVictionUSDT = 'USDT/ethereum-viction',
   BerachainEthereumSwellUnichainZircuitPZETH = 'PZETH/berachain-ethereum-swell-unichain-zircuit',
