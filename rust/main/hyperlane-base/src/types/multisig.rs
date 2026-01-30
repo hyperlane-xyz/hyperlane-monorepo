@@ -282,7 +282,7 @@ impl MultisigCheckpointSyncer {
     }
 
     /// Aleo protocols have an exception where they need the full set of validator to be included in the metadata
-    /// This means we pad missing checkpoints with empty signatures to keep the ordering and positions correct
+    /// This means we pad missing checkpoints with invalid signatures to keep the ordering and positions correct
     fn ensure_validator_ordering(
         &self,
         validators: &[H256],
