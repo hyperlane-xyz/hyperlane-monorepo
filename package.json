@@ -1,66 +1,67 @@
 {
-  "name": "@hyperlane-xyz/monorepo",
-  "description": "A pnpm workspace of core Hyperlane packages",
-  "version": "0.0.0",
-  "devDependencies": {
-    "@eslint/eslintrc": "^3.2.0",
-    "@eslint/js": "catalog:",
-    "@trivago/prettier-plugin-sort-imports": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
-    "eslint-plugin-jest": "^28.2.0",
-    "globals": "catalog:",
-    "husky": "^8.0.0",
-    "lint-staged": "^12.4.3",
-    "prettier": "catalog:",
-    "prettier-plugin-solidity": "catalog:",
-    "tsx": "catalog:",
-    "turbo": "^2.5.3"
-  },
-  "dependencies": {
-    "@changesets/cli": "^2.26.2"
-  },
-  "packageManager": "pnpm@10.25.0",
-  "private": true,
-  "scripts": {
-    "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
-    "build": "turbo run build",
-    "build:zk": "turbo run build:zk",
-    "clean": "turbo run clean",
-    "prettier": "turbo run prettier",
-    "lint": "turbo run lint",
-    "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
-    "test": "turbo run test --continue",
-    "test:ci": "turbo run test:ci",
-    "coverage": "turbo run coverage",
-    "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
-    "version:check": "pnpm changeset status",
-    "release": "pnpm build && pnpm changeset publish",
-    "postinstall": "husky install"
-  },
-  "pnpm": {
-    "overrides": {
-      "async": "^2.6.4",
-      "fetch-ponyfill": "^7.1",
-      "flat": "^5.0.2",
-      "globals": "^16.3.0",
-      "lodash": "^4.17.21",
-      "recursive-readdir": "^2.2.3",
-      "underscore": "^1.13",
-      "undici": "^5.11",
-      "@babel/parser": "^7.22.7",
-      "@typechain/ethers-v5": "11.1.2",
-      "xmlhttprequest-ssl": "4.0.0"
+    "name": "@hyperlane-xyz/monorepo",
+    "version": "0.0.0",
+    "private": true,
+    "description": "A pnpm workspace of core Hyperlane packages",
+    "scripts": {
+        "agent-configs": "pnpm -C typescript/infra update-agent-config:mainnet3 && pnpm -C typescript/infra update-agent-config:testnet4",
+        "build": "turbo run build",
+        "build:zk": "turbo run build:zk",
+        "clean": "turbo run clean",
+        "format": "turbo run format",
+        "format:check": "oxfmt --check . && prettier --check 'solidity/contracts/**/*.sol' 'solidity/test/**/*.sol'",
+        "lint": "turbo run lint",
+        "lint:catalog": "tsx scripts/lint-catalog-usage.ts",
+        "test": "turbo run test --continue",
+        "test:ci": "turbo run test:ci",
+        "coverage": "turbo run coverage",
+        "version:prepare": "pnpm changeset version && turbo run version:update && pnpm install",
+        "version:check": "pnpm changeset status",
+        "release": "pnpm build && pnpm changeset publish",
+        "postinstall": "husky install"
     },
-    "patchedDependencies": {
-      "typechain@8.3.2": "patches/typechain@8.3.2.patch",
-      "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
-      "bigint-buffer@1.1.5": "patches/bigint-buffer@1.1.5.patch",
-      "node-fetch@3.3.2": "patches/node-fetch@3.3.2.patch"
+    "dependencies": {
+        "@changesets/cli": "^2.26.2"
+    },
+    "devDependencies": {
+        "@eslint/eslintrc": "^3.2.0",
+        "@eslint/js": "catalog:",
+        "@typescript-eslint/eslint-plugin": "catalog:",
+        "@typescript-eslint/parser": "catalog:",
+        "eslint": "catalog:",
+        "eslint-config-prettier": "catalog:",
+        "eslint-import-resolver-typescript": "catalog:",
+        "eslint-plugin-import": "catalog:",
+        "eslint-plugin-jest": "^28.2.0",
+        "globals": "catalog:",
+        "husky": "^8.0.0",
+        "lint-staged": "^12.4.3",
+        "oxfmt": "catalog:",
+        "prettier": "catalog:",
+        "prettier-plugin-solidity": "catalog:",
+        "tsx": "catalog:",
+        "turbo": "^2.5.3"
+    },
+    "packageManager": "pnpm@10.25.0",
+    "pnpm": {
+        "overrides": {
+            "async": "^2.6.4",
+            "fetch-ponyfill": "^7.1",
+            "flat": "^5.0.2",
+            "globals": "^16.3.0",
+            "lodash": "^4.17.21",
+            "recursive-readdir": "^2.2.3",
+            "underscore": "^1.13",
+            "undici": "^5.11",
+            "@babel/parser": "^7.22.7",
+            "@typechain/ethers-v5": "11.1.2",
+            "xmlhttprequest-ssl": "4.0.0"
+        },
+        "patchedDependencies": {
+            "typechain@8.3.2": "patches/typechain@8.3.2.patch",
+            "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
+            "bigint-buffer@1.1.5": "patches/bigint-buffer@1.1.5.patch",
+            "node-fetch@3.3.2": "patches/node-fetch@3.3.2.patch"
+        }
     }
-  }
 }
