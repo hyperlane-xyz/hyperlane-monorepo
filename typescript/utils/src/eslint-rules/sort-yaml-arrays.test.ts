@@ -66,6 +66,8 @@ describe('sort-yaml-arrays rule', () => {
         sourceType: 'module',
         type: 'Program',
         body: [],
+        comments: [],
+        tokens: [],
         range: [0, yamlText.length],
         loc: {
           start: { line: 1, column: 0 },
@@ -187,7 +189,10 @@ describe('sort-yaml-arrays rule', () => {
       options: {
         arrays: [
           { path: 'company.departments', sortKey: 'id' },
-          { path: 'company.departments.*.projects', sortKey: 'priority' },
+          {
+            path: 'company.departments.*.projects',
+            sortKey: 'priority',
+          },
         ],
       },
     },
@@ -585,7 +590,10 @@ people:
             priority: 3`,
       options: {
         arrays: [
-          { path: 'repositories[].branches.*.commits', sortKey: 'priority' },
+          {
+            path: 'repositories[].branches.*.commits',
+            sortKey: 'priority',
+          },
         ],
       },
     },
