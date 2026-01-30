@@ -82,7 +82,6 @@ export interface SimulationResult {
   endTime: number;
   duration: number;
   kpis: SimulationKPIs;
-  timeline: StateSnapshot[];
   transferRecords: TransferRecord[];
   rebalanceRecords: RebalanceRecord[];
 }

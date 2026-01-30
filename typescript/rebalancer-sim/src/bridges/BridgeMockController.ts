@@ -281,8 +281,8 @@ export class BridgeMockController extends EventEmitter {
   }
 
   /**
-   * Simulate bridge delivery by minting/transferring tokens at destination
-   * Uses transaction queue to prevent nonce collisions
+   * Simulate bridge delivery by minting tokens at destination.
+   * Uses transaction queue to prevent nonce collisions.
    */
   private async simulateBridgeDelivery(
     transfer: PendingTransfer,
@@ -291,21 +291,16 @@ export class BridgeMockController extends EventEmitter {
       const deployer = new ethers.Wallet(this.deployerKey, this.provider);
       const destDomain = this.domains[transfer.destination];
 
-      // For simulation purposes, we mint tokens to the destination warp contract
-      // This simulates the bridge completing and delivering funds
-      const collateralToken = ERC20Test__factory.connect(
+      // Mint tokens to destination warp token to simulate tokens arriving
+      const destCollateralToken = ERC20Test__factory.connect(
         destDomain.collateralToken,
         deployer,
       );
-
-      // Mint tokens to the warp token contract to simulate bridge delivery
-      // Note: ERC20Test has a mint function that only owner can call
-      // In real scenario, the bridge would complete and tokens would arrive
-      const tx = await collateralToken.mintTo(
+      const mintTx = await destCollateralToken.mintTo(
         destDomain.warpToken,
         transfer.amount.toString(),
       );
-      await tx.wait();
+      await mintTx.wait();
     });
   }
 

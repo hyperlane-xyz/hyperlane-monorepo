@@ -1,7 +1,6 @@
 import type {
   RebalanceRecord,
   SimulationResult,
-  StateSnapshot,
   TransferRecord,
 } from '../kpi/types.js';
 
@@ -38,11 +37,6 @@ export type TimelineEvent =
       type: 'rebalance_failed';
       timestamp: number;
       data: RebalanceRecord;
-    }
-  | {
-      type: 'balance_snapshot';
-      timestamp: number;
-      data: StateSnapshot;
     };
 
 /**
@@ -86,7 +80,6 @@ export interface VisualizationData {
   events: TimelineEvent[];
   transfers: TransferRecord[];
   rebalances: RebalanceRecord[];
-  balanceTimeline: StateSnapshot[];
   kpis: SimulationResult['kpis'];
   config?: SimulationConfig;
 }
@@ -168,15 +161,6 @@ export function toVisualizationData(
     }
   }
 
-  // Add balance snapshots
-  for (const snapshot of result.timeline) {
-    events.push({
-      type: 'balance_snapshot',
-      timestamp: snapshot.timestamp,
-      data: snapshot,
-    });
-  }
-
   // Sort events by timestamp
   events.sort((a, b) => a.timestamp - b.timestamp);
 
@@ -190,7 +174,6 @@ export function toVisualizationData(
     events,
     transfers: result.transferRecords,
     rebalances: result.rebalanceRecords,
-    balanceTimeline: result.timeline,
     kpis: result.kpis,
     config,
   };

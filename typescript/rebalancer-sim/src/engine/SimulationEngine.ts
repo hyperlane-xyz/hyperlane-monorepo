@@ -74,7 +74,6 @@ export class SimulationEngine {
       this.kpiCollector = new KPICollector(
         this.provider,
         this.deployment.domains,
-        500, // Snapshot every 500ms
       );
 
       // Initialize MessageTracker for off-chain message tracking
@@ -134,9 +133,6 @@ export class SimulationEngine {
 
       await rebalancer.initialize(rebalancerConfig);
 
-      // Start KPI snapshot collection
-      this.kpiCollector.startSnapshotCollection();
-
       // Start rebalancer daemon
       await rebalancer.start();
 
@@ -170,7 +166,6 @@ export class SimulationEngine {
         endTime,
         duration: endTime - startTime,
         kpis,
-        timeline: this.kpiCollector.getTimeline(),
         transferRecords: this.kpiCollector.getTransferRecords(),
         rebalanceRecords: this.kpiCollector.getRebalanceRecords(),
       };
@@ -191,10 +186,6 @@ export class SimulationEngine {
         } catch {
           // Ignore stop errors
         }
-      }
-
-      if (this.kpiCollector) {
-        this.kpiCollector.stopSnapshotCollection();
       }
 
       if (this.messageTracker) {
