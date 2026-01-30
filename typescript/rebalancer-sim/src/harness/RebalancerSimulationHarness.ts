@@ -2,10 +2,7 @@ import { ethers } from 'ethers';
 
 import type { BridgeMockConfig } from '../bridges/types.js';
 import { createSymmetricBridgeConfig } from '../bridges/types.js';
-import {
-  deployMultiDomainSimulation,
-  restoreSnapshot,
-} from '../deployment/SimulationDeployment.js';
+import { deployMultiDomainSimulation } from '../deployment/SimulationDeployment.js';
 import type {
   MultiDomainDeploymentOptions,
   MultiDomainDeploymentResult,
@@ -170,17 +167,6 @@ export class RebalancerSimulationHarness {
     provider.polling = false;
 
     for (const rebalancer of rebalancers) {
-      // Reset state before each run (only if snapshots supported)
-      await restoreSnapshot(provider, this.deployment.snapshotId);
-
-      // Create fresh snapshot for this run (optional - not supported by all nodes)
-      try {
-        const newSnapshotId = await provider.send('evm_snapshot', []);
-        this.deployment.snapshotId = newSnapshotId;
-      } catch {
-        // Snapshots not supported (e.g., reth) - state reset disabled
-      }
-
       // Recreate engine with fresh provider to avoid cached RPC state
       // This is important because ethers v5 caches chainId, nonces, etc.
       this.engine = new SimulationEngine(this.deployment);
@@ -252,18 +238,11 @@ export class RebalancerSimulationHarness {
   }
 
   /**
-   * Reset the simulation state
+   * Reset the simulation engine state (does not reset blockchain state)
    */
-  async reset(): Promise<void> {
-    if (this.deployment) {
-      const provider = new ethers.providers.JsonRpcProvider(
-        this.config.anvilRpc,
-      );
-      // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-      provider.pollingInterval = 100;
-      // Disable automatic polling
-      provider.polling = false;
-      await restoreSnapshot(provider, this.deployment.snapshotId);
+  reset(): void {
+    if (this.engine) {
+      this.engine.reset();
     }
   }
 

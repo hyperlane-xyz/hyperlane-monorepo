@@ -13,7 +13,6 @@
  * WHY SINGLE ANVIL?
  * - Faster test execution (no multi-process coordination)
  * - Simpler state management (single blockchain state)
- * - Snapshot/restore works atomically across all "chains"
  * - Sufficient for testing rebalancer logic (doesn't need real cross-chain)
  *
  * DEPLOYMENT COMPONENTS PER DOMAIN:
@@ -25,13 +24,11 @@
 import { expect } from 'chai';
 import { ethers } from 'ethers';
 
-import { ERC20Test__factory } from '@hyperlane-xyz/core';
 import { toWei } from '@hyperlane-xyz/utils';
 
 import {
   deployMultiDomainSimulation,
   getWarpTokenBalance,
-  restoreSnapshot,
 } from '../../src/deployment/SimulationDeployment.js';
 import {
   ANVIL_DEPLOYER_KEY,
@@ -91,77 +88,5 @@ describe('Multi-Domain Deployment', function () {
       );
       expect(balance.toString()).to.equal(toWei(100));
     }
-  });
-
-  /**
-   * TEST: Snapshot restore
-   * ======================
-   *
-   * WHAT IT TESTS:
-   * Verifies that Anvil's evm_snapshot/evm_revert functionality works
-   * correctly for resetting simulation state between test runs.
-   *
-   * HOW IT WORKS:
-   * 1. Deploy with initial balance (50 tokens)
-   * 2. Modify state (mint 100 more tokens → 150 total)
-   * 3. Restore snapshot
-   * 4. Verify balance is back to initial (50 tokens)
-   *
-   * WHY IT MATTERS:
-   * Snapshot/restore is essential for:
-   * - Running multiple scenarios without redeploying
-   * - Comparing rebalancer strategies on identical initial states
-   * - Faster test iteration (redeploy takes seconds, restore is instant)
-   *
-   * IMPLEMENTATION NOTE:
-   * Anvil snapshots capture ALL blockchain state including:
-   * - Contract storage
-   * - Account balances
-   * - Nonces
-   * - Block number
-   */
-  it('should restore snapshot correctly', async () => {
-    const initialBalance = BigInt(toWei(50));
-
-    const result = await deployMultiDomainSimulation({
-      anvilRpc: anvil.rpc,
-      deployerKey: ANVIL_DEPLOYER_KEY,
-      chains: [{ chainName: 'test1', domainId: 9001 }],
-      initialCollateralBalance: initialBalance,
-    });
-
-    const domain = result.domains['test1'];
-    const deployer = new ethers.Wallet(ANVIL_DEPLOYER_KEY, provider);
-
-    // Verify initial balance
-    let balance = await getWarpTokenBalance(
-      provider,
-      domain.warpToken,
-      domain.collateralToken,
-    );
-    expect(balance.toString()).to.equal(initialBalance.toString());
-
-    // Modify state - mint more tokens to warp contract
-    const token = ERC20Test__factory.connect(domain.collateralToken, deployer);
-    await token.mintTo(domain.warpToken, toWei(100));
-
-    // Verify balance changed
-    balance = await getWarpTokenBalance(
-      provider,
-      domain.warpToken,
-      domain.collateralToken,
-    );
-    expect(balance.toString()).to.equal(BigInt(toWei(150)).toString());
-
-    // Restore snapshot
-    await restoreSnapshot(provider, result.snapshotId);
-
-    // Verify balance restored
-    balance = await getWarpTokenBalance(
-      provider,
-      domain.warpToken,
-      domain.collateralToken,
-    );
-    expect(balance.toString()).to.equal(initialBalance.toString());
   });
 });

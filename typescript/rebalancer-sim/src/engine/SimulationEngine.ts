@@ -7,7 +7,6 @@ import {
 
 import { BridgeMockController } from '../bridges/BridgeMockController.js';
 import type { BridgeMockConfig } from '../bridges/types.js';
-import { restoreSnapshot } from '../deployment/SimulationDeployment.js';
 import type { MultiDomainDeploymentResult } from '../deployment/types.js';
 import { KPICollector } from '../kpi/KPICollector.js';
 import type { SimulationResult } from '../kpi/types.js';
@@ -393,10 +392,9 @@ export class SimulationEngine {
   }
 
   /**
-   * Reset state by restoring snapshot
+   * Reset internal tracking state (does not reset blockchain state)
    */
-  async reset(): Promise<void> {
-    await restoreSnapshot(this.provider, this.deployment.snapshotId);
+  reset(): void {
     // Clear message tracker state
     if (this.messageTracker) {
       this.messageTracker.clear();

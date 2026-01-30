@@ -37,8 +37,6 @@ export interface MultiDomainDeploymentResult {
   mailboxProcessorKey: string;
   mailboxProcessor: Address;
   domains: Record<string, DeployedDomain>;
-  /** Snapshot ID for resetting state */
-  snapshotId: string;
 }
 
 /**

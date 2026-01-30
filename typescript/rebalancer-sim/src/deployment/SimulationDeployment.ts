@@ -23,36 +23,6 @@ import {
 const COLLATERAL_MULTIPLIER = 100;
 
 /**
- * Creates an anvil snapshot for state reset
- */
-async function createSnapshot(
-  provider: ethers.providers.JsonRpcProvider,
-): Promise<string> {
-  const response = await provider.send('evm_snapshot', []);
-  return response;
-}
-
-/**
- * Restores an anvil snapshot (no-op if snapshots not supported)
- */
-export async function restoreSnapshot(
-  provider: ethers.providers.JsonRpcProvider,
-  snapshotId: string,
-): Promise<boolean> {
-  if (!snapshotId) {
-    // Snapshots not supported (e.g., reth)
-    return false;
-  }
-  try {
-    const response = await provider.send('evm_revert', [snapshotId]);
-    return response;
-  } catch (_err) {
-    console.log('Note: evm_revert not supported. State reset skipped.');
-    return false;
-  }
-}
-
-/**
  * Deploys a multi-domain simulation environment on a single anvil instance.
  *
  * Creates MockMailboxes for each domain, deploys ERC20 collateral tokens,
@@ -161,18 +131,23 @@ export async function deployMultiDomainSimulation(
     warpTokens[chain.domainId] = warpToken;
   }
 
-  // Step 5: Enroll remote routers (link warp tokens together)
+  // Step 5: Enroll remote routers (link warp tokens together) - batch enrollment
   for (const chain of chains) {
     const warpToken = warpTokens[chain.domainId];
+    const remoteDomains: number[] = [];
+    const remoteRouters: string[] = [];
+
     for (const otherChain of chains) {
       if (chain.domainId !== otherChain.domainId) {
-        const remoteRouter = ethers.utils.hexZeroPad(
-          warpTokens[otherChain.domainId].address,
-          32,
+        remoteDomains.push(otherChain.domainId);
+        remoteRouters.push(
+          ethers.utils.hexZeroPad(warpTokens[otherChain.domainId].address, 32),
         );
-        await warpToken.enrollRemoteRouter(otherChain.domainId, remoteRouter);
       }
     }
+
+    // Use batch enrollment for efficiency
+    await warpToken.enrollRemoteRouters(remoteDomains, remoteRouters);
   }
 
   // Step 6: Deploy MockValueTransferBridge for each domain and add to allowed bridges
@@ -215,16 +190,6 @@ export async function deployMultiDomainSimulation(
     await tx.wait();
   }
 
-  // Create snapshot for future resets (optional - not supported by all nodes like reth)
-  let snapshotId = '';
-  try {
-    snapshotId = await createSnapshot(provider);
-  } catch (_err) {
-    console.log(
-      'Note: evm_snapshot not supported (normal for reth). State reset disabled.',
-    );
-  }
-
   // CRITICAL: Clean up the deployment provider to prevent accumulation
   // Each deployment creates a provider with 100ms polling that was never cleaned up
   // After multiple test runs, these accumulate and overwhelm anvil
@@ -255,7 +220,6 @@ export async function deployMultiDomainSimulation(
     mailboxProcessor: mailboxProcessorAddress as Address,
     mailboxProcessorKey,
     domains,
-    snapshotId,
   };
 }
 

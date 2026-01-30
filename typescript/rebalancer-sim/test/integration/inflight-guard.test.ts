@@ -361,43 +361,68 @@ describe('Inflight Guard Behavior', function () {
       console.log('ANALYSIS');
       console.log('='.repeat(60));
 
-      // KEY ASSERTIONS: This test EXPECTS over-rebalancing without inflight guard
-      // The rebalancer should send multiple transfers because it doesn't know
-      // previous ones are still pending in the bridge
+      // KEY ASSERTIONS: Behavior differs based on rebalancer type
+      // - SimpleRunner: No inflight guard, expects over-rebalancing
+      // - CLIRebalancerRunner: Has inflight guard (ActionTracker), expects correct behavior
 
-      expect(rebalancesToLight.length).to.be.greaterThan(
-        1,
-        `[${rebalancerType}] Expected multiple rebalances to light - demonstrates missing inflight guard`,
-      );
+      if (rebalancerType === 'simple') {
+        // SimpleRunner has NO inflight guard - expects over-rebalancing
+        expect(rebalancesToLight.length).to.be.greaterThan(
+          1,
+          `[${rebalancerType}] Expected multiple rebalances to light - demonstrates missing inflight guard`,
+        );
 
-      console.log('\n❌ OVER-REBALANCING DETECTED (as expected):');
-      console.log(
-        `   Rebalancer sent ${rebalancesToLight.length} separate transfers to light`,
-      );
-      console.log(
-        "   This happened because it doesn't track inflight transfers",
-      );
-      console.log(
-        `   Total sent: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
-      );
-      console.log(`   Only needed: ~25 tokens`);
-
-      if (finalLight > target) {
-        const overBy = finalLight - target;
         console.log(
-          `\n   Light ended up ${ethers.utils.formatEther(overBy.toString())} tokens OVER target`,
+          '\n❌ OVER-REBALANCING DETECTED (as expected for SimpleRunner):',
         );
         console.log(
-          '   This demonstrates the need for inflight-aware rebalancing',
+          `   Rebalancer sent ${rebalancesToLight.length} separate transfers to light`,
         );
+        console.log(
+          "   This happened because SimpleRunner doesn't track inflight transfers",
+        );
+        console.log(
+          `   Total sent: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
+        );
+        console.log(`   Only needed: ~25 tokens`);
+
+        if (finalLight > target) {
+          const overBy = finalLight - target;
+          console.log(
+            `\n   Light ended up ${ethers.utils.formatEther(overBy.toString())} tokens OVER target`,
+          );
+          console.log(
+            '   This demonstrates the need for inflight-aware rebalancing',
+          );
+        }
+
+        console.log(
+          '\n   WITH inflight guard (like CLIRebalancerRunner), we would expect:',
+        );
+        console.log('   - Only 1-2 rebalances (not 30+)');
+        console.log('   - Light ending near target 125, not 300+');
+      } else {
+        // CLIRebalancerRunner HAS inflight guard (ActionTracker) - expects correct behavior
+        // It should send at most 2 rebalances (initial + possibly one more before tracking kicks in)
+        expect(rebalancesToLight.length).to.be.lessThanOrEqual(
+          2,
+          `[${rebalancerType}] Expected at most 2 rebalances - CLI rebalancer has inflight tracking`,
+        );
+
+        console.log(
+          '\n✅ CORRECT BEHAVIOR (CLIRebalancerRunner has inflight tracking):',
+        );
+        console.log(
+          `   Rebalancer sent only ${rebalancesToLight.length} transfer(s) to light`,
+        );
+        console.log(
+          '   ActionTracker prevents redundant transfers while previous ones are inflight',
+        );
+        console.log(
+          `   Total sent: ${ethers.utils.formatEther(totalSentToLight.toString())} tokens`,
+        );
+        console.log(`   Expected: ~25 tokens`);
       }
-
-      // With an inflight guard, we would expect:
-      // - Only 1 rebalance sent (or few if tolerance allows)
-      // - Light ending up near target (125), not way over
-      console.log('\n   WITH inflight guard, we would expect:');
-      console.log('   - Only 1-2 rebalances (not 30+)');
-      console.log('   - Light ending near target 125, not 300+');
     });
   }
 });
