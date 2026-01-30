@@ -12,6 +12,7 @@ import {
   OpL1V1NativeTokenBridge__factory,
   OpL2NativeTokenBridge__factory,
   TokenBridgeCctpBase__factory,
+  TokenBridgeCctpV2__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
 import {
@@ -419,6 +420,40 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async configureCctpV2MaxFee(
+    configMap: ChainMap<HypTokenConfig>,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    const cctpV2Configs = objFilter(
+      configMap,
+      (_, config): config is CctpTokenConfig =>
+        isCctpTokenConfig(config) &&
+        config.cctpVersion === 'V2' &&
+        config.maxFeeBps !== undefined,
+    );
+
+    await promiseObjAll(
+      objMap(cctpV2Configs, async (chain, config) => {
+        const router = this.router(deployedContractsMap[chain]).address;
+        const tokenBridgeV2 = TokenBridgeCctpV2__factory.connect(
+          router,
+          this.multiProvider.getSigner(chain),
+        );
+
+        const currentMaxFeeBps = await tokenBridgeV2.maxFeeBps();
+        if (currentMaxFeeBps.toNumber() !== config.maxFeeBps) {
+          this.logger.info(
+            `Setting maxFeeBps on ${chain} from ${currentMaxFeeBps} to ${config.maxFeeBps}`,
+          );
+          await this.multiProvider.handleTx(
+            chain,
+            tokenBridgeV2.setMaxFeeBps(config.maxFeeBps!),
+          );
+        }
+      }),
+    );
+  }
+
   protected async setRebalancers(
     configMap: ChainMap<HypTokenConfig>,
     deployedContractsMap: HyperlaneContractsMap<Factories>,
@@ -674,6 +709,9 @@ abstract class TokenDeployer<
 
     // Configure CCTP domains after all routers are deployed and remotes are enrolled (in super.deploy)
     await this.configureCctpDomains(configMap, deployedContractsMap);
+
+    // Set maxFeeBps for CCTP V2 routers (constructor sets it for direct deploys, this handles proxies)
+    await this.configureCctpV2MaxFee(configMap, deployedContractsMap);
 
     await this.setRebalancers(configMap, deployedContractsMap);
 

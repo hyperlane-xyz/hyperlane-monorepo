@@ -41,6 +41,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
         address _mailbox,
         IMessageTransmitterV2 _messageTransmitter,
         ITokenMessengerV2 _tokenMessenger,
+        uint256 _maxFeeBps,
         uint32 _minFinalityThreshold
     )
         TokenBridgeCctpBase(
@@ -50,6 +51,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
             _tokenMessenger
         )
     {
+        _setMaxFeeBps(_maxFeeBps);
         minFinalityThreshold = _minFinalityThreshold;
     }
 
@@ -76,6 +78,10 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
      * @param _maxFeeBps The new maximum fee in ppm (must be < 1_000_000).
      */
     function setMaxFeeBps(uint256 _maxFeeBps) external onlyOwner {
+        _setMaxFeeBps(_maxFeeBps);
+    }
+
+    function _setMaxFeeBps(uint256 _maxFeeBps) internal {
         if (_maxFeeBps >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
         MAX_FEE_BPS_SLOT.getUint256Slot().value = _maxFeeBps;
         emit MaxFeeBpsSet(_maxFeeBps);

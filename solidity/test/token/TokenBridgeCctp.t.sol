@@ -1103,6 +1103,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
+            maxFee,
             minFinalityThreshold
         );
 
@@ -1125,6 +1126,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxDestination),
             messageTransmitterDestination,
             tokenMessengerDestination,
+            maxFee,
             minFinalityThreshold
         );
 
@@ -1223,6 +1225,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             0xeA87ae93Fa0019a82A727bfd3eBd1cFCa8f64f1D,
             messageTransmitter,
             tokenMessenger,
+            maxFee,
             minFinalityThreshold
         );
 
@@ -1564,6 +1567,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
+            maxFee,
             minFinalityThreshold
         );
 
@@ -1574,6 +1578,7 @@ contract TokenBridgeCctpV2Test is TokenBridgeCctpV1Test {
             address(mailboxOrigin),
             messageTransmitterOrigin,
             tokenMessengerOrigin,
+            maxFee,
             minFinalityThreshold
         );
     }
