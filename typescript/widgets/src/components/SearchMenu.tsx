@@ -107,7 +107,11 @@ export function SearchMenu<
       if (results.length === 1) {
         const item = results[0];
         if (item.disabled) return;
-        isEditMode ? onClickEditItem(item) : onClickItem(item);
+        if (isEditMode) {
+          onClickEditItem(item);
+        } else {
+          onClickItem(item);
+        }
       }
     },
     [results, isEditMode, onClickEditItem, onClickItem],

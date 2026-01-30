@@ -16,7 +16,7 @@ import { setTurnkeySignerForEvmChains } from '../../src/utils/turnkey.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
-function withForce<T>(args: any) {
+function withForce(args: any) {
   return args
     .describe('force', 'Force claim even if below threshold')
     .boolean('force')

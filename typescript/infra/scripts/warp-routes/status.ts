@@ -56,7 +56,7 @@ async function showWarpMonitorStatus(warpRouteId: string, environment: string) {
     rootLogger.info(
       orange.bold(`Grafana Dashboard: ${GRAFANA_LINK}${warpRouteId}\n`),
     );
-  } catch (error) {
+  } catch {
     rootLogger.error(`Failed to get status for ${warpRouteId}:`, error);
   }
 }
@@ -119,7 +119,7 @@ function formatAndPrintLogs(rawLogs: string) {
 
       rootLogger.info(logMessage);
     });
-  } catch (err) {
+  } catch {
     rootLogger.warn('Could not parse logs as JSON, showing raw logs:');
     rootLogger.info(rawLogs);
   }

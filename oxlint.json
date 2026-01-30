@@ -222,6 +222,17 @@
           }
         ]
       }
+    },
+    {
+      "files": [
+        "typescript/utils/src/fs/**/*.ts",
+        "typescript/sdk/src/**/*.test.ts",
+        "typescript/widgets/src/**/*.test.ts",
+        "typescript/utils/src/**/*.test.ts"
+      ],
+      "rules": {
+        "no-restricted-imports": "off"
+      }
     }
   ]
 }

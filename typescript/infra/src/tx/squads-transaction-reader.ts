@@ -64,9 +64,7 @@ import {
   multisigIsmConfigPath,
 } from '../utils/sealevel.js';
 import {
-  SQUADS_ACCOUNT_DISCRIMINATORS,
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  SquadsAccountType,
   SquadsInstructionName,
   SquadsInstructionType,
   decodePermissions,

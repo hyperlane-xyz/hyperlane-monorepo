@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 import { retryAsync } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 

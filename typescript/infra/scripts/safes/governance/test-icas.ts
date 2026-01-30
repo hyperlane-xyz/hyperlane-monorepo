@@ -15,7 +15,7 @@ import {
   legacyIcaChainRouters,
 } from '../../../src/config/chain.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
-import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
+import { withGovernanceType } from '../../../src/governance.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../../core-utils.js';
 
 const originChain = 'ethereum';

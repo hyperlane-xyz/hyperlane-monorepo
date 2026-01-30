@@ -27,7 +27,7 @@ function extractDomain(url: string): string {
     }
 
     return hostname;
-  } catch (e) {
+  } catch {
     const match = url.match(/^(?:https?:\/\/)?([^/?#]+)/);
     if (!match) return url;
 
@@ -74,7 +74,7 @@ async function main() {
 
         domainMap[domain].chains.push(chain);
       }
-    } catch (e) {
+    } catch {
       console.error(`Error getting chain metadata for chain ${chain}: ${e}`);
       // Skip chains that error
     }

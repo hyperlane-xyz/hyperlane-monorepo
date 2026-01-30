@@ -164,7 +164,7 @@ export class RebalancerHelmManager extends HelmManager {
       let warpCoreConfig;
       try {
         warpCoreConfig = getWarpCoreConfig(warpRouteId);
-      } catch (e) {
+      } catch {
         continue;
       }
 
@@ -265,7 +265,7 @@ export async function getDeployedRebalancerWarpRouteIds(
           const match = configYaml.match(/^warpRouteId:\s*(.+)$/m);
           warpRouteId = match?.[1]?.trim();
         }
-      } catch (e) {
+      } catch {
         rootLogger.debug(
           `Failed to read configmap for ${helmReleaseName}: ${e}`,
         );
