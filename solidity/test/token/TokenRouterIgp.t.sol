@@ -97,8 +97,22 @@ contract TokenRouterIgpTest is Test {
 
         // Deploy gas oracle for token payments
         gasOracle = new StorageGasOracle();
-        _setTokenGasConfig(address(feeToken), DESTINATION, gasOracle);
         _setRemoteGasData(DESTINATION, TOKEN_EXCHANGE_RATE, GAS_PRICE);
+
+        // Configure native token oracle first (required before ERC20 token oracles)
+        InterchainGasPaymaster.GasParam[]
+            memory gasParams = new InterchainGasPaymaster.GasParam[](1);
+        gasParams[0] = InterchainGasPaymaster.GasParam({
+            remoteDomain: DESTINATION,
+            config: InterchainGasPaymaster.DomainGasConfig({
+                gasOracle: gasOracle,
+                gasOverhead: GAS_OVERHEAD
+            })
+        });
+        igp.setDestinationGasConfigs(gasParams);
+
+        // Now configure ERC20 fee token (requires domain to already be configured)
+        _setTokenGasConfig(address(feeToken), DESTINATION, gasOracle);
 
         // Deploy collateral router
         collateralRouter = new HypERC20Collateral(

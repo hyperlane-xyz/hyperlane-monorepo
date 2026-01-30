@@ -595,6 +595,19 @@ contract InterchainGasPaymasterTest is Test {
         uint32 newDomain = 99999;
         StorageGasOracle newOracle = new StorageGasOracle();
 
+        // First configure domain with native token oracle
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory nativeParams = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        nativeParams[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            address(0), // NATIVE_TOKEN
+            newDomain,
+            newOracle
+        );
+        igp.setTokenGasOracles(nativeParams);
+
+        // Now set non-native token oracle
         InterchainGasPaymaster.TokenGasOracleConfig[]
             memory params = new InterchainGasPaymaster.TokenGasOracleConfig[](
                 1
@@ -911,4 +924,214 @@ contract InterchainGasPaymasterTest is Test {
     }
 
     receive() external payable {}
+
+    // ============ domains ============
+
+    function testDomains_empty() public {
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        newIgp.initialize(address(this), beneficiary);
+        uint32[] memory domains = newIgp.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function testDomains_afterSetConfig() public {
+        uint32 domain1 = 1;
+        uint32 domain2 = 2;
+        uint32 domain3 = 3;
+
+        InterchainGasPaymaster.GasParam[]
+            memory params = new InterchainGasPaymaster.GasParam[](3);
+        params[0] = InterchainGasPaymaster.GasParam(
+            domain1,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, 100)
+        );
+        params[1] = InterchainGasPaymaster.GasParam(
+            domain2,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, 200)
+        );
+        params[2] = InterchainGasPaymaster.GasParam(
+            domain3,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, 300)
+        );
+
+        igp.setDestinationGasConfigs(params);
+
+        uint32[] memory domains = igp.domains();
+        assertEq(domains.length, 4); // 3 new + 1 from setUp
+
+        bool found1;
+        bool found2;
+        bool found3;
+        for (uint256 i = 0; i < domains.length; i++) {
+            if (domains[i] == domain1) found1 = true;
+            if (domains[i] == domain2) found2 = true;
+            if (domains[i] == domain3) found3 = true;
+        }
+        assertTrue(found1 && found2 && found3);
+    }
+
+    function testDomains_idempotent() public {
+        uint32[] memory domainsBefore = igp.domains();
+
+        // Set same domain again (testDestinationDomain was set in setUp)
+        setTestDestinationGasConfig(
+            testDestinationDomain,
+            testOracle,
+            testGasOverhead
+        );
+
+        uint32[] memory domainsAfter = igp.domains();
+        assertEq(domainsAfter.length, domainsBefore.length);
+    }
+
+    function testDomains_removedWhenGasOracleZero() public {
+        // Verify domain exists after setUp
+        uint32[] memory domainsBefore = igp.domains();
+        assertEq(domainsBefore.length, 1);
+        assertEq(domainsBefore[0], testDestinationDomain);
+
+        // Set gas oracle to zero address to remove domain
+        InterchainGasPaymaster.GasParam[]
+            memory params = new InterchainGasPaymaster.GasParam[](1);
+        params[0] = InterchainGasPaymaster.GasParam(
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+        );
+        igp.setDestinationGasConfigs(params);
+
+        // Verify domain is removed
+        uint32[] memory domainsAfter = igp.domains();
+        assertEq(domainsAfter.length, 0);
+    }
+
+    function testDomains_removeNonExistentNoOp() public {
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        newIgp.initialize(address(this), beneficiary);
+
+        // Remove non-existent domain should not revert
+        InterchainGasPaymaster.GasParam[]
+            memory params = new InterchainGasPaymaster.GasParam[](1);
+        params[0] = InterchainGasPaymaster.GasParam(
+            999,
+            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+        );
+        newIgp.setDestinationGasConfigs(params);
+
+        uint32[] memory domains = newIgp.domains();
+        assertEq(domains.length, 0);
+    }
+
+    function testDomains_readdAfterRemoval() public {
+        // Remove domain
+        InterchainGasPaymaster.GasParam[]
+            memory removeParams = new InterchainGasPaymaster.GasParam[](1);
+        removeParams[0] = InterchainGasPaymaster.GasParam(
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(IGasOracle(address(0)), 0)
+        );
+        igp.setDestinationGasConfigs(removeParams);
+        assertEq(igp.domains().length, 0);
+
+        // Re-add domain
+        InterchainGasPaymaster.GasParam[]
+            memory addParams = new InterchainGasPaymaster.GasParam[](1);
+        addParams[0] = InterchainGasPaymaster.GasParam(
+            testDestinationDomain,
+            InterchainGasPaymaster.DomainGasConfig(testOracle, testGasOverhead)
+        );
+        igp.setDestinationGasConfigs(addParams);
+
+        uint32[] memory domains = igp.domains();
+        assertEq(domains.length, 1);
+        assertEq(domains[0], testDestinationDomain);
+    }
+
+    function testSetTokenGasOracle_revertsForNonNativeWhenDomainNotConfigured()
+        public
+    {
+        // Create a fresh IGP with no domains configured
+        InterchainGasPaymaster newIgp = new InterchainGasPaymaster();
+        newIgp.initialize(address(this), beneficiary);
+
+        // Try to set non-native token oracle without native token configured first
+        address nonNativeToken = address(1);
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory configs = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        configs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            nonNativeToken,
+            testDestinationDomain,
+            testOracle
+        );
+
+        vm.expectRevert("InterchainGasPaymaster: domain not configured");
+        newIgp.setTokenGasOracles(configs);
+    }
+
+    function testSetTokenGasOracle_allowsNonNativeWhenDomainConfigured()
+        public
+    {
+        // Domain already configured in setUp via setDestinationGasConfigs (native token)
+        assertEq(igp.domains().length, 1);
+
+        // Setting non-native token oracle should succeed
+        address nonNativeToken = address(1);
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory configs = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        configs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            nonNativeToken,
+            testDestinationDomain,
+            testOracle
+        );
+
+        igp.setTokenGasOracles(configs);
+
+        // Verify oracle was set
+        assertEq(
+            address(igp.tokenGasOracles(nonNativeToken, testDestinationDomain)),
+            address(testOracle)
+        );
+        // Domain count unchanged
+        assertEq(igp.domains().length, 1);
+    }
+
+    function testDomains_notRemovedWhenNonNativeTokenOracleCleared() public {
+        // Domain exists after setUp with native token oracle
+        uint32[] memory domainsBefore = igp.domains();
+        assertEq(domainsBefore.length, 1);
+        assertEq(domainsBefore[0], testDestinationDomain);
+
+        // Add a non-native token oracle for the same domain
+        address nonNativeToken = address(1);
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory addConfigs = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        addConfigs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            nonNativeToken,
+            testDestinationDomain,
+            testOracle
+        );
+        igp.setTokenGasOracles(addConfigs);
+
+        // Clear the non-native token oracle
+        InterchainGasPaymaster.TokenGasOracleConfig[]
+            memory clearConfigs = new InterchainGasPaymaster.TokenGasOracleConfig[](
+                1
+            );
+        clearConfigs[0] = InterchainGasPaymaster.TokenGasOracleConfig(
+            nonNativeToken,
+            testDestinationDomain,
+            IGasOracle(address(0))
+        );
+        igp.setTokenGasOracles(clearConfigs);
+
+        // Domain should STILL be tracked because native token oracle is still set
+        uint32[] memory domainsAfter = igp.domains();
+        assertEq(domainsAfter.length, 1);
+        assertEq(domainsAfter[0], testDestinationDomain);
+    }
 }
