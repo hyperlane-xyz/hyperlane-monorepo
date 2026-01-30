@@ -32,6 +32,7 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
 
   let cosmosSigner: CosmosNativeSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
+  let otherProviderSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: CosmosWarpArtifactManager;
   let mailboxAddress: string;
   let deployerAddress: string;
@@ -48,8 +49,8 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
     deployerAddress = cosmosSigner.getSignerAddress();
 
     // Create new owner address (using bob signer)
-    const bobSigner = await createSigner('bob');
-    newOwnerAddress = bobSigner.getSignerAddress();
+    otherProviderSdkSigner = await createSigner('bob');
+    newOwnerAddress = otherProviderSdkSigner.getSignerAddress();
 
     const rpcUrls = cosmosSigner.getRpcUrls();
     assert(rpcUrls.length > 0, 'Expected at least 1 rpc url for the tests');
@@ -555,6 +556,115 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
           // Should have no transactions (ISM still undefined)
           expect(txs).to.be.an('array').with.length(0);
         });
+      });
+
+      it('should encode all update transactions with current owner as sender after ownership transfer', async () => {
+        const initialConfig = getConfig();
+
+        // Create with initial state
+        initialConfig.remoteRouters = {
+          [DOMAIN_1]: {
+            address:
+              '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
+          },
+        };
+        initialConfig.destinationGas = {
+          [DOMAIN_1]: '100000',
+        };
+
+        const writer = artifactManager.createWriter(type, cosmosSigner);
+        const [deployedToken] = await writer.create({
+          config: initialConfig,
+        });
+
+        const signerAddress = cosmosSigner.getSignerAddress();
+
+        // Transfer ownership to bob (newOwnerAddress)
+        const ownershipTransferConfig: ArtifactDeployed<
+          any,
+          DeployedWarpAddress
+        > = {
+          ...deployedToken,
+          config: {
+            ...deployedToken.config,
+            owner: newOwnerAddress,
+          },
+        };
+
+        const ownershipTxs = await writer.update(ownershipTransferConfig);
+        for (const tx of ownershipTxs) {
+          await providerSdkSigner.sendAndConfirmTransaction(tx);
+        }
+
+        // Read token to verify ownership transfer
+        const tokenAfterOwnershipTransfer = await writer.read(
+          deployedToken.deployed.address,
+        );
+        expect(
+          eqAddressCosmos(
+            tokenAfterOwnershipTransfer.config.owner,
+            newOwnerAddress,
+          ),
+        ).to.be.true;
+
+        // Now perform multiple updates: ISM set, router unenroll, new router enroll
+        const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+          ...tokenAfterOwnershipTransfer,
+          deployed: deployedToken.deployed,
+          config: {
+            ...tokenAfterOwnershipTransfer.config,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.UNDERIVED,
+              deployed: {
+                address: secondIsmAddress,
+              },
+            },
+            remoteRouters: {
+              // Remove DOMAIN_1, add DOMAIN_2
+              [DOMAIN_2]: {
+                address:
+                  '0x1aac830e4d71000c25149af643b5a18c7a907e2d36147d8b57c5847b03ea5528',
+              },
+            },
+            destinationGas: {
+              [DOMAIN_2]: '200000',
+            },
+          },
+        };
+
+        const updateTxs = await writer.update(updatedConfig);
+        expect(updateTxs).to.be.an('array').with.length.greaterThan(0);
+
+        // Validate ALL update transactions are encoded for the CURRENT owner (not signer)
+        for (const tx of updateTxs) {
+          // Cosmos transactions have the owner in the value field
+          const txValue = (tx as any).value;
+          expect(txValue).to.have.property('owner');
+
+          // Transaction must be encoded for current owner (newOwnerAddress), not signer
+          expect(eqAddressCosmos(txValue.owner, newOwnerAddress)).to.be.true;
+          expect(eqAddressCosmos(txValue.owner, signerAddress)).to.be.false;
+
+          // Execute transaction
+          await otherProviderSdkSigner.sendAndConfirmTransaction(tx);
+        }
+
+        // Verify all updates succeeded
+        const finalToken = await writer.read(deployedToken.deployed.address);
+
+        assert(
+          finalToken.config.interchainSecurityModule?.deployed.address,
+          'Expected ism address to be defined',
+        );
+        expect(
+          eqAddressCosmos(
+            finalToken.config.interchainSecurityModule?.deployed.address,
+            secondIsmAddress,
+          ),
+        ).to.be.true;
+        expect(finalToken.config.remoteRouters[DOMAIN_1]).to.be.undefined;
+        expect(finalToken.config.remoteRouters[DOMAIN_2]).to.exist;
+        expect(finalToken.config.destinationGas[DOMAIN_2]).to.equal('200000');
       });
     });
   });
