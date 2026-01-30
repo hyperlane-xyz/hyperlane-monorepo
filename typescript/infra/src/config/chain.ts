@@ -38,10 +38,6 @@ export const legacyIcaChainRouters: Record<
     interchainAccountIsm: '0x551BbEc45FD665a8C95ca8731CbC32b7653Bc59B',
     interchainAccountRouter: '0xc11f8Cf2343d3788405582F65B8af6A4F7a6FfC8',
   },
-  ontology: {
-    interchainAccountIsm: '0x8BdD5bf519714515083801448A99F84882A8F61E',
-    interchainAccountRouter: '0x718f11e349374481Be8c8B7589eC4B4316ddDCc2',
-  },
 };
 export const legacyIcaChains = Object.keys(legacyIcaChainRouters);
 export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
@@ -51,7 +47,6 @@ export const legacyEthIcaRouter = '0x5E532F7B610618eE73C2B462978e94CB1F7995Ce';
 // unsupported (e.g. zksync, zeronetwork) or have known issues
 export const chainsToSkip: ChainName[] = [
   // downtime
-  'flowmainnet',
   'molten',
 
   // not AW owned
@@ -63,17 +58,6 @@ export const chainsToSkip: ChainName[] = [
   'zeronetwork',
   'abstract',
   'sophon',
-
-  // testnets
-  'abstracttestnet',
-
-  // legacy ICAs
-  'viction',
-  'ontology',
-
-  // legacy icas
-  'carrchaintestnet',
-  'rometestnet',
 ];
 
 export const defaultRetry: ProviderRetryOptions = {

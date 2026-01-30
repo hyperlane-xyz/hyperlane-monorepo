@@ -32,18 +32,6 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: '2.0',
     },
   },
-
-  // deploy-only overrides
-  // scrollsepolia: {
-  //   transactionOverrides: {
-  //     gasPrice: 0.5 * 10 ** 9, // 0.5 gwei
-  //   },
-  // },
-  // somniatestnet: {
-  //   transactionOverrides: {
-  //     gasLimit: 10000000,
-  //   },
-  // },
 };
 
 export const getRegistry = async (

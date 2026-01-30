@@ -10,7 +10,7 @@ export const keyFunderConfig: KeyFunderConfig<
   typeof testnet4SupportedChainNames
 > = {
   docker: {
-    repo: DockerImageRepos.MONOREPO,
+    repo: DockerImageRepos.KEY_FUNDER,
     tag: testnetDockerTags.keyFunder,
   },
   // We're currently using the same deployer key as testnet2.
@@ -22,68 +22,36 @@ export const keyFunderConfig: KeyFunderConfig<
     'http://prometheus-prometheus-pushgateway.monitoring.svc.cluster.local:9091',
   contextFundingFrom: Contexts.Hyperlane,
   contextsAndRolesToFund: {
-    [Contexts.Hyperlane]: [Role.Relayer, Role.Kathy],
-    [Contexts.ReleaseCandidate]: [Role.Relayer, Role.Kathy],
+    [Contexts.Hyperlane]: [Role.Relayer],
+    [Contexts.ReleaseCandidate]: [Role.Relayer],
   },
-  chainsToSkip: ['hyperliquidevmtestnet', 'megaethtestnet'],
+  chainsToSkip: ['hyperliquidevmtestnet'],
   // desired balance config
   desiredBalancePerChain: {
     aleotestnet: '0',
     arbitrumsepolia: '0.1',
     arcadiatestnet2: '0.1',
-    auroratestnet: '0.05',
-    basecamptestnet: '0.05',
     basesepolia: '0.1',
     bsctestnet: '5',
-    carrchaintestnet: '100',
     celestiatestnet: '0',
     celosepolia: '0.5',
-    citreatestnet: '0.001',
     cotitestnet: '1',
     // no funding for solana
     eclipsetestnet: '0',
     fuji: '5',
-    giwasepolia: '0.1',
     hyperliquidevmtestnet: '0.1',
     incentivtestnet: '1',
     kyvetestnet: '0',
-    megaethtestnet: '0.01',
-    modetestnet: '0.05',
-    monadtestnet: '0.1',
-    neuratestnet: '0.1',
-    nobletestnet: '0',
     optimismsepolia: '0.1',
     paradexsepolia: '0',
     polygonamoy: '0.2',
     radixtestnet: '0',
-    scrollsepolia: '1',
     sepolia: '5',
     starknetsepolia: '0',
     // no funding for SVM chains
     solanatestnet: '0',
-    somniatestnet: '10',
     // no funding for SVM chains
     sonicsvmtestnet: '0',
-    subtensortestnet: '0.1',
-  },
-  desiredKathyBalancePerChain: {
-    arbitrumsepolia: '0',
-    basesepolia: '0',
-    bsctestnet: '1',
-    connextsepolia: '0',
-    ecotestnet: '0',
-    // no funding for solana
-    eclipsetestnet: '0',
-    fuji: '1',
-    optimismsepolia: '0',
-    paradexsepolia: '0',
-    polygonamoy: '0',
-    scrollsepolia: '1',
-    sepolia: '1',
-    starknetsepolia: '0',
-    // no funding for solana
-    solanatestnet: '0',
-    superpositiontestnet: '0',
   },
   desiredRebalancerBalancePerChain: {},
   igpClaimThresholdPerChain: {
@@ -98,7 +66,6 @@ export const keyFunderConfig: KeyFunderConfig<
     fuji: '1',
     optimismsepolia: '0.05',
     polygonamoy: '0.1',
-    scrollsepolia: '0.1',
     sepolia: '1',
     // no funding for solana
     solanatestnet: '0',

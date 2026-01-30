@@ -107,7 +107,6 @@ export const regularIcas: ChainMap<Address> = {
   torus: '0xA9143712A8c5CB4e7687F5b4f7163A1E6D1c1476',
   unichain: '0xD39c288D2A021207Dfec7780e778D73460f563D7',
   vana: '0x486815B6D0dC66B041965dB1904872167ddcE433',
-  // viction: '0x426FC4C5CC60E5e47101fe30d4f8B94F1b7C1C70',
   worldchain: '0x17f0207b9529cAb39F6e02394157b5a6c7064393',
   xai: '0xf4afbc0C86D9ee6C52E30947FC3D7E22dCA9BA4A',
   xlayer: '0xAD598d164ecFf737C7556871Bb1D50215c4D9517',
@@ -157,4 +156,8 @@ export const regularIcas: ChainMap<Address> = {
   // ----------------------------------------------------------
   eni: '0x2C5418067111F7e728D64C5D63bc87F3A7f8C6FC',
   krown: '0x9F48298FF8c32F423fe14e71e6CBAcBa3c061e17',
+
+  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
+  // ----------------------------------------------------------
+  ontology: '0xD6d898B8A75B5D7A3438e2120FD0302B5d3c9081',
 } as const;

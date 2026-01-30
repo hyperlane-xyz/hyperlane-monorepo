@@ -6,7 +6,7 @@ image:
   # Modify this tag to deploy a new revision.
   # Images can be found here:
   # https://console.cloud.google.com/artifacts/docker/abacus-labs-dev/us/gcr.io/hyperlane-offchain-lookup-server
-  tag: 8a41886-20251222-170941
+  tag: ab078b0-20260127-171512
 
 secrets:
   name: 'offchain-lookup-server'

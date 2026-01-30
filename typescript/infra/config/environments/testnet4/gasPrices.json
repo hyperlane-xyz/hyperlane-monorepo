@@ -11,14 +11,6 @@
     "amount": "0.000000008",
     "decimals": 9
   },
-  "auroratestnet": {
-    "amount": "0.07",
-    "decimals": 9
-  },
-  "basecamptestnet": {
-    "amount": "1.0",
-    "decimals": 9
-  },
   "basesepolia": {
     "amount": "0.001000068",
     "decimals": 9
@@ -27,20 +19,12 @@
     "amount": "1.0",
     "decimals": 9
   },
-  "carrchaintestnet": {
-    "amount": "1000.0",
-    "decimals": 9
-  },
   "celestiatestnet": {
     "amount": "0.001",
     "decimals": 1
   },
   "celosepolia": {
     "amount": "25.001",
-    "decimals": 9
-  },
-  "citreatestnet": {
-    "amount": "0.0100001",
     "decimals": 9
   },
   "cotitestnet": {
@@ -55,10 +39,6 @@
     "amount": "0.000000002",
     "decimals": 9
   },
-  "giwasepolia": {
-    "amount": "0.001000251",
-    "decimals": 9
-  },
   "hyperliquidevmtestnet": {
     "amount": "0.1",
     "decimals": 9
@@ -68,26 +48,6 @@
     "decimals": 9
   },
   "kyvetestnet": {
-    "amount": "0.001",
-    "decimals": 1
-  },
-  "megaethtestnet": {
-    "amount": "0.001",
-    "decimals": 9
-  },
-  "modetestnet": {
-    "amount": "0.001000252",
-    "decimals": 9
-  },
-  "monadtestnet": {
-    "amount": "52.0",
-    "decimals": 9
-  },
-  "neuratestnet": {
-    "amount": "0.000000007",
-    "decimals": 9
-  },
-  "nobletestnet": {
     "amount": "0.001",
     "decimals": 1
   },
@@ -107,10 +67,6 @@
     "amount": "50.0",
     "decimals": 6
   },
-  "scrollsepolia": {
-    "amount": "0.015680115",
-    "decimals": 9
-  },
   "sepolia": {
     "amount": "0.05",
     "decimals": 9
@@ -119,20 +75,12 @@
     "amount": "0.01",
     "decimals": 1
   },
-  "somniatestnet": {
-    "amount": "10.0",
-    "decimals": 9
-  },
   "sonicsvmtestnet": {
     "amount": "0.01",
     "decimals": 1
   },
   "starknetsepolia": {
     "amount": "0.01",
-    "decimals": 9
-  },
-  "subtensortestnet": {
-    "amount": "20.134283587",
     "decimals": 9
   }
 }

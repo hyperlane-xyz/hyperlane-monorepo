@@ -484,7 +484,12 @@ impl ChainConf {
 
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let provider = build_tron_provider(self, conf, metrics, &locator, None)?;
+                let hook = h_tron::TronMerkleTreeHook::new(provider, &locator);
+
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
@@ -985,7 +990,12 @@ impl ChainConf {
                     h_radix::RadixValidatorAnnounce::new(provider, &locator, conf)?;
                 Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
             }
-            ChainConnectionConf::Tron(_) => todo!(),
+            ChainConnectionConf::Tron(conf) => {
+                let signer = self.tron_signer().await.context(ctx)?;
+                let provider = build_tron_provider(self, conf, metrics, &locator, signer)?;
+                let validator_announce = h_tron::TronValidatorAnnounce::new(provider, &locator);
+                Ok(Box::new(validator_announce) as Box<dyn ValidatorAnnounce>)
+            }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(conf) => {
                 let signer = self.aleo_signer().await?;

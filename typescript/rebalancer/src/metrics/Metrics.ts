@@ -22,13 +22,15 @@ import { ProtocolType, tryFn } from '@hyperlane-xyz/utils';
 
 import { type IMetrics } from '../interfaces/IMetrics.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
-import { type RebalancingRoute } from '../interfaces/IStrategy.js';
+import { type StrategyRoute } from '../interfaces/IStrategy.js';
 
 import { type PriceGetter } from './PriceGetter.js';
 import {
   metricsRegister,
+  rebalancerActionsCreatedTotal,
   rebalancerExecutionAmount,
   rebalancerExecutionTotal,
+  rebalancerIntentsCreatedTotal,
   rebalancerPollingErrorsTotal,
   updateManagedLockboxBalanceMetrics,
   updateNativeWalletBalanceMetrics,
@@ -64,10 +66,7 @@ export class Metrics implements IMetrics {
       .inc();
   }
 
-  recordRebalanceAmount(
-    route: RebalancingRoute,
-    originTokenAmount: TokenAmount,
-  ) {
+  recordRebalanceAmount(route: StrategyRoute, originTokenAmount: TokenAmount) {
     rebalancerExecutionAmount
       .labels({
         warp_route_id: this.warpRouteId,
@@ -87,6 +86,28 @@ export class Metrics implements IMetrics {
   recordPollingError() {
     rebalancerPollingErrorsTotal
       .labels({ warp_route_id: this.warpRouteId })
+      .inc();
+  }
+
+  recordIntentCreated(route: StrategyRoute, strategy: string) {
+    rebalancerIntentsCreatedTotal
+      .labels({
+        warp_route_id: this.warpRouteId,
+        strategy,
+        origin: route.origin,
+        destination: route.destination,
+      })
+      .inc();
+  }
+
+  recordActionAttempt(route: StrategyRoute, succeeded: boolean) {
+    rebalancerActionsCreatedTotal
+      .labels({
+        warp_route_id: this.warpRouteId,
+        origin: route.origin,
+        destination: route.destination,
+        succeeded: String(succeeded),
+      })
       .inc();
   }
 
