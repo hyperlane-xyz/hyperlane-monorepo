@@ -7,7 +7,8 @@ use futures::StreamExt;
 use tracing::{debug, instrument, warn};
 
 use hyperlane_core::{
-    HyperlaneDomain, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId, H160, H256,
+    HyperlaneDomain, MultisigSignedCheckpoint, Signature, SignedCheckpointWithMessageId, H160,
+    H256, U256,
 };
 
 use crate::{CheckpointSyncer, CoreMetrics};
@@ -297,13 +298,21 @@ impl MultisigCheckpointSyncer {
             })
             .collect();
 
+        // Pad with non-empty signature
+        // This is necessary because Aleos signature recovery expects non-zero signatures
+        let padded_signature = Signature {
+            r: U256::one(),
+            s: U256::one(),
+            v: 1,
+        };
+
         validators
             .iter()
             .map(|validator| {
                 signer_to_signature
                     .get(validator)
                     .copied()
-                    .unwrap_or_default()
+                    .unwrap_or(padded_signature)
             })
             .collect()
     }
@@ -705,12 +714,18 @@ mod test {
             "For Aleo protocols, signatures length should match validator length"
         );
 
+        let padded_signature = Signature {
+            r: U256::one(),
+            s: U256::one(),
+            v: 1,
+        };
+
         // Verify that empty signatures are inserted at the correct positions
-        assert_ne!(multisig_checkpoint.signatures[0], Signature::default());
-        assert_eq!(multisig_checkpoint.signatures[1], Signature::default());
-        assert_ne!(multisig_checkpoint.signatures[2], Signature::default());
-        assert_eq!(multisig_checkpoint.signatures[3], Signature::default());
-        assert_ne!(multisig_checkpoint.signatures[4], Signature::default());
+        assert_ne!(multisig_checkpoint.signatures[0], padded_signature);
+        assert_eq!(multisig_checkpoint.signatures[1], padded_signature);
+        assert_ne!(multisig_checkpoint.signatures[2], padded_signature);
+        assert_eq!(multisig_checkpoint.signatures[3], padded_signature);
+        assert_ne!(multisig_checkpoint.signatures[4], padded_signature);
     }
 
     #[tracing_test::traced_test]
@@ -776,9 +791,15 @@ mod test {
             "For non-Aleo protocols, signatures length should equal threshold"
         );
 
+        let padded_signature = Signature {
+            r: U256::one(),
+            s: U256::one(),
+            v: 1,
+        };
+
         // All signatures should be non-empty
         for sig in &multisig_checkpoint.signatures {
-            assert_ne!(*sig, Signature::default());
+            assert_ne!(*sig, padded_signature);
         }
     }
 }

@@ -47,7 +47,7 @@ mod primitive_types;
 
 // Copied from https://github.com/hyperlane-xyz/ethers-rs/blob/hyperlane/ethers-core/src/types/signature.rs#L54
 // To avoid depending on the `ethers` type
-#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy, Hash, Default)]
+#[derive(Serialize, Deserialize, Debug, Clone, PartialEq, Eq, Copy, Hash)]
 /// An ECDSA signature
 pub struct Signature {
     /// R value
