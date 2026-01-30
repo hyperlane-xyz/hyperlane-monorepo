@@ -32,28 +32,24 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import {
-  deployMultiDomainSimulation,
-  getWarpTokenBalance,
-} from '../../src/deployment/SimulationDeployment.js';
-import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
-import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
-import type { SimulationResult } from '../../src/kpi/types.js';
-import {
   ProductionRebalancerRunner,
-  cleanupProductionRebalancer,
-} from '../../src/rebalancer/ProductionRebalancerRunner.js';
-import {
   SimpleRunner,
+  SimulationEngine,
+  cleanupProductionRebalancer,
   cleanupSimpleRunner,
-} from '../../src/rebalancer/SimpleRunner.js';
-import type { IRebalancerRunner } from '../../src/rebalancer/types.js';
-import {
+  deployMultiDomainSimulation,
+  generateTimelineHtml,
+  getWarpTokenBalance,
   listScenarios,
   loadScenario,
   loadScenarioFile,
-} from '../../src/scenario/ScenarioLoader.js';
-import type { ScenarioFile } from '../../src/scenario/types.js';
-import { generateTimelineHtml } from '../../src/visualizer/index.js';
+} from '../../src/index.js';
+import type {
+  IRebalancerRunner,
+  ScenarioFile,
+  SimulationResult,
+} from '../../src/index.js';
+import { ANVIL_DEPLOYER_KEY } from '../../src/types.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));

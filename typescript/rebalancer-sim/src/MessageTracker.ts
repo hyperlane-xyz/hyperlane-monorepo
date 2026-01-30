@@ -4,7 +4,7 @@ import { EventEmitter } from 'events';
 import { MockMailbox__factory } from '@hyperlane-xyz/core';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import type { DeployedDomain } from '../deployment/types.js';
+import type { DeployedDomain } from './types.js';
 
 const logger = rootLogger.child({ module: 'MessageTracker' });
 

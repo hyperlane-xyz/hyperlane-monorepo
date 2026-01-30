@@ -1,7 +1,9 @@
-import type { SimulationResult } from '../kpi/types.js';
-
-import type { HtmlGeneratorOptions, SimulationConfig } from './types.js';
-import { toVisualizationData } from './types.js';
+import type {
+  HtmlGeneratorOptions,
+  SimulationConfig,
+  SimulationResult,
+} from '../types.js';
+import { toVisualizationData } from '../types.js';
 
 const DEFAULT_OPTIONS: Required<HtmlGeneratorOptions> = {
   width: 1200,

@@ -50,7 +50,7 @@ import { expect } from 'chai';
 
 import { toWei } from '@hyperlane-xyz/utils';
 
-import { ScenarioGenerator } from '../../src/scenario/ScenarioGenerator.js';
+import { ScenarioGenerator } from '../../src/index.js';
 
 describe('ScenarioGenerator', () => {
   /**

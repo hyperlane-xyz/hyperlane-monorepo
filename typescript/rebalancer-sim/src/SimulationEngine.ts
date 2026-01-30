@@ -6,17 +6,18 @@ import {
 } from '@hyperlane-xyz/core';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { BridgeMockController } from '../bridges/BridgeMockController.js';
-import type { BridgeMockConfig } from '../bridges/types.js';
-import type { MultiDomainDeploymentResult } from '../deployment/types.js';
-import { KPICollector } from '../kpi/KPICollector.js';
-import type { SimulationResult } from '../kpi/types.js';
-import { MessageTracker } from '../mailbox/MessageTracker.js';
+import { BridgeMockController } from './BridgeMockController.js';
+import { KPICollector } from './KPICollector.js';
+import { MessageTracker } from './MessageTracker.js';
 import type {
+  BridgeMockConfig,
   IRebalancerRunner,
+  MultiDomainDeploymentResult,
   RebalancerSimConfig,
-} from '../rebalancer/types.js';
-import type { SimulationTiming, TransferScenario } from '../scenario/types.js';
+  SimulationResult,
+  SimulationTiming,
+  TransferScenario,
+} from './types.js';
 
 const logger = rootLogger.child({ module: 'SimulationEngine' });
 

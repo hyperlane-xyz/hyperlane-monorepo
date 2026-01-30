@@ -29,11 +29,11 @@ import { toWei } from '@hyperlane-xyz/utils';
 import {
   deployMultiDomainSimulation,
   getWarpTokenBalance,
-} from '../../src/deployment/SimulationDeployment.js';
+} from '../../src/index.js';
 import {
   ANVIL_DEPLOYER_KEY,
   DEFAULT_SIMULATED_CHAINS,
-} from '../../src/deployment/types.js';
+} from '../../src/types.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 describe('Multi-Domain Deployment', function () {

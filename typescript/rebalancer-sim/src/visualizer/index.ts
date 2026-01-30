@@ -3,5 +3,5 @@ export type {
   HtmlGeneratorOptions,
   TimelineEvent,
   VisualizationData,
-} from './types.js';
-export { toVisualizationData } from './types.js';
+} from '../types.js';
+export { toVisualizationData } from '../types.js';

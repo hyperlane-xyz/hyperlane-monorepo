@@ -11,8 +11,9 @@ import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
+import type { IRebalancerRunner, RebalancerSimConfig } from '../types.js';
+
 import { SimulationRegistry } from './SimulationRegistry.js';
-import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
 
 // Silent logger for the rebalancer service (internal)
 const silentLogger = pino({ level: 'silent' });

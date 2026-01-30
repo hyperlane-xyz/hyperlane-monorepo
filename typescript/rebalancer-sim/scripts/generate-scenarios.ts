@@ -8,7 +8,7 @@ import * as path from 'path';
 
 import { toWei } from '@hyperlane-xyz/utils';
 
-import { ScenarioGenerator } from '../src/scenario/ScenarioGenerator.js';
+import { ScenarioGenerator } from '../src/index.js';
 import type {
   ScenarioExpectations,
   ScenarioFile,
@@ -16,7 +16,7 @@ import type {
   SerializedStrategyConfig,
   SimulationTiming,
   TransferScenario,
-} from '../src/scenario/types.js';
+} from '../src/index.js';
 
 const SCENARIOS_DIR = path.join(import.meta.dirname, '..', 'scenarios');
 

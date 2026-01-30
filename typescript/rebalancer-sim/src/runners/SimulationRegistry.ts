@@ -16,7 +16,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import type { MultiDomainDeploymentResult } from '../deployment/types.js';
+import type { MultiDomainDeploymentResult } from '../types.js';
 
 /**
  * A mock registry that provides chain metadata and warp route config

@@ -8,12 +8,11 @@ import {
 import type { Address } from '@hyperlane-xyz/utils';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import type { DeployedDomain } from '../deployment/types.js';
-
 import type {
   BridgeEvent,
   BridgeMockConfig,
   BridgeRouteConfig,
+  DeployedDomain,
   PendingTransfer,
 } from './types.js';
 import { DEFAULT_BRIDGE_ROUTE_CONFIG } from './types.js';

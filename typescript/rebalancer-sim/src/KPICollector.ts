@@ -2,10 +2,9 @@ import type { ethers } from 'ethers';
 
 import { ERC20Test__factory } from '@hyperlane-xyz/core';
 
-import type { DeployedDomain } from '../deployment/types.js';
-
 import type {
   ChainMetrics,
+  DeployedDomain,
   RebalanceRecord,
   SimulationKPIs,
   TransferRecord,

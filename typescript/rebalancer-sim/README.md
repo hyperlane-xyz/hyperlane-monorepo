@@ -92,33 +92,22 @@ Two rebalancer implementations are available:
 ```
 typescript/rebalancer-sim/
 ├── src/
-│   ├── deployment/          # Anvil + contract deployment
-│   │   ├── SimulationDeployment.ts
-│   │   └── types.ts
-│   ├── scenario/            # Scenario generation & loading
-│   │   ├── ScenarioGenerator.ts  # Create synthetic scenarios
-│   │   ├── ScenarioLoader.ts     # Load from JSON files
-│   │   └── types.ts              # ScenarioFile, TransferScenario, etc.
-│   ├── bridges/             # Bridge delay simulation
-│   │   ├── BridgeMockController.ts
-│   │   └── types.ts
-│   ├── rebalancer/          # Rebalancer wrappers
-│   │   ├── SimpleRunner.ts         # Simplified rebalancer for testing
-│   │   ├── ProductionRebalancerRunner.ts  # Wraps @hyperlane-xyz/rebalancer
-│   │   ├── SimulationRegistry.ts   # IRegistry impl for simulation
-│   │   └── types.ts
-│   ├── engine/              # Simulation orchestration
-│   │   └── SimulationEngine.ts
-│   ├── harness/             # Main entry point
-│   │   └── RebalancerSimulationHarness.ts
-│   ├── kpi/                 # Metrics collection
-│   │   ├── KPICollector.ts
-│   │   └── types.ts
-│   ├── mailbox/             # Message tracking
-│   │   └── MessageTracker.ts
-│   └── visualizer/          # HTML timeline generation
-│       ├── HtmlTimelineGenerator.ts
-│       └── types.ts
+│   ├── BridgeMockController.ts      # Bridge delay simulation
+│   ├── KPICollector.ts              # Metrics collection
+│   ├── MessageTracker.ts            # Message tracking
+│   ├── RebalancerSimulationHarness.ts  # Main entry point
+│   ├── ScenarioGenerator.ts         # Create synthetic scenarios
+│   ├── ScenarioLoader.ts            # Load from JSON files
+│   ├── SimulationDeployment.ts      # Anvil + contract deployment
+│   ├── SimulationEngine.ts          # Simulation orchestration
+│   ├── types.ts                     # Consolidated types
+│   ├── index.ts                     # Explicit exports
+│   ├── runners/                     # Rebalancer implementations
+│   │   ├── SimpleRunner.ts          # Simplified for testing
+│   │   ├── ProductionRebalancerRunner.ts  # Wraps production service
+│   │   └── SimulationRegistry.ts    # IRegistry impl
+│   └── visualizer/                  # HTML timeline generation
+│       └── HtmlTimelineGenerator.ts
 ├── scenarios/               # Pre-generated scenario JSON files
 ├── results/                 # Test results (gitignored)
 ├── scripts/

@@ -2,29 +2,26 @@ import { ethers } from 'ethers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import type { BridgeMockConfig } from '../bridges/types.js';
-import { createSymmetricBridgeConfig } from '../bridges/types.js';
-import { deployMultiDomainSimulation } from '../deployment/SimulationDeployment.js';
+import { deployMultiDomainSimulation } from './SimulationDeployment.js';
+import { DEFAULT_TIMING, SimulationEngine } from './SimulationEngine.js';
+import { cleanupProductionRebalancer } from './runners/ProductionRebalancerRunner.js';
 import type {
+  BridgeMockConfig,
+  ComparisonReport,
+  IRebalancerRunner,
   MultiDomainDeploymentOptions,
   MultiDomainDeploymentResult,
+  RebalancerSimConfig,
   SimulatedChainConfig,
-} from '../deployment/types.js';
+  SimulationResult,
+  SimulationTiming,
+  TransferScenario,
+} from './types.js';
 import {
   ANVIL_DEPLOYER_KEY,
   DEFAULT_SIMULATED_CHAINS,
-} from '../deployment/types.js';
-import {
-  DEFAULT_TIMING,
-  SimulationEngine,
-} from '../engine/SimulationEngine.js';
-import type { ComparisonReport, SimulationResult } from '../kpi/types.js';
-import { cleanupProductionRebalancer } from '../rebalancer/ProductionRebalancerRunner.js';
-import type {
-  IRebalancerRunner,
-  RebalancerSimConfig,
-} from '../rebalancer/types.js';
-import type { SimulationTiming, TransferScenario } from '../scenario/types.js';
+  createSymmetricBridgeConfig,
+} from './types.js';
 
 const logger = rootLogger.child({ module: 'RebalancerSimulationHarness' });
 

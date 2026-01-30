@@ -37,23 +37,18 @@ import { ethers } from 'ethers';
 
 import { toWei } from '@hyperlane-xyz/utils';
 
-import { createSymmetricBridgeConfig } from '../../src/bridges/types.js';
-import {
-  deployMultiDomainSimulation,
-  getWarpTokenBalance,
-} from '../../src/deployment/SimulationDeployment.js';
-import { ANVIL_DEPLOYER_KEY } from '../../src/deployment/types.js';
-import { SimulationEngine } from '../../src/engine/SimulationEngine.js';
 import {
   ProductionRebalancerRunner,
-  cleanupProductionRebalancer,
-} from '../../src/rebalancer/ProductionRebalancerRunner.js';
-import {
   SimpleRunner,
+  SimulationEngine,
+  cleanupProductionRebalancer,
   cleanupSimpleRunner,
-} from '../../src/rebalancer/SimpleRunner.js';
-import type { IRebalancerRunner } from '../../src/rebalancer/types.js';
-import type { TransferScenario } from '../../src/scenario/types.js';
+  createSymmetricBridgeConfig,
+  deployMultiDomainSimulation,
+  getWarpTokenBalance,
+} from '../../src/index.js';
+import type { IRebalancerRunner, TransferScenario } from '../../src/index.js';
+import { ANVIL_DEPLOYER_KEY } from '../../src/types.js';
 import { setupAnvilTestSuite } from '../utils/anvil.js';
 
 // Configure which rebalancers to test via environment variable

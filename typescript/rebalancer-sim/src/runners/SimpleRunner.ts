@@ -7,9 +7,11 @@ import {
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
 
-import type { DeployedDomain } from '../deployment/types.js';
-
-import type { IRebalancerRunner, RebalancerSimConfig } from './types.js';
+import type {
+  DeployedDomain,
+  IRebalancerRunner,
+  RebalancerSimConfig,
+} from '../types.js';
 
 // Track the current SimpleRunner instance for cleanup
 let currentSimpleRunner: SimpleRunner | null = null;
