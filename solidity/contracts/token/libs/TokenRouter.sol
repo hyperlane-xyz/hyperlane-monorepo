@@ -34,6 +34,7 @@ abstract contract TokenRouter is GasRouter, ITokenBridge {
     using StorageSlot for bytes32;
     using Quotes for Quote[];
     using Math for uint256;
+    using SafeERC20 for IERC20;
 
     /**
      * @dev Emitted on `transferRemote` when a transfer message is dispatched.
