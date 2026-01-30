@@ -158,9 +158,15 @@ export class TestRebalancerBuilder {
     await tracker.initialize();
     this.logger.info('ActionTracker initialized with mock explorer');
 
+    // In execute mode, create an actual Rebalancer to enable intent creation and execution
+    const rebalancer =
+      this.executionMode === 'execute'
+        ? contextFactory.createRebalancer()
+        : undefined;
+
     const orchestratorDeps: RebalancerOrchestratorDeps = {
       strategy,
-      rebalancer: undefined,
+      rebalancer,
       actionTracker: tracker,
       inflightContextAdapter: adapter,
       multiProvider: workingMultiProvider,
