@@ -10,160 +10,160 @@
       "timestamp": 0,
       "origin": "chain1",
       "destination": "chain2",
-      "amount": "2083336533940584320",
-      "user": "0x31970a22871d8314e789e9f9ee82cee3fa2bc37f"
+      "amount": "2967704115304951291",
+      "user": "0xfd1568a1db7fb8bdea4d4f01ac7e82ddfbac1bb9"
     },
     {
       "id": "bal-000001",
-      "timestamp": 340,
+      "timestamp": 484,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "2083336533940584320",
-      "user": "0xbd18e7608358f2d4c33f55cd6f964157ccbcbfbc"
+      "amount": "2967704115304951291",
+      "user": "0x57a07745af81f3714f3e5eea3b49edd4b5a3b5cf"
     },
     {
       "id": "bal-000002",
       "timestamp": 900,
       "origin": "chain1",
       "destination": "chain3",
-      "amount": "1974047981673313024",
-      "user": "0x847f45b6453ee0ae6d0f65f62fa91ccc4b8004f8"
+      "amount": "2827881524332089607",
+      "user": "0xafcad8ecd644afa8c9f2ab9bb3e415b649902c80"
     },
     {
       "id": "bal-000003",
-      "timestamp": 1290,
+      "timestamp": 911,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "1974047981673313024",
-      "user": "0xa521bacc3b5dd214f124ccb8b9b0e06cfd21b2bf"
+      "amount": "2827881524332089607",
+      "user": "0x8223d6b7b7fab1539948aedd2c2cb8383bbdec28"
     },
     {
       "id": "bal-000004",
       "timestamp": 1800,
       "origin": "chain2",
       "destination": "chain3",
-      "amount": "1950995303615459712",
-      "user": "0x321158504ddf7fa691504286756fb7ad1c1a4989"
+      "amount": "1676833675879826722",
+      "user": "0x4efdce56b3bcee3e350ac103c2fd55df7c98b376"
     },
     {
       "id": "bal-000005",
-      "timestamp": 2242,
+      "timestamp": 1833,
       "origin": "chain3",
       "destination": "chain2",
-      "amount": "1950995303615459712",
-      "user": "0x85e778505af3f150aa358409960f220a2869955d"
+      "amount": "1676833675879826722",
+      "user": "0x0d940c2eac9c624f1657bd4846901f089b5982fb"
     },
     {
       "id": "bal-000006",
       "timestamp": 2700,
       "origin": "chain1",
       "destination": "chain2",
-      "amount": "2533408253734077440",
-      "user": "0x3d9ec30fe9024d3da5634caa4cadf4d2ce636e73"
+      "amount": "2188659478057355957",
+      "user": "0xc6535cc71582b1bd17a90d64b8e74aa09e15da7b"
     },
     {
       "id": "bal-000007",
-      "timestamp": 3009,
+      "timestamp": 2831,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "2533408253734077440",
-      "user": "0x27a03733975a626eea9a29c1d902bc00bb12c392"
+      "amount": "2188659478057355957",
+      "user": "0x4e70c1681d0a394b1470e66ceedc4ddca887ca5e"
     },
     {
       "id": "bal-000008",
       "timestamp": 3600,
       "origin": "chain1",
       "destination": "chain3",
-      "amount": "1977906501913092864",
-      "user": "0x81308a6f45fc0df8f38d4644f3cdd649223e2785"
+      "amount": "2709231175839805199",
+      "user": "0x04f58ce1ad455075acf720e5f9caee655000795f"
     },
     {
       "id": "bal-000009",
-      "timestamp": 3822,
+      "timestamp": 3907,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "1977906501913092864",
-      "user": "0xdc6ccdb6f6abf270667987ba385a08cffbcb9a75"
+      "amount": "2709231175839805199",
+      "user": "0xd63e4f097346b504975c1a3fa517024abe9d8aee"
     },
     {
       "id": "bal-000010",
       "timestamp": 4500,
       "origin": "chain2",
       "destination": "chain3",
-      "amount": "1981213438032739712",
-      "user": "0x2cf79b00b6dd824ae0daed05ce80a84f883ae967"
+      "amount": "1126382020800316124",
+      "user": "0xfafca74d4d9fc721ff59529f254cc1954292b638"
     },
     {
       "id": "bal-000011",
-      "timestamp": 4793,
+      "timestamp": 4708,
       "origin": "chain3",
       "destination": "chain2",
-      "amount": "1981213438032739712",
-      "user": "0x0594e6e87f32d552211f5d8d9745272e0f146243"
+      "amount": "1126382020800316124",
+      "user": "0x3247f2430ce5a4349efb7ef3b33eec9dc57b8ad9"
     },
     {
       "id": "bal-000012",
       "timestamp": 5400,
       "origin": "chain1",
       "destination": "chain2",
-      "amount": "2844561822605299968",
-      "user": "0x69ada784befd8fdcaf3bb6c82aa3c0cc7ffe15ad"
+      "amount": "2551899397204316650",
+      "user": "0xee3a406d9ea4e10679aa9279995b8746bd7a0ca4"
     },
     {
       "id": "bal-000013",
-      "timestamp": 5446,
+      "timestamp": 5661,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "2844561822605299968",
-      "user": "0xff9f7d13e30ebf5c6ea824b929f97c20283b72e4"
+      "amount": "2551899397204316650",
+      "user": "0x894dc03aa7cbe066ff62469835554cfbea359592"
     },
     {
       "id": "bal-000014",
       "timestamp": 6300,
       "origin": "chain1",
       "destination": "chain3",
-      "amount": "2004345048773674240",
-      "user": "0x203b5d216bd32aedfc5a19c495031f117cc16f24"
+      "amount": "2104918366727982422",
+      "user": "0xdb8fd74b61f74cdb78d99c24b6c07ed7fccf8e1e"
     },
     {
       "id": "bal-000015",
-      "timestamp": 6444,
+      "timestamp": 6369,
       "origin": "chain3",
       "destination": "chain1",
-      "amount": "2004345048773674240",
-      "user": "0x01ba07d7cbc42c8cff1773080780662fbb007865"
+      "amount": "2104918366727982422",
+      "user": "0xfc8db3c19f9a5bc404a6533044898ddf3cf0d684"
     },
     {
       "id": "bal-000016",
       "timestamp": 7200,
       "origin": "chain2",
       "destination": "chain3",
-      "amount": "2403391950996434432",
-      "user": "0x5094a48a46b6367d35880c3ac57a7cde09c8ac31"
+      "amount": "2870590499930617984",
+      "user": "0xf52ec7f812cbabb03f01a52aaab4d8a92692ff06"
     },
     {
       "id": "bal-000017",
-      "timestamp": 7349,
+      "timestamp": 7237,
       "origin": "chain3",
       "destination": "chain2",
-      "amount": "2403391950996434432",
-      "user": "0x3667c6d990e469438e19f11d5f500e5ec19e2078"
+      "amount": "2870590499930617984",
+      "user": "0x11f28bf6c09ee3a8b35fff1c6e85fb7dc543c513"
     },
     {
       "id": "bal-000018",
       "timestamp": 8100,
       "origin": "chain1",
       "destination": "chain2",
-      "amount": "2771048096543241472",
-      "user": "0x96eafde9f825464f45135db5453a294903180153"
+      "amount": "1565692437941140325",
+      "user": "0x5e9484ae246c769be17258f82d52981749e385da"
     },
     {
       "id": "bal-000019",
-      "timestamp": 8389,
+      "timestamp": 8326,
       "origin": "chain2",
       "destination": "chain1",
-      "amount": "2771048096543241472",
-      "user": "0x3682f3a6ea3eba94f5b92589db2468db7c171119"
+      "amount": "1565692437941140325",
+      "user": "0xa1e278652b1e7a3de175634e2e4efe9ebbf09850"
     }
   ],
   "defaultInitialCollateral": "100000000000000000000",

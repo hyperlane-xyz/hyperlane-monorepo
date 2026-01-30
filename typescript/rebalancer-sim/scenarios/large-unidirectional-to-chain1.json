@@ -11,7 +11,7 @@
       "origin": "chain2",
       "destination": "chain1",
       "amount": "20000000000000000000",
-      "user": "0x02f43196889150308646ef1fafefcb7ae7fb7e25"
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
     },
     {
       "id": "uni-000001",
@@ -19,7 +19,7 @@
       "origin": "chain2",
       "destination": "chain1",
       "amount": "20000000000000000000",
-      "user": "0x02f43196889150308646ef1fafefcb7ae7fb7e25"
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
     },
     {
       "id": "uni-000002",
@@ -27,7 +27,7 @@
       "origin": "chain2",
       "destination": "chain1",
       "amount": "20000000000000000000",
-      "user": "0x02f43196889150308646ef1fafefcb7ae7fb7e25"
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
     },
     {
       "id": "uni-000003",
@@ -35,7 +35,7 @@
       "origin": "chain2",
       "destination": "chain1",
       "amount": "20000000000000000000",
-      "user": "0x02f43196889150308646ef1fafefcb7ae7fb7e25"
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
     },
     {
       "id": "uni-000004",
@@ -43,7 +43,7 @@
       "origin": "chain2",
       "destination": "chain1",
       "amount": "20000000000000000000",
-      "user": "0x02f43196889150308646ef1fafefcb7ae7fb7e25"
+      "user": "0x5c30b066bbe5dd2b7f69792cd47950420805f81c"
     }
   ],
   "defaultInitialCollateral": "100000000000000000000",
