@@ -8,12 +8,10 @@ import {
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../../block-explorer/etherscan.js';
 import { assertIsContractAddress } from '../../contracts/contracts.js';
-import {
-  ChainMetadataManager,
-  ChainNameOrId,
-  MultiProvider,
-} from '../../index.js';
+import type { ChainMetadataManager } from '../../metadata/ChainMetadataManager.js';
 import { ZBytes32String, ZHash, ZUint } from '../../metadata/customZodTypes.js';
+import { MultiProvider } from '../../providers/MultiProvider.js';
+import type { ChainNameOrId } from '../../types.js';
 
 import { GetEventLogsResponse } from './types.js';
 import { getContractCreationBlockFromRpc, getLogsFromRpc } from './utils.js';

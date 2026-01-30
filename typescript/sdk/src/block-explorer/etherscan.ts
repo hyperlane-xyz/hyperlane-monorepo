@@ -6,7 +6,7 @@ import {
   strip0x,
 } from '@hyperlane-xyz/utils';
 
-import { SolidityStandardJsonInput } from '../deploy/verify/types.js';
+import type { SolidityStandardJsonInput } from '../deploy/verify/types.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 
 export enum EtherscanLikeExplorerApiModule {
