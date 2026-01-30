@@ -1,6 +1,5 @@
 import { expect } from 'chai';
 import { BigNumber, ethers, providers } from 'ethers';
-import { pino } from 'pino';
 
 import { GithubRegistry } from '@hyperlane-xyz/registry';
 import {
@@ -18,6 +17,7 @@ import type { Monitor } from '../monitor/Monitor.js';
 
 import {
   DOMAIN_IDS,
+  FORK_BLOCK_NUMBERS,
   TEST_CHAINS,
   USDC_ADDRESSES,
   USDC_INCENTIV_WARP_ROUTE,
@@ -30,7 +30,6 @@ import {
 import { ForkManager } from './harness/ForkManager.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
-  type WarpTransferResult,
   executeWarpTransfer,
   tryRelayMessage,
 } from './harness/TransferHelper.js';
@@ -77,15 +76,13 @@ describe('Collateral Deficit E2E', function () {
   let multiProvider: MultiProvider;
   let forkedProviders: Map<string, providers.JsonRpcProvider>;
   let registry: GithubRegistry;
-  let relayerAddress: string;
+  let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
 
-  const logger = pino({ level: 'debug' });
-
   before(async function () {
     const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-    relayerAddress = wallet.address;
+    userAddress = wallet.address;
 
     registry = new GithubRegistry();
     const chainMetadata = await registry.getMetadata();
@@ -106,6 +103,7 @@ describe('Collateral Deficit E2E', function () {
       chains: TEST_CHAINS,
       registry,
       multiProvider: baseMultiProvider,
+      blockNumbers: FORK_BLOCK_NUMBERS,
     });
 
     const forkContext = await forkManager.start();
@@ -173,33 +171,25 @@ describe('Collateral Deficit E2E', function () {
         from: 'ethereum',
         to: 'arbitrum',
         amount: transferAmount,
-        warpRecipient: relayerAddress,
+        warpRecipient: userAddress,
       })
       .withExecutionMode('propose')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
+
     const cycleResult = await context.orchestrator.executeCycle(event);
 
+    // Assert: Strategy proposed routes for the deficit chain
     expect(cycleResult.proposedRoutes.length).to.be.greaterThan(0);
 
     const routeToArbitrum = cycleResult.proposedRoutes.find(
       (r) => r.destination === 'arbitrum',
     );
-    expect(routeToArbitrum).to.exist;
-    expect(routeToArbitrum!.amount > 0n).to.be.true;
-
-    logger.info(
-      {
-        routeToArbitrum: {
-          origin: routeToArbitrum!.origin,
-          destination: routeToArbitrum!.destination,
-          amount: routeToArbitrum!.amount.toString(),
-        },
-      },
-      'Found proposed route to arbitrum (deficit chain)',
-    );
+    expect(routeToArbitrum, 'Should have route destined for arbitrum').to.exist;
+    expect(routeToArbitrum!.amount).to.equal(400000000n);
+    expect(routeToArbitrum!.origin).to.equal('ethereum');
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
@@ -229,7 +219,6 @@ describe('Collateral Deficit E2E', function () {
       .withExecutionMode('execute')
       .build();
 
-    // Capture initial collateral balances before any operations
     const initialCollateralBalances = await getAllCollateralBalances(
       forkedProviders,
       TEST_CHAINS,
@@ -237,52 +226,27 @@ describe('Collateral Deficit E2E', function () {
       USDC_ADDRESSES,
     );
 
-    logger.info(
-      {
-        balances: Object.fromEntries(
-          Object.entries(initialCollateralBalances).map(([k, v]) => [
-            k,
-            v.toString(),
-          ]),
-        ),
-      },
-      'Initial collateral balances',
-    );
-
-    // TODO: this should move into setup, we can set the test account balance to a million
     const ethProvider = forkedProviders.get('ethereum')!;
     await setTokenBalanceViaStorage(
       ethProvider,
       USDC_ADDRESSES.ethereum,
-      relayerAddress,
+      userAddress,
       transferAmount.mul(2),
     );
 
-    logger.info('Funded test wallet with USDC');
-
-    let transferResult: WarpTransferResult;
-    try {
-      transferResult = await executeWarpTransfer(
-        context.multiProvider,
-        {
-          originChain: 'ethereum',
-          destinationChain: 'arbitrum',
-          routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-          tokenAddress: USDC_ADDRESSES.ethereum,
-          amount: transferAmount,
-          recipient: relayerAddress,
-          senderAddress: relayerAddress,
-        },
-        ethProvider,
-      );
-      logger.info(
-        { messageId: transferResult.messageId },
-        'Sent actual warp transfer ETH→ARB',
-      );
-    } catch (error) {
-      logger.error({ error }, 'Failed to send warp transfer');
-      throw error;
-    }
+    const transferResult = await executeWarpTransfer(
+      context.multiProvider,
+      {
+        originChain: 'ethereum',
+        destinationChain: 'arbitrum',
+        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+        tokenAddress: USDC_ADDRESSES.ethereum,
+        amount: transferAmount,
+        recipient: userAddress,
+        senderAddress: userAddress,
+      },
+      ethProvider,
+    );
 
     // Get collateral balances after user transfer dispatch
     const balancesAfterUserTransfer = await getAllCollateralBalances(
@@ -299,47 +263,21 @@ describe('Collateral Deficit E2E', function () {
         `Before: ${initialCollateralBalances.ethereum.toString()}, After: ${balancesAfterUserTransfer.ethereum.toString()}`,
     ).to.be.true;
 
-    // TODO: this assertion should move after the relayAttempt1
-    // Assert: Destination collateral UNCHANGED (transfer not delivered yet)
-    expect(
-      balancesAfterUserTransfer.arbitrum.eq(initialCollateralBalances.arbitrum),
-      `Destination (arbitrum) collateral should be unchanged before delivery. ` +
-        `Before: ${initialCollateralBalances.arbitrum.toString()}, After: ${balancesAfterUserTransfer.arbitrum.toString()}`,
-    ).to.be.true;
-
-    logger.info(
-      {
-        ethereum: {
-          before: initialCollateralBalances.ethereum.toString(),
-          after: balancesAfterUserTransfer.ethereum.toString(),
-          change: balancesAfterUserTransfer.ethereum
-            .sub(initialCollateralBalances.ethereum)
-            .toString(),
-        },
-        arbitrum: {
-          before: initialCollateralBalances.arbitrum.toString(),
-          after: balancesAfterUserTransfer.arbitrum.toString(),
-          change: '0 (unchanged)',
-        },
-      },
-      'Collateral balances after user transfer dispatch',
-    );
-
     const relayAttempt1 = await tryRelayMessage(
       context.multiProvider,
       hyperlaneCore,
       transferResult,
     );
 
-    logger.info(
-      {
-        success: relayAttempt1.success,
-        error: relayAttempt1.error?.substring(0, 200),
-      },
-      'First relay attempt (should fail - insufficient collateral)',
-    );
-
+    // Assert: Relay fails due to insufficient collateral on destination
     expect(relayAttempt1.success).to.be.false;
+
+    // Assert: Destination collateral UNCHANGED (transfer not delivered)
+    expect(
+      balancesAfterUserTransfer.arbitrum.eq(initialCollateralBalances.arbitrum),
+      `Destination (arbitrum) collateral should be unchanged before delivery. ` +
+        `Before: ${initialCollateralBalances.arbitrum.toString()}, After: ${balancesAfterUserTransfer.arbitrum.toString()}`,
+    ).to.be.true;
 
     context.mockExplorer.addUserTransfer({
       msg_id: transferResult.messageId,
@@ -348,90 +286,62 @@ describe('Collateral Deficit E2E', function () {
       sender: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
       recipient: USDC_INCENTIV_WARP_ROUTE.routers.arbitrum,
       origin_tx_hash: transferResult.dispatchTx.transactionHash,
-      origin_tx_sender: relayerAddress,
+      origin_tx_sender: userAddress,
       origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
       is_delivered: false,
-      message_body: encodeWarpRouteMessageBody(relayerAddress, transferAmount),
+      message_body: encodeWarpRouteMessageBody(userAddress, transferAmount),
     });
-
-    logger.info('Added pending transfer to MockExplorer');
 
     // Sync action tracker to pick up the new transfer
     await context.tracker.syncTransfers();
 
-    // Assert: User transfer exists in action tracker
+    // Assert: User transfer exists in action tracker with correct fields
     const transfersBeforeRebalance =
       await context.tracker.getInProgressTransfers();
     expect(transfersBeforeRebalance.length).to.equal(
       1,
       'Should have exactly 1 in-progress transfer',
     );
-    expect(transfersBeforeRebalance[0].messageId).to.equal(
-      transferResult.messageId,
+
+    const trackedTransfer = transfersBeforeRebalance[0];
+    // Assert all Transfer fields (except createdAt, updatedAt, messageId, txHash)
+    expect(trackedTransfer.id).to.be.a('string').and.not.be.empty;
+    expect(trackedTransfer.origin).to.equal(
+      DOMAIN_IDS.ethereum,
+      'Transfer origin should be ethereum',
     );
-    expect(transfersBeforeRebalance[0].destination).to.equal(
+    expect(trackedTransfer.destination).to.equal(
       DOMAIN_IDS.arbitrum,
       'Transfer destination should be arbitrum',
     );
-    // TODO assert the transfer origin and amount also
-
-    logger.info(
-      {
-        transferId: transfersBeforeRebalance[0].id,
-        messageId: transfersBeforeRebalance[0].messageId,
-        origin: transfersBeforeRebalance[0].origin,
-        destination: transfersBeforeRebalance[0].destination,
-        amount: transfersBeforeRebalance[0].amount.toString(),
-        status: transfersBeforeRebalance[0].status,
-      },
-      'User transfer tracked in ActionTracker',
+    expect(trackedTransfer.amount.toString()).to.equal(
+      transferAmount.toString(),
+      'Transfer amount should match',
+    );
+    expect(trackedTransfer.status).to.equal(
+      'in_progress',
+      'Transfer status should be in_progress',
+    );
+    expect(trackedTransfer.messageId).to.equal(
+      transferResult.messageId,
+      'Transfer messageId should match dispatched message',
+    );
+    expect(trackedTransfer.sender.toLowerCase()).to.equal(
+      USDC_INCENTIV_WARP_ROUTE.routers.ethereum.toLowerCase(),
+      'Transfer sender should be the warp route router',
+    );
+    expect(trackedTransfer.recipient.toLowerCase()).to.equal(
+      USDC_INCENTIV_WARP_ROUTE.routers.arbitrum.toLowerCase(),
+      'Transfer recipient should be the destination warp route router',
     );
 
     const monitor1 = context.createMonitor(0);
     const event1 = await getFirstMonitorEvent(monitor1);
-    const cycleResult1 = await context.orchestrator.executeCycle(event1);
+    await context.orchestrator.executeCycle(event1);
 
-    logger.info(
-      {
-        proposedRoutes: cycleResult1.proposedRoutes.length,
-        executedCount: cycleResult1.executedCount,
-        failedCount: cycleResult1.failedCount,
-      },
-      'First cycle result',
-    );
-
-    // TODO: dont directly assert on cycleResult1, rely on action tracker state
-    // Assert: Routes were proposed to cover the deficit
-    expect(cycleResult1.proposedRoutes.length).to.be.greaterThan(0);
-
-    const routeToArbitrum = cycleResult1.proposedRoutes.find(
-      (r) => r.destination === 'arbitrum',
-    );
-    expect(routeToArbitrum).to.exist;
-    expect(routeToArbitrum!.amount > 0n).to.be.true;
-
-    logger.info(
-      {
-        route: {
-          origin: routeToArbitrum!.origin,
-          destination: routeToArbitrum!.destination,
-          amount: routeToArbitrum!.amount.toString(),
-        },
-      },
-      'Proposed rebalance route',
-    );
-
-    // Assert: Rebalance was executed (not just proposed)
-    expect(
-      cycleResult1.executedCount,
-      'executedCount should be > 0 when Rebalancer is configured',
-    ).to.be.greaterThan(0);
-    expect(
-      cycleResult1.failedCount,
-      'failedCount should be 0 for successful rebalance',
-    ).to.equal(0);
-
-    // Assert: Rebalance intent was created and is in_progress
+    // Assert: Rebalance intent was created with correct fields
+    // TODO: there should only be 1 active rebalance intent
+    // TODO: based on deterministic balances, we should be able to know the origin of the intent, aseert the origin
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(
       activeIntents.length,
@@ -443,24 +353,39 @@ describe('Collateral Deficit E2E', function () {
     );
     expect(intentToArbitrum, 'Should have intent destined for arbitrum').to
       .exist;
-    expect(
-      intentToArbitrum!.status,
-      'Intent status should be in_progress after action creation',
-    ).to.equal('in_progress');
-    expect(intentToArbitrum!.amount > 0n, 'Intent amount should be positive').to
-      .be.true;
 
-    logger.info(
-      {
-        intentId: intentToArbitrum!.id,
-        origin: intentToArbitrum!.origin,
-        destination: intentToArbitrum!.destination,
-        amount: intentToArbitrum!.amount.toString(),
-        status: intentToArbitrum!.status,
-        fulfilledAmount: intentToArbitrum!.fulfilledAmount.toString(),
-      },
-      'Rebalance intent created',
+    // Assert all RebalanceIntent fields (except createdAt, updatedAt)
+    expect(intentToArbitrum!.id).to.be.a('string').and.not.be.empty;
+    expect(intentToArbitrum!.origin).to.equal(DOMAIN_IDS.ethereum);
+    expect(intentToArbitrum!.destination).to.equal(DOMAIN_IDS.arbitrum);
+    expect(intentToArbitrum!.amount).to.equal(400000000n);
+    expect(intentToArbitrum!.status).to.equal('in_progress');
+    expect(intentToArbitrum!.fulfilledAmount).to.equal(0n);
+
+    // Capture intent ID for completion verification
+    const rebalanceIntentId = intentToArbitrum!.id;
+
+    // Assert: Rebalance action was created with correct fields
+    const inProgressActions = await context.tracker.getInProgressActions();
+    expect(
+      inProgressActions.length,
+      'Should have at least 1 in-progress action',
+    ).to.be.greaterThan(0);
+
+    const actionToArbitrum = inProgressActions.find(
+      (a) => a.destination === DOMAIN_IDS.arbitrum,
     );
+    expect(actionToArbitrum, 'Should have action destined for arbitrum').to
+      .exist;
+
+    // Assert all RebalanceAction fields (except createdAt, updatedAt, messageId, txHash)
+    expect(actionToArbitrum!.id).to.be.a('string').and.not.be.empty;
+    expect(actionToArbitrum!.intentId).to.equal(rebalanceIntentId);
+    expect(actionToArbitrum!.origin).to.equal(DOMAIN_IDS.ethereum);
+    expect(actionToArbitrum!.destination).to.equal(DOMAIN_IDS.arbitrum);
+    expect(actionToArbitrum!.amount).to.equal(400000000n);
+    expect(actionToArbitrum!.status).to.equal('in_progress');
+    expect(actionToArbitrum!.messageId).to.be.a('string').and.not.be.empty;
 
     // Assert: Monitored route collateral on origin DECREASED (sent to bridge)
     const balancesAfterRebalance = await getAllCollateralBalances(
@@ -470,50 +395,30 @@ describe('Collateral Deficit E2E', function () {
       USDC_ADDRESSES,
     );
 
+    // TODO: we should assert for a specific balance
     expect(
       balancesAfterRebalance.ethereum.lt(balancesAfterUserTransfer.ethereum),
       `INCENTIV ethereum collateral should decrease after rebalance. ` +
         `Before: ${balancesAfterUserTransfer.ethereum.toString()}, After: ${balancesAfterRebalance.ethereum.toString()}`,
     ).to.be.true;
 
-    logger.info(
-      {
-        ethereum: {
-          beforeRebalance: balancesAfterUserTransfer.ethereum.toString(),
-          afterRebalance: balancesAfterRebalance.ethereum.toString(),
-          change: balancesAfterRebalance.ethereum
-            .sub(balancesAfterUserTransfer.ethereum)
-            .toString(),
-        },
-      },
-      'INCENTIV collateral balances after rebalance',
+    // Verify entities can be retrieved by ID (demonstrates getById methods work)
+    // TODO: assert the status of these actions
+    const retrievedTransfer = await context.tracker.getTransfer(
+      trackedTransfer.id,
     );
+    expect(retrievedTransfer, 'Transfer should be retrievable by ID').to.exist;
+    expect(retrievedTransfer!.id).to.equal(trackedTransfer.id);
 
-    // Mark transfer as delivered in mock explorer
-    context.mockExplorer.updateTransfer(transferResult.messageId, {
-      is_delivered: true,
-    });
+    const retrievedIntent =
+      await context.tracker.getRebalanceIntent(rebalanceIntentId);
+    expect(retrievedIntent, 'Intent should be retrievable by ID').to.exist;
+    expect(retrievedIntent!.id).to.equal(rebalanceIntentId);
 
-    // Run second cycle to verify behavior with delivered transfer
-    const monitor2 = context.createMonitor(0);
-    const event2 = await getFirstMonitorEvent(monitor2);
-    const cycleResult2 = await context.orchestrator.executeCycle(event2);
-
-    logger.info(
-      {
-        proposedRoutes: cycleResult2.proposedRoutes.length,
-        executedCount: cycleResult2.executedCount,
-      },
-      'Second cycle result (should have no new routes)',
+    const retrievedAction = await context.tracker.getRebalanceAction(
+      actionToArbitrum!.id,
     );
-
-    const newRoutesToArbitrum = cycleResult2.proposedRoutes.filter(
-      (r) => r.destination === 'arbitrum',
-    );
-
-    logger.info(
-      { newRoutesToArbitrum: newRoutesToArbitrum.length },
-      'New routes to arbitrum in second cycle',
-    );
+    expect(retrievedAction, 'Action should be retrievable by ID').to.exist;
+    expect(retrievedAction!.id).to.equal(actionToArbitrum!.id);
   });
 });
