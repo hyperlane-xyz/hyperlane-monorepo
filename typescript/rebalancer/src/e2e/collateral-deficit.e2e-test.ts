@@ -229,6 +229,27 @@ describe('Collateral Deficit E2E', function () {
       .withExecutionMode('execute')
       .build();
 
+    // Capture initial collateral balances before any operations
+    const initialCollateralBalances = await getAllCollateralBalances(
+      forkedProviders,
+      TEST_CHAINS,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      USDC_ADDRESSES,
+    );
+
+    logger.info(
+      {
+        balances: Object.fromEntries(
+          Object.entries(initialCollateralBalances).map(([k, v]) => [
+            k,
+            v.toString(),
+          ]),
+        ),
+      },
+      'Initial collateral balances',
+    );
+
+    // TODO: this should move into setup, we can set the test account balance to a million
     const ethProvider = forkedProviders.get('ethereum')!;
     await setTokenBalanceViaStorage(
       ethProvider,
@@ -250,6 +271,7 @@ describe('Collateral Deficit E2E', function () {
           tokenAddress: USDC_ADDRESSES.ethereum,
           amount: transferAmount,
           recipient: relayerAddress,
+          senderAddress: relayerAddress,
         },
         ethProvider,
       );
@@ -261,6 +283,47 @@ describe('Collateral Deficit E2E', function () {
       logger.error({ error }, 'Failed to send warp transfer');
       throw error;
     }
+
+    // Get collateral balances after user transfer dispatch
+    const balancesAfterUserTransfer = await getAllCollateralBalances(
+      forkedProviders,
+      TEST_CHAINS,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      USDC_ADDRESSES,
+    );
+
+    // Assert: Origin collateral INCREASED (user deposited tokens into router)
+    expect(
+      balancesAfterUserTransfer.ethereum.gt(initialCollateralBalances.ethereum),
+      `Origin (ethereum) collateral should increase after user deposit. ` +
+        `Before: ${initialCollateralBalances.ethereum.toString()}, After: ${balancesAfterUserTransfer.ethereum.toString()}`,
+    ).to.be.true;
+
+    // TODO: this assertion should move after the relayAttempt1
+    // Assert: Destination collateral UNCHANGED (transfer not delivered yet)
+    expect(
+      balancesAfterUserTransfer.arbitrum.eq(initialCollateralBalances.arbitrum),
+      `Destination (arbitrum) collateral should be unchanged before delivery. ` +
+        `Before: ${initialCollateralBalances.arbitrum.toString()}, After: ${balancesAfterUserTransfer.arbitrum.toString()}`,
+    ).to.be.true;
+
+    logger.info(
+      {
+        ethereum: {
+          before: initialCollateralBalances.ethereum.toString(),
+          after: balancesAfterUserTransfer.ethereum.toString(),
+          change: balancesAfterUserTransfer.ethereum
+            .sub(initialCollateralBalances.ethereum)
+            .toString(),
+        },
+        arbitrum: {
+          before: initialCollateralBalances.arbitrum.toString(),
+          after: balancesAfterUserTransfer.arbitrum.toString(),
+          change: '0 (unchanged)',
+        },
+      },
+      'Collateral balances after user transfer dispatch',
+    );
 
     const relayAttempt1 = await tryRelayMessage(
       context.multiProvider,
@@ -293,6 +356,37 @@ describe('Collateral Deficit E2E', function () {
 
     logger.info('Added pending transfer to MockExplorer');
 
+    // Sync action tracker to pick up the new transfer
+    await context.tracker.syncTransfers();
+
+    // Assert: User transfer exists in action tracker
+    const transfersBeforeRebalance =
+      await context.tracker.getInProgressTransfers();
+    expect(transfersBeforeRebalance.length).to.equal(
+      1,
+      'Should have exactly 1 in-progress transfer',
+    );
+    expect(transfersBeforeRebalance[0].messageId).to.equal(
+      transferResult.messageId,
+    );
+    expect(transfersBeforeRebalance[0].destination).to.equal(
+      DOMAIN_IDS.arbitrum,
+      'Transfer destination should be arbitrum',
+    );
+    // TODO assert the transfer origin and amount also
+
+    logger.info(
+      {
+        transferId: transfersBeforeRebalance[0].id,
+        messageId: transfersBeforeRebalance[0].messageId,
+        origin: transfersBeforeRebalance[0].origin,
+        destination: transfersBeforeRebalance[0].destination,
+        amount: transfersBeforeRebalance[0].amount.toString(),
+        status: transfersBeforeRebalance[0].status,
+      },
+      'User transfer tracked in ActionTracker',
+    );
+
     const monitor1 = context.createMonitor(0);
     const event1 = await getFirstMonitorEvent(monitor1);
     const cycleResult1 = await context.orchestrator.executeCycle(event1);
@@ -306,12 +400,14 @@ describe('Collateral Deficit E2E', function () {
       'First cycle result',
     );
 
+    // Assert: Routes were proposed to cover the deficit
     expect(cycleResult1.proposedRoutes.length).to.be.greaterThan(0);
 
     const routeToArbitrum = cycleResult1.proposedRoutes.find(
       (r) => r.destination === 'arbitrum',
     );
     expect(routeToArbitrum).to.exist;
+    expect(routeToArbitrum!.amount > 0n).to.be.true;
 
     logger.info(
       {
@@ -324,7 +420,7 @@ describe('Collateral Deficit E2E', function () {
       'Proposed rebalance route',
     );
 
-    const balancesAfterRebalance = await getAllCollateralBalances(
+    const balancesAfterCycle = await getAllCollateralBalances(
       forkedProviders,
       TEST_CHAINS,
       USDC_INCENTIV_WARP_ROUTE.routers,
@@ -334,19 +430,18 @@ describe('Collateral Deficit E2E', function () {
     logger.info(
       {
         balances: Object.fromEntries(
-          Object.entries(balancesAfterRebalance).map(([k, v]) => [
-            k,
-            v.toString(),
-          ]),
+          Object.entries(balancesAfterCycle).map(([k, v]) => [k, v.toString()]),
         ),
       },
-      'Collateral balances after rebalance execution',
+      'Collateral balances after cycle',
     );
 
+    // Mark transfer as delivered in mock explorer
     context.mockExplorer.updateTransfer(transferResult.messageId, {
       is_delivered: true,
     });
 
+    // Run second cycle to verify behavior with delivered transfer
     const monitor2 = context.createMonitor(0);
     const event2 = await getFirstMonitorEvent(monitor2);
     const cycleResult2 = await context.orchestrator.executeCycle(event2);
