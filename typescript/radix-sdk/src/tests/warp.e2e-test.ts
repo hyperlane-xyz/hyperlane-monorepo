@@ -12,6 +12,7 @@ import {
   DeployedWarpAddress,
   RawCollateralWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
+  RawWarpArtifactConfig,
   WarpArtifactConfig,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
@@ -20,11 +21,13 @@ import { assert, eqAddressRadix } from '@hyperlane-xyz/utils';
 import { RadixSigner } from '../clients/signer.js';
 import {
   DEFAULT_E2E_TEST_TIMEOUT,
+  OTHER_RADIX_PRIVATE_KEY,
   TEST_RADIX_BURN_ADDRESS,
   TEST_RADIX_CHAIN_METADATA,
   TEST_RADIX_DEPLOYER_ADDRESS,
   TEST_RADIX_PRIVATE_KEY,
 } from '../testing/constants.js';
+import { transactionManifestToString } from '../utils/utils.js';
 import { RadixWarpArtifactManager } from '../warp/warp-artifact-manager.js';
 
 import { DEPLOYED_TEST_CHAIN_METADATA } from './e2e-test.setup.js';
@@ -35,7 +38,9 @@ describe('Radix Warp Tokens (e2e)', function () {
   this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
 
   let radixSigner: RadixSigner;
+  let otherRadixSigner: RadixSigner;
   let providerSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
+  let otherProviderSdkSigner: ISigner<AnnotatedTx, TxReceipt>;
   let artifactManager: RadixWarpArtifactManager;
 
   const DOMAIN_1 = 42;
@@ -58,7 +63,22 @@ describe('Radix Warp Tokens (e2e)', function () {
       },
     )) as RadixSigner;
 
+    otherRadixSigner = (await RadixSigner.connectWithSigner(
+      rpcUrls,
+      OTHER_RADIX_PRIVATE_KEY,
+      {
+        metadata: {
+          chainId: DEPLOYED_TEST_CHAIN_METADATA.chainId,
+          gatewayUrls: DEPLOYED_TEST_CHAIN_METADATA.gatewayUrls,
+          packageAddress: DEPLOYED_TEST_CHAIN_METADATA.packageAddress,
+        },
+      },
+    )) as RadixSigner;
+
+    await otherRadixSigner['signer'].getTestnetXrd();
+
     providerSdkSigner = radixSigner;
+    otherProviderSdkSigner = otherRadixSigner;
 
     const gateway = (radixSigner as any).gateway;
     const base = (radixSigner as any).base;
@@ -625,6 +645,124 @@ describe('Radix Warp Tokens (e2e)', function () {
           const readToken2 = await reader.read(deployedToken.deployed.address);
           expect(readToken2.config.interchainSecurityModule).to.be.undefined;
         });
+      });
+
+      it('should encode all update transactions with current owner as sender after ownership transfer', async () => {
+        const initialConfig = getConfig();
+
+        // Create with initial state
+        initialConfig.remoteRouters = {
+          [DOMAIN_1]: {
+            address:
+              '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
+          },
+        };
+        initialConfig.destinationGas = {
+          [DOMAIN_1]: '100000',
+        };
+
+        const writer = artifactManager.createWriter(type, radixSigner);
+        const [deployedToken] = await writer.create({
+          config: initialConfig,
+        });
+
+        const signerAddress = radixSigner.getSignerAddress();
+
+        // Transfer ownership to a different address first
+        const newOwnerAddress = otherRadixSigner.getSignerAddress();
+
+        const ownershipTransferConfig: ArtifactDeployed<
+          RawWarpArtifactConfig,
+          DeployedWarpAddress
+        > = {
+          ...deployedToken,
+          config: {
+            ...deployedToken.config,
+            owner: newOwnerAddress,
+          },
+        };
+
+        const ownershipTxs = await writer.update(ownershipTransferConfig);
+        for (const tx of ownershipTxs) {
+          await providerSdkSigner.sendAndConfirmTransaction(tx);
+        }
+
+        // Read token to verify ownership transfer
+        const tokenAfterOwnershipTransfer = await writer.read(
+          deployedToken.deployed.address,
+        );
+        expect(
+          eqAddressRadix(
+            tokenAfterOwnershipTransfer.config.owner,
+            newOwnerAddress,
+          ),
+        ).to.be.true;
+
+        // Perform multiple updates
+        const newIsmAddress = otherRadixSigner.getSignerAddress();
+        const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+          ...tokenAfterOwnershipTransfer,
+          deployed: deployedToken.deployed,
+          config: {
+            ...tokenAfterOwnershipTransfer.config,
+            interchainSecurityModule: {
+              artifactState: ArtifactState.UNDERIVED,
+              deployed: {
+                address: newIsmAddress,
+              },
+            },
+            remoteRouters: {
+              // Remove DOMAIN_1, add DOMAIN_2
+              [DOMAIN_2]: {
+                address:
+                  '0x1aac830e4d71000c25149af643b5a18c7a907e2d36147d8b57c5847b03ea5528',
+              },
+            },
+            destinationGas: {
+              [DOMAIN_2]: '200000',
+            },
+          },
+        };
+
+        const updateTxs = await writer.update(updatedConfig);
+        expect(updateTxs).to.be.an('array').with.length.greaterThan(0);
+
+        // Validate ALL update transactions are encoded for the CURRENT owner (not signer)
+        const base = (radixSigner as any).base;
+        const networkId = base.getNetworkId();
+
+        for (const tx of updateTxs) {
+          const manifestString = await transactionManifestToString(
+            tx.manifest,
+            networkId,
+          );
+
+          // Transaction must be encoded for current owner (firstNewOwner), not signer
+          expect(manifestString).to.include(
+            newOwnerAddress,
+            `Transaction "${tx.annotation}" must be encoded for current owner ${newOwnerAddress}, not signer ${signerAddress}`,
+          );
+
+          expect(manifestString).not.to.include(
+            radixSigner.getSignerAddress(),
+            `Transaction "${tx.annotation}" should not include any reference to the original deployer`,
+          );
+
+          // Execute transaction
+          await otherProviderSdkSigner.sendAndConfirmTransaction(tx);
+        }
+
+        // Verify all updates succeeded
+        const finalToken = await writer.read(deployedToken.deployed.address);
+        expect(
+          eqAddressRadix(
+            finalToken.config.interchainSecurityModule?.deployed.address!,
+            newIsmAddress,
+          ),
+        ).to.be.true;
+        expect(finalToken.config.remoteRouters[DOMAIN_1]).to.be.undefined;
+        expect(finalToken.config.remoteRouters[DOMAIN_2]).to.exist;
+        expect(finalToken.config.destinationGas[DOMAIN_2]).to.equal('200000');
       });
     });
   });

@@ -21,10 +21,23 @@ export const TEST_RADIX_PRIVATE_KEY =
   '0x8ef41fc20bf963ce18494c0f13e9303f70abc4c1d1ecfdb0a329d7fd468865b8';
 
 /**
+ * Test private key for Radix local network to test transactions sent
+ * from an account that is not the default signer
+ */
+export const OTHER_RADIX_PRIVATE_KEY =
+  '0xc2c13fcb59f6ee4ed9611ce44eefc6cdf62e6a575c09fb5c4db3e205001328c4';
+
+/**
  * Test deployer address derived from TEST_RADIX_PRIVATE_KEY
  */
 export const TEST_RADIX_DEPLOYER_ADDRESS =
   'account_loc12ytsy99ajzkwy7ce0444fs8avat7jy3fkj5mk64yz2z3yml6s7y7x3';
+
+/**
+ * Test deployer address derived from OTHER_RADIX_PRIVATE_KEY
+ */
+export const OTHER_TEST_RADIX_DEPLOYER_ADDRESS =
+  'account_loc129y2xw0zp9qafpas7lr2as4kt9yv0vy62yt5wfd6fw4ky4td7cl8ah';
 
 /**
  * Burn address for Radix local network
