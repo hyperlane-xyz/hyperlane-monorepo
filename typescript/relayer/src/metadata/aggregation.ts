@@ -14,7 +14,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import type { BaseMetadataBuilder } from './builder.js';
-import { decodeIsmMetadata } from './decode.js';
 import {
   MetadataBuilder,
   MetadataContext,
@@ -137,12 +136,16 @@ export class AggregationMetadataBuilder implements MetadataBuilder {
   static decode(
     metadata: string,
     context: MetadataContext<AggregationIsmConfig>,
+    decodeSubmodule: (
+      metadata: string,
+      context: MetadataContext,
+    ) => StructuredMetadata,
   ): AggregationMetadata<StructuredMetadata | string> {
     const submoduleMetadata = context.ism.modules.map((ism, index) => {
       const range = this.metadataRange(metadata, index);
       if (range.start == 0) return null;
       if (typeof ism === 'string') return range.encoded;
-      return decodeIsmMetadata(range.encoded, {
+      return decodeSubmodule(range.encoded, {
         ...context,
         ism: ism as DerivedIsmConfig,
       });

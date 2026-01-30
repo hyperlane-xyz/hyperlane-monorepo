@@ -41,7 +41,7 @@ import {
   getWarpRouteIdFromWarpDeployConfig,
   setProxyAdminConfig,
 } from '../utils/input.js';
-import { useProvidedWarpRouteIdOrPrompt } from '../utils/warp.js';
+import { useProvidedWarpRouteIdOrPrompt } from '../utils/warpRouteIds.js';
 
 import { createAdvancedIsmConfig } from './ism.js';
 
