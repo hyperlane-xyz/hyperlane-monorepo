@@ -1676,7 +1676,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         .resolves('6.0.0');
 
       // Also stub fetchScale to avoid version mismatch when reading scale
-      // For old contracts (< 11.0.0-beta.0), scale would default to 1
+      // For old contracts (< 11.0.0), scale would default to 1
       const scaleStub = sinon
         .stub(evmERC20WarpModule.reader, 'fetchScale')
         .resolves(1);

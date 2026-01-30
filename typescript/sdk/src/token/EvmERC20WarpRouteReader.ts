@@ -82,7 +82,7 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
-const SCALE_FRACTION_VERSION = '11.0.0-beta.0';
+const SCALE_FRACTION_VERSION = '11.0.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
