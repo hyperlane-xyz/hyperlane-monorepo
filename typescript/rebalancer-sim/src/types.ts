@@ -744,6 +744,11 @@ export interface VisualizationData {
   rebalances: RebalanceRecord[];
   kpis: SimulationResult['kpis'];
   config?: SimulationConfig;
+  /** Balance timeline for rendering balance curves */
+  balanceTimeline: Array<{
+    timestamp: number;
+    balances: Record<string, string>;
+  }>;
 }
 
 /**
@@ -826,17 +831,50 @@ export function toVisualizationData(
   // Sort events by timestamp
   events.sort((a, b) => a.timestamp - b.timestamp);
 
+  // Build balance timeline from config's initial collateral
+  const chains = Array.from(chainSet).sort();
+  const balanceTimeline: Array<{
+    timestamp: number;
+    balances: Record<string, string>;
+  }> = [];
+
+  // Add initial snapshot if config has initial collateral
+  if (config?.initialCollateral) {
+    const initialBalances: Record<string, string> = {};
+    for (const chain of chains) {
+      // Convert to wei string (config values are in ether as strings like "100" or "150")
+      const value = config.initialCollateral[chain];
+      if (value) {
+        // If already in wei format (18+ digits), use as-is; otherwise convert from ether
+        const numValue = parseFloat(value);
+        if (numValue > 1e15) {
+          initialBalances[chain] = value;
+        } else {
+          // Convert ether to wei
+          initialBalances[chain] = (
+            BigInt(Math.floor(numValue)) * BigInt(1e18)
+          ).toString();
+        }
+      }
+    }
+    balanceTimeline.push({
+      timestamp: result.startTime,
+      balances: initialBalances,
+    });
+  }
+
   return {
     scenario: result.scenarioName,
     rebalancerName: result.rebalancerName,
     startTime: result.startTime,
     endTime: result.endTime,
     duration: result.duration,
-    chains: Array.from(chainSet).sort(),
+    chains,
     events,
     transfers: result.transferRecords,
     rebalances: result.rebalanceRecords,
     kpis: result.kpis,
     config,
+    balanceTimeline,
   };
 }
