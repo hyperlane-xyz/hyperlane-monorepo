@@ -27,7 +27,6 @@ Review this pull request. Focus on:
 
 ## Performance
 
-- Gas efficiency (for Solidity changes)
 - Unnecessary allocations or computations
 
 ## Changesets
