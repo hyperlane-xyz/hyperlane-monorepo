@@ -21,7 +21,7 @@ import { CallData } from '../types.js';
 import { TxSubmitterInterface } from './TxSubmitterInterface.js';
 import { TxSubmitterType } from './TxSubmitterTypes.js';
 import { EvmIcaTxSubmitterProps } from './ethersV5/types.js';
-import { getSubmitter } from './submitterBuilderGetter.js';
+import type { SubmitterGetter } from './types.js';
 
 type EvmIcaTxSubmitterConstructorConfig = Omit<
   EvmIcaTxSubmitterProps,
@@ -45,6 +45,7 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
     config: EvmIcaTxSubmitterProps,
     multiProvider: MultiProvider,
     coreAddressesByChain: Readonly<ChainMap<Record<string, string>>>,
+    getSubmitterFn: SubmitterGetter,
   ): Promise<EvmIcaTxSubmitter> {
     const interchainAccountRouterAddress: Address | undefined =
       config.originInterchainAccountRouter ??
@@ -54,7 +55,7 @@ export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethe
       `Origin chain InterchainAccountRouter address not supplied and none found in the registry metadata for chain ${config.chain}`,
     );
 
-    const internalSubmitter = await getSubmitter<ProtocolType.Ethereum>(
+    const internalSubmitter = await getSubmitterFn<ProtocolType.Ethereum>(
       multiProvider,
       config.internalSubmitter,
       coreAddressesByChain,
