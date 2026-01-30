@@ -1,7 +1,11 @@
 import { BigNumber, ethers } from 'ethers';
 import { type Logger, pino } from 'pino';
 
-import { MultiProtocolProvider, type MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  HyperlaneCore,
+  MultiProtocolProvider,
+  type MultiProvider,
+} from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import { RebalancerConfig } from '../../config/RebalancerConfig.js';
@@ -33,6 +37,7 @@ import {
   configureAllowedBridges,
   setupCollateralBalances,
 } from './BridgeSetup.js';
+import { ForkIndexer } from './ForkIndexer.js';
 import type { ForkManager } from './ForkManager.js';
 import { MockExplorerClient } from './MockExplorerClient.js';
 import {
@@ -61,6 +66,7 @@ export interface TestRebalancerContext {
   strategy: IStrategy;
   tracker: IActionTracker;
   mockExplorer: MockExplorerClient;
+  forkIndexer: ForkIndexer;
   multiProvider: MultiProvider;
   rebalancerConfig: RebalancerConfig;
   contextFactory: RebalancerContextFactory;
@@ -131,7 +137,36 @@ export class TestRebalancerBuilder {
     }
 
     await this.setupBalances();
+
+    const forkedProviders = this.forkManager.getContext().providers;
+
+    // Create HyperlaneCore from registry addresses
+    const coreAddresses = await this.forkManager.getRegistry().getAddresses();
+    const knownChains = new Set(this.multiProvider.getKnownChainNames());
+    const filteredAddresses = Object.fromEntries(
+      Object.entries(coreAddresses).filter(([chain]) => knownChains.has(chain)),
+    );
+    const hyperlaneCore = HyperlaneCore.fromAddressesMap(
+      filteredAddresses,
+      this.multiProvider,
+    );
+
     const mockExplorer = this.buildMockExplorer();
+
+    // Create ForkIndexer for automatic message indexing
+    const rebalancerAddress = await getRebalancerAddress(
+      forkedProviders.get('ethereum')!,
+      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+    );
+    const forkIndexer = new ForkIndexer(
+      forkedProviders,
+      hyperlaneCore,
+      mockExplorer,
+      rebalancerAddress,
+      this.logger,
+    );
+    await forkIndexer.initialize();
+
     const workingMultiProvider = await this.getWorkingMultiProvider();
 
     const rebalancerConfig = new RebalancerConfig(
@@ -180,6 +215,7 @@ export class TestRebalancerBuilder {
       strategy,
       tracker,
       mockExplorer,
+      forkIndexer,
       multiProvider: workingMultiProvider,
       rebalancerConfig,
       contextFactory,
