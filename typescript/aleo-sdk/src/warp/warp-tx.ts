@@ -210,6 +210,16 @@ export function getPostDeploymentUpdateTxs<
     txs.push(setIsmTx);
   }
 
+  // Set Hook if configured
+  if (config.hook) {
+    const setHookTx = getSetTokenHookTx(
+      tokenAddress,
+      config.hook.deployed.address,
+    );
+
+    txs.push(setHookTx);
+  }
+
   // Enroll remote routers
   for (const [domainIdStr, remoteRouter] of Object.entries(
     config.remoteRouters,
@@ -264,6 +274,18 @@ export async function getWarpTokenUpdateTxs<
     const setIsmTx = getSetTokenIsmTx(deployed.address, newIsm);
     updateTxs.push({
       annotation: 'Updating token ISM',
+      ...setIsmTx,
+    });
+  }
+
+  // Update hook if changed
+  const currentHook = currentConfig.hook?.deployed.address ?? ALEO_NULL_ADDRESS;
+  const newHook = expectedConfig.hook?.deployed.address ?? ALEO_NULL_ADDRESS;
+
+  if (!eqAddressAleo(currentHook, newHook)) {
+    const setIsmTx = getSetTokenHookTx(deployed.address, newHook);
+    updateTxs.push({
+      annotation: 'Updating token Hook',
       ...setIsmTx,
     });
   }
