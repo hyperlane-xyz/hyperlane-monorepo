@@ -17,6 +17,7 @@ import {
   type AnnotatedTx,
   type TxReceipt,
 } from '@hyperlane-xyz/provider-sdk/module';
+import { type IRawWarpArtifactManager } from '@hyperlane-xyz/provider-sdk/warp';
 import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
@@ -94,6 +95,14 @@ export class AleoProtocolProvider implements ProtocolProvider {
         : new AleoTestnetNetworkClient(rpcUrl);
 
     return new AleoHookArtifactManager(aleoClient, context?.mailbox);
+  }
+
+  createWarpArtifactManager(
+    _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string },
+  ): IRawWarpArtifactManager {
+    // @TODO Implement in a follow up PR
+    throw Error('Not implemented');
   }
 
   getMinGas(): MinimumRequiredGasByAction {
