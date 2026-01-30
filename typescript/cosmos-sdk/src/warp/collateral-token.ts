@@ -164,7 +164,8 @@ export class CosmosCollateralTokenWriter
     return getWarpTokenUpdateTxs(
       artifact,
       currentArtifact,
-      this.signer.getSignerAddress(),
+      // The current owner is the only one that can execute the update transactions
+      currentArtifact.config.owner,
     );
   }
 }
