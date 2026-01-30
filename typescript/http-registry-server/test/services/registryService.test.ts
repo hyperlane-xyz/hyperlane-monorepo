@@ -435,7 +435,9 @@ describe('RegistryService', () => {
       capturedOnError!(new Error('ENOENT: no such file or directory'));
 
       expect(loggerWarnStub.calledOnce).to.be.true;
-      expect(loggerWarnStub.firstCall.args[1]).to.include('Watcher error');
+      expect(loggerWarnStub.firstCall.args[1]).to.include(
+        'falling back to polling',
+      );
     });
   });
 

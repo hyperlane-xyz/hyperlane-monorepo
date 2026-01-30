@@ -14,6 +14,7 @@ export class RegistryService {
   private lastRefresh: number = Date.now();
   private refreshPromise: Promise<IRegistry> | null = null;
   private isDirty = false;
+  private isWatcherActive = false;
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
@@ -63,12 +64,14 @@ export class RegistryService {
         watchPath,
         () => this.markDirty(),
         (err) => {
+          this.isWatcherActive = false;
           this.logger.warn(
             { err, path: watchPath },
-            'Watcher error, refresh will only occur on restart',
+            'Watcher error, falling back to polling',
           );
         },
       );
+      this.isWatcherActive = true;
       this.logger.info({ path: watchPath }, 'Watching registry for changes');
     } catch (err) {
       this.logger.warn(
@@ -84,10 +87,10 @@ export class RegistryService {
 
   async getCurrentRegistry(): Promise<IRegistry> {
     const now = Date.now();
-    const isWatching = !!this.getFileSystemRegistryUri();
     const shouldRefresh =
       this.isDirty ||
-      (!isWatching && now - this.lastRefresh > this.refreshInterval) ||
+      (!this.isWatcherActive &&
+        now - this.lastRefresh > this.refreshInterval) ||
       !this.registry;
 
     if (shouldRefresh) {
