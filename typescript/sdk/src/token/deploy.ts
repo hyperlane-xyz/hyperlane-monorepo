@@ -153,8 +153,16 @@ abstract class TokenDeployer<
     const scale = config.scale ?? 1;
 
     // Convert scale to numerator/denominator format
-    const { numerator, denominator } =
-      typeof scale === 'number' ? { numerator: scale, denominator: 1 } : scale;
+    // Handle number, string, and object formats
+    let numerator: number | string;
+    let denominator: number | string;
+    if (typeof scale === 'number' || typeof scale === 'string') {
+      numerator = scale;
+      denominator = 1;
+    } else {
+      numerator = scale.numerator;
+      denominator = scale.denominator;
+    }
 
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
       return [config.token, numerator, denominator, config.mailbox];

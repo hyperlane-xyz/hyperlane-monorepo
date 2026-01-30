@@ -15,7 +15,10 @@ export function verifyScale(
       : configMap;
   const decimalsByChain: ChainMap<{
     decimals: number;
-    scale?: number | { numerator: number; denominator: number };
+    scale?:
+      | number
+      | string
+      | { numerator: number | string; denominator: number | string };
   }> = objMap(chainDecimalConfigPairs, (chain, config) => {
     assert(
       config.decimals,
@@ -40,8 +43,18 @@ export function verifyScale(
           scaleValue = 1;
         } else if (typeof config.scale === 'number') {
           scaleValue = config.scale;
+        } else if (typeof config.scale === 'string') {
+          scaleValue = Number(config.scale);
         } else {
-          scaleValue = config.scale.numerator / config.scale.denominator;
+          const numerator =
+            typeof config.scale.numerator === 'string'
+              ? Number(config.scale.numerator)
+              : config.scale.numerator;
+          const denominator =
+            typeof config.scale.denominator === 'string'
+              ? Number(config.scale.denominator)
+              : config.scale.denominator;
+          scaleValue = numerator / denominator;
         }
 
         if (calculatedScale !== scaleValue) {
@@ -56,7 +69,10 @@ export function verifyScale(
 function areDecimalsUniform(
   configMap: ChainMap<{
     decimals: number;
-    scale?: number | { numerator: number; denominator: number };
+    scale?:
+      | number
+      | string
+      | { numerator: number | string; denominator: number | string };
   }>,
 ): boolean {
   const values = [...Object.values(configMap)];

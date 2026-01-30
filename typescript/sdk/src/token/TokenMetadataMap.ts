@@ -46,7 +46,11 @@ export class TokenMetadataMap {
 
   getScale(
     chain: string,
-  ): number | { numerator: number; denominator: number } | undefined {
+  ):
+    | number
+    | string
+    | { numerator: number | string; denominator: number | string }
+    | undefined {
     return this.tokenMetadataMap.get(chain)?.scale;
   }
 
