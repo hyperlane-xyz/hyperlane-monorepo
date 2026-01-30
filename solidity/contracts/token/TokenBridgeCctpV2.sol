@@ -82,7 +82,7 @@ contract TokenBridgeCctpV2 is TokenBridgeCctpBase, IMessageHandlerV2 {
     }
 
     function _setMaxFeeBps(uint256 _maxFeeBps) internal {
-        if (_maxFeeBps > MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
+        if (_maxFeeBps >= MAX_FEE_DENOMINATOR) revert MaxFeeTooHigh();
         MAX_FEE_BPS_SLOT.getUint256Slot().value = _maxFeeBps;
         emit MaxFeeBpsSet(_maxFeeBps);
     }
