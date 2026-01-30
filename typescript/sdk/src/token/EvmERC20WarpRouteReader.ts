@@ -1099,7 +1099,6 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     | number
     | string
     | { numerator: number | string; denominator: number | string }
-    | undefined
   > {
     const packageVersion = await this.fetchPackageVersion(tokenRouterAddress);
     const hasScaleFractionInterface =
