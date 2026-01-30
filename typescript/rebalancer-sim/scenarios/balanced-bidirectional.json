@@ -3,11 +3,7 @@
   "description": "Verifies that balanced traffic does NOT trigger unnecessary rebalancing.",
   "expectedBehavior": "10 balanced pairs (20 transfers total) where each A→B has a matching B→A.\nNet flow per chain is zero - no liquidity imbalance should occur.\nAll chains should stay at exactly 100 tokens (within rounding).\nRebalancer should NOT trigger at all since flows are perfectly balanced.\nThis is the \"happy path\" - balanced traffic needs no intervention.\nAll transfers should complete quickly with low latency (~100ms delivery delay).",
   "duration": 10000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "bal-000000",

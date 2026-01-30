@@ -3,11 +3,7 @@
   "description": "Tests rebalancer handling of sudden traffic spikes.",
   "expectedBehavior": "Baseline: 1 tx/sec random traffic.\nSurge: 5x traffic (5 tx/sec) from 5-10 seconds.\nSurge period creates rapid imbalance that baseline wouldn't.\nRebalancer must detect and respond to burst, then stabilize.\nTests adaptive response to changing traffic patterns.",
   "duration": 15000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "base-000000",

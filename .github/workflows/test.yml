@@ -560,7 +560,17 @@ jobs:
         uses: ./.github/actions/setup-foundry
 
       - name: Run rebalancer-sim test (${{ matrix.test }})
-        run: pnpm -C typescript/rebalancer-sim mocha --config .mocharc.json "./test/**/*${{ matrix.test }}*.test.ts" --exit
+        working-directory: typescript/rebalancer-sim
+        run: pnpm mocha --config .mocharc.json "./test/**/*${{ matrix.test }}*.test.ts" --exit
+
+      - name: Upload test results
+        if: always()
+        uses: actions/upload-artifact@v5
+        with:
+          name: rebalancer-sim-results-${{ matrix.test }}
+          path: typescript/rebalancer-sim/results/*.html
+          if-no-files-found: ignore
+          retention-days: 7
 
   rebalancer-sim-test:
     runs-on: ubuntu-latest

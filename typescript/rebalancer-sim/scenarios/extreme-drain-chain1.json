@@ -3,11 +3,7 @@
   "description": "Tests rebalancer response when one chain is rapidly drained by incoming transfers.",
   "expectedBehavior": "95% of transfers go TO chain1, draining its collateral as recipients withdraw.\nChain1 drops from 100 to potentially negative without rebalancer.\nRebalancer should detect chain1 < 85 threshold and send tokens FROM chain2/chain3.\nCompletion rate should stay >90% due to rebalancing replenishing liquidity.",
   "duration": 10000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "imb-000000",

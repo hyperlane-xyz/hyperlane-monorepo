@@ -3,11 +3,7 @@
   "description": "Tests rebalancer response when one chain accumulates excess liquidity from outgoing transfers.",
   "expectedBehavior": "95% of transfers originate FROM chain1, causing users to deposit collateral there.\nChain1 rises to ~250 tokens (well above 115 threshold).\nChain2/chain3 get drained as recipients withdraw there.\nLower completion expected (~60%) because destination chains may run dry before rebalancer can help.\nRebalancer should still respond by moving excess from chain1.",
   "duration": 10000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "imb-000000",

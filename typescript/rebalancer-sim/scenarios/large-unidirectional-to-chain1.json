@@ -3,10 +3,7 @@
   "description": "Tests rebalancer response to large individual transfers creating immediate imbalance.",
   "expectedBehavior": "5 transfers of 20 tokens each, all chain2 → chain1.\nEach transfer is 20% of initial balance - immediate liquidity crisis.\nFirst 1-2 transfers succeed, then chain1 drops to ~60 tokens (below 85 threshold).\nRebalancer must respond quickly to refill chain1 for remaining transfers.\nHigh completion rate expected if rebalancer is fast enough.",
   "duration": 5000,
-  "chains": [
-    "chain2",
-    "chain1"
-  ],
+  "chains": ["chain2", "chain1"],
   "transfers": [
     {
       "id": "uni-000000",

@@ -3,10 +3,7 @@
   "description": "Tests rebalancer under sustained one-way flow over longer duration.",
   "expectedBehavior": "30 transfers over 30 seconds, all chain3 → chain1.\nSustained pressure rather than burst - tests rebalancer endurance.\nChain1 continuously drained, chain3 continuously accumulates.\nRebalancer must keep up with ongoing imbalance, not just react once.",
   "duration": 30000,
-  "chains": [
-    "chain3",
-    "chain1"
-  ],
+  "chains": ["chain3", "chain1"],
   "transfers": [
     {
       "id": "uni-000000",

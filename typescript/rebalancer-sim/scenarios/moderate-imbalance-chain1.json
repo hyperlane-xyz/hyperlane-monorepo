@@ -3,11 +3,7 @@
   "description": "Tests rebalancer with moderate (not extreme) imbalance.",
   "expectedBehavior": "70% of transfers go TO chain1 (moderate drain).\nShould trigger rebalancing but less aggressively than extreme scenarios.\nTests that rebalancer responds proportionally to imbalance severity.",
   "duration": 8000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "imb-000000",

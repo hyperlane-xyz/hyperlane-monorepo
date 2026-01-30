@@ -3,11 +3,7 @@
   "description": "Random traffic with enough collateral that rebalancer can keep up without blocking transfers.",
   "expectedBehavior": "20 truly random transfers (not balanced pairs).\nHigh collateral (500 tokens) provides large buffer for fluctuations.\nTransfers (2-8 tokens = 0.4-1.6% of balance) create small relative imbalances.\n5% tolerance triggers rebalancing on ~25 token imbalances.\nWith 500 tokens, even 50 token imbalance leaves 450+ liquidity.\nExpected: ~200ms latency, some rebalances, 100% completion.\nKey insight: enough headroom + moderate tolerance = rebalancer active but no blocking.",
   "duration": 10000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "rnd-000000",

@@ -3,11 +3,7 @@
   "description": "Load tests the simulation with high transfer volume.",
   "expectedBehavior": "50 transfers over 20 seconds with Poisson distribution (~2.5 tx/sec average).\nRandom origin/destination creates unpredictable imbalances.\nTests rebalancer stability under sustained load.\nPoisson distribution creates realistic bursty traffic patterns.",
   "duration": 20000,
-  "chains": [
-    "chain1",
-    "chain2",
-    "chain3"
-  ],
+  "chains": ["chain1", "chain2", "chain3"],
   "transfers": [
     {
       "id": "rnd-000000",

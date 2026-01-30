@@ -3,10 +3,7 @@
   "description": "Stress tests rebalancer response time with massive single transfers that exhaust liquidity.",
   "expectedBehavior": "3 transfers of 60 tokens each arriving in quick burst (first 500ms).\nTotal outflow: 180 tokens, but chain1 only has 100.\nTransfer 1: 100 → 40 remaining (succeeds immediately)\nTransfer 2: 40 - 60 = -20 → BLOCKED waiting for rebalancing\nTransfer 3: Also blocked until liquidity restored.\nRebalancer must replenish chain1 before transfers 2 & 3 can complete.\nHigh latency expected for transfers 2 & 3 as they wait for rebalancing.",
   "duration": 10000,
-  "chains": [
-    "chain2",
-    "chain1"
-  ],
+  "chains": ["chain2", "chain1"],
   "transfers": [
     {
       "id": "whale-1",
