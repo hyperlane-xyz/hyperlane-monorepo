@@ -14,6 +14,7 @@ import {
 import { CallData } from '../../types.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
+import { getSubmitter } from '../submitterBuilderGetter.js';
 
 import { EvmTimelockControllerSubmitterProps } from './types.js';
 
@@ -55,8 +56,6 @@ export class EV5TimelockSubmitter
       `Expected user supplied delay ${delay} to be greater or equal than the configured minDelay ${minDelay}`,
     );
 
-    // Dynamic import to break circular dependency
-    const { getSubmitter } = await import('../submitterBuilderGetter.js');
     const proposerSubmitter = await getSubmitter<ProtocolType.Ethereum>(
       multiProvider,
       config.proposerSubmitter,
