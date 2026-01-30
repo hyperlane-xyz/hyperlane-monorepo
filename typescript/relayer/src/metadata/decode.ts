@@ -24,7 +24,11 @@ export function decodeIsmMetadata(
 
     case IsmType.AGGREGATION:
     case IsmType.STORAGE_AGGREGATION:
-      return AggregationMetadataBuilder.decode(metadata, { ...context, ism });
+      return AggregationMetadataBuilder.decode(
+        metadata,
+        { ...context, ism },
+        decodeIsmMetadata,
+      );
 
     case IsmType.ROUTING:
       return DynamicRoutingMetadataBuilder.decode(metadata, {
