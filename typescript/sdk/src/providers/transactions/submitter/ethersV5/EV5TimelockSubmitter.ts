@@ -14,7 +14,7 @@ import {
 import { CallData } from '../../types.js';
 import { TxSubmitterInterface } from '../TxSubmitterInterface.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
-import { getSubmitter } from '../submitterBuilderGetter.js';
+import type { SubmitterGetter } from '../types.js';
 
 import { EvmTimelockControllerSubmitterProps } from './types.js';
 
@@ -40,6 +40,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
     config: EvmTimelockControllerSubmitterProps,
     multiProvider: MultiProvider,
     coreAddressesByChain: ChainMap<Record<string, string>>,
+    getSubmitterFn: SubmitterGetter,
   ): Promise<EV5TimelockSubmitter> {
     const provider = multiProvider.getProvider(config.chain);
     const timelockInstance = TimelockController__factory.connect(
@@ -54,7 +55,7 @@ export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.E
       `Expected user supplied delay ${delay} to be greater or equal than the configured minDelay ${minDelay}`,
     );
 
-    const proposerSubmitter = await getSubmitter<ProtocolType.Ethereum>(
+    const proposerSubmitter = await getSubmitterFn<ProtocolType.Ethereum>(
       multiProvider,
       config.proposerSubmitter,
       coreAddressesByChain,
