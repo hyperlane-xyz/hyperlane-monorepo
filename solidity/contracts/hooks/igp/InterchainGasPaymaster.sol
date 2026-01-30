@@ -492,10 +492,20 @@ contract InterchainGasPaymaster is
     ) internal {
         tokenGasOracles[_feeToken][_remoteDomain] = _gasOracle;
 
-        if (address(_gasOracle) == address(0)) {
-            _removeDomain(_remoteDomain);
-        } else {
-            _addDomain(_remoteDomain);
+        if (_feeToken == NATIVE_TOKEN) {
+            // Native token controls domain tracking
+            if (address(_gasOracle) == address(0)) {
+                _removeDomain(_remoteDomain);
+            } else {
+                _addDomain(_remoteDomain);
+            }
+        } else if (address(_gasOracle) != address(0)) {
+            // Non-native tokens require domain to already exist
+            require(
+                address(tokenGasOracles[NATIVE_TOKEN][_remoteDomain]) !=
+                    address(0),
+                "InterchainGasPaymaster: domain not configured"
+            );
         }
 
         emit TokenGasOracleSet(_feeToken, _remoteDomain, address(_gasOracle));
