@@ -52,8 +52,13 @@ const logger = rootLogger.child({ module: 'IsmUtils' });
 export function calculateDomainRoutingDelta(
   current: DomainRoutingIsmConfig,
   target: DomainRoutingIsmConfig,
-): { domainsToEnroll: ChainName[]; domainsToUnenroll: ChainName[] } {
+): {
+  domainsToEnroll: ChainName[];
+  domainsToUnenroll: ChainName[];
+  domainsToUpdate: ChainName[];
+} {
   const domainsToEnroll = [];
+  const domainsToUpdate = [];
   for (const origin of Object.keys(target.domains)) {
     if (!current.domains[origin]) {
       domainsToEnroll.push(origin);
@@ -62,7 +67,10 @@ export function calculateDomainRoutingDelta(
         current.domains[origin],
         target.domains[origin],
       );
-      if (!subModuleMatches) domainsToEnroll.push(origin);
+      if (!subModuleMatches) {
+        domainsToEnroll.push(origin);
+        domainsToUpdate.push(origin);
+      }
     }
   }
 
@@ -76,9 +84,12 @@ export function calculateDomainRoutingDelta(
     [] as ChainName[],
   );
 
+  domainsToUpdate.push(...domainsToUnenroll);
+
   return {
     domainsToEnroll,
     domainsToUnenroll,
+    domainsToUpdate,
   };
 }
 
@@ -309,6 +320,7 @@ export async function moduleMatchesConfig(
       break;
     }
     case IsmType.FALLBACK_ROUTING:
+    case IsmType.INCREMENTAL_ROUTING:
     case IsmType.ROUTING: {
       // A RoutingIsm matches if:
       //   1. The set of domains in the config equals those on-chain
@@ -478,7 +490,8 @@ export async function routingModuleDelta(
 ): Promise<RoutingIsmDelta> {
   if (
     config.type === IsmType.FALLBACK_ROUTING ||
-    config.type === IsmType.ROUTING
+    config.type === IsmType.ROUTING ||
+    config.type === IsmType.INCREMENTAL_ROUTING
   ) {
     return domainRoutingModuleDelta(
       destination,
@@ -538,9 +551,12 @@ async function domainRoutingModuleDelta(
   );
 
   // check for exclusion of domains in the config
-  delta.domainsToUnenroll = deployedDomains.filter(
-    (domain) => !Object.values(safeConfigDomains).includes(domain),
-  );
+  // Note: Incremental routing ISMs don't support domain removal, so skip unenroll
+  if (config.type !== IsmType.INCREMENTAL_ROUTING) {
+    delta.domainsToUnenroll = deployedDomains.filter(
+      (domain) => !Object.values(safeConfigDomains).includes(domain),
+    );
+  }
   // check for inclusion of domains in the config
   for (const [origin, subConfig] of Object.entries(ismByDomainName)) {
     const originDomain = safeConfigDomains[origin];
