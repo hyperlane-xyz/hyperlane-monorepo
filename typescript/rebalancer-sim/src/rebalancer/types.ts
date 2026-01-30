@@ -33,8 +33,8 @@ export interface ChainStrategyConfig {
     tolerance: string;
   };
   minAmount?: {
-    min: number;
-    target: number;
+    min: string;
+    target: string;
     type: 'absolute' | 'relative';
   };
   bridge: string;

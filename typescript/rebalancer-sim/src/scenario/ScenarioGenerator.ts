@@ -13,11 +13,29 @@ import type {
 
 /**
  * Generates random bigint in range [min, max] (inclusive)
+ * Uses chunked random generation to avoid precision loss for large ranges
  */
 function randomBigIntInRange(min: bigint, max: bigint): bigint {
   const range = max - min + BigInt(1); // +1 to make max inclusive
-  const randomFactor = BigInt(Math.floor(Math.random() * Number(range)));
-  return min + randomFactor;
+
+  // For small ranges that fit in Number.MAX_SAFE_INTEGER, use simple approach
+  if (range <= BigInt(Number.MAX_SAFE_INTEGER)) {
+    const randomFactor = BigInt(Math.floor(Math.random() * Number(range)));
+    return min + randomFactor;
+  }
+
+  // For large ranges, generate random bytes and mod by range
+  // This avoids precision loss by working with bigints throughout
+  const rangeHex = range.toString(16);
+  const bytesNeeded = Math.ceil(rangeHex.length / 2) + 1; // +1 for safety margin
+
+  let randomBigInt = BigInt(0);
+  for (let i = 0; i < bytesNeeded; i++) {
+    randomBigInt =
+      (randomBigInt << BigInt(8)) | BigInt(Math.floor(Math.random() * 256));
+  }
+
+  return min + (randomBigInt % range);
 }
 
 /**

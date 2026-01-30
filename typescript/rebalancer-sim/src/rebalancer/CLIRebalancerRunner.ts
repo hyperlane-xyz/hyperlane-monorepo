@@ -33,8 +33,8 @@ export async function cleanupCLIRebalancer(): Promise<void> {
     currentInstance = null;
     try {
       await instance.stop();
-    } catch {
-      // Ignore errors
+    } catch (error) {
+      console.debug('cleanupCLIRebalancer: stop failed', error);
     }
   }
   // Small delay to allow any async cleanup to complete
@@ -81,8 +81,8 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
         bridge: chainConfig.bridge,
         bridgeLockTime: Math.ceil(chainConfig.bridgeLockTime / 1000),
         minAmount: {
-          min: chainConfig.minAmount?.min?.toString() ?? '0',
-          target: chainConfig.minAmount?.target?.toString() ?? '0',
+          min: chainConfig.minAmount?.min ?? '0',
+          target: chainConfig.minAmount?.target ?? '0',
           type: chainConfig.minAmount?.type ?? 'absolute',
         },
       };
@@ -194,8 +194,12 @@ export class CLIRebalancerRunner
           (mppProvider as unknown as ethers.providers.JsonRpcProvider).polling =
             false;
         }
-      } catch {
-        // Ignore
+      } catch (error) {
+        console.debug(
+          'CLIRebalancerRunner: failed to disable polling for',
+          chainName,
+          error,
+        );
       }
     }
 
@@ -251,8 +255,8 @@ export class CLIRebalancerRunner
     if (this.service) {
       try {
         await this.service.stop();
-      } catch {
-        // Ignore errors
+      } catch (error) {
+        console.debug('CLIRebalancerRunner.stop: service.stop() failed', error);
       }
       this.service = undefined;
     }
