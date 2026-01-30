@@ -21,7 +21,7 @@ import {
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
-import { getSafeApiKey } from '../utils/safe.js';
+import { getSafeApiKey } from '../utils/safeApiKey.js';
 
 import { DeployEnvironment } from './environment.js';
 

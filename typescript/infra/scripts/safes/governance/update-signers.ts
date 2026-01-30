@@ -11,7 +11,8 @@ import {
 } from '../../../config/environments/mainnet3/governance/utils.js';
 import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
-import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
+import { withGovernanceType } from '../../../src/governance.js';
+import { GovernanceType } from '../../../src/governanceTypes.js';
 import { Role } from '../../../src/roles.js';
 import {
   getOwnerChanges,
