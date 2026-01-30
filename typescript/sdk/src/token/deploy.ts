@@ -200,12 +200,15 @@ abstract class TokenDeployer<
             config.minFinalityThreshold !== undefined,
             'minFinalityThreshold is undefined for CCTP V2 config',
           );
+          // Convert bps to ppm (parts per million) for contract precision
+          // 1 bps = 100 ppm, supports fractional bps (e.g., 1.3 bps = 130 ppm)
+          const maxFeePpm = Math.round(config.maxFeeBps * 100);
           return [
             config.token,
             config.mailbox,
             config.messageTransmitter,
             config.tokenMessenger,
-            config.maxFeeBps,
+            maxFeePpm,
             config.minFinalityThreshold,
           ];
         default:
