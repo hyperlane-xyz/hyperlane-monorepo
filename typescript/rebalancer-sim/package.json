@@ -1,0 +1,61 @@
+{
+  "name": "@hyperlane-xyz/rebalancer-sim",
+  "version": "0.1.0",
+  "description": "Fast real-time simulation framework for testing Hyperlane warp route rebalancers",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist cache",
+    "dev": "tsc --watch",
+    "generate-scenarios": "tsx scripts/generate-scenarios.ts",
+    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
+    "test:ci": "pnpm test"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/rebalancer": "workspace:*",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "pino-pretty": "catalog:",
+    "zod": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "rebalancer",
+    "simulation",
+    "testing",
+    "warp-route"
+  ],
+  "author": "Abacus Works, Inc.",
+  "license": "Apache-2.0"
+}
