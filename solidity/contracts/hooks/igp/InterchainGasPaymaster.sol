@@ -181,13 +181,10 @@ contract InterchainGasPaymaster is
     ) external onlyOwner {
         uint256 _len = _configs.length;
         for (uint256 i = 0; i < _len; i++) {
-            tokenGasOracles[_configs[i].feeToken][
-                _configs[i].remoteDomain
-            ] = _configs[i].gasOracle;
-            emit TokenGasOracleSet(
+            _setTokenGasOracle(
                 _configs[i].feeToken,
                 _configs[i].remoteDomain,
-                address(_configs[i].gasOracle)
+                _configs[i].gasOracle
             );
         }
     }
@@ -480,6 +477,28 @@ contract InterchainGasPaymaster is
     function _setBeneficiary(address _beneficiary) internal {
         beneficiary = _beneficiary;
         emit BeneficiarySet(_beneficiary);
+    }
+
+    /**
+     * @notice Sets the gas oracle for a token and remote domain.
+     * @param _feeToken The fee token address (use NATIVE_TOKEN for native payments).
+     * @param _remoteDomain The remote domain.
+     * @param _gasOracle The gas oracle.
+     */
+    function _setTokenGasOracle(
+        address _feeToken,
+        uint32 _remoteDomain,
+        IGasOracle _gasOracle
+    ) internal {
+        tokenGasOracles[_feeToken][_remoteDomain] = _gasOracle;
+
+        if (address(_gasOracle) == address(0)) {
+            _removeDomain(_remoteDomain);
+        } else {
+            _addDomain(_remoteDomain);
+        }
+
+        emit TokenGasOracleSet(_feeToken, _remoteDomain, address(_gasOracle));
     }
 
     /**
