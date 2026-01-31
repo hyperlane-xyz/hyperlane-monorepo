@@ -23,7 +23,7 @@ use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
-    SealevelTxCostEstimate, TransactionSubmitter,
+    SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
 use crate::payload::FullPayload;
@@ -74,7 +74,7 @@ mock! {
 
     #[async_trait]
     impl PriorityFeeOracle for Oracle {
-        async fn get_priority_fee(&self, transaction: &VersionedTransaction) -> ChainResult<u64>;
+        async fn get_priority_fee(&self, transaction: &SealevelTxType) -> ChainResult<u64>;
     }
 }
 
@@ -84,8 +84,8 @@ mock! {
     #[async_trait]
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
-        async fn send_transaction(&self, transaction: &VersionedTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        async fn wait_for_transaction_confirmation(&self, transaction: &VersionedTransaction) -> ChainResult<()>;
+        async fn send_transaction(&self, transaction: &SealevelTxType, skip_preflight: bool) -> ChainResult<Signature>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
     }
 }
@@ -103,7 +103,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-        ) -> ChainResult<VersionedTransaction>;
+        ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
@@ -113,7 +113,7 @@ mock! {
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
-        async fn wait_for_transaction_confirmation(&self, transaction: &VersionedTransaction)
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType)
             -> ChainResult<()>;
 
         async fn confirm_transaction(
@@ -199,7 +199,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
                 &[instruction],
                 Some(&keypair.pubkey()),
             ));
-            Ok(VersionedTransaction::from(tx))
+            Ok(SealevelTxType::Legacy(tx))
         });
 
     provider

@@ -1,18 +1,15 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
-use hyperlane_sealevel::{SealevelKeypair, SealevelTxCostEstimate, TransactionSubmitter};
+use hyperlane_sealevel::{
+    SealevelKeypair, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
+};
 use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction,
-    hash::Hash,
-    instruction::Instruction as SealevelInstruction,
-    message::Message,
-    pubkey::Pubkey,
-    signature::Signature,
-    signer::Signer,
-    system_instruction,
-    transaction::{Transaction as SealevelTransaction, VersionedTransaction},
+    compute_budget::ComputeBudgetInstruction, hash::Hash,
+    instruction::Instruction as SealevelInstruction, message::Message, pubkey::Pubkey,
+    signature::Signature, signer::Signer, system_instruction,
+    transaction::Transaction as SealevelTransaction,
 };
 use tokio::{select, sync::mpsc};
 use tracing::info;
@@ -582,7 +579,7 @@ fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) 
                     &recent_blockhash,
                 ));
 
-                Ok(VersionedTransaction::from(tx))
+                Ok(SealevelTxType::Legacy(tx))
             },
         );
 }

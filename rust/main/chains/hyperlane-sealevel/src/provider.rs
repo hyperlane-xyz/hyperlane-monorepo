@@ -36,6 +36,7 @@ use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
 use crate::provider::recipient::RecipientProvider;
 use crate::provider::transaction::{parsed_message, txn};
+use crate::tx_type::SealevelTxType;
 use crate::utils::{decode_h256, decode_h512, decode_pubkey};
 use crate::{ConnectionConf, SealevelKeypair, TransactionSubmitter};
 
@@ -72,8 +73,9 @@ impl Default for SealevelTxCostEstimate {
 /// Methods of provider which are used in submitter
 #[async_trait]
 pub trait SealevelProviderForLander: Send + Sync {
-    /// Creates Sealevel versioned transaction for instruction.
-    /// Uses ALT (Address Lookup Table) if available for the domain.
+    /// Creates Sealevel transaction for instruction.
+    /// Returns `SealevelTxType::Versioned` with ALT for domains that support it,
+    /// or `SealevelTxType::Legacy` for chains that only support legacy transactions.
     async fn create_transaction_for_instruction(
         &self,
         compute_unit_limit: u32,
@@ -82,7 +84,7 @@ pub trait SealevelProviderForLander: Send + Sync {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
-    ) -> ChainResult<VersionedTransaction>;
+    ) -> ChainResult<SealevelTxType>;
 
     /// Estimates cost for Sealevel instruction
     async fn get_estimated_costs_for_instruction(
@@ -96,7 +98,7 @@ pub trait SealevelProviderForLander: Send + Sync {
     /// Waits for Sealevel transaction confirmation with processed commitment level
     async fn wait_for_transaction_confirmation(
         &self,
-        transaction: &VersionedTransaction,
+        transaction: &SealevelTxType,
     ) -> ChainResult<()>;
 
     /// Confirm transaction
@@ -127,8 +129,9 @@ pub struct SealevelProvider {
 
 #[async_trait]
 impl SealevelProviderForLander for SealevelProvider {
-    /// Creates a versioned transaction for a given instruction.
-    /// Uses ALT if available for transaction size reduction.
+    /// Creates a transaction for a given instruction.
+    /// Returns `SealevelTxType::Versioned` with ALT for domains that support it,
+    /// or `SealevelTxType::Legacy` for chains that only support legacy transactions.
     /// If `sign` is true, the transaction will be signed.
     async fn create_transaction_for_instruction(
         &self,
@@ -138,7 +141,7 @@ impl SealevelProviderForLander for SealevelProvider {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
-    ) -> ChainResult<VersionedTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
             // Set the compute unit limit.
             ComputeBudgetInstruction::set_compute_unit_limit(compute_unit_limit),
@@ -164,8 +167,9 @@ impl SealevelProviderForLander for SealevelProvider {
             Hash::default()
         };
 
-        // Build versioned transaction with ALT if available
-        let versioned_tx = if let Some(alt_cache) = &self.alt_cache {
+        // Build versioned transaction with ALT if available, otherwise legacy
+        if let Some(alt_cache) = &self.alt_cache {
+            // ALT available - use VersionedTransaction with V0 message
             let alt_account = AddressLookupTableAccount {
                 key: alt_cache.address,
                 addresses: alt_cache.accounts.clone(),
@@ -179,7 +183,7 @@ impl SealevelProviderForLander for SealevelProvider {
             )
             .map_err(ChainCommunicationError::from_other)?;
 
-            if sign {
+            let versioned_tx = if sign {
                 VersionedTransaction::try_new(VersionedMessage::V0(message), &[payer.keypair()])
                     .map_err(ChainCommunicationError::from_other)?
             } else {
@@ -187,22 +191,20 @@ impl SealevelProviderForLander for SealevelProvider {
                     signatures: vec![Signature::default()],
                     message: VersionedMessage::V0(message),
                 }
-            }
-        } else {
-            // No ALT - use legacy message wrapped in VersionedTransaction
-            let message = Message::new(&instructions, Some(&payer.pubkey()));
-            if sign {
-                let tx = Transaction::new(&[payer.keypair()], message, recent_blockhash);
-                VersionedTransaction::from(tx)
-            } else {
-                VersionedTransaction {
-                    signatures: vec![Signature::default()],
-                    message: VersionedMessage::Legacy(message),
-                }
-            }
-        };
+            };
 
-        Ok(versioned_tx)
+            Ok(SealevelTxType::Versioned(versioned_tx))
+        } else {
+            // No ALT - use pure legacy Transaction (NOT wrapped in VersionedTransaction)
+            let message = Message::new(&instructions, Some(&payer.pubkey()));
+            let legacy_tx = if sign {
+                Transaction::new(&[payer.keypair()], message, recent_blockhash)
+            } else {
+                Transaction::new_unsigned(message)
+            };
+
+            Ok(SealevelTxType::Legacy(legacy_tx))
+        }
     }
 
     /// Gets the estimated costs for a given instruction.
@@ -232,7 +234,7 @@ impl SealevelProviderForLander for SealevelProvider {
 
         let simulation_result = self
             .rpc_client()
-            .simulate_versioned_transaction(&simulation_tx)
+            .simulate_sealevel_tx(&simulation_tx)
             .await?;
 
         // If there was an error in the simulation result, return an error.
@@ -308,19 +310,15 @@ impl SealevelProviderForLander for SealevelProvider {
     /// decoupled from the sending of a transaction.
     async fn wait_for_transaction_confirmation(
         &self,
-        transaction: &VersionedTransaction,
+        transaction: &SealevelTxType,
     ) -> ChainResult<()> {
-        let signature = transaction.signatures.first().ok_or_else(|| {
+        let signature = transaction.signature().ok_or_else(|| {
             ChainCommunicationError::from_other_str("No signature in transaction")
         })?;
 
         const GET_STATUS_RETRIES: usize = usize::MAX;
 
-        // Extract blockhash from versioned message
-        let recent_blockhash = match &transaction.message {
-            VersionedMessage::Legacy(msg) => msg.recent_blockhash,
-            VersionedMessage::V0(msg) => msg.recent_blockhash,
-        };
+        let recent_blockhash = transaction.blockhash();
 
         for status_retry in 0..GET_STATUS_RETRIES {
             let signature_statuses: Response<Vec<Option<TransactionStatus>>> = self
@@ -486,15 +484,16 @@ impl SealevelProvider {
         Ok(meta)
     }
 
-    /// Builds a versioned transaction with estimated costs for a given instruction.
-    /// Uses ALT if available for transaction size reduction.
+    /// Builds a transaction with estimated costs for a given instruction.
+    /// Returns `SealevelTxType::Versioned` with ALT for domains that support it,
+    /// or `SealevelTxType::Legacy` for chains that only support legacy transactions.
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
-    ) -> ChainResult<VersionedTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
             compute_units,

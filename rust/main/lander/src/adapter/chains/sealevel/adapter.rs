@@ -13,8 +13,9 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::VersionedTransaction as SealevelTransaction,
 };
+
+use hyperlane_sealevel::SealevelTxType as SealevelTransaction;
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
@@ -75,7 +76,7 @@ pub struct SealevelAdapter {
 }
 
 impl SealevelAdapter {
-    pub fn new(
+    pub async fn new(
         conf: ChainConf,
         raw_conf: RawChainConf,
         metrics: &CoreMetrics,
@@ -91,12 +92,13 @@ impl SealevelAdapter {
             client_metrics.clone(),
         );
 
-        let provider = SealevelProvider::new(
+        let mut provider = SealevelProvider::new(
             client.clone(),
             conf.domain.clone(),
             &[H256::zero()],
             connection_conf,
         );
+        provider.try_load_alt_cache().await;
 
         let oracle = connection_conf.priority_fee_oracle.create_oracle();
 
@@ -333,13 +335,19 @@ impl AdaptsChain for SealevelAdapter {
         info!(?tx, "simulating transaction");
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
-        self.client
-            .simulate_versioned_transaction(&svm_transaction)
-            .await
-            .map_err(|e| {
-                error!(?tx, ?e, "failed to simulate transaction");
-                LanderError::SimulationFailed(vec![e.to_string()])
-            })?;
+
+        // Simulate based on transaction type
+        let result = match &svm_transaction {
+            SealevelTransaction::Legacy(t) => self.client.simulate_transaction(t).await,
+            SealevelTransaction::Versioned(t) => {
+                self.client.simulate_versioned_transaction(t).await
+            }
+        };
+
+        result.map_err(|e| {
+            error!(?tx, ?e, "failed to simulate transaction");
+            LanderError::SimulationFailed(vec![e.to_string()])
+        })?;
         info!(?tx, "simulated transaction successfully");
         Ok(vec![])
     }

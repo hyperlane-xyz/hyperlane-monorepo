@@ -20,6 +20,7 @@ pub use signer::create_keypair;
 pub use solana_sdk::signer::keypair::Keypair;
 pub use trait_builder::*;
 pub use tx_submitter::*;
+pub use tx_type::*;
 pub use validator_announce::*;
 
 mod account;
@@ -43,5 +44,6 @@ mod rpc;
 mod signer;
 mod trait_builder;
 mod tx_submitter;
+mod tx_type;
 mod utils;
 mod validator_announce;

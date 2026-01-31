@@ -20,6 +20,7 @@ use hyperlane_metric::prometheus_metric::PrometheusClientMetrics;
 
 use crate::client::SealevelRpcClient;
 use crate::client_builder::SealevelRpcClientBuilder;
+use crate::tx_type::SealevelTxType;
 
 /// Defines methods required to submit transactions to Sealevel chains
 #[async_trait]
@@ -339,6 +340,22 @@ impl SealevelFallbackRpcClient {
             .await
     }
 
+    /// send legacy transaction
+    pub async fn send_transaction(
+        &self,
+        transaction: &Transaction,
+        skip_preflight: bool,
+    ) -> ChainResult<Signature> {
+        self.fallback_provider
+            .call(move |client| {
+                let transaction = transaction.clone();
+                let future =
+                    async move { client.send_transaction(&transaction, skip_preflight).await };
+                Box::pin(future)
+            })
+            .await
+    }
+
     /// send versioned transaction
     pub async fn send_versioned_transaction(
         &self,
@@ -356,6 +373,31 @@ impl SealevelFallbackRpcClient {
                 Box::pin(future)
             })
             .await
+    }
+
+    /// Send a transaction (dispatches based on type).
+    pub async fn send_sealevel_tx(
+        &self,
+        tx: &SealevelTxType,
+        skip_preflight: bool,
+    ) -> ChainResult<Signature> {
+        match tx {
+            SealevelTxType::Legacy(t) => self.send_transaction(t, skip_preflight).await,
+            SealevelTxType::Versioned(t) => {
+                self.send_versioned_transaction(t, skip_preflight).await
+            }
+        }
+    }
+
+    /// Simulate a transaction (dispatches based on type).
+    pub async fn simulate_sealevel_tx(
+        &self,
+        tx: &SealevelTxType,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        match tx {
+            SealevelTxType::Legacy(t) => self.simulate_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.simulate_versioned_transaction(t).await,
+        }
     }
 
     /// get statuses based on signatures

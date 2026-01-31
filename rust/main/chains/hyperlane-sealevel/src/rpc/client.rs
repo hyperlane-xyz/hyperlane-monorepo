@@ -25,6 +25,7 @@ use solana_transaction_status::{
 use hyperlane_core::{rpc_clients::BlockNumberGetter, ChainCommunicationError, ChainResult, U256};
 
 use crate::error::HyperlaneSealevelError;
+use crate::tx_type::SealevelTxType;
 
 /// Wrapper struct around Solana's RpcClient
 #[derive(Clone)]
@@ -258,6 +259,24 @@ impl SealevelRpcClient {
             .map_err(ChainCommunicationError::from_other)
     }
 
+    /// send legacy transaction
+    pub async fn send_transaction(
+        &self,
+        transaction: &Transaction,
+        skip_preflight: bool,
+    ) -> ChainResult<Signature> {
+        self.0
+            .send_transaction_with_config(
+                transaction,
+                RpcSendTransactionConfig {
+                    skip_preflight,
+                    ..Default::default()
+                },
+            )
+            .await
+            .map_err(ChainCommunicationError::from_other)
+    }
+
     /// send versioned transaction
     pub async fn send_versioned_transaction(
         &self,
@@ -318,6 +337,31 @@ impl SealevelRpcClient {
             .value;
 
         Ok(result)
+    }
+
+    /// Send a transaction (dispatches based on type).
+    pub async fn send_sealevel_tx(
+        &self,
+        tx: &SealevelTxType,
+        skip_preflight: bool,
+    ) -> ChainResult<Signature> {
+        match tx {
+            SealevelTxType::Legacy(t) => self.send_transaction(t, skip_preflight).await,
+            SealevelTxType::Versioned(t) => {
+                self.send_versioned_transaction(t, skip_preflight).await
+            }
+        }
+    }
+
+    /// Simulate a transaction (dispatches based on type).
+    pub async fn simulate_sealevel_tx(
+        &self,
+        tx: &SealevelTxType,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        match tx {
+            SealevelTxType::Legacy(t) => self.simulate_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.simulate_versioned_transaction(t).await,
+        }
     }
 }
 

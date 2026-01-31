@@ -29,7 +29,7 @@ use hyperlane_base::db::{HyperlaneRocksDB, DB};
 use hyperlane_core::{ChainResult, HyperlaneDomain, KnownHyperlaneDomain};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
-    SealevelTxCostEstimate, TransactionSubmitter,
+    SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
 use lander::{
@@ -59,7 +59,7 @@ mock! {
 
     #[async_trait]
     impl PriorityFeeOracle for Oracle {
-        async fn get_priority_fee(&self, transaction: &VersionedTransaction) -> ChainResult<u64>;
+        async fn get_priority_fee(&self, transaction: &SealevelTxType) -> ChainResult<u64>;
     }
 }
 
@@ -69,8 +69,8 @@ mock! {
     #[async_trait]
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
-        async fn send_transaction(&self, transaction: &VersionedTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        async fn wait_for_transaction_confirmation(&self, transaction: &VersionedTransaction) -> ChainResult<()>;
+        async fn send_transaction(&self, transaction: &SealevelTxType, skip_preflight: bool) -> ChainResult<Signature>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
     }
 }
@@ -88,7 +88,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-        ) -> ChainResult<VersionedTransaction>;
+        ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
@@ -98,7 +98,7 @@ mock! {
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
-        async fn wait_for_transaction_confirmation(&self, transaction: &VersionedTransaction) -> ChainResult<()>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
         async fn get_account(&self, account: Pubkey) -> ChainResult<Option<Account>>;
     }
@@ -136,7 +136,7 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
                 &[instruction],
                 Some(&payer.pubkey()),
             ));
-            Ok(VersionedTransaction::from(tx))
+            Ok(SealevelTxType::Legacy(tx))
         });
 
     provider
@@ -425,7 +425,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
                 &[instruction],
                 Some(&payer.pubkey()),
             ));
-            Ok(VersionedTransaction::from(tx))
+            Ok(SealevelTxType::Legacy(tx))
         });
 
     provider

@@ -3,15 +3,16 @@ use derive_new::new;
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 use reqwest::Client;
 use serde::Deserialize;
-use solana_sdk::{bs58, transaction::VersionedTransaction};
+use solana_sdk::bs58;
 
+use crate::tx_type::SealevelTxType;
 use crate::{HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig};
 
 /// A trait for fetching the priority fee for a transaction.
 #[async_trait]
 pub trait PriorityFeeOracle: Send + Sync {
-    /// Fetch the priority fee in microlamports for a versioned transaction.
-    async fn get_priority_fee(&self, transaction: &VersionedTransaction) -> ChainResult<u64>;
+    /// Fetch the priority fee in microlamports for a transaction.
+    async fn get_priority_fee(&self, transaction: &SealevelTxType) -> ChainResult<u64>;
 }
 
 /// A priority fee oracle that returns a constant fee.
@@ -22,7 +23,7 @@ pub struct ConstantPriorityFeeOracle {
 
 #[async_trait]
 impl PriorityFeeOracle for ConstantPriorityFeeOracle {
-    async fn get_priority_fee(&self, _transaction: &VersionedTransaction) -> ChainResult<u64> {
+    async fn get_priority_fee(&self, _transaction: &SealevelTxType) -> ChainResult<u64> {
         Ok(self.fee)
     }
 }
@@ -61,11 +62,17 @@ impl HeliusPriorityFeeOracle {
 
 #[async_trait]
 impl PriorityFeeOracle for HeliusPriorityFeeOracle {
-    async fn get_priority_fee(&self, transaction: &VersionedTransaction) -> ChainResult<u64> {
-        let base58_tx = bs58::encode(
-            bincode::serialize(transaction).map_err(ChainCommunicationError::from_other)?,
-        )
-        .into_string();
+    async fn get_priority_fee(&self, transaction: &SealevelTxType) -> ChainResult<u64> {
+        // Serialize based on transaction type
+        let tx_bytes = match transaction {
+            SealevelTxType::Legacy(tx) => {
+                bincode::serialize(tx).map_err(ChainCommunicationError::from_other)?
+            }
+            SealevelTxType::Versioned(tx) => {
+                bincode::serialize(tx).map_err(ChainCommunicationError::from_other)?
+            }
+        };
+        let base58_tx = bs58::encode(tx_bytes).into_string();
 
         let request_body = serde_json::json!({
             "jsonrpc": "2.0",
@@ -120,13 +127,11 @@ struct GetPriorityFeeEstimateResult {
 
 #[cfg(test)]
 mod test {
-    use solana_sdk::{
-        bs58,
-        transaction::{Transaction, VersionedTransaction},
-    };
+    use solana_sdk::{bs58, transaction::Transaction};
 
     use crate::{
         priority_fee::{HeliusPriorityFeeOracle, PriorityFeeOracle},
+        tx_type::SealevelTxType,
         HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig,
     };
 
@@ -146,13 +151,12 @@ mod test {
             fee_level: super::HeliusPriorityFeeLevel::Medium,
         });
 
-        // Example process transaction (legacy format - convert to versioned)
+        // Example process transaction (legacy format)
         // https://solscan.io/tx/W9fXtRD8mPkkUmuoLi9QxSCgFuy32rCVa8kfxtPjWXWRH2D1AWzuDEGuvexWGyWhQDXnEmaADZMeYu5RVjWZyAB
         let process_tx_base58 = "BPBE2dE4sPJX3nm4svEZ181qBfX9yvUp5H67uTt3aqRGtC6a77hW5vrQk9zJ3KkNuK63KoJCeqp1kkFwsbF5KL1UHf5Hrj8GXpiRxmKD8NybEZUWhjdVW9azMxJdnxxiFqH7wFQtZGkQxhx6oJz1qi5Xc64LEbPJEwSTAp5US1VCnnhWGRqJ297kvS8hWaVLuUxr4jEqYNG2LSusXZmzABBqEvRv753PBxcKiBE2moo9VKZ8n3ai6rmQGnSzsoAfwnjCx6iUdNSWqpYFHcq2xhMXJx8US5kv837KsT5tKQBbujsWUoRGGJ8vkmm7RJSYyR3DYEMa5ira9fiDwnK5qP3EgP2hrG73YYBxZ9naRrYzHG2GiEGWEUgNPHaUtK3JsbjTLiNjyZU8ERTdMxi4rBLppREJfHDWYUNgN9hTL81LYv4YoJY3UUTQphzT268f6oZoiyavngb8t3Lq8pbyc3gPiw7AcWXmn2ERDAcHvS59AaoxxcwZyn8UWUdynwCzvNbWhb97qVHSzBY1S79sxHFuqyBhbbD5YhkMhFGLjPUEDvncxE2hLt9iQCQaEQzCNRMmnZw7yJ1YxoKDKfmUTXJ6rmT4p2pz7f8x4jJwQ2pC2YxobcfHrNvD7929vXSvpomyZmaEXYAN2bqGBUe2KazpnobVCwafjKMVN4AaTJRMTXi92VKuShuKJEuZo9ZM7TScEqRZC5hLFU8SbCdASEUoQjpDzivUf1m9gQtT2ob5FPwJzcuZpqTWgixd59BRHTB1L5c4fDvtYr1QJFpJRN4DsXGryK4eTMu2oAs3imGpg1rHRLpuBTbcrchEivz7bD17bBj8VeHogfkPcehD9yaHzmYPRF47aWZ52GSFSSpc5kJRRQyghUKNPFBnycLGAbfkRYDdVzUgdrr3CNYksJCu45TChg54tMWWwrqSD3k5RPv7A6bXbAH4PzW83vzE2vGJFYpwUgNEnjuA1rVnYJHXsFdWBrqrsz3UvdTs5kUxyoxjNNKvoXSaTeXMXEt1HUdmQ3sw1dW9wRkYdHwWzksM6n7P7MLnVY6qv3BVUpJiX4K355BXhMhyozzcBQX2vvyC7J8UxPBofMrBRVtbMsXmfp3sphos1pog6wpN2MiEaJqm6KK5yQguANnQzN8mK7MREkjYXtCnczf84CrcHqpp2onQUaR4TPn8zCPVAxY4HVkCoDWTwKj8Am9M4L3a7wmF37epgKnQuypTH7dqbJPRTALe7tndrtvJCuoTFP8wPXQXxvwnBPXeLmhK9E2mpskTA33KfqvVBu4R5SFYNtGoKbvuHaDf83Lf2xx1YPUogXuEWZMx5zcaHWMmvutpfdnPe3Rb7GL4hPVKj4t9MNgiAg3QbjaR9nqYBUPT4kUpxVCJWEadDVh5pgLwnkg4DJ5ArNfgH5";
         let process_tx_bytes = bs58::decode(process_tx_base58).into_vec().unwrap();
         let legacy_tx: Transaction = bincode::deserialize(&process_tx_bytes).unwrap();
-        // Convert legacy to versioned
-        let transaction: VersionedTransaction = legacy_tx.into();
+        let transaction = SealevelTxType::Legacy(legacy_tx);
 
         oracle.get_priority_fee(&transaction).await.unwrap();
     }
