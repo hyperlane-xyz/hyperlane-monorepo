@@ -61,6 +61,8 @@ pub struct CoreMetrics {
     backfill_complete: IntGaugeVec,
     reached_initial_consistency: IntGaugeVec,
 
+    validator_announce_count: IntCounterVec,
+
     // metadata building metrics
     metadata_build_count: IntCounterVec,
     metadata_build_duration: CounterVec,
@@ -254,6 +256,16 @@ impl CoreMetrics {
             registry
         )?;
 
+        let validator_announce_count = register_int_counter_vec_with_registry!(
+            opts!(
+                namespaced!("validator_announce_count"),
+                "Count of validator announcement attempts",
+                const_labels_ref
+            ),
+            &["chain", "submitter", "status"],
+            registry
+        )?;
+
         let operations_processed_count = register_int_counter_vec_with_registry!(
             opts!(
                 namespaced!("operations_processed_count"),
@@ -352,6 +364,8 @@ impl CoreMetrics {
             announced,
             backfill_complete,
             reached_initial_consistency,
+
+            validator_announce_count,
 
             metadata_build_count,
             metadata_build_duration,
@@ -584,6 +598,16 @@ impl CoreMetrics {
     /// - `chain`: Chain the operation was submitted to.
     pub fn reached_initial_consistency(&self) -> IntGaugeVec {
         self.reached_initial_consistency.clone()
+    }
+
+    /// Count of validator announcement attempts.
+    ///
+    /// Labels:
+    /// - `chain`: Chain the announcement was made on.
+    /// - `submitter`: Submitter type used ("lander" or "classic").
+    /// - `status`: Status of the announcement ("success" or "failure").
+    pub fn validator_announce_count(&self) -> IntCounterVec {
+        self.validator_announce_count.clone()
     }
 
     /// Measure of the queue lengths in Submitter instances

@@ -4,8 +4,9 @@ use scrypto::data::manifest::ManifestArgs;
 use scrypto::types::ComponentAddress;
 
 use hyperlane_core::{
-    Announcement, ChainResult, ContractLocator, HyperlaneChain, HyperlaneContract, HyperlaneDomain,
-    HyperlaneProvider, SignedType, TxOutcome, ValidatorAnnounce, H256, U256,
+    Announcement, ChainCommunicationError, ChainResult, ContractLocator, HyperlaneChain,
+    HyperlaneContract, HyperlaneDomain, HyperlaneProvider, SignedType, TxOutcome,
+    ValidatorAnnounce, H256, U256,
 };
 
 use crate::{
@@ -100,5 +101,17 @@ impl ValidatorAnnounce for RadixValidatorAnnounce {
         // TODO: check user balance. For now, just try announcing and
         // allow the announce attempt to fail if there are not enough tokens.
         Some(0u64.into())
+    }
+
+    async fn announce_calldata(
+        &self,
+        _announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        // TODO: Radix Lander simulation for validator announce has issues with NODE_DEPTH
+        // limits in the visible components resolution. Fall back to classic announce until
+        // the Lander adapter is fixed.
+        Err(ChainCommunicationError::CustomError(
+            "announce_calldata not yet supported for Radix - using classic announce".to_string(),
+        ))
     }
 }
