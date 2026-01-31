@@ -326,6 +326,7 @@ mod tests {
             // TODO
             signer: None,
             submitter: SubmitterType::Classic,
+            gas_estimator: SubmitterType::Classic,
             estimated_block_time: Duration::from_secs(1),
             reorg_period: ReorgPeriod::from_blocks(10),
             addresses: CoreContractAddresses {
@@ -415,6 +416,7 @@ mod tests {
             transaction_gas_limit: Default::default(),
             metrics: dummy_submission_metrics(),
             application_operation_verifier: Arc::new(DummyApplicationOperationVerifier {}),
+            payload_dispatcher_entrypoint: None,
         });
 
         let attempts = 2;
