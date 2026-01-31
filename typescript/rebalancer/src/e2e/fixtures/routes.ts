@@ -28,6 +28,15 @@ export const USDC_SUPERSEED_WARP_ROUTE = {
   } as Record<TestChain, string>,
 };
 
+export const USDC_SUBTENSOR_WARP_ROUTE = {
+  id: 'USDC/subtensor',
+  routers: {
+    ethereum: '0xedCBAa585FD0F80f20073F9958246476466205b8',
+    arbitrum: '0x8a82186EA618b91D13A2041fb7aC31Bf01C02aD2',
+    base: '0x5C4aFb7e23B1Dc1B409dc1702f89C64527b25975',
+  } as Record<TestChain, string>,
+};
+
 export const DOMAIN_IDS: Record<TestChain, number> = {
   ethereum: 1,
   arbitrum: 42161,
@@ -106,5 +115,35 @@ export const BALANCE_PRESETS: Record<string, Record<TestChain, string>> = {
     ethereum: '5000000000',
     arbitrum: '5000000000',
     base: '5000000000',
+  },
+  WEIGHTED_IMBALANCED: {
+    ethereum: '7000000000', // 7000 USDC (70%)
+    arbitrum: '2000000000', // 2000 USDC (20%)
+    base: '1000000000', // 1000 USDC (10%) - needs +1000
+  },
+  WEIGHTED_WITHIN_TOLERANCE: {
+    ethereum: '6100000000', // 6100 USDC (61%)
+    arbitrum: '2000000000', // 2000 USDC (20%)
+    base: '1900000000', // 1900 USDC (19%)
+  },
+  BELOW_MIN_ARB: {
+    ethereum: '6000000000', // 6000 USDC - higher surplus, will be origin
+    arbitrum: '50000000', // 50 USDC - below 100 min
+    base: '4000000000', // 4000 USDC
+  },
+  BELOW_MIN_BASE: {
+    ethereum: '6000000000', // 6000 USDC - higher surplus
+    arbitrum: '4000000000', // 4000 USDC
+    base: '50000000', // 50 USDC - below 100 min
+  },
+  LOW_BALANCE_ARB: {
+    ethereum: '6000000000', // 6000 USDC - higher surplus, will be origin
+    arbitrum: '200000000', // 200 USDC - will be -100 with 300 pending TO arb
+    base: '4000000000', // 4000 USDC - lower surplus
+  },
+  COMPOSITE_DEFICIT_IMBALANCE: {
+    ethereum: '8000000000', // 8000 USDC - surplus
+    arbitrum: '500000000', // 500 USDC - will have deficit with pending transfer
+    base: '1500000000', // 1500 USDC - below weighted target
   },
 };
