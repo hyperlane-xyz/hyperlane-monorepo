@@ -22,8 +22,8 @@ use crate::{
     program::Program,
     sealevel::{sealevel_termination_invariants::*, solana::*},
     utils::{
-        concat_path, get_sealevel_path, get_ts_infra_path, get_workspace_path, make_static,
-        TaskHandle,
+        concat_path, find_free_port, get_sealevel_path, get_ts_infra_path, get_workspace_path,
+        make_static, TaskHandle,
     },
     wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
@@ -71,6 +71,11 @@ fn run_locally() {
         ts_infra_path
     );
 
+    // Allocate a free port for the Solana RPC to allow parallel test runs
+    let rpc_port = find_free_port();
+    let rpc_url = format!("http://127.0.0.1:{}", rpc_port);
+    log!("Using Solana RPC port: {}", rpc_port);
+
     let validator_origin_chains = ["sealeveltest1"].to_vec();
     let validator_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
     let validator_count: usize = validator_keys.len();
@@ -112,6 +117,9 @@ fn run_locally() {
             }]"#,
         )
         .hyp_env("CACHEDEFAULTEXPIRATIONSECONDS", "5")
+        // Override static config RPC URLs with dynamically allocated port
+        .hyp_env("CHAINS_SEALEVELTEST1_RPCURLS_0_HTTP", &rpc_url)
+        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url)
         .arg("defaultSigner.key", RELAYER_KEYS[0])
         .arg("relayChains", "sealeveltest1,sealeveltest2");
 
@@ -120,7 +128,10 @@ fn run_locally() {
         .bin(concat_path(&workspace_path, "target/debug/validator"))
         .working_dir(&workspace_path)
         .hyp_env("INTERVAL", "5")
-        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage");
+        .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
+        // Override static config RPC URLs with dynamically allocated port
+        .hyp_env("CHAINS_SEALEVELTEST1_RPCURLS_0_HTTP", &rpc_url)
+        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url);
 
     let validator_envs = (0..validator_count)
         .map(|i| {
@@ -152,7 +163,10 @@ fn run_locally() {
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
-        .hyp_env("CHAINSTOSCRAPE", "sealeveltest1,sealeveltest2");
+        .hyp_env("CHAINSTOSCRAPE", "sealeveltest1,sealeveltest2")
+        // Override static config RPC URLs with dynamically allocated port
+        .hyp_env("CHAINS_SEALEVELTEST1_RPCURLS_0_HTTP", &rpc_url)
+        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url);
 
     let mut state = State::default();
 
@@ -234,10 +248,14 @@ fn run_locally() {
             solana_bin_path.clone(),
             hyperlane_solana_programs_path.clone(),
             solana_ledger_dir.as_ref().to_path_buf(),
+            rpc_port,
         );
 
-        let (solana_config_path, solana_validator) = start_solana_validator.join();
+        let (solana_config_path, mock_registry_dir, solana_validator) =
+            start_solana_validator.join();
         state.push_agent(solana_validator);
+        // Keep mock registry dir alive for the duration of the test
+        state.data.push(Box::new(mock_registry_dir));
         (solana_bin_path, solana_config_path)
     };
 

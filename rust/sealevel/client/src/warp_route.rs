@@ -38,6 +38,7 @@ use crate::{
     router::{
         deploy_routers, ConnectionClient, Ownable, RouterConfig, RouterConfigGetter, RouterDeployer,
     },
+    spl_token_2022_ext::initialize_metadata_pointer,
     Context, TokenType as FlatTokenType, WarpRouteCmd, WarpRouteSubCmd,
 };
 
@@ -306,6 +307,14 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
             TokenType::Synthetic(_token_metadata) => {
                 let decimals = init.decimals;
 
+                // Derive mint PDA before building transaction
+                let (mint_account, _mint_bump) =
+                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
+
+                // Bundle all mint initialization in ONE atomic transaction to prevent
+                // race condition where attacker closes uninitialized mint account.
+                // Order matters: init creates account, metadata_pointer sets extension,
+                // initialize_mint2 finalizes the mint (after which only authority can close).
                 ctx.new_txn()
                     .add(
                         hyperlane_sealevel_token::instruction::init_instruction(
@@ -315,48 +324,21 @@ impl RouterDeployer<TokenConfig> for WarpRouteDeployer {
                         )
                         .unwrap(),
                     )
-                    .with_client(client)
-                    .send_with_payer();
-
-                let (mint_account, _mint_bump) =
-                    Pubkey::find_program_address(hyperlane_token_mint_pda_seeds!(), &program_id);
-
-                let mut cmd = Command::new(spl_token_binary_path.clone());
-                cmd.args([
-                    "create-token",
-                    mint_account.to_string().as_str(),
-                    "--enable-metadata",
-                    "-p",
-                    spl_token_2022::id().to_string().as_str(),
-                    "--url",
-                    client.url().as_str(),
-                    "--with-compute-unit-limit",
-                    "500000",
-                    "--mint-authority",
-                    &ctx.payer_pubkey.to_string(),
-                    "--fee-payer",
-                    ctx.payer_keypair_path(),
-                ]);
-
-                println!("running command: {:?}", cmd);
-                let status = cmd
-                    .stdout(Stdio::inherit())
-                    .stderr(Stdio::inherit())
-                    .status()
-                    .expect("Failed to run command");
-
-                println!("initialized metadata pointer. Status: {status}");
-
-                ctx.new_txn().add(
-                    spl_token_2022::instruction::initialize_mint2(
-                        &spl_token_2022::id(),
+                    .add(initialize_metadata_pointer(
                         &mint_account,
-                        &ctx.payer_pubkey,
-                        None,
-                        decimals,
+                        Some(ctx.payer_pubkey), // metadata pointer authority
+                        Some(mint_account),     // metadata stored in mint account itself
+                    ))
+                    .add(
+                        spl_token_2022::instruction::initialize_mint2(
+                            &spl_token_2022::id(),
+                            &mint_account,
+                            &ctx.payer_pubkey,
+                            None,
+                            decimals,
+                        )
+                        .unwrap(),
                     )
-                    .unwrap(),
-                )
             }
             TokenType::Collateral(collateral_info) => {
                 let collateral_mint = collateral_info.mint.parse().expect("Invalid mint address");
