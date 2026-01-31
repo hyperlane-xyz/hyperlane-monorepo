@@ -6271,6 +6271,7 @@ dependencies = [
  "serde_json",
  "serializable-account-meta",
  "solana-account-decoder",
+ "solana-address-lookup-table-program",
  "solana-client",
  "solana-program",
  "solana-sdk",

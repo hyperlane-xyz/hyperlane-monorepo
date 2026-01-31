@@ -2472,6 +2472,7 @@ dependencies = [
  "serde",
  "serde_json",
  "serde_yaml 0.9.34+deprecated",
+ "solana-address-lookup-table-program",
  "solana-clap-utils",
  "solana-cli-config",
  "solana-client",

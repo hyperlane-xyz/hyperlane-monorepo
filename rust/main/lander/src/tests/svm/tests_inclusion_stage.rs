@@ -1,7 +1,9 @@
 use std::{collections::HashMap, sync::Arc, time::Duration};
 
 use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
-use hyperlane_sealevel::{SealevelKeypair, SealevelTxCostEstimate, TransactionSubmitter};
+use hyperlane_sealevel::{
+    SealevelKeypair, SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
+};
 use solana_client::rpc_response::RpcSimulateTransactionResult;
 use solana_sdk::{
     compute_budget::ComputeBudgetInstruction, hash::Hash,
@@ -577,7 +579,7 @@ fn mock_create_transaction_for_instruction(mock_provider: &mut MockSvmProvider) 
                     &recent_blockhash,
                 ));
 
-                Ok(tx)
+                Ok(SealevelTxType::Legacy(tx))
             },
         );
 }
@@ -605,6 +607,17 @@ fn mock_get_priority_fee_instruction(mock_provider: &mut MockSubmitter) {
 fn mock_simulate_transaction(mock_provider: &mut MockClient) {
     mock_provider
         .expect_simulate_transaction()
+        .returning(|_tx| {
+            Ok(RpcSimulateTransactionResult {
+                err: None,
+                logs: None,
+                accounts: None,
+                units_consumed: None,
+                return_data: None,
+            })
+        });
+    mock_provider
+        .expect_simulate_versioned_transaction()
         .returning(|_tx| {
             Ok(RpcSimulateTransactionResult {
                 err: None,
