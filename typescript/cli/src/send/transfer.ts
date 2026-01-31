@@ -2,6 +2,7 @@ import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
+  type ChainMap,
   type ChainName,
   type DispatchedMessage,
   HyperlaneCore,
@@ -12,6 +13,7 @@ import {
   WarpCore,
   type WarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
 import {
   ProtocolType,
   parseWarpRouteMessage,
@@ -21,7 +23,7 @@ import {
 import { EXPLORER_URL } from '../consts.js';
 import { type WriteCommandContext } from '../context/types.js';
 import { runPreflightChecksForChains } from '../deploy/utils.js';
-import { log, logBlue, logGreen, logRed } from '../logger.js';
+import { log, logBlue, logGreen, logRed, warnYellow } from '../logger.js';
 import { indentYamlOrJson } from '../utils/files.js';
 import { runSelfRelay } from '../utils/relay.js';
 import { runTokenSelectionStep } from '../utils/tokens.js';
@@ -53,23 +55,39 @@ export async function sendTestTransfer({
 }) {
   const { multiProvider } = context;
 
-  // TODO: Add multi-protocol support. WarpCore supports multi-protocol transfers,
-  // but CLI transaction handling currently only processes EthersV5 transactions.
-  const nonEvmChains = chains.filter(
-    (chain) => multiProvider.getProtocol(chain) !== ProtocolType.Ethereum,
-  );
-  if (nonEvmChains.length > 0) {
-    const chainDetails = nonEvmChains
-      .map((chain) => `'${chain}' (${multiProvider.getProtocol(chain)})`)
-      .join(', ');
-    throw new Error(
-      `'hyperlane warp send' only supports EVM chains. Non-EVM chains found: ${chainDetails}`,
-    );
+  // Each hop's origin must be EVM (we need an EVM signer to submit).
+  // Destinations can be any protocol - the Rust relayer handles delivery.
+  // When using --chains, non-EVM chains must be the final destination
+  // (e.g., --chains ethereum,sealevel OK; --chains sealevel,ethereum NOT OK).
+  const hopOrigins = new Set<ChainName>();
+  for (let i = 0; i < chains.length - 1; i++) {
+    const hopOrigin = chains[i];
+    hopOrigins.add(hopOrigin);
+    if (multiProvider.getProtocol(hopOrigin) !== ProtocolType.Ethereum) {
+      throw new Error(
+        `'hyperlane warp send' requires EVM origin chains. '${hopOrigin}' is ${multiProvider.getProtocol(hopOrigin)}. ` +
+          `Non-EVM chains can only be the final destination. ` +
+          `When using --chains, list EVM chains first (e.g., --chains ethereum,solana).`,
+      );
+    }
+  }
+  if (hopOrigins.size === 0) {
+    throw new Error('At least two chains are required to send a warp transfer');
+  }
+
+  // Include final destination in preflight if self-relaying to EVM
+  const signerChains = new Set(hopOrigins);
+  const finalDestination = chains[chains.length - 1];
+  if (
+    selfRelay &&
+    multiProvider.getProtocol(finalDestination) === ProtocolType.Ethereum
+  ) {
+    signerChains.add(finalDestination);
   }
 
   await runPreflightChecksForChains({
     context,
-    chains,
+    chains: Array.from(signerChains),
     minGas: GasAction.TEST_SEND_GAS,
   });
 
@@ -122,21 +140,45 @@ async function executeDelivery({
   const { multiProvider, registry } = context;
 
   const signer = multiProvider.getSigner(origin);
-  const recipientSigner = multiProvider.getSigner(destination);
-
-  const recipientAddress = await recipientSigner.getAddress();
   const signerAddress = await signer.getAddress();
 
-  recipient ||= recipientAddress;
+  const isEvmDestination =
+    multiProvider.getProtocol(destination) === ProtocolType.Ethereum;
+
+  // For non-EVM destinations, recipient must be provided explicitly.
+  if (!recipient && !isEvmDestination) {
+    throw new Error(
+      `Recipient address is required when sending to non-EVM destination '${destination}'`,
+    );
+  }
+
+  // Default recipient to sender for EVM destinations.
+  const recipientAddress = recipient ?? signerAddress;
+  if (!recipient && isEvmDestination) {
+    logBlue(`No recipient specified, defaulting to sender: ${signerAddress}`);
+  }
 
   const chainAddresses = await registry.getAddresses();
 
+  // Core is needed for on-chain wait (EVM destinations)
   const core = HyperlaneCore.fromAddressesMap(chainAddresses, multiProvider);
 
-  const warpCore = WarpCore.FromConfig(
-    MultiProtocolProvider.fromMultiProvider(multiProvider),
-    warpCoreConfig,
-  );
+  // Extract mailbox addresses from registry for each chain
+  // Required for Sealevel/non-EVM token adapters during validation
+  const mailboxAddresses: ChainMap<{ mailbox?: Address }> = {};
+  for (const [chainName, addresses] of Object.entries(chainAddresses)) {
+    if (addresses?.mailbox) {
+      mailboxAddresses[chainName] = { mailbox: addresses.mailbox };
+    }
+  }
+
+  // Extend the MultiProtocolProvider with mailbox addresses
+  const multiProtocolProvider =
+    MultiProtocolProvider.fromMultiProvider(multiProvider).extendChainMetadata(
+      mailboxAddresses,
+    );
+
+  const warpCore = WarpCore.FromConfig(multiProtocolProvider, warpCoreConfig);
 
   let token: Token;
   const tokensForRoute = warpCore.getTokensForRoute(origin, destination);
@@ -155,7 +197,7 @@ async function executeDelivery({
     const errors = await warpCore.validateTransfer({
       originTokenAmount: token.amount(amount),
       destination,
-      recipient,
+      recipient: recipientAddress,
       sender: signerAddress,
     });
     if (errors) {
@@ -169,7 +211,7 @@ async function executeDelivery({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
     sender: signerAddress,
-    recipient,
+    recipient: recipientAddress,
   });
 
   const txReceipts = [];
@@ -188,7 +230,7 @@ async function executeDelivery({
   const parsed = parseWarpRouteMessage(message.parsed.body);
 
   logBlue(
-    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipient}) on ${destination}.`,
+    `Sent transfer from sender (${signerAddress}) on ${origin} to recipient (${recipientAddress}) on ${destination}.`,
   );
   logBlue(`Message ID: ${message.id}`);
   logBlue(`Explorer Link: ${EXPLORER_URL}/message/${message.id}`);
@@ -196,17 +238,29 @@ async function executeDelivery({
   log(`Body:\n${indentYamlOrJson(yamlStringify(parsed, null, 2), 4)}`);
 
   if (selfRelay) {
-    return runSelfRelay({
-      txReceipt: transferTxReceipt,
-      multiProvider: multiProvider,
-      registry: registry,
-      successMessage: WarpSendLogs.SUCCESS,
-    });
+    if (!isEvmDestination) {
+      warnYellow(
+        `Self-relay not supported for non-EVM destination '${destination}'. Skipping relay.`,
+      );
+    } else {
+      return runSelfRelay({
+        txReceipt: transferTxReceipt,
+        multiProvider: multiProvider,
+        registry: registry,
+        successMessage: WarpSendLogs.SUCCESS,
+      });
+    }
   }
 
   if (skipWaitForDelivery) return;
 
-  // Max wait 10 minutes
-  await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
-  logGreen(`Transfer sent to ${destination} chain!`);
+  if (isEvmDestination) {
+    // Max wait 10 minutes
+    await core.waitForMessageProcessed(transferTxReceipt, 10000, 60);
+    logGreen(`Transfer delivered to ${destination} chain!`);
+  } else {
+    logBlue(
+      `Skipping delivery wait for non-EVM destination '${destination}'. Track at ${EXPLORER_URL}/message/${message.id}`,
+    );
+  }
 }
