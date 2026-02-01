@@ -9,6 +9,60 @@ use hyperlane_metric::prometheus_metric::{PrometheusClientMetrics, PrometheusCon
 
 use crate::provider::{AleoClient, BaseHttpClient, HttpClient, HttpClientBuilder, RpcClient};
 
+/// Normalizes dynamic API paths to static method names for metrics.
+/// This prevents high-cardinality labels from paths like "block/15544045".
+fn normalize_method(path: &str) -> &'static str {
+    // Static paths that don't contain dynamic values
+    match path {
+        "block/latest" => return "block/latest",
+        "block/height/latest" => return "block/height/latest",
+        "block/hash/latest" => return "block/hash/latest",
+        "stateRoot/latest" => return "stateRoot/latest",
+        "transaction/broadcast" => return "transaction/broadcast",
+        _ => {}
+    }
+
+    // Dynamic paths - order matters for correct matching
+    if path.starts_with("block/") && path.ends_with("/transactions") {
+        return "get_block_transactions";
+    }
+    if path.starts_with("block/") {
+        return "get_block";
+    }
+    if path.starts_with("find/blockHash/") {
+        return "find_block_hash";
+    }
+    if path.starts_with("program/") && path.contains("/mapping/") {
+        return "get_mapping_value";
+    }
+    if path.starts_with("program/") && path.ends_with("/mappings") {
+        return "get_program_mappings";
+    }
+    if path.starts_with("program/") && path.ends_with("/latest_edition") {
+        return "get_latest_edition";
+    }
+    if path.starts_with("program/") {
+        return "get_program";
+    }
+    if path.starts_with("transaction/confirmed/") {
+        return "get_confirmed_transaction";
+    }
+    if path.starts_with("transaction/unconfirmed/") {
+        return "get_unconfirmed_transaction";
+    }
+    if path.starts_with("transaction/") {
+        return "get_transaction";
+    }
+    if path.starts_with("statePath/") {
+        return "get_state_path";
+    }
+    if path.starts_with("statePaths") {
+        return "get_state_paths";
+    }
+
+    "unknown"
+}
+
 /// Fallback Http Client that tries multiple RpcClients in order
 #[derive(Debug)]
 pub struct MetricHttpClient<C: AleoClient = BaseHttpClient> {
@@ -77,9 +131,8 @@ impl<C: AleoClient> MetricHttpClient<C> {
     {
         let start = Instant::now();
         let res = operation().await;
-        let method = path.split('/').next().unwrap_or_default();
         self.metrics
-            .increment_metrics(&self.metrics_config, method, start, res.is_ok());
+            .increment_metrics(&self.metrics_config, normalize_method(path), start, res.is_ok());
         res
     }
 }
