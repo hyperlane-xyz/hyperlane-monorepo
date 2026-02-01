@@ -30,6 +30,7 @@ import {
   type TestChain,
   USDC_ADDRESSES,
   USDC_INCENTIV_WARP_ROUTE,
+  USDC_SUBTENSOR_WARP_ROUTE,
   USDC_SUPERSEED_WARP_ROUTE,
 } from '../fixtures/routes.js';
 
@@ -154,15 +155,19 @@ export class TestRebalancerBuilder {
     const mockExplorer = this.buildMockExplorer();
 
     // Create ForkIndexer for automatic message indexing
-    const rebalancerAddress = await getRebalancerAddress(
+    const superseedRebalancerAddress = await getRebalancerAddress(
       forkedProviders.get('ethereum')!,
       USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+    );
+    const subtensorRebalancerAddress = await getRebalancerAddress(
+      forkedProviders.get('ethereum')!,
+      USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
     );
     const forkIndexer = new ForkIndexer(
       forkedProviders,
       hyperlaneCore,
       mockExplorer,
-      [rebalancerAddress],
+      [superseedRebalancerAddress, subtensorRebalancerAddress],
       this.logger,
     );
     await forkIndexer.initialize();
@@ -357,7 +362,7 @@ export class TestRebalancerBuilder {
   private async configureAllowedBridgesForExecuteMode(
     ethProvider: ethers.providers.JsonRpcProvider,
   ): Promise<void> {
-    const bridgeConfigs = TEST_CHAINS.filter(
+    const superseedConfigs = TEST_CHAINS.filter(
       (chain) => chain !== 'ethereum',
     ).map((chain) => ({
       monitoredRouterAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
@@ -365,7 +370,18 @@ export class TestRebalancerBuilder {
       destinationDomain: DOMAIN_IDS[chain],
     }));
 
-    await configureAllowedBridges(ethProvider, bridgeConfigs);
+    const subtensorConfigs = TEST_CHAINS.filter(
+      (chain) => chain !== 'ethereum',
+    ).map((chain) => ({
+      monitoredRouterAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+      bridgeAddress: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+      destinationDomain: DOMAIN_IDS[chain],
+    }));
+
+    await configureAllowedBridges(ethProvider, [
+      ...superseedConfigs,
+      ...subtensorConfigs,
+    ]);
 
     this.logger.info(
       'Configured allowed bridges on monitored router for execute mode',
