@@ -162,7 +162,7 @@ export class TestRebalancerBuilder {
       forkedProviders,
       hyperlaneCore,
       mockExplorer,
-      rebalancerAddress,
+      [rebalancerAddress],
       this.logger,
     );
     await forkIndexer.initialize();
