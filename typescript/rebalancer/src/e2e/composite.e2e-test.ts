@@ -871,6 +871,11 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('should execute collateralDeficit portion; slow bridge intents fail', async function () {
+    const transferAmount = BigNumber.from('600000000'); // 600 USDC
+
+    // Use balances that trigger both strategies
+    // - Weighted: ethereum has too much (needs rebalance to base)
+    // - CollateralDeficit: pending transfer will create deficit on arbitrum
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
@@ -909,84 +914,116 @@ describe('CompositeStrategy E2E', function () {
         },
       ])
       .withBalances('COMPOSITE_DEFICIT_IMBALANCE')
-      .withPendingTransfer({
-        from: 'ethereum',
-        to: 'arbitrum',
-        amount: BigNumber.from('600000000'),
-      })
       .withExecutionMode('execute')
       .build();
 
+    // Fund user and execute warp transfer to create deficit
+    const ethProvider = forkedProviders.get('ethereum')!;
+    await setTokenBalanceViaStorage(
+      ethProvider,
+      USDC_ADDRESSES.ethereum,
+      userAddress,
+      transferAmount.mul(2),
+    );
+
+    const transferResult = await executeWarpTransfer(
+      context.multiProvider,
+      {
+        originChain: 'ethereum',
+        destinationChain: 'arbitrum',
+        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+        tokenAddress: USDC_ADDRESSES.ethereum,
+        amount: transferAmount,
+        recipient: userAddress,
+        senderAddress: userAddress,
+      },
+      ethProvider,
+    );
+
+    await context.forkIndexer.sync();
+    await context.tracker.syncTransfers();
+
+    // Verify transfer was tracked
+    const transfersBeforeRebalance =
+      await context.tracker.getInProgressTransfers();
+    expect(transfersBeforeRebalance.length).to.equal(
+      1,
+      'Should have exactly 1 in-progress transfer',
+    );
+
+    // Execute cycle
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
+    await context.orchestrator.executeCycle(event);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
-
-    // Assert: Some routes executed, some failed (SUBTENSOR not in allowed bridges)
-    // SUPERSEED routes should succeed (allowed bridge), SUBTENSOR should fail
-    const inProgressActions = await context.tracker.getInProgressActions();
+    // Verify BOTH bridge types have intents/actions
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    const inProgressActions = await context.tracker.getInProgressActions();
 
-    // Check for successful SUPERSEED actions via their parent intents
+    expect(
+      activeIntents.length,
+      'Should have active rebalance intents',
+    ).to.be.greaterThan(0);
+
+    // Helper to get chain name from domain
+    const getChainFromDomain = (domain: number): TestChain | undefined =>
+      Object.entries(DOMAIN_IDS).find(([, id]) => id === domain)?.[0] as
+        | TestChain
+        | undefined;
+
+    // Identify SUPERSEED and SUBTENSOR actions
     const superseedActions = [];
+    const subtensorActions = [];
     for (const action of inProgressActions) {
       const intent = activeIntents.find((i) => i.id === action.intentId);
       if (intent?.bridge) {
-        const originChain = Object.entries(DOMAIN_IDS).find(
-          ([, id]) => id === action.origin,
-        )?.[0] as TestChain | undefined;
-        if (
-          originChain &&
-          intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
-        ) {
-          superseedActions.push(action);
+        const originChain = getChainFromDomain(action.origin);
+        if (originChain) {
+          if (
+            intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
+          ) {
+            superseedActions.push(action);
+          } else if (
+            intent.bridge === USDC_SUBTENSOR_WARP_ROUTE.routers[originChain]
+          ) {
+            subtensorActions.push(action);
+          }
         }
       }
     }
+
     expect(
       superseedActions.length,
       'Should have SUPERSEED actions from CollateralDeficit',
     ).to.be.greaterThan(0);
-
-    // Verify SUBTENSOR intents were created but execution failed (no allowed bridge)
-    // The failedCount or failed intents indicate SUBTENSOR routes couldn't execute
     expect(
-      cycleResult.failedCount > 0 || cycleResult.proposedRoutes.length > 0,
-      'Some routes should fail or be proposed but not executed',
-    ).to.be.true;
+      subtensorActions.length,
+      'Should have SUBTENSOR actions from Weighted',
+    ).to.be.greaterThan(0);
 
-    // Relay SUPERSEED actions and verify completion
-    const ethProvider = forkedProviders.get('ethereum')!;
+    // Relay SUPERSEED actions (SUBTENSOR relay requires CCIP-read metadata not available in test env)
     for (const action of superseedActions) {
       if (!action.txHash) continue;
 
-      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
+      const originChain = getChainFromDomain(action.origin);
+      const destChain = getChainFromDomain(action.destination);
+      if (!originChain || !destChain) continue;
+
+      const provider = forkedProviders.get(originChain)!;
+      const rebalanceTxReceipt = await provider.getTransactionReceipt(
         action.txHash,
       );
-      const originChain = Object.entries(DOMAIN_IDS).find(
-        ([, id]) => id === action.origin,
-      )?.[0];
-      const destChain = Object.entries(DOMAIN_IDS).find(
-        ([, id]) => id === action.destination,
-      )?.[0];
 
-      if (originChain && destChain) {
-        const relayResult = await tryRelayMessage(
-          multiProvider,
-          hyperlaneCore,
-          {
-            dispatchTx: rebalanceTxReceipt,
-            messageId: action.messageId,
-            origin: originChain,
-            destination: destChain,
-          },
-        );
-        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
-          .true;
-      }
+      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
+        dispatchTx: rebalanceTxReceipt,
+        messageId: action.messageId,
+        origin: originChain,
+        destination: destChain,
+      });
+      expect(relayResult.success, 'SUPERSEED relay should succeed').to.be.true;
     }
 
-    // Sync and verify actions completed
+    // Sync and verify SUPERSEED actions complete
     await context.forkIndexer.sync();
     await context.tracker.syncRebalanceActions();
 
@@ -996,5 +1033,28 @@ describe('CompositeStrategy E2E', function () {
       );
       expect(completedAction!.status).to.equal('complete');
     }
+
+    // Verify SUBTENSOR actions are still in progress (relay not possible in test env)
+    for (const action of subtensorActions) {
+      const trackedAction = await context.tracker.getRebalanceAction(action.id);
+      expect(trackedAction, `SUBTENSOR action ${action.id} should exist`).to
+        .exist;
+      expect(trackedAction!.status).to.equal('in_progress');
+    }
+
+    // Relay the original user transfer now that collateral has been rebalanced
+    const userTransferRelay = await tryRelayMessage(
+      context.multiProvider,
+      hyperlaneCore,
+      transferResult,
+    );
+    expect(userTransferRelay.success, 'User transfer relay should succeed').to
+      .be.true;
+
+    await context.tracker.syncTransfers();
+    const completedTransfer = await context.tracker.getTransfer(
+      transferResult.messageId,
+    );
+    expect(completedTransfer!.status).to.equal('complete');
   });
 });
