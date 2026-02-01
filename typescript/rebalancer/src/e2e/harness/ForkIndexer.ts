@@ -21,7 +21,7 @@ export class ForkIndexer {
     private readonly providers: Map<string, providers.JsonRpcProvider>,
     private readonly core: HyperlaneCore,
     private readonly mockExplorer: MockExplorerClient,
-    private readonly rebalancerAddress: string,
+    private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
   ) {}
 
@@ -94,7 +94,9 @@ export class ForkIndexer {
         };
 
         if (
-          receipt.from.toLowerCase() === this.rebalancerAddress.toLowerCase()
+          this.rebalancerAddresses.some(
+            (addr) => receipt.from.toLowerCase() === addr.toLowerCase(),
+          )
         ) {
           this.mockExplorer.addRebalanceAction(msg);
         } else {

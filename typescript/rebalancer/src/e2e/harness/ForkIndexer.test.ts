@@ -119,7 +119,7 @@ describe('ForkIndexer', () => {
       providers,
       coreStub,
       mockExplorer,
-      REBALANCER_ADDRESS,
+      [REBALANCER_ADDRESS],
       testLogger,
     );
   });
