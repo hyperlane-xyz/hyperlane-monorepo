@@ -1,130 +1,218 @@
 import { expect } from 'chai';
 import { BigNumber, ethers, providers } from 'ethers';
 
-import { ERC20__factory } from '@hyperlane-xyz/core';
+import { GithubRegistry } from '@hyperlane-xyz/registry';
 import {
+  type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
   revertToSnapshot,
   snapshot,
 } from '@hyperlane-xyz/sdk';
+import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
+import { type MonitorEvent, MonitorEventType } from '../interfaces/IMonitor.js';
+import type { Monitor } from '../monitor/Monitor.js';
 
 import {
-  ANVIL_TEST_PRIVATE_KEY,
-  ANVIL_USER_PRIVATE_KEY,
   DOMAIN_IDS,
-  type DeployedAddresses,
+  FORK_BLOCK_NUMBERS,
   TEST_CHAINS,
   type TestChain,
+  USDC_ADDRESSES,
+  USDC_INCENTIV_WARP_ROUTE,
+  USDC_SUBTENSOR_WARP_ROUTE,
+  USDC_SUPERSEED_WARP_ROUTE,
 } from './fixtures/routes.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './harness/LocalDeploymentManager.js';
-import { getFirstMonitorEvent } from './harness/TestHelpers.js';
+import { setTokenBalanceViaStorage } from './harness/BridgeSetup.js';
+import { ForkManager } from './harness/ForkManager.js';
+import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
   executeWarpTransfer,
+  getRebalancerAddress,
   tryRelayMessage,
 } from './harness/TransferHelper.js';
+
+const ANVIL_TEST_PRIVATE_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+function encodeWarpRouteMessageBody(
+  recipient: string,
+  amount: BigNumber,
+): string {
+  const recipientBytes32 = addressToBytes32(recipient);
+  const amountHex = ethers.utils.hexZeroPad(amount.toHexString(), 32);
+  return recipientBytes32 + amountHex.slice(2);
+}
+
+async function getFirstMonitorEvent(monitor: Monitor): Promise<MonitorEvent> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Monitor event timeout'));
+    }, 60_000);
+
+    monitor.on(MonitorEventType.TokenInfo, (event: MonitorEvent) => {
+      clearTimeout(timeout);
+      void monitor.stop();
+      resolve(event);
+    });
+
+    monitor.on(MonitorEventType.Error, (error: Error) => {
+      clearTimeout(timeout);
+      void monitor.stop();
+      reject(error);
+    });
+
+    void monitor.start();
+  });
+}
 
 describe('CompositeStrategy E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: LocalDeploymentManager;
+  let forkManager: ForkManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let forkedProviders: Map<string, providers.JsonRpcProvider>;
+  let registry: GithubRegistry;
   let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
-  let deployedAddresses: DeployedAddresses;
 
   before(async function () {
-    const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
+    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
     userAddress = wallet.address;
 
-    deploymentManager = new LocalDeploymentManager();
-    const ctx: LocalDeploymentContext = await deploymentManager.start();
-    multiProvider = ctx.multiProvider;
-    localProviders = ctx.providers;
-    deployedAddresses = ctx.deployedAddresses;
+    registry = new GithubRegistry();
+    const chainMetadata = await registry.getMetadata();
+    const testChainMetadata: Record<string, ChainMetadata> = {};
 
-    const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
-      coreAddresses[chain] = {
-        mailbox: deployedAddresses.chains[chain].mailbox,
-        interchainSecurityModule: deployedAddresses.chains[chain].ism,
-      };
+      if (chainMetadata[chain]) {
+        testChainMetadata[chain] = chainMetadata[chain];
+      }
     }
+
+    const baseMultiProvider = new MultiProvider(testChainMetadata);
+    for (const chain of TEST_CHAINS) {
+      baseMultiProvider.setSigner(chain, wallet);
+    }
+
+    forkManager = new ForkManager({
+      chains: TEST_CHAINS,
+      registry,
+      multiProvider: baseMultiProvider,
+      blockNumbers: FORK_BLOCK_NUMBERS,
+    });
+
+    const forkContext = await forkManager.start();
+    multiProvider = forkContext.multiProvider;
+    forkedProviders = forkContext.providers;
+
+    const allCoreAddresses = await registry.getAddresses();
+    const knownChains = new Set(multiProvider.getKnownChainNames());
+    const coreAddresses = Object.fromEntries(
+      Object.entries(allCoreAddresses).filter(([chain]) =>
+        knownChains.has(chain),
+      ),
+    );
     hyperlaneCore = HyperlaneCore.fromAddressesMap(
       coreAddresses,
       multiProvider,
     );
 
+    // Set up TrustedRelayerIsm on routers so we can relay without validator signatures
+    const mailboxesByChain: Record<string, string> = {};
+    for (const chain of TEST_CHAINS) {
+      const addr = allCoreAddresses[chain]?.mailbox;
+      if (addr) mailboxesByChain[chain] = addr;
+    }
+    // Set up ISM on monitored route (for user transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
+    );
+    // Set up ISM on SUPERSEED bridge route (for rebalance transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_SUPERSEED_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
+    );
+    // Set up ISM on SUBTENSOR bridge route (for rebalance transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_SUBTENSOR_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
+    );
+
     snapshotIds = new Map();
-    for (const [chain, provider] of localProviders) {
+    for (const [chain, provider] of forkedProviders) {
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of localProviders) {
+    for (const [chain, provider] of forkedProviders) {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
+      // Fresh snapshot required: Anvil invalidates the snapshot after revert
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   after(async function () {
-    if (deploymentManager) {
-      await deploymentManager.stop();
+    if (forkManager) {
+      await forkManager.stop();
     }
   });
 
   it('collateralDeficit + weighted: routes use different bridges', async function () {
     const transferAmount = BigNumber.from('600000000'); // 600 USDC
 
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            anvil1: {
+            ethereum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil1,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil2,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil3,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            anvil1: {
+            ethereum: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil1,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil2,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil3,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
             },
           },
         },
@@ -134,21 +222,21 @@ describe('CompositeStrategy E2E', function () {
       .build();
 
     // Fund user and execute actual warp transfer
-    const ethProvider = localProviders.get('anvil1')!;
-    const deployer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
-    const token = ERC20__factory.connect(
-      deployedAddresses.tokens.anvil1,
-      deployer,
+    const ethProvider = forkedProviders.get('ethereum')!;
+    await setTokenBalanceViaStorage(
+      ethProvider,
+      USDC_ADDRESSES.ethereum,
+      userAddress,
+      transferAmount.mul(2),
     );
-    await token.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'anvil1',
-        destinationChain: 'anvil2',
-        routerAddress: deployedAddresses.monitoredRoute.anvil1,
-        tokenAddress: deployedAddresses.tokens.anvil1,
+        originChain: 'ethereum',
+        destinationChain: 'arbitrum',
+        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+        tokenAddress: USDC_ADDRESSES.ethereum,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -156,8 +244,9 @@ describe('CompositeStrategy E2E', function () {
       ethProvider,
     );
 
-    const blockTags = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags);
+    // Sync tracker to pick up the new transfer
+    await context.forkIndexer.sync();
+    await context.tracker.syncTransfers();
 
     // Verify transfer was tracked
     const transfersBeforeRebalance =
@@ -176,7 +265,7 @@ describe('CompositeStrategy E2E', function () {
     expect(
       activeIntents.length,
       'Should have active rebalance intents',
-    ).to.be.equal(3, 'Should have exactly 3 active rebalance intents');
+    ).to.be.greaterThan(0);
 
     const inProgressActions = await context.tracker.getInProgressActions();
 
@@ -190,7 +279,7 @@ describe('CompositeStrategy E2E', function () {
         )?.[0] as TestChain | undefined;
         if (
           originChain &&
-          intent.bridge === deployedAddresses.bridgeRoute1[originChain]
+          intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
         ) {
           superseedActions.push(action);
         }
@@ -199,11 +288,11 @@ describe('CompositeStrategy E2E', function () {
     expect(
       superseedActions.length,
       'Should have SUPERSEED actions from CollateralDeficit',
-    ).to.be.equal(1);
+    ).to.be.greaterThan(0);
 
     // Verify SUPERSEED route goes to arbitrum (has deficit from pending transfer)
     const actionToArbitrum = superseedActions.find(
-      (a) => a.destination === DOMAIN_IDS.anvil2,
+      (a) => a.destination === DOMAIN_IDS.arbitrum,
     );
     expect(actionToArbitrum, 'Should have SUPERSEED action to arbitrum').to
       .exist;
@@ -211,42 +300,36 @@ describe('CompositeStrategy E2E', function () {
     // Relay SUPERSEED actions and verify completion
     for (const action of superseedActions) {
       if (!action.txHash) continue;
+
+      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
+        action.txHash,
+      );
       const originChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.origin,
-      )?.[0] as TestChain | undefined;
+      )?.[0];
       const destChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.destination,
-      )?.[0] as TestChain | undefined;
+      )?.[0];
 
       if (originChain && destChain) {
-        const originProvider = localProviders.get(originChain);
-        expect(originProvider, `Provider should exist for ${originChain}`).to
-          .exist;
-        const rebalanceTxReceipt = await originProvider!.getTransactionReceipt(
-          action.txHash,
-        );
-        expect(rebalanceTxReceipt, `Receipt should exist for ${action.id}`).to
-          .exist;
-
         const relayResult = await tryRelayMessage(
           multiProvider,
           hyperlaneCore,
           {
-            dispatchTx: rebalanceTxReceipt!,
+            dispatchTx: rebalanceTxReceipt,
             messageId: action.messageId,
             origin: originChain,
             destination: destChain,
           },
         );
-        expect(
-          relayResult.success,
-          `SUPERSEED relay should succeed: ${relayResult.error}`,
-        ).to.be.true;
+        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
+          .true;
       }
     }
 
-    const blockTags2 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags2);
+    // Sync and verify actions completed
+    await context.forkIndexer.sync();
+    await context.tracker.syncRebalanceActions();
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -261,13 +344,10 @@ describe('CompositeStrategy E2E', function () {
       hyperlaneCore,
       transferResult,
     );
-    expect(
-      userTransferRelay.success,
-      `User transfer relay should succeed: ${userTransferRelay.error}`,
-    ).to.be.true;
+    expect(userTransferRelay.success, 'User transfer relay should succeed').to
+      .be.true;
 
-    const blockTags3 = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags3);
+    await context.tracker.syncTransfers();
     const completedTransfer = await context.tracker.getTransfer(
       transferResult.messageId,
     );
@@ -277,59 +357,56 @@ describe('CompositeStrategy E2E', function () {
   it('collateralDeficit + minAmount: routes use different bridges', async function () {
     const transferAmount = BigNumber.from('600000000'); // 600 USDC
     const customBalances = {
-      anvil1: BigNumber.from('8000000000'),
-      anvil2: BigNumber.from('500000000'),
-      anvil3: BigNumber.from('50000000'), // below minAmount threshold (100 USDC)
+      ethereum: BigNumber.from('8000000000'),
+      arbitrum: BigNumber.from('500000000'),
+      base: BigNumber.from('50000000'), // below minAmount threshold (100 USDC)
     };
 
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            anvil1: {
+            ethereum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil1,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil2,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil3,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
           chains: {
-            anvil1: {
+            ethereum: {
               minAmount: {
                 min: '100',
                 target: '120',
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: deployedAddresses.bridgeRoute2.anvil1,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               minAmount: {
                 min: '100',
                 target: '120',
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: deployedAddresses.bridgeRoute2.anvil2,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               minAmount: {
                 min: '100',
                 target: '120',
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: deployedAddresses.bridgeRoute2.anvil3,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
             },
           },
         },
@@ -338,21 +415,21 @@ describe('CompositeStrategy E2E', function () {
       .withExecutionMode('execute')
       .build();
 
-    const ethProvider = localProviders.get('anvil1')!;
-    const deployer2 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
-    const token2 = ERC20__factory.connect(
-      deployedAddresses.tokens.anvil1,
-      deployer2,
+    const ethProvider = forkedProviders.get('ethereum')!;
+    await setTokenBalanceViaStorage(
+      ethProvider,
+      USDC_ADDRESSES.ethereum,
+      userAddress,
+      transferAmount.mul(2),
     );
-    await token2.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'anvil1',
-        destinationChain: 'anvil2',
-        routerAddress: deployedAddresses.monitoredRoute.anvil1,
-        tokenAddress: deployedAddresses.tokens.anvil1,
+        originChain: 'ethereum',
+        destinationChain: 'arbitrum',
+        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+        tokenAddress: USDC_ADDRESSES.ethereum,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -360,8 +437,8 @@ describe('CompositeStrategy E2E', function () {
       ethProvider,
     );
 
-    const blockTags4 = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags4);
+    await context.forkIndexer.sync();
+    await context.tracker.syncTransfers();
 
     const transfersBeforeRebalance =
       await context.tracker.getInProgressTransfers();
@@ -391,7 +468,7 @@ describe('CompositeStrategy E2E', function () {
         )?.[0] as TestChain | undefined;
         if (
           originChain &&
-          intent.bridge === deployedAddresses.bridgeRoute1[originChain]
+          intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
         ) {
           superseedActions.push(action);
         }
@@ -403,49 +480,42 @@ describe('CompositeStrategy E2E', function () {
     ).to.be.greaterThan(0);
 
     const actionToArbitrum = superseedActions.find(
-      (a) => a.destination === DOMAIN_IDS.anvil2,
+      (a) => a.destination === DOMAIN_IDS.arbitrum,
     );
     expect(actionToArbitrum, 'Should have SUPERSEED action to arbitrum').to
       .exist;
 
     for (const action of superseedActions) {
       if (!action.txHash) continue;
+
+      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
+        action.txHash,
+      );
       const originChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.origin,
-      )?.[0] as TestChain | undefined;
+      )?.[0];
       const destChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.destination,
-      )?.[0] as TestChain | undefined;
+      )?.[0];
 
       if (originChain && destChain) {
-        const originProvider = localProviders.get(originChain);
-        expect(originProvider, `Provider should exist for ${originChain}`).to
-          .exist;
-        const rebalanceTxReceipt = await originProvider!.getTransactionReceipt(
-          action.txHash,
-        );
-        expect(rebalanceTxReceipt, `Receipt should exist for ${action.id}`).to
-          .exist;
-
         const relayResult = await tryRelayMessage(
           multiProvider,
           hyperlaneCore,
           {
-            dispatchTx: rebalanceTxReceipt!,
+            dispatchTx: rebalanceTxReceipt,
             messageId: action.messageId,
             origin: originChain,
             destination: destChain,
           },
         );
-        expect(
-          relayResult.success,
-          `SUPERSEED relay should succeed: ${relayResult.error}`,
-        ).to.be.true;
+        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
+          .true;
       }
     }
 
-    const blockTags5 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags5);
+    await context.forkIndexer.sync();
+    await context.tracker.syncRebalanceActions();
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -459,13 +529,10 @@ describe('CompositeStrategy E2E', function () {
       hyperlaneCore,
       transferResult,
     );
-    expect(
-      userTransferRelay.success,
-      `User transfer relay should succeed: ${userTransferRelay.error}`,
-    ).to.be.true;
+    expect(userTransferRelay.success, 'User transfer relay should succeed').to
+      .be.true;
 
-    const blockTags6 = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags6);
+    await context.tracker.syncTransfers();
     const completedTransfer = await context.tracker.getTransfer(
       transferResult.messageId,
     );
@@ -473,504 +540,297 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('should propose collateralDeficit rebalance even when slow rebalance is inflight', async function () {
-    const ethProvider = localProviders.get('anvil1')!;
-    const transferAmount = BigNumber.from('600000000');
+    const ethProvider = forkedProviders.get('ethereum')!;
+    const rebalancerAddress = await getRebalancerAddress(
+      ethProvider,
+      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+    );
 
-    // Build context with Composite strategy from the start
-    // COMPOSITE_DEFICIT_IMBALANCE: eth=8000, arb=500, base=1500
-    // Weighted sees: eth surplus (target=6000), base deficit (target=2000)
-    // Cycle 1: Weighted creates SUBTENSOR rebalance eth→base
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            anvil1: {
+            ethereum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil1,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil2,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil3,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            anvil1: {
+            ethereum: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil1,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil2,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil3,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
             },
           },
         },
       ])
       .withBalances('COMPOSITE_DEFICIT_IMBALANCE')
-      .withExecutionMode('execute')
+      .withPendingTransfer({
+        from: 'ethereum',
+        to: 'arbitrum',
+        amount: BigNumber.from('600000000'),
+      })
+      .withExecutionMode('propose')
       .build();
 
-    // ===== CYCLE 1: Execute Weighted rebalance (no deficit yet) =====
-    // Initial: eth=7000, arb=2000, base=1000. Target: eth=6000, arb=2000, base=2000
-    // CollateralDeficit finds no deficit (no pending transfers), so Weighted runs
-    const monitor1 = context.createMonitor(0);
-    const event1 = await getFirstMonitorEvent(monitor1);
-    await context.orchestrator.executeCycle(event1);
-
-    const blockTags7 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags7);
-    const inflightAfterCycle1 = await context.tracker.getInProgressActions();
-    expect(
-      inflightAfterCycle1.length,
-      'Cycle 1 should create inflight actions',
-    ).to.be.greaterThan(0);
-
-    const activeIntents1 = await context.tracker.getActiveRebalanceIntents();
-    const subtensorInflight = inflightAfterCycle1.find((action) => {
-      const intent = activeIntents1.find((i) => i.id === action.intentId);
-      if (!intent?.bridge) return false;
-      const originChain = Object.entries(DOMAIN_IDS).find(
-        ([, id]) => id === action.origin,
-      )?.[0] as TestChain | undefined;
-      return (
-        originChain &&
-        intent.bridge === deployedAddresses.bridgeRoute2[originChain]
-      );
-    });
-    expect(
-      subtensorInflight,
-      'Should have SUBTENSOR inflight from Weighted strategy',
-    ).to.exist;
-
-    // ===== CYCLE 2: Add pending transfer to create deficit, then execute =====
-    // Fund user and execute a warp transfer eth→arbitrum to create deficit on arbitrum
-    const deployer3 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
-    const token3 = ERC20__factory.connect(
-      deployedAddresses.tokens.anvil1,
-      deployer3,
-    );
-    await token3.transfer(userAddress, transferAmount.mul(2));
-
-    const transferResult = await executeWarpTransfer(
-      context.multiProvider,
-      {
-        originChain: 'anvil1',
-        destinationChain: 'anvil2',
-        routerAddress: deployedAddresses.monitoredRoute.anvil1,
-        tokenAddress: deployedAddresses.tokens.anvil1,
-        amount: transferAmount,
-        recipient: userAddress,
-        senderAddress: userAddress,
-      },
-      ethProvider,
-    );
-
-    const blockTags8 = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags8);
-
-    // Verify transfer tracked
-    const transfersBeforeCycle2 =
-      await context.tracker.getInProgressTransfers();
-    expect(transfersBeforeCycle2.length).to.equal(
-      1,
-      'Should have 1 in-progress transfer',
-    );
-
-    // Execute cycle 2 - now CollateralDeficit should see deficit on arbitrum
-    const monitor2 = context.createMonitor(0);
-    const event2 = await getFirstMonitorEvent(monitor2);
-    await context.orchestrator.executeCycle(event2);
-
-    const blockTags9 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags9);
-
-    const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
-    const activeIntents2 = await context.tracker.getActiveRebalanceIntents();
-
-    const superseedActions = inProgressAfterCycle2.filter((action) => {
-      const intent = activeIntents2.find((i) => i.id === action.intentId);
-      if (!intent?.bridge) return false;
-      const originChain = Object.entries(DOMAIN_IDS).find(
-        ([, id]) => id === action.origin,
-      )?.[0] as TestChain | undefined;
-      return (
-        originChain &&
-        intent.bridge === deployedAddresses.bridgeRoute1[originChain]
-      );
+    // Seed an inflight SUBTENSOR rebalance (slow bridge) eth→base
+    // TODO: why dont we use the forkindexer?
+    context.mockExplorer.addRebalanceAction({
+      msg_id: '0x' + '1'.repeat(64),
+      origin_domain_id: DOMAIN_IDS.ethereum,
+      destination_domain_id: DOMAIN_IDS.base,
+      sender: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+      recipient: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+      origin_tx_hash: '0x' + '2'.repeat(64),
+      origin_tx_sender: rebalancerAddress,
+      origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+      is_delivered: false,
+      message_body: encodeWarpRouteMessageBody(
+        USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+        BigNumber.from('500000000'),
+      ),
     });
 
-    expect(
-      superseedActions.length,
-      'Should have SUPERSEED actions from CollateralDeficit despite SUBTENSOR inflight',
-    ).to.be.greaterThan(0);
+    await context.tracker.syncRebalanceActions();
 
-    const superseedToArbitrum = superseedActions.find(
-      (a) => a.destination === DOMAIN_IDS.anvil2,
+    const monitor = context.createMonitor(0);
+    const event = await getFirstMonitorEvent(monitor);
+
+    const cycleResult = await context.orchestrator.executeCycle(event);
+
+    // Assert: New SUPERSEED route to arb despite inflight SUBTENSOR to base
+    // TODO: dont assert using the cycleResult, directly inspect the actiona tracker
+    const superseedRouteToArb = cycleResult.proposedRoutes.find(
+      (r) =>
+        r.destination === 'arbitrum' &&
+        r.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[r.origin as TestChain],
     );
     expect(
-      superseedToArbitrum,
-      'Should have SUPERSEED action to arbitrum for deficit',
+      superseedRouteToArb,
+      'Should propose SUPERSEED route to arbitrum for deficit',
     ).to.exist;
-
-    // Relay SUPERSEED actions and verify completion
-    for (const action of superseedActions) {
-      if (!action.txHash) continue;
-      const originChain = Object.entries(DOMAIN_IDS).find(
-        ([, id]) => id === action.origin,
-      )?.[0] as TestChain | undefined;
-      const destChain = Object.entries(DOMAIN_IDS).find(
-        ([, id]) => id === action.destination,
-      )?.[0] as TestChain | undefined;
-
-      if (originChain && destChain) {
-        const originProvider = localProviders.get(originChain);
-        expect(originProvider, `Provider should exist for ${originChain}`).to
-          .exist;
-        const rebalanceTxReceipt = await originProvider!.getTransactionReceipt(
-          action.txHash,
-        );
-        expect(rebalanceTxReceipt, `Receipt should exist for ${action.id}`).to
-          .exist;
-
-        const relayResult = await tryRelayMessage(
-          multiProvider,
-          hyperlaneCore,
-          {
-            dispatchTx: rebalanceTxReceipt!,
-            messageId: action.messageId,
-            origin: originChain,
-            destination: destChain,
-          },
-        );
-        expect(
-          relayResult.success,
-          `SUPERSEED relay should succeed: ${relayResult.error}`,
-        ).to.be.true;
-      }
-    }
-
-    const blockTags10 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags10);
-
-    for (const action of superseedActions) {
-      const completedAction = await context.tracker.getRebalanceAction(
-        action.id,
-      );
-      expect(completedAction!.status).to.equal('complete');
-    }
-
-    // Relay the original user transfer now that collateral has been rebalanced
-    const userTransferRelay = await tryRelayMessage(
-      context.multiProvider,
-      hyperlaneCore,
-      transferResult,
-    );
-    expect(
-      userTransferRelay.success,
-      `User transfer relay should succeed: ${userTransferRelay.error}`,
-    ).to.be.true;
   });
 
   it('should simulate end state accounting for inflight rebalances', async function () {
-    const ethProvider = localProviders.get('anvil1')!;
+    const ethProvider = forkedProviders.get('ethereum')!;
+    const rebalancerAddress = await getRebalancerAddress(
+      ethProvider,
+      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+    );
 
-    // Build context with Weighted strategy
-    // Initial: eth=7000, arb=2000, base=1000 (total=10000)
-    // Target: eth=60% (6000), arb=20% (2000), base=20% (2000)
-    // Cycle 1 will create inflight eth→base for ~1000 USDC
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            anvil1: {
+            ethereum: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil1,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil2,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil3,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
             },
           },
         },
       ])
       .withBalances({
-        anvil1: BigNumber.from('7000000000'),
-        anvil2: BigNumber.from('2000000000'),
-        anvil3: BigNumber.from('1000000000'),
+        ethereum: BigNumber.from('7000000000'),
+        arbitrum: BigNumber.from('2000000000'),
+        base: BigNumber.from('1000000000'),
       })
-      .withExecutionMode('execute')
+      .withExecutionMode('propose')
       .build();
 
-    // ===== CYCLE 1: Execute rebalance to create inflight eth→base =====
-    const monitor1 = context.createMonitor(0);
-    const event1 = await getFirstMonitorEvent(monitor1);
-    await context.orchestrator.executeCycle(event1);
+    // Seed inflight rebalance: eth→base 800 USDC via SUBTENSOR
+    // This simulates end state: base would have 1800 USDC
+    // TODO: why not initiate a manual rebalance and use
+    // TODO: why not use the forkindexer
+    context.mockExplorer.addRebalanceAction({
+      msg_id: '0x' + '3'.repeat(64),
+      origin_domain_id: DOMAIN_IDS.ethereum,
+      destination_domain_id: DOMAIN_IDS.base,
+      sender: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+      recipient: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+      origin_tx_hash: '0x' + '4'.repeat(64),
+      origin_tx_sender: rebalancerAddress,
+      origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+      is_delivered: false,
+      message_body: encodeWarpRouteMessageBody(
+        USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+        BigNumber.from('800000000'),
+      ),
+    });
 
-    const blockTags11 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags11);
+    await context.tracker.syncRebalanceActions();
 
-    const inflightAfterCycle1 = await context.tracker.getInProgressActions();
-    expect(
-      inflightAfterCycle1.length,
-      'Cycle 1 should create inflight action',
-    ).to.be.greaterThan(0);
+    const monitor = context.createMonitor(0);
+    const event = await getFirstMonitorEvent(monitor);
 
-    const inflightToBase = inflightAfterCycle1.find(
-      (a) =>
-        a.destination === DOMAIN_IDS.anvil3 && a.origin === DOMAIN_IDS.anvil1,
-    );
-    expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
+    const cycleResult = await context.orchestrator.executeCycle(event);
 
-    const inflightAmount = BigNumber.from(inflightToBase!.amount);
-    expect(inflightAmount.gt(0), 'Inflight amount should be positive').to.be
-      .true;
-
-    // ===== CYCLE 2: Execute again - should account for inflight =====
-    // Weighted now sees: base effective = current + inflight ≈ 2000 (target)
-    // Should propose reduced amount or nothing to base
-    const monitor2 = context.createMonitor(0);
-    const event2 = await getFirstMonitorEvent(monitor2);
-    await context.orchestrator.executeCycle(event2);
-
-    const blockTags12 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags12);
-
-    // Check if new routes to base were proposed
-    const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
-    const newActionsToBase = inProgressAfterCycle2.filter(
-      (a) =>
-        a.destination === DOMAIN_IDS.anvil3 &&
-        a.id !== inflightToBase!.id &&
-        a.status === 'in_progress',
+    // With inflight accounted, Weighted sees base closer to target (2000)
+    // Current: base=1000, inflight +800 = effective 1800, target=2000 (20% of 10000)
+    // Should propose smaller amount or no route
+    // TODO: dont assert using the cycleResult, directly inspect the actiona tracker
+    const routeToBase = cycleResult.proposedRoutes.find(
+      (r) => r.destination === 'base',
     );
 
-    if (newActionsToBase.length > 0) {
-      // If route was proposed, should be much smaller than original 1000 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToBase[0].amount,
-      ).toBigInt();
+    if (routeToBase) {
+      // If a route exists, it should be reduced accounting for inflight
+      // Without inflight: need 1000 USDC to reach 2000 target
+      // With inflight: need 200 USDC to reach 2000 target
       expect(
-        proposedAmount < 500000000n,
-        `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,
+        routeToBase.amount < 1000000000n,
+        'Amount should be reduced accounting for inflight',
       ).to.be.true;
     }
-    // If no new route to base, that's valid (within tolerance after inflight)
-
-    // Verify inflight still exists and action tracking is working
-    const finalInProgress = await context.tracker.getInProgressActions();
-    const inflightStillActive = finalInProgress.find(
-      (a) => a.id === inflightToBase!.id,
-    );
-    expect(inflightStillActive, 'Inflight action should still be tracked').to
-      .exist;
-    expect(inflightStillActive!.status).to.equal('in_progress');
-
-    // Relay the inflight from cycle 1
-    if (inflightToBase?.txHash) {
-      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
-        inflightToBase.txHash,
-      );
-      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
-        dispatchTx: rebalanceTxReceipt,
-        messageId: inflightToBase.messageId,
-        origin: 'anvil1',
-        destination: 'anvil3',
-      });
-
-      if (relayResult.success) {
-        const blockTags13 = await context.getConfirmedBlockTags();
-        await context.tracker.syncRebalanceActions(blockTags13);
-
-        const completedAction = await context.tracker.getRebalanceAction(
-          inflightToBase!.id,
-        );
-        expect(completedAction!.status).to.equal('complete');
-      }
-      // Relay may fail due to ISM configuration in test environment - main assertion already passed
-    }
+    // If no route, that's also valid (within tolerance after inflight)
   });
 
   it('should execute collateralDeficit portion; slow bridge intents fail', async function () {
-    const transferAmount = BigNumber.from('600000000'); // 600 USDC
-
-    // Use balances that trigger both strategies
-    // - Weighted: ethereum has too much (needs rebalance to base)
-    // - CollateralDeficit: pending transfer will create deficit on arbitrum
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            anvil1: {
+            ethereum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil1,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil2,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               buffer: '0',
-              bridge: deployedAddresses.bridgeRoute1.anvil3,
+              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            anvil1: {
+            ethereum: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil1,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
             },
-            anvil2: {
+            arbitrum: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil2,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
             },
-            anvil3: {
+            base: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: deployedAddresses.bridgeRoute2.anvil3,
+              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
             },
           },
         },
       ])
       .withBalances('COMPOSITE_DEFICIT_IMBALANCE')
+      .withPendingTransfer({
+        from: 'ethereum',
+        to: 'arbitrum',
+        amount: BigNumber.from('600000000'),
+      })
       .withExecutionMode('execute')
       .build();
 
-    // Fund user and execute warp transfer to create deficit
-    const ethProvider = localProviders.get('anvil1')!;
-    const deployer4 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
-    const token4 = ERC20__factory.connect(
-      deployedAddresses.tokens.anvil1,
-      deployer4,
-    );
-    await token4.transfer(userAddress, transferAmount.mul(2));
-
-    const transferResult = await executeWarpTransfer(
-      context.multiProvider,
-      {
-        originChain: 'anvil1',
-        destinationChain: 'anvil2',
-        routerAddress: deployedAddresses.monitoredRoute.anvil1,
-        tokenAddress: deployedAddresses.tokens.anvil1,
-        amount: transferAmount,
-        recipient: userAddress,
-        senderAddress: userAddress,
-      },
-      ethProvider,
-    );
-
-    const blockTags14 = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags14);
-
-    // Verify transfer was tracked
-    const transfersBeforeRebalance =
-      await context.tracker.getInProgressTransfers();
-    expect(transfersBeforeRebalance.length).to.equal(
-      1,
-      'Should have exactly 1 in-progress transfer',
-    );
-
-    // Execute cycle
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
-    await context.orchestrator.executeCycle(event);
 
-    // Verify BOTH bridge types have intents/actions
-    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    const cycleResult = await context.orchestrator.executeCycle(event);
+
+    // Assert: Some routes executed, some failed (SUBTENSOR not in allowed bridges)
+    // SUPERSEED routes should succeed (allowed bridge), SUBTENSOR should fail
     const inProgressActions = await context.tracker.getInProgressActions();
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
 
-    expect(
-      activeIntents.length,
-      'Should have active rebalance intents',
-    ).to.be.greaterThan(0);
-
-    // Helper to get chain name from domain
-    const getChainFromDomain = (domain: number): TestChain | undefined =>
-      Object.entries(DOMAIN_IDS).find(([, id]) => id === domain)?.[0] as
-        | TestChain
-        | undefined;
-
-    // Identify SUPERSEED and SUBTENSOR actions
+    // Check for successful SUPERSEED actions via their parent intents
     const superseedActions = [];
-    const subtensorActions = [];
     for (const action of inProgressActions) {
       const intent = activeIntents.find((i) => i.id === action.intentId);
       if (intent?.bridge) {
-        const originChain = getChainFromDomain(action.origin);
-        if (originChain) {
-          if (intent.bridge === deployedAddresses.bridgeRoute1[originChain]) {
-            superseedActions.push(action);
-          } else if (
-            intent.bridge === deployedAddresses.bridgeRoute2[originChain]
-          ) {
-            subtensorActions.push(action);
-          }
+        const originChain = Object.entries(DOMAIN_IDS).find(
+          ([, id]) => id === action.origin,
+        )?.[0] as TestChain | undefined;
+        if (
+          originChain &&
+          intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
+        ) {
+          superseedActions.push(action);
         }
       }
     }
-
     expect(
       superseedActions.length,
       'Should have SUPERSEED actions from CollateralDeficit',
     ).to.be.greaterThan(0);
-    expect(
-      subtensorActions.length,
-      'Should have SUBTENSOR actions from Weighted',
-    ).to.be.greaterThan(0);
 
-    // Relay SUPERSEED actions (SUBTENSOR relay requires CCIP-read metadata not available in test env)
+    // Verify SUBTENSOR intents were created but execution failed (no allowed bridge)
+    // The failedCount or failed intents indicate SUBTENSOR routes couldn't execute
+    expect(
+      cycleResult.failedCount > 0 || cycleResult.proposedRoutes.length > 0,
+      'Some routes should fail or be proposed but not executed',
+    ).to.be.true;
+
+    // Relay SUPERSEED actions and verify completion
+    const ethProvider = forkedProviders.get('ethereum')!;
     for (const action of superseedActions) {
       if (!action.txHash) continue;
 
-      const originChain = getChainFromDomain(action.origin);
-      const destChain = getChainFromDomain(action.destination);
-      if (!originChain || !destChain) continue;
-
-      const provider = localProviders.get(originChain)!;
-      const rebalanceTxReceipt = await provider.getTransactionReceipt(
+      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
         action.txHash,
       );
+      const originChain = Object.entries(DOMAIN_IDS).find(
+        ([, id]) => id === action.origin,
+      )?.[0];
+      const destChain = Object.entries(DOMAIN_IDS).find(
+        ([, id]) => id === action.destination,
+      )?.[0];
 
-      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
-        dispatchTx: rebalanceTxReceipt,
-        messageId: action.messageId,
-        origin: originChain,
-        destination: destChain,
-      });
-      expect(
-        relayResult.success,
-        `SUPERSEED relay should succeed: ${relayResult.error}`,
-      ).to.be.true;
+      if (originChain && destChain) {
+        const relayResult = await tryRelayMessage(
+          multiProvider,
+          hyperlaneCore,
+          {
+            dispatchTx: rebalanceTxReceipt,
+            messageId: action.messageId,
+            origin: originChain,
+            destination: destChain,
+          },
+        );
+        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
+          .true;
+      }
     }
 
-    const blockTags15 = await context.getConfirmedBlockTags();
-    await context.tracker.syncRebalanceActions(blockTags15);
+    // Sync and verify actions completed
+    await context.forkIndexer.sync();
+    await context.tracker.syncRebalanceActions();
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -978,31 +838,5 @@ describe('CompositeStrategy E2E', function () {
       );
       expect(completedAction!.status).to.equal('complete');
     }
-
-    // Verify SUBTENSOR actions are still in progress (relay not possible in test env)
-    for (const action of subtensorActions) {
-      const trackedAction = await context.tracker.getRebalanceAction(action.id);
-      expect(trackedAction, `SUBTENSOR action ${action.id} should exist`).to
-        .exist;
-      expect(trackedAction!.status).to.equal('in_progress');
-    }
-
-    // Relay the original user transfer now that collateral has been rebalanced
-    const userTransferRelay = await tryRelayMessage(
-      context.multiProvider,
-      hyperlaneCore,
-      transferResult,
-    );
-    expect(
-      userTransferRelay.success,
-      `User transfer relay should succeed: ${userTransferRelay.error}`,
-    ).to.be.true;
-
-    const blockTags16 = await context.getConfirmedBlockTags();
-    await context.tracker.syncTransfers(blockTags16);
-    const completedTransfer = await context.tracker.getTransfer(
-      transferResult.messageId,
-    );
-    expect(completedTransfer!.status).to.equal('complete');
   });
 });

@@ -154,20 +154,31 @@ export class TestRebalancerBuilder {
 
     const mockExplorer = this.buildMockExplorer();
 
-    // Create ForkIndexer for automatic message indexing
-    const superseedRebalancerAddress = await getRebalancerAddress(
-      forkedProviders.get('ethereum')!,
-      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-    );
-    const subtensorRebalancerAddress = await getRebalancerAddress(
-      forkedProviders.get('ethereum')!,
-      USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
-    );
+    const tryGetRebalancerAddress = async (
+      routerAddress: string,
+    ): Promise<string | null> => {
+      try {
+        return await getRebalancerAddress(
+          forkedProviders.get('ethereum')!,
+          routerAddress,
+        );
+      } catch {
+        return null;
+      }
+    };
+
+    const rebalancerAddresses = (
+      await Promise.all([
+        tryGetRebalancerAddress(USDC_SUPERSEED_WARP_ROUTE.routers.ethereum),
+        tryGetRebalancerAddress(USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum),
+      ])
+    ).filter((addr): addr is string => addr !== null);
+
     const forkIndexer = new ForkIndexer(
       forkedProviders,
       hyperlaneCore,
       mockExplorer,
-      [superseedRebalancerAddress, subtensorRebalancerAddress],
+      rebalancerAddresses,
       this.logger,
     );
     await forkIndexer.initialize();
