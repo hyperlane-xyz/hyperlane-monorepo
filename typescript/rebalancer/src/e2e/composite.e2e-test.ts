@@ -541,11 +541,12 @@ describe('CompositeStrategy E2E', function () {
 
   it('should propose collateralDeficit rebalance even when slow rebalance is inflight', async function () {
     const ethProvider = forkedProviders.get('ethereum')!;
-    const rebalancerAddress = await getRebalancerAddress(
-      ethProvider,
-      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-    );
+    const transferAmount = BigNumber.from('600000000');
 
+    // Build context with Composite strategy from the start
+    // COMPOSITE_DEFICIT_IMBALANCE: eth=8000, arb=500, base=1500
+    // Weighted sees: eth surplus (target=6000), base deficit (target=2000)
+    // Cycle 1: Weighted creates SUBTENSOR rebalance eth→base
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
@@ -584,59 +585,170 @@ describe('CompositeStrategy E2E', function () {
         },
       ])
       .withBalances('COMPOSITE_DEFICIT_IMBALANCE')
-      .withPendingTransfer({
-        from: 'ethereum',
-        to: 'arbitrum',
-        amount: BigNumber.from('600000000'),
-      })
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
-    // Seed an inflight SUBTENSOR rebalance (slow bridge) eth→base
-    // TODO: why dont we use the forkindexer?
-    context.mockExplorer.addRebalanceAction({
-      msg_id: '0x' + '1'.repeat(64),
-      origin_domain_id: DOMAIN_IDS.ethereum,
-      destination_domain_id: DOMAIN_IDS.base,
-      sender: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
-      recipient: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
-      origin_tx_hash: '0x' + '2'.repeat(64),
-      origin_tx_sender: rebalancerAddress,
-      origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-      is_delivered: false,
-      message_body: encodeWarpRouteMessageBody(
-        USDC_SUBTENSOR_WARP_ROUTE.routers.base,
-        BigNumber.from('500000000'),
-      ),
-    });
+    // ===== CYCLE 1: Execute Weighted rebalance (no deficit yet) =====
+    // Initial: eth=7000, arb=2000, base=1000. Target: eth=6000, arb=2000, base=2000
+    // CollateralDeficit finds no deficit (no pending transfers), so Weighted runs
+    const monitor1 = context.createMonitor(0);
+    const event1 = await getFirstMonitorEvent(monitor1);
+    await context.orchestrator.executeCycle(event1);
 
+    // Sync and verify SUBTENSOR inflight created (from Weighted strategy)
+    await context.forkIndexer.sync();
+    await context.tracker.syncRebalanceActions();
+    const inflightAfterCycle1 = await context.tracker.getInProgressActions();
+    expect(
+      inflightAfterCycle1.length,
+      'Cycle 1 should create inflight actions',
+    ).to.be.greaterThan(0);
+
+    const activeIntents1 = await context.tracker.getActiveRebalanceIntents();
+    const subtensorInflight = inflightAfterCycle1.find((action) => {
+      const intent = activeIntents1.find((i) => i.id === action.intentId);
+      if (!intent?.bridge) return false;
+      const originChain = Object.entries(DOMAIN_IDS).find(
+        ([, id]) => id === action.origin,
+      )?.[0] as TestChain | undefined;
+      return (
+        originChain &&
+        intent.bridge === USDC_SUBTENSOR_WARP_ROUTE.routers[originChain]
+      );
+    });
+    expect(
+      subtensorInflight,
+      'Should have SUBTENSOR inflight from Weighted strategy',
+    ).to.exist;
+
+    // ===== CYCLE 2: Add pending transfer to create deficit, then execute =====
+    // Fund user and execute a warp transfer eth→arbitrum to create deficit on arbitrum
+    await setTokenBalanceViaStorage(
+      ethProvider,
+      USDC_ADDRESSES.ethereum,
+      userAddress,
+      transferAmount.mul(2),
+    );
+
+    const transferResult = await executeWarpTransfer(
+      context.multiProvider,
+      {
+        originChain: 'ethereum',
+        destinationChain: 'arbitrum',
+        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
+        tokenAddress: USDC_ADDRESSES.ethereum,
+        amount: transferAmount,
+        recipient: userAddress,
+        senderAddress: userAddress,
+      },
+      ethProvider,
+    );
+
+    await context.forkIndexer.sync();
+    await context.tracker.syncTransfers();
+
+    // Verify transfer tracked
+    const transfersBeforeCycle2 =
+      await context.tracker.getInProgressTransfers();
+    expect(transfersBeforeCycle2.length).to.equal(
+      1,
+      'Should have 1 in-progress transfer',
+    );
+
+    // Execute cycle 2 - now CollateralDeficit should see deficit on arbitrum
+    const monitor2 = context.createMonitor(0);
+    const event2 = await getFirstMonitorEvent(monitor2);
+    await context.orchestrator.executeCycle(event2);
+
+    // Sync and verify SUPERSEED action created (from CollateralDeficit)
+    await context.forkIndexer.sync();
     await context.tracker.syncRebalanceActions();
 
-    const monitor = context.createMonitor(0);
-    const event = await getFirstMonitorEvent(monitor);
+    const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
+    const activeIntents2 = await context.tracker.getActiveRebalanceIntents();
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    const superseedActions = inProgressAfterCycle2.filter((action) => {
+      const intent = activeIntents2.find((i) => i.id === action.intentId);
+      if (!intent?.bridge) return false;
+      const originChain = Object.entries(DOMAIN_IDS).find(
+        ([, id]) => id === action.origin,
+      )?.[0] as TestChain | undefined;
+      return (
+        originChain &&
+        intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
+      );
+    });
 
-    // Assert: New SUPERSEED route to arb despite inflight SUBTENSOR to base
-    // TODO: dont assert using the cycleResult, directly inspect the actiona tracker
-    const superseedRouteToArb = cycleResult.proposedRoutes.find(
-      (r) =>
-        r.destination === 'arbitrum' &&
-        r.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[r.origin as TestChain],
+    expect(
+      superseedActions.length,
+      'Should have SUPERSEED actions from CollateralDeficit despite SUBTENSOR inflight',
+    ).to.be.greaterThan(0);
+
+    const superseedToArbitrum = superseedActions.find(
+      (a) => a.destination === DOMAIN_IDS.arbitrum,
     );
     expect(
-      superseedRouteToArb,
-      'Should propose SUPERSEED route to arbitrum for deficit',
+      superseedToArbitrum,
+      'Should have SUPERSEED action to arbitrum for deficit',
     ).to.exist;
+
+    // Relay SUPERSEED actions and verify completion
+    for (const action of superseedActions) {
+      if (!action.txHash) continue;
+
+      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
+        action.txHash,
+      );
+      const originChain = Object.entries(DOMAIN_IDS).find(
+        ([, id]) => id === action.origin,
+      )?.[0];
+      const destChain = Object.entries(DOMAIN_IDS).find(
+        ([, id]) => id === action.destination,
+      )?.[0];
+
+      if (originChain && destChain) {
+        const relayResult = await tryRelayMessage(
+          multiProvider,
+          hyperlaneCore,
+          {
+            dispatchTx: rebalanceTxReceipt,
+            messageId: action.messageId,
+            origin: originChain,
+            destination: destChain,
+          },
+        );
+        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
+          .true;
+      }
+    }
+
+    await context.forkIndexer.sync();
+    await context.tracker.syncRebalanceActions();
+
+    for (const action of superseedActions) {
+      const completedAction = await context.tracker.getRebalanceAction(
+        action.id,
+      );
+      expect(completedAction!.status).to.equal('complete');
+    }
+
+    // Relay the original user transfer now that collateral has been rebalanced
+    const userTransferRelay = await tryRelayMessage(
+      context.multiProvider,
+      hyperlaneCore,
+      transferResult,
+    );
+    expect(userTransferRelay.success, 'User transfer relay should succeed').to
+      .be.true;
   });
 
   it('should simulate end state accounting for inflight rebalances', async function () {
     const ethProvider = forkedProviders.get('ethereum')!;
-    const rebalancerAddress = await getRebalancerAddress(
-      ethProvider,
-      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-    );
 
+    // Build context with Weighted strategy
+    // Initial: eth=7000, arb=2000, base=1000 (total=10000)
+    // Target: eth=60% (6000), arb=20% (2000), base=20% (2000)
+    // Cycle 1 will create inflight eth→base for ~1000 USDC
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy([
         {
@@ -662,54 +774,100 @@ describe('CompositeStrategy E2E', function () {
         arbitrum: BigNumber.from('2000000000'),
         base: BigNumber.from('1000000000'),
       })
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
-    // Seed inflight rebalance: eth→base 800 USDC via SUBTENSOR
-    // This simulates end state: base would have 1800 USDC
-    // TODO: why not initiate a manual rebalance and use
-    // TODO: why not use the forkindexer
-    context.mockExplorer.addRebalanceAction({
-      msg_id: '0x' + '3'.repeat(64),
-      origin_domain_id: DOMAIN_IDS.ethereum,
-      destination_domain_id: DOMAIN_IDS.base,
-      sender: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
-      recipient: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
-      origin_tx_hash: '0x' + '4'.repeat(64),
-      origin_tx_sender: rebalancerAddress,
-      origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-      is_delivered: false,
-      message_body: encodeWarpRouteMessageBody(
-        USDC_SUBTENSOR_WARP_ROUTE.routers.base,
-        BigNumber.from('800000000'),
-      ),
-    });
+    // ===== CYCLE 1: Execute rebalance to create inflight eth→base =====
+    const monitor1 = context.createMonitor(0);
+    const event1 = await getFirstMonitorEvent(monitor1);
+    await context.orchestrator.executeCycle(event1);
 
+    await context.forkIndexer.sync();
     await context.tracker.syncRebalanceActions();
 
-    const monitor = context.createMonitor(0);
-    const event = await getFirstMonitorEvent(monitor);
+    const inflightAfterCycle1 = await context.tracker.getInProgressActions();
+    expect(
+      inflightAfterCycle1.length,
+      'Cycle 1 should create inflight action',
+    ).to.be.greaterThan(0);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    const inflightToBase = inflightAfterCycle1.find(
+      (a) =>
+        a.destination === DOMAIN_IDS.base && a.origin === DOMAIN_IDS.ethereum,
+    );
+    expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
 
-    // With inflight accounted, Weighted sees base closer to target (2000)
-    // Current: base=1000, inflight +800 = effective 1800, target=2000 (20% of 10000)
-    // Should propose smaller amount or no route
-    // TODO: dont assert using the cycleResult, directly inspect the actiona tracker
-    const routeToBase = cycleResult.proposedRoutes.find(
+    const inflightAmount = BigNumber.from(inflightToBase!.amount);
+    expect(inflightAmount.gt(0), 'Inflight amount should be positive').to.be
+      .true;
+
+    // ===== CYCLE 2: Execute again - should account for inflight =====
+    // Weighted now sees: base effective = current + inflight ≈ 2000 (target)
+    // Should propose reduced amount or nothing to base
+    const monitor2 = context.createMonitor(0);
+    const event2 = await getFirstMonitorEvent(monitor2);
+    const cycleResult2 = await context.orchestrator.executeCycle(event2);
+
+    await context.forkIndexer.sync();
+    await context.tracker.syncRebalanceActions();
+
+    // Check if new routes to base were proposed
+    const routesToBase = cycleResult2.proposedRoutes.filter(
       (r) => r.destination === 'base',
     );
+    const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
+    const newActionsToBase = inProgressAfterCycle2.filter(
+      (a) =>
+        a.destination === DOMAIN_IDS.base &&
+        a.id !== inflightToBase!.id &&
+        a.status === 'in_progress',
+    );
 
-    if (routeToBase) {
-      // If a route exists, it should be reduced accounting for inflight
-      // Without inflight: need 1000 USDC to reach 2000 target
-      // With inflight: need 200 USDC to reach 2000 target
+    if (routesToBase.length > 0 || newActionsToBase.length > 0) {
+      // If route was proposed, should be much smaller than original 1000 USDC
+      const proposedAmount =
+        routesToBase.length > 0
+          ? routesToBase[0].amount
+          : BigNumber.from(newActionsToBase[0].amount).toBigInt();
       expect(
-        routeToBase.amount < 1000000000n,
-        'Amount should be reduced accounting for inflight',
+        proposedAmount < 500000000n,
+        `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,
       ).to.be.true;
     }
-    // If no route, that's also valid (within tolerance after inflight)
+    // If no new route to base, that's valid (within tolerance after inflight)
+
+    // Verify inflight still exists and action tracking is working
+    const finalInProgress = await context.tracker.getInProgressActions();
+    const inflightStillActive = finalInProgress.find(
+      (a) => a.id === inflightToBase!.id,
+    );
+    expect(inflightStillActive, 'Inflight action should still be tracked').to
+      .exist;
+    expect(inflightStillActive!.status).to.equal('in_progress');
+
+    // Relay the inflight from cycle 1
+    if (inflightToBase?.txHash) {
+      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
+        inflightToBase.txHash,
+      );
+      const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
+        dispatchTx: rebalanceTxReceipt,
+        messageId: inflightToBase.messageId,
+        origin: 'ethereum',
+        destination: 'base',
+      });
+
+      if (relayResult.success) {
+        await context.forkIndexer.sync();
+        await context.tracker.syncRebalanceActions();
+
+        const completedAction = await context.tracker.getRebalanceAction(
+          inflightToBase!.id,
+        );
+        expect(completedAction!.status).to.equal('complete');
+      }
+      // Relay may fail due to ISM configuration in test environment - main assertion already passed
+    }
   });
 
   it('should execute collateralDeficit portion; slow bridge intents fail', async function () {
