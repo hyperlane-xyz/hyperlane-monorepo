@@ -57,4 +57,15 @@ export class AleoCoreAdapter extends BaseAleoAdapter implements ICoreAdapter {
 
     return true;
   }
+
+  async isDelivered(
+    messageId: HexString,
+    _blockTag?: string | number,
+  ): Promise<boolean> {
+    const provider = this.multiProvider.getAleoProvider(this.chainName);
+    return provider.isMessageDelivered({
+      mailboxAddress: this.addresses.mailbox,
+      messageId: messageId,
+    });
+  }
 }

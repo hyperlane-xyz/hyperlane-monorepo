@@ -124,4 +124,16 @@ export class StarknetCoreAdapter
 
     return true;
   }
+
+  async isDelivered(
+    messageId: HexString,
+    _blockTag?: string | number,
+  ): Promise<boolean> {
+    const mailboxContract = getStarknetMailboxContract(
+      this.addresses.mailbox,
+      this.getProvider(),
+    );
+    const result = await mailboxContract.call('delivered', [messageId]);
+    return Boolean(result);
+  }
 }
