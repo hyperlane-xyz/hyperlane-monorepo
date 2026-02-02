@@ -26,10 +26,7 @@ import {
   MIN_VIABLE_COST_MULTIPLIER,
   calculateTransferCosts,
 } from '../utils/gasEstimation.js';
-import {
-  NATIVE_TOKEN_ADDRESS,
-  isNativeTokenStandard,
-} from '../utils/tokenUtils.js';
+import { isNativeTokenStandard } from '../utils/tokenUtils.js';
 
 /**
  * Buffer percentage to add when bridging inventory.
@@ -124,6 +121,16 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       { inventorySigner: config.inventorySigner },
       'InventoryRebalancer initialized',
     );
+  }
+
+  private getNativeTokenAddress(): string {
+    const addr = this._bridge.getNativeTokenAddress?.();
+    if (!addr) {
+      throw new Error(
+        `Bridge '${this._bridge.bridgeId}' does not support getNativeTokenAddress()`,
+      );
+    }
+    return addr;
   }
 
   /**
@@ -905,9 +912,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     // Convert HypNative token addresses to LiFi's native ETH representation
-    const fromTokenAddress = NATIVE_TOKEN_ADDRESS;
+    const fromTokenAddress = this.getNativeTokenAddress();
     const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? NATIVE_TOKEN_ADDRESS
+      ? this.getNativeTokenAddress()
       : targetToken.addressOrDenom;
 
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
@@ -1022,11 +1029,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Convert HypNative token addresses to LiFi's native ETH representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
     const fromTokenAddress = isNativeTokenStandard(sourceToken.standard)
-      ? NATIVE_TOKEN_ADDRESS
+      ? this.getNativeTokenAddress()
       : sourceToken.addressOrDenom;
 
     const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? NATIVE_TOKEN_ADDRESS
+      ? this.getNativeTokenAddress()
       : targetToken.addressOrDenom;
 
     this.logger.debug(

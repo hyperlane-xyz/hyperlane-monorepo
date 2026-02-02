@@ -343,12 +343,12 @@ export class RebalancerContextFactory {
   ): Promise<{
     inventoryMonitor: IInventoryMonitor;
     inventoryRebalancer: IInventoryRebalancer;
-    bridge: IExternalBridge;
+    exteralBridge: IExternalBridge;
   } | null> {
-    const { inventorySigner, lifiIntegrator } = this.config;
+    const { inventorySigner, externalBridges } = this.config;
+    const lifiConfig = externalBridges?.lifi;
 
-    // Check if inventory config is available
-    if (!inventorySigner || !lifiIntegrator) {
+    if (!inventorySigner || !lifiConfig?.integrator) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -360,7 +360,6 @@ export class RebalancerContextFactory {
       'Creating inventory components',
     );
 
-    // 1. Identify inventory chains from strategy config
     const inventoryChains = getStrategyChainNames(
       this.config.strategyConfig,
     ).filter((chainName) => {
@@ -376,10 +375,10 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    // 2. Create LiFiBridge
     const bridge = new LiFiBridge(
       {
-        integrator: lifiIntegrator,
+        integrator: lifiConfig.integrator,
+        defaultSlippage: lifiConfig.defaultSlippage,
       },
       this.logger,
     );
@@ -418,7 +417,7 @@ export class RebalancerContextFactory {
       'Inventory components created successfully',
     );
 
-    return { inventoryMonitor, inventoryRebalancer, bridge };
+    return { inventoryMonitor, inventoryRebalancer, exteralBridge: bridge };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

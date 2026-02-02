@@ -33,26 +33,29 @@ export enum ExecutionType {
   Inventory = 'inventory',
 }
 
+export enum ExternalBridgeType {
+  LiFi = 'lifi',
+}
+
 export const RebalancerMinAmountConfigSchema = z.object({
   min: z.string().or(z.number()),
   target: z.string().or(z.number()),
   type: z.nativeEnum(RebalancerMinAmountType),
 });
 
-// Base chain config with common properties
 const RebalancerBridgeConfigSchema = z.object({
   bridge: z
     .string()
     .regex(/0x[a-fA-F0-9]{40}/)
-    .optional(), // Optional - required for movableCollateral, not needed for inventory
-  executionType: z.nativeEnum(ExecutionType).optional(), // Defaults to movableCollateral
+    .optional(),
+  executionType: z.nativeEnum(ExecutionType).optional(),
+  externalBridge: z.nativeEnum(ExternalBridgeType).optional(),
   bridgeMinAcceptedAmount: z.string().or(z.number()).optional(),
   bridgeLockTime: z
     .number()
     .positive()
     .transform((val) => val * 1_000)
-    .optional()
-    .describe('Expected time in seconds for bridge to process a transfer'),
+    .optional(),
 });
 
 export const RebalancerBaseChainConfigSchema =
@@ -108,33 +111,28 @@ export const StrategyConfigSchema = z.discriminatedUnion('rebalanceStrategy', [
   CollateralDeficitStrategySchema,
 ]);
 
-// Accept either a single strategy (backwards compatible) or an array of strategies
-// Normalizes to array internally so the rest of the code doesn't need to change
 export const RebalancerStrategySchema = z
-  .union([
-    StrategyConfigSchema, // Old format: single object
-    z.array(StrategyConfigSchema).min(1), // New format: array
-  ])
+  .union([StrategyConfigSchema, z.array(StrategyConfigSchema).min(1)])
   .transform((val) => (Array.isArray(val) ? val : [val]));
+
+export const LiFiBridgeConfigSchema = z.object({
+  integrator: z.string(),
+  defaultSlippage: z.number().optional(),
+});
+
+export const ExternalBridgesConfigSchema = z.object({
+  lifi: LiFiBridgeConfigSchema.optional(),
+});
 
 export const RebalancerConfigSchema = z
   .object({
     warpRouteId: z.string(),
     strategy: RebalancerStrategySchema,
-    // Global inventory config (optional - only needed when using inventory execution type)
     inventorySigner: z
       .string()
       .regex(/0x[a-fA-F0-9]{40}/)
-      .optional()
-      .describe(
-        'EOA address for inventory operations (same key across all chains)',
-      ),
-    lifiIntegrator: z
-      .string()
-      .optional()
-      .describe(
-        'Integrator name for @lifi/sdk (required when using inventory execution)',
-      ),
+      .optional(),
+    externalBridges: ExternalBridgesConfigSchema.optional(),
   })
   .superRefine((config, ctx) => {
     // CollateralDeficitStrategy must be first in composite if it is used
@@ -237,14 +235,12 @@ export const RebalancerConfigSchema = z
       }
     }
 
-    // Check if any chain uses inventory execution type
     const hasInventoryChains = config.strategy.some((strategy) =>
       Object.values(strategy.chains).some(
         (chainConfig) => chainConfig.executionType === ExecutionType.Inventory,
       ),
     );
 
-    // Validate inventory config when inventory chains exist
     if (hasInventoryChains) {
       if (!config.inventorySigner) {
         ctx.addIssue({
@@ -254,13 +250,29 @@ export const RebalancerConfigSchema = z
           path: ['inventorySigner'],
         });
       }
-      if (!config.lifiIntegrator) {
+
+      if (!config.externalBridges?.lifi?.integrator) {
         ctx.addIssue({
           code: z.ZodIssueCode.custom,
           message:
-            'lifiIntegrator is required when any chain uses inventory execution type',
-          path: ['lifiIntegrator'],
+            'externalBridges.lifi is required when using inventory execution',
+          path: ['externalBridges', 'lifi'],
         });
+      }
+    }
+
+    for (const strategy of config.strategy) {
+      for (const [chainName, chainConfig] of Object.entries(strategy.chains)) {
+        if (
+          chainConfig.externalBridge === ExternalBridgeType.LiFi &&
+          !config.externalBridges?.lifi?.integrator
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' uses externalBridge: 'lifi' but externalBridges.lifi is not configured`,
+            path: ['externalBridges', 'lifi'],
+          });
+        }
       }
     }
   });

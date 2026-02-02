@@ -201,7 +201,7 @@ export class RebalancerService {
         this.inventoryRebalancer = inventoryComponents.inventoryRebalancer;
         // TODO: we want to eventually support multiple bridges
         // TODO: rename this to inventoryBridge
-        this.bridge = inventoryComponents.bridge;
+        this.bridge = inventoryComponents.exteralBridge;
         this.logger.info('Inventory rebalancing enabled');
       }
     }

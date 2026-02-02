@@ -85,12 +85,14 @@ describe('InventoryRebalancer E2E', () => {
     // Default: No active (partial) inventory intents
     actionTracker.getPartiallyFulfilledInventoryIntents.resolves([]);
 
-    // Mock IExternalBridge (LiFi)
     bridge = {
       bridgeId: 'lifi',
       quote: Sinon.stub(),
       execute: Sinon.stub(),
       getStatus: Sinon.stub(),
+      getNativeTokenAddress: Sinon.stub().returns(
+        '0xEeeeeEeeeEeEeeEeEeEeeEEEeeeeEeeeeeeeEEeE',
+      ),
     } as unknown as SinonStubbedInstance<IExternalBridge>;
 
     // Mock adapter for WarpCore tokens
