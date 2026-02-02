@@ -96,7 +96,10 @@ jobs:
         env:
           OUTPUT_FILE: migration_transactions.json
         run: |
+          set -a
           source script/migrations/${{ matrix.env_file }}
+          set +a
+          unset CHAIN  # CHAIN env var conflicts with Foundry
           ./script/migration-pipeline.sh
 
       - name: Upload Safe Transaction JSON
