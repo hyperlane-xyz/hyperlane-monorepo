@@ -13,6 +13,6 @@
       "ponder:schema": ["./.ponder/types/schema.d.ts"]
     }
   },
-  "include": ["./src/**/*", "./ponder.config.ts", "./ponder.schema.ts", "./scripts/**/*"],
+  "include": ["./src/**/*", "./scripts/**/*"],
   "exclude": ["node_modules", "dist", ".ponder"]
 }

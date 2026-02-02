@@ -24,7 +24,8 @@ interface ComparisonResult {
   matchRate: string;
 }
 
-interface MessageComparison {
+// @ts-ignore - Reserved for future use
+interface _MessageComparison {
   msgId: string;
   inScraper: boolean;
   inPonder: boolean;
@@ -259,7 +260,8 @@ async function compareGasPayments(): Promise<void> {
 }
 
 // Time-window comparison for more precise analysis
-async function compareTimeWindow(
+// @ts-ignore - Reserved for future use
+async function _compareTimeWindow(
   startTime: Date,
   endTime: Date,
 ): Promise<void> {

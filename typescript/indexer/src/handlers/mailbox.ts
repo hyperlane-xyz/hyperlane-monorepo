@@ -68,7 +68,8 @@ function txKey(
 // Dispatch Event Handler
 // =============================================================================
 
-ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
   const adapter = getAdapter();
   const { chainId, name: chainName } = context.network;
   const mailboxAddress = context.contracts.Mailbox.address as `0x${string}`;
@@ -223,7 +224,8 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
 // DispatchId Event Handler
 // =============================================================================
 
-ponder.on('Mailbox:DispatchId', async () => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ponder.on('Mailbox:DispatchId', async (_: any) => {
   // No-op: We compute messageId directly from message bytes in Dispatch handler
   // This handler is kept for completeness but doesn't need to do anything
 });
@@ -232,7 +234,8 @@ ponder.on('Mailbox:DispatchId', async () => {
 // Process Event Handler
 // =============================================================================
 
-ponder.on('Mailbox:Process', async ({ event, context }) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ponder.on('Mailbox:Process', async ({ event, context }: any) => {
   const { chainId, name: chainName } = context.network;
   const mailboxAddress = context.contracts.Mailbox.address as `0x${string}`;
 
@@ -302,7 +305,8 @@ ponder.on('Mailbox:Process', async ({ event, context }) => {
 // ProcessId Event Handler
 // =============================================================================
 
-ponder.on('Mailbox:ProcessId', async ({ event, context }) => {
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
+ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
   const adapter = getAdapter();
   const { chainId, name: chainName } = context.network;
   const { messageId } = event.args;

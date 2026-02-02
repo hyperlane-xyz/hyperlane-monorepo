@@ -97,10 +97,9 @@ export function clearBlockHashCache(chainId?: number): void {
  * Queries the ponder_reorg_event table.
  */
 export async function getRecentReorgs(
-  chainId: number,
-  limit = 10,
+  _chainId: number,
+  _limit = 10,
 ): Promise<ReorgEvent[]> {
-  const adapter = getAdapter();
   // This would need a query method on the adapter
   // For now, return empty - implement when needed
   return [];

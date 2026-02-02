@@ -17,6 +17,7 @@
   },
   "dependencies": {
     "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/sdk": "workspace:^",
     "@hyperlane-xyz/utils": "workspace:*",
     "drizzle-orm": "^0.38.3",
     "hono": "catalog:",
