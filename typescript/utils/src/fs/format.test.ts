@@ -117,6 +117,70 @@ describe('Format utilities', () => {
     });
   });
 
+  describe('readYamlOrJson - empty files', () => {
+    it('returns null for empty JSON file', () => {
+      const jsonFile = path.join(testDir, 'empty.json');
+      fs.writeFileSync(jsonFile, '');
+      const result = readYamlOrJson(jsonFile);
+      expect(result).to.be.null;
+    });
+
+    it('returns null for empty YAML file (.yaml)', () => {
+      const yamlFile = path.join(testDir, 'empty.yaml');
+      fs.writeFileSync(yamlFile, '');
+      const result = readYamlOrJson(yamlFile);
+      expect(result).to.be.null;
+    });
+
+    it('returns null for empty YAML file (.yml)', () => {
+      const ymlFile = path.join(testDir, 'empty.yml');
+      fs.writeFileSync(ymlFile, '');
+      const result = readYamlOrJson(ymlFile);
+      expect(result).to.be.null;
+    });
+
+    it('returns null for empty file with explicit json format', () => {
+      const txtFile = path.join(testDir, 'empty.txt');
+      fs.writeFileSync(txtFile, '');
+      const result = readYamlOrJson(txtFile, 'json');
+      expect(result).to.be.null;
+    });
+
+    it('returns null for empty file with explicit yaml format', () => {
+      const txtFile = path.join(testDir, 'empty.txt');
+      fs.writeFileSync(txtFile, '');
+      const result = readYamlOrJson(txtFile, 'yaml');
+      expect(result).to.be.null;
+    });
+
+    it('returns null for JSON file with only whitespace', () => {
+      const jsonFile = path.join(testDir, 'whitespace.json');
+      fs.writeFileSync(jsonFile, '   \n\t  \n');
+      const result = readYamlOrJson(jsonFile);
+      expect(result).to.be.null;
+    });
+
+    it('returns null for YAML file with only whitespace', () => {
+      const yamlFile = path.join(testDir, 'whitespace.yaml');
+      fs.writeFileSync(yamlFile, '   \n\t  \n');
+      const result = readYamlOrJson(yamlFile);
+      expect(result).to.be.null;
+    });
+
+    it('returns null for YAML file with only comments', () => {
+      const yamlFile = path.join(testDir, 'comments.yaml');
+      fs.writeFileSync(yamlFile, '# comment\n# another comment\n');
+      const result = readYamlOrJson(yamlFile);
+      expect(result).to.be.null;
+    });
+
+    it('throws for malformed JSON file', () => {
+      const jsonFile = path.join(testDir, 'malformed.json');
+      fs.writeFileSync(jsonFile, '{ invalid json }');
+      expect(() => readYamlOrJson(jsonFile)).to.throw();
+    });
+  });
+
   describe('writeYamlOrJson', () => {
     it('writes JSON file based on extension', () => {
       const jsonFile = path.join(testDir, 'test.json');
