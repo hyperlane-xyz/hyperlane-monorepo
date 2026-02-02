@@ -1,0 +1,38 @@
+# Minimal runner Dockerfile for pre-built NCC bundles
+# Used by CI after external build job creates bundles
+#
+# Build args:
+#   SERVICE_DIR - Directory name under typescript/ (e.g., "rebalancer")
+#   SERVICE_VERSION - Version tag for the service
+#   SERVICE_PORT - Optional HTTP port (default: none, only metrics on 9090)
+
+FROM node:24-alpine
+
+WORKDIR /app
+
+RUN apk add --no-cache ca-certificates
+
+# Copy the pre-built bundle from CI artifact
+ARG SERVICE_DIR
+COPY typescript/${SERVICE_DIR}/bundle ./bundle
+
+# Install external dependencies that ncc doesn't bundle (dynamic imports)
+# Version read from pnpm-workspace.yaml catalog for consistency
+COPY pnpm-workspace.yaml /tmp/
+RUN GCP_LOGGER_VERSION=$(grep "pino-logging-gcp-config" /tmp/pnpm-workspace.yaml | sed "s/.*': //" | tr -d "^") && \
+    npm install "@google-cloud/pino-logging-gcp-config@${GCP_LOGGER_VERSION}" && \
+    rm /tmp/pnpm-workspace.yaml
+
+# Environment variables
+ARG SERVICE_VERSION=dev
+ARG SERVICE_PORT
+ENV NODE_ENV=production
+ENV LOG_LEVEL=info
+ENV SERVICE_VERSION=${SERVICE_VERSION}
+ENV SERVER_PORT=${SERVICE_PORT}
+
+# Expose metrics port; service port published at runtime with -p if needed
+EXPOSE 9090
+
+# Run the service from the bundle
+CMD ["node", "bundle/index.js"]

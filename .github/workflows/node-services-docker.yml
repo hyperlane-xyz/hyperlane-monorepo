@@ -13,6 +13,7 @@ on:
       - 'typescript/keyfunder/**'
       - 'typescript/relayer/**'
       - 'typescript/Dockerfile.node-service'
+      - 'typescript/Dockerfile.node-service-runner'
       - 'pnpm-lock.yaml'
       - '.github/workflows/node-services-docker.yml'
       - 'typescript/docker-bake.hcl'
@@ -39,24 +40,22 @@ jobs:
         if: "${{ env.GCLOUD_SERVICE_KEY != '' }}"
         run: echo "defined=true" >> $GITHUB_OUTPUT
 
-  build-and-push-to-gcr:
-    runs-on: ubuntu-latest
-    permissions:
-      contents: read
-      id-token: write
-      pull-requests: write
-
+  build-bundles:
+    runs-on: depot-ubuntu-24.04-8
     needs: [check-env]
     if: needs.check-env.outputs.gcloud-service-key == 'true'
 
-    steps:
-      - name: Generate GitHub App Token
-        id: generate-token
-        uses: actions/create-github-app-token@v2
-        with:
-          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
-          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+    env:
+      TURBO_API: https://cache.depot.dev
+      TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+      TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
 
+    outputs:
+      tag: ${{ steps.taggen.outputs.TAG }}
+      tag_sha_date: ${{ steps.taggen.outputs.TAG_SHA_DATE }}
+      platforms: ${{ steps.taggen.outputs.PLATFORMS }}
+
+    steps:
       - uses: actions/checkout@v5
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
@@ -87,9 +86,69 @@ jobs:
             echo "PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
           fi
 
-          # Get Foundry version
-          FOUNDRY_VERSION=$(cat solidity/.foundryrc)
-          echo "FOUNDRY_VERSION=$FOUNDRY_VERSION" >> $GITHUB_OUTPUT
+      - name: Setup Foundry
+        uses: foundry-rs/foundry-toolchain@v1
+        with:
+          version: ${{ hashFiles('solidity/.foundryrc') }}
+
+      - name: pnpm cache
+        uses: ./.github/actions/pnpm-cache
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Build and bundle all services
+        run: |
+          pnpm turbo run bundle \
+            --filter=@hyperlane-xyz/rebalancer \
+            --filter=@hyperlane-xyz/warp-monitor \
+            --filter=@hyperlane-xyz/ccip-server \
+            --filter=@hyperlane-xyz/keyfunder \
+            --filter=@hyperlane-xyz/relayer
+
+      - name: Upload bundles artifact
+        uses: actions/upload-artifact@v4
+        with:
+          name: service-bundles
+          retention-days: 1
+          path: |
+            typescript/rebalancer/bundle
+            typescript/warp-monitor/bundle
+            typescript/ccip-server/bundle
+            typescript/keyfunder/bundle
+            typescript/relayer/bundle
+
+  build-and-push-to-gcr:
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+      id-token: write
+      pull-requests: write
+
+    needs: [build-bundles]
+
+    steps:
+      - name: Generate GitHub App Token
+        id: generate-token
+        uses: actions/create-github-app-token@v2
+        with:
+          app-id: ${{ secrets.HYPER_GONK_APP_ID }}
+          private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
+
+      - uses: actions/checkout@v5
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          sparse-checkout: |
+            typescript/docker-bake.hcl
+            typescript/Dockerfile.node-service-runner
+            pnpm-workspace.yaml
+          sparse-checkout-cone-mode: false
+
+      - name: Download bundles artifact
+        uses: actions/download-artifact@v4
+        with:
+          name: service-bundles
+          path: typescript
 
       - name: Set up Depot CLI
         uses: depot/setup-action@v1
@@ -105,11 +164,10 @@ jobs:
         id: build
         uses: depot/bake-action@v1
         env:
-          TAG: ${{ steps.taggen.outputs.TAG }}
-          TAG_SHA_DATE: ${{ steps.taggen.outputs.TAG_SHA_DATE }}
-          PLATFORMS: ${{ steps.taggen.outputs.PLATFORMS }}
-          FOUNDRY_VERSION: ${{ steps.taggen.outputs.FOUNDRY_VERSION }}
-          SERVICE_VERSION: ${{ steps.taggen.outputs.TAG_SHA_DATE }}
+          TAG: ${{ needs.build-bundles.outputs.tag }}
+          TAG_SHA_DATE: ${{ needs.build-bundles.outputs.tag_sha_date }}
+          PLATFORMS: ${{ needs.build-bundles.outputs.platforms }}
+          SERVICE_VERSION: ${{ needs.build-bundles.outputs.tag_sha_date }}
         with:
           project: 3cpjhx94qv
           files: typescript/docker-bake.hcl
@@ -119,8 +177,8 @@ jobs:
         id: image-tags
         if: always()
         run: |
-          TAG="${{ steps.taggen.outputs.TAG }}"
-          TAG_SHA_DATE="${{ steps.taggen.outputs.TAG_SHA_DATE }}"
+          TAG="${{ needs.build-bundles.outputs.tag }}"
+          TAG_SHA_DATE="${{ needs.build-bundles.outputs.tag_sha_date }}"
           REGISTRY="gcr.io/abacus-labs-dev"
 
           # Generate tags for comment action (SHA-date only)

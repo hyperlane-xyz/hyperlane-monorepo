@@ -17,10 +17,6 @@ variable "PLATFORMS" {
   default = "linux/amd64"
 }
 
-variable "FOUNDRY_VERSION" {
-  default = ""
-}
-
 variable "SERVICE_VERSION" {
   default = ""
 }
@@ -48,15 +44,13 @@ target "ncc-services" {
     ]
   }
 
-  dockerfile = "typescript/Dockerfile.node-service"
+  dockerfile = "typescript/Dockerfile.node-service-runner"
   context    = "."
   platforms  = split(",", PLATFORMS)
 
   args = {
-    FOUNDRY_VERSION = FOUNDRY_VERSION
     SERVICE_VERSION = SERVICE_VERSION
     SERVICE_DIR     = item.dir
-    SERVICE_PACKAGE = item.package
     SERVICE_PORT    = item.port
   }
 
