@@ -95,11 +95,18 @@ async fn setup_client() -> (BanksClient, Keypair) {
         processor!(spl_associated_token_account::processor::process_instruction),
     );
 
-    // Note: Using None for processor since spl_noop uses incompatible solana-program types
+    // spl_noop just logs data and returns success - provide a simple processor
+    fn noop_processor(
+        _program_id: &Pubkey,
+        _accounts: &[solana_program::account_info::AccountInfo],
+        _instruction_data: &[u8],
+    ) -> solana_program::entrypoint::ProgramResult {
+        Ok(())
+    }
     program_test.add_program(
         "spl_noop",
         Pubkey::new_from_array(spl_noop::id().to_bytes()),
-        None,
+        processor!(noop_processor),
     );
 
     let mailbox_program_id = mailbox_id();

@@ -341,7 +341,7 @@ mod tests {
             "0d861aa9ee7b09fe0305a649ec9aa0dfede421817dbe995b48964e5a79fc89e50f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
         const ADDRESS: &str = "0f8ac473c042cdd96a1fc81eac32221188807572521429fb871a856a668502a5";
 
-        let chain_signer = hyperlane_sealevel::Keypair::from_bytes(
+        let chain_signer = hyperlane_sealevel::Keypair::try_from(
             hex::decode(PRIVATE_KEY)
                 .expect("Failed to decode private key")
                 .as_slice(),

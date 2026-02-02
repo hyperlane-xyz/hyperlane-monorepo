@@ -312,15 +312,17 @@ mod test {
 
     #[test]
     fn test_protocol_fee_serialization() {
+        // Use a deterministic pubkey for consistent test results
+        let beneficiary = Pubkey::new_from_array([1u8; 32]);
         let protocol_fee_config = super::ProtocolFeeConfig {
             max_protocol_fee: 100,
             fee: 10,
-            beneficiary: Some(Pubkey::new_unique()),
+            beneficiary: Some(beneficiary),
         };
         let json_serialized = serde_json::to_string(&protocol_fee_config).unwrap();
         assert_eq!(
             json_serialized,
-            r#"{"maxProtocolFee":100,"fee":10,"beneficiary":"1111111QLbz7JHiBTspS962RLKV8GndWFwiEaqKM"}"#
+            r#"{"maxProtocolFee":100,"fee":10,"beneficiary":"4vJ9JU1bJJE96FWSJKvHsmmFADCg4gpZQff4P3bkLKi"}"#
         );
         let deserialized: super::ProtocolFeeConfig =
             serde_json::from_str(&json_serialized).unwrap();

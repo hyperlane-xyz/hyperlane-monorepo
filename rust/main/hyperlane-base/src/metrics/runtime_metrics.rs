@@ -29,7 +29,7 @@ impl RuntimeMetrics {
     pub fn new(metrics: &CoreMetrics, task_monitor: TaskMonitor) -> Result<RuntimeMetrics> {
         let dropped_tasks = metrics
             .new_int_counter("tokio_dropped_tasks", RUNTIME_DROPPED_TASKS_HELP, &[])?
-            .with_label_values(&[]);
+            .with_label_values::<&str>(&[]);
         let chain_metrics = Self {
             producer: task_monitor,
             dropped_tasks,

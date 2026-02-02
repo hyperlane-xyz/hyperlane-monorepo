@@ -6,9 +6,9 @@ use eyre::eyre;
 use futures_util::future::join_all;
 use serde_json::json;
 use solana_client::rpc_response::{Response, RpcSimulateTransactionResult};
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     instruction::AccountMeta,
     message::Message,
     pubkey::Pubkey,
@@ -246,7 +246,8 @@ impl SealevelAdapter {
 
     #[instrument(skip(self))]
     async fn get_tx_hash_status(&self, tx_hash: H512) -> Result<TransactionStatus, LanderError> {
-        let signature = Signature::new(tx_hash.as_ref());
+        let signature = Signature::try_from(tx_hash.as_ref())
+            .map_err(|e| LanderError::TxSubmissionError(format!("Invalid signature: {e}")))?;
 
         // query the tx hash from most to least finalized to learn what level of finality it has
         // the calls below can be parallelized if needed, but for now avoid rate limiting

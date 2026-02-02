@@ -5999,7 +5999,7 @@ dependencies = [
  "itertools 0.14.0",
  "once_cell",
  "pin-project",
- "protobuf 3.7.2",
+ "protobuf 2.28.0",
  "ripemd",
  "serde",
  "serde_json",
@@ -6209,9 +6209,18 @@ dependencies = [
  "serializable-account-meta",
  "solana-account-decoder",
  "solana-client",
+ "solana-commitment-config",
+ "solana-compute-budget-interface",
+ "solana-loader-v3-interface 3.0.0",
  "solana-program 3.0.0",
+ "solana-pubsub-client",
+ "solana-rpc-client",
  "solana-sdk",
+ "solana-sdk-ids 3.1.0",
+ "solana-stake-interface 1.2.1",
+ "solana-system-interface 2.0.0",
  "solana-transaction-status",
+ "solana-vote-interface 3.0.0",
  "thiserror 1.0.63",
  "tokio",
  "tracing",
@@ -7044,7 +7053,10 @@ dependencies = [
  "serde",
  "serde_json",
  "solana-client",
+ "solana-commitment-config",
+ "solana-compute-budget-interface",
  "solana-sdk",
+ "solana-system-interface 2.0.0",
  "solana-transaction-status",
  "tempfile",
  "thiserror 1.0.63",
@@ -12216,6 +12228,17 @@ dependencies = [
 ]
 
 [[package]]
+name = "solana-compute-budget-interface"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "8292c436b269ad23cecc8b24f7da3ab07ca111661e25e00ce0e1d22771951ab9"
+dependencies = [
+ "borsh 1.6.0",
+ "solana-instruction 3.1.0",
+ "solana-sdk-ids 3.1.0",
+]
+
+[[package]]
 name = "solana-config-interface"
 version = "2.0.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -12770,6 +12793,21 @@ dependencies = [
  "solana-instruction 3.1.0",
  "solana-pubkey 3.0.0",
  "solana-sdk-ids 3.1.0",
+]
+
+[[package]]
+name = "solana-loader-v3-interface"
+version = "3.0.0"
+source = "registry+https://github.com/rust-lang/crates.io-index"
+checksum = "fa4be76cfa9afd84ca2f35ebc09f0da0f0092935ccdac0595d98447f259538c2"
+dependencies = [
+ "serde",
+ "serde_bytes",
+ "serde_derive",
+ "solana-instruction 2.3.3",
+ "solana-pubkey 2.4.0",
+ "solana-sdk-ids 2.2.1",
+ "solana-system-interface 1.0.0",
 ]
 
 [[package]]
@@ -17635,9 +17673,9 @@ checksum = "66fee0b777b0f5ac1c69bb06d361268faafa61cd4682ae064a171c16c433e9e4"
 
 [[package]]
 name = "ya-gcp"
-version = "0.11.3"
+version = "0.12.0"
 source = "registry+https://github.com/rust-lang/crates.io-index"
-checksum = "acaf2e321fc6f853572b372962fa253cba1b62a0025116bb463ce3c00b4394dc"
+checksum = "41ab2ef01dbac9eb46fb68b7a3834cef7be263ad3f513ba86579f682519010b1"
 dependencies = [
  "cfg-if",
  "futures",

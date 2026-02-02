@@ -8,10 +8,10 @@ use solana_client::{
     },
     rpc_response::{Response, RpcSimulateTransactionResult},
 };
+use solana_commitment_config::CommitmentConfig;
 use solana_program::clock::Slot;
 use solana_sdk::{
-    account::Account, commitment_config::CommitmentConfig, hash::Hash, pubkey::Pubkey,
-    signature::Signature, transaction::Transaction,
+    account::Account, hash::Hash, pubkey::Pubkey, signature::Signature, transaction::Transaction,
 };
 use solana_transaction_status::{
     EncodedConfirmedTransactionWithStatusMeta, TransactionStatus, UiConfirmedBlock,

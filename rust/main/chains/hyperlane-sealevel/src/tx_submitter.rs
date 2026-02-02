@@ -5,8 +5,9 @@ use std::sync::Arc;
 
 use async_trait::async_trait;
 use derive_new::new;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
     instruction::Instruction, pubkey::Pubkey, signature::Signature, transaction::Transaction,
 };
 
@@ -123,7 +124,7 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
 
         // The tip is a standalone transfer to a Jito fee account.
         // See https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#sendbundle.
-        solana_sdk::system_instruction::transfer(
+        solana_system_interface::instruction::transfer(
             payer,
             // A random Jito fee account, taken from the getFeeAccount RPC response:
             // https://github.com/jito-labs/mev-protos/blob/master/json_rpc/http.md#gettipaccounts

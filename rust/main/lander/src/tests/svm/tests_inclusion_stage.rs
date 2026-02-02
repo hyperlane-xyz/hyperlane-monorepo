@@ -3,12 +3,12 @@ use std::{collections::HashMap, sync::Arc, time::Duration};
 use hyperlane_core::{ChainCommunicationError, KnownHyperlaneDomain};
 use hyperlane_sealevel::{SealevelKeypair, SealevelTxCostEstimate, TransactionSubmitter};
 use solana_client::rpc_response::RpcSimulateTransactionResult;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::{
-    compute_budget::ComputeBudgetInstruction, hash::Hash,
-    instruction::Instruction as SealevelInstruction, message::Message, pubkey::Pubkey,
-    signature::Signature, signer::Signer, system_instruction,
-    transaction::Transaction as SealevelTransaction,
+    hash::Hash, instruction::Instruction as SealevelInstruction, message::Message, pubkey::Pubkey,
+    signature::Signature, signer::Signer, transaction::Transaction as SealevelTransaction,
 };
+use solana_system_interface::instruction as system_instruction;
 use tokio::{select, sync::mpsc};
 use tracing::info;
 use tracing_test::traced_test;
@@ -612,6 +612,15 @@ fn mock_simulate_transaction(mock_provider: &mut MockClient) {
                 accounts: None,
                 units_consumed: None,
                 return_data: None,
+                replacement_blockhash: None,
+                inner_instructions: None,
+                fee: None,
+                loaded_accounts_data_size: None,
+                loaded_addresses: None,
+                post_balances: None,
+                post_token_balances: None,
+                pre_balances: None,
+                pre_token_balances: None,
             })
         });
 }

@@ -6,9 +6,9 @@ use borsh::{BorshDeserialize, BorshSerialize};
 use serializable_account_meta::{SerializableAccountMeta, SimulationReturnData};
 use solana_client::rpc_client::SerializableTransaction;
 use solana_client::rpc_response::Response;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_sdk::account::Account;
-use solana_sdk::commitment_config::CommitmentConfig;
-use solana_sdk::compute_budget::ComputeBudgetInstruction;
 use solana_sdk::instruction::{AccountMeta, Instruction};
 use solana_sdk::message::Message;
 use solana_sdk::pubkey::Pubkey;
@@ -582,7 +582,9 @@ impl HyperlaneProvider for SealevelProvider {
     /// We can refactor abstractions so that our chain-agnostic code is more suitable
     /// for all chains, not only Ethereum-like chains.
     async fn get_txn_by_hash(&self, hash: &H512) -> ChainResult<TxnInfo> {
-        let signature = Signature::new(hash.as_bytes());
+        let signature = Signature::try_from(hash.as_bytes()).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!("Invalid signature: {e}"))
+        })?;
 
         let txn_confirmed = self.rpc_client.get_transaction(signature).await?;
         let txn_with_meta = &txn_confirmed.transaction;
