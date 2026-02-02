@@ -64,7 +64,7 @@ jobs:
             exit 0
           fi
 
-          if echo "$CHANGED_FILES" | grep -qE '^(rust/|\.github/workflows/)'; then
+          if echo "$CHANGED_FILES" | grep -qE '^(rust/|\.github/workflows/|\.github/actions/)'; then
             echo "skip_rust=false" >> $GITHUB_OUTPUT
           else
             echo "skip_rust=true" >> $GITHUB_OUTPUT

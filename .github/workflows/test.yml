@@ -697,7 +697,7 @@ jobs:
 
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
             PARENT_SHA=$(git rev-parse HEAD^)
-            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml)
+            CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml ./.github/actions/)
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
@@ -709,7 +709,7 @@ jobs:
           elif [[ "${{ github.event_name }}" == "pull_request" ]]; then
             # For PRs, use GitHub CLI to check changes
             PR_NUMBER=${{ github.event.pull_request.number }}
-            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or . == ".github/workflows/test.yml")')
+            CHANGES=$(gh pr view $PR_NUMBER --json files -q '.files[].path | select(startswith("rust/") or startswith(".github/workflows/") or startswith(".github/actions/"))')
 
             if [[ -n "$CHANGES" ]]; then
               echo "rust_changes=true" >> $GITHUB_OUTPUT
