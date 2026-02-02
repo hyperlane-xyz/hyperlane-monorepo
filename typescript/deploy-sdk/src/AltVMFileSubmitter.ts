@@ -4,7 +4,7 @@ import {
   ITransactionSubmitter,
 } from '@hyperlane-xyz/provider-sdk';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { Logger, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Logger, rootLogger } from '@hyperlane-xyz/utils';
 import { readYamlOrJson, writeYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 export class AltVMFileSubmitter implements ITransactionSubmitter {
@@ -29,15 +29,15 @@ export class AltVMFileSubmitter implements ITransactionSubmitter {
     }
 
     // Attempt to append transactions to existing filepath.
-    try {
-      const maybeExistingTxs = readYamlOrJson(filepath); // Can throw if file is empty
-      assert(
-        Array.isArray(maybeExistingTxs),
-        `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
-      );
-      allTxs.unshift(...maybeExistingTxs);
-    } catch (e) {
-      this.logger.error(`Invalid transactions read from ${filepath}`, e);
+    const maybeExistingTxs = readYamlOrJson(filepath);
+    if (maybeExistingTxs !== null) {
+      if (!Array.isArray(maybeExistingTxs)) {
+        this.logger.error(
+          `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
+        );
+      } else {
+        allTxs.unshift(...maybeExistingTxs);
+      }
     }
 
     writeYamlOrJson(filepath, allTxs);

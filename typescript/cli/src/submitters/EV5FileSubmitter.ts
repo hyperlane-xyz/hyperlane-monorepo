@@ -8,7 +8,6 @@ import {
 import {
   type Annotated,
   type ProtocolType,
-  assert,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -60,15 +59,15 @@ export class EV5FileSubmitter
       const allTxs = [...txs];
 
       // Attempt to append transactions to existing filepath.
-      try {
-        const maybeExistingTxs = readYamlOrJson(filepath); // Can throw if file is empty
-        assert(
-          Array.isArray(maybeExistingTxs),
-          `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
-        );
-        allTxs.unshift(...maybeExistingTxs);
-      } catch (e) {
-        this.logger.debug(`Invalid transactions read from ${filepath}: ${e}`);
+      const maybeExistingTxs = readYamlOrJson(filepath);
+      if (maybeExistingTxs !== null) {
+        if (!Array.isArray(maybeExistingTxs)) {
+          this.logger.debug(
+            `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
+          );
+        } else {
+          allTxs.unshift(...maybeExistingTxs);
+        }
       }
 
       writeYamlOrJson(filepath, allTxs);
