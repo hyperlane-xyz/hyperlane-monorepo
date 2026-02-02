@@ -170,17 +170,19 @@ export type ConfigOnChain<C> = {
     ? ArtifactOnChain<CC, DD> | undefined
     : C[K] extends Artifact<infer CC, infer DD>
       ? ArtifactOnChain<CC, DD>
-      : C[K] extends (Artifact<infer CC, infer DD> | undefined)[]
-        ? (ArtifactOnChain<CC, DD> | undefined)[]
-        : C[K] extends Artifact<infer CC, infer DD>[]
-          ? ArtifactOnChain<CC, DD>[]
+      : C[K] extends (infer E)[]
+        ? (E extends Artifact<infer CC, infer DD> | undefined
+            ? ArtifactOnChain<CC, DD> | undefined
+            : E extends Artifact<infer CC, infer DD>
+              ? ArtifactOnChain<CC, DD>
+              : E)[]
+        : C[K] extends { [L: string]: Artifact<infer CC, infer DD> }
+          ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> }
           : C[K] extends {
                 [L: string]: Artifact<infer CC, infer DD> | undefined;
               }
             ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> | undefined }
-            : C[K] extends { [L: string]: Artifact<infer CC, infer DD> }
-              ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> }
-              : C[K];
+            : C[K];
 };
 
 /**

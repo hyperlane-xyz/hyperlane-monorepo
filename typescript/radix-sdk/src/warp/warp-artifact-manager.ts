@@ -5,8 +5,8 @@ import {
   ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  DeployedRawWarpArtifact,
   DeployedWarpAddress,
-  DeployedWarpArtifact,
   IRawWarpArtifactManager,
   RawWarpArtifactConfigs,
   WarpType,
@@ -34,7 +34,7 @@ export class RadixWarpArtifactManager implements IRawWarpArtifactManager {
     private readonly base: RadixBase,
   ) {}
 
-  async readWarpToken(address: string): Promise<DeployedWarpArtifact> {
+  async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
     // Detect warp token type first
     const warpType = await getRadixWarpTokenType(this.gateway, address);
 

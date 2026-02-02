@@ -203,6 +203,14 @@ export interface RawWarpArtifactConfigs {
 export type RawWarpArtifactConfig = RawWarpArtifactConfigs[WarpType];
 
 /**
+ * Describes the configuration of deployed Warp artifact without nested config expansion
+ */
+export type DeployedRawWarpArtifact = ArtifactDeployed<
+  ConfigOnChain<RawWarpArtifactConfig>,
+  DeployedIsmAddress
+>;
+
+/**
  * Should be used to implement an object/closure or class that individually deploys
  * warp tokens on chain
  */
@@ -218,7 +226,7 @@ export interface IRawWarpArtifactManager
    * @param address The on-chain address of the warp token
    * @returns The artifact configuration and deployment data
    */
-  readWarpToken(address: string): Promise<DeployedWarpArtifact>;
+  readWarpToken(address: string): Promise<DeployedRawWarpArtifact>;
 }
 
 // Warp Config Utilities
