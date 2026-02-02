@@ -12,6 +12,7 @@ import {
 } from './artifact.js';
 import { ChainLookup } from './chain.js';
 import {
+  type DeployedHookAddress,
   type DerivedHookConfig,
   type HookArtifactConfig,
   type HookConfig,
@@ -124,7 +125,7 @@ interface BaseWarpArtifactConfig {
   owner: string;
   mailbox: string;
   interchainSecurityModule?: Artifact<IsmArtifactConfig, DeployedIsmAddress>;
-  hook?: Artifact<HookArtifactConfig, DeployedIsmAddress>;
+  hook?: Artifact<HookArtifactConfig, DeployedHookAddress>;
   remoteRouters: Record<number, { address: string }>;
   destinationGas: Record<number, string>;
   name?: string;
@@ -325,9 +326,9 @@ export function warpConfigToArtifact(
       };
 
     default: {
-      const invalidValue: never = config;
+      const invalidConfig: never = config;
       throw new Error(
-        `Unsupported warp token type for artifact API: ${(invalidValue as any).type}`,
+        `Unsupported warp token type for artifact API: ${JSON.stringify(invalidConfig)}`,
       );
     }
   }
@@ -439,7 +440,7 @@ export function warpArtifactToDerivedConfig(
     default: {
       const invalidConfig: never = config;
       throw new Error(
-        `Unhandled warp token type: ${(invalidConfig as any).type}`,
+        `Unhandled warp token type: ${JSON.stringify(invalidConfig)}`,
       );
     }
   }
@@ -500,10 +501,10 @@ export function computeRemoteRoutersUpdates(
   )) {
     const domainId = parseInt(domainIdStr);
     const expectedDestinationGas =
-      expectedRoutersConfig.destinationGas[domainId] || '0';
+      expectedRoutersConfig.destinationGas[domainId] ?? '0';
     const currentRouterAddress = currentRoutersConfig.remoteRouters[domainId];
     const currentDestinationGas =
-      currentRoutersConfig.destinationGas[domainId] || '0';
+      currentRoutersConfig.destinationGas[domainId] ?? '0';
 
     const needsUpdate =
       !currentRouterAddress ||
