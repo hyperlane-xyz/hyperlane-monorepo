@@ -11,7 +11,9 @@ import {
 import {
   type DeployedWarpAddress,
   type RawCollateralWarpArtifactConfig,
+  computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
+import { eqAddressCosmos } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { getNewContractAddress } from '../utils/base.js';
@@ -120,18 +122,20 @@ export class CosmosCollateralTokenWriter
     }
 
     // Enroll remote routers
-    for (const [domainIdStr, remoteRouter] of Object.entries(
-      config.remoteRouters,
-    )) {
-      const domainId = parseInt(domainIdStr);
-      const gas = config.destinationGas[domainId] || '0';
+    const { toEnroll } = computeRemoteRoutersUpdates(
+      { destinationGas: {}, remoteRouters: {} },
+      config,
+      eqAddressCosmos,
+    );
 
+    for (const { domainId, gas, routerAddress } of toEnroll) {
       const enrollTx = getEnrollRemoteRouterTx(this.signer.getSignerAddress(), {
         tokenAddress,
         remoteDomainId: domainId,
-        remoteRouterAddress: remoteRouter.address,
+        remoteRouterAddress: routerAddress,
         gas,
       });
+
       const enrollReceipt =
         await this.signer.sendAndConfirmTransaction(enrollTx);
       allReceipts.push(enrollReceipt);

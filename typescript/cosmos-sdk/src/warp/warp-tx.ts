@@ -2,6 +2,7 @@ import { type ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   type DeployedWarpAddress,
   type RawWarpArtifactConfig,
+  computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   assert,
@@ -151,6 +152,7 @@ export function getWarpTokenUpdateTxs<TConfig extends RawWarpArtifactConfig>(
         tokenAddress: deployed.address,
         ismAddress: newIsm,
       });
+
       updateTxs.push({
         ...setIsmTx,
         annotation: 'Updating token ISM',
@@ -158,54 +160,39 @@ export function getWarpTokenUpdateTxs<TConfig extends RawWarpArtifactConfig>(
     }
   }
 
-  // Get current and desired remote routers
-  const currentRouters = new Set(
-    Object.keys(currentConfig.remoteRouters).map((k) => parseInt(k)),
-  );
-  const desiredRouters = new Set(
-    Object.keys(expectedConfig.remoteRouters).map((k) => parseInt(k)),
+  // Compute router updates
+  const routerDiff = computeRemoteRoutersUpdates(
+    currentConfig,
+    expectedConfig,
+    eqAddressCosmos,
   );
 
   // Unenroll removed routers
-  for (const domainId of currentRouters) {
-    if (!desiredRouters.has(domainId)) {
-      const unenrollTx = getUnenrollRemoteRouterTx(signerAddress, {
-        tokenAddress: deployed.address,
-        remoteDomainId: domainId,
-      });
-      updateTxs.push({
-        ...unenrollTx,
-        annotation: `Unenrolling router for domain ${domainId}`,
-      });
-    }
+  for (const domainId of routerDiff.toUnenroll) {
+    const unenrollTx = getUnenrollRemoteRouterTx(signerAddress, {
+      tokenAddress: deployed.address,
+      remoteDomainId: domainId,
+    });
+
+    updateTxs.push({
+      ...unenrollTx,
+      annotation: `Unenrolling router for domain ${domainId}`,
+    });
   }
 
   // Enroll or update routers
-  for (const [domainIdStr, remoteRouter] of Object.entries(
-    expectedConfig.remoteRouters,
-  )) {
-    const domainId = parseInt(domainIdStr);
-    const gas = expectedConfig.destinationGas[domainId] || '0';
-    const currentRouter = currentConfig.remoteRouters[domainId];
-    const currentGas = currentConfig.destinationGas[domainId] || '0';
+  for (const { domainId, routerAddress, gas } of routerDiff.toEnroll) {
+    const enrollTx = getEnrollRemoteRouterTx(signerAddress, {
+      tokenAddress: deployed.address,
+      remoteDomainId: domainId,
+      remoteRouterAddress: routerAddress,
+      gas: gas,
+    });
 
-    const needsUpdate =
-      !currentRouter ||
-      !eqAddressCosmos(currentRouter.address, remoteRouter.address) ||
-      currentGas !== gas;
-
-    if (needsUpdate) {
-      const enrollTx = getEnrollRemoteRouterTx(signerAddress, {
-        tokenAddress: deployed.address,
-        remoteDomainId: domainId,
-        remoteRouterAddress: remoteRouter.address,
-        gas: gas,
-      });
-      updateTxs.push({
-        ...enrollTx,
-        annotation: `Enrolling/updating router for domain ${domainId}`,
-      });
-    }
+    updateTxs.push({
+      ...enrollTx,
+      annotation: `Enrolling/updating router for domain ${domainId}`,
+    });
   }
 
   // Update owner if changed (must be done last, after all other updates)
