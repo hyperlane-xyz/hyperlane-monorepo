@@ -9,6 +9,7 @@ import {
   MultisigIsmConfig,
   S3Validator,
 } from '@hyperlane-xyz/sdk';
+import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Checkpoint,
@@ -29,14 +30,12 @@ import {
   toHexString,
 } from '@hyperlane-xyz/utils';
 
-import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
-
 import {
-  ValidatorStatus,
   type MetadataBuilder,
   type MetadataContext,
   type MultisigMetadataBuildResult,
   type ValidatorInfo,
+  ValidatorStatus,
 } from './types.js';
 
 interface MessageIdMultisigMetadata {
