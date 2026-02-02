@@ -8,6 +8,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
+use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::{GasOracle, InterchainGasPaymasterType},
@@ -49,8 +50,7 @@ impl Instruction {
 
     /// Serializes an instruction into a vector of bytes.
     pub fn into_instruction_data(self) -> Result<Vec<u8>, ProgramError> {
-        self.try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+        borsh::to_vec(&self).map_err(|_| ProgramError::BorshIoError)
     }
 }
 
@@ -134,14 +134,14 @@ pub fn init_instruction(
     // 1. `[signer]` The payer account.
     // 2. `[writeable]` The program data PDA account.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
         AccountMeta::new(program_data_account, false),
     ];
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -171,14 +171,14 @@ pub fn init_igp_instruction(
     // 1. `[signer]` The payer account.
     // 2. `[writeable]` The IGP account to initialize.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
         AccountMeta::new(igp_account, false),
     ];
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -204,14 +204,14 @@ pub fn init_overhead_igp_instruction(
     // 1. `[signer]` The payer account.
     // 2. `[writeable]` The IGP account to initialize.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
         AccountMeta::new(igp_account, false),
     ];
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -232,14 +232,14 @@ pub fn set_destination_gas_overheads(
     // 1. `[writeable]` The IGP.
     // 2. `[signer]` The IGP owner.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(overhead_igp, false),
         AccountMeta::new(owner, true),
     ];
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -260,14 +260,14 @@ pub fn set_gas_oracle_configs_instruction(
     // 1. `[writeable]` The IGP.
     // 2. `[signer]` The IGP owner.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),
         AccountMeta::new(owner, true),
     ];
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -310,7 +310,7 @@ pub fn pay_for_gas_instruction(
     // 5. `[writeable]` The IGP account.
     // 6. `[]` Overhead IGP account (optional).
     let mut accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(payer, true),
         AccountMeta::new(program_data_account, false),
         AccountMeta::new_readonly(unique_gas_payment_account_pubkey, true),
@@ -323,7 +323,7 @@ pub fn pay_for_gas_instruction(
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -352,7 +352,7 @@ pub fn transfer_igp_account_ownership_instruction(
     // 1. `[signer]` The owner of the IGP account.
     let instruction = SolanaInstruction {
         program_id,
-        data: instruction.try_to_vec()?,
+        data: borsh::to_vec(&instruction)?,
         accounts: vec![
             AccountMeta::new(igp_account, false),
             AccountMeta::new(owner_payer, true),
@@ -374,14 +374,14 @@ pub fn claim_instruction(
     // 1. `[writeable]` The IGP.
     // 2. `[writeable]` The IGP beneficiary.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(igp, false),
         AccountMeta::new(beneficiary, false),
     ];
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 
@@ -407,7 +407,7 @@ pub fn set_beneficiary_instruction(
 
     let instruction = SolanaInstruction {
         program_id,
-        data: ixn.try_to_vec()?,
+        data: borsh::to_vec(&ixn)?,
         accounts,
     };
 

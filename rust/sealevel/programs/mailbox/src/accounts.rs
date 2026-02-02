@@ -1,7 +1,6 @@
 //! Hyperlane Sealevel Mailbox data account layouts.
 
 use core::cell::RefMut;
-use std::io::Read;
 
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
@@ -217,7 +216,7 @@ impl BorshSerialize for DispatchedMessage {
 
 /// For tighter packing, explicit endianness, and errors on an invalid discriminator, we implement our own deserialization.
 impl BorshDeserialize for DispatchedMessage {
-    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
         reader.read_exact(&mut discriminator)?;
         if &discriminator != DISPATCHED_MESSAGE_DISCRIMINATOR {
@@ -293,7 +292,7 @@ impl SizedData for ProcessedMessage {
 
 /// To error upon invalid data, we implement our own deserialization.
 impl BorshDeserialize for ProcessedMessage {
-    fn deserialize(reader: &mut &[u8]) -> std::io::Result<Self> {
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
         let mut discriminator = [0u8; 8];
         reader.read_exact(&mut discriminator)?;
         if &discriminator != PROCESSED_MESSAGE_DISCRIMINATOR {

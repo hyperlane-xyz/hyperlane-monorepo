@@ -1,5 +1,6 @@
 //! Hyperlane Mailbox contract for Sealevel-compatible (Solana Virtual Machine) chains.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

@@ -7,10 +7,23 @@ use hyperlane_sealevel_mailbox::instruction::Instruction as MailboxInstruction;
 use hyperlane_sealevel_multisig_ism_message_id::instruction::Instruction as MultisigIsmInstruction;
 use solana_client::rpc_client::RpcClient;
 use solana_program::pubkey;
-use solana_sdk::{
-    account::Account, account_utils::StateMut, bpf_loader_upgradeable::UpgradeableLoaderState,
-    pubkey::Pubkey,
-};
+use solana_sdk::{account::Account, pubkey::Pubkey};
+
+/// UpgradeableLoaderState with solana_sdk::pubkey::Pubkey types for compatibility
+#[derive(Debug, BorshDeserialize)]
+enum UpgradeableLoaderState {
+    Uninitialized,
+    Buffer {
+        authority_address: Option<Pubkey>,
+    },
+    Program {
+        programdata_address: Pubkey,
+    },
+    ProgramData {
+        slot: u64,
+        upgrade_authority_address: Option<Pubkey>,
+    },
+}
 
 use crate::{read_core_program_ids, registry::FileSystemRegistry, Context, EnvironmentArgs};
 
@@ -329,7 +342,8 @@ impl PubkeyClassifier {
             // Get the program data account address by looking at the program state
             let programdata_address = if let Ok(UpgradeableLoaderState::Program {
                 programdata_address,
-            }) = program_account.state()
+            }) =
+                UpgradeableLoaderState::try_from_slice(&program_account.data)
             {
                 programdata_address
             } else {

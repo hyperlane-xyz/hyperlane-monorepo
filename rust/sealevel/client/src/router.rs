@@ -6,13 +6,69 @@ use std::{
     path::{Path, PathBuf},
 };
 
+use borsh::BorshDeserialize;
 use solana_client::rpc_client::RpcClient;
-use solana_program::instruction::Instruction;
-use solana_sdk::{
-    account_utils::StateMut,
-    bpf_loader_upgradeable::{self, UpgradeableLoaderState},
-    pubkey::Pubkey,
-};
+use solana_program::pubkey;
+use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
+
+// BPF Loader Upgradeable program ID
+const BPF_LOADER_UPGRADEABLE_ID: Pubkey = pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
+
+/// UpgradeableLoaderState with solana_sdk::pubkey::Pubkey types for compatibility
+#[derive(Debug, BorshDeserialize)]
+enum UpgradeableLoaderState {
+    Uninitialized,
+    Buffer {
+        authority_address: Option<Pubkey>,
+    },
+    Program {
+        programdata_address: Pubkey,
+    },
+    ProgramData {
+        slot: u64,
+        upgrade_authority_address: Option<Pubkey>,
+    },
+}
+
+/// Instruction enum for BPF Loader Upgradeable
+#[derive(serde::Serialize)]
+enum UpgradeableLoaderInstruction {
+    InitializeBuffer,
+    Write { offset: u32, bytes: Vec<u8> },
+    DeployWithMaxDataLen { max_data_len: usize },
+    Upgrade,
+    SetAuthority,
+    Close,
+    ExtendProgram { additional_bytes: u32 },
+    SetAuthorityChecked,
+    Migrate,
+}
+
+/// Create a set_upgrade_authority instruction for BPF Loader Upgradeable
+fn set_upgrade_authority_instruction(
+    program_address: &Pubkey,
+    current_authority_address: &Pubkey,
+    new_authority_address: Option<&Pubkey>,
+) -> Instruction {
+    use solana_sdk::instruction::AccountMeta;
+
+    let programdata_address =
+        Pubkey::find_program_address(&[program_address.as_ref()], &BPF_LOADER_UPGRADEABLE_ID).0;
+
+    let mut account_metas = vec![
+        AccountMeta::new(programdata_address, false),
+        AccountMeta::new_readonly(*current_authority_address, true),
+    ];
+    if let Some(address) = new_authority_address {
+        account_metas.push(AccountMeta::new_readonly(*address, false));
+    }
+
+    Instruction::new_with_bincode(
+        BPF_LOADER_UPGRADEABLE_ID,
+        &UpgradeableLoaderInstruction::SetAuthority,
+        account_metas,
+    )
+}
 
 use account_utils::DiscriminatorData;
 use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
@@ -578,7 +634,7 @@ fn configure_upgrade_authority(
             let tx_result = ctx
                 .new_txn()
                 .add_with_description(
-                    bpf_loader_upgradeable::set_upgrade_authority(
+                    set_upgrade_authority_instruction(
                         program_id,
                         &actual_upgrade_authority,
                         expected_upgrade_authority.as_ref(),
@@ -627,14 +683,14 @@ fn get_program_upgrade_authority(
 ) -> Result<Option<Pubkey>, &'static str> {
     let program_account = client.get_account(program_id).unwrap();
     // If the program isn't upgradeable, exit
-    if program_account.owner != bpf_loader_upgradeable::id() {
+    if program_account.owner != BPF_LOADER_UPGRADEABLE_ID {
         return Err("Program is not upgradeable");
     }
 
     // The program id must actually be a program
     let programdata_address = if let Ok(UpgradeableLoaderState::Program {
         programdata_address,
-    }) = program_account.state()
+    }) = UpgradeableLoaderState::try_from_slice(&program_account.data)
     {
         programdata_address
     } else {
@@ -647,7 +703,8 @@ fn get_program_upgrade_authority(
     let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
         upgrade_authority_address,
         slot: _,
-    }) = program_data_account.state()
+    }) =
+        UpgradeableLoaderState::try_from_slice(&program_data_account.data)
     {
         upgrade_authority_address
     } else {

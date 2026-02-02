@@ -30,6 +30,7 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 use std::collections::HashMap;
 
 use crate::{
@@ -147,7 +148,7 @@ where
         let accounts_iter = &mut accounts.iter();
 
         // Account 0: System program
-        let system_program_id = solana_program::system_program::id();
+        let system_program_id = system_program::ID;
         let system_program = next_account_info(accounts_iter)?;
         if system_program.key != &system_program_id {
             return Err(ProgramError::IncorrectProgramId);
@@ -281,13 +282,13 @@ where
 
         // Account 0: System program.
         let system_program_account = next_account_info(accounts_iter)?;
-        if system_program_account.key != &solana_program::system_program::id() {
+        if system_program_account.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
         // Account 1: SPL Noop.
         let spl_noop = next_account_info(accounts_iter)?;
-        if spl_noop.key != &spl_noop::id() {
+        if spl_noop.key != &Pubkey::new_from_array(spl_noop::id().to_bytes()) {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -371,7 +372,7 @@ where
                 // 6. `[]` Overhead IGP account (optional).
 
                 let mut igp_payment_account_metas = vec![
-                    AccountMeta::new_readonly(solana_program::system_program::id(), false),
+                    AccountMeta::new_readonly(system_program::ID, false),
                     AccountMeta::new(*sender_wallet.key, true),
                     AccountMeta::new(*igp_program_data_account.key, false),
                     AccountMeta::new_readonly(*unique_message_account.key, true),
@@ -435,8 +436,8 @@ where
         let dispatch_account_metas = vec![
             AccountMeta::new(*mailbox_outbox_account.key, false),
             AccountMeta::new_readonly(*dispatch_authority_account.key, true),
-            AccountMeta::new_readonly(solana_program::system_program::id(), false),
-            AccountMeta::new_readonly(spl_noop::id(), false),
+            AccountMeta::new_readonly(system_program::ID, false),
+            AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
             AccountMeta::new(*sender_wallet.key, true),
             AccountMeta::new_readonly(*unique_message_account.key, true),
             AccountMeta::new(*dispatched_message_pda.key, false),
@@ -513,7 +514,7 @@ where
 
         // Account 1: System program
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -595,7 +596,7 @@ where
             T::transfer_out_account_metas(program_id, &token, &message)?;
 
         let mut accounts: Vec<SerializableAccountMeta> = vec![
-            AccountMeta::new_readonly(solana_program::system_program::id(), false).into(),
+            AccountMeta::new_readonly(system_program::ID, false).into(),
             AccountMeta::new_readonly(*token_account_info.key, false).into(),
             AccountMeta {
                 pubkey: Pubkey::new_from_array(message.recipient().into()),
@@ -610,9 +611,8 @@ where
         // may end with zero byte(s), which are incorrectly truncated as
         // simulated transaction return data.
         // See `SimulationReturnData` for details.
-        let bytes = SimulationReturnData::new(accounts)
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        let bytes = borsh::to_vec(&SimulationReturnData::new(accounts))
+            .map_err(|_| ProgramError::BorshIoError)?;
         set_return_data(&bytes[..]);
 
         Ok(())
@@ -633,7 +633,7 @@ where
 
         // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -682,7 +682,7 @@ where
 
         // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 
@@ -781,9 +781,8 @@ where
         // may end with zero byte(s), which are incorrectly truncated as
         // simulated transaction return data.
         // See `SimulationReturnData` for details.
-        let bytes = SimulationReturnData::new(account_metas)
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+        let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+            .map_err(|_| ProgramError::BorshIoError)?;
         set_return_data(&bytes[..]);
 
         Ok(())
@@ -832,7 +831,7 @@ where
 
         // Account 0: System program. Only used if a realloc / rent exemption top up occurs.
         let system_program = next_account_info(accounts_iter)?;
-        if system_program.key != &solana_program::system_program::id() {
+        if system_program.key != &system_program::ID {
             return Err(ProgramError::InvalidArgument);
         }
 

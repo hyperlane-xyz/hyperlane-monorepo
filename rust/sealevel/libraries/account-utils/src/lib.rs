@@ -5,7 +5,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_instruction, system_program,
+};
+use solana_system_interface::{
+    instruction as system_instruction, program::id as system_program_id,
 };
 
 pub mod discriminator;
@@ -118,10 +120,10 @@ where
                     Err(err) => match err.kind() {
                         std::io::ErrorKind::WriteZero => {
                             if !allow_realloc {
-                                return Err(ProgramError::BorshIoError(err.to_string()));
+                                return Err(ProgramError::BorshIoError);
                             }
                         }
-                        _ => return Err(ProgramError::BorshIoError(err.to_string())),
+                        _ => return Err(ProgramError::BorshIoError),
                     },
                 };
 
@@ -130,9 +132,9 @@ where
 
             #[allow(unexpected_cfgs)] // TODO: `rustc` 1.80.1 issue
             if cfg!(target_os = "solana") {
-                account.realloc(data_len + realloc_increment, false)?;
+                account.resize(data_len + realloc_increment)?;
             } else {
-                panic!("realloc() is only supported on the SVM");
+                panic!("resize() is only supported on the SVM");
             }
         }
         Ok(())
@@ -184,7 +186,7 @@ where
         }
 
         if account_data_len < required_account_data_len {
-            account_info.realloc(required_account_data_len, false)?;
+            account_info.resize(required_account_data_len)?;
         }
 
         self.store(account_info, false)
@@ -262,7 +264,7 @@ pub fn verify_rent_exempt(account: &AccountInfo<'_>, rent: &Rent) -> Result<(), 
 /// Returns Ok if the account data is empty and the owner is the system program.
 /// Returns Err otherwise.
 pub fn verify_account_uninitialized(account: &AccountInfo) -> Result<(), ProgramError> {
-    if account.data_is_empty() && account.owner == &system_program::id() {
+    if account.data_is_empty() && account.owner == &system_program_id() {
         return Ok(());
     }
     Err(ProgramError::AccountAlreadyInitialized)

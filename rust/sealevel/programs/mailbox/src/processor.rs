@@ -2,7 +2,7 @@
 
 use access_control::AccessControl;
 use account_utils::{verify_rent_exempt, SizedData};
-use borsh::{BorshDeserialize, BorshSerialize};
+use borsh::BorshDeserialize;
 use hyperlane_core::{
     accumulator::incremental::IncrementalMerkle as MerkleTree, Decode, Encode, HyperlaneMessage,
     H256,
@@ -17,9 +17,9 @@ use solana_program::{
     program::{get_return_data, invoke, invoke_signed, set_return_data},
     program_error::ProgramError,
     pubkey::Pubkey,
-    system_instruction,
     sysvar::{clock::Clock, rent::Rent, Sysvar},
 };
+use solana_system_interface::{instruction as system_instruction, program as system_program};
 
 use account_utils::{create_pda_account, verify_account_uninitialized};
 use hyperlane_sealevel_interchain_security_module_interface::{
@@ -92,7 +92,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo], init: Init) -> Prog
 
     // Account 0: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &solana_program::system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -209,7 +209,7 @@ fn inbox_process(
 
     // Account 1: The system program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &solana_program::system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -253,7 +253,7 @@ fn inbox_process(
         return Err(Error::MessageAlreadyProcessed.into());
     }
 
-    let spl_noop_id = spl_noop::id();
+    let spl_noop_id = Pubkey::new_from_array(spl_noop::id().to_bytes());
 
     // Accounts 5..N: the accounts required for getting the ISM the recipient wants to use.
     let mut get_ism_infos = vec![];
@@ -382,7 +382,7 @@ fn inbox_process(
     inbox.processed_count += 1;
     InboxAccount::from(inbox)
         .store_in_slice(&mut inbox_data_refmut)
-        .map_err(|e| ProgramError::BorshIoError(e.to_string()))?;
+        .map_err(|_| ProgramError::BorshIoError)?;
 
     // Now call into the recipient program with the verified message!
     let handle_intruction = Instruction::new_with_bytes(
@@ -407,7 +407,7 @@ fn inbox_process(
     #[cfg(not(feature = "no-spl-noop"))]
     {
         let noop_cpi_log = Instruction {
-            program_id: spl_noop::id(),
+            program_id: Pubkey::new_from_array(spl_noop::id().to_bytes()),
             accounts: vec![],
             data: format!("Hyperlane inbox: {:?}", message_id).into_bytes(),
         };
@@ -460,9 +460,7 @@ fn inbox_get_recipient_ism(
 
     // Return the borsh serialized ISM pubkey.
     set_return_data(
-        &SimulationReturnData::new(ism)
-            .try_to_vec()
-            .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+        &borsh::to_vec(&SimulationReturnData::new(ism)).map_err(|_| ProgramError::BorshIoError)?[..],
     );
 
     Ok(())
@@ -499,7 +497,7 @@ fn get_recipient_ism(
             // If they returned an encoded Option::<Pubkey>::None, then use
             // the default ISM.
             Option::<Pubkey>::try_from_slice(&returned_data[..])
-                .map_err(|err| ProgramError::BorshIoError(err.to_string()))?
+                .map_err(|_| ProgramError::BorshIoError)?
                 .unwrap_or(default_ism)
         }
     } else {
@@ -600,13 +598,13 @@ fn outbox_dispatch(
 
     // Account 2: System program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &solana_program::system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 
     // Account 3: SPL Noop program.
     let spl_noop_info = next_account_info(accounts_iter)?;
-    if spl_noop_info.key != &spl_noop::id() {
+    if spl_noop_info.key != &Pubkey::new_from_array(spl_noop::id().to_bytes()) {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -750,9 +748,8 @@ fn outbox_get_count(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramRes
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(count.to_le_bytes())
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(count.to_le_bytes()))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -786,9 +783,8 @@ fn outbox_get_latest_checkpoint(program_id: &Pubkey, accounts: &[AccountInfo]) -
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(ret_buf.to_vec())
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(ret_buf.to_vec()))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -814,9 +810,8 @@ fn outbox_get_root(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResu
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(root)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes =
+        borsh::to_vec(&SimulationReturnData::new(root)).map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -836,9 +831,8 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(outbox.owner)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(outbox.owner))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }

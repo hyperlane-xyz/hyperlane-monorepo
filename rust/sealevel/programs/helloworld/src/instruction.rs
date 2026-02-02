@@ -8,6 +8,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
+use solana_system_interface::program as system_program;
 
 use crate::program_storage_pda_seeds;
 
@@ -75,14 +76,14 @@ pub fn init_instruction(
     // 1. `[signer]` Payer.
     // 2. `[writeable]` Storage PDA.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new_readonly(payer, true),
         AccountMeta::new(program_storage_account, false),
     ];
 
     let instruction = Instruction {
         program_id,
-        data: HelloWorldInstruction::Init(init).try_to_vec()?,
+        data: borsh::to_vec(&HelloWorldInstruction::Init(init))?,
         accounts,
     };
 
@@ -104,14 +105,14 @@ pub fn enroll_remote_routers_instruction(
     // 1. `[signer]` Payer.
     // 2. `[writeable]` Storage PDA.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(program_storage_account, false),
         AccountMeta::new(owner, true),
     ];
 
     let instruction = Instruction {
         program_id,
-        data: HelloWorldInstruction::EnrollRemoteRouters(configs).try_to_vec()?,
+        data: borsh::to_vec(&HelloWorldInstruction::EnrollRemoteRouters(configs))?,
         accounts,
     };
 
@@ -138,7 +139,7 @@ pub fn set_interchain_security_module_instruction(
 
     let instruction = Instruction {
         program_id,
-        data: HelloWorldInstruction::SetInterchainSecurityModule(ism).try_to_vec()?,
+        data: borsh::to_vec(&HelloWorldInstruction::SetInterchainSecurityModule(ism))?,
         accounts,
     };
 

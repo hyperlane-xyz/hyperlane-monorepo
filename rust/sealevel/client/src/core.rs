@@ -2,8 +2,8 @@ use borsh::BorshDeserialize;
 use hyperlane_sealevel_mailbox::protocol_fee::ProtocolFee;
 use serde::{Deserialize, Serialize};
 
+use solana_compute_budget_interface::{self as compute_budget, ComputeBudgetInstruction};
 use solana_program::pubkey::Pubkey;
-use solana_sdk::{compute_budget, compute_budget::ComputeBudgetInstruction};
 
 use std::{fs::File, path::Path};
 

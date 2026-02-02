@@ -3,7 +3,6 @@ use hyperlane_core::{Encode, HyperlaneMessage, H256};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -11,6 +10,7 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::Transaction,
 };
+use solana_system_interface::program as system_program;
 
 use hyperlane_sealevel_mailbox::{
     accounts::{
@@ -53,7 +53,7 @@ pub async fn dispatch_from_payer(
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(system_program::id(), false),
-            AccountMeta::new_readonly(spl_noop::id(), false),
+            AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(unique_message_account_keypair.pubkey(), true),
             AccountMeta::new(dispatched_message_account_key, false),

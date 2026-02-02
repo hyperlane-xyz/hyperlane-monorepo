@@ -1,5 +1,6 @@
 //! Hyperlane token program for native tokens.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

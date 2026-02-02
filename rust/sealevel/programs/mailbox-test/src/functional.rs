@@ -25,7 +25,6 @@ use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     rent::Rent,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -35,6 +34,7 @@ use solana_sdk::{
     signer::keypair::Keypair,
     transaction::{Transaction, TransactionError},
 };
+use solana_system_interface::program as system_program;
 
 use crate::utils::{
     assert_dispatched_message, assert_inbox, assert_message_not_processed, assert_outbox,
@@ -59,7 +59,12 @@ async fn setup_client() -> (
         processor!(hyperlane_sealevel_mailbox::processor::process_instruction),
     );
 
-    program_test.add_program("spl_noop", spl_noop::id(), processor!(spl_noop::noop));
+    // Note: Using None for processor since spl_noop uses incompatible solana-program types
+    program_test.add_program(
+        "spl_noop",
+        Pubkey::new_from_array(spl_noop::id().to_bytes()),
+        None,
+    );
 
     let mailbox_program_id = mailbox_id();
     program_test.add_program(
@@ -692,7 +697,7 @@ async fn test_dispatch_returns_message_id() {
             AccountMeta::new(mailbox_accounts.outbox, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new_readonly(system_program::id(), false),
-            AccountMeta::new_readonly(spl_noop::id(), false),
+            AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(unique_message_account_keypair.pubkey(), true),
             AccountMeta::new(dispatched_message_account_key, false),
@@ -855,7 +860,7 @@ async fn test_get_recipient_ism_errors_with_malformatted_recipient_ism_return_da
     assert!(matches!(
         result,
         Err(BanksClientError::TransactionError(
-            TransactionError::InstructionError(_, InstructionError::BorshIoError(_))
+            TransactionError::InstructionError(_, InstructionError::BorshIoError)
         ))
     ));
 }

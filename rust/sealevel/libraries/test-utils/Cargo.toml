@@ -10,6 +10,7 @@ borsh.workspace = true
 solana-program-test.workspace = true
 solana-program.workspace = true
 solana-sdk.workspace = true
+solana-system-interface.workspace = true
 spl-noop.workspace = true
 spl-token-2022.workspace = true
 

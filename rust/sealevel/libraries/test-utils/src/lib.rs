@@ -4,7 +4,6 @@ use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey,
     pubkey::Pubkey,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{
@@ -14,6 +13,7 @@ use solana_sdk::{
     signers::Signers,
     transaction::{Transaction, TransactionError},
 };
+use solana_system_interface::{instruction as system_instruction, program as system_program};
 
 use spl_token_2022::{extension::StateWithExtensions, state::Account};
 
@@ -76,7 +76,7 @@ pub async fn initialize_mailbox(
         program_id: *mailbox_program_id,
         data: ixn.into_instruction_data().unwrap(),
         accounts: vec![
-            AccountMeta::new(system_program::id(), false),
+            AccountMeta::new(system_program::ID, false),
             AccountMeta::new(payer.pubkey(), true),
             AccountMeta::new(inbox_account, false),
             AccountMeta::new(outbox_account, false),
@@ -402,14 +402,14 @@ pub async fn get_process_account_metas(
     // Craft the accounts for the transaction.
     let mut accounts: Vec<AccountMeta> = vec![
         AccountMeta::new_readonly(payer.pubkey(), true),
-        AccountMeta::new_readonly(system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(mailbox_accounts.inbox, false),
         AccountMeta::new_readonly(process_authority_key, false),
         AccountMeta::new(processed_message_account_key, false),
     ];
     accounts.extend(ism_getter_account_metas);
     accounts.extend([
-        AccountMeta::new_readonly(spl_noop::id(), false),
+        AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
         AccountMeta::new_readonly(ism, false),
     ]);
 
@@ -474,7 +474,7 @@ pub async fn transfer_lamports(
 ) {
     process_instruction(
         banks_client,
-        solana_sdk::system_instruction::transfer(&payer.pubkey(), to, lamports),
+        system_instruction::transfer(&payer.pubkey(), to, lamports),
         payer,
         &[payer],
     )
@@ -494,10 +494,12 @@ pub fn assert_transaction_error<T>(
     }
 }
 
-// Hack to get around the absence of a Clone implementation in solana-sdk 1.14.13.
+// Clone a Keypair by extracting the secret key and recreating it.
 pub fn clone_keypair(keypair: &Keypair) -> Keypair {
     let serialized = keypair.to_bytes();
-    Keypair::from_bytes(&serialized).unwrap()
+    // to_bytes() returns 64 bytes (32 secret + 32 public), new_from_array takes just the secret
+    let secret_key: [u8; 32] = serialized[..32].try_into().unwrap();
+    Keypair::new_from_array(secret_key)
 }
 
 pub async fn process_instruction<T: Signers>(

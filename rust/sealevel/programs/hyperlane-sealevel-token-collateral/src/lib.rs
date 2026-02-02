@@ -1,5 +1,6 @@
 //! The hyperlane-sealevel-token-collateral program.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

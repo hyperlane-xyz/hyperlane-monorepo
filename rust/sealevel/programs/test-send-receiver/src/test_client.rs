@@ -1,13 +1,12 @@
 //! Test client for the TestSendReceiver program.
 
-use borsh::BorshSerialize;
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{signature::Signature, signature::Signer, signer::keypair::Keypair};
+use solana_system_interface::program as system_program;
 
 use hyperlane_sealevel_mailbox::{
     instruction::OutboxDispatch, mailbox_dispatched_message_pda_seeds,
@@ -44,9 +43,7 @@ impl TestSendReceiverTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestSendReceiverInstruction::Init(mailbox_id())
-                .try_to_vec()
-                .unwrap(),
+            data: borsh::to_vec(&TestSendReceiverInstruction::Init(mailbox_id())).unwrap(),
             accounts: vec![
                 // 0. `[executable]` System program.
                 // 1. `[signer]` Payer.
@@ -78,11 +75,10 @@ impl TestSendReceiverTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestSendReceiverInstruction::SetInterchainSecurityModule(
+            data: borsh::to_vec(&TestSendReceiverInstruction::SetInterchainSecurityModule(
                 ism,
                 ism_return_data_mode,
-            )
-            .try_to_vec()
+            ))
             .unwrap(),
             accounts: vec![
                 // 0. `[writeable]` Storage PDA.
@@ -110,9 +106,7 @@ impl TestSendReceiverTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestSendReceiverInstruction::SetHandleMode(mode)
-                .try_to_vec()
-                .unwrap(),
+            data: borsh::to_vec(&TestSendReceiverInstruction::SetHandleMode(mode)).unwrap(),
             accounts: vec![
                 // 0. `[writeable]` Storage PDA.
                 AccountMeta::new(storage_pda_key, false),
@@ -151,9 +145,7 @@ impl TestSendReceiverTestClient {
 
         let instruction = Instruction {
             program_id,
-            data: TestSendReceiverInstruction::Dispatch(outbox_dispatch)
-                .try_to_vec()
-                .unwrap(),
+            data: borsh::to_vec(&TestSendReceiverInstruction::Dispatch(outbox_dispatch)).unwrap(),
             accounts: vec![
                 // 0. `[executable]` The Mailbox program.
                 // And now the accounts expected by the Mailbox's OutboxDispatch instruction:
@@ -169,7 +161,7 @@ impl TestSendReceiverTestClient {
                 AccountMeta::new(mailbox_accounts.outbox, false),
                 AccountMeta::new_readonly(dispatch_authority_key, false),
                 AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
                 AccountMeta::new(self.payer.pubkey(), true),
                 AccountMeta::new(unique_message_account_keypair.pubkey(), true),
                 AccountMeta::new(dispatched_message_account_key, false),

@@ -1,5 +1,6 @@
 //! Program to pay for gas fees for messages sent to remote chains.
 
+#![allow(unexpected_cfgs)]
 #![deny(warnings)]
 #![deny(missing_docs)]
 #![deny(unsafe_code)]

@@ -9,15 +9,15 @@ use clap::{Args, Parser, Subcommand, ValueEnum};
 use solana_clap_utils::input_validators::{is_keypair, is_url, normalize_to_url_if_moniker};
 use solana_cli_config::{Config, CONFIG_FILE};
 use solana_client::rpc_client::RpcClient;
+use solana_commitment_config::CommitmentConfig;
+use solana_compute_budget_interface::ComputeBudgetInstruction;
 use solana_program::pubkey;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
-    compute_budget::ComputeBudgetInstruction,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signature::{read_keypair_file, Keypair, Signer as _},
-    system_program,
 };
+use solana_system_interface::program as system_program;
 
 use account_utils::DiscriminatorEncode;
 use hyperlane_core::{H160, H256};
@@ -884,7 +884,10 @@ fn process_mailbox_cmd(ctx: Context, cmd: MailboxCmd) {
                 accounts: vec![
                     AccountMeta::new(outbox_account, false),
                     AccountMeta::new_readonly(ctx.payer_pubkey, true),
-                    AccountMeta::new_readonly(spl_noop::id(), false),
+                    AccountMeta::new_readonly(
+                        Pubkey::new_from_array(spl_noop::id().to_bytes()),
+                        false,
+                    ),
                 ],
             };
             ctx.new_txn().add(outbox_instruction).send_with_payer();
@@ -1170,7 +1173,7 @@ fn process_token_cmd(mut ctx: Context, cmd: TokenCmd) {
             // 14..N [??..??] Plugin-specific accounts.
             let mut accounts = vec![
                 AccountMeta::new_readonly(system_program::id(), false),
-                AccountMeta::new_readonly(spl_noop::id(), false),
+                AccountMeta::new_readonly(Pubkey::new_from_array(spl_noop::id().to_bytes()), false),
                 AccountMeta::new_readonly(token_account, false),
                 AccountMeta::new_readonly(token.mailbox, false),
                 AccountMeta::new(mailbox_outbox_account, false),

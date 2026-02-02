@@ -53,7 +53,7 @@ mod test {
             bump_seed: 0,
             owner: Some(Pubkey::new_unique()),
         };
-        let serialized = data.try_to_vec().unwrap();
+        let serialized = borsh::to_vec(&data).unwrap();
         assert_eq!(data.size(), serialized.len());
     }
 }

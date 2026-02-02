@@ -10,7 +10,11 @@ no-entrypoint = []
 
 [dependencies]
 borsh.workspace = true
+# Required to allow dependencies `getrandom` but to preserve determinism required by programs, see
+# https://github.com/solana-foundation/developer-content/blob/main/docs/programs/lang-rust.md#depending-on-rand
+getrandom = { workspace = true, features = ["custom"] }
 solana-program.workspace = true
+solana-system-interface.workspace = true
 thiserror.workspace = true
 
 account-utils = { path = "../../libraries/account-utils" }
@@ -25,6 +29,7 @@ serializable-account-meta = { path = "../../libraries/serializable-account-meta"
 hex.workspace = true
 solana-program-test.workspace = true
 solana-sdk.workspace = true
+solana-system-interface.workspace = true
 hyperlane-test-utils = { path = "../../libraries/test-utils" }
 
 [lib]

@@ -1,6 +1,6 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 use solana_program::program_error::ProgramError;
-use spl_type_length_value::discriminator::Discriminator;
+use spl_discriminator::ArrayDiscriminator as Discriminator;
 use std::ops::{Deref, DerefMut};
 
 use crate::{Data, SizedData};
@@ -43,8 +43,9 @@ impl<T> BorshDeserialize for DiscriminatorPrefixed<T>
 where
     T: DiscriminatorPrefixedData,
 {
-    fn deserialize(buf: &mut &[u8]) -> std::io::Result<Self> {
-        let (discriminator, rest) = buf.split_at(Discriminator::LENGTH);
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        let mut discriminator = [0u8; Discriminator::LENGTH];
+        reader.read_exact(&mut discriminator)?;
         if discriminator != T::DISCRIMINATOR {
             return Err(std::io::Error::new(
                 std::io::ErrorKind::InvalidData,
@@ -52,7 +53,7 @@ where
             ));
         }
         Ok(Self {
-            data: T::deserialize(&mut rest.to_vec().as_slice())?,
+            data: T::deserialize_reader(reader)?,
         })
     }
 }
@@ -108,11 +109,7 @@ pub trait DiscriminatorEncode: DiscriminatorData + borsh::BorshSerialize {
     fn encode(self) -> Result<Vec<u8>, ProgramError> {
         let mut buf = vec![];
         buf.extend_from_slice(Self::DISCRIMINATOR_SLICE);
-        buf.extend_from_slice(
-            &self
-                .try_to_vec()
-                .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
-        );
+        buf.extend_from_slice(&borsh::to_vec(&self).map_err(|_| ProgramError::BorshIoError)?[..]);
         Ok(buf)
     }
 }
@@ -156,7 +153,7 @@ mod test {
         }
 
         let prefixed_foo = DiscriminatorPrefixed::new(Foo { a: 1 });
-        let serialized_prefixed_foo = prefixed_foo.try_to_vec().unwrap();
+        let serialized_prefixed_foo = borsh::to_vec(&prefixed_foo).unwrap();
 
         assert_eq!(serialized_prefixed_foo.len(), prefixed_foo.size());
         assert_eq!(

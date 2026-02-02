@@ -18,6 +18,7 @@ borsh.workspace = true
 solana-program.workspace = true
 solana-program-test = { workspace = true, optional = true }
 solana-sdk = { workspace = true, optional = true }
+solana-system-interface.workspace = true
 
 account-utils = { path = "../../../libraries/account-utils" }
 hyperlane-core = { path = "../../../../main/hyperlane-core" }
