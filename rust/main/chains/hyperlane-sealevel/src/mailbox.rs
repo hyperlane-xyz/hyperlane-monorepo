@@ -35,6 +35,7 @@ use hyperlane_core::{
     Mailbox, MerkleTreeHook, Metadata, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
+use crate::alt::get_alt_for_domain;
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::sanitize_dynamic_accounts;
@@ -61,6 +62,19 @@ lazy_static! {
         // WIF
         (pubkey!("CuQmsT4eSF4dYiiGUGYYQxJ7c58pUAD5ADE3BbFGzQKx"), pubkey!("EKpQGSJtjMFqKZ9KQanSqYXRcF8fBopzLHYxdM65zcjm")),
     ]);
+}
+
+/// Sealevel process instruction payload with optional ALT address.
+///
+/// ALT (Address Lookup Table) is optional and helps reduce transaction size
+/// by allowing accounts to be referenced by 1-byte index rather than 32-byte pubkey.
+/// When provided, the ALT is assumed to be static and lazily loaded by the tx builder.
+#[derive(Debug, Clone, serde::Serialize, serde::Deserialize)]
+pub struct SealevelProcessPayload {
+    /// The process instruction to execute
+    pub instruction: Instruction,
+    /// Optional ALT address for versioned transactions
+    pub alt_address: Option<Pubkey>,
 }
 
 /// A reference to a Mailbox contract on some Sealevel chain
@@ -285,11 +299,11 @@ impl SealevelMailbox {
         sanitize_dynamic_accounts(account_metas, &self.get_payer()?.pubkey())
     }
 
-    async fn get_process_instruction(
+    async fn get_process_payload(
         &self,
         message: &HyperlaneMessage,
         metadata: &[u8],
-    ) -> ChainResult<Instruction> {
+    ) -> ChainResult<SealevelProcessPayload> {
         let recipient: Pubkey = message.recipient.0.into();
         let mut encoded_message = vec![];
         message
@@ -362,13 +376,18 @@ impl SealevelMailbox {
         let handle_account_metas = self.get_handle_account_metas(message).await?;
         accounts.extend(handle_account_metas);
 
-        let process_instruction = Instruction {
+        let instruction = Instruction {
             program_id: self.program_id,
             data: ixn_data,
             accounts,
         };
 
-        Ok(process_instruction)
+        let alt_address = get_alt_for_domain(self.provider.domain());
+
+        Ok(SealevelProcessPayload {
+            instruction,
+            alt_address,
+        })
     }
 
     /// Get inbox account
@@ -487,16 +506,17 @@ impl Mailbox for SealevelMailbox {
         // is retry logic in the agents.
         let commitment = CommitmentConfig::processed();
 
-        let process_instruction = self.get_process_instruction(message, metadata).await?;
+        let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
         let tx = self
             .provider
             .build_estimated_tx_for_instruction(
-                process_instruction,
+                payload.instruction,
                 payer,
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
+                payload.alt_address,
             )
             .await?;
 
@@ -541,10 +561,10 @@ impl Mailbox for SealevelMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
-        // Getting a process instruction in Sealevel is a pretty expensive operation
-        // that involves some view calls. Consider reusing the instruction with subsequent
+        // Getting a process payload in Sealevel is a pretty expensive operation
+        // that involves some view calls. Consider reusing the payload with subsequent
         // calls to `process` to avoid this cost.
-        let process_instruction = self.get_process_instruction(message, metadata).await?;
+        let payload = self.get_process_payload(message, metadata).await?;
 
         let payer = self.get_payer()?;
         // The returned costs are unused at the moment - we simply want to perform a simulation to
@@ -552,10 +572,11 @@ impl Mailbox for SealevelMailbox {
         let _ = self
             .provider
             .get_estimated_costs_for_instruction(
-                process_instruction,
+                payload.instruction,
                 payer,
                 self.tx_submitter.clone(),
                 self.priority_fee_oracle.clone(),
+                payload.alt_address,
             )
             .await?;
 
@@ -575,8 +596,8 @@ impl Mailbox for SealevelMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<Vec<u8>> {
-        let process_instruction = self.get_process_instruction(message, metadata).await?;
-        serde_json::to_vec(&process_instruction).map_err(Into::into)
+        let payload = self.get_process_payload(message, metadata).await?;
+        serde_json::to_vec(&payload).map_err(Into::into)
     }
 
     fn delivered_calldata(&self, message_id: H256) -> ChainResult<Option<Vec<u8>>> {

@@ -76,7 +76,7 @@ pub struct SealevelAdapter {
 }
 
 impl SealevelAdapter {
-    pub async fn new(
+    pub fn new(
         conf: ChainConf,
         raw_conf: RawChainConf,
         metrics: &CoreMetrics,
@@ -92,13 +92,12 @@ impl SealevelAdapter {
             client_metrics.clone(),
         );
 
-        let mut provider = SealevelProvider::new(
+        let provider = SealevelProvider::new(
             client.clone(),
             conf.domain.clone(),
             &[H256::zero()],
             connection_conf,
         );
-        provider.try_load_alt_cache().await;
 
         let oracle = connection_conf.priority_fee_oracle.create_oracle();
 
@@ -202,10 +201,12 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 self.oracle.clone(),
+                precursor.alt_address,
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
             precursor.instruction.clone(),
+            precursor.alt_address,
             estimate,
         ))
     }
@@ -231,6 +232,7 @@ impl SealevelAdapter {
     ) -> ChainResult<SealevelTransaction> {
         let SealevelTxPrecursor {
             instruction,
+            alt_address,
             estimate,
         } = precursor;
 
@@ -242,6 +244,7 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 sign,
+                *alt_address,
             )
             .await
     }

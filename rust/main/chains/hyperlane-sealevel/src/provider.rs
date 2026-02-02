@@ -1,3 +1,4 @@
+use std::collections::HashMap;
 use std::sync::Arc;
 
 use async_trait::async_trait;
@@ -22,6 +23,7 @@ use solana_transaction_status::{
     UiTransactionStatusMeta,
 };
 use solana_transaction_status::{TransactionStatus, UiReturnDataEncoding};
+use tokio::sync::RwLock;
 use tracing::warn;
 
 use hyperlane_core::{
@@ -30,7 +32,7 @@ use hyperlane_core::{
     TxnReceiptInfo, H256, H512, U256,
 };
 
-use crate::alt::{get_alt_for_domain, AddressLookupTableCache};
+use crate::alt::load_alt;
 use crate::error::HyperlaneSealevelError;
 use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
@@ -74,8 +76,8 @@ impl Default for SealevelTxCostEstimate {
 #[async_trait]
 pub trait SealevelProviderForLander: Send + Sync {
     /// Creates Sealevel transaction for instruction.
-    /// Returns `SealevelTxType::Versioned` with ALT for domains that support it,
-    /// or `SealevelTxType::Legacy` for chains that only support legacy transactions.
+    /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
+    /// or `SealevelTxType::Legacy` otherwise.
     async fn create_transaction_for_instruction(
         &self,
         compute_unit_limit: u32,
@@ -84,15 +86,18 @@ pub trait SealevelProviderForLander: Send + Sync {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
+        alt_address: Option<Pubkey>,
     ) -> ChainResult<SealevelTxType>;
 
-    /// Estimates cost for Sealevel instruction
+    /// Estimates cost for Sealevel instruction.
+    /// Uses ALT for simulation if `alt_address` is provided.
     async fn get_estimated_costs_for_instruction(
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+        alt_address: Option<Pubkey>,
     ) -> ChainResult<SealevelTxCostEstimate>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
@@ -117,21 +122,31 @@ pub trait SealevelProviderForLander: Send + Sync {
 }
 
 /// A wrapper around a Sealevel provider to get generic blockchain information.
-#[derive(Clone, Debug)]
+#[derive(Clone)]
 pub struct SealevelProvider {
     rpc_client: SealevelFallbackRpcClient,
     domain: HyperlaneDomain,
     native_token: NativeToken,
     recipient_provider: RecipientProvider,
-    /// Cached ALT for transaction size reduction, if available for this domain.
-    alt_cache: Option<AddressLookupTableCache>,
+    /// Lazily loaded ALT cache for transaction size reduction.
+    /// Maps ALT address to loaded account data. ALTs are assumed static once loaded.
+    /// Note: Keep the number of different ALTs small to avoid memory bloat.
+    alt_cache: Arc<RwLock<HashMap<Pubkey, AddressLookupTableAccount>>>,
+}
+
+impl std::fmt::Debug for SealevelProvider {
+    fn fmt(&self, f: &mut std::fmt::Formatter<'_>) -> std::fmt::Result {
+        f.debug_struct("SealevelProvider")
+            .field("domain", &self.domain)
+            .finish_non_exhaustive()
+    }
 }
 
 #[async_trait]
 impl SealevelProviderForLander for SealevelProvider {
     /// Creates a transaction for a given instruction.
-    /// Returns `SealevelTxType::Versioned` with ALT for domains that support it,
-    /// or `SealevelTxType::Legacy` for chains that only support legacy transactions.
+    /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
+    /// or `SealevelTxType::Legacy` otherwise.
     /// If `sign` is true, the transaction will be signed.
     async fn create_transaction_for_instruction(
         &self,
@@ -141,6 +156,7 @@ impl SealevelProviderForLander for SealevelProvider {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         sign: bool,
+        alt_address: Option<Pubkey>,
     ) -> ChainResult<SealevelTxType> {
         let instructions = vec![
             // Set the compute unit limit.
@@ -167,13 +183,10 @@ impl SealevelProviderForLander for SealevelProvider {
             Hash::default()
         };
 
-        // Build versioned transaction with ALT if available, otherwise legacy
-        if let Some(alt_cache) = &self.alt_cache {
-            // ALT available - use VersionedTransaction with V0 message
-            let alt_account = AddressLookupTableAccount {
-                key: alt_cache.address,
-                addresses: alt_cache.accounts.clone(),
-            };
+        // Build versioned transaction with ALT if provided, otherwise legacy
+        if let Some(alt_pubkey) = alt_address {
+            // Lazily load ALT if not cached
+            let alt_account = self.get_or_load_alt(alt_pubkey).await?;
 
             let message = MessageV0::try_compile(
                 &payer.pubkey(),
@@ -216,6 +229,7 @@ impl SealevelProviderForLander for SealevelProvider {
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+        alt_address: Option<Pubkey>,
     ) -> ChainResult<SealevelTxCostEstimate> {
         // Build a transaction that sets the max compute units and a dummy compute unit price.
         // This is used for simulation to get the actual compute unit limit. We set dummy values
@@ -229,6 +243,7 @@ impl SealevelProviderForLander for SealevelProvider {
                 payer,
                 tx_submitter,
                 false,
+                alt_address,
             )
             .await?;
 
@@ -376,7 +391,7 @@ impl SealevelProviderForLander for SealevelProvider {
 }
 
 impl SealevelProvider {
-    /// Constructor. Call `try_load_alt_cache` after construction to enable ALT support.
+    /// Constructor.
     pub fn new(
         rpc_client: SealevelFallbackRpcClient,
         domain: HyperlaneDomain,
@@ -390,34 +405,33 @@ impl SealevelProvider {
             domain,
             native_token,
             recipient_provider,
-            alt_cache: None,
+            alt_cache: Arc::new(RwLock::new(HashMap::new())),
         }
     }
 
-    /// Attempts to load the ALT cache for this domain if one exists.
-    /// Should be called after construction. Logs a warning if loading fails.
-    pub async fn try_load_alt_cache(&mut self) {
-        if let Some(alt_address) = get_alt_for_domain(&self.domain) {
-            match AddressLookupTableCache::load(&self.rpc_client, &alt_address).await {
-                Ok(cache) => {
-                    tracing::info!(
-                        domain = %self.domain,
-                        alt_address = %alt_address,
-                        num_accounts = cache.accounts.len(),
-                        "Loaded ALT cache for domain"
-                    );
-                    self.alt_cache = Some(cache);
-                }
-                Err(e) => {
-                    tracing::warn!(
-                        domain = %self.domain,
-                        alt_address = %alt_address,
-                        error = %e,
-                        "Failed to load ALT cache, transactions will use legacy format"
-                    );
-                }
+    /// Lazily loads an ALT from the chain if not already cached.
+    /// Returns the cached or newly loaded ALT account.
+    async fn get_or_load_alt(&self, alt_address: Pubkey) -> ChainResult<AddressLookupTableAccount> {
+        // Check cache first (read lock)
+        {
+            let cache = self.alt_cache.read().await;
+            if let Some(alt_account) = cache.get(&alt_address) {
+                return Ok(alt_account.clone());
             }
         }
+
+        // Not cached - load from chain and cache (write lock)
+        let alt_account = load_alt(&self.rpc_client, alt_address).await?;
+        tracing::info!(
+            domain = %self.domain,
+            alt_address = %alt_address,
+            num_accounts = alt_account.addresses.len(),
+            "Loaded and cached ALT"
+        );
+
+        let mut cache = self.alt_cache.write().await;
+        cache.insert(alt_address, alt_account.clone());
+        Ok(alt_account)
     }
 
     /// Get an rpc client
@@ -485,14 +499,15 @@ impl SealevelProvider {
     }
 
     /// Builds a transaction with estimated costs for a given instruction.
-    /// Returns `SealevelTxType::Versioned` with ALT for domains that support it,
-    /// or `SealevelTxType::Legacy` for chains that only support legacy transactions.
+    /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,
+    /// or `SealevelTxType::Legacy` otherwise.
     pub async fn build_estimated_tx_for_instruction(
         &self,
         instruction: Instruction,
         payer: &SealevelKeypair,
         tx_submitter: Arc<dyn TransactionSubmitter>,
         priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+        alt_address: Option<Pubkey>,
     ) -> ChainResult<SealevelTxType> {
         // Get the estimated costs for the instruction.
         let SealevelTxCostEstimate {
@@ -504,6 +519,7 @@ impl SealevelProvider {
                 payer,
                 tx_submitter.clone(),
                 priority_fee_oracle,
+                alt_address,
             )
             .await?;
 
@@ -522,6 +538,7 @@ impl SealevelProvider {
                 payer,
                 tx_submitter,
                 true,
+                alt_address,
             )
             .await?;
 

@@ -88,6 +88,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
+            alt_address: Option<Pubkey>,
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
@@ -96,6 +97,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+            alt_address: Option<Pubkey>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
         async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
@@ -122,7 +124,7 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
 
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| {
+        .returning(|_, _, _, _, _| {
             Ok(SealevelTxCostEstimate {
                 compute_units: GAS_LIMIT,
                 compute_unit_price_micro_lamports: 0,
@@ -131,7 +133,7 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _| {
             let tx = SolanaTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
@@ -235,7 +237,11 @@ fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
 
 fn create_sealevel_payload() -> FullPayload {
     let instruction = ComputeBudgetInstruction::set_compute_unit_limit(GAS_LIMIT);
-    let data = serde_json::to_vec(&instruction).unwrap();
+    let process_payload = hyperlane_sealevel::SealevelProcessPayload {
+        instruction,
+        alt_address: None,
+    };
+    let data = serde_json::to_vec(&process_payload).unwrap();
 
     FullPayload {
         data,
@@ -416,11 +422,11 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     // Estimation fails
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| Err(eyre::eyre!("Estimation failed").into()));
+        .returning(|_, _, _, _, _| Err(eyre::eyre!("Estimation failed").into()));
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _| {
             let tx = SolanaTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),

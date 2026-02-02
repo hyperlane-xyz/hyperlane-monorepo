@@ -103,6 +103,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
+            alt_address: Option<Pubkey>,
         ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
@@ -111,6 +112,7 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+            alt_address: Option<Pubkey>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
         async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType)
@@ -184,7 +186,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
     // Set up default expectations that existing tests expect
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| {
+        .returning(|_, _, _, _, _| {
             Ok(SealevelTxCostEstimate {
                 compute_units: GAS_LIMIT,
                 compute_unit_price_micro_lamports: 0,
@@ -193,7 +195,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _| {
             let keypair = payer;
             let tx = SolanaTransaction::new_unsigned(Message::new(
                 &[instruction],
@@ -302,7 +304,11 @@ pub fn instruction() -> SealevelInstruction {
 }
 
 pub fn payload() -> FullPayload {
-    let data = serde_json::to_vec(&instruction()).unwrap();
+    let process_payload = hyperlane_sealevel::SealevelProcessPayload {
+        instruction: instruction(),
+        alt_address: None,
+    };
+    let data = serde_json::to_vec(&process_payload).unwrap();
 
     FullPayload {
         data,
@@ -311,7 +317,7 @@ pub fn payload() -> FullPayload {
 }
 
 pub fn precursor() -> SealevelTxPrecursor {
-    SealevelTxPrecursor::new(instruction(), estimate())
+    SealevelTxPrecursor::new(instruction(), None, estimate())
 }
 
 pub fn transaction() -> Transaction {

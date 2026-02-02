@@ -45,6 +45,7 @@ mod tests {
         };
         SealevelTxPrecursor {
             instruction,
+            alt_address: None,
             estimate,
         }
     }
@@ -140,6 +141,7 @@ mod tests {
                 &[1, 2, 3],
                 vec![],
             ),
+            alt_address: None,
             estimate: SealevelTxCostEstimate {
                 compute_units: 300_000,
                 compute_unit_price_micro_lamports: 2000,

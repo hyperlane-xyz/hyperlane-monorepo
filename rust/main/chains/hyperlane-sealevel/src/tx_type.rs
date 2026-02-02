@@ -1,6 +1,6 @@
 //! Transaction type abstraction for Sealevel chains.
 //!
-//! Some SVM chains (e.g., Eclipse) only support legacy transactions,
+//! Some SVM chains (e.g., Solaxy) only support legacy transactions,
 //! while others (Solana mainnet/testnet) support versioned transactions with ALTs.
 
 use serde::{Deserialize, Serialize};
