@@ -1,6 +1,6 @@
 import fs from 'fs';
 import path from 'path';
-import { DestinationStream, Logger, pino } from 'pino';
+import { DestinationStream, Level, Logger, pino } from 'pino';
 
 import { getLogLevel, rootLogger } from '../logging.js';
 
@@ -51,9 +51,12 @@ export function createChainLogger(chain: string, module?: string): Logger {
   }
 
   // Create multistream for dual output: stdout + chain file
+  // Explicit level required per stream to honor --verbosity setting
+  // Cast needed: pino accepts 'silent' at runtime but types don't reflect it
+  const level = getLogLevel() as Level;
   const streams: pino.StreamEntry[] = [
-    { stream: process.stdout },
-    { stream: chainStream },
+    { stream: process.stdout, level },
+    { stream: chainStream, level },
   ];
 
   return pino({ level: getLogLevel() }, pino.multistream(streams)).child(
