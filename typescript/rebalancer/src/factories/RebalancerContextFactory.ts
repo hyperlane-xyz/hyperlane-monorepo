@@ -46,6 +46,7 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance
+   * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
@@ -54,6 +55,7 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
   ) {}
@@ -88,7 +90,7 @@ export class RebalancerContextFactory {
     const mpp =
       multiProtocolProvider ??
       MultiProtocolProvider.fromMultiProvider(multiProvider);
-    const provider = mpp.extendChainMetadata(mailboxes);
+    const extendedMultiProtocolProvider = mpp.extendChainMetadata(mailboxes);
 
     const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
@@ -96,7 +98,10 @@ export class RebalancerContextFactory {
         `Warp route config for ${config.warpRouteId} not found in registry`,
       );
     }
-    const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
+    const warpCore = WarpCore.FromConfig(
+      extendedMultiProtocolProvider,
+      warpCoreConfig,
+    );
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
@@ -112,6 +117,7 @@ export class RebalancerContextFactory {
       warpCore,
       tokensByChainName,
       multiProvider,
+      extendedMultiProtocolProvider,
       registry,
       logger,
     );
@@ -243,10 +249,9 @@ export class RebalancerContextFactory {
         return addrs as CoreAddresses;
       },
     );
-    const mpp = MultiProtocolProvider.fromMultiProvider(this.multiProvider);
     const multiProtocolCore = MultiProtocolCore.fromAddressesMap(
       coreAddresses,
-      mpp,
+      this.multiProtocolProvider,
     );
 
     // 4. Get rebalancer address from signer
