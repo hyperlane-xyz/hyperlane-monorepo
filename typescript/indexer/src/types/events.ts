@@ -1,4 +1,5 @@
 import type { Block, Log, Transaction, TransactionReceipt } from 'viem';
+import { keccak256 } from 'viem';
 
 /**
  * Ponder event context types for Hyperlane contracts.
@@ -146,9 +147,7 @@ export function parseMessage(message: `0x${string}`): ParsedMessage {
  * Message ID is keccak256 hash of the message.
  */
 export function computeMessageId(message: `0x${string}`): `0x${string}` {
-  // This would typically use keccak256 from viem
-  // For now, we rely on the DispatchId event which provides the ID directly
-  throw new Error('Use DispatchId event for message ID');
+  return keccak256(message);
 }
 
 /**

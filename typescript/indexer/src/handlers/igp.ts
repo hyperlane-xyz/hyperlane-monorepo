@@ -27,12 +27,23 @@ ponder.on('InterchainGasPaymaster:GasPayment', async ({ event, context }) => {
     return;
   }
 
+  // Skip if no transaction receipt or missing transactionIndex
+  if (
+    !event.transactionReceipt ||
+    event.transactionReceipt.transactionIndex == null
+  ) {
+    console.warn(
+      `No transaction receipt/index for GasPayment in block ${event.block.number}, skipping`,
+    );
+    return;
+  }
+
   // Store transaction
   const txId = await adapter.storeTransaction(
     blockId,
     {
       hash: event.transaction.hash,
-      transactionIndex: event.transactionReceipt!.transactionIndex,
+      transactionIndex: event.transactionReceipt.transactionIndex,
       from: event.transaction.from,
       to: event.transaction.to,
       gas: event.transaction.gas,
@@ -43,9 +54,9 @@ ponder.on('InterchainGasPaymaster:GasPayment', async ({ event, context }) => {
       input: event.transaction.input,
     },
     {
-      gasUsed: event.transactionReceipt!.gasUsed,
-      cumulativeGasUsed: event.transactionReceipt!.cumulativeGasUsed,
-      effectiveGasPrice: event.transactionReceipt!.effectiveGasPrice,
+      gasUsed: event.transactionReceipt.gasUsed,
+      cumulativeGasUsed: event.transactionReceipt.cumulativeGasUsed,
+      effectiveGasPrice: event.transactionReceipt.effectiveGasPrice,
       logs: [],
     },
   );
