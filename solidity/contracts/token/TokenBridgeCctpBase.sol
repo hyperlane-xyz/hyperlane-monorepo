@@ -41,6 +41,8 @@ struct Domain {
 }
 
 // see ./CCTP.md for sequence diagrams of the destination chain control flow
+// Circle domain mappings are a translation table between Hyperlane and Circle domain IDs, not Hyperlane domain config
+// solhint-disable-next-line hyperlane/enumerable-domain-mapping
 abstract contract TokenBridgeCctpBase is
     TokenBridgeCctpBaseStorage,
     AbstractCcipReadIsm,

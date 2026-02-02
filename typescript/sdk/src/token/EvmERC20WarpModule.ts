@@ -161,7 +161,8 @@ export class EvmERC20WarpModule extends HyperlaneModule<
      * @remark
      * The order of operations matter
      * 1. createOwnershipUpdateTxs() must always be LAST because no updates possible after ownership transferred
-     * 2. createRemoteRoutersUpdateTxs() must always be BEFORE createSetDestinationGasUpdateTxs() because gas enumeration depends on domains
+     * 2. createEnrollRemoteRoutersUpdateTxs() must be BEFORE createSetDestinationGasUpdateTxs()
+     *    because GasRouter requires routers to be enrolled before setting destination gas
      */
     transactions.push(
       ...(await this.upgradeWarpRouteImplementationTx(
@@ -175,11 +176,11 @@ export class EvmERC20WarpModule extends HyperlaneModule<
         expectedConfig,
         tokenReaderParams,
       )),
-      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createUnenrollRemoteRoutersUpdateTxs(
         actualConfig,
         expectedConfig,
       ),
+      ...this.createEnrollRemoteRoutersUpdateTxs(actualConfig, expectedConfig),
       ...this.createSetDestinationGasUpdateTxs(actualConfig, expectedConfig),
       ...this.createAddRebalancersUpdateTxs(actualConfig, expectedConfig),
       ...this.createRemoveRebalancersUpdateTxs(actualConfig, expectedConfig),
@@ -814,6 +815,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       'expectedDestinationGas is undefined',
     );
 
+    // Only set gas for domains that will have routers enrolled after the update
+    // Use resolveRouterMapConfig to handle both domain IDs and chain names as keys
+    const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteRouters ?? {},
+    );
+    const expectedRemoteRouterDomains = new Set(
+      Object.keys(resolvedExpectedRemoteRouters).map(Number),
+    );
+
     const actualDestinationGas = resolveRouterMapConfig(
       this.multiProvider,
       actualConfig.destinationGas,
@@ -823,7 +834,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       expectedConfig.destinationGas,
     );
 
-    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
+    // Filter to only domains that will have routers enrolled
+    const filteredExpectedGas = Object.fromEntries(
+      Object.entries(expectedDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    // Filter actual gas to the same domains for comparison
+    const filteredActualGas = Object.fromEntries(
+      Object.entries(actualDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    if (!deepEquals(filteredActualGas, filteredExpectedGas)) {
       const contractToUpdate = GasRouter__factory.connect(
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.domainId),
@@ -832,7 +857,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
         [];
-      objMap(expectedDestinationGas, (domain: Domain, gas: string) => {
+      objMap(filteredExpectedGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
           gas,

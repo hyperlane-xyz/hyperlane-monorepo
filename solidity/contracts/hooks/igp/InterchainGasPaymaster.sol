@@ -21,6 +21,7 @@ import {IInterchainGasPaymaster} from "../../interfaces/IInterchainGasPaymaster.
 import {IPostDispatchHook} from "../../interfaces/hooks/IPostDispatchHook.sol";
 import {AbstractPostDispatchHook} from "../libs/AbstractPostDispatchHook.sol";
 import {Indexed} from "../../libs/Indexed.sol";
+import {EnumerableDomainSet} from "../../libs/EnumerableDomainSet.sol";
 
 // ============ External Imports ============
 import {Strings} from "@openzeppelin/contracts/utils/Strings.sol";
@@ -42,7 +43,8 @@ contract InterchainGasPaymaster is
     AbstractPostDispatchHook,
     IGasOracle,
     Indexed,
-    OwnableUpgradeable
+    OwnableUpgradeable,
+    EnumerableDomainSet
 {
     using Address for address payable;
     using SafeERC20 for IERC20;
@@ -179,13 +181,10 @@ contract InterchainGasPaymaster is
     ) external onlyOwner {
         uint256 _len = _configs.length;
         for (uint256 i = 0; i < _len; i++) {
-            tokenGasOracles[_configs[i].feeToken][
-                _configs[i].remoteDomain
-            ] = _configs[i].gasOracle;
-            emit TokenGasOracleSet(
+            _setTokenGasOracle(
                 _configs[i].feeToken,
                 _configs[i].remoteDomain,
-                address(_configs[i].gasOracle)
+                _configs[i].gasOracle
             );
         }
     }
@@ -481,6 +480,38 @@ contract InterchainGasPaymaster is
     }
 
     /**
+     * @notice Sets the gas oracle for a token and remote domain.
+     * @param _feeToken The fee token address (use NATIVE_TOKEN for native payments).
+     * @param _remoteDomain The remote domain.
+     * @param _gasOracle The gas oracle.
+     */
+    function _setTokenGasOracle(
+        address _feeToken,
+        uint32 _remoteDomain,
+        IGasOracle _gasOracle
+    ) internal {
+        tokenGasOracles[_feeToken][_remoteDomain] = _gasOracle;
+
+        if (_feeToken == NATIVE_TOKEN) {
+            // Native token controls domain tracking
+            if (address(_gasOracle) == address(0)) {
+                _removeDomain(_remoteDomain);
+            } else {
+                _addDomain(_remoteDomain);
+            }
+        } else if (address(_gasOracle) != address(0)) {
+            // Non-native tokens require domain to already exist
+            require(
+                address(tokenGasOracles[NATIVE_TOKEN][_remoteDomain]) !=
+                    address(0),
+                "InterchainGasPaymaster: domain not configured"
+            );
+        }
+
+        emit TokenGasOracleSet(_feeToken, _remoteDomain, address(_gasOracle));
+    }
+
+    /**
      * @notice Sets the gas oracle and destination gas overhead for a remote domain.
      * @dev Writes to both legacy destinationGasConfigs and new tokenGasOracles/destinationGasOverhead
      *      storage for backward compatibility.
@@ -496,6 +527,12 @@ contract InterchainGasPaymaster is
         // Write to new storage
         tokenGasOracles[NATIVE_TOKEN][_remoteDomain] = _gasOracle;
         destinationGasOverhead[_remoteDomain] = _gasOverhead;
+
+        if (address(_gasOracle) == address(0)) {
+            _removeDomain(_remoteDomain);
+        } else {
+            _addDomain(_remoteDomain);
+        }
 
         emit DestinationGasConfigSet(
             _remoteDomain,
