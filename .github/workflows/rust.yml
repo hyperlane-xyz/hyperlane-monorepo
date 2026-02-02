@@ -38,12 +38,17 @@ jobs:
             echo "skip_rust=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          # Never skip for bots (Dependabot, etc.)
-          if [[ "${{ github.actor }}" == "dependabot[bot]" ]] || [[ "${{ github.actor }}" =~ \[bot\]$ ]]; then
+          # Never skip for bots (Dependabot, etc.) - use glob pattern, not regex
+          if [[ "${{ github.actor }}" == "dependabot[bot]" ]] || [[ "${{ github.actor }}" == *'[bot]' ]]; then
             echo "skip_rust=false" >> $GITHUB_OUTPUT
             exit 0
           fi
-          # Check if any rust/ or workflow files changed
+          # Never skip for merge_group events (merge queue)
+          if [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            echo "skip_rust=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+          # Determine base ref for comparison
           BASE_REF="${{ github.base_ref }}"
           if [[ -z "$BASE_REF" ]]; then
             # For push events, compare with parent commit
@@ -51,12 +56,12 @@ jobs:
           else
             BASE_REF="origin/$BASE_REF"
           fi
-          # Fail-safe: if git diff fails, run rust tests
-          CHANGED_FILES=$(git diff --name-only "$BASE_REF"...HEAD 2>&1) || {
-            echo "Git diff failed, defaulting to run rust tests"
+          # Fail-safe: if git diff fails, run rust tests (don't silence errors)
+          if ! CHANGED_FILES=$(git diff --name-only "$BASE_REF"...HEAD); then
+            echo "::warning::Git diff failed, defaulting to run rust tests"
             echo "skip_rust=false" >> $GITHUB_OUTPUT
             exit 0
-          }
+          fi
           if echo "$CHANGED_FILES" | grep -qE '^(rust/|\.github/workflows/)'; then
             echo "skip_rust=false" >> $GITHUB_OUTPUT
           else
