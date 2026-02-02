@@ -34,6 +34,7 @@ runs:
       env:
         GH_TOKEN: ${{ inputs.github_token }}
         GITHUB_REPOSITORY: ${{ github.repository }}
+        GITHUB_RUN_ID: ${{ github.run_id }}
         PR_NUMBER: ${{ inputs.pr_number }}
         COMMENT_TAG: ${{ inputs.comment_tag }}
         IMAGE_NAME: ${{ inputs.image_name }}
@@ -83,8 +84,10 @@ runs:
           COMMENT_BODY=$(printf '%s\n## %s %s Built Successfully\n\n| Service | Tag |\n|---------|-----|\n%s\n<details>\n<summary>Full image paths</summary>\n\n```\n%s```\n</details>' \
             "${COMMENT_IDENTIFIER}" "${EMOJI}" "${IMAGE_NAME}" "${TABLE_ROWS}" "${FULL_LIST}")
         else
-          # On failure, we'll delete the comment instead
-          COMMENT_BODY=""
+          # On failure, show error message
+          COMMENT_BODY=$(printf '%s\n## %s %s Build Failed\n\n❌ **Build failed** - no images were pushed.\n\nCheck the [workflow logs](%s) for details.' \
+            "${COMMENT_IDENTIFIER}" "${EMOJI}" "${IMAGE_NAME}" \
+            "https://github.com/${GITHUB_REPOSITORY}/actions/runs/${GITHUB_RUN_ID}")
         fi
 
         # Find all existing comments with our identifier

@@ -142,6 +142,7 @@ jobs:
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           sparse-checkout: |
+            .github/actions/docker-image-comment
             typescript/docker-bake.hcl
             typescript/Dockerfile.node-service-runner
             pnpm-workspace.yaml
