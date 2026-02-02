@@ -94,11 +94,10 @@ jobs:
       - name: Run Migration Pipeline
         working-directory: ./solidity
         env:
-          OLD_ROUTER: ${{ steps.config.outputs.OLD_ROUTER }}
-          REMOTE_DOMAIN: ${{ steps.config.outputs.REMOTE_DOMAIN }}
-          PROXY_ADMIN: ${{ steps.config.outputs.PROXY_ADMIN }}
           OUTPUT_FILE: migration_transactions.json
-        run: ./script/migration-pipeline.sh
+        run: |
+          source script/migrations/${{ matrix.env_file }}
+          ./script/migration-pipeline.sh
 
       - name: Upload Safe Transaction JSON
         uses: actions/upload-artifact@v4
