@@ -166,6 +166,8 @@ contract InterchainAccountRouterTestBase is Test {
 
         // Deploy and configure gas oracle
         gasOracle = new StorageGasOracle();
+        // Configure native token gas oracle first (required before ERC20 tokens)
+        _setTokenGasConfig(address(0), destination);
         _setTokenGasConfig(address(feeToken), destination);
         _setRemoteGasData(destination, TOKEN_EXCHANGE_RATE, GAS_PRICE);
 
