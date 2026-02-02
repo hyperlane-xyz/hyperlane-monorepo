@@ -86,10 +86,13 @@ jobs:
             echo "PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
           fi
 
+          # Get Foundry version
+          echo "FOUNDRY_VERSION=$(cat solidity/.foundryrc)" >> $GITHUB_OUTPUT
+
       - name: Setup Foundry
         uses: foundry-rs/foundry-toolchain@v1
         with:
-          version: ${{ hashFiles('solidity/.foundryrc') }}
+          version: ${{ steps.taggen.outputs.FOUNDRY_VERSION }}
 
       - name: pnpm cache
         uses: ./.github/actions/pnpm-cache
