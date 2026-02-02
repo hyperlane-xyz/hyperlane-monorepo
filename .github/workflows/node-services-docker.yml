@@ -184,21 +184,22 @@ jobs:
           TAG_SHA_DATE="${{ needs.build-bundles.outputs.tag_sha_date }}"
           REGISTRY="gcr.io/abacus-labs-dev"
 
-          # Generate tags for comment action (SHA-date only)
-          TAGS=$(cat << EOF
+          if [ "${{ steps.build.outcome }}" == "success" ]; then
+            # Generate tags for comment action (SHA-date only)
+            TAGS=$(cat << EOF
           ${REGISTRY}/hyperlane-rebalancer:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-warp-monitor:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-key-funder:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-ts-relayer:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}
           EOF
-          )
-          echo "tags<<EOF" >> $GITHUB_OUTPUT
-          echo "$TAGS" >> $GITHUB_OUTPUT
-          echo "EOF" >> $GITHUB_OUTPUT
+            )
+            echo "tags<<EOF" >> $GITHUB_OUTPUT
+            echo "$TAGS" >> $GITHUB_OUTPUT
+            echo "EOF" >> $GITHUB_OUTPUT
 
-          # Write job summary
-          cat >> $GITHUB_STEP_SUMMARY << EOF
+            # Write job summary
+            cat >> $GITHUB_STEP_SUMMARY << EOF
           ## ⚙️ Node Service Docker Images
 
           | Service | Tag |
@@ -214,6 +215,14 @@ jobs:
           ${TAGS}
           \`\`\`
           EOF
+          else
+            echo "tags=" >> $GITHUB_OUTPUT
+            cat >> $GITHUB_STEP_SUMMARY << EOF
+          ## ⚙️ Node Service Docker Images
+
+          ❌ **Build failed** - no images were pushed.
+          EOF
+          fi
 
       - name: Comment image tags on PR
         if: github.event_name == 'pull_request' && always()
