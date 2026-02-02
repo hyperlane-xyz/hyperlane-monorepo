@@ -71,11 +71,6 @@ pub fn termination_invariants_met(
         delivered_messages_scraped_expected: total_messages_expected,
     };
 
-    if !scraper_termination_invariants_met(params)? {
-        log!("Scraper termination invariants not met");
-        return Ok(false);
-    }
-
     // Check provider metrics for sealeveltest2 (versioned tx with ALT destination)
     if !provider_metrics_invariant_met(
         RELAYER_METRICS_PORT,
@@ -95,6 +90,11 @@ pub fn termination_invariants_met(
         &hashmap! {"chain" => "sealeveltest3"},
     )? {
         log!("Provider metrics invariants not met for sealeveltest3");
+        return Ok(false);
+    }
+
+    if !scraper_termination_invariants_met(params)? {
+        log!("Scraper termination invariants not met");
         return Ok(false);
     }
 
