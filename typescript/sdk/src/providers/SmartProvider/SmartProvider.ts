@@ -437,7 +437,8 @@ export class HyperlaneSmartProvider
           const hasRevertData = !!revertData && revertData !== '0x';
           const nestedError = (result.error as any)?.error;
           // JSON-RPC error code 3 definitively indicates execution revert (EIP-1474)
-          const jsonRpcErrorCode = nestedError?.code;
+          // Check both nested levels as ethers wraps errors in error.error.code structure
+          const jsonRpcErrorCode = nestedError?.error?.code ?? nestedError?.code;
           const isJsonRpcRevert = jsonRpcErrorCode === 3;
           // No nested error means ethers failed to decode empty return data - this is permanent
           const isEmptyReturnDecodeFailure =

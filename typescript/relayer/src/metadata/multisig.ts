@@ -155,7 +155,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     },
   ): Promise<{
     originChain: ChainName;
-    fulfilled: Map<number, S3CheckpointWithId | undefined>;
+    fulfilled: Map<number, S3CheckpointWithId | void>;
     rejected: Map<number, Error>;
   }> {
     this.logger.debug({ match, validators }, 'Fetching validator checkpoints');
