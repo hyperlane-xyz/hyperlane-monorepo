@@ -3,7 +3,8 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
-  HyperlaneCore,
+  type CoreAddresses,
+  MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
   type Token,
@@ -228,11 +229,24 @@ export class RebalancerContextFactory {
     // 2. Create ExplorerClient
     const explorerClient = new ExplorerClient(explorerUrl);
 
-    // 3. Get HyperlaneCore from registry
-    const addresses = await this.registry.getAddresses();
-    const hyperlaneCore = HyperlaneCore.fromAddressesMap(
-      addresses,
-      this.multiProvider,
+    // 3. Get MultiProtocolCore from registry (supports all VM types)
+    // Validate and extract core addresses - mailbox is required for delivery checks
+    const registryAddresses = await this.registry.getAddresses();
+    const coreAddresses: ChainMap<CoreAddresses> = objMap(
+      registryAddresses,
+      (chain, addrs) => {
+        if (!addrs.mailbox) {
+          throw new Error(
+            `Missing mailbox address for chain ${chain} in registry`,
+          );
+        }
+        return addrs as CoreAddresses;
+      },
+    );
+    const mpp = MultiProtocolProvider.fromMultiProvider(this.multiProvider);
+    const multiProtocolCore = MultiProtocolCore.fromAddressesMap(
+      coreAddresses,
+      mpp,
     );
 
     // 4. Get rebalancer address from signer
@@ -265,7 +279,7 @@ export class RebalancerContextFactory {
       intentStore,
       actionStore,
       explorerClient,
-      hyperlaneCore,
+      multiProtocolCore,
       trackerConfig,
       this.logger,
     );
