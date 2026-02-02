@@ -11,7 +11,7 @@ use solana_sdk::pubkey::Pubkey;
 
 use hyperlane_sealevel_mailbox::mailbox_inbox_pda_seeds;
 
-use crate::{AltCmd, AltSubCmd, Context};
+use crate::{AltCmd, AltOutputFormat, AltSubCmd, Context};
 
 // Well-known program/account addresses eligible for ALT compression.
 // Programs called via CPI are in the accounts array, so they're eligible.
@@ -27,6 +27,8 @@ pub(crate) fn process_alt_cmd(ctx: Context, cmd: AltCmd) {
 }
 
 fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
+    let is_json = cmd.output_format == AltOutputFormat::Json;
+
     // 1. Derive inbox PDA from mailbox
     let (inbox_pda, _) = Pubkey::find_program_address(mailbox_inbox_pda_seeds!(), &cmd.mailbox);
 
@@ -41,7 +43,9 @@ fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
         .add_with_description(create_ix, "Create ALT")
         .send_with_payer();
 
-    println!("Created ALT: {}", alt_address);
+    if !is_json {
+        println!("Created ALT: {}", alt_address);
+    }
 
     // 4. Extend ALT with common addresses
     // Programs called via CPI are in accounts array, so they're eligible!
@@ -65,7 +69,9 @@ fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
         .add_with_description(extend_ix, "Extend ALT with addresses")
         .send_with_payer();
 
-    println!("Extended ALT with {} addresses", addresses.len());
+    if !is_json {
+        println!("Extended ALT with {} addresses", addresses.len());
+    }
 
     // 5. Freeze ALT (make immutable)
     let freeze_ix = freeze_lookup_table(alt_address, ctx.payer_pubkey);
@@ -74,11 +80,16 @@ fn create_alt(ctx: &Context, cmd: &crate::AltCreateCmd) {
         .add_with_description(freeze_ix, "Freeze ALT (make immutable)")
         .send_with_payer();
 
-    println!("Froze ALT (now immutable)");
-    println!("\n=== ALT CREATED ===");
-    println!("Address: {}", alt_address);
-    println!("Accounts ({}):", addresses.len());
-    for (i, addr) in addresses.iter().enumerate() {
-        println!("  [{}] {}", i, addr);
+    // Output based on format
+    if is_json {
+        println!(r#"{{"address":"{}"}}"#, alt_address);
+    } else {
+        println!("Froze ALT (now immutable)");
+        println!("\n=== ALT CREATED ===");
+        println!("Address: {}", alt_address);
+        println!("Accounts ({}):", addresses.len());
+        for (i, addr) in addresses.iter().enumerate() {
+            println!("  [{}] {}", i, addr);
+        }
     }
 }

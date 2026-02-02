@@ -153,6 +153,15 @@ pub(crate) struct AltCreateCmd {
     /// Mailbox program ID (inbox PDA derived from this)
     #[arg(long)]
     pub mailbox: Pubkey,
+    /// Output format (text or json)
+    #[arg(long, default_value = "text")]
+    pub output_format: AltOutputFormat,
+}
+
+#[derive(Copy, Clone, PartialEq, Eq, ValueEnum)]
+pub enum AltOutputFormat {
+    Text,
+    Json,
 }
 
 #[derive(Args)]
