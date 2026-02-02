@@ -16,6 +16,11 @@ export interface IndexerChainConfig {
 
 /**
  * Load chain configs from registry, filtering to EVM chains only.
+ *
+ * Chain filtering (in order of precedence):
+ *   1. INDEXED_CHAINS env var (comma-separated list of chain names)
+ *   2. All EVM chains from environment (mainnet3/testnet4)
+ *
  * RPC URLs can be overridden via environment variables:
  *   - HYP_RPC_<CHAIN_NAME_UPPERCASE>=url
  *   - Or via CHAIN_RPC_URLS JSON: {"chainName": "url"}
@@ -34,8 +39,18 @@ export async function loadChainConfigs(
   const registry = new FileSystemRegistry({ uri: registryUri });
   const allMetadata = registry.getMetadata();
 
-  // Get supported chain names for environment
-  const supportedChains = await getSupportedChainNames(env);
+  // Get chains to index: explicit list or all supported chains
+  const chainsToIndex = parseIndexedChains();
+  const supportedChains =
+    chainsToIndex.length > 0
+      ? chainsToIndex
+      : await getSupportedChainNames(env);
+
+  if (chainsToIndex.length > 0) {
+    console.log(`Indexing specified chains: ${chainsToIndex.join(', ')}`);
+  } else {
+    console.log(`Indexing all ${env} EVM chains`);
+  }
 
   // Parse RPC URL overrides from environment
   const rpcOverrides = parseRpcOverrides();
@@ -92,6 +107,22 @@ async function getSupportedChainNames(env: DeployEnv): Promise<string[]> {
     return supportedChainNames;
   }
   throw new Error(`Unknown environment: ${env}`);
+}
+
+/**
+ * Parse INDEXED_CHAINS environment variable.
+ * Format: comma-separated list of chain names (e.g., "ethereum,arbitrum,optimism")
+ */
+function parseIndexedChains(): string[] {
+  const indexedChains = process.env.INDEXED_CHAINS;
+  if (!indexedChains) {
+    return [];
+  }
+
+  return indexedChains
+    .split(',')
+    .map((c) => c.trim().toLowerCase())
+    .filter((c) => c.length > 0);
 }
 
 function parseRpcOverrides(): Record<string, string> {

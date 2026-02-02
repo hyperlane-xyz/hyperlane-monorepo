@@ -21,6 +21,7 @@ pnpm install
 export DATABASE_URL=postgres://user:pass@host:5432/dbname
 export REGISTRY_URI=/path/to/hyperlane-registry
 export DEPLOY_ENV=testnet4  # or mainnet3
+export INDEXED_CHAINS=ethereum,arbitrum,optimism  # optional: specific chains to index
 
 # Run migrations
 pnpm db:migrate
@@ -34,13 +35,14 @@ pnpm start
 
 ## Environment Variables
 
-| Variable          | Description                           | Required |
-| ----------------- | ------------------------------------- | -------- |
-| `DATABASE_URL`    | PostgreSQL connection string          | Yes      |
-| `REGISTRY_URI`    | Path to Hyperlane registry            | Yes      |
-| `DEPLOY_ENV`      | Environment: `testnet4` or `mainnet3` | Yes      |
-| `CHAIN_RPC_URLS`  | JSON object of chain RPC overrides    | No       |
-| `HYP_RPC_<CHAIN>` | RPC URL override for specific chain   | No       |
+| Variable          | Description                                        | Required |
+| ----------------- | -------------------------------------------------- | -------- |
+| `DATABASE_URL`    | PostgreSQL connection string                       | Yes      |
+| `REGISTRY_URI`    | Path to Hyperlane registry                         | Yes      |
+| `DEPLOY_ENV`      | Environment: `testnet4` or `mainnet3`              | Yes      |
+| `INDEXED_CHAINS`  | Comma-separated chains to index (default: all EVM) | No       |
+| `CHAIN_RPC_URLS`  | JSON object of chain RPC overrides                 | No       |
+| `HYP_RPC_<CHAIN>` | RPC URL override for specific chain                | No       |
 
 ## Database Schema
 
@@ -93,6 +95,7 @@ See Helm chart at `typescript/infra/helm/indexer/`.
 helm install indexer ./typescript/infra/helm/indexer \
   --set hyperlane.runEnv=testnet4 \
   --set hyperlane.registryUri=/registry \
+  --set hyperlane.chains=ethereum,arbitrum,optimism \
   --set externalSecrets.clusterSecretStore=my-store \
   --set externalSecrets.databaseUrlSecretKey=indexer-db-url
 ```
