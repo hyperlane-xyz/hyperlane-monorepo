@@ -32,6 +32,7 @@ ponder.on('InterchainGasPaymaster:GasPayment', async ({ event, context }) => {
     blockId,
     {
       hash: event.transaction.hash,
+      transactionIndex: event.transactionReceipt!.transactionIndex,
       from: event.transaction.from,
       to: event.transaction.to,
       gas: event.transaction.gas,

@@ -37,6 +37,10 @@ spec:
             - name: REGISTRY_URI
               value: {{ .Values.hyperlane.registryUri }}
             {{- end }}
+            {{- if .Values.hyperlane.chains }}
+            - name: INDEXED_CHAINS
+              value: {{ .Values.hyperlane.chains }}
+            {{- end }}
             {{- if .Values.database.connectionString }}
             - name: DATABASE_URL
               value: {{ .Values.database.connectionString }}

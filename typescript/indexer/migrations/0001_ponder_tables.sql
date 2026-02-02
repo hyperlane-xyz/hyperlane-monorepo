@@ -27,6 +27,7 @@ CREATE TABLE IF NOT EXISTS ponder_transaction (
     time_created TIMESTAMP NOT NULL DEFAULT NOW(),
     hash BYTEA UNIQUE NOT NULL,
     block_id BIGINT NOT NULL REFERENCES ponder_block(id),
+    transaction_index INTEGER NOT NULL,  -- Position of tx in block (for LogMeta)
     gas_limit NUMERIC(78, 0) NOT NULL,
     max_priority_fee_per_gas NUMERIC(78, 0),
     max_fee_per_gas NUMERIC(78, 0),
@@ -51,6 +52,7 @@ CREATE TABLE IF NOT EXISTS ponder_message (
     id BIGSERIAL PRIMARY KEY,
     time_created TIMESTAMP NOT NULL DEFAULT NOW(),
     msg_id BYTEA NOT NULL,
+    version SMALLINT NOT NULL DEFAULT 3,  -- Hyperlane message version (for HyperlaneMessage)
     origin INTEGER NOT NULL REFERENCES domain(id),
     destination INTEGER NOT NULL REFERENCES domain(id),
     nonce INTEGER NOT NULL,
@@ -59,6 +61,7 @@ CREATE TABLE IF NOT EXISTS ponder_message (
     msg_body BYTEA,
     origin_mailbox BYTEA NOT NULL,
     origin_tx_id BIGINT NOT NULL REFERENCES ponder_transaction(id),
+    log_index INTEGER NOT NULL,  -- Log index in transaction (for LogMeta)
     UNIQUE (origin, origin_mailbox, nonce)
 );
 
@@ -78,6 +81,7 @@ CREATE TABLE IF NOT EXISTS ponder_delivered_message (
     domain INTEGER NOT NULL REFERENCES domain(id),
     destination_mailbox BYTEA NOT NULL,
     destination_tx_id BIGINT NOT NULL REFERENCES ponder_transaction(id),
+    log_index INTEGER NOT NULL,  -- Log index in transaction (for LogMeta)
     sequence BIGINT
 );
 
@@ -112,6 +116,28 @@ CREATE INDEX IF NOT EXISTS ponder_gas_payment_domain_id_idx ON ponder_gas_paymen
 CREATE INDEX IF NOT EXISTS ponder_gas_payment_origin_id_idx ON ponder_gas_payment (origin, id);
 CREATE INDEX IF NOT EXISTS ponder_gas_payment_origin_igp_seq_idx
     ON ponder_gas_payment (origin, interchain_gas_paymaster, sequence);
+
+-- =============================================================================
+-- PONDER_MERKLE_TREE_INSERTION - For validator checkpoint signing
+-- =============================================================================
+CREATE TABLE IF NOT EXISTS ponder_merkle_tree_insertion (
+    id BIGSERIAL PRIMARY KEY,
+    time_created TIMESTAMP NOT NULL DEFAULT NOW(),
+    domain INTEGER NOT NULL REFERENCES domain(id),
+    leaf_index INTEGER NOT NULL,          -- Same as message nonce / merkle tree index
+    message_id BYTEA NOT NULL,            -- Message ID inserted into tree
+    merkle_tree_hook BYTEA NOT NULL,      -- MerkleTreeHook contract address
+    tx_id BIGINT NOT NULL REFERENCES ponder_transaction(id),
+    log_index INTEGER NOT NULL,           -- Log index in transaction (for LogMeta)
+    UNIQUE (domain, merkle_tree_hook, leaf_index)
+);
+
+CREATE INDEX IF NOT EXISTS ponder_merkle_tree_insertion_domain_idx
+    ON ponder_merkle_tree_insertion (domain, leaf_index);
+CREATE INDEX IF NOT EXISTS ponder_merkle_tree_insertion_msg_id_idx
+    ON ponder_merkle_tree_insertion USING HASH (message_id);
+CREATE INDEX IF NOT EXISTS ponder_merkle_tree_insertion_hook_idx
+    ON ponder_merkle_tree_insertion (merkle_tree_hook, leaf_index);
 
 -- =============================================================================
 -- PONDER_RAW_MESSAGE_DISPATCH - Mirrors scraper raw_message_dispatch table
@@ -186,12 +212,13 @@ SELECT
 FROM ponder_gas_payment
 GROUP BY msg_id;
 
--- Message view with delivery status and latency
+-- Message view with delivery status and latency (includes LogMeta fields)
 CREATE OR REPLACE VIEW ponder_message_view AS
 SELECT
     m.id,
     m.time_created,
     m.msg_id,
+    m.version,
     m.origin,
     m.destination,
     m.nonce,
@@ -199,8 +226,10 @@ SELECT
     m.recipient,
     m.msg_body,
     m.origin_mailbox,
-    -- Origin transaction/block info
+    m.log_index as origin_log_index,
+    -- Origin transaction/block info (LogMeta)
     ot.hash as origin_tx_hash,
+    ot.transaction_index as origin_tx_index,
     ot.gas_used as origin_gas_used,
     ob.height as origin_block_height,
     ob.hash as origin_block_hash,
@@ -208,9 +237,11 @@ SELECT
     -- Delivery info
     dm.id IS NOT NULL as is_delivered,
     dm.destination_mailbox,
+    dm.log_index as destination_log_index,
     dm.sequence as delivery_sequence,
-    -- Destination transaction/block info
+    -- Destination transaction/block info (LogMeta)
     dt.hash as destination_tx_hash,
+    dt.transaction_index as destination_tx_index,
     dt.gas_used as destination_gas_used,
     db.height as destination_block_height,
     db.hash as destination_block_hash,

@@ -2,14 +2,28 @@ import { relations } from 'drizzle-orm';
 import {
   bigint,
   bigserial,
-  bytea,
+  customType,
   index,
   integer,
   numeric,
   pgTable,
+  smallint,
   timestamp,
   unique,
 } from 'drizzle-orm/pg-core';
+
+// Custom bytea type for PostgreSQL binary data
+const bytea = customType<{ data: Buffer }>({
+  dataType() {
+    return 'bytea';
+  },
+  toDriver(value: Buffer) {
+    return value;
+  },
+  fromDriver(value: unknown) {
+    return value as Buffer;
+  },
+});
 
 // =============================================================================
 // Domain table (shared with scraper - read only)
@@ -63,6 +77,7 @@ export const ponderTransaction = pgTable(
     blockId: bigint('block_id', { mode: 'number' })
       .notNull()
       .references(() => ponderBlock.id),
+    transactionIndex: integer('transaction_index').notNull(), // Position in block (for LogMeta)
     gasLimit: numeric('gas_limit', { precision: 78, scale: 0 }).notNull(),
     maxPriorityFeePerGas: numeric('max_priority_fee_per_gas', {
       precision: 78,
@@ -110,6 +125,7 @@ export const ponderMessage = pgTable(
     id: bigserial('id', { mode: 'number' }).primaryKey(),
     timeCreated: timestamp('time_created').notNull().defaultNow(),
     msgId: bytea('msg_id').notNull(),
+    version: smallint('version').notNull().default(3), // Hyperlane message version
     origin: integer('origin')
       .notNull()
       .references(() => domain.id),
@@ -124,6 +140,7 @@ export const ponderMessage = pgTable(
     originTxId: bigint('origin_tx_id', { mode: 'number' })
       .notNull()
       .references(() => ponderTransaction.id),
+    logIndex: integer('log_index').notNull(), // Log index in tx (for LogMeta)
   },
   (table) => [
     unique('ponder_message_origin_mailbox_nonce_unique').on(
@@ -159,6 +176,7 @@ export const ponderDeliveredMessage = pgTable(
     destinationTxId: bigint('destination_tx_id', { mode: 'number' })
       .notNull()
       .references(() => ponderTransaction.id),
+    logIndex: integer('log_index').notNull(), // Log index in tx (for LogMeta)
     sequence: bigint('sequence', { mode: 'number' }),
   },
   (table) => [
@@ -233,6 +251,52 @@ export const ponderGasPaymentRelations = relations(
   ({ one }) => ({
     tx: one(ponderTransaction, {
       fields: [ponderGasPayment.txId],
+      references: [ponderTransaction.id],
+    }),
+  }),
+);
+
+// =============================================================================
+// PONDER_MERKLE_TREE_INSERTION (for validator checkpoint signing)
+// =============================================================================
+export const ponderMerkleTreeInsertion = pgTable(
+  'ponder_merkle_tree_insertion',
+  {
+    id: bigserial('id', { mode: 'number' }).primaryKey(),
+    timeCreated: timestamp('time_created').notNull().defaultNow(),
+    domain: integer('domain')
+      .notNull()
+      .references(() => domain.id),
+    leafIndex: integer('leaf_index').notNull(), // Same as message nonce
+    messageId: bytea('message_id').notNull(),
+    merkleTreeHook: bytea('merkle_tree_hook').notNull(), // Contract address
+    txId: bigint('tx_id', { mode: 'number' })
+      .notNull()
+      .references(() => ponderTransaction.id),
+    logIndex: integer('log_index').notNull(), // Log index in tx (for LogMeta)
+  },
+  (table) => [
+    unique('ponder_merkle_tree_insertion_domain_hook_leaf_unique').on(
+      table.domain,
+      table.merkleTreeHook,
+      table.leafIndex,
+    ),
+    index('ponder_merkle_tree_insertion_domain_idx').on(
+      table.domain,
+      table.leafIndex,
+    ),
+    index('ponder_merkle_tree_insertion_hook_idx').on(
+      table.merkleTreeHook,
+      table.leafIndex,
+    ),
+  ],
+);
+
+export const ponderMerkleTreeInsertionRelations = relations(
+  ponderMerkleTreeInsertion,
+  ({ one }) => ({
+    tx: one(ponderTransaction, {
+      fields: [ponderMerkleTreeInsertion.txId],
       references: [ponderTransaction.id],
     }),
   }),
@@ -339,6 +403,8 @@ export type PonderTransaction = typeof ponderTransaction.$inferInsert;
 export type PonderMessage = typeof ponderMessage.$inferInsert;
 export type PonderDeliveredMessage = typeof ponderDeliveredMessage.$inferInsert;
 export type PonderGasPayment = typeof ponderGasPayment.$inferInsert;
+export type PonderMerkleTreeInsertion =
+  typeof ponderMerkleTreeInsertion.$inferInsert;
 export type PonderRawMessageDispatch =
   typeof ponderRawMessageDispatch.$inferInsert;
 export type PonderReorgEvent = typeof ponderReorgEvent.$inferInsert;
