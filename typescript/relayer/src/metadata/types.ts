@@ -35,13 +35,24 @@ export interface MetadataContext<
 // ============================================
 // Validator info (for multisig ISMs)
 // ============================================
+
+/** Validator signature status constants */
+export const ValidatorStatus = {
+  Signed: 'signed',
+  Pending: 'pending',
+  Error: 'error',
+} as const;
+
+export type ValidatorStatus =
+  (typeof ValidatorStatus)[keyof typeof ValidatorStatus];
+
 export interface ValidatorInfo {
   /** Validator address */
   address: Address;
   /** Human-readable name from defaultMultisigConfigs */
   alias?: string;
   /** Signature status */
-  status: 'signed' | 'pending' | 'error';
+  status: ValidatorStatus;
   /** Present if status is 'signed' */
   signature?: SignatureLike;
   /** Checkpoint index the validator signed at */

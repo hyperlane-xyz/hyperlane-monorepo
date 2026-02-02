@@ -91,8 +91,12 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
 
       if (errorMessage.includes('Wait') && errorMessage.includes('blocks')) {
         // Extract blocks remaining from error message
+        // Note: This parsing depends on error format from buildArbitrumBridgeCalldata
+        // e.g., "Wait 123 blocks until the challenge period..."
         const blocksMatch = errorMessage.match(/Wait (\d+) blocks/);
-        const blocksRemaining = blocksMatch ? parseInt(blocksMatch[1], 10) : 0;
+        const blocksRemaining = blocksMatch
+          ? parseInt(blocksMatch[1], 10)
+          : undefined;
         return {
           ...baseResult,
           bridgeStatus: 'unconfirmed',

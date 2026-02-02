@@ -31,11 +31,12 @@ import {
 
 import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 
-import type {
-  MetadataBuilder,
-  MetadataContext,
-  MultisigMetadataBuildResult,
-  ValidatorInfo,
+import {
+  ValidatorStatus,
+  type MetadataBuilder,
+  type MetadataContext,
+  type MultisigMetadataBuildResult,
+  type ValidatorInfo,
 } from './types.js';
 
 interface MessageIdMultisigMetadata {
@@ -59,7 +60,10 @@ export type MultisigMetadata =
   | MerkleRootMultisigMetadata;
 
 export class MultisigMetadataBuilder implements MetadataBuilder {
-  protected validatorCache: Record<ChainName, Record<string, S3Validator>> = {};
+  protected validatorCache: Record<
+    ChainName,
+    Record<string, S3Validator | undefined>
+  > = {};
 
   constructor(
     protected readonly core: HyperlaneCore,
@@ -86,7 +90,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
   protected async s3Validators(
     originChain: ChainName,
     validators: string[],
-  ): Promise<S3Validator[]> {
+  ): Promise<(S3Validator | undefined)[]> {
     this.validatorCache[originChain] ??= {};
     const toFetch = validators.filter(
       (v) => !(v in this.validatorCache[originChain]),
@@ -101,17 +105,37 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
       this.logger.debug({ storageLocations }, 'Fetched storage locations');
 
-      const s3Validators = await Promise.all(
-        storageLocations.map((locations) => {
+      // Use mapAllSettled to handle partial failures gracefully
+      // Some validators may not have announced storage locations or may have invalid ones
+      const { fulfilled, rejected } = await mapAllSettled(
+        storageLocations,
+        async (locations, index) => {
           const latestLocation = locations.slice(-1)[0];
+          if (!latestLocation) {
+            throw new Error(
+              `No storage location announced for validator ${toFetch[index]}`,
+            );
+          }
           return S3Validator.fromStorageLocation(latestLocation);
-        }),
+        },
       );
 
-      this.logger.debug({ s3Validators }, 'Fetched validators');
+      // Log any failures for debugging
+      rejected.forEach((error, index) => {
+        this.logger.warn(
+          { validator: toFetch[index], error: error.message },
+          'Failed to initialize S3Validator',
+        );
+      });
+
+      this.logger.debug(
+        { fulfilled: fulfilled.size, rejected: rejected.size },
+        'Fetched validators',
+      );
 
       toFetch.forEach((validator, index) => {
-        this.validatorCache[originChain][validator] = s3Validators[index];
+        // Store undefined for failed validators so we don't retry them
+        this.validatorCache[originChain][validator] = fulfilled.get(index);
       });
     }
 
@@ -132,13 +156,12 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     const originChain = this.core.multiProvider.getChainName(match.origin);
     const s3Validators = await this.s3Validators(originChain, validators);
 
-    const { fulfilled, rejected } = await mapAllSettled(s3Validators, (v) =>
-      v.getCheckpoint(match.index),
-    );
-
-    for (const [, error] of rejected) {
-      this.logger.error({ error }, 'Failed to fetch checkpoint');
-    }
+    const { fulfilled, rejected } = await mapAllSettled(s3Validators, (v) => {
+      if (!v) {
+        throw new Error('No valid storage location for validator');
+      }
+      return v.getCheckpoint(match.index);
+    });
 
     // Log any errors from failed checkpoint fetches
     rejected.forEach((error, key) => {
@@ -197,50 +220,45 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
   }> {
     const originChain = this.core.multiProvider.getChainName(match.origin);
 
-    // Get S3 validators (may throw if no storage location announced)
-    let s3Validators: S3Validator[];
-    try {
-      s3Validators = await this.s3Validators(originChain, validators);
-    } catch (error) {
-      // If we can't fetch storage locations at all, return all as error
-      return {
-        validatorInfos: validators.map((address) => ({
-          address,
-          alias: this.getValidatorAlias(address, originChain),
-          status: 'error' as const,
-          error: `Failed to fetch storage locations: ${error}`,
-        })),
-      };
-    }
+    // Get S3 validators - this now handles partial failures gracefully
+    // Some validators may be undefined if they don't have valid storage locations
+    const s3Validators = await this.s3Validators(originChain, validators);
 
     // Fetch checkpoints from each validator in parallel
-    const results = await Promise.allSettled(
-      s3Validators.map((v) => v?.getCheckpoint(match.index)),
+    // Filter out undefined validators first, then use mapAllSettled for robustness
+    const { fulfilled, rejected } = await mapAllSettled(
+      validators,
+      async (_, index) => {
+        const s3Validator = s3Validators[index];
+        if (!s3Validator) {
+          throw new Error('No valid storage location for validator');
+        }
+        return s3Validator.getCheckpoint(match.index);
+      },
     );
 
     let firstMatchingCheckpoint: Checkpoint | undefined;
     const validatorInfos: ValidatorInfo[] = validators.map((address, index) => {
-      const result = results[index];
       const alias = this.getValidatorAlias(address, originChain);
 
-      // Check if fetch failed
-      if (result.status === 'rejected') {
+      // Check if this validator failed (no storage location or fetch failed)
+      if (rejected.has(index)) {
         return {
           address,
           alias,
-          status: 'error' as const,
-          error: `Failed to fetch checkpoint: ${result.reason}`,
+          status: ValidatorStatus.Error,
+          error: `Failed to fetch checkpoint: ${rejected.get(index)?.message}`,
         };
       }
 
-      const checkpoint = result.value;
+      const checkpoint = fulfilled.get(index);
 
       // Check if checkpoint doesn't exist (validator hasn't signed this index yet)
       if (!checkpoint) {
         return {
           address,
           alias,
-          status: 'pending' as const,
+          status: ValidatorStatus.Pending,
         };
       }
 
@@ -260,7 +278,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
         return {
           address,
           alias,
-          status: 'pending' as const,
+          status: ValidatorStatus.Pending,
         };
       }
 
@@ -272,7 +290,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       return {
         address,
         alias,
-        status: 'signed' as const,
+        status: ValidatorStatus.Signed,
         signature: checkpoint.signature,
         checkpointIndex: checkpoint.value.checkpoint.index,
       };

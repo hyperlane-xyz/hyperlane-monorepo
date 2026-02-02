@@ -1,5 +1,5 @@
 ---
-"@hyperlane-xyz/sdk": minor
+"@hyperlane-xyz/sdk": major
 ---
 
 **BREAKING**: `MetadataBuilder.build()` now returns `MetadataBuildResult` instead of `string`. Access `.metadata` on the result to get the encoded bytes.

@@ -215,21 +215,7 @@ export {
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
-export {
-  MetadataBuildResult,
-  MultisigMetadataBuildResult,
-  AggregationMetadataBuildResult,
-  RoutingMetadataBuildResult,
-  NullMetadataBuildResult,
-  ArbL2ToL1MetadataBuildResult,
-  CcipReadMetadataBuildResult,
-  ValidatorInfo,
-  isMetadataBuildable,
-  getSignedValidatorCount,
-  isQuorumMet,
-  MetadataBuilder,
-  MetadataContext,
-} from './ism/metadata/types.js';
+// Note: MetadataBuilder types are now exported from @hyperlane-xyz/relayer
 export {
   buildAggregationIsmConfigs,
   buildMultisigIsmConfigs,
