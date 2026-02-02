@@ -127,7 +127,7 @@ jobs:
   rust-only:
     needs: [set-base-sha]
     outputs:
-      only_rust: ${{ steps.override-main.outputs.only_rust || steps.override-merge-group.outputs.only_rust || steps.check-rust.outputs.only_changes }}
+      only_rust: ${{ steps.decide.outputs.only_rust }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -135,7 +135,10 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           fetch-depth: 0
 
-      # Check if changes are ONLY rust
+      - name: Check CI context
+        id: context
+        uses: ./.github/actions/ci-context-check
+
       - name: Check if changes are ONLY rust
         id: check-rust
         uses: ./.github/actions/check-path-changes
@@ -145,21 +148,22 @@ jobs:
           path_pattern: 'rust/'
           path_pattern_only: 'true'
 
-      # If the push event is to main, fallback to rust_only as false.
-      - name: Override for push to main
-        id: override-main
-        if: github.event_name == 'push' && github.ref == 'refs/heads/main'
+      - name: Decide whether to skip TS jobs
+        id: decide
         run: |
-          echo "only_rust=false" >> $GITHUB_OUTPUT
-          echo "Push event to main detected. Setting only_rust to false."
+          echo "Context: ${{ steps.context.outputs.reason }}"
 
-      # Never skip for merge_group events (merge queue)
-      - name: Override for merge_group
-        id: override-merge-group
-        if: github.event_name == 'merge_group'
-        run: |
-          echo "only_rust=false" >> $GITHUB_OUTPUT
-          echo "merge_group event detected. Setting only_rust to false."
+          if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
+            echo "only_rust=true" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
+            echo "only_rust=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          echo "only_rust=${{ steps.check-rust.outputs.only_changes }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
     runs-on: depot-ubuntu-latest

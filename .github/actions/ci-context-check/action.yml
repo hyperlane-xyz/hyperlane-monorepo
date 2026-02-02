@@ -1,0 +1,59 @@
+name: 'CI Context Check'
+description: 'Determine CI skip/run behavior based on event context (merge queue, main push, bots)'
+outputs:
+  should_skip:
+    description: 'Jobs should be skipped (merge queue push to main - CI already passed)'
+    value: ${{ steps.check.outputs.should_skip }}
+  must_run:
+    description: 'Jobs must run regardless of path changes (direct main push, merge_group, bot PR)'
+    value: ${{ steps.check.outputs.must_run }}
+  reason:
+    description: 'Human-readable reason for the decision'
+    value: ${{ steps.check.outputs.reason }}
+runs:
+  using: 'composite'
+  steps:
+    - name: Check CI context
+      id: check
+      shell: bash
+      run: |
+        EVENT="${{ github.event_name }}"
+        REF="${{ github.ref }}"
+        ACTOR="${{ github.actor }}"
+
+        # Push from merge queue to main - skip, CI already passed in merge_group
+        if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" && "$ACTOR" == "github-merge-queue[bot]" ]]; then
+          echo "should_skip=true" >> $GITHUB_OUTPUT
+          echo "must_run=false" >> $GITHUB_OUTPUT
+          echo "reason=Push from merge queue - CI already passed" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Direct push to main (admin/bypass) - must run full CI
+        if [[ "$EVENT" == "push" && "$REF" == "refs/heads/main" ]]; then
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+          echo "must_run=true" >> $GITHUB_OUTPUT
+          echo "reason=Direct push to main - running full CI" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # merge_group event - must run (this is the gate before merge)
+        if [[ "$EVENT" == "merge_group" ]]; then
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+          echo "must_run=true" >> $GITHUB_OUTPUT
+          echo "reason=Merge queue gate - running full CI" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Bot PRs (Dependabot, Renovate, etc.) - must run full CI
+        if [[ "$ACTOR" == "dependabot[bot]" ]] || [[ "$ACTOR" == *'[bot]' ]]; then
+          echo "should_skip=false" >> $GITHUB_OUTPUT
+          echo "must_run=true" >> $GITHUB_OUTPUT
+          echo "reason=Bot PR ($ACTOR) - running full CI" >> $GITHUB_OUTPUT
+          exit 0
+        fi
+
+        # Default: check path changes to determine skip
+        echo "should_skip=false" >> $GITHUB_OUTPUT
+        echo "must_run=false" >> $GITHUB_OUTPUT
+        echo "reason=PR - checking path changes" >> $GITHUB_OUTPUT
