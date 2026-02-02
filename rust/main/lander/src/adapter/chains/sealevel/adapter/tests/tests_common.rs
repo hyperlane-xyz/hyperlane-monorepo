@@ -268,7 +268,6 @@ pub fn encoded_svm_transaction() -> EncodedConfirmedTransactionWithStatusMeta {
             transaction: EncodedTransaction::LegacyBinary("binary".to_string()),
             meta: Some(UiTransactionStatusMeta {
                 err: None,
-                status: Ok(()),
                 fee: 0,
                 pre_balances: Vec::new(),
                 post_balances: Vec::new(),
