@@ -1,0 +1,171 @@
+
+> @hyperlane-xyz/rebalancer@0.1.2 start /Users/mo/dev/monorepo-4/typescript/rebalancer
+> node dist/service.js
+
+bigint: Failed to load bindings, pure JS will be used (try npm run rebuild?)
+{
+  version: 'dev',
+  configFile: '/Users/mo/dev/monorepo-4/typescript/infra/config/environments/mainnet3/rebalancer/ETHSTAGE/mode-config.yaml',
+  checkFrequency: 60000,
+  withMetrics: true,
+  monitorOnly: false
+} Starting Hyperlane Rebalancer Service
+✅ Loaded rebalancer configuration
+{ registryUri: '/Users/mo/dev/hyperlane/registry-4' } ✅ Initialized registry
+✅ Loaded metadata for 328 chains
+{ rebalancerAddress: '0xa3948a15e1d0778a7d53268b651B2411AF198FE3' } ✅ Initialized MultiProvider with rebalancer signer
+{ inventoryAddress: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5' } ✅ Initialized inventory MultiProvider
+✅ Initialized MultiProtocolProvider
+Initializing RebalancerService...
+Metrics collection enabled
+WeightedStrategy created
+ActionTracker initializing
+{ count: 0 } Found inflight rebalance messages during startup
+{ newTransfers: 0, completed: 0, inProgress: 0 } Transfers synced
+{ discovered: 0, completed: 0, inProgress: 0 } Actions synced
+{ transfers: 0, intents: 0, actions: 0 } Store summary
+ActionTracker initialized
+ActionTracker initialized
+{
+  inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5',
+  inventoryChains: [ 'arbitrum', 'base', 'optimism' ]
+} InventoryMonitor initialized
+{ inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5' } InventoryRebalancer initialized
+{
+  inventoryChains: [ 'arbitrum', 'base', 'optimism' ],
+  inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5'
+} Inventory components created successfully
+Inventory rebalancing enabled
+{
+  warpRouteId: 'ETHSTAGE/mode',
+  strategyTypes: [ 'weighted' ],
+  chains: [ 'arbitrum', 'base', 'optimism' ]
+} RebalancerService initialized
+Rebalancer started successfully 🚀
+Polling cycle started
+{
+  labels: {
+    chain_name: 'mode',
+    token_address: '0x02615459260E5329500d23577e7950098697E203',
+    token_name: 'Ether STAGE',
+    wallet_address: '0x02615459260E5329500d23577e7950098697E203',
+    token_standard: 'EvmHypSynthetic',
+    warp_route_id: 'ETHSTAGE/mode',
+    related_chain_names: 'arbitrum,base,ethereum,optimism'
+  },
+  balance: 0.16
+} Wallet balance updated for token
+{
+  labels: {
+    chain_name: 'arbitrum',
+    token_address: '0x5b4172Eed2886bC3623a9ed9CCC98DBE2832B7d2',
+    token_name: 'Ether',
+    wallet_address: '0x5b4172Eed2886bC3623a9ed9CCC98DBE2832B7d2',
+    token_standard: 'EvmHypNative',
+    warp_route_id: 'ETHSTAGE/mode',
+    related_chain_names: 'base,ethereum,mode,optimism'
+  },
+  balance: 0.0507
+} Wallet balance updated for token
+{
+  labels: {
+    chain_name: 'base',
+    token_address: '0x94620098a0AF6fBEb3eDd2BC6F52D1aa228e9077',
+    token_name: 'Ether',
+    wallet_address: '0x94620098a0AF6fBEb3eDd2BC6F52D1aa228e9077',
+    token_standard: 'EvmHypNative',
+    warp_route_id: 'ETHSTAGE/mode',
+    related_chain_names: 'arbitrum,ethereum,mode,optimism'
+  },
+  balance: 0.0676
+} Wallet balance updated for token
+{
+  labels: {
+    chain_name: 'ethereum',
+    token_address: '0xd17c7E32a2D3BB76234925bee159aC18a43E8322',
+    token_name: 'Ether',
+    wallet_address: '0xd17c7E32a2D3BB76234925bee159aC18a43E8322',
+    token_standard: 'EvmHypNative',
+    warp_route_id: 'ETHSTAGE/mode',
+    related_chain_names: 'arbitrum,base,mode,optimism'
+  },
+  balance: 0.006
+} Wallet balance updated for token
+{
+  labels: {
+    chain_name: 'optimism',
+    token_address: '0x7B3877CD74c7b7f1fc5ACE40Ad5C5aE1ebC87AA1',
+    token_name: 'Ether',
+    wallet_address: '0x7B3877CD74c7b7f1fc5ACE40Ad5C5aE1ebC87AA1',
+    token_standard: 'EvmHypNative',
+    warp_route_id: 'ETHSTAGE/mode',
+    related_chain_names: 'arbitrum,base,ethereum,mode'
+  },
+  balance: 0.0507
+} Wallet balance updated for token
+{ discovered: 0, completed: 0, inProgress: 0 } Actions synced
+{ newTransfers: 0, completed: 0, inProgress: 0 } Transfers synced
+{ transfers: 0, intents: 0, actions: 0 } Store summary
+{
+  chainsMonitored: 3,
+  balances: [
+    {
+      chain: 'arbitrum',
+      balance: '59164433769367088',
+      balanceEth: '0.059164'
+    },
+    {
+      chain: 'base',
+      balance: '410856807776778',
+      balanceEth: '0.000411'
+    },
+    {
+      chain: 'optimism',
+      balance: '506073489581340',
+      balanceEth: '0.000506'
+    }
+  ],
+  totalBalance: '60081364066725206'
+} Inventory balances refreshed
+{
+  balances: [
+    { chain: 'arbitrum', balance: '50700000000000000' },
+    { chain: 'base', balance: '67600000000000000' },
+    { chain: 'optimism', balance: '50700000000000000' }
+  ]
+} Router balances
+{
+  strategy: 'weighted',
+  balances: [
+    { chain: 'arbitrum', balance: '50700000000000000' },
+    { chain: 'base', balance: '67600000000000000' },
+    { chain: 'optimism', balance: '50700000000000000' }
+  ],
+  pendingRebalances: 0,
+  pendingTransfers: 0,
+  proposedRebalances: 0
+} Strategy evaluating
+{ context: 'WeightedStrategy', numberOfRoutes: 0 } Found rebalancing routes
+No rebalancing needed
+{
+  chainsMonitored: 3,
+  balances: [
+    {
+      chain: 'arbitrum',
+      balance: '59164433769367088',
+      balanceEth: '0.059164'
+    },
+    {
+      chain: 'base',
+      balance: '410856807776778',
+      balanceEth: '0.000411'
+    },
+    {
+      chain: 'optimism',
+      balance: '506073489581340',
+      balanceEth: '0.000506'
+    }
+  ],
+  totalBalance: '60081364066725206'
+} Inventory balances refreshed
+Polling cycle completed

@@ -12,7 +12,7 @@ import {
 
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { InventoryRoute } from '../interfaces/IInventoryRebalancer.js';
+import type { Route } from '../interfaces/IStrategy.js';
 import { createMockBridgeQuote } from '../test/lifiMocks.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type { RebalanceIntent } from '../tracking/types.js';
@@ -198,9 +198,7 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   // Helper to create test routes and intents
-  function createTestRoute(
-    overrides?: Partial<InventoryRoute>,
-  ): InventoryRoute {
+  function createTestRoute(overrides?: Partial<Route>): Route {
     return {
       origin: ARBITRUM_CHAIN,
       destination: SOLANA_CHAIN,

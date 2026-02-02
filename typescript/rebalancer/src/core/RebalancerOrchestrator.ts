@@ -10,10 +10,7 @@ import {
 } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type {
-  IInventoryRebalancer,
-  InventoryRoute,
-} from '../interfaces/IInventoryRebalancer.js';
+import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import {
   type ConfirmedBlockTags,
   type MonitorEvent,
@@ -23,7 +20,11 @@ import type {
   RebalanceExecutionResult,
   RebalanceRoute,
 } from '../interfaces/IRebalancer.js';
-import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
+import type {
+  IStrategy,
+  Route,
+  StrategyRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import {
   type IActionTracker,
@@ -382,8 +383,7 @@ export class RebalancerOrchestrator {
       await this.inventoryMonitor.refresh();
     }
 
-    // Convert routes and let InventoryRebalancer decide what to execute
-    const inventoryRoutes: InventoryRoute[] = routes.map((r) => ({
+    const inventoryRoutes: Route[] = routes.map((r) => ({
       origin: r.origin,
       destination: r.destination,
       amount: r.amount,

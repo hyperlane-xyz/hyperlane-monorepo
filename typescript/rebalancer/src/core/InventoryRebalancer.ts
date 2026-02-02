@@ -15,8 +15,8 @@ import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import type {
   IInventoryRebalancer,
   InventoryExecutionResult,
-  InventoryRoute,
 } from '../interfaces/IInventoryRebalancer.js';
+import type { Route } from '../interfaces/IStrategy.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type {
   PartialInventoryIntent,
@@ -211,7 +211,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * 2. If exists, continue existing intent (ignores new routes)
    * 3. If not, take only the FIRST route and create a single intent
    */
-  async execute(routes: InventoryRoute[]): Promise<InventoryExecutionResult[]> {
+  async execute(routes: Route[]): Promise<InventoryExecutionResult[]> {
     // Clear consumed inventory tracking at the start of each execution cycle
     this.consumedInventory.clear();
 
@@ -316,7 +316,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   ): Promise<InventoryExecutionResult[]> {
     const { intent, remaining } = partial;
 
-    const route: InventoryRoute = {
+    const route: Route = {
       origin: this.multiProvider.getChainName(intent.origin),
       destination: this.multiProvider.getChainName(intent.destination),
       amount: remaining,
@@ -398,7 +398,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * 3. Call transferRemote FROM destination TO origin (swapped)
    */
   private async executeRoute(
-    route: InventoryRoute,
+    route: Route,
     intent: RebalanceIntent,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
@@ -488,7 +488,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Swap the route for executeTransferRemote: destination → origin
     // This ensures transferRemote is called FROM destination, ADDING collateral there
-    const swappedRoute: InventoryRoute = {
+    const swappedRoute: Route = {
       origin: destination, // transferRemote called FROM here
       destination: origin, // Hyperlane message goes TO here
       amount,
@@ -723,7 +723,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * @param gasQuote - Pre-calculated gas quote from calculateTransferCosts
    */
   private async executeTransferRemote(
-    route: InventoryRoute,
+    route: Route,
     intent: RebalanceIntent,
     gasQuote: { igpQuote: { amount: bigint } },
   ): Promise<InventoryExecutionResult> {
@@ -840,7 +840,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * Note: Checks inventory on DESTINATION chain since that's where
    * transferRemote is called FROM (swapped direction).
    */
-  async getAvailableAmount(route: InventoryRoute): Promise<bigint> {
+  async getAvailableAmount(route: Route): Promise<bigint> {
     // Check inventory on destination (deficit chain) since that's where
     // we call transferRemote FROM
     const availableInventory =

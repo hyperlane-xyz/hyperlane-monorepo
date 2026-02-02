@@ -1,24 +1,9 @@
-import type { ChainName } from '@hyperlane-xyz/sdk';
-
 import type { RebalanceIntent } from '../tracking/types.js';
 
-/**
- * Route for an inventory-based rebalance operation.
- *
- * Strategy semantics: origin (surplus) → destination (deficit)
- * "Move collateral FROM origin TO destination"
- */
-export interface InventoryRoute {
-  origin: ChainName; // Surplus chain (has excess collateral to release)
-  destination: ChainName; // Deficit chain (needs collateral added)
-  amount: bigint; // Amount to rebalance
-}
+import type { Route } from './IStrategy.js';
 
-/**
- * Result of executing an inventory route.
- */
 export interface InventoryExecutionResult {
-  route: InventoryRoute;
+  route: Route;
   intent: RebalanceIntent;
   success: boolean;
   /** Actual amount sent (may differ from route.amount for partial executions) */
@@ -60,7 +45,7 @@ export interface IInventoryRebalancer {
    * @param routes - Routes proposed by strategy (only first is used if no active intent)
    * @returns Execution results (single result for the executed route)
    */
-  execute(routes: InventoryRoute[]): Promise<InventoryExecutionResult[]>;
+  execute(routes: Route[]): Promise<InventoryExecutionResult[]>;
 
   /**
    * Check if a route can be executed with current inventory.
@@ -69,5 +54,5 @@ export interface IInventoryRebalancer {
    * @param route - Route to check
    * @returns Amount that can be fulfilled with available inventory
    */
-  getAvailableAmount(route: InventoryRoute): Promise<bigint>;
+  getAvailableAmount(route: Route): Promise<bigint>;
 }

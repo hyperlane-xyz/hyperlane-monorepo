@@ -1,33 +1,34 @@
 warpRouteId: ETHSTAGE/mode
 
-# Deployer EOA address (used for inventory operations)
 inventorySigner: '0x3e0A78A330F2b97059A4D507ca9d8292b65B6FB5'
-lifiIntegrator: 'rebalancer'
+
+externalBridges:
+  lifi:
+    integrator: 'rebalancer'
 
 strategy:
   rebalanceStrategy: weighted
   chains:
-    # Native ETH chains (collateral)
     arbitrum:
       weighted:
         weight: 30
         tolerance: 5
       executionType: inventory
-      # bridgeMinAcceptedAmount: 0.001
+      externalBridge: lifi
 
     base:
       weighted:
         weight: 40
         tolerance: 5
       executionType: inventory
-      # bridgeMinAcceptedAmount: 0.001
+      externalBridge: lifi
 
     optimism:
       weighted:
         weight: 30
         tolerance: 5
       executionType: inventory
-      # bridgeMinAcceptedAmount: 0.001
+      externalBridge: lifi
 
     # arbitrum:
     #   minAmount:
