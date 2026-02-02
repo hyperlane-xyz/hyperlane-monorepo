@@ -236,19 +236,20 @@ export class RebalancerContextFactory {
     const explorerClient = new ExplorerClient(explorerUrl);
 
     // 3. Get MultiProtocolCore from registry (supports all VM types)
-    // Validate and extract core addresses - mailbox is required for delivery checks
-    const registryAddresses = await this.registry.getAddresses();
-    const coreAddresses: ChainMap<CoreAddresses> = objMap(
-      registryAddresses,
-      (chain, addrs) => {
-        if (!addrs.mailbox) {
-          throw new Error(
-            `Missing mailbox address for chain ${chain} in registry`,
-          );
-        }
-        return addrs as CoreAddresses;
-      },
+    // Only fetch/validate addresses for warp route chains (not all registry chains)
+    const warpRouteChains = new Set(
+      this.warpCore.tokens.map((t) => t.chainName),
     );
+    const coreAddresses: ChainMap<CoreAddresses> = {};
+    for (const chain of warpRouteChains) {
+      const addrs = await this.registry.getChainAddresses(chain);
+      if (!addrs?.mailbox) {
+        throw new Error(
+          `Missing mailbox address for chain ${chain} in registry`,
+        );
+      }
+      coreAddresses[chain] = addrs as CoreAddresses;
+    }
     const multiProtocolCore = MultiProtocolCore.fromAddressesMap(
       coreAddresses,
       this.multiProtocolProvider,

@@ -10,6 +10,7 @@ import type {
   ExplorerClient,
   ExplorerMessage,
 } from '../utils/ExplorerClient.js';
+import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
 import type {
   CreateRebalanceActionParams,
@@ -168,7 +169,7 @@ export class ActionTracker implements IActionTracker {
 
     const existingTransfers = await this.getInProgressTransfers();
     for (const transfer of existingTransfers) {
-      const blockTag = this.getConfirmedBlockTag(
+      const blockTag = await this.getConfirmedBlockTag(
         transfer.destination,
         confirmedBlockTags,
       );
@@ -259,7 +260,7 @@ export class ActionTracker implements IActionTracker {
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
-      const blockTag = this.getConfirmedBlockTag(
+      const blockTag = await this.getConfirmedBlockTag(
         action.destination,
         confirmedBlockTags,
       );
@@ -510,13 +511,27 @@ export class ActionTracker implements IActionTracker {
 
   // === Private Helpers ===
 
-  private getConfirmedBlockTag(
+  /**
+   * Get the confirmed block tag for delivery checks.
+   * Uses cached value from Monitor event if available, otherwise computes on-demand.
+   */
+  private async getConfirmedBlockTag(
     destination: Domain,
     confirmedBlockTags?: ConfirmedBlockTags,
-  ): string | number | undefined {
-    if (!confirmedBlockTags) return undefined;
+  ): Promise<string | number | undefined> {
     const chainName = this.core.multiProvider.getChainName(destination);
-    return confirmedBlockTags[chainName];
+
+    // If tags provided (from Monitor event), use cached value
+    if (confirmedBlockTags) {
+      return confirmedBlockTags[chainName];
+    }
+
+    // Otherwise compute on-demand (e.g., during initialize())
+    return getConfirmedBlockTag(
+      this.core.multiProvider,
+      chainName,
+      this.logger,
+    );
   }
 
   private async isMessageDelivered(
