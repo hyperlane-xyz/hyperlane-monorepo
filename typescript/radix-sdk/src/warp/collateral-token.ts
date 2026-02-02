@@ -12,7 +12,9 @@ import { TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DeployedWarpAddress,
   RawCollateralWarpArtifactConfig,
+  computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
+import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
 import { RadixBase } from '../utils/base.js';
 import { RadixBaseSigner } from '../utils/signer.js';
@@ -131,20 +133,21 @@ export class RadixCollateralTokenWriter
       allReceipts.push(ismReceipt);
     }
 
-    // Enroll remote routers
-    for (const [domainIdStr, remoteRouter] of Object.entries(
-      config.remoteRouters,
-    )) {
-      const domainId = parseInt(domainIdStr);
-      const gas = config.destinationGas[domainId] || '0';
+    const { toEnroll } = computeRemoteRoutersUpdates(
+      { destinationGas: {}, remoteRouters: {} },
+      config,
+      eqAddressRadix,
+    );
 
+    // Enroll remote routers
+    for (const { domainId, gas, routerAddress } of toEnroll) {
       const enrollTx = await getEnrollRemoteRouterTx(
         this.base,
         this.signer.getAddress(),
         {
           tokenAddress: address,
           remoteDomainId: domainId,
-          remoteRouterAddress: remoteRouter.address,
+          remoteRouterAddress: routerAddress,
           destinationGas: gas,
         },
       );

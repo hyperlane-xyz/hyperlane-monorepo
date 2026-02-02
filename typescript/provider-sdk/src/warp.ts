@@ -444,3 +444,83 @@ export function warpArtifactToDerivedConfig(
     }
   }
 }
+
+// Warp Router Update Utilities
+
+export interface WarpRouterDiff {
+  /** Routers that need to be enrolled or updated */
+  toEnroll: Array<{
+    domainId: number;
+    routerAddress: string;
+    gas: string;
+  }>;
+  /** Domain IDs where router needs to be unenrolled */
+  toUnenroll: number[];
+}
+
+type RemoteRoutersConfig = Pick<
+  RawWarpArtifactConfig,
+  'destinationGas' | 'remoteRouters'
+>;
+
+/**
+ * Computes which routers need enrollment/unenrollment by diffing current and expected configs.
+ * Pure function - compares router addresses and destination gas to determine required updates.
+ *
+ * @param currentRoutersConfig Current on-chain router state
+ * @param expectedRoutersConfig Desired router state
+ * @param compareAddresses VM-specific address comparison (handles case/format differences)
+ * @returns Lists of domains to enroll/unenroll
+ */
+export function computeRemoteRoutersUpdates(
+  currentRoutersConfig: Readonly<RemoteRoutersConfig>,
+  expectedRoutersConfig: Readonly<RemoteRoutersConfig>,
+  compareAddresses: (a: string, b: string) => boolean,
+): WarpRouterDiff {
+  const currentDomains = new Set(
+    Object.keys(currentRoutersConfig.remoteRouters).map((k) => parseInt(k)),
+  );
+  const desiredDomains = new Set(
+    Object.keys(expectedRoutersConfig.remoteRouters).map((k) => parseInt(k)),
+  );
+
+  const toUnenroll: number[] = [];
+  const toEnroll: WarpRouterDiff['toEnroll'] = [];
+
+  // Unenroll routers not in desired config (removed domains)
+  for (const domainId of currentDomains) {
+    if (!desiredDomains.has(domainId)) {
+      toUnenroll.push(domainId);
+    }
+  }
+
+  // Enroll/update routers (new domains or changed router/gas)
+  for (const [domainIdStr, expectedRemoteRouter] of Object.entries(
+    expectedRoutersConfig.remoteRouters,
+  )) {
+    const domainId = parseInt(domainIdStr);
+    const expectedDestinationGas =
+      expectedRoutersConfig.destinationGas[domainId] || '0';
+    const currentRouterAddress = currentRoutersConfig.remoteRouters[domainId];
+    const currentDestinationGas =
+      currentRoutersConfig.destinationGas[domainId] || '0';
+
+    const needsUpdate =
+      !currentRouterAddress ||
+      !compareAddresses(
+        currentRouterAddress.address,
+        expectedRemoteRouter.address,
+      ) ||
+      currentDestinationGas !== expectedDestinationGas;
+
+    if (needsUpdate) {
+      toEnroll.push({
+        domainId,
+        routerAddress: expectedRemoteRouter.address,
+        gas: expectedDestinationGas,
+      });
+    }
+  }
+
+  return { toEnroll, toUnenroll };
+}

@@ -13,6 +13,7 @@ import { ArtifactDeployed } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   DeployedWarpAddress,
   RawWarpArtifactConfig,
+  computeRemoteRoutersUpdates,
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   eqAddressRadix,
@@ -221,56 +222,39 @@ export async function getWarpTokenUpdateTxs<
     });
   }
 
-  // Get current and desired remote routers
-  const currentRouters = new Set(
-    Object.keys(currentConfig.remoteRouters).map((k) => parseInt(k)),
-  );
-  const desiredRouters = new Set(
-    Object.keys(expectedConfig.remoteRouters).map((k) => parseInt(k)),
+  // Compute router updates
+  const routerDiff = computeRemoteRoutersUpdates(
+    currentConfig,
+    expectedConfig,
+    eqAddressRadix,
   );
 
   // Unenroll removed routers
-  for (const domainId of currentRouters) {
-    if (!desiredRouters.has(domainId)) {
-      const unenrollTx = await getUnenrollRemoteRouterTx(base, signerAddress, {
-        tokenAddress: deployed.address,
-        remoteDomainId: domainId,
-      });
-      updateTxs.push({
-        annotation: `Unenrolling router for domain ${domainId}`,
-        networkId: base.getNetworkId(),
-        manifest: unenrollTx,
-      });
-    }
+  for (const domainId of routerDiff.toUnenroll) {
+    const unenrollTx = await getUnenrollRemoteRouterTx(base, signerAddress, {
+      tokenAddress: deployed.address,
+      remoteDomainId: domainId,
+    });
+    updateTxs.push({
+      annotation: `Unenrolling router for domain ${domainId}`,
+      networkId: base.getNetworkId(),
+      manifest: unenrollTx,
+    });
   }
 
   // Enroll or update routers
-  for (const [domainIdStr, remoteRouter] of Object.entries(
-    expectedConfig.remoteRouters,
-  )) {
-    const domainId = parseInt(domainIdStr);
-    const gas = expectedConfig.destinationGas[domainId] || '0';
-    const currentRouter = currentConfig.remoteRouters[domainId];
-    const currentGas = currentConfig.destinationGas[domainId] || '0';
-
-    const needsUpdate =
-      !currentRouter ||
-      !eqAddressRadix(currentRouter.address, remoteRouter.address) ||
-      currentGas !== gas;
-
-    if (needsUpdate) {
-      const enrollTx = await getEnrollRemoteRouterTx(base, signerAddress, {
-        tokenAddress: deployed.address,
-        remoteDomainId: domainId,
-        remoteRouterAddress: remoteRouter.address,
-        destinationGas: gas,
-      });
-      updateTxs.push({
-        annotation: `Enrolling/updating router for domain ${domainId}`,
-        networkId: base.getNetworkId(),
-        manifest: enrollTx,
-      });
-    }
+  for (const { domainId, routerAddress, gas } of routerDiff.toEnroll) {
+    const enrollTx = await getEnrollRemoteRouterTx(base, signerAddress, {
+      tokenAddress: deployed.address,
+      remoteDomainId: domainId,
+      remoteRouterAddress: routerAddress,
+      destinationGas: gas,
+    });
+    updateTxs.push({
+      annotation: `Enrolling/updating router for domain ${domainId}`,
+      networkId: base.getNetworkId(),
+      manifest: enrollTx,
+    });
   }
 
   // Owner transfer must be last transaction as the current owner executes all updates
