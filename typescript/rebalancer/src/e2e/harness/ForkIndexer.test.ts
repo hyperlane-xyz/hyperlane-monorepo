@@ -130,19 +130,10 @@ describe('ForkIndexer', () => {
 
   describe('initialize', () => {
     it('should set lastScannedBlock to current block for each chain', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(200);
-
-      await indexer.initialize();
-
-      expect(provider1Stub.getBlockNumber.calledOnce).to.be.true;
-      expect(provider2Stub.getBlockNumber.calledOnce).to.be.true;
+      await indexer.initialize({ chain1: 100, chain2: 200 });
 
       // Verify by calling sync - should not query any events since lastScanned == currentBlock
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(200);
-
-      await indexer.sync();
+      await indexer.sync({ chain1: 100, chain2: 200 });
 
       // queryFilter should not be called since lastScannedBlock >= currentBlock
       expect(mailboxStub1.queryFilter.called).to.be.false;
@@ -152,7 +143,9 @@ describe('ForkIndexer', () => {
 
   describe('sync - error handling', () => {
     it('should throw if called before initialize()', async () => {
-      await expect(indexer.sync()).to.be.rejectedWith(
+      await expect(
+        indexer.sync({ chain1: 100, chain2: 100 }),
+      ).to.be.rejectedWith(
         'ForkIndexer not initialized. Call initialize() first.',
       );
     });
@@ -161,15 +154,10 @@ describe('ForkIndexer', () => {
   describe('sync - block range queries', () => {
     it('should query events from lastScannedBlock+1 to currentBlock', async () => {
       // Initialize at block 100
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Advance to block 150 for chain1
-      provider1Stub.getBlockNumber.resolves(150);
-      provider2Stub.getBlockNumber.resolves(100); // chain2 unchanged
-
-      await indexer.sync();
+      await indexer.sync({ chain1: 150, chain2: 100 });
 
       // Verify queryFilter was called with correct block range
       expect(mailboxStub1.queryFilter.calledOnce).to.be.true;
@@ -186,9 +174,7 @@ describe('ForkIndexer', () => {
 
   describe('sync - message conversion', () => {
     it('should convert Dispatch events to ExplorerMessage format correctly', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create a test message
       const testMsg = createTestMessage(
@@ -211,10 +197,7 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([mockEvent]);
 
       // Advance block and sync
-      provider1Stub.getBlockNumber.resolves(110);
-      provider2Stub.getBlockNumber.resolves(100);
-
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Verify the MockExplorerClient received correct data
       const userTransfers = await mockExplorer.getInflightUserTransfers(
@@ -236,9 +219,7 @@ describe('ForkIndexer', () => {
 
   describe('sync - deduplication', () => {
     it('should deduplicate messages by msg_id (same message not added twice)', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create a test message
       const testMsg = createTestMessage(
@@ -256,13 +237,11 @@ describe('ForkIndexer', () => {
 
       // First sync with one event
       mailboxStub1.queryFilter.resolves([mockEvent]);
-      provider1Stub.getBlockNumber.resolves(110);
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Second sync returns the same event (simulating event requery overlap)
       mailboxStub1.queryFilter.resolves([mockEvent]);
-      provider1Stub.getBlockNumber.resolves(120);
-      await indexer.sync();
+      await indexer.sync({ chain1: 120, chain2: 100 });
 
       // Should only have one transfer despite two events
       const userTransfers = await mockExplorer.getInflightUserTransfers(
@@ -275,19 +254,16 @@ describe('ForkIndexer', () => {
 
   describe('sync - no-op conditions', () => {
     it('should be a no-op when lastScannedBlock >= currentBlock', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Keep blocks the same
-      await indexer.sync();
+      await indexer.sync({ chain1: 100, chain2: 100 });
 
       expect(mailboxStub1.queryFilter.called).to.be.false;
       expect(mailboxStub2.queryFilter.called).to.be.false;
 
       // Even with block numbers less than last scanned (shouldn't happen but test edge case)
-      provider1Stub.getBlockNumber.resolves(90);
-      await indexer.sync();
+      await indexer.sync({ chain1: 90, chain2: 100 });
 
       expect(mailboxStub1.queryFilter.called).to.be.false;
     });
@@ -295,9 +271,7 @@ describe('ForkIndexer', () => {
 
   describe('sync - incremental indexing', () => {
     it('should only index new events on multiple sync() calls (incremental)', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // First message at block 110
       const msg1 = createTestMessage(
@@ -316,8 +290,7 @@ describe('ForkIndexer', () => {
       );
 
       mailboxStub1.queryFilter.resolves([event1]);
-      provider1Stub.getBlockNumber.resolves(110);
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Verify first query range
       expect(mailboxStub1.queryFilter.firstCall.args[1]).to.equal(101);
@@ -340,8 +313,7 @@ describe('ForkIndexer', () => {
       );
 
       mailboxStub1.queryFilter.resolves([event2]);
-      provider1Stub.getBlockNumber.resolves(120);
-      await indexer.sync();
+      await indexer.sync({ chain1: 120, chain2: 100 });
 
       // Verify second query starts from where first left off
       expect(mailboxStub1.queryFilter.secondCall.args[1]).to.equal(111);
@@ -358,9 +330,7 @@ describe('ForkIndexer', () => {
 
   describe('sync - message classification', () => {
     it('should classify rebalancer txs as addRebalanceAction', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create a message where tx sender is the rebalancer
       const testMsg = createTestMessage(
@@ -377,8 +347,7 @@ describe('ForkIndexer', () => {
       );
 
       mailboxStub1.queryFilter.resolves([mockEvent]);
-      provider1Stub.getBlockNumber.resolves(110);
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Should be in rebalance actions, not user transfers
       const userTransfers = await mockExplorer.getInflightUserTransfers(
@@ -395,9 +364,7 @@ describe('ForkIndexer', () => {
     });
 
     it('should classify non-rebalancer txs as addUserTransfer', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create a message where tx sender is a regular user
       const testMsg = createTestMessage(
@@ -414,8 +381,7 @@ describe('ForkIndexer', () => {
       );
 
       mailboxStub1.queryFilter.resolves([mockEvent]);
-      provider1Stub.getBlockNumber.resolves(110);
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Should be in user transfers, not rebalance actions
       const userTransfers = await mockExplorer.getInflightUserTransfers(
@@ -432,9 +398,7 @@ describe('ForkIndexer', () => {
     });
 
     it('should classify correctly with case-insensitive address comparison', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create a message where tx sender is rebalancer with different case
       const testMsg = createTestMessage(
@@ -451,8 +415,7 @@ describe('ForkIndexer', () => {
       );
 
       mailboxStub1.queryFilter.resolves([mockEvent]);
-      provider1Stub.getBlockNumber.resolves(110);
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Should still be classified as rebalance action
       const rebalanceActions = await mockExplorer.getInflightRebalanceActions(
@@ -465,9 +428,7 @@ describe('ForkIndexer', () => {
 
   describe('sync - unknown destination chain', () => {
     it('should skip messages with unknown destination domain', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create a message to an unknown domain (999)
       const testMsg = createTestMessage(
@@ -484,8 +445,7 @@ describe('ForkIndexer', () => {
       );
 
       mailboxStub1.queryFilter.resolves([mockEvent]);
-      provider1Stub.getBlockNumber.resolves(110);
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 100 });
 
       // Should not add any transfers since destination is unknown
       const userTransfers = await mockExplorer.getInflightUserTransfers(
@@ -498,9 +458,7 @@ describe('ForkIndexer', () => {
 
   describe('sync - multiple chains', () => {
     it('should index events from all chains', async () => {
-      provider1Stub.getBlockNumber.resolves(100);
-      provider2Stub.getBlockNumber.resolves(100);
-      await indexer.initialize();
+      await indexer.initialize({ chain1: 100, chain2: 100 });
 
       // Create events for both chains
       const msg1 = createTestMessage(
@@ -536,10 +494,7 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([event1]);
       mailboxStub2.queryFilter.resolves([event2]);
 
-      provider1Stub.getBlockNumber.resolves(110);
-      provider2Stub.getBlockNumber.resolves(110);
-
-      await indexer.sync();
+      await indexer.sync({ chain1: 110, chain2: 110 });
 
       const userTransfers = await mockExplorer.getInflightUserTransfers(
         { routersByDomain: {}, excludeTxSender: '' },
