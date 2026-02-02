@@ -11,7 +11,10 @@ use crate::{
         ScraperTerminationInvariantParams,
     },
     logging::log,
-    sealevel::{solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_WITH_NON_MATCHING_IGP},
+    sealevel::{
+        solana::*, SOL_MESSAGES_EXPECTED, SOL_MESSAGES_EXPECTED_SEALEVELTEST2,
+        SOL_MESSAGES_EXPECTED_SEALEVELTEST3, SOL_MESSAGES_WITH_NON_MATCHING_IGP,
+    },
     server::{fetch_relayer_gas_payment_event_count, fetch_relayer_message_processed_count},
     RELAYER_METRICS_PORT,
 };
@@ -30,7 +33,6 @@ pub fn termination_invariants_met(
     let sol_messages_expected = SOL_MESSAGES_EXPECTED;
     let sol_messages_with_non_matching_igp = SOL_MESSAGES_WITH_NON_MATCHING_IGP;
 
-    // this is the total messages expected to be delivered
     let total_messages_expected = sol_messages_expected;
     let total_messages_dispatched = total_messages_expected + sol_messages_with_non_matching_igp;
 
@@ -74,17 +76,29 @@ pub fn termination_invariants_met(
         return Ok(false);
     }
 
+    // Check provider metrics for sealeveltest2 (versioned tx with ALT destination)
     if !provider_metrics_invariant_met(
         RELAYER_METRICS_PORT,
-        total_messages_expected,
+        SOL_MESSAGES_EXPECTED_SEALEVELTEST2,
         &hashmap! {"chain" => "sealeveltest2", "connection" => "rpc", "status" => "success"},
         &hashmap! {"chain" => "sealeveltest2"},
     )? {
-        log!("Provider metrics invariants not met");
+        log!("Provider metrics invariants not met for sealeveltest2");
         return Ok(false);
     }
 
-    log!("Termination invariants have been meet");
+    // Check provider metrics for sealeveltest3 (legacy tx, NO ALT destination)
+    if !provider_metrics_invariant_met(
+        RELAYER_METRICS_PORT,
+        SOL_MESSAGES_EXPECTED_SEALEVELTEST3,
+        &hashmap! {"chain" => "sealeveltest3", "connection" => "rpc", "status" => "success"},
+        &hashmap! {"chain" => "sealeveltest3"},
+    )? {
+        log!("Provider metrics invariants not met for sealeveltest3");
+        return Ok(false);
+    }
+
+    log!("Termination invariants have been met");
     Ok(true)
 }
 
@@ -101,7 +115,8 @@ mod tests {
             "destination" => "sealeveltest2",
         };
         let params = RelayerTerminationInvariantParams {
-            total_messages_expected: 10,
+            // 6 to sealeveltest2 + 6 to sealeveltest3
+            total_messages_expected: SOL_MESSAGES_EXPECTED,
             // the rest are not used
             config: &crate::config::Config::load(),
             starting_relayer_balance: 0.0,
