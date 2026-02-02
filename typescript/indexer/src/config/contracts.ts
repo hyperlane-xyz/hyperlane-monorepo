@@ -46,10 +46,11 @@ export async function loadContractAddresses(
 /**
  * Build Ponder contract configuration for Mailbox contracts.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildMailboxContractConfig(
   chains: IndexerChainConfig[],
   addresses: Record<string, ContractAddresses>,
-  abi: readonly unknown[],
+  abi: any,
 ) {
   const network: Record<
     string,
@@ -80,10 +81,11 @@ export function buildMailboxContractConfig(
 /**
  * Build Ponder contract configuration for IGP contracts.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildIgpContractConfig(
   chains: IndexerChainConfig[],
   addresses: Record<string, ContractAddresses>,
-  abi: readonly unknown[],
+  abi: any,
 ) {
   const network: Record<
     string,
@@ -114,10 +116,11 @@ export function buildIgpContractConfig(
 /**
  * Build Ponder contract configuration for MerkleTreeHook contracts.
  */
+// eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildMerkleTreeHookContractConfig(
   chains: IndexerChainConfig[],
   addresses: Record<string, ContractAddresses>,
-  abi: readonly unknown[],
+  abi: any,
 ) {
   const network: Record<
     string,

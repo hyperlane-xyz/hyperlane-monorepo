@@ -103,12 +103,12 @@ async function getSupportedChainNames(env: DeployEnv): Promise<string[]> {
     const { supportedChainNames } = await import(
       '../../config/mainnet3Chains.js'
     );
-    return supportedChainNames;
+    return [...supportedChainNames];
   } else if (env === 'testnet4') {
     const { supportedChainNames } = await import(
       '../../config/testnet4Chains.js'
     );
-    return supportedChainNames;
+    return [...supportedChainNames];
   }
   throw new Error(`Unknown environment: ${env}`);
 }
