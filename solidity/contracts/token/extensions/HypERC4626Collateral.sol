@@ -56,9 +56,10 @@ contract HypERC4626Collateral is TokenRouter {
 
     constructor(
         ERC4626 _vault,
-        uint256 _scale,
+        uint256 _scaleNumerator,
+        uint256 _scaleDenominator,
         address _mailbox
-    ) TokenRouter(_scale, _mailbox) {
+    ) TokenRouter(_scaleNumerator, _scaleDenominator, _mailbox) {
         vault = _vault;
         wrappedToken = IERC20(_vault.asset());
     }

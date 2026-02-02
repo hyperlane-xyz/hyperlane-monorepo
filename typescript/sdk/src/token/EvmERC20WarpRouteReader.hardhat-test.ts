@@ -251,6 +251,47 @@ describe('ERC20WarpRouterReader', async () => {
     }
   });
 
+  it('should derive config with non-default scale fraction correctly', async () => {
+    // Create config with a scale fraction (e.g., for downscaling 18 decimals to 6 decimals)
+    const scaleNumerator = 1;
+    const scaleDenominator = 1000000000000; // 10^12 for 18->6 decimal conversion
+    const config: WarpRouteDeployConfigMailboxRequired = {
+      [chain]: {
+        type: TokenType.synthetic,
+        name: TOKEN_NAME,
+        symbol: TOKEN_NAME,
+        decimals: 6, // Lower decimals than standard 18
+        scale: {
+          numerator: scaleNumerator,
+          denominator: scaleDenominator,
+        },
+        hook: await mailbox.defaultHook(),
+        interchainSecurityModule: await mailbox.defaultIsm(),
+        ...baseConfig,
+      },
+    };
+
+    // Deploy with config
+    const warpRoute = await deployer.deploy(config);
+
+    // Derive config and check if scale is correctly read
+    const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
+      warpRoute[chain].synthetic.address,
+    );
+
+    // Verify scale is returned as an object with numerator/denominator
+    expect(derivedConfig.scale).to.deep.equal({
+      numerator: scaleNumerator,
+      denominator: scaleDenominator,
+    });
+
+    // Verify other properties
+    expect(derivedConfig.type).to.equal(TokenType.synthetic);
+    expect(derivedConfig.name).to.equal(TOKEN_NAME);
+    expect(derivedConfig.symbol).to.equal(TOKEN_NAME);
+    expect(derivedConfig.decimals).to.equal(6);
+  });
+
   it('should derive xerc20 config correctly', async () => {
     // Create token
     const xerc20Token = await new XERC20Test__factory(signer).deploy(
@@ -947,6 +988,12 @@ describe('ERC20WarpRouterReader', async () => {
       .stub(PackageVersioned__factory, 'connect')
       .returns(mockPackageVersioned as any);
 
+    // Also stub fetchScale to avoid version mismatch when reading scale
+    // For old contracts (< 11.0.0), scale would default to 1
+    const fetchScaleStub = sinon
+      .stub(evmERC20WarpRouteReader, 'fetchScale')
+      .resolves(1);
+
     // Derive config and check if each value matches
     const derivedConfig = await evmERC20WarpRouteReader.deriveWarpRouteConfig(
       warpRoute[chain].collateral.address,
@@ -957,6 +1004,7 @@ describe('ERC20WarpRouterReader', async () => {
     expect(derivedConfig.tokenFee).to.be.undefined;
 
     fetchPackageVersionStub.restore();
+    fetchScaleStub.restore();
   });
 
   describe('Backward compatibility for token type detection', () => {
@@ -1075,6 +1123,12 @@ describe('ERC20WarpRouterReader', async () => {
           .stub(PackageVersioned__factory, 'connect')
           .returns(mockPackageVersioned as any);
 
+        // Also stub fetchScale to avoid version mismatch when reading scale
+        // For old contracts (< 11.0.0), scale would default to 1
+        const fetchScaleStub = sinon
+          .stub(evmERC20WarpRouteReader, 'fetchScale')
+          .resolves(1);
+
         const derivedConfig =
           await evmERC20WarpRouteReader.deriveWarpRouteConfig(warpAddress);
 
@@ -1090,6 +1144,7 @@ describe('ERC20WarpRouterReader', async () => {
         }
 
         fetchPackageVersionStub.restore();
+        fetchScaleStub.restore();
       });
     }
 

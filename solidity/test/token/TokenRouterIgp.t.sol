@@ -104,6 +104,7 @@ contract TokenRouterIgpTest is Test {
         collateralRouter = new HypERC20Collateral(
             address(collateralToken),
             SCALE,
+            SCALE,
             address(originMailbox)
         );
         collateralRouter.initialize(
@@ -115,6 +116,7 @@ contract TokenRouterIgpTest is Test {
         // Deploy synthetic router (origin)
         HypERC20 syntheticImpl = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(originMailbox)
         );
@@ -136,6 +138,7 @@ contract TokenRouterIgpTest is Test {
         // Deploy remote router (destination)
         HypERC20 remoteImpl = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(destMailbox)
         );

@@ -101,7 +101,7 @@ abstract contract TokenBridgeCctpBase is
         address _mailbox,
         IMessageTransmitter _messageTransmitter,
         ITokenMessenger _tokenMessenger
-    ) TokenRouter(_SCALE, _mailbox) {
+    ) TokenRouter(_SCALE, _SCALE, _mailbox) {
         if (_messageTransmitter.version() != _getCCTPVersion())
             revert InvalidCCTPVersion();
         messageTransmitter = _messageTransmitter;
