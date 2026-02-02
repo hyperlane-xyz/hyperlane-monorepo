@@ -230,7 +230,7 @@ fn run_locally() {
         .join();
 
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
-    let (solana_cli_tools_path, solana_config_path, sealeveltest2_alt) = {
+    let (solana_cli_tools_path, solana_config_path, sealeveltest2_alt, sealeveltest3_igp_account) = {
         // use the agave 2.x validator version to ensure mainnet compatibility
         let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
         let solana_bin_path = install_solana_cli_tools(
@@ -249,11 +249,11 @@ fn run_locally() {
 
         let result = start_solana_validator.join();
         state.push_agent(result.validator);
-        // sealeveltest3_program_ids not needed here - sealeveltest3 has NO ALT (uses legacy txs)
         (
             solana_bin_path,
             result.config_path,
             result.sealeveltest2_alt,
+            result.sealeveltest3_program_ids.igp_account,
         )
     };
 
@@ -299,8 +299,13 @@ fn run_locally() {
     // spawn relayer with ALT configured for sealeveltest2 (destination) to test versioned txs
     // Messages to sealeveltest2 use versioned tx with ALT
     // Messages to sealeveltest3 use legacy tx (NO ALT configured)
-    let relayer_env =
-        base_relayer_env.hyp_env("CHAINS_SEALEVELTEST2_MAILBOXPROCESSALT", &sealeveltest2_alt);
+    // sealeveltest3's IGP account is dynamically generated, override the config value
+    let relayer_env = base_relayer_env
+        .hyp_env("CHAINS_SEALEVELTEST2_MAILBOXPROCESSALT", &sealeveltest2_alt)
+        .hyp_env(
+            "CHAINS_SEALEVELTEST3_INTERCHAINGASPAYMASTER",
+            &sealeveltest3_igp_account,
+        );
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
     // Send messages AFTER agents start
