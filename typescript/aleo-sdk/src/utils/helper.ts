@@ -226,16 +226,6 @@ export function fromAleoAddress(aleoAddress: string): {
     };
   }
 
-  // If address is not defined, then it means that the address
-  // does not have a programId prefix but it is still a valid aleo address
-  // because it passed validation
-  if (!address) {
-    return {
-      programId: aleoAddress,
-      address: aleoAddress,
-    };
-  }
-
   return {
     programId,
     address,
@@ -333,7 +323,9 @@ export function getBalanceKey(address: string, denom: string): string {
 /**
  * Convert AleoTokenType to provider-sdk TokenType
  */
-export function aleoTokenTypeToWarpType(aleoType: AleoTokenType): TokenType {
+export function providerWarpTokenTypeFromAleoTokenType(
+  aleoType: AleoTokenType,
+): TokenType {
   switch (aleoType) {
     case AleoTokenType.NATIVE:
       return TokenType.native;
