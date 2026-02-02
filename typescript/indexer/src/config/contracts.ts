@@ -53,7 +53,11 @@ export function buildMailboxContractConfig(
 ) {
   const network: Record<
     string,
-    { address: `0x${string}`; startBlock?: number }
+    {
+      address: `0x${string}`;
+      startBlock?: number;
+      includeTransactionReceipts: boolean;
+    }
   > = {};
 
   for (const chain of chains) {
@@ -63,6 +67,7 @@ export function buildMailboxContractConfig(
     network[chain.name] = {
       address: addr.mailbox,
       startBlock: chain.startBlock,
+      includeTransactionReceipts: true,
     };
   }
 
@@ -82,7 +87,11 @@ export function buildIgpContractConfig(
 ) {
   const network: Record<
     string,
-    { address: `0x${string}`; startBlock?: number }
+    {
+      address: `0x${string}`;
+      startBlock?: number;
+      includeTransactionReceipts: boolean;
+    }
   > = {};
 
   for (const chain of chains) {
@@ -92,6 +101,7 @@ export function buildIgpContractConfig(
     network[chain.name] = {
       address: addr.interchainGasPaymaster,
       startBlock: chain.startBlock,
+      includeTransactionReceipts: true,
     };
   }
 
@@ -111,7 +121,11 @@ export function buildMerkleTreeHookContractConfig(
 ) {
   const network: Record<
     string,
-    { address: `0x${string}`; startBlock?: number }
+    {
+      address: `0x${string}`;
+      startBlock?: number;
+      includeTransactionReceipts: boolean;
+    }
   > = {};
 
   for (const chain of chains) {
@@ -121,6 +135,7 @@ export function buildMerkleTreeHookContractConfig(
     network[chain.name] = {
       address: addr.merkleTreeHook,
       startBlock: chain.startBlock,
+      includeTransactionReceipts: true,
     };
   }
 

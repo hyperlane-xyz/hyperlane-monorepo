@@ -19,6 +19,7 @@
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/utils": "workspace:*",
     "drizzle-orm": "^0.38.3",
+    "hono": "catalog:",
     "pg": "^8.13.1",
     "ponder": "^0.8.22",
     "viem": "catalog:"
