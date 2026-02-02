@@ -40,11 +40,9 @@ impl MessageSubmissionMetrics {
         Self {
             origin: origin.to_string(),
             destination: destination.to_string(),
-            last_known_nonce: metrics.last_known_message_nonce().with_label_values(&[
-                "message_processed",
-                origin,
-                destination,
-            ]),
+            last_known_nonce: metrics
+                .last_known_message_nonce()
+                .with_label_values(&["message_processed", origin]),
             messages_processed: metrics
                 .messages_processed_count()
                 .with_label_values(&[origin, destination]),
