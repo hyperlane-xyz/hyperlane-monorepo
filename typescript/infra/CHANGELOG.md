@@ -1,5 +1,89 @@
 # @hyperlane-xyz/infra
 
+## 23.0.0
+
+### Patch Changes
+
+- 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
+
+  - Moved `HyperlaneRelayer` class from SDK to new package
+  - Moved ISM metadata builders from SDK to relayer package
+  - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
+  - Added Prometheus metrics support with `/metrics` endpoint (enabled by default on port 9090)
+  - CLI and infra now import from new package
+  - **Breaking**: The following exports were removed from `@hyperlane-xyz/sdk` and are now available from `@hyperlane-xyz/relayer`:
+    - `HyperlaneRelayer`, `RelayerCacheSchema`, `messageMatchesWhitelist`
+    - `BaseMetadataBuilder`, `decodeIsmMetadata`
+    - All metadata builder classes (`AggregationMetadataBuilder`, `MultisigMetadataBuilder`, etc.)
+  - `offchainLookupRequestMessageHash` remains exported from SDK for ccip-server compatibility
+  - Added `randomDeployableIsmConfig` test utility to SDK for generating deployable ISM configs with custom validators
+
+- Updated dependencies [8ad7e65]
+- Updated dependencies [3bd911e]
+- Updated dependencies [16ff4a9]
+- Updated dependencies [d1d90d2]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [7c22cff]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [96eba9b]
+- Updated dependencies [0e1e48a]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [6ddef74]
+- Updated dependencies [80f3635]
+- Updated dependencies [576cd95]
+- Updated dependencies [9aa93f4]
+- Updated dependencies [42b72c3]
+- Updated dependencies [a5d6cae]
+  - @hyperlane-xyz/rebalancer@1.0.0
+  - @hyperlane-xyz/sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/deploy-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/relayer@0.1.0
+  - @hyperlane-xyz/http-registry-server@23.0.0
+  - @hyperlane-xyz/keyfunder@0.0.1
+  - @hyperlane-xyz/metrics@0.1.1
+  - @hyperlane-xyz/core@10.1.5
+
+## 22.0.0
+
+### Patch Changes
+
+- b892d63: Migrated to use shared utilities from `@hyperlane-xyz/metrics` package, eliminating duplicate metric server implementations and ensuring consistent Prometheus metric collection across all services.
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- Updated dependencies [c6a6d5f]
+- Updated dependencies [b892d63]
+- Updated dependencies [4c58992]
+- Updated dependencies [99948bc]
+- Updated dependencies [99948bc]
+- Updated dependencies [b0e9d48]
+- Updated dependencies [66ef635]
+- Updated dependencies [7f31d77]
+- Updated dependencies [7a0a9e4]
+- Updated dependencies [223fd7f]
+- Updated dependencies [3aec1c4]
+- Updated dependencies [b892d63]
+  - @hyperlane-xyz/sdk@22.0.0
+  - @hyperlane-xyz/rebalancer@0.1.2
+  - @hyperlane-xyz/utils@22.0.0
+  - @hyperlane-xyz/metrics@0.1.0
+  - @hyperlane-xyz/helloworld@22.0.0
+  - @hyperlane-xyz/http-registry-server@22.0.0
+  - @hyperlane-xyz/core@10.1.5
+
+## 21.1.0
+
+### Patch Changes
+
+- @hyperlane-xyz/sdk@21.1.0
+- @hyperlane-xyz/rebalancer@0.1.1
+- @hyperlane-xyz/helloworld@21.1.0
+- @hyperlane-xyz/http-registry-server@21.1.0
+- @hyperlane-xyz/utils@21.1.0
+- @hyperlane-xyz/core@10.1.5
+
 ## 21.0.0
 
 ### Minor Changes

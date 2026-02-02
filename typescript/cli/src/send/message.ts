@@ -1,14 +1,12 @@
 import { stringify as yamlStringify } from 'yaml';
 
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
-import {
-  type ChainName,
-  HyperlaneCore,
-  HyperlaneRelayer,
-} from '@hyperlane-xyz/sdk';
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
+import { type ChainName, HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { ProtocolType, addressToBytes32, timeout } from '@hyperlane-xyz/utils';
 
 import { EXPLORER_URL } from '../consts.js';
+import { ensureEvmSignersForChains } from '../context/context.js';
 import {
   type CommandContext,
   type WriteCommandContext,
@@ -17,6 +15,7 @@ import { runPreflightChecksForChains } from '../deploy/utils.js';
 import { errorRed, log, logBlue, logGreen } from '../logger.js';
 import {
   filterChainMetadataByProtocol,
+  filterOutDisabledChains,
   runSingleChainSelectionStep,
 } from '../utils/chains.js';
 import { indentYamlOrJson } from '../utils/files.js';
@@ -48,8 +47,9 @@ export async function sendTestMessage({
     multiProvider,
     ProtocolType.Ethereum,
   );
+  const activeEvmChainMetadata = filterOutDisabledChains(evmChainMetadata);
 
-  if (Object.keys(evmChainMetadata).length === 0) {
+  if (Object.keys(activeEvmChainMetadata).length === 0) {
     throw new Error(
       `No EVM chains found in registry. 'hyperlane send message' only supports EVM chains.`,
     );
@@ -57,17 +57,21 @@ export async function sendTestMessage({
 
   if (!origin) {
     origin = await runSingleChainSelectionStep(
-      evmChainMetadata,
+      activeEvmChainMetadata,
       'Select the origin chain:',
     );
   }
 
   if (!destination) {
     destination = await runSingleChainSelectionStep(
-      evmChainMetadata,
+      activeEvmChainMetadata,
       'Select the destination chain:',
     );
   }
+
+  // Ensure signers are created for the selected chains (handles case where
+  // chains were interactively selected after initial signer middleware ran)
+  await ensureEvmSignersForChains(context, [origin, destination]);
 
   // Validate that origin and destination are EVM chains (in case passed via CLI flags)
   const originProtocol = multiProvider.getProtocol(origin);

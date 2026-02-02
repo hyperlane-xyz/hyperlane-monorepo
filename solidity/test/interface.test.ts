@@ -160,7 +160,12 @@ const BASE_CONTRACT = buildContract(BASE_CONFIG);
 // Contract variants for testing different breaking changes
 const CONTRACT_VARIANTS: Record<
   string,
-  { contract: string; shouldFail: boolean; expectedMatch: string }
+  {
+    contract: string;
+    shouldFail: boolean;
+    expectedMatch: string;
+    expectedExitCode?: number;
+  }
 > = {
   function_removed: {
     contract: buildContract({
@@ -247,7 +252,7 @@ const CONTRACT_VARIANTS: Record<
   no_changes: {
     contract: BASE_CONTRACT,
     shouldFail: false,
-    expectedMatch: 'No breaking interface changes',
+    expectedMatch: 'No interface changes detected',
   },
 
   additions_only: {
@@ -261,7 +266,8 @@ const CONTRACT_VARIANTS: Record<
       ],
     }),
     shouldFail: false,
-    expectedMatch: 'No breaking interface changes',
+    expectedExitCode: 2, // Additions return exit code 2
+    expectedMatch: 'Interface additions detected',
   },
 };
 
@@ -350,9 +356,14 @@ for (const [testName, testCase] of Object.entries(CONTRACT_VARIANTS)) {
     const result = runInterfaceCheck();
 
     // Verify result
-    const exitCodeCorrect = testCase.shouldFail
-      ? result.exitCode === 1
-      : result.exitCode === 0;
+    // Use expectedExitCode if specified, otherwise derive from shouldFail
+    const expectedExitCode =
+      testCase.expectedExitCode !== undefined
+        ? testCase.expectedExitCode
+        : testCase.shouldFail
+          ? 1
+          : 0;
+    const exitCodeCorrect = result.exitCode === expectedExitCode;
     const outputCorrect = result.output.includes(testCase.expectedMatch);
 
     if (exitCodeCorrect && outputCorrect) {
@@ -360,7 +371,7 @@ for (const [testName, testCase] of Object.entries(CONTRACT_VARIANTS)) {
       passed++;
     } else {
       console.log(`❌ ${testName}`);
-      console.log(`   Expected exit code: ${testCase.shouldFail ? 1 : 0}`);
+      console.log(`   Expected exit code: ${expectedExitCode}`);
       console.log(`   Actual exit code: ${result.exitCode}`);
       console.log(`   Expected match: "${testCase.expectedMatch}"`);
       console.log(`   Output contains match: ${outputCorrect}`);

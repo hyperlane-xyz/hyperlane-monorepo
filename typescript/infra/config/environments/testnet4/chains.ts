@@ -1,5 +1,5 @@
 import { IRegistry } from '@hyperlane-xyz/registry';
-import { ChainMap, ChainMetadata } from '@hyperlane-xyz/sdk';
+import { ChainMap, ChainMetadata, ChainName } from '@hyperlane-xyz/sdk';
 
 import { getRegistryForEnvironment } from '../../../src/config/chain.js';
 import { isEthereumProtocolChain } from '../../../src/utils/utils.js';
@@ -32,24 +32,15 @@ export const chainMetadataOverrides: ChainMap<Partial<ChainMetadata>> = {
       gasPrice: '2.0',
     },
   },
-
-  // deploy-only overrides
-  // scrollsepolia: {
-  //   transactionOverrides: {
-  //     gasPrice: 0.5 * 10 ** 9, // 0.5 gwei
-  //   },
-  // },
-  // somniatestnet: {
-  //   transactionOverrides: {
-  //     gasLimit: 10000000,
-  //   },
-  // },
 };
 
-export const getRegistry = async (useSecrets = true): Promise<IRegistry> =>
+export const getRegistry = async (
+  useSecrets = true,
+  chains: ChainName[] = supportedChainNames,
+): Promise<IRegistry> =>
   getRegistryForEnvironment(
     environment,
-    supportedChainNames,
+    chains,
     chainMetadataOverrides,
     useSecrets,
   );

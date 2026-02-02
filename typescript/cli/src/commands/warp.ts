@@ -19,7 +19,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { runWarpRouteCheck } from '../check/warp.js';
+import { runWarpIcaOwnerCheck, runWarpRouteCheck } from '../check/warp.js';
 import { createWarpRouteDeployConfig } from '../config/warp.js';
 import {
   type CommandModuleWithContext,
@@ -28,6 +28,7 @@ import {
   type CommandModuleWithWriteContext,
 } from '../context/types.js';
 import { runWarpRouteApply, runWarpRouteDeploy } from '../deploy/warp.js';
+import { runWarpRouteFees } from '../fees/warp.js';
 import { runForkCommand } from '../fork/fork.js';
 import {
   errorRed,
@@ -58,6 +59,7 @@ import {
   forkCommandOptions,
   outputFileCommandOption,
   strategyCommandOption,
+  stringArrayOptionConfig,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -77,6 +79,7 @@ export const warpCommand: CommandModule = {
       .command(check)
       .command(deploy)
       .command(fork)
+      .command(getFees)
       .command(init)
       .command(read)
       .command(rebalancer)
@@ -257,13 +260,41 @@ export const read: CommandModuleWithContext<
   },
 };
 
+const getFees: CommandModuleWithContext<
+  SelectWarpRouteBuilder & {
+    amount?: string;
+  }
+> = {
+  command: 'get-fees',
+  describe: 'Show fees for each pairwise connection on a warp route',
+  builder: {
+    ...SELECT_WARP_ROUTE_BUILDER,
+    amount: {
+      type: 'string',
+      description: 'Amount for fee quotes (human-readable, e.g., "1.5")',
+      default: '1',
+    },
+  },
+  handler: async ({ context, symbol, warp, warpRouteId, amount }) => {
+    logCommandHeader('Hyperlane Warp Route Fees');
+    await runWarpRouteFees({
+      context,
+      symbol,
+      warpCoreConfigPath: warp,
+      warpRouteId,
+      amount: amount!,
+    });
+    process.exit(0);
+  },
+};
+
 const send: CommandModuleWithWriteContext<
   MessageOptionsArgTypes &
     SelectWarpRouteBuilder & {
       router?: string;
       amount: string;
       recipient?: string;
-      chains?: string;
+      chains?: string[];
       skipValidation?: boolean;
     }
 > = {
@@ -281,12 +312,11 @@ const send: CommandModuleWithWriteContext<
       type: 'string',
       description: 'Token recipient address (defaults to sender)',
     },
-    chains: {
-      type: 'string',
-      description: 'Comma separated list of chains to send messages to',
+    chains: stringArrayOptionConfig({
+      description: 'List of chains to send messages to',
       demandOption: false,
       conflicts: ['origin', 'destination'],
-    },
+    }),
     'skip-validation': {
       type: 'boolean',
       description: 'Skip transfer validation (e.g., collateral checks)',
@@ -305,7 +335,7 @@ const send: CommandModuleWithWriteContext<
     amount,
     recipient,
     roundTrip,
-    chains: chainsAsString,
+    chains: chainsArg,
     skipValidation,
   }) => {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
@@ -313,8 +343,7 @@ const send: CommandModuleWithWriteContext<
       warp,
       context,
     });
-    const chainsToSend = chainsAsString?.split(',').map((_) => _.trim());
-    let chains = chainsToSend || [];
+    let chains = chainsArg?.length ? chainsArg : [];
 
     if (origin && destination) {
       chains.push(origin);
@@ -329,7 +358,7 @@ const send: CommandModuleWithWriteContext<
 
     // Check if any of the chain selection through --chains or --origin & --destination are not in the warp core
     const unsupportedChains = difference(
-      new Set([...(chainsToSend || []), origin, destination].filter(Boolean)),
+      new Set([...(chainsArg || []), origin, destination].filter(Boolean)),
       supportedChains,
     );
     assert(
@@ -367,12 +396,54 @@ const send: CommandModuleWithWriteContext<
   },
 };
 
-export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
+export const check: CommandModuleWithContext<
+  SelectWarpRouteBuilder & {
+    ica?: boolean;
+    origin?: string;
+    originOwner?: string;
+    chains?: string[];
+  }
+> = {
   command: 'check',
   describe:
     'Verifies that a warp route configuration matches the on chain configuration.',
-  builder: SELECT_WARP_ROUTE_BUILDER,
-  handler: async ({ context, symbol, warp, warpRouteId, config }) => {
+  builder: {
+    ...SELECT_WARP_ROUTE_BUILDER,
+    ica: {
+      type: 'boolean',
+      description:
+        'Check that destination chain owners match expected ICA addresses derived from origin chain owner',
+      default: false,
+    },
+    origin: {
+      type: 'string',
+      description:
+        'The origin chain to use for verification. Required when using --ica.',
+      implies: 'ica',
+    },
+    originOwner: {
+      type: 'string',
+      description:
+        'Override the origin owner address instead of reading from warp deploy config.',
+      implies: 'origin',
+    },
+    chains: stringArrayOptionConfig({
+      description:
+        'List of chains to check. Defaults to all chains except origin when using --ica.',
+      implies: 'ica',
+    }),
+  },
+  handler: async ({
+    context,
+    symbol,
+    warp,
+    warpRouteId,
+    config,
+    ica,
+    origin,
+    originOwner,
+    chains,
+  }) => {
     logCommandHeader('Hyperlane Warp Check');
 
     let { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
@@ -382,6 +453,22 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
       warpDeployConfigPath: config,
       warpCoreConfigPath: warp,
     });
+
+    // If --ica flag is set, run ICA owner check instead of the regular config check
+    // Note: ICA check uses full warpDeployConfig (not filtered) to support pre-deployed chains
+    if (ica) {
+      assert(origin, '--origin is required when using --ica');
+
+      await runWarpIcaOwnerCheck({
+        context,
+        warpDeployConfig,
+        origin,
+        originOwner,
+        chains: chains?.length ? chains : undefined,
+      });
+
+      process.exit(0);
+    }
 
     ({ warpCoreConfig, warpDeployConfig } = filterWarpConfigsToMatchingChains(
       warpDeployConfig,
@@ -413,7 +500,6 @@ export const check: CommandModuleWithContext<SelectWarpRouteBuilder> = {
 
     let expandedWarpDeployConfig = await expandWarpDeployConfig({
       multiProvider: context.multiProvider,
-      altVmProviders: context.altVmProviders,
       warpDeployConfig,
       deployedRoutersAddresses,
       expandedOnChainWarpConfig,

@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/provider-sdk",
-  "version": "1.0.0",
+  "version": "1.2.1",
   "description": "Protocol Provider SDK for the Hyperlane Protocol",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
   "license": "Apache-2.0",
@@ -29,7 +29,9 @@
     "dev": "tsc --watch",
     "lint": "eslint",
     "clean": "rm -rf ./dist",
-    "prettier": "prettier --write ."
+    "prettier": "prettier --write .",
+    "test": "mocha --config .mocharc.json",
+    "test:ci": "mocha --config .mocharc.json"
   },
   "dependencies": {
     "@hyperlane-xyz/utils": "workspace:*",
@@ -39,8 +41,13 @@
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
+    "chai": "catalog:",
     "eslint": "catalog:",
+    "mocha": "catalog:",
+    "tsx": "catalog:",
     "typescript": "catalog:"
   }
 }

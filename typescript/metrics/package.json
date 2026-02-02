@@ -1,0 +1,57 @@
+{
+  "name": "@hyperlane-xyz/metrics",
+  "version": "0.1.1",
+  "description": "Shared Prometheus metrics utilities for Hyperlane monitoring",
+  "type": "module",
+  "main": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "files": [
+    "dist",
+    "src"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "clean": "rm -rf dist",
+    "dev": "tsc --watch",
+    "lint": "eslint -c ./eslint.config.mjs ./src",
+    "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test:ci": "pnpm test"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/core": "workspace:*",
+    "@hyperlane-xyz/sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "ethers": "catalog:",
+    "pino": "catalog:",
+    "prom-client": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
+    "@types/sinon": "catalog:",
+    "chai": "catalog:",
+    "eslint": "catalog:",
+    "mocha": "catalog:",
+    "prettier": "catalog:",
+    "sinon": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  },
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "prometheus",
+    "monitoring",
+    "metrics",
+    "warp-route"
+  ],
+  "author": "Abacus Works, Inc.",
+  "license": "Apache-2.0"
+}

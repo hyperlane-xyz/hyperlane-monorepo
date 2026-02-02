@@ -6,23 +6,32 @@ import hre from 'hardhat';
 import {
   ERC20Test,
   ERC20Test__factory,
+  LinearFee__factory,
   ProxyAdmin,
   ProxyAdmin__factory,
+  RoutingFee__factory,
+  TokenRouter__factory,
   TransparentUpgradeableProxy__factory,
   XERC20Test,
   XERC20Test__factory,
 } from '@hyperlane-xyz/core';
-import { Address, objMap } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  eqAddress,
+  isZeroishAddress,
+  objMap,
+} from '@hyperlane-xyz/utils';
 
 import { TestChainName } from '../consts/testChains.js';
 import { TestCoreApp } from '../core/TestCoreApp.js';
 import { TestCoreDeployer } from '../core/TestCoreDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from '../deploy/HyperlaneProxyFactoryDeployer.js';
 import { ViolationType } from '../deploy/types.js';
+import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
@@ -220,14 +229,11 @@ describe('TokenDeployer', async () => {
     });
 
     describe('ERC20WarpRouterReader', async () => {
-      let reader: EvmERC20WarpRouteReader;
+      let reader: EvmWarpRouteReader;
       let routerAddress: Address;
 
       before(() => {
-        reader = new EvmERC20WarpRouteReader(
-          multiProvider,
-          TestChainName.test1,
-        );
+        reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
       });
 
       beforeEach(async () => {
@@ -247,4 +253,78 @@ describe('TokenDeployer', async () => {
       });
     });
   }
+
+  describe('TokenFee with optional token for synthetic', () => {
+    it('should deploy LinearFee without token and resolve to router address', async () => {
+      const syntheticConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          tokenFee: {
+            type: TokenFeeType.LinearFee,
+            owner: signer.address,
+            bps: 100n,
+            maxFee: 1000000000n,
+            halfAmount: 500000000n,
+          },
+        },
+      };
+
+      const warpRoute = await deployer.deploy(syntheticConfig);
+      const routerAddress = warpRoute[chain].synthetic.address;
+
+      const router = TokenRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const feeRecipient = await router.feeRecipient();
+      expect(isZeroishAddress(feeRecipient)).to.be.false;
+
+      const linearFee = LinearFee__factory.connect(
+        feeRecipient,
+        multiProvider.getProvider(chain),
+      );
+      const feeToken = await linearFee.token();
+      expect(eqAddress(feeToken, routerAddress)).to.be.true;
+    });
+
+    it('should deploy RoutingFee without token and resolve to router address', async () => {
+      const syntheticConfig: WarpRouteDeployConfigMailboxRequired = {
+        [chain]: {
+          ...config[chain],
+          type: TokenType.synthetic,
+          tokenFee: {
+            type: TokenFeeType.RoutingFee,
+            owner: signer.address,
+            feeContracts: {
+              [TestChainName.test2]: {
+                type: TokenFeeType.LinearFee,
+                owner: signer.address,
+                bps: 100n,
+                maxFee: 1000000000n,
+                halfAmount: 500000000n,
+              },
+            },
+          },
+        },
+      };
+
+      const warpRoute = await deployer.deploy(syntheticConfig);
+      const routerAddress = warpRoute[chain].synthetic.address;
+
+      const router = TokenRouter__factory.connect(
+        routerAddress,
+        multiProvider.getProvider(chain),
+      );
+      const feeRecipient = await router.feeRecipient();
+      expect(isZeroishAddress(feeRecipient)).to.be.false;
+
+      const routingFee = RoutingFee__factory.connect(
+        feeRecipient,
+        multiProvider.getProvider(chain),
+      );
+      const feeToken = await routingFee.token();
+      expect(eqAddress(feeToken, routerAddress)).to.be.true;
+    });
+  });
 });

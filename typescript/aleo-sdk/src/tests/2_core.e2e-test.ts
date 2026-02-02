@@ -2,10 +2,10 @@ import { Account } from '@provablehq/sdk';
 import { expect } from 'chai';
 import { step } from 'mocha-steps';
 
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 
 import { AleoSigner } from '../clients/signer.js';
-import { AleoReceipt, AleoTransaction } from '../utils/types.js';
+import { type AleoReceipt, type AleoTransaction } from '../utils/types.js';
 
 describe('2. aleo sdk core e2e tests', async function () {
   this.timeout(100_000);
@@ -44,7 +44,7 @@ describe('2. aleo sdk core e2e tests', async function () {
     // ASSERT
     expect(txResponse.mailboxAddress).to.be.not.empty;
 
-    let mailbox = await signer.getMailbox({
+    const mailbox = await signer.getMailbox({
       mailboxAddress: txResponse.mailboxAddress,
     });
 

@@ -1,5 +1,30 @@
 # @hyperlane-xyz/utils
 
+## 23.0.0
+
+### Minor Changes
+
+- 52fd0f8: Added StandardHookMetadata utilities: `formatStandardHookMetadata()` for building hook metadata, `parseStandardHookMetadata()` for parsing all fields, `extractRefundAddressFromMetadata()` and `hasValidRefundAddress()` for refund address helpers.
+
+### Patch Changes
+
+- a10cfc8: ISM update test coverage was improved by creating a shared test factory that works across AltVM protocols (Cosmos, Aleo, Radix). The factory supports explicit test skipping configuration through a `skipTests` parameter, making protocol-specific limitations clear in test configuration rather than hidden in implementation.
+
+  Aleo address handling was fixed to properly support ISM unsetting. The `isZeroishAddress` regex now matches Aleo null addresses both with and without program ID prefix. The `fromAleoAddress` helper was updated to handle addresses without the '/' separator. The `getSetTokenIsmTransaction` method now converts zero addresses to `ALEO_NULL_ADDRESS` before processing.
+
+## 22.0.0
+
+### Minor Changes
+
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 3aec1c4: Added `timedAsync` utility for trace-level timing instrumentation of async operations.
+
+### Patch Changes
+
+- b892d63: Created new `@hyperlane-xyz/metrics` package to consolidate Prometheus metric utilities across the monorepo. Includes shared gauge definitions, metric update functions, balance utilities, metrics server, pushgateway utilities, and types. Added `tryFn` utility to `@hyperlane-xyz/utils`.
+
+## 21.1.0
+
 ## 21.0.0
 
 ### Patch Changes

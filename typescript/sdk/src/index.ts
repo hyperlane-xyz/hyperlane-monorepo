@@ -85,10 +85,7 @@ export { EvmCoreReader } from './core/EvmCoreReader.js';
 export { HyperlaneCore } from './core/HyperlaneCore.js';
 export { HyperlaneCoreChecker } from './core/HyperlaneCoreChecker.js';
 export { HyperlaneCoreDeployer } from './core/HyperlaneCoreDeployer.js';
-export {
-  HyperlaneRelayer,
-  RelayerCacheSchema,
-} from './core/HyperlaneRelayer.js';
+
 export { MultiProtocolCore } from './core/MultiProtocolCore.js';
 export { TestCoreApp } from './core/TestCoreApp.js';
 export { TestCoreDeployer } from './core/TestCoreDeployer.js';
@@ -116,6 +113,10 @@ export {
   HyperlaneDeployer,
 } from './deploy/HyperlaneDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
+export {
+  ProxyFactoryFactories,
+  proxyFactoryFactories,
+} from './deploy/contracts.js';
 export {
   CheckerViolation,
   OwnerViolation,
@@ -214,8 +215,6 @@ export {
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
 export { HyperlaneIsmFactory } from './ism/HyperlaneIsmFactory.js';
-export { BaseMetadataBuilder } from './ism/metadata/builder.js';
-export { decodeIsmMetadata } from './ism/metadata/decode.js';
 export {
   MetadataBuildResult,
   MultisigMetadataBuildResult,
@@ -268,6 +267,7 @@ export {
   DeployedIsmType,
   DerivedIsmConfig,
   DomainRoutingIsmConfig,
+  isDynamicallyRoutedIsmType,
   IsmConfig,
   IsmConfigSchema,
   IsmType,
@@ -276,6 +276,8 @@ export {
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  NullIsmConfig,
+  OffchainLookupIsmConfig,
   OpStackIsmConfig,
   OpStackIsmConfigSchema,
   PausableIsmConfig,
@@ -293,6 +295,7 @@ export {
   isStaticDeploymentSupported,
   isStaticIsm,
   moduleCanCertainlyVerify,
+  offchainLookupRequestMessageHash,
 } from './ism/utils.js';
 export {
   AgentChainMetadata,
@@ -400,6 +403,7 @@ export {
 export {
   MultiProvider,
   MultiProviderOptions,
+  SendTransactionOptions,
 } from './providers/MultiProvider.js';
 export {
   defaultEthersV5ProviderBuilder,
@@ -480,6 +484,7 @@ export {
   randomStarknetAddress,
   randomHookConfig,
   randomIsmConfig,
+  randomDeployableIsmConfig,
 } from './test/testUtils.js';
 
 export { TxSubmitterInterface } from './providers/transactions/submitter/TxSubmitterInterface.js';
@@ -578,7 +583,6 @@ export {
   IcaRouterConfig as InterchainAccountConfig,
 } from './ica/types.js';
 export { EvmIsmModule } from './ism/EvmIsmModule.js';
-export { offchainLookupRequestMessageHash } from './ism/metadata/ccipread.js';
 export {
   chainMetadataToCosmosChain,
   chainMetadataToStarknetChain,
@@ -715,8 +719,8 @@ export {
   TokenFactories,
 } from './token/contracts.js';
 export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
-export { EvmERC20WarpModule } from './token/EvmERC20WarpModule.js';
-export { EvmERC20WarpRouteReader } from './token/EvmERC20WarpRouteReader.js';
+export { EvmWarpModule } from './token/EvmWarpModule.js';
+export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';
@@ -860,6 +864,7 @@ export {
   getValidatorFromStorageLocation,
   isValidValidatorStorageLocation,
 } from './utils/validator.js';
+export { findMatchingLogEvents } from './utils/logUtils.js';
 export {
   FeeConstantConfig,
   RouteBlacklist,
@@ -903,6 +908,7 @@ export {
   TokenFeeConfigSchema,
   TokenFeeConfigInputSchema,
   TokenFeeConfigInput,
+  LinearFeeConfig,
 } from './fee/types.js';
 export { convertToBps } from './fee/utils.js';
 

@@ -11,7 +11,6 @@ import {
   MockValueTransferBridge__factory,
 } from '@hyperlane-xyz/core';
 import {
-  type RebalancerConfigFileInput,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '@hyperlane-xyz/rebalancer';
@@ -38,7 +37,6 @@ import {
   createSnapshot,
   deployToken,
   getTokenAddressFromWarpConfig,
-  hyperlaneRelayer,
   restoreSnapshot,
 } from '../commands/helpers.js';
 import {
@@ -72,8 +70,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   // The rest are done every CHECK_FREQUENCY ms
   // For these tests we mostly care about the first run
   const CHECK_FREQUENCY = 60000;
-
-  const DEFAULT_METRICS_SERVER = 'http://localhost:9090/metrics';
 
   let tokenSymbol: string;
   let warpRouteId: string;
@@ -286,39 +282,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   }
 
-  /**
-   * Creates a mock GraphQL server for Explorer API
-   * @param responseData The data to return in the GraphQL response
-   * @returns Promise with server instance and URL
-   */
-  async function createMockExplorerServer(responseData: any): Promise<{
-    server: any;
-    url: string;
-    close: () => Promise<void>;
-  }> {
-    const http = await import('http');
-    const server = http.createServer((req, res) => {
-      if (req.method === 'POST') {
-        res.writeHead(200, { 'Content-Type': 'application/json' });
-        res.end(JSON.stringify(responseData));
-      } else {
-        res.statusCode = 404;
-        res.end();
-      }
-    });
-
-    await new Promise<void>((resolve) => server.listen(0, resolve));
-    const address: any = server.address();
-    const url = `http://127.0.0.1:${address.port}`;
-
-    return {
-      server,
-      url,
-      close: () =>
-        new Promise<void>((resolve) => server.close(() => resolve())),
-    };
-  }
-
   async function startRebalancerAndExpectLog(
     log: string | string[],
     options: {
@@ -443,117 +406,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
   }
 
-  // TODO: add when we resolve issues with the inflight guard
-  // it('should successfully start the rebalancer', async () => {
-  //   await startRebalancerAndExpectLog('Rebalancer started successfully 🚀');
-  // });
-
-  // it('should skip when inflight detected by explorer', async () => {
-  //   // Create mock server that returns inflight messages
-  //   const mockServer = await createMockExplorerServer({
-  //     data: { message_view: [{ msg_id: '1' }] },
-  //   });
-
-  //   try {
-  //     // Ensure there is a potential route by creating an imbalance
-  //     const config: RebalancerConfigFileInput = {
-  //       warpRouteId,
-  //       strategy: {
-  //         rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-  //         chains: {
-  //           [CHAIN_NAME_2]: {
-  //             weighted: { weight: '25', tolerance: '0' },
-  //             bridge: ethers.constants.AddressZero,
-  //             bridgeLockTime: 1,
-  //           },
-  //           [CHAIN_NAME_3]: {
-  //             weighted: { weight: '75', tolerance: '0' },
-  //             bridge: ethers.constants.AddressZero,
-  //             bridgeLockTime: 1,
-  //           },
-  //         },
-  //       },
-  //     };
-
-  //     writeYamlOrJson(REBALANCER_CONFIG_PATH, config);
-
-  //     await startRebalancerAndExpectLog(
-  //       'Inflight rebalance detected via Explorer; skipping this cycle',
-  //       { explorerUrl: mockServer.url, checkFrequency: 2000 },
-  //     );
-  //   } finally {
-  //     await mockServer.close();
-  //   }
-  // });
-
-  it('should proceed when no inflight detected by explorer', async () => {
-    // Create mock server that returns no inflight messages
-    const mockServer = await createMockExplorerServer({
-      data: { message_view: [] },
-    });
-
-    try {
-      // Deploy and allow a bridge so the route can succeed
-      const chain3Provider = new ethers.providers.JsonRpcProvider(
-        chain3Metadata.rpcUrls[0].http,
-      );
-      const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
-      const chain3CollateralContract = HypERC20Collateral__factory.connect(
-        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
-        chain3Signer,
-      );
-
-      const bridgeContract = await new MockValueTransferBridge__factory(
-        chain3Signer,
-      ).deploy(chain3CollateralContract.address);
-
-      await chain3CollateralContract.addBridge(
-        chain2Metadata.domainId,
-        bridgeContract.address,
-      );
-
-      // Configure imbalance and set bridge on origin chain
-      const config: RebalancerConfigFileInput = {
-        warpRouteId,
-        strategy: {
-          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-          chains: {
-            [CHAIN_NAME_2]: {
-              weighted: { weight: '75', tolerance: '0' },
-              bridge: ethers.constants.AddressZero,
-              bridgeLockTime: 1,
-            },
-            [CHAIN_NAME_3]: {
-              weighted: { weight: '25', tolerance: '0' },
-              bridge: bridgeContract.address,
-              bridgeLockTime: 1,
-            },
-          },
-        },
-      };
-
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, config);
-
-      await startRebalancerAndExpectLog(
-        [
-          'Found rebalancing routes',
-          'Preparing all rebalance transactions.',
-          'Preparing transaction for route',
-          'Sending valid transactions.',
-          'Sending transaction for route',
-          'Transaction confirmed for route.',
-          '✅ Rebalance successful',
-        ],
-        {
-          explorerUrl: mockServer.url,
-          timeout: 30000,
-        },
-      );
-    } finally {
-      await mockServer.close();
-    }
-  });
-
   it('should throw when strategy config file does not exist', async () => {
     rmSync(REBALANCER_CONFIG_PATH);
 
@@ -591,7 +443,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      `Error: Validation error: All chains must use the same minAmount type. at "strategy.chains"`,
+      `Error: Validation error: All chains must use the same minAmount type. at "strategy[0].chains"`,
     );
   });
 
@@ -689,9 +541,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
   });
 
   it('should log that no routes are to be executed', async () => {
-    await startRebalancerAndExpectLog(
-      `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
-    );
+    await startRebalancerAndExpectLog(`No rebalancing needed`);
   });
 
   it('should not rebalance if mode is monitorOnly', async () => {
@@ -1012,56 +862,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     );
   });
 
-  it('should successfully send rebalance transaction', async () => {
-    // Assign rebalancer role
-    const chain3Provider = new ethers.providers.JsonRpcProvider(
-      chain3Metadata.rpcUrls[0].http,
-    );
-    const chain3Signer = new Wallet(ANVIL_KEY, chain3Provider);
-    const chain3CollateralContract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
-      chain3Signer,
-    );
-
-    // Deploy the bridge
-    const bridgeContract = await new MockValueTransferBridge__factory(
-      chain3Signer,
-    ).deploy(tokenChain3.address);
-
-    // Allow bridge
-    await chain3CollateralContract.addBridge(
-      chain2Metadata.domainId,
-      bridgeContract.address,
-    );
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      warpRouteId,
-      strategy: {
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        chains: {
-          [CHAIN_NAME_2]: {
-            weighted: {
-              weight: '75',
-              tolerance: '0',
-            },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 1,
-          },
-          [CHAIN_NAME_3]: {
-            weighted: {
-              weight: '25',
-              tolerance: '0',
-            },
-            bridge: bridgeContract.address,
-            bridgeLockTime: 1,
-          },
-        },
-      },
-    });
-
-    await startRebalancerAndExpectLog('✅ Rebalance successful');
-  });
-
   it('should skip rebalance if amount is below minimum threshold', async () => {
     // Assign rebalancer role
     const chain3Provider = new ethers.providers.JsonRpcProvider(
@@ -1111,7 +911,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     });
 
     await startRebalancerAndExpectLog(
-      'Route skipped due to minimum threshold amount not met.',
+      'Dropping route below bridgeMinAcceptedAmount',
     );
   });
 
@@ -1269,71 +1069,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     }
 
     // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
-    await startRebalancerAndExpectLog(
-      `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
-    );
-  });
-
-  it('should throw when the semaphore timer has not expired', async () => {
-    const originContractAddress = getTokenAddressFromWarpConfig(
-      warpCoreConfig,
-      CHAIN_NAME_3,
-    );
-    const destDomain = chain2Metadata.domainId;
-    const originRpc = chain3Metadata.rpcUrls[0].http;
-
-    const originProvider = new ethers.providers.JsonRpcProvider(originRpc);
-    const originSigner = new Wallet(ANVIL_KEY, originProvider);
-    const originContract = HypERC20Collateral__factory.connect(
-      originContractAddress,
-      originSigner,
-    );
-
-    // --- Deploy the bridge ---
-
-    const bridgeContract = await new MockValueTransferBridge__factory(
-      originSigner,
-    ).deploy(tokenChain3.address);
-
-    // --- Allow bridge ---
-
-    await originContract.addBridge(destDomain, bridgeContract.address);
-
-    // --- Configure rebalancer ---
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      warpRouteId,
-      strategy: {
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        chains: {
-          [CHAIN_NAME_2]: {
-            weighted: {
-              weight: '75',
-              tolerance: '0',
-            },
-            bridge: ethers.constants.AddressZero,
-            bridgeLockTime: 100,
-          },
-          [CHAIN_NAME_3]: {
-            weighted: {
-              weight: '25',
-              tolerance: '0',
-            },
-            bridge: bridgeContract.address,
-            bridgeLockTime: 100,
-          },
-        },
-      },
-    });
-
-    // --- Start rebalancer ---
-
-    await startRebalancerAndExpectLog(
-      `Still in waiting period. Skipping rebalance.`,
-      {
-        checkFrequency: 2000,
-      },
-    );
+    await startRebalancerAndExpectLog(`No rebalancing needed`);
   });
 
   it('should successfully log metrics tracking', async () => {
@@ -1367,23 +1103,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await startRebalancerAndExpectLog('Wallet balance updated for token', {
       withMetrics: true,
     });
-  });
-
-  it('should not find any metrics server when metrics are not enabled', async () => {
-    const rebalancer = startRebalancer({ withMetrics: false });
-
-    // TODO: find a deterministic approach to this, as it may fail due to resource restrictions
-    // Give the server some time to start, but we don't need to wait long as we expect it to fail
-    await sleep(1000);
-
-    // Check that metrics endpoint is not responding
-    await expect(fetch(DEFAULT_METRICS_SERVER)).to.be.rejected;
-
-    try {
-      await rebalancer.kill('SIGINT');
-    } catch {
-      // Process may have already exited, which is fine
-    }
   });
 
   it('should start the metrics server and expose prometheus metrics', async () => {
@@ -1432,152 +1151,6 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     } finally {
       try {
         await rebalancer.kill('SIGINT');
-      } catch {
-        // Process may have already exited, which is fine
-      }
-    }
-  });
-
-  it('should use another warp route as bridge', async () => {
-    // --- Deploy the other warp route ---
-
-    const otherWarpRouteId = createWarpRouteConfigId(
-      tokenSymbol,
-      [CHAIN_NAME_2, CHAIN_NAME_3].sort().join('-'),
-    );
-    const otherWarpDeployConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-deploy.yaml`;
-    const otherWarpCoreConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-config.yaml`;
-
-    const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
-      [CHAIN_NAME_2]: {
-        type: TokenType.collateral,
-        token: tokenChain2.address,
-        mailbox: chain2Addresses.mailbox,
-        owner: ANVIL_DEPLOYER_ADDRESS,
-      },
-      [CHAIN_NAME_3]: {
-        type: TokenType.collateral,
-        token: tokenChain3.address,
-        mailbox: chain3Addresses.mailbox,
-        owner: ANVIL_DEPLOYER_ADDRESS,
-      },
-    };
-    writeYamlOrJson(otherWarpDeployConfigPath, otherWarpRouteDeployConfig);
-    await hyperlaneWarpDeploy(otherWarpDeployConfigPath, otherWarpRouteId);
-
-    const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
-      otherWarpCoreConfigPath,
-    );
-
-    const chain2BridgeAddress = getTokenAddressFromWarpConfig(
-      otherWarpCoreConfig,
-      CHAIN_NAME_2,
-    );
-    const chain3BridgeAddress = getTokenAddressFromWarpConfig(
-      otherWarpCoreConfig,
-      CHAIN_NAME_3,
-    );
-
-    const chain2Signer = new Wallet(
-      ANVIL_KEY,
-      new ethers.providers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http),
-    );
-
-    const chain3Signer = new Wallet(
-      ANVIL_KEY,
-      new ethers.providers.JsonRpcProvider(chain3Metadata.rpcUrls[0].http),
-    );
-
-    const chain2Contract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
-      chain2Signer,
-    );
-
-    const chain3Contract = HypERC20Collateral__factory.connect(
-      getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
-      chain3Signer,
-    );
-
-    // --- Allow bridge ---
-
-    await chain2Contract.addBridge(
-      chain3Metadata.domainId,
-      chain2BridgeAddress,
-    );
-
-    await chain3Contract.addBridge(
-      chain2Metadata.domainId,
-      chain3BridgeAddress,
-    );
-
-    // --- Fund warp route bridge collaterals ---
-    await (
-      await tokenChain2
-        .connect(chain2Signer)
-        .transfer(chain2BridgeAddress, toWei(10))
-    ).wait();
-
-    await (
-      await tokenChain3
-        .connect(chain3Signer)
-        .transfer(chain3BridgeAddress, toWei(10))
-    ).wait();
-
-    writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-      warpRouteId,
-      strategy: {
-        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-        chains: {
-          [CHAIN_NAME_2]: {
-            weighted: {
-              weight: '25',
-              tolerance: '0',
-            },
-            bridge: chain2BridgeAddress,
-            bridgeLockTime: 60,
-            bridgeIsWarp: true,
-          },
-          [CHAIN_NAME_3]: {
-            weighted: {
-              weight: '75',
-              tolerance: '0',
-            },
-            bridge: chain3BridgeAddress,
-            bridgeLockTime: 60,
-            bridgeIsWarp: true,
-          },
-        },
-      },
-    });
-
-    // --- Start relayer ---
-    const relayer = hyperlaneRelayer(
-      [CHAIN_NAME_2, CHAIN_NAME_3],
-      otherWarpCoreConfigPath,
-    );
-
-    await sleep(2000);
-
-    // --- Start rebalancer ---
-    try {
-      await startRebalancerAndExpectLog(
-        [
-          'Rebalancer started successfully 🚀',
-          'Found rebalancing routes',
-          'Preparing all rebalance transactions.',
-          'Preparing transaction for route',
-          'Estimating gas for all prepared transactions.',
-          'Sending valid transactions.',
-          'Sending transaction for route',
-          'Transaction confirmed for route.',
-          '✅ Rebalance successful',
-          'No routes to execute',
-        ],
-        { timeout: 30000, checkFrequency: 1000 },
-      );
-    } finally {
-      try {
-        await relayer.kill('SIGINT');
       } catch {
         // Process may have already exited, which is fine
       }
@@ -1755,172 +1328,7 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       }
 
       // Running the rebalancer again should not trigger any rebalance given that it is already balanced.
-      await startRebalancerAndExpectLog(
-        `No routes to execute. Assuming rebalance is complete. Resetting semaphore timer.`,
-      );
-    });
-
-    it('should use another warp route as bridge', async () => {
-      // --- Deploy the other warp route ---
-
-      const otherWarpRouteId = createWarpRouteConfigId(
-        tokenSymbol,
-        [CHAIN_NAME_2, CHAIN_NAME_3].sort().join('-'),
-      );
-      const otherWarpDeployConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-deploy.yaml`;
-      const otherWarpCoreConfigPath = `${REGISTRY_PATH}/deployments/warp_routes/${otherWarpRouteId}-config.yaml`;
-
-      const otherWarpRouteDeployConfig: WarpRouteDeployConfig = {
-        [CHAIN_NAME_2]: {
-          type: TokenType.collateral,
-          token: tokenChain2.address,
-          mailbox: chain2Addresses.mailbox,
-          owner: ANVIL_DEPLOYER_ADDRESS,
-        },
-        [CHAIN_NAME_3]: {
-          type: TokenType.collateral,
-          token: tokenChain3.address,
-          mailbox: chain3Addresses.mailbox,
-          owner: ANVIL_DEPLOYER_ADDRESS,
-        },
-      };
-      writeYamlOrJson(otherWarpDeployConfigPath, otherWarpRouteDeployConfig);
-      await hyperlaneWarpDeploy(otherWarpDeployConfigPath, otherWarpRouteId);
-
-      const otherWarpCoreConfig: WarpCoreConfig = readYamlOrJson(
-        otherWarpCoreConfigPath,
-      );
-
-      const chain2BridgeAddress = getTokenAddressFromWarpConfig(
-        otherWarpCoreConfig,
-        CHAIN_NAME_2,
-      );
-      const chain3BridgeAddress = getTokenAddressFromWarpConfig(
-        otherWarpCoreConfig,
-        CHAIN_NAME_3,
-      );
-
-      const chain2Signer = new Wallet(
-        ANVIL_KEY,
-        new ethers.providers.JsonRpcProvider(chain2Metadata.rpcUrls[0].http),
-      );
-
-      const chain3Signer = new Wallet(
-        ANVIL_KEY,
-        new ethers.providers.JsonRpcProvider(chain3Metadata.rpcUrls[0].http),
-      );
-
-      const chain2Contract = HypERC20Collateral__factory.connect(
-        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
-        chain2Signer,
-      );
-
-      const chain3Contract = HypERC20Collateral__factory.connect(
-        getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_3),
-        chain3Signer,
-      );
-
-      // --- Allow bridge ---
-
-      await chain2Contract.addBridge(
-        chain3Metadata.domainId,
-        chain2BridgeAddress,
-      );
-
-      await chain3Contract.addBridge(
-        chain2Metadata.domainId,
-        chain3BridgeAddress,
-      );
-
-      // --- Fund warp route bridge collaterals ---
-      await (
-        await tokenChain2
-          .connect(chain2Signer)
-          .transfer(chain2BridgeAddress, toWei(10))
-      ).wait();
-
-      await (
-        await tokenChain3
-          .connect(chain3Signer)
-          .transfer(chain3BridgeAddress, toWei(10))
-      ).wait();
-
-      writeYamlOrJson(REBALANCER_CONFIG_PATH, {
-        warpRouteId,
-        strategy: {
-          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
-          chains: {
-            [CHAIN_NAME_2]: {
-              weighted: {
-                weight: '25',
-                tolerance: '0',
-              },
-              bridge: chain2BridgeAddress,
-              bridgeLockTime: 60,
-              bridgeIsWarp: true,
-            },
-            [CHAIN_NAME_3]: {
-              weighted: {
-                weight: '75',
-                tolerance: '0',
-              },
-              bridge: chain3BridgeAddress,
-              bridgeLockTime: 60,
-              bridgeIsWarp: true,
-            },
-          },
-        },
-      });
-
-      // --- Start relayer ---
-      const relayer = hyperlaneRelayer(
-        [CHAIN_NAME_2, CHAIN_NAME_3],
-        otherWarpCoreConfigPath,
-      );
-
-      await sleep(2000);
-
-      // --- Start rebalancer ---
-      try {
-        await startRebalancerAndExpectLog(
-          ['Calculating rebalancing routes', 'Found rebalancing routes'],
-          {
-            monitorOnly: true,
-          },
-        );
-
-        const manualRebalanceAmount = '5';
-
-        await startRebalancerAndExpectLog(
-          [
-            `Manual rebalance strategy selected. Origin: ${CHAIN_NAME_2}, Destination: ${CHAIN_NAME_3}, Amount: ${manualRebalanceAmount}`,
-            'Rebalance initiated',
-            'Preparing all rebalance transactions.',
-            `✅ Manual rebalance from ${CHAIN_NAME_2} to ${CHAIN_NAME_3} for amount ${manualRebalanceAmount} submitted successfully.`,
-          ],
-          {
-            timeout: 30000,
-            manual: true,
-            origin: CHAIN_NAME_2,
-            destination: CHAIN_NAME_3,
-            amount: manualRebalanceAmount,
-          },
-        );
-
-        await startRebalancerAndExpectLog(
-          ['Calculating rebalancing routes', 'Found rebalancing routes'],
-          {
-            timeout: 90000,
-            monitorOnly: true,
-          },
-        );
-      } finally {
-        try {
-          await relayer.kill('SIGINT');
-        } catch {
-          // Process may have already exited, which is fine
-        }
-      }
+      await startRebalancerAndExpectLog(`No rebalancing needed`);
     });
   });
 });

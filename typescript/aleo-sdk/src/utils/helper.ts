@@ -2,7 +2,7 @@ import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
 import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
 
-import { AleoProgram, programRegistry } from '../artifacts.js';
+import { type AleoProgram, programRegistry } from '../artifacts.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
@@ -202,7 +202,19 @@ export function fromAleoAddress(aleoAddress: string): {
     throw new Error(`address ${aleoAddress} is no valid aleo address`);
   }
 
-  const [programId, address] = aleoAddress.split('/');
+  const [programId, address]: (string | undefined)[] = aleoAddress.split('/');
+
+  // If address is not defined, then it means that the address
+  // does not have a programId prefix but it is still a valid aleo address
+  // because it passed validation
+  if (!address) {
+    return {
+      // FIXME, change this function return type signature to make it explicit
+      // that the programId might not be found
+      programId: '',
+      address: aleoAddress,
+    };
+  }
 
   return {
     programId,

@@ -16,7 +16,8 @@ on:
 jobs:
   diff-check:
     runs-on: ubuntu-latest
-
+    # Skip on changeset version PRs, as storage layout is expected to change with package version bumps
+    if: github.head_ref != 'changeset-release/main'
     steps:
       # Checkout the PR branch
       - name: Checkout PR branch
@@ -65,14 +66,7 @@ jobs:
         run: pnpm -C solidity storage base-storage
 
       # Compare outputs
-      - name: Compare outputs (fail on removals only)
-        run: |
-          DIFF_OUTPUT=$(diff --unified solidity/base-storage solidity/HEAD-storage || true)
-          echo "$DIFF_OUTPUT"
-          # Fail only if there are removal lines in diff hunks (lines starting with '-' but not '---')
-          if echo "$DIFF_OUTPUT" | grep -E '^-([^-])' >/dev/null; then
-            echo "Detected storage removals in diff. Failing job."
-            exit 1
-          else
-            echo "No storage removals detected."
-          fi
+      - name: Compare outputs
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: .github/scripts/check-diff-changeset.sh storage solidity/base-storage solidity/HEAD-storage "$BASE_REF"

@@ -53,12 +53,14 @@
       "underscore": "^1.13",
       "undici": "^5.11",
       "@babel/parser": "^7.22.7",
-      "@typechain/ethers-v5": "11.1.2"
+      "@typechain/ethers-v5": "11.1.2",
+      "xmlhttprequest-ssl": "4.0.0"
     },
     "patchedDependencies": {
       "typechain@8.3.2": "patches/typechain@8.3.2.patch",
       "node-fetch@2.7.0": "patches/node-fetch@2.7.0.patch",
-      "@provablehq/sdk@0.9.14": "patches/@provablehq__sdk@0.9.14.patch"
+      "bigint-buffer@1.1.5": "patches/bigint-buffer@1.1.5.patch",
+      "node-fetch@3.3.2": "patches/node-fetch@3.3.2.patch"
     }
   }
 }

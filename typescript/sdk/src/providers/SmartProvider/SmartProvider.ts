@@ -2,6 +2,7 @@ import { BigNumber, errors as EthersError, providers, utils } from 'ethers';
 import { Logger, pino } from 'pino';
 
 import {
+  isObjEmpty,
   raceWithContext,
   retryAsync,
   rootLogger,
@@ -24,8 +25,95 @@ import {
   ProviderPerformResult,
   ProviderStatus,
   ProviderTimeoutResult,
+  RpcConfigWithConnectionInfo,
   SmartProviderOptions,
 } from './types.js';
+
+const REDACTED = '[REDACTED]';
+
+function parseCustomRpcHeaders(url: string): {
+  url: string;
+  headers: Record<string, string>;
+  redactedHeaders: Record<string, string>;
+} {
+  let parsed: URL;
+  try {
+    parsed = new URL(url);
+  } catch {
+    return { url, headers: {}, redactedHeaders: {} };
+  }
+
+  // Quick check: if no custom_rpc_header params exist, return original URL unchanged
+  if (!parsed.searchParams.has('custom_rpc_header')) {
+    return { url, headers: {}, redactedHeaders: {} };
+  }
+
+  const headers: Record<string, string> = {};
+  const redactedHeaders: Record<string, string> = {};
+  const retainedParams: [string, string][] = [];
+
+  for (const [key, value] of parsed.searchParams) {
+    if (key === 'custom_rpc_header') {
+      // Use indexOf instead of split - header values can contain colons (e.g., "Bearer:token:with:colons")
+      const colonIdx = value.indexOf(':');
+      if (colonIdx > 0) {
+        const headerName = value.slice(0, colonIdx);
+        const headerValue = value.slice(colonIdx + 1);
+        headers[headerName] = headerValue;
+        redactedHeaders[headerName] = REDACTED;
+      }
+    } else {
+      retainedParams.push([key, value]);
+    }
+  }
+
+  parsed.search = '';
+  retainedParams.forEach(([k, v]) => parsed.searchParams.append(k, v));
+
+  return { url: parsed.toString(), headers, redactedHeaders };
+}
+
+function buildRpcConnections(
+  rawUrl: string,
+  existingConnection?: utils.ConnectionInfo,
+): {
+  url: string;
+  connection?: utils.ConnectionInfo;
+  redactedConnection?: utils.ConnectionInfo;
+} {
+  const { url, headers, redactedHeaders } = parseCustomRpcHeaders(rawUrl);
+  if (isObjEmpty(headers)) {
+    return {
+      url,
+      connection: existingConnection,
+      redactedConnection: existingConnection,
+    };
+  }
+
+  const baseConnection = existingConnection ?? { url };
+  const baseUrl = baseConnection.url === rawUrl ? url : baseConnection.url;
+  const baseHeaders = baseConnection.headers ?? {};
+
+  return {
+    url,
+    connection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...headers,
+      },
+    },
+    redactedConnection: {
+      ...baseConnection,
+      url: baseUrl,
+      headers: {
+        ...baseHeaders,
+        ...redactedHeaders,
+      },
+    },
+  };
+}
 
 export function getSmartProviderErrorMessage(errorMsg: string): string {
   return `${errorMsg}: RPC request failed. Check RPC validity. To override RPC URLs, see: https://docs.hyperlane.xyz/docs/deploy-hyperlane-troubleshooting#override-rpc-urls`;
@@ -122,7 +210,23 @@ export class HyperlaneSmartProvider
 
     if (rpcUrls?.length) {
       this.rpcProviders = rpcUrls.map((rpcConfig) => {
-        const newProvider = new HyperlaneJsonRpcProvider(rpcConfig, network);
+        const existingConnection = (rpcConfig as RpcConfigWithConnectionInfo)
+          .connection;
+        const { url, connection, redactedConnection } = buildRpcConnections(
+          rpcConfig.http,
+          existingConnection,
+        );
+        const configWithRedactedHeaders: RpcConfigWithConnectionInfo = {
+          ...rpcConfig,
+          http: url,
+          connection: redactedConnection,
+        };
+        const newProvider = new HyperlaneJsonRpcProvider(
+          configWithRedactedHeaders,
+          network,
+          undefined,
+          connection,
+        );
         newProvider.supportedMethods.forEach((m) => supportedMethods.add(m));
         return newProvider;
       });
@@ -551,7 +655,14 @@ export class HyperlaneSmartProvider
         }
       };
     } else {
-      this.logger.error(
+      this.logger.warn(
+        {
+          errors: errors.map((e) => ({
+            code: e?.code,
+            message: e?.message,
+            name: e?.name,
+          })),
+        },
         'Unhandled error case in combined provider error handler',
       );
       return class extends Error {

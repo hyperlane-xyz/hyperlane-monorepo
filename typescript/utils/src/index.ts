@@ -77,14 +77,18 @@ export {
 } from './amount.js';
 export { chunk, exclude, randomElement, arrayEqual } from './arrays.js';
 export {
+  AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  mapAllSettled,
   pollAsync,
   raceWithContext,
   retryAsync,
   runWithTimeout,
   sleep,
+  timedAsync,
   timeout,
+  tryFn,
 } from './async.js';
 export { base58ToBuffer, bufferToBase58, hexOrBase58ToHex } from './base58.js';
 export { fromBase64, toBase64 } from './base64.js';
@@ -122,11 +126,16 @@ export {
 export type { Logger } from './logging.js';
 export { mean, median, randomInt, stdDev, sum } from './math.js';
 export {
+  extractRefundAddressFromMetadata,
   formatMessage,
+  formatStandardHookMetadata,
+  hasValidRefundAddress,
   messageId,
   parseMessage,
+  parseStandardHookMetadata,
   parseWarpRouteMessage,
 } from './messages.js';
+export type { StandardHookMetadataParams } from './messages.js';
 export {
   formatLegacyMultisigIsmMetadata,
   parseLegacyMultisigIsmMetadata,

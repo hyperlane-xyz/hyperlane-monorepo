@@ -102,29 +102,37 @@ if [ "$1" = "test-interface" ]; then
         base_file="$BASE_DIR/$contract_name-abi.json"
 
         if [ ! -f "$base_file" ]; then
-            echo "INFO: New contract added: $contract_name"
+            ADDED_ITEMS="$ADDED_ITEMS\n  New contract: $contract_name"
         fi
     done
 
     # Report results
-    if [ -n "$ADDED_ITEMS" ]; then
-        echo ""
-        echo "ABI entries added (non-breaking):"
-        echo -e "$ADDED_ITEMS"
-    fi
-
+    # Exit codes: 0 = no changes, 1 = removals (breaking), 2 = additions only (non-breaking)
     if [ "$HAS_REMOVALS" = true ]; then
+        if [ -n "$ADDED_ITEMS" ]; then
+            echo ""
+            echo "ABI entries added:"
+            echo -e "$ADDED_ITEMS"
+        fi
         echo ""
         echo "ERROR: ABI entries removed or changed (breaking change):"
         echo -e "$REMOVED_ITEMS"
         echo ""
         echo "This PR removes or modifies entries in contract ABIs, which is a breaking change."
-        echo "If this is intentional, please review carefully."
         exit 1
     fi
 
+    if [ -n "$ADDED_ITEMS" ]; then
+        echo ""
+        echo "ABI entries added:"
+        echo -e "$ADDED_ITEMS"
+        echo ""
+        echo "Interface additions detected (non-breaking)."
+        exit 2
+    fi
+
     echo ""
-    echo "No breaking interface changes detected."
+    echo "No interface changes detected."
     exit 0
 fi
 

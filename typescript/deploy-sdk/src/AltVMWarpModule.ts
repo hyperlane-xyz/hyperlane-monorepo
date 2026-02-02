@@ -1,7 +1,11 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { isArtifactNew } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
 import { DerivedHookConfig } from '@hyperlane-xyz/provider-sdk/hook';
-import { DerivedIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  DerivedIsmConfig,
+  mergeIsmArtifacts,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import {
   AnnotatedTx,
   HypModule,
@@ -18,14 +22,17 @@ import {
   Address,
   addressToBytes32,
   assert,
+  deepEquals,
   isZeroishAddress,
+  normalizeConfig,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { AltVMHookModule } from './AltVMHookModule.js';
-import { AltVMIsmModule } from './AltVMIsmModule.js';
 import { AltVMDeployer } from './AltVMWarpDeployer.js';
 import { AltVMWarpRouteReader } from './AltVMWarpRouteReader.js';
+import { createHookWriter } from './hook/hook-writer.js';
+import { createIsmWriter } from './ism/generic-ism-writer.js';
+import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
@@ -251,18 +258,48 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       return updateTransactions;
     }
 
-    if (
-      !expectedConfig.interchainSecurityModule ||
-      (typeof expectedConfig.interchainSecurityModule === 'string' &&
-        isZeroishAddress(expectedConfig.interchainSecurityModule))
-    ) {
-      this.logger.debug(`Token ISM config is empty. No updates needed.`);
-      return updateTransactions;
-    }
-
     const actualDeployedIsm =
       (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
       '';
+    const actualIsmIsNonZero =
+      actualDeployedIsm && !isZeroishAddress(actualDeployedIsm);
+
+    const expectedIsmIsEmpty =
+      !expectedConfig.interchainSecurityModule ||
+      (typeof expectedConfig.interchainSecurityModule === 'string' &&
+        isZeroishAddress(expectedConfig.interchainSecurityModule));
+
+    // If expected ISM is empty/zero but actual ISM exists, reset to zero address if
+    // the protocol type is not cosmos as the underlying implementation does not support
+    // resetting to the default ism yet (will be fixed in the next release of the cosmos sdk)
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    if (expectedIsmIsEmpty && actualIsmIsNonZero) {
+      if (metadata.protocol === ProtocolType.CosmosNative) {
+        this.logger.warn(
+          `CosmosNative does not support unsetting token ISM. Skipping reset from ${actualDeployedIsm} to zero address.`,
+        );
+        return updateTransactions;
+      }
+
+      this.logger.debug(
+        `Resetting ISM from ${actualDeployedIsm} to zero address`,
+      );
+      return [
+        {
+          annotation: `Resetting ISM for Warp Route to zero address`,
+          ...(await this.signer.getSetTokenIsmTransaction({
+            signer: actualConfig.owner,
+            tokenAddress: this.args.addresses.deployedTokenRoute,
+          })),
+        },
+      ];
+    }
+
+    // If both are empty/zero, no updates needed
+    if (expectedIsmIsEmpty) {
+      this.logger.debug(`Token ISM config is empty. No updates needed.`);
+      return updateTransactions;
+    }
 
     // Try to update (may also deploy) Ism with the expected config
     const {
@@ -307,24 +344,57 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     const updateTransactions: AnnotatedTx[] = [];
 
-    if (actualConfig.hook === expectedConfig.hook) {
+    // Only Aleo supports hook updates for AltVM chains
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    if (metadata.protocol !== ProtocolType.Aleo) {
+      this.logger.debug(
+        `Hook updates not supported for protocol ${metadata.protocol}. Skipping.`,
+      );
+      return updateTransactions;
+    }
+
+    if (
+      deepEquals(
+        normalizeConfig(actualConfig.hook),
+        normalizeConfig(expectedConfig.hook),
+      )
+    ) {
       this.logger.debug(
         `Token Hook config is the same as target. No updates needed.`,
       );
       return updateTransactions;
     }
 
-    if (
+    const actualDeployedHook =
+      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
+    const actualHookIsNonZero =
+      actualDeployedHook && !isZeroishAddress(actualDeployedHook);
+
+    const expectedHookIsEmpty =
       !expectedConfig.hook ||
       (typeof expectedConfig.hook === 'string' &&
-        isZeroishAddress(expectedConfig.hook))
-    ) {
+        isZeroishAddress(expectedConfig.hook));
+
+    if (expectedHookIsEmpty && actualHookIsNonZero) {
+      this.logger.debug(
+        `Resetting Hook from ${actualDeployedHook} to zero address`,
+      );
+      return [
+        {
+          annotation: `Resetting Hook for Warp Route to zero address`,
+          ...(await this.signer.getSetTokenHookTransaction({
+            signer: actualConfig.owner,
+            tokenAddress: this.args.addresses.deployedTokenRoute,
+          })),
+        },
+      ];
+    }
+
+    // If both are empty/zero, no updates needed
+    if (expectedHookIsEmpty) {
       this.logger.debug(`Token Hook config is empty. No updates needed.`);
       return updateTransactions;
     }
-
-    const actualDeployedHook =
-      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
 
     // Try to update (may also deploy) Hook with the expected config
     const {
@@ -411,30 +481,63 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
       'warp route ISM',
     );
 
-    const ismModule = new AltVMIsmModule(
+    // If ISM is an address reference, use it directly without updates
+    if (typeof expectedConfig.interchainSecurityModule === 'string') {
+      return {
+        deployedIsm: expectedConfig.interchainSecurityModule,
+        updateTransactions: [],
+      };
+    }
+
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createIsmWriter(metadata, this.chainLookup, this.signer);
+
+    const actualIsmAddress =
+      (actualConfig.interchainSecurityModule as DerivedIsmConfig)?.address ??
+      '';
+
+    // Convert expected config to artifact format
+    const expectedArtifact = ismConfigToArtifact(
+      expectedConfig.interchainSecurityModule,
       this.chainLookup,
-      {
-        chain: this.args.chain,
-        config: expectedConfig.interchainSecurityModule,
-        addresses: {
-          ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
-          deployedIsm:
-            (actualConfig.interchainSecurityModule as DerivedIsmConfig)
-              ?.address ?? '',
-        },
-      },
-      this.signer,
     );
+
+    // If no existing ISM, deploy new one directly (no comparison needed)
+    if (!actualIsmAddress) {
+      this.logger.debug(`No existing ISM found, deploying new one`);
+      const [deployed] = await writer.create(expectedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    }
+
+    // Read actual ISM state (only when we have existing ISM to compare)
+    const actualArtifact = await writer.read(actualIsmAddress);
+
     this.logger.debug(
       `Comparing target ISM config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await ismModule.update(
-      expectedConfig.interchainSecurityModule,
-    );
-    const { deployedIsm } = ismModule.serialize();
 
-    return { deployedIsm, updateTransactions };
+    // Update existing ISM (only routing ISMs support updates)
+    // Merge artifacts to preserve DEPLOYED state for unchanged nested ISMs
+    const mergedArtifact = mergeIsmArtifacts(actualArtifact, expectedArtifact);
+
+    // If merge resulted in NEW state, deploy it
+    if (isArtifactNew(mergedArtifact)) {
+      const [deployed] = await writer.create(mergedArtifact);
+      return {
+        deployedIsm: deployed.deployed.address,
+        updateTransactions: [],
+      };
+    } else {
+      // Otherwise update in-place (artifact is DEPLOYED)
+      const updateTransactions = await writer.update(mergedArtifact);
+      return {
+        deployedIsm: mergedArtifact.deployed.address,
+        updateTransactions,
+      };
+    }
   }
 
   /**
@@ -453,26 +556,36 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     assert(expectedConfig.hook, 'Hook derived incorrectly');
 
-    const hookModule = new AltVMHookModule(
-      this.chainLookup,
-      {
-        chain: this.args.chain,
-        config: expectedConfig.hook,
-        addresses: {
-          ...this.args.addresses,
-          mailbox: expectedConfig.mailbox,
-          deployedHook: (actualConfig.hook as DerivedHookConfig)?.address ?? '',
-        },
-      },
-      this.signer,
-    );
+    // If expected hook is an address reference, use it directly
+    if (typeof expectedConfig.hook === 'string') {
+      return {
+        deployedHook: expectedConfig.hook,
+        updateTransactions: [],
+      };
+    }
+
+    const metadata = this.chainLookup.getChainMetadata(this.args.chain);
+    const writer = createHookWriter(metadata, this.chainLookup, this.signer, {
+      mailbox: expectedConfig.mailbox,
+    });
+
+    const actualHookAddress =
+      (actualConfig.hook as DerivedHookConfig)?.address ?? '';
+
     this.logger.debug(
       `Comparing target Hook config with ${this.args.chain} chain`,
     );
-    const updateTransactions = await hookModule.update(expectedConfig.hook);
-    const { deployedHook } = hookModule.serialize();
 
-    return { deployedHook, updateTransactions };
+    // Use the new deployOrUpdate method from HookWriter
+    const result = await writer.deployOrUpdate({
+      actualAddress: actualHookAddress || undefined,
+      expectedConfig: expectedConfig.hook,
+    });
+
+    return {
+      deployedHook: result.address,
+      updateTransactions: result.transactions,
+    };
   }
 
   /**

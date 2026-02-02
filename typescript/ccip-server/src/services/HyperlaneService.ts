@@ -66,19 +66,12 @@ class HyperlaneService {
 
     const body = JSON.stringify({
       query: `query ($search: bytea) {
-        message_view(
+        raw_message_dispatch(
             where: { msg_id: {_eq: $search} }
             limit: 1
         ) {
-            id
             msg_id
-            nonce
-            sender
-            recipient
-            is_delivered
-            origin_tx_id
             origin_tx_hash
-            origin_tx_sender
           }
     }`,
       variables: {
@@ -111,7 +104,9 @@ class HyperlaneService {
       );
     }
 
-    const responseAsJson = (await response.json())['data']['message_view'];
+    const responseAsJson = (await response.json())['data'][
+      'raw_message_dispatch'
+    ];
 
     if (responseAsJson.length > 0) {
       const txHash = responseAsJson[0]?.origin_tx_hash.replace('\\x', '0x');

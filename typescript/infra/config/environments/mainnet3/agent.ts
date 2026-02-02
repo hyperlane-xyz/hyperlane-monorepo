@@ -42,7 +42,6 @@ import { getDomainId, getWarpAddresses } from '../../registry.js';
 
 import { environment, ethereumChainNames } from './chains.js';
 import { blacklistedMessageIds } from './customBlacklist.js';
-import { helloWorld } from './helloworld.js';
 import aaveSenderAddresses from './misc-artifacts/aave-sender-addresses.json' with { type: 'json' };
 import everclearSenderAddresses from './misc-artifacts/everclear-sender-addresses.json' with { type: 'json' };
 import merklyErc20Addresses from './misc-artifacts/merkly-erc20-addresses.json' with { type: 'json' };
@@ -54,10 +53,6 @@ import {
 } from './supportedChainNames.js';
 import { validatorChainConfig } from './validators.js';
 import { WarpRouteIds } from './warp/warpIds.js';
-
-// const releaseCandidateHelloworldMatchingList = routerMatchingList(
-//   helloWorld[Contexts.ReleaseCandidate].addresses,
-// );
 
 // The chains here must be consistent with the environment's supportedChainNames, which is
 // checked / enforced at runtime & in the CI pipeline.
@@ -104,6 +99,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
+    eden: true,
     electroneum: true,
     endurance: true,
     eni: true,
@@ -247,6 +243,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
+    eden: false,
     electroneum: true,
     endurance: true,
     eni: true,
@@ -390,6 +387,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     degenchain: true,
     dogechain: true,
     eclipsemainnet: true,
+    eden: false,
     electroneum: true,
     endurance: true,
     eni: true,
@@ -638,6 +636,8 @@ const gasPaymentEnforcement: GasPaymentEnforcement[] = [
     type: GasPaymentEnforcementPolicyType.Minimum,
     payment: '1',
     matchingList: [
+      // Temporary workaround
+      { destinationDomain: getDomainId('citrea') },
       // Temporary workaround due to funky Mantle gas amounts.
       { destinationDomain: getDomainId('mantle') },
       // Temporary workaround due to funky Torus gas amounts.
@@ -692,7 +692,6 @@ const stagingStHyperMatchingList = chainMapMatchingList({
 });
 
 // Gets metric app contexts, including:
-// - helloworld
 // - all warp routes defined in WarpRouteIds, using addresses from the registry
 // - misc important applications not defined in the registry, e.g. merkly
 const metricAppContextsGetter = (): MetricAppContext[] => {
@@ -721,24 +720,17 @@ const metricAppContextsGetter = (): MetricAppContext[] => {
   return [
     ...warpContexts,
     {
-      name: 'helloworld',
-      matchingList: routerMatchingList(
-        helloWorld[Contexts.Hyperlane].addresses,
-      ),
+      name: 'merkly_erc20',
+      matchingList: routerMatchingList(merklyErc20Addresses),
     },
-    // Removing merkly related addressed to avoid OOM
-    // {
-    //   name: 'merkly_erc20',
-    //   matchingList: routerMatchingList(merklyErc20Addresses),
-    // },
-    // {
-    //   name: 'merkly_eth',
-    //   matchingList: routerMatchingList(merklyEthAddresses),
-    // },
-    // {
-    //   name: 'merkly_nft',
-    //   matchingList: routerMatchingList(merklyNftAddresses),
-    // },
+    {
+      name: 'merkly_eth',
+      matchingList: routerMatchingList(merklyEthAddresses),
+    },
+    {
+      name: 'merkly_nft',
+      matchingList: routerMatchingList(merklyNftAddresses),
+    },
     {
       name: 'velo_message_module',
       // Almost all messages to / from this address relate to the Velo Message Module.
@@ -936,7 +928,7 @@ const releaseCandidate: RootAgentConfig = {
   ...contextBase,
   context: Contexts.ReleaseCandidate,
   contextChainNames: hyperlaneContextAgentChainNames,
-  rolesWithKeys: [Role.Relayer, Role.Kathy, Role.Validator],
+  rolesWithKeys: [Role.Relayer, Role.Validator],
   relayer: {
     rpcConsensusType: RpcConsensusType.Fallback,
     docker: {
@@ -944,9 +936,6 @@ const releaseCandidate: RootAgentConfig = {
       tag: mainnetDockerTags.relayerRC,
     },
     blacklist,
-    // We're temporarily (ab)using the RC relayer as a way to increase
-    // message throughput.
-    // whitelist: releaseCandidateHelloworldMatchingList,
     gasPaymentEnforcement,
     metricAppContextsGetter,
     ismCacheConfigs,

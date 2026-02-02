@@ -135,6 +135,10 @@
     "amount": "0.0000001",
     "decimals": 1
   },
+  "eden": {
+    "amount": "1",
+    "decimals": 9
+  },
   "electroneum": {
     "amount": "10.000000007",
     "decimals": 9
@@ -148,7 +152,7 @@
     "decimals": 9
   },
   "ethereum": {
-    "amount": "2.5",
+    "amount": "0.3",
     "decimals": 9
   },
   "everclear": {

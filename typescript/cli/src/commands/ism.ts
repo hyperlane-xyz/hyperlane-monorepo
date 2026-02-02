@@ -1,12 +1,17 @@
 import { type CommandModule } from 'yargs';
 
-import { type CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+} from '../context/types.js';
+import { runIsmDeploy } from '../ism/deploy.js';
 import { readIsmConfig } from '../ism/read.js';
 import { log, logGray } from '../logger.js';
 
 import {
   addressCommandOption,
   chainCommandOption,
+  inputFileCommandOption,
   outputFileCommandOption,
 } from './options.js';
 
@@ -16,8 +21,47 @@ import {
 export const ismCommand: CommandModule = {
   command: 'ism',
   describe: 'Operations relating to ISMs',
-  builder: (yargs) => yargs.command(read).version(false).demandCommand(),
+  builder: (yargs) =>
+    yargs.command(deploy).command(read).version(false).demandCommand(),
   handler: () => log('Command required'),
+};
+
+// Examples for testing:
+// Deploy a multisig ISM:
+//     hyperlane ism deploy --chain sepolia --config ./ism-config.yaml
+// Deploy with output file:
+//     hyperlane ism deploy --chain sepolia --config ./ism-config.yaml --out ./deployed-ism.json
+export const deploy: CommandModuleWithWriteContext<{
+  chain: string;
+  config: string;
+  out?: string;
+}> = {
+  command: 'deploy',
+  describe: 'Deploys an ISM to a chain',
+  builder: {
+    chain: {
+      ...chainCommandOption,
+      demandOption: true,
+    },
+    config: inputFileCommandOption({
+      description: 'Path to ISM configuration file (YAML or JSON)',
+      demandOption: true,
+    }),
+    out: outputFileCommandOption(
+      undefined,
+      false,
+      'Output file path for deployed ISM address',
+    ),
+  },
+  handler: async ({ context, chain, config, out }) => {
+    await runIsmDeploy({
+      context,
+      chain,
+      configPath: config,
+      outPath: out,
+    });
+    process.exit(0);
+  },
 };
 
 // Examples for testing:

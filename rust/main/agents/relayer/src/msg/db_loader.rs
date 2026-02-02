@@ -38,7 +38,7 @@ pub struct MessageDbLoader {
     send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
     /// Needed context to send a message for each destination chain
     destination_ctxs: HashMap<u32, Arc<MessageContext>>,
-    metric_app_contexts: Vec<(MatchingList, String)>,
+    metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
     nonce_iterator: ForwardBackwardIterator,
     max_retries: u32,
 }
@@ -179,13 +179,10 @@ impl DirectionalNonceIterator {
     }
 
     fn update_max_nonce_gauge(message: &HyperlaneMessage, metrics: &MessageDbLoaderMetrics) {
-        let current_max = metrics.max_last_known_message_nonce_gauge.get();
+        let current_max = metrics.last_known_message_nonce_gauge.get();
         metrics
-            .max_last_known_message_nonce_gauge
+            .last_known_message_nonce_gauge
             .set(max(current_max, message.nonce as i64));
-        if let Some(metrics) = metrics.get(message.destination) {
-            metrics.set(message.nonce as i64);
-        }
     }
 
     fn indexed_message_with_nonce(&self) -> Result<Option<HyperlaneMessage>> {
@@ -338,7 +335,7 @@ impl MessageDbLoader {
         metrics: MessageDbLoaderMetrics,
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         destination_ctxs: HashMap<u32, Arc<MessageContext>>,
-        metric_app_contexts: Vec<(MatchingList, String)>,
+        metric_app_contexts: Arc<Vec<(MatchingList, String)>>,
         max_retries: u32,
     ) -> Self {
         Self {
@@ -369,37 +366,16 @@ impl MessageDbLoader {
 
 #[derive(Debug)]
 pub struct MessageDbLoaderMetrics {
-    max_last_known_message_nonce_gauge: IntGauge,
-    last_known_message_nonce_gauges: HashMap<u32, IntGauge>,
+    last_known_message_nonce_gauge: IntGauge,
 }
 
 impl MessageDbLoaderMetrics {
-    pub fn new<'a>(
-        metrics: &CoreMetrics,
-        origin: &HyperlaneDomain,
-        destinations: impl Iterator<Item = &'a HyperlaneDomain>,
-    ) -> Self {
-        let mut gauges: HashMap<u32, IntGauge> = HashMap::new();
-        for destination in destinations {
-            gauges.insert(
-                destination.id(),
-                metrics.last_known_message_nonce().with_label_values(&[
-                    "db_loader_loop",
-                    origin.name(),
-                    destination.name(),
-                ]),
-            );
-        }
+    pub fn new(metrics: &CoreMetrics, origin: &HyperlaneDomain) -> Self {
         Self {
-            max_last_known_message_nonce_gauge: metrics
+            last_known_message_nonce_gauge: metrics
                 .last_known_message_nonce()
-                .with_label_values(&["db_loader_loop", origin.name(), "any"]),
-            last_known_message_nonce_gauges: gauges,
+                .with_label_values(&["db_loader_loop", origin.name()]),
         }
-    }
-
-    fn get(&self, destination: u32) -> Option<&IntGauge> {
-        self.last_known_message_nonce_gauges.get(&destination)
     }
 }
 

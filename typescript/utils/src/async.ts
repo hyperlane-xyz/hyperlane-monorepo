@@ -1,3 +1,5 @@
+import type { Logger } from 'pino';
+
 import { rootLogger } from './logging.js';
 import { assert } from './validation.js';
 
@@ -73,7 +75,7 @@ export async function fetchWithTimeout(
   timeout = 10_000,
 ) {
   const controller = new AbortController();
-  const id = setTimeout(() => controller.abort(), timeout);
+  const id = setTimeout(controller.abort.bind(controller), timeout);
   const response = await fetch(resource, {
     ...options,
     signal: controller.signal,
@@ -183,4 +185,103 @@ export async function concurrentMap<A, B>(
     );
   }
   return res;
+}
+
+/**
+ * Result type for mapAllSettled containing both successful results and errors.
+ */
+export interface AllSettledResult<K, R> {
+  /** Map of keys to their successfully resolved values */
+  fulfilled: Map<K, R>;
+  /** Map of keys to their rejection errors */
+  rejected: Map<K, Error>;
+}
+
+/**
+ * Maps an async function over items using Promise.allSettled semantics.
+ * Unlike Promise.all, this continues processing all items even if some fail.
+ *
+ * @param items - Array of items to process
+ * @param mapFn - Async function to apply to each item
+ * @param keyFn - Optional function to derive a key for each item (defaults to using index)
+ * @returns Object with `fulfilled` Map (successful results) and `rejected` Map (errors)
+ *
+ * @example
+ * ```typescript
+ * // Process chains and collect results/errors
+ * const { fulfilled, rejected } = await mapAllSettled(
+ *   chains,
+ *   async (chain) => deployContract(chain),
+ *   (chain) => chain, // use chain name as key
+ * );
+ *
+ * // Handle errors if any
+ * if (rejected.size > 0) {
+ *   const errors = [...rejected.entries()].map(([chain, err]) => `${chain}: ${err.message}`);
+ *   throw new Error(`Deployment failed: ${errors.join('; ')}`);
+ * }
+ *
+ * // Use successful results
+ * for (const [chain, result] of fulfilled) {
+ *   console.log(`Deployed to ${chain}: ${result}`);
+ * }
+ * ```
+ */
+export async function mapAllSettled<T, R, K = number>(
+  items: T[],
+  mapFn: (item: T, index: number) => Promise<R>,
+  keyFn?: (item: T, index: number) => K,
+): Promise<AllSettledResult<K, R>> {
+  const results = await Promise.allSettled(
+    items.map((item, index) => mapFn(item, index)),
+  );
+
+  const fulfilled = new Map<K, R>();
+  const rejected = new Map<K, Error>();
+
+  results.forEach((result, index) => {
+    const key = keyFn ? keyFn(items[index], index) : (index as unknown as K);
+
+    if (result.status === 'fulfilled') {
+      fulfilled.set(key, result.value);
+    } else {
+      const error =
+        result.reason instanceof Error
+          ? result.reason
+          : new Error(String(result.reason));
+      rejected.set(key, error);
+    }
+  });
+
+  return { fulfilled, rejected };
+}
+
+/**
+ * Wraps an async function and catches any errors, logging them instead of throwing.
+ * Useful for fire-and-forget operations where you want to log errors but not crash.
+ *
+ * @param fn - The async function to execute
+ * @param context - A description of the context for error logging
+ * @param logger - The logger instance to use for error logging
+ */
+export async function tryFn(
+  fn: () => Promise<void>,
+  context: string,
+  logger: Logger,
+): Promise<void> {
+  try {
+    await fn();
+  } catch (error) {
+    logger.error({ context, err: error as Error }, `Error in ${context}`);
+  }
+}
+
+export async function timedAsync<T>(
+  name: string,
+  fn: () => Promise<T>,
+): Promise<T> {
+  const start = Date.now();
+  const result = await fn();
+  rootLogger.trace(`Timing: ${name} took ${Date.now() - start}ms`);
+  return result;
 }
