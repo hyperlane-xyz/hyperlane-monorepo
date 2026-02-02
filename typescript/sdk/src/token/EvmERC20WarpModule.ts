@@ -815,6 +815,16 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       'expectedDestinationGas is undefined',
     );
 
+    // Only set gas for domains that will have routers enrolled after the update
+    // Use resolveRouterMapConfig to handle both domain IDs and chain names as keys
+    const resolvedExpectedRemoteRouters = resolveRouterMapConfig(
+      this.multiProvider,
+      expectedConfig.remoteRouters ?? {},
+    );
+    const expectedRemoteRouterDomains = new Set(
+      Object.keys(resolvedExpectedRemoteRouters).map(Number),
+    );
+
     const actualDestinationGas = resolveRouterMapConfig(
       this.multiProvider,
       actualConfig.destinationGas,
@@ -824,7 +834,21 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       expectedConfig.destinationGas,
     );
 
-    if (!deepEquals(actualDestinationGas, expectedDestinationGas)) {
+    // Filter to only domains that will have routers enrolled
+    const filteredExpectedGas = Object.fromEntries(
+      Object.entries(expectedDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    // Filter actual gas to the same domains for comparison
+    const filteredActualGas = Object.fromEntries(
+      Object.entries(actualDestinationGas).filter(([domain]) =>
+        expectedRemoteRouterDomains.has(Number(domain)),
+      ),
+    );
+
+    if (!deepEquals(filteredActualGas, filteredExpectedGas)) {
       const contractToUpdate = GasRouter__factory.connect(
         this.args.addresses.deployedTokenRoute,
         this.multiProvider.getProvider(this.domainId),
@@ -833,7 +857,7 @@ export class EvmERC20WarpModule extends HyperlaneModule<
       // Convert { 1: 2, 2: 3, ... } to [{ 1: 2 }, { 2: 3 }]
       const gasRouterConfigs: { domain: BigNumberish; gas: BigNumberish }[] =
         [];
-      objMap(expectedDestinationGas, (domain: Domain, gas: string) => {
+      objMap(filteredExpectedGas, (domain: Domain, gas: string) => {
         gasRouterConfigs.push({
           domain,
           gas,
