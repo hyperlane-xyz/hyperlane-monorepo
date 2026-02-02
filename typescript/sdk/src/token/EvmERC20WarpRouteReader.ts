@@ -83,6 +83,8 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 const SCALE_FRACTION_VERSION = '11.0.0';
+// Version that introduced ppm precision for CCTP V2 maxFeeBps (was bps before)
+export const CCTP_PPM_PRECISION_VERSION = '10.2.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -680,6 +682,17 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
 
     const config = await deriveFunction(warpRouteAddress);
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
+
+    // Convert ppm to bps for CCTP V2 contracts with ppm precision
+    if (
+      config.type === TokenType.collateralCctp &&
+      config.cctpVersion === 'V2' &&
+      config.maxFeeBps !== undefined &&
+      config.contractVersion &&
+      compareVersions(config.contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0
+    ) {
+      config.maxFeeBps = config.maxFeeBps / 100;
+    }
 
     return HypTokenConfigSchema.parse(config);
   }
