@@ -141,6 +141,78 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     return validators.map((v) => this.validatorCache[originChain][v]);
   }
 
+  /**
+   * Shared helper to fetch checkpoints from validators.
+   * Returns the raw results from mapAllSettled for both getS3Checkpoints and getValidatorInfos to use.
+   */
+  protected async fetchValidatorCheckpoints(
+    validators: Address[],
+    match: {
+      origin: number;
+      merkleTree: Address;
+      messageId: string;
+      index: number;
+    },
+  ): Promise<{
+    originChain: ChainName;
+    fulfilled: Map<number, S3CheckpointWithId | undefined>;
+    rejected: Map<number, Error>;
+  }> {
+    this.logger.debug({ match, validators }, 'Fetching validator checkpoints');
+
+    const originChain = this.core.multiProvider.getChainName(match.origin);
+    const s3Validators = await this.s3Validators(originChain, validators);
+
+    const { fulfilled, rejected } = await mapAllSettled(
+      validators,
+      async (_, index) => {
+        const s3Validator = s3Validators[index];
+        if (!s3Validator) {
+          throw new Error('No valid storage location for validator');
+        }
+        return s3Validator.getCheckpoint(match.index);
+      },
+    );
+
+    // Log any errors from failed checkpoint fetches
+    rejected.forEach((error, index) => {
+      this.logger.warn(
+        { validator: validators[index], error: error.message },
+        'Failed to fetch checkpoint',
+      );
+    });
+
+    this.logger.debug(
+      { fulfilled: fulfilled.size, rejected: rejected.size },
+      'Fetched validator checkpoints',
+    );
+
+    return { originChain, fulfilled, rejected };
+  }
+
+  /**
+   * Helper to check if a checkpoint matches the expected values.
+   */
+  protected checkpointMatches(
+    checkpoint: S3CheckpointWithId,
+    match: {
+      origin: number;
+      merkleTree: Address;
+      messageId: string;
+      index: number;
+    },
+  ): boolean {
+    return (
+      eqAddress(
+        bytes32ToAddress(checkpoint.value.checkpoint.merkle_tree_hook_address),
+        match.merkleTree,
+      ) &&
+      checkpoint.value.message_id === match.messageId &&
+      checkpoint.value.checkpoint.index === match.index &&
+      checkpoint.value.checkpoint.mailbox_domain === match.origin
+    );
+  }
+
   async getS3Checkpoints(
     validators: Address[],
     match: {
@@ -150,50 +222,27 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       index: number;
     },
   ): Promise<S3CheckpointWithId[]> {
-    this.logger.debug({ match, validators }, 'Fetching checkpoints');
+    const { fulfilled } = await this.fetchValidatorCheckpoints(
+      validators,
+      match,
+    );
 
-    const originChain = this.core.multiProvider.getChainName(match.origin);
-    const s3Validators = await this.s3Validators(originChain, validators);
-
-    const { fulfilled, rejected } = await mapAllSettled(s3Validators, (v) => {
-      if (!v) {
-        throw new Error('No valid storage location for validator');
-      }
-      return v.getCheckpoint(match.index);
-    });
-
-    // Log any errors from failed checkpoint fetches
-    rejected.forEach((error, key) => {
-      this.logger.error({ error, key }, 'Failed to fetch checkpoint');
-    });
-
+    // Filter to only valid, matching checkpoints
     const checkpoints = [...fulfilled.values()].filter(
       (value): value is S3CheckpointWithId => value !== undefined,
     );
 
-    this.logger.debug({ checkpoints }, 'Fetched checkpoints');
-
-    if (checkpoints.length < validators.length) {
-      this.logger.debug(
-        { checkpoints, validators, match },
-        `Found ${checkpoints.length} checkpoints out of ${validators.length} validators`,
-      );
-    }
-
-    const matchingCheckpoints = checkpoints.filter(
-      ({ value }) =>
-        eqAddress(
-          bytes32ToAddress(value.checkpoint.merkle_tree_hook_address),
-          match.merkleTree,
-        ) &&
-        value.message_id === match.messageId &&
-        value.checkpoint.index === match.index &&
-        value.checkpoint.mailbox_domain === match.origin,
+    const matchingCheckpoints = checkpoints.filter((checkpoint) =>
+      this.checkpointMatches(checkpoint, match),
     );
 
     if (matchingCheckpoints.length !== checkpoints.length) {
       this.logger.warn(
-        { matchingCheckpoints, checkpoints, match },
+        {
+          matchingCheckpoints: matchingCheckpoints.length,
+          checkpoints: checkpoints.length,
+          match,
+        },
         'Mismatched checkpoints',
       );
     }
@@ -217,24 +266,8 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
     validatorInfos: ValidatorInfo[];
     checkpoint?: Checkpoint;
   }> {
-    const originChain = this.core.multiProvider.getChainName(match.origin);
-
-    // Get S3 validators - this now handles partial failures gracefully
-    // Some validators may be undefined if they don't have valid storage locations
-    const s3Validators = await this.s3Validators(originChain, validators);
-
-    // Fetch checkpoints from each validator in parallel
-    // Filter out undefined validators first, then use mapAllSettled for robustness
-    const { fulfilled, rejected } = await mapAllSettled(
-      validators,
-      async (_, index) => {
-        const s3Validator = s3Validators[index];
-        if (!s3Validator) {
-          throw new Error('No valid storage location for validator');
-        }
-        return s3Validator.getCheckpoint(match.index);
-      },
-    );
+    const { originChain, fulfilled, rejected } =
+      await this.fetchValidatorCheckpoints(validators, match);
 
     let firstMatchingCheckpoint: Checkpoint | undefined;
     const validatorInfos: ValidatorInfo[] = validators.map((address, index) => {
@@ -262,18 +295,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
       }
 
       // Check if checkpoint matches our expected values
-      const matches =
-        eqAddress(
-          bytes32ToAddress(
-            checkpoint.value.checkpoint.merkle_tree_hook_address,
-          ),
-          match.merkleTree,
-        ) &&
-        checkpoint.value.message_id === match.messageId &&
-        checkpoint.value.checkpoint.index === match.index &&
-        checkpoint.value.checkpoint.mailbox_domain === match.origin;
-
-      if (!matches) {
+      if (!this.checkpointMatches(checkpoint, match)) {
         return {
           address,
           alias,
