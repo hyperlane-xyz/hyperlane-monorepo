@@ -74,7 +74,7 @@ jobs:
           MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
         run: |
           case "${{ steps.config.outputs.CHAIN }}" in
-            ethereum)
+            mainnet)
               echo "ETH_RPC_URL=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
               ;;
             optimism)
@@ -99,7 +99,6 @@ jobs:
           set -a
           source script/migrations/${{ matrix.env_file }}
           set +a
-          unset CHAIN  # CHAIN env var conflicts with Foundry
           ./script/migration-pipeline.sh
 
       - name: Upload Safe Transaction JSON
