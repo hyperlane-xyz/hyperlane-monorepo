@@ -1,7 +1,9 @@
 import { expect } from 'chai';
-import { BigNumber, providers } from 'ethers';
+import { BigNumber, ethers, providers } from 'ethers';
 
+import { GithubRegistry } from '@hyperlane-xyz/registry';
 import {
+  type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
   revertToSnapshot,
@@ -11,163 +13,225 @@ import {
 import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
-  type StrategyConfig,
 } from '../config/types.js';
+import { type MonitorEvent, MonitorEventType } from '../interfaces/IMonitor.js';
+import type { Monitor } from '../monitor/Monitor.js';
 
 import {
   DOMAIN_IDS,
-  type DeployedAddresses,
+  FORK_BLOCK_NUMBERS,
   TEST_CHAINS,
+  USDC_ADDRESSES,
+  USDC_INCENTIV_WARP_ROUTE,
+  USDC_SUPERSEED_WARP_ROUTE,
 } from './fixtures/routes.js';
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
-import {
-  type LocalDeploymentContext,
-  LocalDeploymentManager,
-} from './harness/LocalDeploymentManager.js';
-import { getFirstMonitorEvent } from './harness/TestHelpers.js';
+import { ForkManager } from './harness/ForkManager.js';
+import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
+
+const ANVIL_TEST_PRIVATE_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+async function getFirstMonitorEvent(monitor: Monitor): Promise<MonitorEvent> {
+  return new Promise((resolve, reject) => {
+    const timeout = setTimeout(() => {
+      reject(new Error('Monitor event timeout'));
+    }, 60_000);
+
+    monitor.on(MonitorEventType.TokenInfo, (event: MonitorEvent) => {
+      clearTimeout(timeout);
+      void monitor.stop();
+      resolve(event);
+    });
+
+    monitor.on(MonitorEventType.Error, (error: Error) => {
+      clearTimeout(timeout);
+      void monitor.stop();
+      reject(error);
+    });
+
+    void monitor.start();
+  });
+}
+
+const MIN_AMOUNT_STRATEGY_CONFIG = [
+  {
+    rebalanceStrategy: RebalancerStrategyOptions.MinAmount as const,
+    chains: {
+      ethereum: {
+        minAmount: {
+          min: '100',
+          target: '120',
+          type: RebalancerMinAmountType.Absolute,
+        },
+        bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+      },
+      arbitrum: {
+        minAmount: {
+          min: '100',
+          target: '120',
+          type: RebalancerMinAmountType.Absolute,
+        },
+        bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
+      },
+      base: {
+        minAmount: {
+          min: '100',
+          target: '120',
+          type: RebalancerMinAmountType.Absolute,
+        },
+        bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
+      },
+    },
+  },
+];
 
 describe('MinAmountStrategy E2E', function () {
   this.timeout(300_000);
 
-  let deploymentManager: LocalDeploymentManager;
+  let forkManager: ForkManager;
   let multiProvider: MultiProvider;
-  let localProviders: Map<string, providers.JsonRpcProvider>;
+  let forkedProviders: Map<string, providers.JsonRpcProvider>;
+  let registry: GithubRegistry;
+  let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
-  let deployedAddresses: DeployedAddresses;
-  let minAmountStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    deploymentManager = new LocalDeploymentManager();
-    const ctx: LocalDeploymentContext = await deploymentManager.start();
-    multiProvider = ctx.multiProvider;
-    localProviders = ctx.providers;
-    deployedAddresses = ctx.deployedAddresses;
+    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    userAddress = wallet.address;
 
-    const coreAddresses: Record<string, Record<string, string>> = {};
+    registry = new GithubRegistry();
+    const chainMetadata = await registry.getMetadata();
+    const testChainMetadata: Record<string, ChainMetadata> = {};
+
     for (const chain of TEST_CHAINS) {
-      coreAddresses[chain] = {
-        mailbox: deployedAddresses.chains[chain].mailbox,
-        interchainSecurityModule: deployedAddresses.chains[chain].ism,
-      };
+      if (chainMetadata[chain]) {
+        testChainMetadata[chain] = chainMetadata[chain];
+      }
     }
+
+    const baseMultiProvider = new MultiProvider(testChainMetadata);
+    for (const chain of TEST_CHAINS) {
+      baseMultiProvider.setSigner(chain, wallet);
+    }
+
+    forkManager = new ForkManager({
+      chains: TEST_CHAINS,
+      registry,
+      multiProvider: baseMultiProvider,
+      blockNumbers: FORK_BLOCK_NUMBERS,
+    });
+
+    const forkContext = await forkManager.start();
+    multiProvider = forkContext.multiProvider;
+    forkedProviders = forkContext.providers;
+
+    const allCoreAddresses = await registry.getAddresses();
+    const knownChains = new Set(multiProvider.getKnownChainNames());
+    const coreAddresses = Object.fromEntries(
+      Object.entries(allCoreAddresses).filter(([chain]) =>
+        knownChains.has(chain),
+      ),
+    );
     hyperlaneCore = HyperlaneCore.fromAddressesMap(
       coreAddresses,
       multiProvider,
     );
 
-    minAmountStrategyConfig = [
-      {
-        rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
-        chains: {
-          anvil1: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: deployedAddresses.bridgeRoute1.anvil1,
-          },
-          anvil2: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: deployedAddresses.bridgeRoute1.anvil2,
-          },
-          anvil3: {
-            minAmount: {
-              min: '100',
-              target: '120',
-              type: RebalancerMinAmountType.Absolute,
-            },
-            bridge: deployedAddresses.bridgeRoute1.anvil3,
-          },
-        },
-      },
-    ];
+    // Set up TrustedRelayerIsm on routers so we can relay without validator signatures
+    const mailboxesByChain: Record<string, string> = {};
+    for (const chain of TEST_CHAINS) {
+      const addr = allCoreAddresses[chain]?.mailbox;
+      if (addr) mailboxesByChain[chain] = addr;
+    }
+    // Set up ISM on monitored route (for user transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
+    );
+    // Set up ISM on bridge route (for rebalance transfers)
+    await setupTrustedRelayerIsmForRoute(
+      multiProvider,
+      TEST_CHAINS,
+      USDC_SUPERSEED_WARP_ROUTE.routers,
+      mailboxesByChain,
+      userAddress,
+    );
 
     snapshotIds = new Map();
-    for (const [chain, provider] of localProviders) {
+    for (const [chain, provider] of forkedProviders) {
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of localProviders) {
+    for (const [chain, provider] of forkedProviders) {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
+      // Fresh snapshot required: Anvil invalidates the snapshot after revert
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   after(async function () {
-    if (deploymentManager) {
-      await deploymentManager.stop();
+    if (forkManager) {
+      await forkManager.stop();
     }
   });
 
   it('should propose rebalance routes when chain is below minimum', async function () {
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
-      .withStrategy(minAmountStrategyConfig)
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
+      .withStrategy(MIN_AMOUNT_STRATEGY_CONFIG)
       .withBalances('BELOW_MIN_ARB')
-      .withExecutionMode('execute')
+      .withExecutionMode('propose')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    await context.orchestrator.executeCycle(event);
+    const cycleResult = await context.orchestrator.executeCycle(event);
 
     // Assert: ethereum→arbitrum, amount=70 USDC to reach 120 target from 50
-    const activeIntents = await context.tracker.getActiveRebalanceIntents();
-    expect(activeIntents.length).to.equal(1);
-    expect(activeIntents[0].origin).to.equal(DOMAIN_IDS.anvil1);
-    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
-    expect(activeIntents[0].amount).to.equal(70000000n);
+    expect(cycleResult.proposedRoutes.length).to.equal(1);
+    expect(cycleResult.proposedRoutes[0].origin).to.equal('ethereum');
+    expect(cycleResult.proposedRoutes[0].destination).to.equal('arbitrum');
+    expect(cycleResult.proposedRoutes[0].amount).to.equal(70000000n);
   });
 
   it('should not propose routes when all chains at or above minimum', async function () {
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
-      .withStrategy(minAmountStrategyConfig)
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
+      .withStrategy(MIN_AMOUNT_STRATEGY_CONFIG)
       .withBalances('BALANCED')
-      .withExecutionMode('execute')
+      .withExecutionMode('propose')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    await context.orchestrator.executeCycle(event);
+    const cycleResult = await context.orchestrator.executeCycle(event);
 
     // Assert: No routes - all chains have 5000 USDC, well above 100 min
-    const activeIntents = await context.tracker.getActiveRebalanceIntents();
-    expect(activeIntents.length).to.equal(0);
+    expect(cycleResult.proposedRoutes.length).to.equal(0);
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
-      .withStrategy(minAmountStrategyConfig)
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
+      .withStrategy(MIN_AMOUNT_STRATEGY_CONFIG)
       .withBalances('BELOW_MIN_ARB')
       .withExecutionMode('execute')
       .build();
 
     const initialCollateralBalances = await getAllCollateralBalances(
-      localProviders,
+      forkedProviders,
       TEST_CHAINS,
-      deployedAddresses.monitoredRoute,
-      deployedAddresses.tokens,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      USDC_ADDRESSES,
     );
 
     const monitor = context.createMonitor(0);
@@ -177,7 +241,7 @@ describe('MinAmountStrategy E2E', function () {
     // Assert: Rebalance intent was created with correct fields
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
-    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.arbitrum);
     expect(activeIntents[0].amount).to.equal(70000000n);
 
     // Assert: Rebalance action was created
@@ -185,25 +249,25 @@ describe('MinAmountStrategy E2E', function () {
     expect(inProgressActions.length).to.equal(1);
 
     const actionToArbitrum = inProgressActions[0];
-    expect(actionToArbitrum.destination).to.equal(DOMAIN_IDS.anvil2);
+    expect(actionToArbitrum.destination).to.equal(DOMAIN_IDS.arbitrum);
     expect(actionToArbitrum.amount).to.equal(70000000n);
 
     // Assert: Monitored route collateral on origin DECREASED (sent to bridge)
     const balancesAfterRebalance = await getAllCollateralBalances(
-      localProviders,
+      forkedProviders,
       TEST_CHAINS,
-      deployedAddresses.monitoredRoute,
-      deployedAddresses.tokens,
+      USDC_INCENTIV_WARP_ROUTE.routers,
+      USDC_ADDRESSES,
     );
 
     // Assert: ethereum balance decreased by 70 USDC
     const expectedDecrease = BigNumber.from(70000000);
     expect(
-      initialCollateralBalances.anvil1.sub(expectedDecrease).toString(),
-    ).to.equal(balancesAfterRebalance.anvil1.toString());
+      initialCollateralBalances.ethereum.sub(expectedDecrease).toString(),
+    ).to.equal(balancesAfterRebalance.ethereum.toString());
 
     // Relay the rebalance message to destination
-    const ethProvider = localProviders.get('anvil1')!;
+    const ethProvider = forkedProviders.get('ethereum')!;
     const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
       actionToArbitrum.txHash!,
     );
@@ -213,14 +277,12 @@ describe('MinAmountStrategy E2E', function () {
       {
         dispatchTx: rebalanceTxReceipt,
         messageId: actionToArbitrum.messageId,
-        origin: 'anvil1',
-        destination: 'anvil2',
+        origin: 'ethereum',
+        destination: 'arbitrum',
       },
     );
-    expect(
-      rebalanceRelayResult.success,
-      `Rebalance relay should succeed: ${rebalanceRelayResult.error}`,
-    ).to.be.true;
+    expect(rebalanceRelayResult.success, 'Rebalance relay should succeed').to.be
+      .true;
 
     // Sync actions to detect delivery and mark complete
     await context.tracker.syncRebalanceActions();
@@ -240,11 +302,8 @@ describe('MinAmountStrategy E2E', function () {
   });
 
   it('should handle stuck transfer and propose routes to destination', async function () {
-    const context = await TestRebalancer.builder(
-      deploymentManager,
-      multiProvider,
-    )
-      .withStrategy(minAmountStrategyConfig)
+    const context = await TestRebalancer.builder(forkManager, multiProvider)
+      .withStrategy(MIN_AMOUNT_STRATEGY_CONFIG)
       .withBalances('BELOW_MIN_ARB')
       .withExecutionMode('execute')
       .build();
@@ -257,6 +316,7 @@ describe('MinAmountStrategy E2E', function () {
     await context.orchestrator.executeCycle(event1);
 
     const blockTags1 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags1);
     await context.tracker.syncRebalanceActions(blockTags1);
 
     const inProgress = await context.tracker.getInProgressActions();
@@ -267,7 +327,8 @@ describe('MinAmountStrategy E2E', function () {
 
     const inflightToArb = inProgress.find(
       (a) =>
-        a.destination === DOMAIN_IDS.anvil2 && a.origin === DOMAIN_IDS.anvil1,
+        a.destination === DOMAIN_IDS.arbitrum &&
+        a.origin === DOMAIN_IDS.ethereum,
     );
     expect(inflightToArb, 'Should have inflight action eth→arb').to.exist;
 
@@ -276,25 +337,30 @@ describe('MinAmountStrategy E2E', function () {
     // Should propose reduced amount or nothing to arb (within tolerance)
     const monitor2 = context.createMonitor(0);
     const event2 = await getFirstMonitorEvent(monitor2);
-    await context.orchestrator.executeCycle(event2);
+    const cycleResult2 = await context.orchestrator.executeCycle(event2);
 
     const blockTags = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags);
     await context.tracker.syncRebalanceActions(blockTags);
 
     // Check if new routes to arb were proposed
+    const routesToArb = cycleResult2.proposedRoutes.filter(
+      (r) => r.destination === 'arbitrum',
+    );
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const newActionsToArb = inProgressAfterCycle2.filter(
       (a) =>
-        a.destination === DOMAIN_IDS.anvil2 &&
+        a.destination === DOMAIN_IDS.arbitrum &&
         a.id !== inflightToArb!.id &&
         a.status === 'in_progress',
     );
 
-    if (newActionsToArb.length > 0) {
+    if (routesToArb.length > 0 || newActionsToArb.length > 0) {
       // If route was proposed, should be much smaller than original ~70 USDC
-      const proposedAmount = BigNumber.from(
-        newActionsToArb[0].amount,
-      ).toBigInt();
+      const proposedAmount =
+        routesToArb.length > 0
+          ? routesToArb[0].amount
+          : BigNumber.from(newActionsToArb[0].amount).toBigInt();
       expect(
         proposedAmount < 50000000n,
         `Amount to arb (${proposedAmount}) should be reduced accounting for inflight`,

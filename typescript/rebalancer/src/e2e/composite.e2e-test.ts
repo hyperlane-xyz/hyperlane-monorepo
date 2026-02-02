@@ -234,8 +234,9 @@ describe('CompositeStrategy E2E', function () {
     );
 
     // Sync tracker to pick up the new transfer
-    await context.forkIndexer.sync();
-    await context.tracker.syncTransfers();
+    const blockTags = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags);
+    await context.tracker.syncTransfers(blockTags);
 
     // Verify transfer was tracked
     const transfersBeforeRebalance =
@@ -254,7 +255,7 @@ describe('CompositeStrategy E2E', function () {
     expect(
       activeIntents.length,
       'Should have active rebalance intents',
-    ).to.be.equal(1, 'Should have exactly 1 active rebalance intent');
+    ).to.be.equal(3, 'Should have exactly 3 active rebalance intents');
 
     const inProgressActions = await context.tracker.getInProgressActions();
 
@@ -317,8 +318,9 @@ describe('CompositeStrategy E2E', function () {
     }
 
     // Sync and verify actions completed
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags2 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags2);
+    await context.tracker.syncRebalanceActions(blockTags2);
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -336,7 +338,8 @@ describe('CompositeStrategy E2E', function () {
     expect(userTransferRelay.success, 'User transfer relay should succeed').to
       .be.true;
 
-    await context.tracker.syncTransfers();
+    const blockTags3 = await context.getConfirmedBlockTags();
+    await context.tracker.syncTransfers(blockTags3);
     const completedTransfer = await context.tracker.getTransfer(
       transferResult.messageId,
     );
@@ -426,8 +429,9 @@ describe('CompositeStrategy E2E', function () {
       ethProvider,
     );
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncTransfers();
+    const blockTags4 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags4);
+    await context.tracker.syncTransfers(blockTags4);
 
     const transfersBeforeRebalance =
       await context.tracker.getInProgressTransfers();
@@ -503,8 +507,9 @@ describe('CompositeStrategy E2E', function () {
       }
     }
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags5 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags5);
+    await context.tracker.syncRebalanceActions(blockTags5);
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -521,7 +526,8 @@ describe('CompositeStrategy E2E', function () {
     expect(userTransferRelay.success, 'User transfer relay should succeed').to
       .be.true;
 
-    await context.tracker.syncTransfers();
+    const blockTags6 = await context.getConfirmedBlockTags();
+    await context.tracker.syncTransfers(blockTags6);
     const completedTransfer = await context.tracker.getTransfer(
       transferResult.messageId,
     );
@@ -585,8 +591,9 @@ describe('CompositeStrategy E2E', function () {
     await context.orchestrator.executeCycle(event1);
 
     // Sync and verify SUBTENSOR inflight created (from Weighted strategy)
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags7 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags7);
+    await context.tracker.syncRebalanceActions(blockTags7);
     const inflightAfterCycle1 = await context.tracker.getInProgressActions();
     expect(
       inflightAfterCycle1.length,
@@ -633,8 +640,9 @@ describe('CompositeStrategy E2E', function () {
       ethProvider,
     );
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncTransfers();
+    const blockTags8 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags8);
+    await context.tracker.syncTransfers(blockTags8);
 
     // Verify transfer tracked
     const transfersBeforeCycle2 =
@@ -650,8 +658,9 @@ describe('CompositeStrategy E2E', function () {
     await context.orchestrator.executeCycle(event2);
 
     // Sync and verify SUPERSEED action created (from CollateralDeficit)
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags9 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags9);
+    await context.tracker.syncRebalanceActions(blockTags9);
 
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const activeIntents2 = await context.tracker.getActiveRebalanceIntents();
@@ -711,8 +720,9 @@ describe('CompositeStrategy E2E', function () {
       }
     }
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags10 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags10);
+    await context.tracker.syncRebalanceActions(blockTags10);
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -771,8 +781,9 @@ describe('CompositeStrategy E2E', function () {
     const event1 = await getFirstMonitorEvent(monitor1);
     await context.orchestrator.executeCycle(event1);
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags11 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags11);
+    await context.tracker.syncRebalanceActions(blockTags11);
 
     const inflightAfterCycle1 = await context.tracker.getInProgressActions();
     expect(
@@ -797,8 +808,9 @@ describe('CompositeStrategy E2E', function () {
     const event2 = await getFirstMonitorEvent(monitor2);
     const cycleResult2 = await context.orchestrator.executeCycle(event2);
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags12 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags12);
+    await context.tracker.syncRebalanceActions(blockTags12);
 
     // Check if new routes to base were proposed
     const routesToBase = cycleResult2.proposedRoutes.filter(
@@ -847,8 +859,9 @@ describe('CompositeStrategy E2E', function () {
       });
 
       if (relayResult.success) {
-        await context.forkIndexer.sync();
-        await context.tracker.syncRebalanceActions();
+        const blockTags13 = await context.getConfirmedBlockTags();
+        await context.forkIndexer.sync(blockTags13);
+        await context.tracker.syncRebalanceActions(blockTags13);
 
         const completedAction = await context.tracker.getRebalanceAction(
           inflightToBase!.id,
@@ -929,8 +942,9 @@ describe('CompositeStrategy E2E', function () {
       ethProvider,
     );
 
-    await context.forkIndexer.sync();
-    await context.tracker.syncTransfers();
+    const blockTags14 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags14);
+    await context.tracker.syncTransfers(blockTags14);
 
     // Verify transfer was tracked
     const transfersBeforeRebalance =
@@ -1013,8 +1027,9 @@ describe('CompositeStrategy E2E', function () {
     }
 
     // Sync and verify SUPERSEED actions complete
-    await context.forkIndexer.sync();
-    await context.tracker.syncRebalanceActions();
+    const blockTags15 = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags15);
+    await context.tracker.syncRebalanceActions(blockTags15);
 
     for (const action of superseedActions) {
       const completedAction = await context.tracker.getRebalanceAction(
@@ -1040,7 +1055,8 @@ describe('CompositeStrategy E2E', function () {
     expect(userTransferRelay.success, 'User transfer relay should succeed').to
       .be.true;
 
-    await context.tracker.syncTransfers();
+    const blockTags16 = await context.getConfirmedBlockTags();
+    await context.tracker.syncTransfers(blockTags16);
     const completedTransfer = await context.tracker.getTransfer(
       transferResult.messageId,
     );
