@@ -127,7 +127,7 @@ jobs:
   rust-only:
     needs: [set-base-sha]
     outputs:
-      only_rust: ${{ steps.override-main.outputs.only_rust || steps.check-rust.outputs.only_changes }}
+      only_rust: ${{ steps.override-main.outputs.only_rust || steps.override-merge-group.outputs.only_rust || steps.check-rust.outputs.only_changes }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -152,6 +152,14 @@ jobs:
         run: |
           echo "only_rust=false" >> $GITHUB_OUTPUT
           echo "Push event to main detected. Setting only_rust to false."
+
+      # Never skip for merge_group events (merge queue)
+      - name: Override for merge_group
+        id: override-merge-group
+        if: github.event_name == 'merge_group'
+        run: |
+          echo "only_rust=false" >> $GITHUB_OUTPUT
+          echo "merge_group event detected. Setting only_rust to false."
 
   pnpm-test-run:
     runs-on: depot-ubuntu-latest
