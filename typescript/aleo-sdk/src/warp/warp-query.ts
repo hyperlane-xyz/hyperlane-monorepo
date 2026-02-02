@@ -208,7 +208,7 @@ async function getMailboxAddress(
 /**
  * Parse ISM address from metadata
  */
-function parseIsmAddress(
+function formatIsmAddress(
   ismAddress: string,
   ismManager: string,
 ): string | undefined {
@@ -222,7 +222,7 @@ function parseIsmAddress(
 /**
  * Parse Hook address from metadata
  */
-function parseHookAddress(
+function formatHookAddress(
   hookAddress: string,
   hookManager: string,
 ): string | undefined {
@@ -262,9 +262,9 @@ export async function getNativeWarpTokenConfig(
   const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
 
   // Parse ISM
-  const ism = parseIsmAddress(metadata.ism, ismManager);
+  const ism = formatIsmAddress(metadata.ism, ismManager);
 
-  const hook = parseHookAddress(metadata.hook, hookManager);
+  const hook = formatHookAddress(metadata.hook, hookManager);
 
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
@@ -308,9 +308,9 @@ export async function getCollateralWarpTokenConfig(
   const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
 
   // Parse ISM
-  const ism = parseIsmAddress(metadata.ism, ismManager);
+  const ism = formatIsmAddress(metadata.ism, ismManager);
 
-  const hook = parseHookAddress(metadata.hook, hookManager);
+  const hook = formatHookAddress(metadata.hook, hookManager);
 
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);
@@ -367,9 +367,9 @@ export async function getSyntheticWarpTokenConfig(
   const mailboxAddress = await getMailboxAddress(aleoClient, tokenAddress);
 
   // Parse ISM
-  const ism = parseIsmAddress(metadata.ism, ismManager);
+  const ism = formatIsmAddress(metadata.ism, ismManager);
 
-  const hook = parseHookAddress(metadata.hook, hookManager);
+  const hook = formatHookAddress(metadata.hook, hookManager);
 
   // Get remote routers
   const remoteRouters = await getRemoteRouters(aleoClient, tokenAddress);

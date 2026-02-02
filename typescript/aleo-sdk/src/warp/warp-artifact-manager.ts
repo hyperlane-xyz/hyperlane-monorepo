@@ -12,7 +12,7 @@ import {
 
 import type { AnyAleoNetworkClient } from '../clients/base.js';
 import type { AleoSigner } from '../clients/signer.js';
-import { aleoTokenTypeToWarpType } from '../utils/helper.js';
+import { providerWarpTokenTypeFromAleoTokenType } from '../utils/helper.js';
 import { type OnChainArtifactManagers } from '../utils/types.js';
 
 import {
@@ -40,7 +40,7 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
     const aleoTokenType = await getAleoWarpTokenType(this.aleoClient, address);
 
     // Convert to provider-sdk WarpType
-    const warpType = aleoTokenTypeToWarpType(aleoTokenType);
+    const warpType = providerWarpTokenTypeFromAleoTokenType(aleoTokenType);
 
     // Get the appropriate reader and read the token
     const reader = this.createReader(warpType);

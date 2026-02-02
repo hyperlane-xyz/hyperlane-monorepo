@@ -923,6 +923,70 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
           // Should have no transactions (hook still undefined)
           expect(txs).to.be.an('array').with.length(0);
         });
+
+        it('should unset hook when changed to zero address', async () => {
+          const initialConfig = getConfig();
+
+          // Create a real hook to start with
+          const { hookAddress } = await aleoSigner.createMerkleTreeHook({
+            mailboxAddress,
+          });
+          const customHookAddress = hookAddress;
+
+          // Create with hook set
+          initialConfig.hook = {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: {
+              address: customHookAddress,
+            },
+          };
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          // Verify hook is set
+          const reader = artifactManager.createReader(type);
+          const readToken1 = await reader.read(deployedToken.deployed.address);
+          assert(
+            readToken1.config.hook?.deployed.address,
+            'Hook address should exist',
+          );
+          expect(
+            eqAddressAleo(
+              readToken1.config.hook.deployed.address,
+              customHookAddress,
+            ),
+          ).to.be.true;
+
+          // Update to zero address (should unset hook)
+          const zeroAddress = TEST_ALEO_BURN_ADDRESS;
+          const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              hook: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: zeroAddress,
+                },
+              },
+            },
+          };
+
+          const txs = await writer.update(updatedConfig);
+          expect(txs).to.be.an('array').with.length.greaterThan(0);
+
+          // Execute update
+          for (const tx of txs) {
+            await providerSdkSigner.sendAndConfirmTransaction(tx);
+          }
+
+          // Verify hook is now unset (zero address treated as unset)
+          const readToken2 = await reader.read(deployedToken.deployed.address);
+          expect(readToken2.config.hook).to.be.undefined;
+        });
       });
     });
   });
