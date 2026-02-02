@@ -297,10 +297,11 @@ describe('Collateral Deficit E2E', function () {
     ).to.be.true;
 
     // Index the dispatched message using ForkIndexer
-    await context.forkIndexer.sync();
+    const blockTags = await context.getConfirmedBlockTags();
+    await context.forkIndexer.sync(blockTags);
 
     // Sync action tracker to pick up the new transfer
-    await context.tracker.syncTransfers();
+    await context.tracker.syncTransfers(blockTags);
 
     // Assert: User transfer exists in action tracker with correct fields
     const transfersBeforeRebalance =
@@ -454,8 +455,9 @@ describe('Collateral Deficit E2E', function () {
       .be.true;
 
     // Sync actions to detect delivery and mark complete
-    await context.tracker.syncRebalanceActions();
-    await context.tracker.syncTransfers();
+    const blockTags2 = await context.getConfirmedBlockTags();
+    await context.tracker.syncRebalanceActions(blockTags2);
+    await context.tracker.syncTransfers(blockTags2);
 
     // Assert: Action is now complete
     const completedAction = await context.tracker.getRebalanceAction(
