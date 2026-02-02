@@ -5,6 +5,7 @@ import {
 import { ISigner } from '@hyperlane-xyz/provider-sdk/altvm';
 import {
   ArtifactNew,
+  ArtifactOnChain,
   ArtifactState,
   ArtifactWriter,
   isArtifactDeployed,
@@ -12,8 +13,16 @@ import {
   isArtifactUnderived,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import { ChainLookup } from '@hyperlane-xyz/provider-sdk/chain';
-import { mergeHookArtifacts } from '@hyperlane-xyz/provider-sdk/hook';
-import { mergeIsmArtifacts } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  DeployedHookAddress,
+  HookArtifactConfig,
+  mergeHookArtifacts,
+} from '@hyperlane-xyz/provider-sdk/hook';
+import {
+  DeployedIsmAddress,
+  IsmArtifactConfig,
+  mergeIsmArtifacts,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   DeployedWarpAddress,
@@ -103,10 +112,9 @@ export class WarpTokenWriter
     const allReceipts: TxReceipt[] = [];
 
     // Deploy ISM if configured as a NEW artifact
-    let rawIsmArtifact:
-      | { artifactState: 'underived'; deployed: { address: string } }
+    let onChainIsmArtifact:
+      | ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
       | undefined;
-
     if (config.interchainSecurityModule) {
       if (isArtifactNew(config.interchainSecurityModule)) {
         const [deployedIsm, ismReceipts] = await this.ismWriter.create(
@@ -114,26 +122,16 @@ export class WarpTokenWriter
         );
         allReceipts.push(...ismReceipts);
 
-        rawIsmArtifact = {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: deployedIsm.deployed.address },
-        };
+        onChainIsmArtifact = deployedIsm;
       } else {
-        // DEPLOYED or UNDERIVED - both have deployed.address
-        rawIsmArtifact = {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: {
-            address: config.interchainSecurityModule.deployed.address,
-          },
-        };
+        onChainIsmArtifact = config.interchainSecurityModule;
       }
     }
 
     // Deploy Hook if configured as a NEW artifact
-    let rawHookArtifact:
-      | { artifactState: 'underived'; deployed: { address: string } }
+    let onChainHookArtifact:
+      | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
-
     if (config.hook) {
       if (isArtifactNew(config.hook)) {
         const [deployedHook, hookReceipts] = await this.hookWriter.create(
@@ -141,18 +139,9 @@ export class WarpTokenWriter
         );
         allReceipts.push(...hookReceipts);
 
-        rawHookArtifact = {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: { address: deployedHook.deployed.address },
-        };
+        onChainHookArtifact = deployedHook;
       } else {
-        // DEPLOYED or UNDERIVED - both have deployed.address
-        rawHookArtifact = {
-          artifactState: ArtifactState.UNDERIVED,
-          deployed: {
-            address: config.hook.deployed.address,
-          },
-        };
+        onChainHookArtifact = config.hook;
       }
     }
 
@@ -161,8 +150,8 @@ export class WarpTokenWriter
       artifactState: ArtifactState.NEW,
       config: {
         ...config,
-        interchainSecurityModule: rawIsmArtifact,
-        hook: rawHookArtifact,
+        interchainSecurityModule: onChainIsmArtifact,
+        hook: onChainHookArtifact,
       },
     };
 
@@ -171,11 +160,15 @@ export class WarpTokenWriter
     const [deployed, tokenReceipts] = await writer.create(rawArtifact);
     allReceipts.push(...tokenReceipts);
 
-    // Return with original nested config (for consistency)
+    // Return deployed config
     return [
       {
         artifactState: ArtifactState.DEPLOYED,
-        config: artifact.config,
+        config: {
+          ...artifact.config,
+          interchainSecurityModule: onChainIsmArtifact,
+          hook: onChainHookArtifact,
+        },
         deployed: deployed.deployed,
       },
       allReceipts,
@@ -223,11 +216,8 @@ export class WarpTokenWriter
     const expectedIsm = config.interchainSecurityModule;
     const currentIsm = currentArtifact.config.interchainSecurityModule;
 
-    let rawIsmArtifact:
-      | {
-          artifactState: typeof ArtifactState.UNDERIVED;
-          deployed: { address: string };
-        }
+    let onChainIsmArtifact:
+      | ArtifactOnChain<IsmArtifactConfig, DeployedIsmAddress>
       | undefined;
 
     if (expectedIsm && !isArtifactUnderived(expectedIsm)) {
@@ -238,7 +228,7 @@ export class WarpTokenWriter
         // Deploy new ISM
         const [deployed] = await this.ismWriter.create(mergedIsmConfig);
 
-        rawIsmArtifact = {
+        onChainIsmArtifact = {
           artifactState: ArtifactState.UNDERIVED,
           deployed: { address: deployed.deployed.address },
         };
@@ -247,24 +237,21 @@ export class WarpTokenWriter
         const txs = await this.ismWriter.update(mergedIsmConfig);
 
         updateTxs.push(...txs);
-        rawIsmArtifact = {
+        onChainIsmArtifact = {
           artifactState: ArtifactState.UNDERIVED,
           deployed: { address: mergedIsmConfig.deployed.address },
         };
       }
     } else {
-      rawIsmArtifact = expectedIsm;
+      onChainIsmArtifact = expectedIsm;
     }
 
     // Resolve Hook updates
     const expectedHook = config.hook;
     const currentHook = currentArtifact.config.hook;
 
-    let rawHookArtifact:
-      | {
-          artifactState: typeof ArtifactState.UNDERIVED;
-          deployed: { address: string };
-        }
+    let onChainHookArtifact:
+      | ArtifactOnChain<HookArtifactConfig, DeployedHookAddress>
       | undefined;
 
     if (expectedHook && !isArtifactUnderived(expectedHook)) {
@@ -275,7 +262,7 @@ export class WarpTokenWriter
         // Deploy new Hook
         const [deployed] = await this.hookWriter.create(mergedHookConfig);
 
-        rawHookArtifact = {
+        onChainHookArtifact = {
           artifactState: ArtifactState.UNDERIVED,
           deployed: { address: deployed.deployed.address },
         };
@@ -284,13 +271,13 @@ export class WarpTokenWriter
         const txs = await this.hookWriter.update(mergedHookConfig);
 
         updateTxs.push(...txs);
-        rawHookArtifact = {
+        onChainHookArtifact = {
           artifactState: ArtifactState.UNDERIVED,
           deployed: { address: mergedHookConfig.deployed.address },
         };
       }
     } else {
-      rawHookArtifact = expectedHook;
+      onChainHookArtifact = expectedHook;
     }
 
     // Build raw artifact with flattened ISM and Hook references
@@ -298,8 +285,8 @@ export class WarpTokenWriter
       artifactState: ArtifactState.DEPLOYED,
       config: {
         ...config,
-        interchainSecurityModule: rawIsmArtifact,
-        hook: rawHookArtifact,
+        interchainSecurityModule: onChainIsmArtifact,
+        hook: onChainHookArtifact,
       },
       deployed,
     };
