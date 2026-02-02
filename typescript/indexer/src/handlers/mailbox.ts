@@ -94,23 +94,21 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
     return;
   }
 
-  // Skip if no transaction receipt or missing transactionIndex
-  if (
-    !event.transactionReceipt ||
-    event.transactionReceipt.transactionIndex == null
-  ) {
+  // Skip if missing transactionIndex (from event.transaction, not receipt)
+  if (event.transaction.transactionIndex == null) {
     console.warn(
-      `No transaction receipt/index for Dispatch in block ${event.block.number}, skipping`,
+      `No transactionIndex for Dispatch in block ${event.block.number}, skipping`,
     );
     return;
   }
 
-  // Store transaction
+  // Store transaction (transactionIndex from transaction, gas fields from receipt)
+  // Note: Ponder's receipt doesn't include logs, only gas fields
   const txId = await adapter.storeTransaction(
     blockId,
     {
       hash: event.transaction.hash,
-      transactionIndex: event.transactionReceipt.transactionIndex,
+      transactionIndex: event.transaction.transactionIndex,
       from: event.transaction.from,
       to: event.transaction.to,
       gas: event.transaction.gas,
@@ -121,22 +119,10 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
       input: event.transaction.input,
     },
     {
-      gasUsed: event.transactionReceipt.gasUsed,
-      cumulativeGasUsed: event.transactionReceipt.cumulativeGasUsed,
-      effectiveGasPrice: event.transactionReceipt.effectiveGasPrice,
-      logs: event.transactionReceipt.logs.map(
-        (log: {
-          logIndex: number;
-          address: `0x${string}`;
-          topics: readonly `0x${string}`[];
-          data: `0x${string}`;
-        }) => ({
-          logIndex: log.logIndex,
-          address: log.address,
-          topics: log.topics,
-          data: log.data,
-        }),
-      ),
+      gasUsed: event.transactionReceipt?.gasUsed ?? 0n,
+      cumulativeGasUsed: event.transactionReceipt?.cumulativeGasUsed ?? 0n,
+      effectiveGasPrice: event.transactionReceipt?.effectiveGasPrice ?? 0n,
+      logs: [], // Ponder receipt doesn't include logs
     },
   );
 
@@ -145,25 +131,7 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
     return;
   }
 
-  // Store all transaction logs (FR-9)
-  if (event.transactionReceipt?.logs) {
-    await adapter.storeTransactionLogs(
-      txId,
-      event.transactionReceipt.logs.map(
-        (log: {
-          logIndex: number;
-          address: `0x${string}`;
-          topics: readonly `0x${string}`[];
-          data: `0x${string}`;
-        }) => ({
-          logIndex: log.logIndex,
-          address: log.address,
-          topics: log.topics,
-          data: log.data,
-        }),
-      ),
-    );
-  }
+  // Note: FR-9 (full tx log indexing) not available - Ponder receipt doesn't include logs
 
   // Store the dispatch event (message)
   await adapter.storeDispatch(
@@ -241,13 +209,10 @@ ponder.on('Mailbox:Process', async ({ event, context }: any) => {
 
   const { origin, sender, recipient } = event.args;
 
-  // Skip if no transaction receipt or missing transactionIndex
-  if (
-    !event.transactionReceipt ||
-    event.transactionReceipt.transactionIndex == null
-  ) {
+  // Skip if missing transactionIndex (from event.transaction)
+  if (event.transaction.transactionIndex == null) {
     console.warn(
-      `No transaction receipt/index for Process in block ${event.block.number}, skipping`,
+      `No transactionIndex for Process in block ${event.block.number}, skipping`,
     );
     return;
   }
@@ -279,23 +244,11 @@ ponder.on('Mailbox:Process', async ({ event, context }: any) => {
       input: event.transaction.input,
     },
     transactionReceipt: {
-      transactionIndex: event.transactionReceipt.transactionIndex,
-      gasUsed: event.transactionReceipt.gasUsed,
-      cumulativeGasUsed: event.transactionReceipt.cumulativeGasUsed,
-      effectiveGasPrice: event.transactionReceipt.effectiveGasPrice,
-      logs: event.transactionReceipt.logs.map(
-        (log: {
-          logIndex: number;
-          address: `0x${string}`;
-          topics: readonly `0x${string}`[];
-          data: `0x${string}`;
-        }) => ({
-          logIndex: log.logIndex,
-          address: log.address,
-          topics: [...log.topics] as `0x${string}`[],
-          data: log.data,
-        }),
-      ),
+      transactionIndex: event.transaction.transactionIndex,
+      gasUsed: event.transactionReceipt?.gasUsed ?? 0n,
+      cumulativeGasUsed: event.transactionReceipt?.cumulativeGasUsed ?? 0n,
+      effectiveGasPrice: event.transactionReceipt?.effectiveGasPrice ?? 0n,
+      logs: [], // Ponder receipt doesn't include logs
     },
     logIndex: event.log.logIndex,
   });

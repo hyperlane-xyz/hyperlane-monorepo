@@ -47,6 +47,7 @@ console.log('Networks:', Object.keys(networks));
 
 const mailboxConfig = buildMailboxContractConfig(chains, addresses, MailboxAbi);
 console.log('Mailbox networks:', Object.keys(mailboxConfig.network));
+console.log('Mailbox config:', JSON.stringify(mailboxConfig, null, 2));
 
 // Build Ponder configuration
 export default createConfig({
@@ -61,17 +62,22 @@ export default createConfig({
   networks: buildPonderNetworks(chains),
 
   contracts: {
-    // includeTransactionReceipts is set per-network in the build functions
-    Mailbox: buildMailboxContractConfig(chains, addresses, MailboxAbi),
-    InterchainGasPaymaster: buildIgpContractConfig(
-      chains,
-      addresses,
-      InterchainGasPaymasterAbi,
-    ),
-    MerkleTreeHook: buildMerkleTreeHookContractConfig(
-      chains,
-      addresses,
-      MerkleTreeHookAbi,
-    ),
+    // Try includeTransactionReceipts at contract level
+    Mailbox: {
+      ...buildMailboxContractConfig(chains, addresses, MailboxAbi),
+      includeTransactionReceipts: true,
+    },
+    InterchainGasPaymaster: {
+      ...buildIgpContractConfig(chains, addresses, InterchainGasPaymasterAbi),
+      includeTransactionReceipts: true,
+    },
+    MerkleTreeHook: {
+      ...buildMerkleTreeHookContractConfig(
+        chains,
+        addresses,
+        MerkleTreeHookAbi,
+      ),
+      includeTransactionReceipts: true,
+    },
   },
 });

@@ -29,13 +29,10 @@ ponder.on(
       return;
     }
 
-    // Skip if no transaction receipt or missing transactionIndex
-    if (
-      !event.transactionReceipt ||
-      event.transactionReceipt.transactionIndex == null
-    ) {
+    // Skip if missing transactionIndex
+    if (event.transaction.transactionIndex == null) {
       console.warn(
-        `No transaction receipt/index for MerkleTreeInsertion in block ${event.block.number}, skipping`,
+        `No transactionIndex for MerkleTreeInsertion in block ${event.block.number}, skipping`,
       );
       return;
     }
@@ -45,7 +42,7 @@ ponder.on(
       blockId,
       {
         hash: event.transaction.hash,
-        transactionIndex: event.transactionReceipt.transactionIndex,
+        transactionIndex: event.transaction.transactionIndex,
         from: event.transaction.from,
         to: event.transaction.to,
         gas: event.transaction.gas,
@@ -56,9 +53,9 @@ ponder.on(
         input: event.transaction.input,
       },
       {
-        gasUsed: event.transactionReceipt.gasUsed,
-        cumulativeGasUsed: event.transactionReceipt.cumulativeGasUsed,
-        effectiveGasPrice: event.transactionReceipt.effectiveGasPrice,
+        gasUsed: event.transactionReceipt?.gasUsed ?? 0n,
+        cumulativeGasUsed: event.transactionReceipt?.cumulativeGasUsed ?? 0n,
+        effectiveGasPrice: event.transactionReceipt?.effectiveGasPrice ?? 0n,
         logs: [],
       },
     );
