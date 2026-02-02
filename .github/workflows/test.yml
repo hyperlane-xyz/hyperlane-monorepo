@@ -683,17 +683,19 @@ jobs:
         with:
           node-version-file: .nvmrc
 
-      # Set rust_changes to true if:
-      # - on the main branch
-      # - PR with changes to ./rust
-      # - PR with changes to this workflow
       - name: Check for Rust file changes
         id: check-rust-changes
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
+          # Skip for merge queue push to main - already tested in merge_group
+          if [[ "${{ github.ref }}" == "refs/heads/main" && "${{ github.actor }}" == "github-merge-queue[bot]" ]]; then
+            echo "rust_changes=false" >> $GITHUB_OUTPUT
+            echo "Push from merge queue - CI already passed in merge_group"
+            exit 0
+          fi
+
           if [[ "${{ github.ref }}" == "refs/heads/main" ]]; then
-            # For main branch, check changes in the current commit
             PARENT_SHA=$(git rev-parse HEAD^)
             CHANGES=$(git diff --name-only $PARENT_SHA HEAD -- ./rust ./.github/workflows/test.yml)
 
@@ -720,14 +722,12 @@ jobs:
             echo "rust_changes=false" >> $GITHUB_OUTPUT
           fi
 
-      # If there are no rust changes and the e2e-type is not evm,
-      # then we want to skip this e2e test to save billing time.
       - name: Check rust and e2e conditions
         id: check-conditions
         run: |
-          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" && "${{ matrix.e2e-type }}" != "evm" ]]; then
+          if [[ "${{ steps.check-rust-changes.outputs.rust_changes }}" == "false" ]]; then
             echo "skip-e2e=true" >> $GITHUB_OUTPUT
-            echo "No rust changes detected and e2e-type is not evm. Will skip remaining steps."
+            echo "No rust changes detected. Skipping e2e tests."
           else
             echo "skip-e2e=false" >> $GITHUB_OUTPUT
           fi
