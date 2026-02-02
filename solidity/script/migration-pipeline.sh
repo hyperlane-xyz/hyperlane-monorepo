@@ -7,6 +7,7 @@ set -euo pipefail
 # Required environment variables:
 #   ETH_RPC_URL    - Ethereum mainnet RPC URL for forking
 #   OLD_ROUTER     - Address of the old HypNative contract
+#   NEW_ROUTER     - Address of the new HypNative contract
 #   REMOTE_DOMAIN  - Domain ID of the remote chain
 #   PROXY_ADMIN    - Address of pre-deployed ProxyAdmin (must be owned by Safe)
 #
@@ -15,7 +16,7 @@ set -euo pipefail
 #   OUTPUT_FILE    - Output JSON file path (default: migration_transactions.json)
 #
 # Usage:
-#   ETH_RPC_URL=https://... OLD_ROUTER=0x... REMOTE_DOMAIN=88 PROXY_ADMIN=0x... ./script/migration-pipeline.sh
+#   ETH_RPC_URL=https://... OLD_ROUTER=0x... NEW_ROUTER=0x... REMOTE_DOMAIN=88 PROXY_ADMIN=0x... ./script/migration-pipeline.sh
 
 SCRIPT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
 cd "$SCRIPT_DIR/.."
@@ -23,6 +24,7 @@ cd "$SCRIPT_DIR/.."
 # Validate required env vars
 : "${ETH_RPC_URL:?ETH_RPC_URL is required}"
 : "${OLD_ROUTER:?OLD_ROUTER is required}"
+: "${NEW_ROUTER:?NEW_ROUTER is required}"
 : "${REMOTE_DOMAIN:?REMOTE_DOMAIN is required}"
 : "${PROXY_ADMIN:?PROXY_ADMIN is required}"
 
@@ -56,6 +58,7 @@ cast rpc anvil_impersonateAccount "$SAFE_ADDRESS" --rpc-url http://localhost:854
 # Run the migration script
 echo "Running migration script..."
 OLD_ROUTER="$OLD_ROUTER" \
+	NEW_ROUTER="$NEW_ROUTER" \
 	REMOTE_DOMAIN="$REMOTE_DOMAIN" \
 	PROXY_ADMIN="$PROXY_ADMIN" \
 	forge script script/HypNativeCollateralMigration.s.sol:HypNativeCollateralMigration \
