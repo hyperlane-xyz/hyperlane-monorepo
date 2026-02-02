@@ -156,12 +156,25 @@ abstract class TokenDeployer<
     // TODO: derive as specified in https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/5296
     const scale = config.scale ?? 1;
 
+    // Convert scale to numerator/denominator format
+    // Handle number, string, and object formats
+    let numerator: number | string;
+    let denominator: number | string;
+    if (typeof scale === 'number' || typeof scale === 'string') {
+      numerator = scale;
+      denominator = 1;
+    } else {
+      numerator = scale.numerator;
+      denominator = scale.denominator;
+    }
+
     if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
-      return [config.token, scale, config.mailbox];
+      return [config.token, numerator, denominator, config.mailbox];
     } else if (isEverclearCollateralTokenConfig(config)) {
       return [
         config.token,
-        scale,
+        numerator,
+        denominator,
         config.mailbox,
         config.everclearBridgeAddress,
       ];
@@ -172,19 +185,25 @@ abstract class TokenDeployer<
         config.everclearBridgeAddress,
       ];
     } else if (isNativeTokenConfig(config)) {
-      return [scale, config.mailbox];
+      return [numerator, denominator, config.mailbox];
     } else if (isOpL2TokenConfig(config)) {
       return [config.mailbox, config.l2Bridge];
     } else if (isOpL1TokenConfig(config)) {
       return [config.mailbox, config.portal];
     } else if (isSyntheticTokenConfig(config)) {
       assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
-      return [config.decimals, scale, config.mailbox];
+      return [config.decimals, numerator, denominator, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
         config.collateralChainName,
       );
-      return [config.decimals, scale, config.mailbox, collateralDomain];
+      return [
+        config.decimals,
+        numerator,
+        denominator,
+        config.mailbox,
+        collateralDomain,
+      ];
     } else if (isCctpTokenConfig(config)) {
       switch (config.cctpVersion) {
         case 'V1':

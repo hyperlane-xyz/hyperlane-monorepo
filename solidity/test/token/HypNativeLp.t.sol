@@ -29,7 +29,7 @@ contract HypNativeLpTest is Test {
 
     function setUp() public {
         MockMailbox mailbox = new MockMailbox(1);
-        router = new HypNative(1, address(mailbox));
+        router = new HypNative(1, 1, address(mailbox));
         router.initialize(address(0), address(0), address(this));
 
         vm.label(alice, "Alice");
