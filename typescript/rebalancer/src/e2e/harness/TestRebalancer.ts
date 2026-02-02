@@ -18,6 +18,7 @@ import {
   type RebalancerOrchestratorDeps,
 } from '../../core/RebalancerOrchestrator.js';
 import { RebalancerContextFactory } from '../../factories/RebalancerContextFactory.js';
+import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { IStrategy } from '../../interfaces/IStrategy.js';
 import type { Monitor } from '../../monitor/Monitor.js';
 import type { IActionTracker } from '../../tracking/index.js';
@@ -72,6 +73,7 @@ export interface TestRebalancerContext {
   rebalancerConfig: RebalancerConfig;
   contextFactory: RebalancerContextFactory;
   createMonitor(checkFrequency: number): Monitor;
+  getConfirmedBlockTags(): Promise<ConfirmedBlockTags>;
 }
 
 type BalancePreset = keyof typeof BALANCE_PRESETS;
@@ -116,6 +118,30 @@ export class TestRebalancerBuilder {
   withExecutionMode(mode: ExecutionMode): this {
     this.executionMode = mode;
     return this;
+  }
+
+  private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
+    const blockTags: ConfirmedBlockTags = {};
+    const forkedProviders = this.forkManager.getContext().providers;
+
+    for (const [chain, provider] of forkedProviders) {
+      try {
+        const blockNumber = await provider.send('eth_blockNumber', []);
+        blockTags[chain] = parseInt(blockNumber, 16);
+        this.logger.debug(
+          { chain, blockNumber: blockTags[chain] },
+          'Computed confirmed block tag',
+        );
+      } catch (error) {
+        this.logger.warn(
+          { chain, error: (error as Error).message },
+          'Failed to get block number, using undefined',
+        );
+        blockTags[chain] = undefined;
+      }
+    }
+
+    return blockTags;
   }
 
   async build(): Promise<TestRebalancerContext> {
@@ -174,6 +200,10 @@ export class TestRebalancerBuilder {
       ])
     ).filter((addr): addr is string => addr !== null);
 
+    const workingMultiProvider = await this.getWorkingMultiProvider();
+
+    // Initialize ForkIndexer AFTER getWorkingMultiProvider() to capture correct block numbers
+    // (getWorkingMultiProvider calls configureAllowedBridges which advances blocks)
     const forkIndexer = new ForkIndexer(
       forkedProviders,
       hyperlaneCore,
@@ -181,9 +211,10 @@ export class TestRebalancerBuilder {
       rebalancerAddresses,
       this.logger,
     );
-    await forkIndexer.initialize();
 
-    const workingMultiProvider = await this.getWorkingMultiProvider();
+    // Compute confirmed block tags and initialize ForkIndexer
+    const confirmedBlockTags = await this.computeConfirmedBlockTags();
+    await forkIndexer.initialize(confirmedBlockTags);
 
     const rebalancerConfig = new RebalancerConfig(
       USDC_INCENTIV_WARP_ROUTE.id,
@@ -237,6 +268,7 @@ export class TestRebalancerBuilder {
       contextFactory,
       createMonitor: (checkFrequency: number) =>
         contextFactory.createMonitor(checkFrequency),
+      getConfirmedBlockTags: () => this.computeConfirmedBlockTags(),
     };
   }
 
