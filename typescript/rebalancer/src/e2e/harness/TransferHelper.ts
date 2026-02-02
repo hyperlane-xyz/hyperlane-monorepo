@@ -5,9 +5,9 @@ import {
   HypERC20Collateral__factory,
   MovableCollateralRouter__factory,
 } from '@hyperlane-xyz/core';
+import { HyperlaneRelayer } from '@hyperlane-xyz/relayer';
 import {
   HyperlaneCore,
-  HyperlaneRelayer,
   type MultiProvider,
   impersonateAccounts,
   setBalance,
