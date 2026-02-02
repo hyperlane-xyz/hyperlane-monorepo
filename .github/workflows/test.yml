@@ -49,7 +49,7 @@ jobs:
       - name: check-package-json
         run: ./scripts/check-package-json.sh
 
-  lint-prettier:
+  lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust != 'true'
@@ -94,6 +94,18 @@ jobs:
         if: always()
         run: |
           rm -f changed_files.txt
+
+  lint-prettier:
+    runs-on: ubuntu-latest
+    needs: [lint-prettier-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check lint-prettier status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Lint Prettier'
+          result: ${{ needs.lint-prettier-run.result }}
 
   set-base-sha:
     runs-on: ubuntu-latest

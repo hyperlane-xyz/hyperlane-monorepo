@@ -57,7 +57,7 @@ jobs:
             echo "skip_rust=true" >> $GITHUB_OUTPUT
           fi
 
-  lander-coverage:
+  lander-coverage-run:
     needs: [ts-only]
     if: needs.ts-only.outputs.skip_rust != 'true'
     runs-on: depot-ubuntu-24.04-8
@@ -102,7 +102,7 @@ jobs:
           fail_ci_if_error: true
           token: ${{ secrets.CODECOV_TOKEN }}
 
-  test-rs:
+  test-rs-run:
     needs: [ts-only]
     if: needs.ts-only.outputs.skip_rust != 'true'
     runs-on: depot-ubuntu-24.04-8
@@ -128,7 +128,7 @@ jobs:
         run: cargo test
         working-directory: ./rust/sealevel
 
-  lint-rs:
+  lint-rs-run:
     needs: [ts-only]
     if: needs.ts-only.outputs.skip_rust != 'true'
     runs-on: depot-ubuntu-24.04-8
@@ -194,3 +194,40 @@ jobs:
       - name: Check WASM for hyperlane-core
         run: cargo check --release -p hyperlane-core --features=strum,test-utils --target wasm32-unknown-unknown
         working-directory: ./rust/main
+
+  # Wrapper jobs for required status checks (report success when skipped)
+  lander-coverage:
+    runs-on: ubuntu-latest
+    needs: [lander-coverage-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check lander-coverage status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Lander Coverage'
+          result: ${{ needs.lander-coverage-run.result }}
+
+  test-rs:
+    runs-on: ubuntu-latest
+    needs: [test-rs-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check test-rs status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Rust Tests'
+          result: ${{ needs.test-rs-run.result }}
+
+  lint-rs:
+    runs-on: ubuntu-latest
+    needs: [lint-rs-run]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check lint-rs status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Rust Lint'
+          result: ${{ needs.lint-rs-run.result }}
