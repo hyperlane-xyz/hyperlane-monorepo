@@ -146,6 +146,8 @@ export interface ArtifactWriter<C, D> extends ArtifactReader<C, D> {
  * //   domains: Record<number, ArtifactOnChain<IsmConfig, IsmDeployed>>;
  * // }
  * ```
+ *
+ * @deprecated FIXME: remove usage of this type in a follow up PR for the hook and ISM artifacts
  */
 export type RawArtifact<C, D> = {
   [K in keyof C]: C[K] extends Artifact<infer CC>
@@ -155,6 +157,30 @@ export type RawArtifact<C, D> = {
       : C[K] extends { [L: string]: Artifact<infer CC> }
         ? { [L in keyof C[K]]: ArtifactOnChain<CC, D> }
         : C[K];
+};
+
+/**
+ * Utility type to convert a config type to its on-chain representation.
+ * Replaces Artifact<> types one level deep with ArtifactOnChain<> types.
+ * Unlike RawArtifact, preserves the nested deployment types.
+ * Handles optional/undefined fields properly.
+ */
+export type ConfigOnChain<C> = {
+  [K in keyof C]: C[K] extends Artifact<infer CC, infer DD> | undefined
+    ? ArtifactOnChain<CC, DD> | undefined
+    : C[K] extends Artifact<infer CC, infer DD>
+      ? ArtifactOnChain<CC, DD>
+      : C[K] extends (Artifact<infer CC, infer DD> | undefined)[]
+        ? (ArtifactOnChain<CC, DD> | undefined)[]
+        : C[K] extends Artifact<infer CC, infer DD>[]
+          ? ArtifactOnChain<CC, DD>[]
+          : C[K] extends {
+                [L: string]: Artifact<infer CC, infer DD> | undefined;
+              }
+            ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> | undefined }
+            : C[K] extends { [L: string]: Artifact<infer CC, infer DD> }
+              ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> }
+              : C[K];
 };
 
 /**

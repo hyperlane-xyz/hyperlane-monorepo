@@ -4,10 +4,9 @@ import {
   Artifact,
   ArtifactDeployed,
   ArtifactNew,
-  ArtifactOnChain,
   ArtifactState,
+  ConfigOnChain,
   IArtifactManager,
-  RawArtifact,
   isArtifactDeployed,
   isArtifactNew,
 } from './artifact.js';
@@ -167,7 +166,7 @@ export type WarpArtifactConfig = WarpArtifactConfigs[WarpType];
  * Describes the configuration of deployed warp token
  */
 export type DeployedWarpArtifact = ArtifactDeployed<
-  WarpArtifactConfig,
+  ConfigOnChain<WarpArtifactConfig>,
   DeployedWarpAddress
 >;
 
@@ -181,33 +180,14 @@ export type IWarpArtifactManager = IArtifactManager<
   DeployedWarpAddress
 >;
 
-/**
- * Raw warp token config used by protocol-specific artifact implementations.
- *
- * This wraps WarpArtifactConfig to use the "Raw" artifact format where nested artifacts are converted
- * to the `ArtifactOnChain` type
- *
- * @template T - The WarpArtifactConfig type
- */
-type RawWarpTokenConfig<T extends WarpArtifactConfig> = RawArtifact<
-  Omit<T, 'interchainSecurityModule' | 'hook'> & {
-    interchainSecurityModule?: ArtifactOnChain<
-      IsmArtifactConfig,
-      DeployedIsmAddress
-    >;
-    hook?: ArtifactOnChain<HookArtifactConfig, DeployedIsmAddress>;
-  },
-  DeployedWarpAddress
->;
-
 export type RawCollateralWarpArtifactConfig =
-  RawWarpTokenConfig<CollateralWarpArtifactConfig>;
+  ConfigOnChain<CollateralWarpArtifactConfig>;
 
 export type RawSyntheticWarpArtifactConfig =
-  RawWarpTokenConfig<SyntheticWarpArtifactConfig>;
+  ConfigOnChain<SyntheticWarpArtifactConfig>;
 
 export type RawNativeWarpArtifactConfig =
-  RawWarpTokenConfig<NativeWarpArtifactConfig>;
+  ConfigOnChain<NativeWarpArtifactConfig>;
 
 export interface RawWarpArtifactConfigs {
   collateral: RawCollateralWarpArtifactConfig;
