@@ -167,7 +167,7 @@ export type WarpArtifactConfig = WarpArtifactConfigs[WarpType];
  * Describes the configuration of deployed warp token
  */
 export type DeployedWarpArtifact = ArtifactDeployed<
-  ConfigOnChain<WarpArtifactConfig>,
+  WarpArtifactConfig,
   DeployedWarpAddress
 >;
 
