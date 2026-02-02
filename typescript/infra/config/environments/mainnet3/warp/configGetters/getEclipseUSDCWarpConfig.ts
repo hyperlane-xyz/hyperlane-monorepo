@@ -89,6 +89,10 @@ const rebalanceableCollateralChains = [
   'polygon',
   'unichain',
   'ink',
+  'worldchain',
+  'avalanche',
+  'hyperevm',
+  'linea',
   // No monad yet
 ] as const satisfies DeploymentChain[];
 
@@ -114,8 +118,6 @@ const PROGRAM_IDS = {
   eclipsemainnet: 'EqRSt9aUDMKYKhzd1DGMderr3KNp29VZH3x5P7LFTC8m',
   solanamainnet: '3EpVCPUgyjq2MfGeCttyey6bs5zya5wjYZ2BE6yDg6bm',
 };
-
-const CONTRACT_VERSION = '10.1.3';
 
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
@@ -145,7 +147,6 @@ export const getEclipseUSDCWarpConfig = async (
             awProxyAdminOwners[currentChain] ?? chainOwners[currentChain].owner,
           address: awProxyAdminAddresses[currentChain],
         },
-        contractVersion: CONTRACT_VERSION,
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(currentChain),
           rebalanceableCollateralChains.filter((c) => c !== currentChain),
