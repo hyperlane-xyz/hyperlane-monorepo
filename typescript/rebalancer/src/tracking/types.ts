@@ -72,7 +72,6 @@ export interface RebalanceIntent extends TrackedActionBase {
   priority?: number; // Optional - missing for recovered intents
   strategyType?: string; // Optional - missing for recovered intents
   executionMethod?: ExecutionMethod; // Optional - defaults to movable_collateral
-  originalDeficit?: bigint; // Optional - original deficit for re-evaluation (inventory only)
 }
 
 export interface RebalanceAction extends TrackedActionBase {

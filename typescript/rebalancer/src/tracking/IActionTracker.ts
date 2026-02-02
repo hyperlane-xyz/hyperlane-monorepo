@@ -20,7 +20,6 @@ export interface CreateRebalanceIntentParams {
   priority?: number;
   strategyType?: string;
   executionMethod?: ExecutionMethod;
-  originalDeficit?: bigint;
 }
 
 export interface CreateRebalanceActionParams {

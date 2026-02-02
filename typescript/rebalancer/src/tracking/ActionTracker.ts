@@ -354,7 +354,6 @@ export class ActionTracker implements IActionTracker {
       priority: params.priority,
       strategyType: params.strategyType,
       executionMethod: params.executionMethod,
-      originalDeficit: params.originalDeficit,
       createdAt: Date.now(),
       updatedAt: Date.now(),
     };

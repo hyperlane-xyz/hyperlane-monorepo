@@ -244,7 +244,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: this.multiProvider.getDomainId(route.destination),
       amount: route.amount,
       executionMethod: 'inventory',
-      originalDeficit: route.amount,
     });
 
     this.logger.debug(
