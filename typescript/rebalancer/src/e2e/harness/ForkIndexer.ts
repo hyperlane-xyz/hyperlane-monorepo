@@ -8,6 +8,7 @@ import {
   parseMessage,
 } from '@hyperlane-xyz/utils';
 
+import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 
 import type { MockExplorerClient } from './MockExplorerClient.js';
@@ -25,22 +26,31 @@ export class ForkIndexer {
     private readonly logger: Logger,
   ) {}
 
-  async initialize(): Promise<void> {
-    for (const [chain, provider] of this.providers) {
-      const blockNumber = await provider.getBlockNumber();
-      this.lastScannedBlock.set(chain, blockNumber);
+  async initialize(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
+    for (const [chain] of this.providers) {
+      const blockNumber = confirmedBlockTags[chain];
+      this.lastScannedBlock.set(chain, blockNumber as number);
+      this.logger.debug(
+        { chain, blockNumber },
+        'ForkIndexer initialized lastScannedBlock',
+      );
     }
     this.initialized = true;
   }
 
-  async sync(): Promise<void> {
+  async sync(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
     if (!this.initialized) {
       throw new Error('ForkIndexer not initialized. Call initialize() first.');
     }
 
-    for (const [chain, provider] of this.providers) {
-      const currentBlock = await provider.getBlockNumber();
+    for (const [chain] of this.providers) {
+      const currentBlock = confirmedBlockTags[chain] as number;
       const lastBlock = this.lastScannedBlock.get(chain) ?? 0;
+
+      this.logger.debug(
+        { chain, lastBlock, currentBlock, skip: lastBlock >= currentBlock },
+        'ForkIndexer sync check',
+      );
 
       if (lastBlock >= currentBlock) {
         continue;
