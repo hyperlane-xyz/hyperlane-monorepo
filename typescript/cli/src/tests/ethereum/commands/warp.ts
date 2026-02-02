@@ -4,6 +4,7 @@ import { $, type ProcessPromise } from 'zx';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainName,
+  EvmWarpRouteReader,
   type HypTokenRouterConfig,
   TokenType,
   type WarpCoreConfig,
@@ -11,7 +12,12 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   WarpRouteDeployConfigSchema,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, randomInt } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  ProtocolType,
+  assert,
+  randomInt,
+} from '@hyperlane-xyz/utils';
 
 import { readChainSubmissionStrategyConfig } from '../../../config/strategy.js';
 import { createAltVMSigners } from '../../../context/altvm.js';
@@ -531,10 +537,19 @@ export async function updateOwner(
 }
 
 /**
- * Extends the Warp route deployment with a new warp config
+ * Extends the Warp route deployment with a new warp config.
+ *
+ * This function reads ALL existing chains from the warp core config and
+ * combines them with the new chain configuration.
+ *
+ * @param params.chainToExtend - The name of the new chain to add to the warp route
+ * @param params.extendedConfig - The configuration for the new chain
+ * @param params.warpCorePath - Path to the warp core config file containing existing chains
+ * @param params.warpDeployPath - Path to write the combined deploy config
+ * @param params.strategyUrl - Optional strategy URL for the warp apply command
+ * @param params.warpRouteId - Optional warp route ID
  */
 export async function extendWarpConfig(params: {
-  chain: string;
   chainToExtend: string;
   extendedConfig: HypTokenRouterConfig;
   warpCorePath: string;
@@ -543,7 +558,6 @@ export async function extendWarpConfig(params: {
   warpRouteId?: string;
 }): Promise<string> {
   const {
-    chain,
     chainToExtend,
     extendedConfig,
     warpCorePath,
@@ -551,15 +565,36 @@ export async function extendWarpConfig(params: {
     strategyUrl,
     warpRouteId,
   } = params;
-  const warpDeployConfig = await readWarpConfig(
-    chain,
-    warpCorePath,
-    warpDeployPath,
+
+  // Read the warp core config to get ALL existing chains and their addresses
+  const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
+
+  // Get context with MultiProvider for reading warp configs directly
+  const context = await getContext({
+    registryUris: [REGISTRY_PATH],
+    key: ANVIL_KEY,
+  });
+
+  // Build deploy config from ALL existing chains in parallel using EvmWarpRouteReader
+  const chainConfigs = await Promise.all(
+    warpCoreConfig.tokens.map(async (token) => {
+      const { chainName, addressOrDenom } = token;
+      assert(addressOrDenom, `Missing address for token on ${chainName}`);
+      const reader = new EvmWarpRouteReader(context.multiProvider, chainName);
+      const config = await reader.deriveWarpRouteConfig(addressOrDenom);
+      // Remove remoteRouters and destinationGas as they are auto-generated
+      delete config.remoteRouters;
+      delete config.destinationGas;
+      return { chain: chainName, config };
+    }),
   );
+  const warpDeployConfig: WarpRouteDeployConfigMailboxRequired = {};
+  for (const { chain, config } of chainConfigs) {
+    warpDeployConfig[chain] = config;
+  }
+
+  // Add the new chain config
   warpDeployConfig[chainToExtend] = extendedConfig;
-  // Remove remoteRouters and destinationGas as they are written in readWarpConfig
-  delete warpDeployConfig[chain].remoteRouters;
-  delete warpDeployConfig[chain].destinationGas;
 
   writeYamlOrJson(warpDeployPath, warpDeployConfig);
   await hyperlaneWarpApplyRaw({
