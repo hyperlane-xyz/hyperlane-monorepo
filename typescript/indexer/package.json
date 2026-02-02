@@ -1,0 +1,39 @@
+{
+  "name": "@hyperlane-xyz/indexer",
+  "description": "Ponder-based indexer for Hyperlane protocol events",
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "scripts": {
+    "dev": "ponder dev",
+    "start": "ponder start",
+    "serve": "ponder serve",
+    "codegen": "ponder codegen",
+    "build": "tsc",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src",
+    "db:migrate": "tsx scripts/migrate.ts",
+    "db:compare": "tsx scripts/compare.ts"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "drizzle-orm": "^0.38.3",
+    "pg": "^8.13.1",
+    "ponder": "^0.8.22",
+    "viem": "catalog:"
+  },
+  "devDependencies": {
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/node": "catalog:",
+    "@types/pg": "^8.11.11",
+    "eslint": "catalog:",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

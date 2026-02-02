@@ -1,0 +1,72 @@
+image:
+  repository: gcr.io/abacus-labs-dev/hyperlane-indexer
+  tag: latest
+  pullPolicy: IfNotPresent
+
+hyperlane:
+  # Environment: testnet4 or mainnet3
+  runEnv: testnet4
+  # Path to registry (can be local or S3/GCS)
+  registryUri: ''
+
+# Resource limits
+resources:
+  limits:
+    cpu: '2'
+    memory: 4Gi
+  requests:
+    cpu: '1'
+    memory: 2Gi
+
+# Number of replicas (typically 1 for indexer)
+replicaCount: 1
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: true
+  minAvailable: 1
+
+# Health checks
+healthCheck:
+  enabled: true
+  port: 42069
+  path: /health
+
+# Prometheus metrics
+metrics:
+  enabled: true
+  port: 42069
+  path: /metrics
+
+# External secrets for sensitive data
+externalSecrets:
+  clusterSecretStore: ''
+  # Database connection string (stored in secret manager)
+  databaseUrlSecretKey: ''
+  # Chain RPC URLs JSON (stored in secret manager)
+  chainRpcUrlsSecretKey: ''
+
+# PostgreSQL database connection
+database:
+  # Direct connection string (if not using external secrets)
+  connectionString: ''
+  # Pool configuration
+  poolMax: 30
+
+# Service account
+serviceAccount:
+  create: true
+  name: ''
+  annotations: {}
+
+# Pod annotations
+podAnnotations: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Affinity
+affinity: {}
