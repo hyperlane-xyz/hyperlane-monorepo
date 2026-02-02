@@ -1,9 +1,10 @@
-use std::ops::Add;
+use std::{ops::Add, str::FromStr};
 
 use eyre::eyre;
 use hyperlane_sealevel::{
     HeliusPriorityFeeLevel, HeliusPriorityFeeOracleConfig, PriorityFeeOracleConfig,
 };
+use solana_sdk::pubkey::Pubkey;
 use url::Url;
 
 use h_eth::TransactionOverrides;
@@ -289,6 +290,7 @@ fn build_sealevel_connection_conf(
     let native_token = parse_native_token(chain, err, 9);
     let priority_fee_oracle = parse_sealevel_priority_fee_oracle_config(chain, &mut local_err);
     let transaction_submitter = parse_transaction_submitter_config(chain, &mut local_err);
+    let mailbox_process_alt = parse_sealevel_mailbox_process_alt(chain, &mut local_err);
 
     if !local_err.is_ok() {
         err.merge(local_err);
@@ -303,7 +305,34 @@ fn build_sealevel_connection_conf(
         native_token,
         priority_fee_oracle,
         transaction_submitter,
+        mailbox_process_alt,
     }))
+}
+
+fn parse_sealevel_mailbox_process_alt(
+    chain: &ValueParser,
+    err: &mut ConfigParsingError,
+) -> Option<Pubkey> {
+    let alt_str = chain
+        .chain(err)
+        .get_opt_key("mailboxProcessAlt")
+        .parse_string()
+        .end();
+
+    if let Some(alt_str) = alt_str {
+        match Pubkey::from_str(alt_str) {
+            Ok(pubkey) => Some(pubkey),
+            Err(e) => {
+                err.push(
+                    (&chain.cwp).add("mailboxProcessAlt"),
+                    eyre!("Invalid mailboxProcessAlt pubkey: {e}"),
+                );
+                None
+            }
+        }
+    } else {
+        None
+    }
 }
 
 fn parse_native_token(

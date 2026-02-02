@@ -74,6 +74,7 @@ impl Default for SealevelTxCostEstimate {
 
 /// Methods of provider which are used in submitter
 #[async_trait]
+#[allow(clippy::too_many_arguments)]
 pub trait SealevelProviderForLander: Send + Sync {
     /// Creates Sealevel transaction for instruction.
     /// Returns `SealevelTxType::Versioned` with ALT if `alt_address` is provided,

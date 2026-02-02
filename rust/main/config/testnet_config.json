@@ -575,7 +575,8 @@
       ],
       "validatorAnnounce": "8qNYSi9EP1xSnRjtMpyof88A26GBbdcrsa61uSaHiwx3",
       "gasCurrencyCoinGeckoId": "solana",
-      "interchainSecurityModule": "4GHxwWyKB9exhKG4fdyU2hfLgfFzhHp2WcsSKc2uNR1k"
+      "interchainSecurityModule": "4GHxwWyKB9exhKG4fdyU2hfLgfFzhHp2WcsSKc2uNR1k",
+      "mailboxProcessAlt": "HuStn3Dtk2Zod1FzUoC19tjXE987WbTbD988ABD52BGq"
     },
     "starknetsepolia": {
       "chainId": "0x534e5f5345504f4c4941",

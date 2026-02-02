@@ -35,7 +35,6 @@ use hyperlane_core::{
     Mailbox, MerkleTreeHook, Metadata, ReorgPeriod, TxCostEstimate, TxOutcome, H256, U256,
 };
 
-use crate::alt::get_alt_for_domain;
 use crate::priority_fee::PriorityFeeOracle;
 use crate::tx_submitter::TransactionSubmitter;
 use crate::utils::sanitize_dynamic_accounts;
@@ -86,6 +85,8 @@ pub struct SealevelMailbox {
     payer: Option<SealevelKeypair>,
     priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
     tx_submitter: Arc<dyn TransactionSubmitter>,
+    /// Optional ALT address for versioned transactions (from config)
+    mailbox_process_alt: Option<Pubkey>,
 
     system_program: Pubkey,
     spl_noop: Pubkey,
@@ -122,6 +123,7 @@ impl SealevelMailbox {
             payer,
             priority_fee_oracle: conf.priority_fee_oracle.create_oracle(),
             tx_submitter,
+            mailbox_process_alt: conf.mailbox_process_alt,
             provider,
 
             system_program,
@@ -382,11 +384,9 @@ impl SealevelMailbox {
             accounts,
         };
 
-        let alt_address = get_alt_for_domain(self.provider.domain());
-
         Ok(SealevelProcessPayload {
             instruction,
-            alt_address,
+            alt_address: self.mailbox_process_alt,
         })
     }
 

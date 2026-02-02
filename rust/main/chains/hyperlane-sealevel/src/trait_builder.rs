@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use hyperlane_core::{config::OpSubmissionConfig, ChainCommunicationError, NativeToken};
 use serde::Serialize;
+use solana_sdk::pubkey::Pubkey;
 use url::Url;
 
 use crate::{
@@ -22,6 +23,10 @@ pub struct ConnectionConf {
     pub priority_fee_oracle: PriorityFeeOracleConfig,
     /// Transaction submitter configuration
     pub transaction_submitter: TransactionSubmitterConfig,
+    /// Optional Address Lookup Table (ALT) for mailbox process transactions.
+    /// When set, versioned transactions with this ALT will be used for reduced tx size.
+    /// When None, legacy transactions are used (safe default for all SVM chains).
+    pub mailbox_process_alt: Option<Pubkey>,
 }
 
 /// An error type when parsing a connection configuration.
