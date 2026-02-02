@@ -850,8 +850,6 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     return getUnenrollRemoteRouterTx(req.tokenAddress, req.receiverDomainId);
   }
 
-  //
-
   async getTransferTransaction(
     req: AltVM.ReqTransfer,
   ): Promise<AleoTransaction> {
