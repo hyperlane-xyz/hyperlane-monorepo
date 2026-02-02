@@ -1,5 +1,7 @@
 # Ponder generated files
 .ponder/
+generated/
+ponder-env.d.ts
 
 # Build output
 dist/
