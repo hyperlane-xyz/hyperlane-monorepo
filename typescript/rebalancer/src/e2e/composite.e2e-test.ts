@@ -9,7 +9,6 @@ import {
   revertToSnapshot,
   snapshot,
 } from '@hyperlane-xyz/sdk';
-import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
 import {
   RebalancerMinAmountType,
@@ -34,21 +33,11 @@ import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
   executeWarpTransfer,
-  getRebalancerAddress,
   tryRelayMessage,
 } from './harness/TransferHelper.js';
 
 const ANVIL_TEST_PRIVATE_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
-
-function encodeWarpRouteMessageBody(
-  recipient: string,
-  amount: BigNumber,
-): string {
-  const recipientBytes32 = addressToBytes32(recipient);
-  const amountHex = ethers.utils.hexZeroPad(amount.toHexString(), 32);
-  return recipientBytes32 + amountHex.slice(2);
-}
 
 async function getFirstMonitorEvent(monitor: Monitor): Promise<MonitorEvent> {
   return new Promise((resolve, reject) => {
@@ -265,7 +254,7 @@ describe('CompositeStrategy E2E', function () {
     expect(
       activeIntents.length,
       'Should have active rebalance intents',
-    ).to.be.greaterThan(0);
+    ).to.be.equal(1, 'Should have exactly 1 active rebalance intent');
 
     const inProgressActions = await context.tracker.getInProgressActions();
 
@@ -288,7 +277,7 @@ describe('CompositeStrategy E2E', function () {
     expect(
       superseedActions.length,
       'Should have SUPERSEED actions from CollateralDeficit',
-    ).to.be.greaterThan(0);
+    ).to.be.equal(1);
 
     // Verify SUPERSEED route goes to arbitrum (has deficit from pending transfer)
     const actionToArbitrum = superseedActions.find(
