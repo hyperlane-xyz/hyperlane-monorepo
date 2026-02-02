@@ -237,12 +237,19 @@ export class ProductionRebalancerRunner
     setCurrentInstance(this);
 
     // Start service in the background (don't await - it runs forever in daemon mode)
+    let startupError: Error | undefined;
     this.service.start().catch((error) => {
+      startupError = error;
       logger.error({ error }, 'RebalancerService error');
     });
 
     // Wait a bit for the service to initialize
     await new Promise((resolve) => setTimeout(resolve, 2000));
+
+    // Surface any startup errors
+    if (startupError) {
+      throw startupError;
+    }
   }
 
   async stop(): Promise<void> {

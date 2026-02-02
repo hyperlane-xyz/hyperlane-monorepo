@@ -16,14 +16,6 @@
  * - transfers: The traffic pattern
  * - defaultTiming, defaultBridgeConfig, defaultStrategyConfig: Default configs
  * - expectations: Assertions (minCompletionRate, shouldTriggerRebalancing, etc.)
- *
- * KNOWN LIMITATION:
- * When running the full test suite with REBALANCERS=simple,production, some tests
- * may timeout due to cumulative state from the ProductionRebalancerRunner. To run
- * comparisons reliably, run specific scenarios:
- *   REBALANCERS=simple,production pnpm test --grep "scenario-name"
- *
- * The default (REBALANCERS=simple) runs reliably for all scenarios.
  */
 import { expect } from 'chai';
 
@@ -70,6 +62,9 @@ describe('Rebalancer Simulation', function () {
     );
 
     for (const result of results) {
+      // Skip assertions for NoOpRebalancer (baseline only)
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
       if (file.expectations.minCompletionRate) {
         expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
           file.expectations.minCompletionRate,
@@ -92,6 +87,9 @@ describe('Rebalancer Simulation', function () {
     );
 
     for (const result of results) {
+      // Skip assertions for NoOpRebalancer (baseline only)
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
       if (file.expectations.minCompletionRate) {
         expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
           file.expectations.minCompletionRate,
@@ -114,6 +112,9 @@ describe('Rebalancer Simulation', function () {
     );
 
     for (const result of results) {
+      // Skip assertions for NoOpRebalancer (baseline only)
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
       if (file.expectations.minCompletionRate) {
         expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
           file.expectations.minCompletionRate,
@@ -130,6 +131,9 @@ describe('Rebalancer Simulation', function () {
     );
 
     for (const result of results) {
+      // Skip assertions for NoOpRebalancer (baseline only)
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
       if (file.expectations.minCompletionRate) {
         expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
           file.expectations.minCompletionRate,
@@ -149,7 +153,12 @@ describe('Rebalancer Simulation', function () {
       { anvilRpc: anvil.rpc },
     );
 
-    for (const result of results) {
+    // Filter out NoOpRebalancer for assertions
+    const activeResults = results.filter(
+      (r) => r.rebalancerName !== 'NoOpRebalancer',
+    );
+
+    for (const result of activeResults) {
       if (file.expectations.minCompletionRate) {
         expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
           file.expectations.minCompletionRate,
@@ -159,9 +168,10 @@ describe('Rebalancer Simulation', function () {
     }
 
     // When comparing, completion rates should be similar
-    if (results.length > 1) {
+    if (activeResults.length > 1) {
       const completionDiff = Math.abs(
-        results[0].kpis.completionRate - results[1].kpis.completionRate,
+        activeResults[0].kpis.completionRate -
+          activeResults[1].kpis.completionRate,
       );
       expect(completionDiff).to.be.lessThan(
         0.1,
@@ -181,6 +191,9 @@ describe('Rebalancer Simulation', function () {
     );
 
     for (const result of results) {
+      // Skip assertions for NoOpRebalancer (baseline only)
+      if (result.rebalancerName === 'NoOpRebalancer') continue;
+
       if (file.expectations.minCompletionRate) {
         expect(result.kpis.completionRate).to.be.greaterThanOrEqual(
           file.expectations.minCompletionRate,
@@ -197,5 +210,32 @@ describe('Rebalancer Simulation', function () {
         );
       }
     }
+  });
+
+  // ============================================================================
+  // BASELINE (NO REBALANCER)
+  // ============================================================================
+
+  it('no-rebalancer baseline: shows transfer failures without rebalancing (report only)', async function () {
+    // Run with NoOpRebalancer to demonstrate what happens without active rebalancing
+    // This is report-only - no assertions, just generates visualization
+    const { results } = await runScenarioWithRebalancers(
+      'extreme-drain-chain1',
+      {
+        anvilRpc: anvil.rpc,
+        rebalancerTypes: ['noop'],
+      },
+    );
+
+    // Report only - log results but don't assert
+    const result = results[0];
+    console.log(`\n  NO-REBALANCER BASELINE (report only):`);
+    console.log(
+      `    Without rebalancing, completion rate: ${(result.kpis.completionRate * 100).toFixed(1)}%`,
+    );
+    console.log(
+      `    Failed transfers: ${result.kpis.totalTransfers - result.kpis.completedTransfers}`,
+    );
+    console.log(`    Rebalances: ${result.kpis.totalRebalances} (expected: 0)`);
   });
 });

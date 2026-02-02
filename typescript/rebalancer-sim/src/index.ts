@@ -26,6 +26,7 @@ export {
 } from './ScenarioLoader.js';
 
 // Rebalancer runners
+export { NoOpRebalancer } from './runners/NoOpRebalancer.js';
 export {
   cleanupProductionRebalancer,
   ProductionRebalancerRunner,

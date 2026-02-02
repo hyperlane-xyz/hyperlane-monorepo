@@ -381,8 +381,7 @@ export class SimulationEngine {
         break;
       }
 
-      // Process any ready messages
-      await this.processReadyMailboxDeliveries();
+      // Interval handles processing; just wait
       await new Promise((resolve) => setTimeout(resolve, 100));
     }
   }

@@ -5,6 +5,7 @@ import * as path from 'path';
 import { fileURLToPath } from 'url';
 
 import {
+  NoOpRebalancer,
   ProductionRebalancerRunner,
   SimpleRunner,
   SimulationEngine,
@@ -26,17 +27,20 @@ import { ANVIL_DEPLOYER_KEY } from '../../src/types.js';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 export const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 
-export type RebalancerType = 'simple' | 'production';
+export type RebalancerType = 'simple' | 'production' | 'noop';
 
 export function getEnabledRebalancers(): RebalancerType[] {
   const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
   const enabled = REBALANCER_ENV.split(',')
     .map((r) => r.trim().toLowerCase())
-    .filter((r): r is RebalancerType => r === 'simple' || r === 'production');
+    .filter(
+      (r): r is RebalancerType =>
+        r === 'simple' || r === 'production' || r === 'noop',
+    );
 
   if (enabled.length === 0) {
     throw new Error(
-      `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", or both.`,
+      `No valid rebalancers in REBALANCERS="${REBALANCER_ENV}". Use "simple", "production", "noop", or combinations.`,
     );
   }
   return enabled;
@@ -48,6 +52,8 @@ export function createRebalancer(type: RebalancerType): IRebalancerRunner {
       return new SimpleRunner();
     case 'production':
       return new ProductionRebalancerRunner();
+    case 'noop':
+      return new NoOpRebalancer();
   }
 }
 

@@ -313,6 +313,8 @@ interface SimulationKPIs {
 
 5. **Nonce Caching**: When running both rebalancers (`REBALANCERS=simple,production`), ethers v5 nonce caching can cause timeouts on the full test suite. Run specific scenarios for comparison.
 
+6. **Production ActionTracker**: The `ProductionRebalancerRunner` uses a mock `ActionTracker` that does not persist state. The real production rebalancer's ActionTracker depends on external services not available in simulation. A mock ActionTracker with full in-memory tracking is planned for a future PR.
+
 ## Design Decisions
 
 ### Single Anvil, Multiple Domains

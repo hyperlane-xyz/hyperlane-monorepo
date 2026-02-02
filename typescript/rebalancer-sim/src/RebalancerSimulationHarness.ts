@@ -183,9 +183,6 @@ export class RebalancerSimulationHarness {
       // This is important because ethers v5 caches chainId, nonces, etc.
       this.engine = new SimulationEngine(this.deployment);
 
-      // Small delay after snapshot restore to let anvil stabilize
-      await new Promise((resolve) => setTimeout(resolve, 500));
-
       // Run simulation
       const result = await this.runSimulation(scenario, rebalancer, options);
       results.push(result);
