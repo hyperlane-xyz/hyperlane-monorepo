@@ -79,12 +79,16 @@ export async function loadChainConfigs(
       continue;
     }
 
+    // Use registry startBlock, or fallback to recent block for testnets
+    // to avoid syncing from genesis
+    const startBlock = metadata.index?.from ?? getDefaultStartBlock(chainName);
+
     configs.push({
       name: chainName,
       chainId,
       domainId,
       rpcUrl,
-      startBlock: metadata.index?.from,
+      startBlock,
       isTestnet: metadata.isTestnet ?? false,
     });
   }
@@ -147,6 +151,23 @@ function parseRpcOverrides(): Record<string, string> {
   }
 
   return overrides;
+}
+
+/**
+ * Default start blocks for chains without index.from in registry.
+ * These are approximate deployment blocks for Hyperlane contracts.
+ */
+const DEFAULT_START_BLOCKS: Record<string, number> = {
+  // Testnets - use recent blocks for faster initial sync
+  sepolia: 7000000, // More recent block
+  arbitrumsepolia: 1000000,
+  basesepolia: 1000000,
+  optimismsepolia: 1000000,
+  // Add more as needed
+};
+
+function getDefaultStartBlock(chainName: string): number | undefined {
+  return DEFAULT_START_BLOCKS[chainName.toLowerCase()];
 }
 
 function getRpcUrl(

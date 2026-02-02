@@ -27,6 +27,27 @@ console.log(
   chains.map((c) => c.name).join(', '),
 );
 
+// Debug: print chain configs
+for (const chain of chains) {
+  console.log(
+    `  ${chain.name}: chainId=${chain.chainId}, startBlock=${chain.startBlock}, rpc=${chain.rpcUrl?.slice(0, 50)}...`,
+  );
+}
+
+// Debug: print addresses
+console.log('Contract addresses:');
+for (const [name, addr] of Object.entries(addresses)) {
+  console.log(
+    `  ${name}: mailbox=${addr.mailbox}, igp=${addr.interchainGasPaymaster}`,
+  );
+}
+
+const networks = buildPonderNetworks(chains);
+console.log('Networks:', Object.keys(networks));
+
+const mailboxConfig = buildMailboxContractConfig(chains, addresses, MailboxAbi);
+console.log('Mailbox networks:', Object.keys(mailboxConfig.network));
+
 // Build Ponder configuration
 export default createConfig({
   database: {
@@ -40,11 +61,8 @@ export default createConfig({
   networks: buildPonderNetworks(chains),
 
   contracts: {
-    Mailbox: {
-      ...buildMailboxContractConfig(chains, addresses, MailboxAbi),
-      // Include transaction receipts for full tx log indexing (FR-9)
-      includeTransactionReceipts: true,
-    },
+    // includeTransactionReceipts is set per-network in the build functions
+    Mailbox: buildMailboxContractConfig(chains, addresses, MailboxAbi),
     InterchainGasPaymaster: buildIgpContractConfig(
       chains,
       addresses,
