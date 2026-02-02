@@ -46,6 +46,13 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
+export const logDirCommandOption: Options = {
+  type: 'string',
+  description: 'Directory for per-chain log files (JSON format)',
+  default: ENV.LOG_DIR,
+  defaultDescription: 'process.env.LOG_DIR',
+};
+
 export const registryUrisCommandOption: Options = {
   type: 'array',
   string: true,

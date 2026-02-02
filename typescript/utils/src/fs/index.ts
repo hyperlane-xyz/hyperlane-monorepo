@@ -3,6 +3,7 @@
  * These are not suitable for browser use.
  */
 
+export { createChainLogger, getLogDir, setLogDir } from './chainLogger.js';
 export {
   ensureDirectoryExists,
   isFile,
