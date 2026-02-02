@@ -27,11 +27,12 @@ import {CommitmentReadIsm} from "../isms/ccip-read/CommitmentReadIsm.sol";
 import {Mailbox} from "../Mailbox.sol";
 import {Message} from "../libs/Message.sol";
 import {AbstractRoutingIsm} from "../isms/routing/AbstractRoutingIsm.sol";
-import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
@@ -47,6 +48,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
     using InterchainAccountMessage for bytes;
     using Message for bytes;
     using StandardHookMetadata for bytes;
+    using SafeERC20 for IERC20;
 
     // ============ Constants ============
 
@@ -991,6 +993,7 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
 
     /**
      * @notice Dispatches an InterchainAccountMessage to the remote router using a `value` parameter for msg.value
+     * @dev If hookMetadata contains a non-zero feeToken, pulls ERC20 from caller and approves hook
      * @param _value The amount to pass as `msg.value` to the mailbox.dispatch()
      */
     function _dispatchMessageWithValue(
@@ -1002,6 +1005,22 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
         uint _value
     ) private returns (bytes32) {
         require(_router != bytes32(0), "no router specified for destination");
+
+        // Check if ERC20 fee payment is requested via hookMetadata
+        address _feeToken = _hookMetadata.feeToken();
+        if (_feeToken != address(0)) {
+            uint256 _fee = _Router_quoteDispatch(
+                _destination,
+                bytes(""),
+                _hookMetadata,
+                address(_hook)
+            );
+
+            // Pull fee tokens from caller and approve hook
+            IERC20(_feeToken).safeTransferFrom(msg.sender, address(this), _fee);
+            IERC20(_feeToken).forceApprove(address(_hook), _fee);
+        }
+
         return
             mailbox.dispatch{value: _value}(
                 _destination,
@@ -1077,6 +1096,32 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
                 _destination,
                 bytes(""),
                 bytes(""),
+                address(hook)
+            );
+    }
+
+    /**
+     * @notice Returns the ERC20 token payment required to dispatch a message.
+     * @param _feeToken The ERC20 token to pay gas fees in.
+     * @param _destination The domain of the destination router.
+     * @param _gasLimit The gas limit that the calls will use.
+     * @return _gasPayment Payment amount in the specified token.
+     */
+    function quoteGasPayment(
+        address _feeToken,
+        uint32 _destination,
+        uint256 _gasLimit
+    ) public view returns (uint256 _gasPayment) {
+        return
+            _Router_quoteDispatch(
+                _destination,
+                new bytes(0),
+                StandardHookMetadata.formatWithFeeToken(
+                    0,
+                    _gasLimit,
+                    msg.sender,
+                    _feeToken
+                ),
                 address(hook)
             );
     }
