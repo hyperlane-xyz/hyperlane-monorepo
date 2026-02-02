@@ -85,25 +85,16 @@ jobs:
             --model claude-opus-4-5
             --max-turns 30
 
-  # Security-focused review: auto on PR or manual via @claude security
+  # Security-focused review: manual via @claude security comment only
   security-review:
     if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude security') &&
       (
-        github.event_name == 'pull_request' &&
-        !github.event.pull_request.draft &&
-        !contains(github.event.pull_request.title, '[skip-review]') &&
-        !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      ) ||
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@claude security') &&
-        (
-          github.event.comment.author_association == 'MEMBER' ||
-          github.event.comment.author_association == 'OWNER' ||
-          github.event.comment.author_association == 'COLLABORATOR'
-        )
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
       )
     runs-on: depot-ubuntu-latest
     timeout-minutes: 20
@@ -169,25 +160,16 @@ jobs:
           claude-model: claude-opus-4-5
           custom-security-scan-instructions: '.github/prompts/security-scan.md'
 
-  # Trail of Bits security skills: auto on PR or manual via @claude security
+  # Trail of Bits security skills: manual via @claude security comment only
   tob-security-skills:
     if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude security') &&
       (
-        github.event_name == 'pull_request' &&
-        !github.event.pull_request.draft &&
-        !contains(github.event.pull_request.title, '[skip-review]') &&
-        !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      ) ||
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@claude security') &&
-        (
-          github.event.comment.author_association == 'MEMBER' ||
-          github.event.comment.author_association == 'OWNER' ||
-          github.event.comment.author_association == 'COLLABORATOR'
-        )
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
       )
     runs-on: depot-ubuntu-latest
     timeout-minutes: 25

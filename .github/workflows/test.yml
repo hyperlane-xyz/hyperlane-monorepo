@@ -51,6 +51,8 @@ jobs:
 
   lint-prettier:
     runs-on: depot-ubuntu-24.04-8
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust != 'true'
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
