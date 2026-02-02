@@ -6,9 +6,14 @@ import { isFile, pathExists, readFileAtPath, writeToFile } from './utils.js';
 
 /**
  * Reads and parses a JSON file.
+ * Returns null for empty or whitespace-only files (matching YAML behavior).
  */
 export function readJson<T>(filepath: string): T {
-  return JSON.parse(readFileAtPath(filepath)) as T;
+  const content = readFileAtPath(filepath);
+  if (content.trim() === '') {
+    return null as T;
+  }
+  return JSON.parse(content) as T;
 }
 
 /**
