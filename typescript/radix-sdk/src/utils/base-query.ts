@@ -178,13 +178,13 @@ export function getComponentState(
  * @param formatter - Optional function to transform the string value into a different type
  * @returns The field property value or undefined if not found
  */
-function tryGetFieldPropertyFromEntityState<T>(
+function tryGetFieldPropertyFromEntityState<TKey extends keyof EntityField, T>(
   fieldName: string,
   entityState: EntityDetails['state'],
-  property: keyof EntityField,
-  formatter?: (value: string) => T,
+  property: TKey,
+  formatter?: (value: NonNullable<EntityField[TKey]>) => T,
 ): T | string | undefined {
-  const [result]: string[] | undefined = entityState.fields
+  const [result] = entityState.fields
     .filter((f) => f.field_name === fieldName)
     .map((f) =>
       // If the current value is an Option we need to extract
@@ -207,22 +207,21 @@ export function getFieldPropertyFromEntityState<
   property: TKey,
   formatter?: (value: NonNullable<EntityField[TKey]>) => T,
 ): T | NonNullable<EntityField[TKey]> {
-  const [result] = entityState.fields
-    .filter((f) => f.field_name === fieldName)
-    .map((f) =>
-      // If the current value is an Option we need to extract
-      // its property otherwise we can use the property directly
-      f.kind === 'Enum' && f.type_name === 'Option'
-        ? f.fields?.at(0)?.[property]
-        : f[property],
-    );
+  const result: T | NonNullable<EntityField[TKey]> | undefined = formatter
+    ? tryGetFieldPropertyFromEntityState(fieldName, entityState, property)
+    : tryGetFieldPropertyFromEntityState(
+        fieldName,
+        entityState,
+        property,
+        formatter,
+      );
 
   assert(
     !isNullish(result),
     `Expected ${fieldName} field to be defined on radix component at ${entityAddress}`,
   );
 
-  return formatter ? formatter(result) : result;
+  return result;
 }
 
 /**
