@@ -18,6 +18,7 @@ export interface BlockData {
 
 export interface TransactionData {
   hash: `0x${string}`;
+  transactionIndex: number; // Position in block (for LogMeta)
   from: `0x${string}`;
   to: `0x${string}` | null;
   gas: bigint;
@@ -49,6 +50,8 @@ export interface DispatchEventData {
   recipient: `0x${string}`;
   message: `0x${string}`;
   nonce: number;
+  version: number; // Hyperlane message version (for HyperlaneMessage)
+  logIndex: number; // Log index in tx (for LogMeta)
 }
 
 export interface ProcessEventData {
@@ -63,6 +66,12 @@ export interface GasPaymentEventData {
   destinationDomain: number;
   gasAmount: bigint;
   payment: bigint;
+}
+
+export interface MerkleTreeInsertionEventData {
+  messageId: `0x${string}`;
+  leafIndex: number;
+  logIndex: number; // Log index in tx (for LogMeta)
 }
 
 /**
@@ -181,6 +190,7 @@ export class PonderDbAdapter {
       .values({
         hash: hexToBuffer(tx.hash),
         blockId,
+        transactionIndex: tx.transactionIndex,
         gasLimit: tx.gas.toString(),
         maxPriorityFeePerGas: tx.maxPriorityFeePerGas?.toString(),
         maxFeePerGas: tx.maxFeePerGas?.toString(),
@@ -249,6 +259,7 @@ export class PonderDbAdapter {
       .insert(schema.ponderMessage)
       .values({
         msgId: hexToBuffer(event.messageId),
+        version: event.version,
         origin: domainId,
         destination: event.destination,
         nonce: event.nonce,
@@ -257,6 +268,7 @@ export class PonderDbAdapter {
         msgBody: hexToBuffer(event.message),
         originMailbox: hexToBuffer(mailboxAddress),
         originTxId: txId,
+        logIndex: event.logIndex,
       })
       .onConflictDoNothing();
   }
@@ -298,6 +310,7 @@ export class PonderDbAdapter {
     mailboxAddress: `0x${string}`,
     event: ProcessEventData,
     txId: number,
+    logIndex: number,
     sequence?: number,
   ): Promise<void> {
     const domainId = await this.getDomainId(chainId);
@@ -313,6 +326,7 @@ export class PonderDbAdapter {
         domain: domainId,
         destinationMailbox: hexToBuffer(mailboxAddress),
         destinationTxId: txId,
+        logIndex,
         sequence: sequence ?? null,
       })
       .onConflictDoNothing();
@@ -349,6 +363,34 @@ export class PonderDbAdapter {
         destination: event.destinationDomain,
         interchainGasPaymaster: hexToBuffer(igpAddress),
         sequence: sequence ?? null,
+      })
+      .onConflictDoNothing();
+  }
+
+  /**
+   * Store a MerkleTreeInsertion event (for validator checkpoint signing).
+   */
+  async storeMerkleTreeInsertion(
+    chainId: number,
+    merkleTreeHookAddress: `0x${string}`,
+    event: MerkleTreeInsertionEventData,
+    txId: number,
+  ): Promise<void> {
+    const domainId = await this.getDomainId(chainId);
+    if (!domainId) {
+      console.warn(`No domain found for chainId ${chainId}`);
+      return;
+    }
+
+    await this.db
+      .insert(schema.ponderMerkleTreeInsertion)
+      .values({
+        domain: domainId,
+        leafIndex: event.leafIndex,
+        messageId: hexToBuffer(event.messageId),
+        merkleTreeHook: hexToBuffer(merkleTreeHookAddress),
+        txId,
+        logIndex: event.logIndex,
       })
       .onConflictDoNothing();
   }
@@ -455,6 +497,9 @@ export class PonderDbAdapter {
       await this.db
         .delete(schema.ponderMessage)
         .where(eq(schema.ponderMessage.originTxId, txId));
+      await this.db
+        .delete(schema.ponderMerkleTreeInsertion)
+        .where(eq(schema.ponderMerkleTreeInsertion.txId, txId));
     }
 
     // Delete transactions

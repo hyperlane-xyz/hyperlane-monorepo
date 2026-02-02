@@ -80,6 +80,7 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
     blockId,
     {
       hash: event.transaction.hash,
+      transactionIndex: event.transactionReceipt!.transactionIndex,
       from: event.transaction.from,
       to: event.transaction.to,
       gas: event.transaction.gas,
@@ -93,12 +94,19 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
       gasUsed: event.transactionReceipt!.gasUsed,
       cumulativeGasUsed: event.transactionReceipt!.cumulativeGasUsed,
       effectiveGasPrice: event.transactionReceipt!.effectiveGasPrice,
-      logs: event.transactionReceipt!.logs.map((log) => ({
-        logIndex: log.logIndex,
-        address: log.address,
-        topics: log.topics,
-        data: log.data,
-      })),
+      logs: event.transactionReceipt!.logs.map(
+        (log: {
+          logIndex: number;
+          address: `0x${string}`;
+          topics: readonly `0x${string}`[];
+          data: `0x${string}`;
+        }) => ({
+          logIndex: log.logIndex,
+          address: log.address,
+          topics: log.topics,
+          data: log.data,
+        }),
+      ),
     },
   );
 
@@ -111,12 +119,19 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
   if (event.transactionReceipt?.logs) {
     await adapter.storeTransactionLogs(
       txId,
-      event.transactionReceipt.logs.map((log) => ({
-        logIndex: log.logIndex,
-        address: log.address,
-        topics: log.topics,
-        data: log.data,
-      })),
+      event.transactionReceipt.logs.map(
+        (log: {
+          logIndex: number;
+          address: `0x${string}`;
+          topics: readonly `0x${string}`[];
+          data: `0x${string}`;
+        }) => ({
+          logIndex: log.logIndex,
+          address: log.address,
+          topics: log.topics,
+          data: log.data,
+        }),
+      ),
     );
   }
 
@@ -131,6 +146,8 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
       recipient: parsed.recipient,
       message: parsed.body,
       nonce: parsed.nonce,
+      version: parsed.version,
+      logIndex: event.log.logIndex,
     },
     txId,
   );
@@ -146,6 +163,8 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }) => {
       recipient: parsed.recipient,
       message: parsed.body,
       nonce: parsed.nonce,
+      version: parsed.version,
+      logIndex: event.log.logIndex,
     },
     {
       hash: event.block.hash,
@@ -231,6 +250,7 @@ ponder.on('Mailbox:Process', async ({ event, context }) => {
     blockId,
     {
       hash: event.transaction.hash,
+      transactionIndex: event.transactionReceipt!.transactionIndex,
       from: event.transaction.from,
       to: event.transaction.to,
       gas: event.transaction.gas,
@@ -244,12 +264,19 @@ ponder.on('Mailbox:Process', async ({ event, context }) => {
       gasUsed: event.transactionReceipt!.gasUsed,
       cumulativeGasUsed: event.transactionReceipt!.cumulativeGasUsed,
       effectiveGasPrice: event.transactionReceipt!.effectiveGasPrice,
-      logs: event.transactionReceipt!.logs.map((log) => ({
-        logIndex: log.logIndex,
-        address: log.address,
-        topics: log.topics,
-        data: log.data,
-      })),
+      logs: event.transactionReceipt!.logs.map(
+        (log: {
+          logIndex: number;
+          address: `0x${string}`;
+          topics: readonly `0x${string}`[];
+          data: `0x${string}`;
+        }) => ({
+          logIndex: log.logIndex,
+          address: log.address,
+          topics: log.topics,
+          data: log.data,
+        }),
+      ),
     },
   );
 
@@ -269,6 +296,7 @@ ponder.on('Mailbox:Process', async ({ event, context }) => {
       recipient,
     },
     txId,
+    event.log.logIndex,
   );
 
   // Track in Ponder's minimal schema for monitoring
