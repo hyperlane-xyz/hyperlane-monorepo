@@ -2,6 +2,7 @@ import { ponder } from 'ponder:registry';
 import * as ponderSchema from 'ponder:schema';
 
 import { getAdapter } from '../db/adapter.js';
+import { checkAndHandleReorg } from '../db/reorg.js';
 import { updateProgress } from '../utils/progress.js';
 
 // =============================================================================
@@ -18,6 +19,13 @@ ponder.on(
       .address as `0x${string}`;
 
     const { messageId, destinationDomain, gasAmount, payment } = event.args;
+
+    // Check for reorg before storing block data
+    await checkAndHandleReorg(
+      chainId,
+      Number(event.block.number),
+      event.block.hash,
+    );
 
     // Store block
     const blockId = await adapter.storeBlock(chainId, {
