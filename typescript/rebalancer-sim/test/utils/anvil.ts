@@ -1,7 +1,7 @@
 import {
   GenericContainer,
-  Wait,
   type StartedTestContainer,
+  Wait,
 } from 'testcontainers';
 
 import { retryAsync } from '@hyperlane-xyz/utils';
