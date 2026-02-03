@@ -51,8 +51,8 @@ jobs:
 
   lint-prettier-run:
     runs-on: depot-ubuntu-24.04-8
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust != 'true'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust != 'true'
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v6
@@ -124,7 +124,7 @@ jobs:
         id: determine-sha
         uses: ./.github/actions/determine-base-sha
 
-  rust-only:
+  change-detection:
     needs: [set-base-sha]
     outputs:
       only_rust: ${{ steps.decide.outputs.only_rust }}
@@ -198,9 +198,9 @@ jobs:
 
   pnpm-test-run:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
+    needs: [change-detection]
     timeout-minutes: 10
-    if: needs.rust-only.outputs.only_rust == 'false'
+    if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -279,8 +279,8 @@ jobs:
 
   cli-install-test-run:
     runs-on: depot-ubuntu-24.04
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     steps:
       - uses: actions/checkout@v6
         with:
@@ -309,8 +309,8 @@ jobs:
 
   cli-evm-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -378,8 +378,8 @@ jobs:
 
   cli-cosmos-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -418,8 +418,8 @@ jobs:
 
   cli-radix-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -457,8 +457,8 @@ jobs:
 
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -489,8 +489,8 @@ jobs:
 
   cli-aleo-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -572,8 +572,8 @@ jobs:
 
   cosmos-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -601,8 +601,8 @@ jobs:
 
   aleo-sdk-e2e-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -642,8 +642,8 @@ jobs:
 
   radix-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
@@ -879,8 +879,8 @@ jobs:
 
   env-test-matrix:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     env:
       MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
       MAINNET3_OPTIMISM_RPC_URLS: ${{ secrets.MAINNET3_OPTIMISM_RPC_URLS }}
