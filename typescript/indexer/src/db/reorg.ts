@@ -1,3 +1,5 @@
+import { getLogger } from '../utils/logger.js';
+
 import { getAdapter } from './adapter.js';
 
 /**
@@ -45,9 +47,9 @@ export async function checkAndHandleReorg(
   }
 
   // Different hash = REORG DETECTED
-  console.warn(
-    `REORG DETECTED on chain ${chainId} at height ${blockHeight}:`,
-    `old=${previousHash} new=${newBlockHash}`,
+  getLogger().warn(
+    { chainId, blockHeight, oldHash: previousHash, newHash: newBlockHash },
+    'Reorg detected',
   );
 
   const adapter = getAdapter();
@@ -67,8 +69,9 @@ export async function checkAndHandleReorg(
   // Delete orphaned block data (cascades to tx, messages, etc.)
   await adapter.deleteBlockByHash(previousHash);
 
-  console.log(
-    `Cleaned up reorged block ${previousHash}, affected ${affectedMsgIds.length} messages`,
+  getLogger().info(
+    { blockHash: previousHash, affectedMessages: affectedMsgIds.length },
+    'Cleaned up reorged block',
   );
 
   return true;

@@ -8,6 +8,7 @@ import {
   extractAddress,
   parseMessage,
 } from '../types/events.js';
+import { getLogger } from '../utils/logger.js';
 import { updateProgress } from '../utils/progress.js';
 
 /**
@@ -99,14 +100,15 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
   });
 
   if (!blockId) {
-    console.error(`Failed to store block for ${chainName}`);
+    getLogger().error({ chain: chainName }, 'Failed to store block');
     return;
   }
 
   // Skip if missing transactionIndex (from event.transaction, not receipt)
   if (event.transaction.transactionIndex == null) {
-    console.warn(
-      `No transactionIndex for Dispatch in block ${event.block.number}, skipping`,
+    getLogger().warn(
+      { chain: chainName, block: event.block.number },
+      'No transactionIndex for Dispatch, skipping',
     );
     return;
   }
@@ -136,7 +138,7 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
   );
 
   if (!txId) {
-    console.error(`Failed to store transaction for ${chainName}`);
+    getLogger().error({ chain: chainName }, 'Failed to store transaction');
     return;
   }
 
@@ -156,18 +158,25 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
         })),
       );
     }
-  } catch (err: any) {
-    console.warn(
-      `Failed to fetch/store logs for tx ${event.transaction.hash}: ${err.message}`,
+  } catch (err) {
+    getLogger().warn(
+      { txHash: event.transaction.hash, err },
+      'Failed to fetch/store transaction logs',
     );
   }
 
   // Check if destination domain exists
   const destDomainExists = await adapter.domainExists(parsed.destination);
   if (!destDomainExists) {
-    console.warn(
-      `Unknown destination domain ${parsed.destination} for message ${messageId} ` +
-        `(origin=${chainName}, sender=${extractAddress(parsed.sender)}, nonce=${parsed.nonce})`,
+    getLogger().warn(
+      {
+        destination: parsed.destination,
+        messageId,
+        origin: chainName,
+        sender: extractAddress(parsed.sender),
+        nonce: parsed.nonce,
+      },
+      'Unknown destination domain',
     );
     // Still store raw dispatch but skip ponder_message
   } else {
@@ -254,8 +263,9 @@ ponder.on('Mailbox:Process', async ({ event, context }: any) => {
 
   // Skip if missing transactionIndex (from event.transaction)
   if (event.transaction.transactionIndex == null) {
-    console.warn(
-      `No transactionIndex for Process in block ${event.block.number}, skipping`,
+    getLogger().warn(
+      { chain: chainName, block: event.block.number },
+      'No transactionIndex for Process, skipping',
     );
     return;
   }
@@ -316,8 +326,9 @@ ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
   const processData = pendingProcessEvents.get(processKey);
 
   if (!processData) {
-    console.warn(
-      `Process not found for ProcessId at ${chainName} block ${event.block.number}`,
+    getLogger().warn(
+      { chain: chainName, block: event.block.number },
+      'Process not found for ProcessId',
     );
     return;
   }
@@ -340,7 +351,10 @@ ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
   });
 
   if (!blockId) {
-    console.error(`Failed to store block for ${processData.chainName}`);
+    getLogger().error(
+      { chain: processData.chainName },
+      'Failed to store block',
+    );
     return;
   }
 
@@ -368,7 +382,10 @@ ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
   );
 
   if (!txId) {
-    console.error(`Failed to store transaction for ${processData.chainName}`);
+    getLogger().error(
+      { chain: processData.chainName },
+      'Failed to store transaction',
+    );
     return;
   }
 
