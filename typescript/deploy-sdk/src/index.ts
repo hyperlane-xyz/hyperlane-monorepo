@@ -10,10 +10,6 @@ export { createHookReader } from './hook/hook-reader.js';
 export { HookWriter, createHookWriter } from './hook/hook-writer.js';
 export { createIsmReader } from './ism/generic-ism.js';
 export { IsmWriter, createIsmWriter } from './ism/generic-ism-writer.js';
-export {
-  ismConfigToArtifact,
-  shouldDeployNewIsm,
-} from './ism/ism-config-utils.js';
 export { WarpTokenReader, createWarpTokenReader } from './warp/warp-reader.js';
 export { WarpTokenWriter, createWarpTokenWriter } from './warp/warp-writer.js';
 export {

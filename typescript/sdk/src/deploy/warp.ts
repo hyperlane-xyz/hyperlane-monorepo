@@ -4,7 +4,6 @@ import {
   createHookWriter,
   createIsmWriter,
   createWarpTokenWriter,
-  ismConfigToArtifact,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
@@ -12,7 +11,10 @@ import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  IsmConfig as ProviderIsmConfig,
+  ismConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import {
   WarpConfig as ProviderWarpConfig,
