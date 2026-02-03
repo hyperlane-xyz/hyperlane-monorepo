@@ -448,6 +448,8 @@ export function generateWarpConfigs(
     // No adapter has been implemented yet
     TokenType.ethEverclear,
     TokenType.collateralEverclear,
+    // Forward-compatibility placeholder, not deployable
+    TokenType.unknown,
   ]);
 
   const allowedWarpTokenTypes = Object.values(TokenType).filter(
