@@ -73,6 +73,16 @@ ponder.on(
       return;
     }
 
+    // Check if destination domain exists
+    const destDomainExists = await adapter.domainExists(destinationDomain);
+    if (!destDomainExists) {
+      console.warn(
+        `Unknown destination domain ${destinationDomain} for GasPayment msg=${messageId} ` +
+          `(origin=${chainName}, block=${event.block.number})`,
+      );
+      return;
+    }
+
     // Store gas payment
     await adapter.storeGasPayment(
       chainId,

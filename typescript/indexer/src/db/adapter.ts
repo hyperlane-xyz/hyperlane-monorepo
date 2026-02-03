@@ -116,6 +116,19 @@ export class PonderDbAdapter {
   }
 
   /**
+   * Check if a domain exists by its Hyperlane domain ID.
+   */
+  async domainExists(domainId: number): Promise<boolean> {
+    const result = await this.db
+      .select({ id: schema.domain.id })
+      .from(schema.domain)
+      .where(eq(schema.domain.id, domainId))
+      .limit(1);
+
+    return result.length > 0;
+  }
+
+  /**
    * Store or retrieve a block. Returns block ID.
    */
   async storeBlock(
@@ -222,22 +235,32 @@ export class PonderDbAdapter {
 
   /**
    * Store all logs from a transaction (FR-9).
+   * Uses raw SQL with hex literals for bytea to avoid UTF8 encoding issues.
    */
   async storeTransactionLogs(txId: number, logs: LogData[]): Promise<void> {
     if (logs.length === 0) return;
 
-    const values = logs.map((log) => ({
-      txId,
-      logIndex: log.logIndex,
-      address: hexToBuffer(log.address),
-      topics: log.topics.map((t) => hexToBuffer(t)),
-      data: log.data ? hexToBuffer(log.data) : null,
-    }));
+    for (const log of logs) {
+      try {
+        // Convert topics to PostgreSQL bytea array literal format
+        const topicsLiteral = `{${log.topics.map((t) => `"\\\\x${t.slice(2)}"`).join(',')}}`;
+        // Data as hex literal or NULL
+        const dataHex =
+          log.data && log.data.length > 2 ? `\\x${log.data.slice(2)}` : null;
+        const addressHex = `\\x${log.address.slice(2)}`;
 
-    await this.db
-      .insert(schema.ponderTransactionLog)
-      .values(values)
-      .onConflictDoNothing();
+        await this.pool.query(
+          `INSERT INTO ponder_transaction_log (tx_id, log_index, address, topics, data)
+           VALUES ($1, $2, $3, $4, $5)
+           ON CONFLICT DO NOTHING`,
+          [txId, log.logIndex, addressHex, topicsLiteral, dataHex],
+        );
+      } catch (err: any) {
+        console.warn(
+          `Failed to store log ${log.logIndex} for txId=${txId}: ${err.message}`,
+        );
+      }
+    }
   }
 
   /**

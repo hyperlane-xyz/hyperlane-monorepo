@@ -131,24 +131,54 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
     return;
   }
 
-  // Note: FR-9 (full tx log indexing) not available - Ponder receipt doesn't include logs
+  // FR-9: Fetch full transaction receipt to get all logs
+  try {
+    const fullReceipt = await context.client.getTransactionReceipt({
+      hash: event.transaction.hash,
+    });
+    if (fullReceipt?.logs && fullReceipt.logs.length > 0) {
+      await adapter.storeTransactionLogs(
+        txId,
+        fullReceipt.logs.map((log: any) => ({
+          logIndex: log.logIndex,
+          address: log.address,
+          topics: log.topics,
+          data: log.data,
+        })),
+      );
+    }
+  } catch (err: any) {
+    console.warn(
+      `Failed to fetch/store logs for tx ${event.transaction.hash}: ${err.message}`,
+    );
+  }
 
-  // Store the dispatch event (message)
-  await adapter.storeDispatch(
-    chainId,
-    mailboxAddress,
-    {
-      messageId,
-      sender: extractAddress(parsed.sender),
-      destination: parsed.destination,
-      recipient: parsed.recipient,
-      message: parsed.body,
-      nonce: parsed.nonce,
-      version: parsed.version,
-      logIndex: event.log.logIndex,
-    },
-    txId,
-  );
+  // Check if destination domain exists
+  const destDomainExists = await adapter.domainExists(parsed.destination);
+  if (!destDomainExists) {
+    console.warn(
+      `Unknown destination domain ${parsed.destination} for message ${messageId} ` +
+        `(origin=${chainName}, sender=${extractAddress(parsed.sender)}, nonce=${parsed.nonce})`,
+    );
+    // Still store raw dispatch but skip ponder_message
+  } else {
+    // Store the dispatch event (message)
+    await adapter.storeDispatch(
+      chainId,
+      mailboxAddress,
+      {
+        messageId,
+        sender: extractAddress(parsed.sender),
+        destination: parsed.destination,
+        recipient: parsed.recipient,
+        message: parsed.body,
+        nonce: parsed.nonce,
+        version: parsed.version,
+        logIndex: event.log.logIndex,
+      },
+      txId,
+    );
+  }
 
   // Store raw dispatch (lightweight record)
   await adapter.storeRawDispatch(
