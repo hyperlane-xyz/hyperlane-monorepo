@@ -18,6 +18,7 @@ import {
   loadScenarioFile,
 } from '../../src/index.js';
 import type {
+  ChainStrategyConfig,
   IRebalancerRunner,
   ScenarioFile,
   SimulationResult,
@@ -147,11 +148,17 @@ export async function runScenarioWithRebalancers(
           );
         }
       }
+      // Cleanup provider after applying imbalance
+      provider.removeAllListeners();
+      provider.polling = false;
     }
 
-    const strategyConfig = {
+    const strategyConfig: {
+      type: 'weighted' | 'minAmount';
+      chains: Record<string, ChainStrategyConfig>;
+    } = {
       type: file.defaultStrategyConfig.type,
-      chains: {} as Record<string, any>,
+      chains: {},
     };
     for (const [chainName, chainConfig] of Object.entries(
       file.defaultStrategyConfig.chains,

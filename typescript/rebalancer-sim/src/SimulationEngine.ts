@@ -4,6 +4,7 @@ import {
   ERC20__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
+import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { BridgeMockController } from './BridgeMockController.js';
@@ -145,7 +146,7 @@ export class SimulationEngine {
       await rebalancer.start();
 
       // Start periodic mailbox processing for delayed user transfer delivery
-      this.startMailboxProcessing(timing.userTransferDeliveryDelay);
+      this.startMailboxProcessing();
 
       // Execute transfers according to scenario
       await this.executeTransfers(scenario, timing);
@@ -153,7 +154,7 @@ export class SimulationEngine {
       // Wait for all user transfer deliveries (respecting delay)
       // Use a timeout to prevent indefinite hanging
       await Promise.race([
-        this.waitForUserTransferDeliveries(timing.userTransferDeliveryDelay),
+        this.waitForUserTransferDeliveries(),
         new Promise<void>((resolve) => setTimeout(resolve, 60000)), // 60s max
       ]);
 
@@ -293,9 +294,12 @@ export class SimulationEngine {
           transfer.destination,
           timing.userTransferDeliveryDelay,
         );
-      } catch (error: any) {
+      } catch (error) {
         logger.error(
-          { transferId: transfer.id, error: error.reason || error.message },
+          {
+            transferId: transfer.id,
+            error: error instanceof Error ? error.message : String(error),
+          },
           'Transfer failed',
         );
         this.kpiCollector!.recordTransferFailed(transfer.id);
@@ -307,7 +311,7 @@ export class SimulationEngine {
   /**
    * Start periodic processing of mailbox messages (simulates relayer with delay)
    */
-  private startMailboxProcessing(_deliveryDelay: number): void {
+  private startMailboxProcessing(): void {
     // Process mailbox every 100ms to check for deliveries due
     const PROCESS_INTERVAL = 100;
 
@@ -346,7 +350,6 @@ export class SimulationEngine {
    * Wait for all pending user transfer deliveries to complete
    */
   private async waitForUserTransferDeliveries(
-    _deliveryDelay: number,
     timeout: number = 30000,
   ): Promise<void> {
     if (!this.messageTracker) return;
@@ -389,11 +392,11 @@ export class SimulationEngine {
   /**
    * Build WarpCoreConfig from deployment
    */
-  private buildWarpConfig(): any {
+  private buildWarpConfig(): WarpCoreConfig {
     const tokens = Object.entries(this.deployment.domains).map(
       ([chainName, domain]) => ({
         chainName,
-        standard: 'HypCollateral',
+        standard: TokenStandard.EvmHypCollateral,
         decimals: 18,
         symbol: 'SIM',
         name: 'Simulation Token',

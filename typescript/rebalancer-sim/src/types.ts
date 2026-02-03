@@ -37,8 +37,6 @@ export interface BridgeRouteConfig {
   failureRate: number;
   /** Jitter in milliseconds (± variance) */
   deliveryJitter: number;
-  /** Optional native fee for bridge */
-  nativeFee?: bigint;
   /** Optional token fee as basis points (e.g., 10 = 0.1%) */
   tokenFeeBps?: number;
 }
@@ -462,7 +460,7 @@ export interface ScenarioFile {
   /** Ordered list of transfer events */
   transfers: SerializedTransferEvent[];
 
-  /** Default initial collateral balance per chain in wei (as string for JSON) */
+  /** Default initial collateral balance in wei, applied to all chains (as string for JSON) */
   defaultInitialCollateral: string;
 
   /** Default timing configuration */

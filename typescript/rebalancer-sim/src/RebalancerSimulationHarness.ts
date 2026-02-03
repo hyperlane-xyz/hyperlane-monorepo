@@ -1,5 +1,3 @@
-import { ethers } from 'ethers';
-
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { deployMultiDomainSimulation } from './SimulationDeployment.js';
@@ -172,11 +170,6 @@ export class RebalancerSimulationHarness {
     }
 
     const results: SimulationResult[] = [];
-    const provider = new ethers.providers.JsonRpcProvider(this.config.anvilRpc);
-    // Set fast polling interval for tx.wait() - ethers defaults to 4000ms
-    provider.pollingInterval = 100;
-    // Disable automatic polling to reduce RPC contention
-    provider.polling = false;
 
     for (const rebalancer of rebalancers) {
       // Recreate engine with fresh provider to avoid cached RPC state
