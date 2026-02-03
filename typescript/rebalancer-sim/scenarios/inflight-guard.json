@@ -44,7 +44,7 @@
   "defaultInitialCollateral": "100000000000000000000",
   "defaultTiming": {
     "userTransferDeliveryDelay": 0,
-    "rebalancerPollingFrequency": 200,
+    "rebalancerPollingFrequency": 1000,
     "userTransferInterval": 100
   },
   "defaultBridgeConfig": {
