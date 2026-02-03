@@ -1,13 +1,23 @@
 import { BHP256, Plaintext, Program, U128 } from '@provablehq/sdk/mainnet.js';
 
-import { isValidAddressAleo, strip0x } from '@hyperlane-xyz/utils';
+import { TokenType } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  isValidAddressAleo,
+  isZeroishAddress,
+  strip0x,
+} from '@hyperlane-xyz/utils';
 
 import { type AleoProgram, programRegistry } from '../artifacts.js';
+
+import { AleoTokenType } from './types.js';
 
 const upgradeAuthority = process.env['ALEO_UPGRADE_AUTHORITY'] || '';
 const skipSuffixes = JSON.parse(process.env['ALEO_SKIP_SUFFIXES'] || 'false');
 const customIsmSuffix = process.env['ALEO_ISM_MANAGER_SUFFIX'];
-const customWarpSuffix = process.env['ALEO_WARP_SUFFIX'];
+
+function getCustomWarpSuffixFromEnv(): string | undefined {
+  return process.env['ALEO_WARP_SUFFIX'];
+}
 
 export const MAINNET_PREFIX = 'hyp';
 export const TESTNET_PREFIX = 'test_hyp';
@@ -75,7 +85,7 @@ export function loadProgramsInDeployOrder(
           .replaceAll(
             /(hyp_native|hyp_collateral|hyp_synthetic).aleo/g,
             (_, p1) =>
-              `${p1}_${customWarpSuffix || warpSuffix || coreSuffix}.aleo`,
+              `${p1}_${getCustomWarpSuffixFromEnv() || warpSuffix || coreSuffix}.aleo`,
           ),
       ),
     );
@@ -168,7 +178,7 @@ export const ALEO_NULL_ADDRESS =
 export const ALEO_NATIVE_DENOM = 'credits';
 
 export function formatAddress(address: string): string {
-  return address === ALEO_NULL_ADDRESS ? '' : address;
+  return isZeroishAddress(address) ? '' : address;
 }
 
 export function fillArray(array: any[], length: number, fillValue: any): any[] {
@@ -308,4 +318,37 @@ export function getBalanceKey(address: string, denom: string): string {
       Plaintext.fromString(`{account:${address},token_id:${denom}}`).toBitsLe(),
     )
     .toString();
+}
+
+/**
+ * Convert AleoTokenType to provider-sdk TokenType
+ */
+export function providerWarpTokenTypeFromAleoTokenType(
+  aleoType: AleoTokenType,
+): TokenType {
+  switch (aleoType) {
+    case AleoTokenType.NATIVE:
+      return TokenType.native;
+    case AleoTokenType.SYNTHETIC:
+      return TokenType.synthetic;
+    case AleoTokenType.COLLATERAL:
+      return TokenType.collateral;
+    default:
+      throw new Error(`Unknown AleoTokenType: ${aleoType}`);
+  }
+}
+
+/**
+ * Generate a random suffix of length n using alphanumeric characters
+ */
+export function generateSuffix(n: number): string {
+  const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
+  let result = '';
+
+  for (let i = 0; i < n; i++) {
+    const randomIndex = Math.floor(Math.random() * characters.length);
+    result += characters[randomIndex];
+  }
+
+  return result;
 }

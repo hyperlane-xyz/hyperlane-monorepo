@@ -14,6 +14,18 @@ export const TEST_ALEO_PRIVATE_KEY =
   'APrivateKey1zkp8CZNn3yeCseEtxuVPbDCwSyhGW6yZKUYKfgXmcpoGPWH';
 
 /**
+ * Test deployer address derived from TEST_ALEO_PRIVATE_KEY
+ */
+export const TEST_ALEO_DEPLOYER_ADDRESS =
+  'aleo1rhgdu77hgyqd3xjj8ucu3jj9r2krwz6mnzyd80gncr5fxcwlh5rsvzp9px';
+
+/**
+ * Burn address for Aleo local network
+ */
+export const TEST_ALEO_BURN_ADDRESS =
+  'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
+
+/**
  * Docker image for Aleo devnode
  */
 export const ALEO_DEVNODE_IMAGE =
