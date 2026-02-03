@@ -28,7 +28,6 @@
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
     "@hyperlane-xyz/core": "workspace:*",
-    "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/sdk": "workspace:*",
@@ -49,6 +48,7 @@
   },
   "devDependencies": {
     "@ethersproject/constants": "*",
+    "@hyperlane-xyz/relayer": "workspace:*",
     "execa": "^9.5.3",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai-as-promised": "catalog:",
