@@ -712,7 +712,11 @@ function renderTimeline(viz, vizIndex) {
       }
 
       // Event handlers
-      g.addEventListener('mouseenter', (e) => showTooltip(e, transfer, 'transfer'));
+      g.addEventListener('mouseenter', (e) => {
+        // Bring to front by moving to end of parent
+        g.parentNode.appendChild(g);
+        showTooltip(e, transfer, 'transfer');
+      });
       g.addEventListener('mouseleave', hideTooltip);
       g.addEventListener('click', () => showDetails(transfer, 'transfer'));
 
@@ -834,7 +838,11 @@ function renderTimeline(viz, vizIndex) {
           g.appendChild(arrow);
         }
 
-        g.addEventListener('mouseenter', (e) => showTooltip(e, rebalance, 'rebalance'));
+        g.addEventListener('mouseenter', (e) => {
+          // Bring to front by moving to end of parent
+          g.parentNode.appendChild(g);
+          showTooltip(e, rebalance, 'rebalance');
+        });
         g.addEventListener('mouseleave', hideTooltip);
         g.addEventListener('click', () => showDetails(rebalance, 'rebalance'));
 
