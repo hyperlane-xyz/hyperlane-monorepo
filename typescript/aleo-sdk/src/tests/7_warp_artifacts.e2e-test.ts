@@ -22,6 +22,7 @@ import type {
   RawCollateralWarpArtifactConfig,
   RawNativeWarpArtifactConfig,
   RawSyntheticWarpArtifactConfig,
+  RawWarpArtifactConfig,
   WarpArtifactConfig,
   WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
@@ -691,6 +692,37 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
           // Should have no transactions (ISM still undefined)
           expect(txs).to.be.an('array').with.length(0);
         });
+
+        it('should not generate ISM update tx when current ism is undefined and the 0 address is provided in the config', async () => {
+          const initialConfig = getConfig();
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          const updatedConfig: ArtifactDeployed<
+            RawWarpArtifactConfig,
+            DeployedWarpAddress
+          > = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: '0x0000000000000000000000000000000000000000',
+                },
+              },
+            },
+          };
+
+          // Try to update with ISM still undefined (should not generate tx)
+          const txs = await writer.update(updatedConfig);
+
+          // Should generate 0 transactions (ISM unchanged)
+          expect(txs).to.be.an('array').with.length(0);
+        });
       });
 
       describe('Hook updates', function () {
@@ -986,6 +1018,37 @@ describe('Aleo Warp Tokens Artifact API (e2e)', function () {
           // Verify hook is now unset (zero address treated as unset)
           const readToken2 = await reader.read(deployedToken.deployed.address);
           expect(readToken2.config.hook).to.be.undefined;
+        });
+
+        it('should not generate hook update tx when current hook is undefined and the 0 address is provided in the config', async () => {
+          const initialConfig = getConfig();
+
+          const writer = artifactManager.createWriter(type, aleoSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          const updatedConfig: ArtifactDeployed<
+            RawWarpArtifactConfig,
+            DeployedWarpAddress
+          > = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              hook: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: '0x0000000000000000000000000000000000000000',
+                },
+              },
+            },
+          };
+
+          // Try to update with Hook still undefined (should not generate tx)
+          const txs = await writer.update(updatedConfig);
+
+          // Should generate 0 transactions (Hook unchanged)
+          expect(txs).to.be.an('array').with.length(0);
         });
       });
     });

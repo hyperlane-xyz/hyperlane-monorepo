@@ -3,8 +3,8 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  type DeployedRawWarpArtifact,
   type DeployedWarpAddress,
-  type DeployedWarpArtifact,
   type IRawWarpArtifactManager,
   type RawWarpArtifactConfigs,
   type WarpType,
@@ -35,7 +35,7 @@ export class AleoWarpArtifactManager implements IRawWarpArtifactManager {
     private readonly onChainArtifactManagers: OnChainArtifactManagers,
   ) {}
 
-  async readWarpToken(address: string): Promise<DeployedWarpArtifact> {
+  async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
     // Detect warp token type first
     const aleoTokenType = await getAleoWarpTokenType(this.aleoClient, address);
 
