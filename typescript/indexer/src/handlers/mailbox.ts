@@ -7,6 +7,7 @@ import {
   extractAddress,
   parseMessage,
 } from '../types/events.js';
+import { updateProgress } from '../utils/progress.js';
 
 /**
  * Pending Process event data waiting for ProcessId correlation.
@@ -71,7 +72,7 @@ function txKey(
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
   const adapter = getAdapter();
-  const { chainId, name: chainName } = context.network;
+  const { id: chainId, name: chainName } = context.chain;
   const mailboxAddress = context.contracts.Mailbox.address as `0x${string}`;
 
   const { message } = event.args;
@@ -213,8 +214,12 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
     timestamp: Number(event.block.timestamp),
   });
 
-  console.log(
-    `Indexed Dispatch on ${chainName}: ${messageId} (block ${event.block.number})`,
+  // Update progress tracking (logs periodically, not every event)
+  await updateProgress(
+    chainId,
+    chainName,
+    Number(event.block.number),
+    context.client,
   );
 });
 
@@ -234,7 +239,7 @@ ponder.on('Mailbox:DispatchId', async (_: any) => {
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ponder.on('Mailbox:Process', async ({ event, context }: any) => {
-  const { chainId, name: chainName } = context.network;
+  const { id: chainId, name: chainName } = context.chain;
   const mailboxAddress = context.contracts.Mailbox.address as `0x${string}`;
 
   const { origin, sender, recipient } = event.args;
@@ -291,7 +296,7 @@ ponder.on('Mailbox:Process', async ({ event, context }: any) => {
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
   const adapter = getAdapter();
-  const { chainId, name: chainName } = context.network;
+  const { id: chainId, name: chainName } = context.chain;
   const { messageId } = event.args;
 
   // Look up the pending Process event data (Process runs at logIndex-1)
@@ -377,7 +382,11 @@ ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
     timestamp: Number(processData.block.timestamp),
   });
 
-  console.log(
-    `Indexed Process on ${processData.chainName}: ${messageId} (block ${processData.block.number})`,
+  // Update progress tracking
+  await updateProgress(
+    processData.chainId,
+    processData.chainName,
+    Number(processData.block.number),
+    context.client,
   );
 });

@@ -2,6 +2,7 @@ import { ponder } from 'ponder:registry';
 import * as ponderSchema from 'ponder:schema';
 
 import { getAdapter } from '../db/adapter.js';
+import { updateProgress } from '../utils/progress.js';
 
 // =============================================================================
 // MerkleTreeHook: InsertedIntoTree Event Handler
@@ -12,7 +13,7 @@ ponder.on(
   'MerkleTreeHook:InsertedIntoTree',
   async ({ event, context }: any) => {
     const adapter = getAdapter();
-    const { chainId, name: chainName } = context.network;
+    const { id: chainId, name: chainName } = context.chain;
     const merkleTreeHookAddress = context.contracts.MerkleTreeHook
       .address as `0x${string}`;
     const { messageId, index } = event.args;
@@ -88,8 +89,12 @@ ponder.on(
       timestamp: Number(event.block.timestamp),
     });
 
-    console.log(
-      `Indexed InsertedIntoTree on ${chainName}: msg=${messageId} index=${index} (block ${event.block.number})`,
+    // Update progress tracking
+    await updateProgress(
+      chainId,
+      chainName,
+      Number(event.block.number),
+      context.client,
     );
   },
 );

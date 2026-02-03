@@ -5,7 +5,8 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "ponder dev",
+    "dev": "ponder dev --disable-ui",
+    "dev:ui": "ponder dev",
     "start": "ponder start",
     "serve": "ponder serve",
     "codegen": "ponder codegen",
@@ -22,7 +23,7 @@
     "drizzle-orm": "^0.38.3",
     "hono": "catalog:",
     "pg": "^8.13.1",
-    "ponder": "^0.8.22",
+    "ponder": "^0.16.3",
     "viem": "catalog:"
   },
   "devDependencies": {

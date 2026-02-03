@@ -192,15 +192,17 @@ function getRpcUrl(
 }
 
 /**
- * Build Ponder network configuration from chain configs.
+ * Build Ponder chains configuration from chain configs.
+ * Note: Ponder 0.11+ uses 'chains' instead of 'networks', 'id' instead of 'chainId',
+ * and 'rpc' instead of 'transport'.
  */
-export function buildPonderNetworks(chains: IndexerChainConfig[]) {
+export function buildPonderChains(chains: IndexerChainConfig[]) {
   return Object.fromEntries(
     chains.map((chain) => [
       chain.name,
       {
-        chainId: chain.chainId,
-        transport: http(chain.rpcUrl),
+        id: chain.chainId,
+        rpc: http(chain.rpcUrl),
       },
     ]),
   );
