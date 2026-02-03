@@ -126,7 +126,10 @@ export async function executeWarpDeploy(
   for (const protocol of protocols) {
     const protocolSpecificConfig = objFilter(
       modifiedConfig,
-      (chainName, config): config is any =>
+      (
+        chainName,
+        config,
+      ): config is WarpRouteDeployConfigMailboxRequired['string'] =>
         multiProvider.getProtocol(chainName) === protocol &&
         !config.foreignDeployment,
     );
@@ -155,25 +158,25 @@ export async function executeWarpDeploy(
       default: {
         const chainLookup = altVmChainLookup(multiProvider);
 
-        const deployResults = await promiseObjAll(
-          objMap(protocolSpecificConfig, async (chain, config) => {
-            const signer = mustGet(altVmSigners, chain);
-            const chainMetadata = chainLookup.getChainMetadata(chain);
-            const writer = createWarpTokenWriter(
-              chainMetadata,
-              chainLookup,
-              signer,
-            );
+        const deployResults: ChainMap<Address> = {};
+        for (const chain of objKeys(protocolSpecificConfig)) {
+          const config = mustGet(protocolSpecificConfig, chain);
+          const signer = mustGet(altVmSigners, chain);
+          const chainMetadata = chainLookup.getChainMetadata(chain);
+          const writer = createWarpTokenWriter(
+            chainMetadata,
+            chainLookup,
+            signer,
+          );
 
-            const artifact = warpConfigToArtifact(
-              config as ProviderWarpConfig,
-              chainLookup,
-            );
+          const artifact = warpConfigToArtifact(
+            config as ProviderWarpConfig,
+            chainLookup,
+          );
 
-            const [deployed] = await writer.create(artifact);
-            return deployed.deployed.address;
-          }),
-        );
+          const [deployed] = await writer.create(artifact);
+          deployResults[chain] = deployed.deployed.address;
+        }
 
         deployedContracts = {
           ...deployedContracts,
