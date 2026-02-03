@@ -160,29 +160,29 @@ export type RawArtifact<C, D> = {
 };
 
 /**
+ * Helper type to transform nested objects containing Artifacts.
+ * Handles objects where all properties are Artifacts (required or optional).
+ */
+type NestedOnChain<T> = T extends { [L: string]: Artifact<infer CC, infer DD> }
+  ? { [L in keyof T]: ArtifactOnChain<CC, DD> }
+  : T extends { [L: string]: Artifact<infer CC, infer DD> | undefined }
+    ? { [L in keyof T]: ArtifactOnChain<CC, DD> | undefined }
+    : T;
+
+/**
  * Utility type to convert a config type to its on-chain representation.
  * Replaces Artifact<> types one level deep with ArtifactOnChain<> types.
  * Unlike RawArtifact, preserves the nested deployment types.
- * Handles optional/undefined fields properly.
+ * Handles optional/undefined fields properly using conditional modifiers.
  */
 export type ConfigOnChain<C> = {
-  [K in keyof C]: C[K] extends Artifact<infer CC, infer DD> | undefined
-    ? ArtifactOnChain<CC, DD> | undefined
-    : C[K] extends Artifact<infer CC, infer DD>
-      ? ArtifactOnChain<CC, DD>
-      : C[K] extends (infer E)[]
-        ? (E extends Artifact<infer CC, infer DD> | undefined
-            ? ArtifactOnChain<CC, DD> | undefined
-            : E extends Artifact<infer CC, infer DD>
-              ? ArtifactOnChain<CC, DD>
-              : E)[]
-        : C[K] extends { [L: string]: Artifact<infer CC, infer DD> }
-          ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> }
-          : C[K] extends {
-                [L: string]: Artifact<infer CC, infer DD> | undefined;
-              }
-            ? { [L in keyof C[K]]: ArtifactOnChain<CC, DD> | undefined }
-            : C[K];
+  [K in keyof C]: C[K] extends Artifact<infer CC, infer DD>
+    ? ArtifactOnChain<CC, DD>
+    : C[K] extends Artifact<infer CC, infer DD> | undefined
+      ? ArtifactOnChain<CC, DD> | undefined
+      : C[K] extends Artifact<infer CC, infer DD>[]
+        ? ArtifactOnChain<CC, DD>[]
+        : NestedOnChain<C[K]>;
 };
 
 /**
