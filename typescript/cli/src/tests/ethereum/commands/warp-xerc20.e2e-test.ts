@@ -308,7 +308,7 @@ describe('warp xerc20 e2e tests', function () {
           --bridge ${bridgeToRemove} \
           --out ${TX_OUTPUT_PATH} \
           --verbosity debug`;
-      } catch (error) {
+      } catch {
         errorThrown = true;
       }
 
@@ -408,7 +408,7 @@ describe('warp xerc20 e2e tests', function () {
           --buffer-cap 2000 \
           --out ${TX_OUTPUT_PATH} \
           --verbosity debug`;
-      } catch (error) {
+      } catch {
         errorThrown = true;
       }
 
@@ -427,7 +427,7 @@ describe('warp xerc20 e2e tests', function () {
           --mint 1000 \
           --out ${TX_OUTPUT_PATH} \
           --verbosity debug`;
-      } catch (error) {
+      } catch {
         errorThrown = true;
       }
 
