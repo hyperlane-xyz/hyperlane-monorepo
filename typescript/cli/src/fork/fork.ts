@@ -54,9 +54,15 @@ export async function runForkCommand({
   );
 
   let port = basePort;
+  // Wrapper to handle null returns from readYamlOrJson
+  const readYamlOrJsonNonNull = <T>(path: string): T => {
+    const result = readYamlOrJson<T>(path);
+    assert(result, `Empty config file at ${path}`);
+    return result;
+  };
   const parsedForkConfig = forkedChainConfigByChainFromRaw(
     forkConfig,
-    readYamlOrJson,
+    readYamlOrJsonNonNull,
   );
   const chainMetadataOverrides: ChainMap<{
     blocks: ChainMetadata['blocks'];

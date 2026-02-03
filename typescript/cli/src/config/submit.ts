@@ -4,7 +4,7 @@ import {
   type AnnotatedEV5Transaction,
   type ChainName,
 } from '@hyperlane-xyz/sdk';
-import { type ProtocolType, errorToString } from '@hyperlane-xyz/utils';
+import { type ProtocolType, assert, errorToString } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
 import { getSubmitterByStrategy } from '../deploy/warp.js';
@@ -58,5 +58,12 @@ export async function runSubmit({
 export function getTransactions(
   transactionsFilepath: string,
 ): AnnotatedEV5Transaction[] {
-  return readYamlOrJson<AnnotatedEV5Transaction[]>(transactionsFilepath.trim());
+  const transactions = readYamlOrJson<AnnotatedEV5Transaction[]>(
+    transactionsFilepath.trim(),
+  );
+  assert(
+    transactions,
+    `Empty transactions file at ${transactionsFilepath.trim()}`,
+  );
+  return transactions;
 }

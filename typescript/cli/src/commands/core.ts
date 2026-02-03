@@ -7,7 +7,7 @@ import {
   DeployedCoreAddressesSchema,
   normalizeConfig,
 } from '@hyperlane-xyz/sdk';
-import { diffObjMerge } from '@hyperlane-xyz/utils';
+import { assert, diffObjMerge } from '@hyperlane-xyz/utils';
 
 import {
   createCoreDeployConfig,
@@ -238,7 +238,8 @@ export const check: CommandModuleWithContext<{
   handler: async ({ context, chain, mailbox, config: configFilePath }) => {
     logCommandHeader('Hyperlane Core Check');
 
-    const expectedCoreConfig: CoreConfig = await readYamlOrJson(configFilePath);
+    const expectedCoreConfig = await readYamlOrJson<CoreConfig>(configFilePath);
+    assert(expectedCoreConfig, `Empty core config file at ${configFilePath}`);
     const onChainCoreConfig = await executeCoreRead({
       context,
       chain,
