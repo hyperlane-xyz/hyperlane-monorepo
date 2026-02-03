@@ -251,7 +251,7 @@ const removeBridge: CommandModuleWithContext<
   }) => {
     logCommandHeader('Hyperlane XERC20 Remove Bridge');
 
-    const { warpDeployConfig } = await getWarpConfigs({
+    const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
       context,
       warpRouteId,
       symbol,
@@ -260,7 +260,11 @@ const removeBridge: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-    const module = new XERC20WarpModule(context.multiProvider, filteredConfig);
+    const module = new XERC20WarpModule(
+      context.multiProvider,
+      filteredConfig,
+      warpCoreConfig,
+    );
     const transactions: AnnotatedEV5Transaction[] = [];
 
     for (const chainName of Object.keys(filteredConfig)) {
@@ -325,7 +329,11 @@ const viewLimits: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-    const module = new XERC20WarpModule(context.multiProvider, filteredConfig);
+    const module = new XERC20WarpModule(
+      context.multiProvider,
+      filteredConfig,
+      warpCoreConfig,
+    );
     const routerAddresses =
       getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
@@ -427,7 +435,7 @@ async function generateBridgeLimitTxs({
 }): Promise<void> {
   logCommandHeader(`Hyperlane XERC20 ${commandName}`);
 
-  const { warpDeployConfig } = await getWarpConfigs({
+  const { warpDeployConfig, warpCoreConfig } = await getWarpConfigs({
     context,
     warpRouteId,
     symbol,
@@ -436,7 +444,11 @@ async function generateBridgeLimitTxs({
   });
 
   const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-  const module = new XERC20WarpModule(context.multiProvider, filteredConfig);
+  const module = new XERC20WarpModule(
+    context.multiProvider,
+    filteredConfig,
+    warpCoreConfig,
+  );
   const transactions: AnnotatedEV5Transaction[] = [];
 
   for (const chainName of Object.keys(filteredConfig)) {
