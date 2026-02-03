@@ -15,7 +15,6 @@ import {
   type RawForkedChainConfigByChain,
   type RevertAssertion,
   TransactionDataType,
-  forkChain as forkChainBase,
   forkedChainConfigByChainFromRaw,
   impersonateAccounts,
   increaseTime,
@@ -27,6 +26,7 @@ import {
   assert,
   deepEquals,
 } from '@hyperlane-xyz/utils';
+import { forkChain as forkChainBase } from '@hyperlane-xyz/utils/anvil';
 
 import { type CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
