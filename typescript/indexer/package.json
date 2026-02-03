@@ -5,9 +5,10 @@
   "private": true,
   "type": "module",
   "scripts": {
-    "dev": "ponder dev --disable-ui",
+    "dev": "ponder dev --disable-ui --log-level error",
+    "dev:verbose": "ponder dev --disable-ui",
     "dev:ui": "ponder dev",
-    "start": "ponder start",
+    "start": "ponder start --log-level error",
     "serve": "ponder serve",
     "codegen": "ponder codegen",
     "build": "tsc",
