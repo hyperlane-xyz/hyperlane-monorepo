@@ -306,7 +306,18 @@ export class SimpleRunner extends EventEmitter implements IRebalancerRunner {
         amount,
         fromDomain.bridge,
       );
-      await tx.wait();
+      const receipt = await tx.wait();
+
+      this.logger.debug(
+        {
+          txHash: tx.hash,
+          status: receipt.status,
+          gasUsed: receipt.gasUsed.toString(),
+          eventCount: receipt.events?.length || 0,
+          events: receipt.events?.map((e) => e.event).join(', '),
+        },
+        'Rebalance tx receipt',
+      );
 
       this.emit('rebalance', {
         type: 'rebalance_completed',

@@ -161,6 +161,7 @@ export async function deployMultiDomainSimulation(
   }
 
   // Step 7: Add bridges to warp tokens for all destination domains
+  // Note: HypERC20Collateral._addBridge() auto-approves via forceApprove
   for (const chain of chains) {
     const warpToken = warpTokens[chain.domainId];
     for (const otherChain of chains) {
