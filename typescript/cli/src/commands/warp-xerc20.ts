@@ -8,7 +8,6 @@ import {
   type XERC20Limits,
   type XERC20LimitsMap,
   XERC20WarpModule,
-  getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
@@ -334,8 +333,6 @@ const viewLimits: CommandModuleWithContext<
       filteredConfig,
       warpCoreConfig,
     );
-    const routerAddresses =
-      getRouterAddressesFromWarpCoreConfig(warpCoreConfig);
 
     const allLimits: Record<string, { type: string; limits: XERC20LimitsMap }> =
       {};
@@ -344,9 +341,7 @@ const viewLimits: CommandModuleWithContext<
       logBlue(`Reading limits for ${chainName}...`);
       try {
         const xerc20Type = await module.detectType(chainName);
-        const warpRouteBridge = routerAddresses[chainName];
-        const bridges = warpRouteBridge ? [warpRouteBridge] : [];
-        const limits = await module.readLimits(chainName, bridges);
+        const limits = await module.readLimits(chainName);
         allLimits[chainName] = {
           type: xerc20Type,
           limits,
