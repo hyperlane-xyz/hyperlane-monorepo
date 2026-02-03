@@ -21,6 +21,16 @@ import {
   getSetRoutingIsmOwnerTx,
 } from './ism-tx.js';
 
+function wrapTxCreator<T>(
+  base: RadixBase,
+  getTx: (addr: string, arg: T) => Promise<RadixSDKTransaction['manifest']>,
+): (addr: string, arg: T) => Promise<RadixSDKTransaction> {
+  return async (addr, arg) => ({
+    networkId: base.getNetworkId(),
+    manifest: await getTx(addr, arg),
+  });
+}
+
 export class RadixRoutingIsmReader extends AltvmRoutingIsmReader<GatewayApiClient> {
   constructor(gateway: Readonly<GatewayApiClient>) {
     super(gateway, (client, address) =>
@@ -44,35 +54,18 @@ export class RadixRoutingIsmWriter extends AltvmRoutingIsmWriter<
       (client, address) => getDomainRoutingIsmConfig(client, address),
       eqAddressRadix,
       {
-        create: async (signerAddress, routes) => ({
-          networkId: base.getNetworkId(),
-          manifest: await getCreateRoutingIsmTx(base, signerAddress, routes),
-        }),
-        setRoute: async (signerAddress, config) => ({
-          networkId: base.getNetworkId(),
-          manifest: await getSetRoutingIsmDomainIsmTx(
-            base,
-            signerAddress,
-            config,
-          ),
-        }),
-        removeRoute: async (signerAddress, config) => ({
-          networkId: base.getNetworkId(),
-          manifest: await getRemoveRoutingIsmDomainIsmTx(
-            base,
-            signerAddress,
-            config,
-          ),
-        }),
-        setOwner: async (signerAddress, config) => ({
-          networkId: base.getNetworkId(),
-          manifest: await getSetRoutingIsmOwnerTx(
-            base,
-            gateway,
-            signerAddress,
-            config,
-          ),
-        }),
+        create: wrapTxCreator(base, (signerAddress, routes) =>
+          getCreateRoutingIsmTx(base, signerAddress, routes),
+        ),
+        setRoute: wrapTxCreator(base, (signerAddress, config) =>
+          getSetRoutingIsmDomainIsmTx(base, signerAddress, config),
+        ),
+        removeRoute: wrapTxCreator(base, (signerAddress, config) =>
+          getRemoveRoutingIsmDomainIsmTx(base, signerAddress, config),
+        ),
+        setOwner: wrapTxCreator(base, (signerAddress, config) =>
+          getSetRoutingIsmOwnerTx(base, gateway, signerAddress, config),
+        ),
       },
       async (receipt) => base.getNewComponent(receipt),
       () => signer.getAddress(),
