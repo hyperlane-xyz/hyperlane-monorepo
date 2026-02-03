@@ -422,11 +422,11 @@ fn inbox_process(
 /// Gets the ISM to use for a recipient program and sets it as return data.
 ///
 /// Accounts:
-/// 0.    `[]` - The Inbox PDA.
-/// 1.    `[]` - The recipient program.
-/// 2..N. [??] - The accounts required to make the CPI into the recipient program.
-///             These can be retrieved from the recipient using the
-///             `MessageRecipientInstruction::InterchainSecurityModuleAccountMetas` instruction.
+/// - 0: `[]` - The Inbox PDA.
+/// - 1: `[]` - The recipient program.
+/// - 2..N: `[??]` - The accounts required to make the CPI into the recipient program.
+///   These can be retrieved from the recipient using the
+///   `MessageRecipientInstruction::InterchainSecurityModuleAccountMetas` instruction.
 fn inbox_get_recipient_ism(
     program_id: &Pubkey,
     accounts: &[AccountInfo],
