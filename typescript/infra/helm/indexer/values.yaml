@@ -56,6 +56,11 @@ database:
   # Pool configuration
   poolMax: 30
 
+# Database migrations
+migrations:
+  # Run migrations via init container before starting indexer
+  enabled: true
+
 # Service account
 serviceAccount:
   create: true
