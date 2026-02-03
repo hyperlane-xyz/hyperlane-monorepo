@@ -27,6 +27,7 @@ export {
   eqAddressStarknet,
   eqAddressRadix,
   eqAddressAleo,
+  eqOptionalAddress,
   getAddressProtocolType,
   isAddress,
   isAddressCosmos,
