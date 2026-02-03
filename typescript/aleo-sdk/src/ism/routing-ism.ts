@@ -132,10 +132,4 @@ export class AleoRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
 
     return [deployedArtifact, receipts];
   }
-
-  async update(
-    artifact: Parameters<typeof this.updateBase>[0],
-  ): ReturnType<typeof this.updateBase> {
-    return this.updateBase(artifact);
-  }
 }

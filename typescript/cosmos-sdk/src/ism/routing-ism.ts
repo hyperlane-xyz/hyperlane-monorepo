@@ -57,10 +57,4 @@ export class CosmosRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
       async (tx) => signer.sendAndConfirmTransaction(tx),
     );
   }
-
-  async update(
-    artifact: Parameters<typeof this.updateBase>[0],
-  ): ReturnType<typeof this.updateBase> {
-    return this.updateBase(artifact);
-  }
 }

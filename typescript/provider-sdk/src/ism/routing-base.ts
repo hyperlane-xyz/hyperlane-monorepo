@@ -11,6 +11,7 @@ import {
   type DeployedIsmAddress,
   type RawRoutingIsmArtifactConfig,
 } from '../ism.js';
+import { type AnnotatedTx } from '../module.js';
 
 /**
  * Route configuration returned by query functions.
@@ -178,60 +179,66 @@ export class BaseRoutingIsmRawWriter<
     return [deployedArtifact, receipts];
   }
 
-  protected async updateBase(
+  async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<TTx[]> {
+  ): Promise<AnnotatedTx[]> {
     const { config, deployed } = artifact;
     const currentConfig = await this.read(deployed.address);
     const signerAddress = await this.getSignerAddress();
 
-    const transactions: TTx[] = [];
+    const transactions: AnnotatedTx[] = [];
 
-    // Find domains to add or update
+    // Add or update domain routes
     for (const [domainId, expectedIsm] of Object.entries(config.domains)) {
       const domain = parseInt(domainId);
       const currentIsmAddress = currentConfig.config.domains[domain]
         ? currentConfig.config.domains[domain].deployed.address
         : undefined;
-
       const expectedIsmAddress = expectedIsm.deployed.address;
 
       if (
         isNullish(currentIsmAddress) ||
         !this.eqAddress(currentIsmAddress, expectedIsmAddress)
       ) {
-        const transaction = await this.txBuilders.setRoute(signerAddress, {
+        const tx = await this.txBuilders.setRoute(signerAddress, {
           ismAddress: deployed.address,
           domainIsm: { domainId: domain, ismAddress: expectedIsmAddress },
         });
 
-        transactions.push(transaction);
+        transactions.push({
+          annotation: `Set ism for domain ${domain} to ISM ${expectedIsmAddress} on ${IsmType.ROUTING}`,
+          ...tx,
+        });
       }
     }
 
-    // Find domains to remove
+    // Remove domain routes
     for (const domainId of Object.keys(currentConfig.config.domains)) {
       const domain = parseInt(domainId);
-      const desiredIsmAddress = config.domains[domain];
-
-      if (isNullish(desiredIsmAddress)) {
-        const transaction = await this.txBuilders.removeRoute(signerAddress, {
+      if (isNullish(config.domains[domain])) {
+        const tx = await this.txBuilders.removeRoute(signerAddress, {
           ismAddress: deployed.address,
           domainId: domain,
         });
 
-        transactions.push(transaction);
+        transactions.push({
+          annotation: `Remove ism for domain ${domain} on ${IsmType.ROUTING}`,
+          ...tx,
+        });
       }
     }
 
-    // Owner transfer must be last transaction as the current owner executes all updates
+    // Transfer ownership (must be last as current owner executes all updates)
     if (!this.eqAddress(config.owner, currentConfig.config.owner)) {
-      const transaction = await this.txBuilders.setOwner(signerAddress, {
+      const tx = await this.txBuilders.setOwner(signerAddress, {
         ismAddress: deployed.address,
         newOwner: config.owner,
       });
 
-      transactions.push(transaction);
+      transactions.push({
+        annotation: `Transfer ownership of ${IsmType.ROUTING} from ${currentConfig.config.owner} to ${config.owner}`,
+        ...tx,
+      });
     }
 
     return transactions;
