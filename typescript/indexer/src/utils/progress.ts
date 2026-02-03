@@ -74,11 +74,21 @@ export async function updateProgress(
     now - progress.lastLatestBlockFetch >= LATEST_BLOCK_REFRESH_MS
   ) {
     try {
-      const latestBlock = await client.getBlockNumber();
-      progress.latestBlock = Number(latestBlock);
-      progress.lastLatestBlockFetch = now;
-    } catch {
-      // Ignore errors fetching latest block
+      // Ponder's client uses getBlock() instead of getBlockNumber()
+      const block = await client.getBlock({ blockTag: 'latest' });
+      if (block?.number) {
+        progress.latestBlock = Number(block.number);
+        progress.lastLatestBlockFetch = now;
+      }
+    } catch (err: unknown) {
+      // Log once per chain if fetching fails
+      if (progress.latestBlock === 0) {
+        const msg = err instanceof Error ? err.message : String(err);
+        console.warn(
+          `[${chainName}] Could not fetch latest block for ETA: ${msg}`,
+        );
+        progress.lastLatestBlockFetch = now; // Don't spam retries
+      }
     }
   }
 
