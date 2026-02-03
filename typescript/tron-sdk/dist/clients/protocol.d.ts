@@ -12,8 +12,8 @@ export declare class TronProtocolProvider implements ProtocolProvider {
     createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider>;
     createSigner(chainMetadata: ChainMetadataForAltVM, config: SignerConfig): Promise<AltVM.ISigner<AnnotatedTx, TxReceipt>>;
     createSubmitter<TConfig extends TransactionSubmitterConfig>(_chainMetadata: ChainMetadataForAltVM, _config: TConfig): Promise<ITransactionSubmitter>;
-    createIsmArtifactManager(_chainMetadata: ChainMetadataForAltVM): IRawIsmArtifactManager;
-    createHookArtifactManager(_chainMetadata: ChainMetadataForAltVM, _context?: {
+    createIsmArtifactManager(chainMetadata: ChainMetadataForAltVM): IRawIsmArtifactManager;
+    createHookArtifactManager(chainMetadata: ChainMetadataForAltVM, context?: {
         mailbox?: string;
     }): IRawHookArtifactManager;
     getMinGas(): MinimumRequiredGasByAction;

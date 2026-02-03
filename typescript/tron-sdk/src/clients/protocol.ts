@@ -13,6 +13,9 @@ import { IRawIsmArtifactManager } from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { assert } from '@hyperlane-xyz/utils';
 
+import { TronHookArtifactManager } from '../hook/hook-artifact-manager.js';
+import { TronIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+
 import { TronProvider } from './provider.js';
 import { TronSigner } from './signer.js';
 
@@ -56,20 +59,45 @@ export class TronProtocolProvider implements ProtocolProvider {
   }
 
   createIsmArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
-    // Tron uses the same Solidity contracts as EVM, so ISM artifact management
-    // would be similar. For now, throw until we implement ISM factory deployment.
-    throw new Error('ISM artifact manager not yet implemented for Tron');
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    // Create a provider synchronously for the artifact manager
+    // Note: TronProvider.connect is async but we need sync here
+    // We'll create a basic provider instance
+    const provider = new TronProvider({
+      rpcUrls,
+      chainId:
+        typeof chainMetadata.chainId === 'string'
+          ? parseInt(chainMetadata.chainId)
+          : chainMetadata.chainId,
+    });
+
+    return new TronIsmArtifactManager(provider);
   }
 
   createHookArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string },
   ): IRawHookArtifactManager {
-    // Tron uses the same Solidity contracts as EVM, so Hook artifact management
-    // would be similar. For now, throw until we implement Hook factory deployment.
-    throw new Error('Hook artifact manager not yet implemented for Tron');
+    assert(chainMetadata.rpcUrls, 'rpc urls undefined');
+    assert(
+      context?.mailbox,
+      'mailbox address required for hook artifact manager',
+    );
+    const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
+
+    const provider = new TronProvider({
+      rpcUrls,
+      chainId:
+        typeof chainMetadata.chainId === 'string'
+          ? parseInt(chainMetadata.chainId)
+          : chainMetadata.chainId,
+    });
+
+    return new TronHookArtifactManager(provider, context.mailbox);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
