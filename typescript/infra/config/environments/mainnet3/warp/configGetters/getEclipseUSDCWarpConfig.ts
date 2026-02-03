@@ -124,58 +124,48 @@ export const buildEclipseUSDCWarpConfig = async (
 
   const configs: Array<[DeploymentChain, HypTokenRouterConfig]> = [];
 
-  // Configure EVM collateral chains with rebalancing and linear fees
-  for (const currentChain of rebalanceableCollateralChains) {
-    const baseConfig = getRebalancingUSDCConfigForChain(
-      currentChain,
-      routerConfig,
-      ownersByChain,
-      rebalancingConfigByChain,
-    );
+  // Configure EVM collateral chains
+  const rebalanceableSet = new Set<string>(rebalanceableCollateralChains);
 
-    const chainConfig: HypTokenRouterConfig = {
-      ...baseConfig,
-      ...tokenMetadata,
-      tokenFee: getFixedRoutingFeeConfig(
-        getWarpFeeOwner(currentChain),
-        rebalanceableCollateralChains.filter((c) => c !== currentChain),
-        5n,
-      ),
-    };
+  for (const chain of evmDeploymentChains) {
+    let chainConfig: HypTokenRouterConfig;
 
-    const proxyAdmin = proxyAdminOverride?.[currentChain];
-    if (proxyAdmin) {
-      chainConfig.ownerOverrides = { proxyAdmin };
-    }
-
-    configs.push([currentChain, chainConfig]);
-  }
-
-  // Configure Evm collateral for non-rebalancing chains
-  const nonRebalanceableCollateralChains = difference(
-    new Set<DeploymentChain>(evmDeploymentChains),
-    new Set<DeploymentChain>(rebalanceableCollateralChains),
-  );
-
-  nonRebalanceableCollateralChains.forEach((chain) => {
-    const usdcToken =
-      usdcTokenAddresses[chain as keyof typeof usdcTokenAddresses];
-    assert(
-      usdcToken,
-      `USDC address not defined in usdcTokenAddresses for ${chain}`,
-    );
-
-    configs.push([
-      chain,
-      {
+    if (rebalanceableSet.has(chain)) {
+      const baseConfig = getRebalancingUSDCConfigForChain(
+        chain as (typeof rebalanceableCollateralChains)[number],
+        routerConfig,
+        ownersByChain,
+        rebalancingConfigByChain,
+      );
+      chainConfig = {
+        ...baseConfig,
+        ...tokenMetadata,
+        tokenFee: getFixedRoutingFeeConfig(
+          getWarpFeeOwner(chain),
+          rebalanceableCollateralChains.filter((c) => c !== chain),
+          5n,
+        ),
+      };
+    } else {
+      const usdcToken =
+        usdcTokenAddresses[chain as keyof typeof usdcTokenAddresses];
+      assert(usdcToken, `USDC address not defined for ${chain}`);
+      chainConfig = {
         type: TokenType.collateral,
         token: usdcToken,
         owner: ownersByChain[chain],
         mailbox: routerConfig[chain].mailbox,
         ...tokenMetadata,
-      },
-    ]);
-  });
+      };
+    }
+
+    const proxyAdmin = proxyAdminOverride?.[chain];
+    if (proxyAdmin) {
+      chainConfig.ownerOverrides = { proxyAdmin };
+    }
+
+    configs.push([chain, chainConfig]);
+  }
 
   // Configure non-evm chains
   configs.push([
@@ -222,6 +212,7 @@ export const getEclipseUSDCWarpConfig = async (
   });
 };
 
+// Strategies
 export const getUSDCEclipseFileSubmitterStrategyConfig = () =>
   getFileSubmitterStrategyConfig(
     evmDeploymentChains,
