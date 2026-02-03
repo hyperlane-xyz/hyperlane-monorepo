@@ -163,11 +163,15 @@ export type RawArtifact<C, D> = {
  * Helper type to transform nested objects containing Artifacts.
  * Handles objects where all properties are Artifacts (required or optional).
  */
-type NestedOnChain<T> = T extends { [L: string]: Artifact<infer CC, infer DD> }
-  ? { [L in keyof T]: ArtifactOnChain<CC, DD> }
-  : T extends { [L: string]: Artifact<infer CC, infer DD> | undefined }
-    ? { [L in keyof T]: ArtifactOnChain<CC, DD> | undefined }
-    : T;
+type NestedOnChain<T> = T extends { [L: string]: any }
+  ? {
+      [L in keyof T]: T[L] extends Artifact<infer CC, infer DD>
+        ? ArtifactOnChain<CC, DD>
+        : T[L] extends Artifact<infer CC, infer DD> | undefined
+          ? ArtifactOnChain<CC, DD> | undefined
+          : T[L];
+    }
+  : T;
 
 /**
  * Utility type to convert a config type to its on-chain representation.

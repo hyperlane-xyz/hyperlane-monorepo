@@ -176,7 +176,7 @@ export type _Test7 = AssertTrue<
 >;
 
 // ============================================================================
-// Mixed nested object (limitation - not transformed)
+// Mixed nested object (artifact properties transformed recursively)
 // ============================================================================
 
 interface MixedNestedConfig {
@@ -189,16 +189,71 @@ interface MixedNestedConfig {
 
 type MixedNestedResult = ConfigOnChain<MixedNestedConfig>;
 
-// Expected: the mixed object is NOT transformed (falls through to C[K])
+// Expected: the mixed object IS transformed recursively
 type ExpectedMixedNested = {
   mixed: {
-    art: Artifact<TestConfig, TestDeployed>;
+    art: ArtifactOnChain<TestConfig, TestDeployed>;
     bar: string;
   };
   name: string;
 };
 
 export type _Test8 = AssertTrue<Equals<MixedNestedResult, ExpectedMixedNested>>;
+
+// ============================================================================
+// Optional mixed nested object
+// ============================================================================
+
+interface OptionalMixedNestedConfig {
+  mixed?: {
+    art: Artifact<TestConfig, TestDeployed>;
+    bar: string;
+  };
+  name: string;
+}
+
+type OptionalMixedNestedResult = ConfigOnChain<OptionalMixedNestedConfig>;
+
+// Expected: the optional mixed object IS transformed recursively
+type ExpectedOptionalMixedNested = {
+  mixed?: {
+    art: ArtifactOnChain<TestConfig, TestDeployed>;
+    bar: string;
+  };
+  name: string;
+};
+
+export type _Test9 = AssertTrue<
+  Equals<OptionalMixedNestedResult, ExpectedOptionalMixedNested>
+>;
+
+// ============================================================================
+// Mixed nested object with optional Artifact property inside
+// ============================================================================
+
+interface MixedNestedOptionalArtifactConfig {
+  mixed: {
+    art?: Artifact<TestConfig, TestDeployed>;
+    bar: string;
+  };
+  name: string;
+}
+
+type MixedNestedOptionalArtifactResult =
+  ConfigOnChain<MixedNestedOptionalArtifactConfig>;
+
+// Expected: the optional Artifact inside the nested object is transformed
+type ExpectedMixedNestedOptionalArtifact = {
+  mixed: {
+    art?: ArtifactOnChain<TestConfig, TestDeployed>;
+    bar: string;
+  };
+  name: string;
+};
+
+export type _Test10 = AssertTrue<
+  Equals<MixedNestedOptionalArtifactResult, ExpectedMixedNestedOptionalArtifact>
+>;
 
 // ============================================================================
 // Primitives unchanged
@@ -222,7 +277,7 @@ type ExpectedPrimitives = {
   optional?: number;
 };
 
-export type _Test9 = AssertTrue<Equals<PrimitivesResult, ExpectedPrimitives>>;
+export type _Test11 = AssertTrue<Equals<PrimitivesResult, ExpectedPrimitives>>;
 
 // ============================================================================
 // Test that required Artifact does NOT become optional
@@ -240,6 +295,6 @@ type _CorrectRequired = {
 };
 
 // This should now pass with the fixed implementation
-export type _Test10 = AssertTrue<
+export type _Test12 = AssertTrue<
   Equals<_StrictRequiredResult, _CorrectRequired>
 >;
