@@ -5,6 +5,8 @@ import {
   ChainSubmissionStrategy,
   HypTokenRouterConfig,
   OwnableConfig,
+  SubmissionStrategy,
+  SubmitterMetadata,
   TokenType,
   TxSubmitterType,
 } from '@hyperlane-xyz/sdk';
@@ -109,16 +111,16 @@ export const getVictionETHStrategyConfig = (): ChainSubmissionStrategy => {
   const safeChain = 'ethereum';
   const safeAddress = awSafes[safeChain];
 
-  const safeSubmitter = {
-    type: TxSubmitterType.GNOSIS_TX_BUILDER as const,
+  const safeSubmitter: SubmitterMetadata = {
+    type: TxSubmitterType.GNOSIS_TX_BUILDER,
     chain: safeChain,
     safeAddress,
     version: '1.0',
   };
 
-  const victionIcaStrategy = {
+  const victionIcaStrategy: SubmissionStrategy = {
     submitter: {
-      type: TxSubmitterType.INTERCHAIN_ACCOUNT as const,
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
       chain: safeChain,
       destinationChain: 'viction',
       owner: safeAddress,
