@@ -191,10 +191,12 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
 
     .transfer-group:hover .transfer-bar {
       filter: brightness(1.2);
+      stroke: #fff;
+      stroke-width: 2;
     }
 
     .transfer-bar {
-      transition: filter 0.2s;
+      transition: filter 0.2s, stroke 0.2s;
     }
 
     .transfer-label {
@@ -221,6 +223,15 @@ function getStyles(opts: Required<HtmlGeneratorOptions>): string {
 
     .rebalance-marker {
       cursor: pointer;
+    }
+
+    .rebalance-marker:hover .rebalance-bar {
+      stroke: #fff;
+      stroke-width: 2;
+    }
+
+    .rebalance-bar {
+      transition: stroke 0.2s;
     }
 
     .rebalance-arrow {
@@ -749,6 +760,7 @@ function renderTimeline(viz, vizIndex) {
 
         // Rebalance bar
         const rect = document.createElementNS('http://www.w3.org/2000/svg', 'rect');
+        rect.setAttribute('class', 'rebalance-bar');
         rect.setAttribute('x', startX);
         rect.setAttribute('y', y - barHeight / 2);
         rect.setAttribute('width', width);
