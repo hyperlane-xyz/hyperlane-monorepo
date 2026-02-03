@@ -1,0 +1,203 @@
+{
+  "name": "moderate-imbalance-chain1",
+  "description": "Tests rebalancer with moderate (not extreme) imbalance.",
+  "expectedBehavior": "70% of transfers go TO chain1 (moderate drain).\nShould trigger rebalancing but less aggressively than extreme scenarios.\nTests that rebalancer responds proportionally to imbalance severity.",
+  "duration": 8000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "imb-000000",
+      "timestamp": 0,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4876626375932819419",
+      "user": "0x5fb89f78d45aec745094fc16f81edccad2d2cc54"
+    },
+    {
+      "id": "imb-000001",
+      "timestamp": 533,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "4975378149125631332",
+      "user": "0x59651d966c38a400f420e1f5ab711f577137f65e"
+    },
+    {
+      "id": "imb-000002",
+      "timestamp": 1066,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "3784690119843134087",
+      "user": "0x150b4144b07f6f74d473491d3c0bd09b6510d19c"
+    },
+    {
+      "id": "imb-000003",
+      "timestamp": 1600,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4038982439562478585",
+      "user": "0x9ac2a749feb95f433196d1e5db269bb82d963fa5"
+    },
+    {
+      "id": "imb-000004",
+      "timestamp": 2133,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2797992738011561731",
+      "user": "0x4b8f1b48143385602d13f445ae319e11f3a0052c"
+    },
+    {
+      "id": "imb-000005",
+      "timestamp": 2666,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "3369519748849314956",
+      "user": "0x12b616617fe79e106055a21051f1d57f58d1a16f"
+    },
+    {
+      "id": "imb-000006",
+      "timestamp": 3200,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3014338742722758886",
+      "user": "0x67dc29575781eabc2c0d3a1e5bb53d687e41f8ca"
+    },
+    {
+      "id": "imb-000007",
+      "timestamp": 3733,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "2984193087692001591",
+      "user": "0x8558fe3bde3e6ad81c00fc5e898b7281c2fd1739"
+    },
+    {
+      "id": "imb-000008",
+      "timestamp": 4266,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "4012674214392344328",
+      "user": "0x282330d74285426a29be86c2331ba4862a547269"
+    },
+    {
+      "id": "imb-000009",
+      "timestamp": 4800,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2209705962625720147",
+      "user": "0x4d7c276cdc3a6dae7a19879bbf4b7a7fe5b02a19"
+    },
+    {
+      "id": "imb-000010",
+      "timestamp": 5333,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "4004947782647718124",
+      "user": "0x5f04bb80af9b0fc405435fde2d746c41fcbc4ad9"
+    },
+    {
+      "id": "imb-000011",
+      "timestamp": 5866,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2907741869863193136",
+      "user": "0x997c91c4d50adef80ca2e75d116f9207d2bb10f1"
+    },
+    {
+      "id": "imb-000012",
+      "timestamp": 6400,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "5767649977948436955",
+      "user": "0x9bd561a036e248066af550927c8448a7b96897b0"
+    },
+    {
+      "id": "imb-000013",
+      "timestamp": 6933,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4604308150821409875",
+      "user": "0xed87f921790dd9067bcec1f15898777e93174f0b"
+    },
+    {
+      "id": "imb-000014",
+      "timestamp": 7466,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "5158124889782485475",
+      "user": "0xef68c0be53297344bc36fe118020504f022cd16f"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain1": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.85,
+    "shouldTriggerRebalancing": true
+  }
+}
