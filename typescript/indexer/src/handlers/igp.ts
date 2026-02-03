@@ -2,6 +2,7 @@ import { ponder } from 'ponder:registry';
 import * as ponderSchema from 'ponder:schema';
 
 import { getAdapter } from '../db/adapter.js';
+import { updateProgress } from '../utils/progress.js';
 
 // =============================================================================
 // GasPayment Event Handler
@@ -12,7 +13,7 @@ ponder.on(
   'InterchainGasPaymaster:GasPayment',
   async ({ event, context }: any) => {
     const adapter = getAdapter();
-    const { chainId, name: chainName } = context.network;
+    const { id: chainId, name: chainName } = context.chain;
     const igpAddress = context.contracts.InterchainGasPaymaster
       .address as `0x${string}`;
 
@@ -109,8 +110,12 @@ ponder.on(
       timestamp: Number(event.block.timestamp),
     });
 
-    console.log(
-      `Indexed GasPayment on ${chainName}: msg=${messageId} payment=${payment} (block ${event.block.number})`,
+    // Update progress tracking
+    await updateProgress(
+      chainId,
+      chainName,
+      Number(event.block.number),
+      context.client,
     );
   },
 );

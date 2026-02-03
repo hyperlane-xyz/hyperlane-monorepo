@@ -45,6 +45,7 @@ export async function loadContractAddresses(
 
 /**
  * Build Ponder contract configuration for Mailbox contracts.
+ * Note: Ponder 0.11+ uses 'chain' instead of 'network'.
  */
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 export function buildMailboxContractConfig(
@@ -52,7 +53,7 @@ export function buildMailboxContractConfig(
   addresses: Record<string, ContractAddresses>,
   abi: any,
 ) {
-  const network: Record<
+  const chainConfig: Record<
     string,
     {
       address: `0x${string}`;
@@ -65,7 +66,7 @@ export function buildMailboxContractConfig(
     const addr = addresses[chain.name];
     if (!addr?.mailbox) continue;
 
-    network[chain.name] = {
+    chainConfig[chain.name] = {
       address: addr.mailbox,
       startBlock: chain.startBlock,
       includeTransactionReceipts: true,
@@ -74,7 +75,7 @@ export function buildMailboxContractConfig(
 
   return {
     abi,
-    network,
+    chain: chainConfig,
   };
 }
 
@@ -87,7 +88,7 @@ export function buildIgpContractConfig(
   addresses: Record<string, ContractAddresses>,
   abi: any,
 ) {
-  const network: Record<
+  const chainConfig: Record<
     string,
     {
       address: `0x${string}`;
@@ -100,7 +101,7 @@ export function buildIgpContractConfig(
     const addr = addresses[chain.name];
     if (!addr?.interchainGasPaymaster) continue;
 
-    network[chain.name] = {
+    chainConfig[chain.name] = {
       address: addr.interchainGasPaymaster,
       startBlock: chain.startBlock,
       includeTransactionReceipts: true,
@@ -109,7 +110,7 @@ export function buildIgpContractConfig(
 
   return {
     abi,
-    network,
+    chain: chainConfig,
   };
 }
 
@@ -122,7 +123,7 @@ export function buildMerkleTreeHookContractConfig(
   addresses: Record<string, ContractAddresses>,
   abi: any,
 ) {
-  const network: Record<
+  const chainConfig: Record<
     string,
     {
       address: `0x${string}`;
@@ -135,7 +136,7 @@ export function buildMerkleTreeHookContractConfig(
     const addr = addresses[chain.name];
     if (!addr?.merkleTreeHook) continue;
 
-    network[chain.name] = {
+    chainConfig[chain.name] = {
       address: addr.merkleTreeHook,
       startBlock: chain.startBlock,
       includeTransactionReceipts: true,
@@ -144,6 +145,6 @@ export function buildMerkleTreeHookContractConfig(
 
   return {
     abi,
-    network,
+    chain: chainConfig,
   };
 }
