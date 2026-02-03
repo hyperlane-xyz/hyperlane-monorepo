@@ -749,8 +749,22 @@ jobs:
             else
               echo "rust_changes=false" >> $GITHUB_OUTPUT
             fi
+          elif [[ "${{ github.event_name }}" == "merge_group" ]]; then
+            # For merge queue, check changes between base and head
+            BASE_SHA="${{ github.event.merge_group.base_sha }}"
+            HEAD_SHA="${{ github.event.merge_group.head_sha }}"
+            CHANGES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" -- ./rust ./.github/workflows/test.yml ./.github/actions/)
+
+            if [[ -n "$CHANGES" ]]; then
+              echo "rust_changes=true" >> $GITHUB_OUTPUT
+              echo "Changes detected in Rust files or workflow in merge_group:"
+              echo "$CHANGES"
+            else
+              echo "rust_changes=false" >> $GITHUB_OUTPUT
+            fi
           else
-            echo "rust_changes=false" >> $GITHUB_OUTPUT
+            # workflow_dispatch or unknown - run to be safe
+            echo "rust_changes=true" >> $GITHUB_OUTPUT
           fi
 
       - name: Check rust and e2e conditions
