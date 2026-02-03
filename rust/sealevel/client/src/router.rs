@@ -6,29 +6,13 @@ use std::{
     path::{Path, PathBuf},
 };
 
-use borsh::BorshDeserialize;
 use solana_client::rpc_client::RpcClient;
-use solana_program::pubkey;
+use solana_loader_v3_interface::state::UpgradeableLoaderState;
 use solana_sdk::{instruction::Instruction, pubkey::Pubkey};
 
-// BPF Loader Upgradeable program ID
-const BPF_LOADER_UPGRADEABLE_ID: Pubkey = pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
-
-/// UpgradeableLoaderState with solana_sdk::pubkey::Pubkey types for compatibility
-#[derive(Debug, BorshDeserialize)]
-enum UpgradeableLoaderState {
-    Uninitialized,
-    Buffer {
-        authority_address: Option<Pubkey>,
-    },
-    Program {
-        programdata_address: Pubkey,
-    },
-    ProgramData {
-        slot: u64,
-        upgrade_authority_address: Option<Pubkey>,
-    },
-}
+/// BPF Loader Upgradeable program ID (well-known constant)
+const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
+    solana_sdk::pubkey!("BPFLoaderUpgradeab1e11111111111111111111111");
 
 /// Instruction enum for BPF Loader Upgradeable
 #[derive(serde::Serialize)]
@@ -688,27 +672,28 @@ fn get_program_upgrade_authority(
     }
 
     // The program id must actually be a program
-    let programdata_address = if let Ok(UpgradeableLoaderState::Program {
-        programdata_address,
-    }) = UpgradeableLoaderState::try_from_slice(&program_account.data)
-    {
-        programdata_address
-    } else {
-        return Err("Unable to deserialize program account");
+    // Note: UpgradeableLoaderState uses solana_pubkey::Pubkey which we convert to solana_sdk::pubkey::Pubkey
+    let programdata_address: UpgradeableLoaderState =
+        bincode::deserialize(&program_account.data)
+            .map_err(|_| "Unable to deserialize program account")?;
+    let programdata_address = match programdata_address {
+        UpgradeableLoaderState::Program {
+            programdata_address,
+        } => Pubkey::new_from_array(programdata_address.to_bytes()),
+        _ => return Err("Unable to deserialize program account"),
     };
 
     let program_data_account = client.get_account(&programdata_address).unwrap();
 
     // If the program data account somehow isn't deserializable, exit
-    let actual_upgrade_authority = if let Ok(UpgradeableLoaderState::ProgramData {
-        upgrade_authority_address,
-        slot: _,
-    }) =
-        UpgradeableLoaderState::try_from_slice(&program_data_account.data)
-    {
-        upgrade_authority_address
-    } else {
-        return Err("Unable to deserialize program data account");
+    let program_data: UpgradeableLoaderState = bincode::deserialize(&program_data_account.data)
+        .map_err(|_| "Unable to deserialize program data account")?;
+    let actual_upgrade_authority = match program_data {
+        UpgradeableLoaderState::ProgramData {
+            upgrade_authority_address,
+            slot: _,
+        } => upgrade_authority_address.map(|p| Pubkey::new_from_array(p.to_bytes())),
+        _ => return Err("Unable to deserialize program data account"),
     };
 
     Ok(actual_upgrade_authority)
