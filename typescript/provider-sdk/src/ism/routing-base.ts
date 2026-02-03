@@ -119,10 +119,10 @@ export class AltvmRoutingIsmWriter<
       client: Readonly<TClient>,
       address: string,
     ) => Promise<RoutingIsmQueryResult>,
-    private readonly eqAddress: (a: string, b: string) => boolean,
-    private readonly txBuilders: RoutingIsmTxBuilders<TTx>,
+    protected readonly eqAddress: (a: string, b: string) => boolean,
+    protected readonly txBuilders: RoutingIsmTxBuilders<TTx>,
     private readonly extractAddress: (receipt: TReceipt) => Promise<string>,
-    private readonly getSignerAddress: () => string | Promise<string>,
+    protected readonly getSignerAddress: () => string | Promise<string>,
     private readonly signAndBroadcast: (tx: TTx) => Promise<TReceipt>,
   ) {
     super(client, queryFn);

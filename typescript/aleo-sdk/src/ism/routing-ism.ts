@@ -2,12 +2,13 @@ import {
   type ArtifactDeployed,
   type ArtifactNew,
   ArtifactState,
-} from '@hyperlane-xyz/provider-sdk/artifact';
+  type DeployedIsmAddress,
+  type RawRoutingIsmArtifactConfig,
+  computeRoutingIsmDomainChanges,
+} from '@hyperlane-xyz/provider-sdk';
 import {
   AltvmRoutingIsmReader,
   AltvmRoutingIsmWriter,
-  type DeployedIsmAddress,
-  type RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { eqAddressAleo } from '@hyperlane-xyz/utils';
 
@@ -129,5 +130,56 @@ export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
     } as const;
 
     return [deployedArtifact, receipts];
+  }
+
+  async update(
+    artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+  ): Promise<Array<AnnotatedAleoTransaction & { annotation?: string }>> {
+    const currentConfig = await this.read(artifact.deployed.address);
+
+    // Pure data: compute domain route changes
+    const changes = computeRoutingIsmDomainChanges(
+      currentConfig,
+      artifact.config,
+      eqAddressAleo,
+    );
+
+    // Convert changes to transactions
+    const transactions: Array<
+      AnnotatedAleoTransaction & { annotation?: string }
+    > = [];
+
+    for (const { domain, ismAddress } of changes.setRoutes) {
+      const tx = getSetRoutingIsmRouteTx(artifact.deployed.address, {
+        domainId: domain,
+        ismAddress,
+      });
+      transactions.push({
+        annotation: `Set ISM for domain ${domain} to ISM ${ismAddress}`,
+        ...tx,
+      });
+    }
+
+    for (const { domain } of changes.removeRoutes) {
+      const tx = getRemoveRoutingIsmRouteTx(artifact.deployed.address, domain);
+      transactions.push({
+        annotation: `Remove ISM for domain ${domain}`,
+        ...tx,
+      });
+    }
+
+    // Ownership transfer (must be last as current owner executes all updates)
+    if (!eqAddressAleo(artifact.config.owner, currentConfig.config.owner)) {
+      const tx = getSetRoutingIsmOwnerTx(
+        artifact.deployed.address,
+        artifact.config.owner,
+      );
+      transactions.push({
+        annotation: `Transfer ownership from ${currentConfig.config.owner} to ${artifact.config.owner}`,
+        ...tx,
+      });
+    }
+
+    return transactions;
   }
 }

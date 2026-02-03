@@ -1,6 +1,12 @@
 import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import {
+  type ArtifactDeployed,
+  type DeployedIsmAddress,
+  type RawRoutingIsmArtifactConfig,
+  computeRoutingIsmDomainChanges,
+} from '@hyperlane-xyz/provider-sdk';
+import {
   AltvmRoutingIsmReader,
   AltvmRoutingIsmWriter,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -53,5 +59,59 @@ export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
       () => signer.getSignerAddress(),
       async (tx) => signer.sendAndConfirmTransaction(tx),
     );
+  }
+
+  async update(
+    artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+  ): Promise<Array<AnnotatedEncodeObject & { annotation?: string }>> {
+    const currentConfig = await this.read(artifact.deployed.address);
+    const signerAddress = await this.getSignerAddress();
+
+    // Pure data: compute domain route changes
+    const changes = computeRoutingIsmDomainChanges(
+      currentConfig,
+      artifact.config,
+      eqAddressCosmos,
+    );
+
+    // Convert changes to transactions
+    const transactions: Array<AnnotatedEncodeObject & { annotation?: string }> =
+      [];
+
+    for (const { domain, ismAddress } of changes.setRoutes) {
+      const tx = await getSetRoutingIsmRouteTx(signerAddress, {
+        ismAddress: artifact.deployed.address,
+        domainIsm: { domainId: domain, ismAddress },
+      });
+      transactions.push({
+        annotation: `Set ISM for domain ${domain} to ISM ${ismAddress}`,
+        ...tx,
+      });
+    }
+
+    for (const { domain } of changes.removeRoutes) {
+      const tx = await getRemoveRoutingIsmRouteTx(signerAddress, {
+        ismAddress: artifact.deployed.address,
+        domainId: domain,
+      });
+      transactions.push({
+        annotation: `Remove ISM for domain ${domain}`,
+        ...tx,
+      });
+    }
+
+    // Ownership transfer (must be last as current owner executes all updates)
+    if (!eqAddressCosmos(artifact.config.owner, currentConfig.config.owner)) {
+      const tx = await getSetRoutingIsmOwnerTx(signerAddress, {
+        ismAddress: artifact.deployed.address,
+        newOwner: artifact.config.owner,
+      });
+      transactions.push({
+        annotation: `Transfer ownership from ${currentConfig.config.owner} to ${artifact.config.owner}`,
+        ...tx,
+      });
+    }
+
+    return transactions;
   }
 }
