@@ -283,7 +283,8 @@ export class BridgeMockController extends EventEmitter {
   }
 
   /**
-   * Simulate bridge delivery by minting tokens at destination.
+   * Simulate bridge delivery by burning from origin bridge and minting to destination.
+   * This maintains token conservation across the simulation.
    * Uses transaction queue to prevent nonce collisions.
    */
   private async simulateBridgeDelivery(
@@ -291,18 +292,52 @@ export class BridgeMockController extends EventEmitter {
   ): Promise<void> {
     await this.queueTransaction(async () => {
       const deployer = new ethers.Wallet(this.deployerKey, this.provider);
+      const originDomain = this.domains[transfer.origin];
       const destDomain = this.domains[transfer.destination];
 
-      // Mint tokens to destination warp token to simulate tokens arriving
+      // Check bridge balance - only process what the bridge actually holds
+      const originCollateralToken = ERC20Test__factory.connect(
+        originDomain.collateralToken,
+        deployer,
+      );
+      const bridgeBalance = await originCollateralToken.balanceOf(
+        originDomain.bridge,
+      );
+
+      // Only deliver what's actually in the bridge (strict conservation)
+      const deliveryAmount =
+        bridgeBalance.toBigInt() < transfer.amount
+          ? bridgeBalance.toBigInt()
+          : transfer.amount;
+
+      if (deliveryAmount === 0n) {
+        logger.warn(
+          { transferId: transfer.id, origin: transfer.origin },
+          'Bridge has no tokens to deliver - skipping',
+        );
+        return;
+      }
+
+      // Burn from origin bridge
+      const burnTx = await originCollateralToken.burnFrom(
+        originDomain.bridge,
+        deliveryAmount.toString(),
+      );
+      await burnTx.wait();
+
+      // Mint same amount to destination warp token
       const destCollateralToken = ERC20Test__factory.connect(
         destDomain.collateralToken,
         deployer,
       );
       const mintTx = await destCollateralToken.mintTo(
         destDomain.warpToken,
-        transfer.amount.toString(),
+        deliveryAmount.toString(),
       );
       await mintTx.wait();
+
+      // Update transfer amount to what was actually delivered
+      transfer.amount = deliveryAmount;
     });
   }
 
