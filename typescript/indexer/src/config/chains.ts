@@ -19,7 +19,7 @@ export interface IndexerChainConfig {
  *
  * Chain filtering (in order of precedence):
  *   1. INDEXED_CHAINS env var (comma-separated list of chain names)
- *   2. All EVM chains from environment (mainnet3/testnet4)
+ *   2. All EVM chains from registry matching environment (mainnet3/testnet4)
  *
  * RPC URLs can be overridden via environment variables:
  *   - HYP_RPC_<CHAIN_NAME_UPPERCASE>=url
@@ -39,25 +39,24 @@ export async function loadChainConfigs(
   const registry = new FileSystemRegistry({ uri: registryUri });
   const allMetadata = registry.getMetadata();
 
-  // Get chains to index: explicit list or all supported chains
+  // Get chains to index: explicit list or all chains from registry
   const chainsToIndex = parseIndexedChains();
-  const supportedChains =
-    chainsToIndex.length > 0
-      ? chainsToIndex
-      : await getSupportedChainNames(env);
+  const chainNames =
+    chainsToIndex.length > 0 ? chainsToIndex : Object.keys(allMetadata);
 
   if (chainsToIndex.length > 0) {
     console.log(`Indexing specified chains: ${chainsToIndex.join(', ')}`);
   } else {
-    console.log(`Indexing all ${env} EVM chains`);
+    console.log(`Indexing all ${env} EVM chains from registry`);
   }
 
   // Parse RPC URL overrides from environment
   const rpcOverrides = parseRpcOverrides();
+  const isTestnetEnv = env === 'testnet4';
 
   const configs: IndexerChainConfig[] = [];
 
-  for (const chainName of supportedChains) {
+  for (const chainName of chainNames) {
     const metadata = allMetadata[chainName];
     if (!metadata) {
       console.warn(`Chain ${chainName} not found in registry, skipping`);
@@ -67,6 +66,14 @@ export async function loadChainConfigs(
     // Only index EVM chains
     if (metadata.protocol !== ProtocolType.Ethereum) {
       continue;
+    }
+
+    // Filter by environment (testnet vs mainnet) when using all chains
+    if (chainsToIndex.length === 0) {
+      const isTestnet = metadata.isTestnet ?? false;
+      if (isTestnet !== isTestnetEnv) {
+        continue;
+      }
     }
 
     const chainId = metadata.chainId as number;
@@ -94,23 +101,6 @@ export async function loadChainConfigs(
   }
 
   return configs;
-}
-
-async function getSupportedChainNames(env: DeployEnv): Promise<string[]> {
-  // Import supported chain names based on environment
-  // These are the chains that Hyperlane infra supports
-  if (env === 'mainnet3') {
-    const { supportedChainNames } = await import(
-      '../../config/mainnet3Chains.js'
-    );
-    return [...supportedChainNames];
-  } else if (env === 'testnet4') {
-    const { supportedChainNames } = await import(
-      '../../config/testnet4Chains.js'
-    );
-    return [...supportedChainNames];
-  }
-  throw new Error(`Unknown environment: ${env}`);
 }
 
 /**
