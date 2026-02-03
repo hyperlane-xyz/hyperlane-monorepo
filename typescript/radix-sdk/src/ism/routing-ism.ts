@@ -27,7 +27,7 @@ import {
   getSetRoutingIsmOwnerTx,
 } from './ism-tx.js';
 
-export class RadixRoutingIsmRawReader
+export class RadixRoutingIsmReader
   implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(protected readonly gateway: Readonly<GatewayApiClient>) {}
@@ -63,8 +63,8 @@ export class RadixRoutingIsmRawReader
   }
 }
 
-export class RadixRoutingIsmRawWriter
-  extends RadixRoutingIsmRawReader
+export class RadixRoutingIsmWriter
+  extends RadixRoutingIsmReader
   implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
 {
   constructor(
@@ -137,6 +137,7 @@ export class RadixRoutingIsmRawWriter
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
   ): Promise<AnnotatedRadixTransaction[]> {
     const currentConfig = await this.read(artifact.deployed.address);
+    const signerAddress = this.signer.getAddress();
 
     // Pure data: compute domain route changes
     const changes = computeRoutingIsmDomainChanges(
@@ -151,7 +152,7 @@ export class RadixRoutingIsmRawWriter
     for (const { domain, ismAddress } of changes.setRoutes) {
       const manifest = await getSetRoutingIsmDomainIsmTx(
         this.base,
-        this.signer.getAddress(),
+        signerAddress,
         {
           ismAddress: artifact.deployed.address,
           domainIsm: { domainId: domain, ismAddress },
@@ -167,7 +168,7 @@ export class RadixRoutingIsmRawWriter
     for (const { domain } of changes.removeRoutes) {
       const manifest = await getRemoveRoutingIsmDomainIsmTx(
         this.base,
-        this.signer.getAddress(),
+        signerAddress,
         {
           ismAddress: artifact.deployed.address,
           domainId: domain,
@@ -185,7 +186,7 @@ export class RadixRoutingIsmRawWriter
       const manifest = await getSetRoutingIsmOwnerTx(
         this.base,
         this.gateway,
-        this.signer.getAddress(),
+        signerAddress,
         {
           ismAddress: artifact.deployed.address,
           newOwner: artifact.config.owner,

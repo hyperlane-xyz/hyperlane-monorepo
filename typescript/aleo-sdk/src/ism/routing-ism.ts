@@ -1,15 +1,15 @@
 import {
   type ArtifactDeployed,
   type ArtifactNew,
+  type ArtifactReader,
   ArtifactState,
+  type ArtifactUnderived,
+  type ArtifactWriter,
   type DeployedIsmAddress,
   type RawRoutingIsmArtifactConfig,
   computeRoutingIsmDomainChanges,
 } from '@hyperlane-xyz/provider-sdk';
-import {
-  AltvmRoutingIsmReader,
-  AltvmRoutingIsmWriter,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { eqAddressAleo } from '@hyperlane-xyz/utils';
 
 import { type AnyAleoNetworkClient } from '../clients/base.js';
@@ -29,50 +29,53 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
-export class AleoRoutingIsmReader extends AltvmRoutingIsmReader<AnyAleoNetworkClient> {
-  constructor(aleoClient: AnyAleoNetworkClient) {
-    super(aleoClient, (client, address) =>
-      getRoutingIsmConfig(client, address),
-    );
+export class AleoRoutingIsmReader
+  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+{
+  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
+
+  async read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+  > {
+    const ismConfig = await getRoutingIsmConfig(this.aleoClient, address);
+
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
+    for (const route of ismConfig.routes) {
+      domains[route.domainId] = {
+        deployed: {
+          address: route.ismAddress,
+        },
+        artifactState: ArtifactState.UNDERIVED,
+      };
+    }
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: IsmType.ROUTING,
+        owner: ismConfig.owner,
+        domains,
+      },
+      deployed: {
+        address: ismConfig.address,
+      },
+    };
   }
 }
 
-export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
-  AnyAleoNetworkClient,
-  AnnotatedAleoTransaction,
-  AleoReceipt
-> {
+export class AleoRoutingIsmWriter
+  extends AleoRoutingIsmReader
+  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+{
   constructor(
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
   ) {
-    super(
-      aleoClient,
-      (client, address) => getRoutingIsmConfig(client, address),
-      eqAddressAleo,
-      {
-        // Note: Aleo's create flow is special (empty ISM + set routes), handled in overridden create()
-        create: async () => {
-          throw new Error('Use overridden create() method');
-        },
-        setRoute: async (_signerAddress, config) =>
-          getSetRoutingIsmRouteTx(config.ismAddress, config.domainIsm),
-        removeRoute: async (_signerAddress, config) =>
-          getRemoveRoutingIsmRouteTx(config.ismAddress, config.domainId),
-        setOwner: async (_signerAddress, config) =>
-          getSetRoutingIsmOwnerTx(config.ismAddress, config.newOwner),
-      },
-      async () => {
-        throw new Error('Use overridden create() method');
-      },
-      () => '', // Aleo doesn't need signer address for tx building
-      async (tx) => signer.sendAndConfirmTransaction(tx),
-    );
+    super(aleoClient);
   }
 
-  /**
-   * Override create() to handle Aleo's special flow: create empty ISM, then set routes
-   */
   async create(
     artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
   ): Promise<
@@ -85,23 +88,23 @@ export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
     const ismManagerProgramId = await this.signer.getIsmManager();
     const receipts: AleoReceipt[] = [];
 
-    // Create empty routing ISM
     const createTransaction = getCreateRoutingIsmTx(ismManagerProgramId);
+
     const expectedNonce = await getNewContractExpectedNonce(
-      this.client,
+      this.aleoClient,
       ismManagerProgramId,
     );
+
     const createReceipt =
       await this.signer.sendAndConfirmTransaction(createTransaction);
     receipts.push(createReceipt);
 
     const ismAddress = await getNewIsmAddress(
-      this.client,
+      this.aleoClient,
       ismManagerProgramId,
       expectedNonce,
     );
 
-    // Set routes for each domain
     for (const [domainId, domainIsm] of Object.entries(config.domains)) {
       const setRouteTransaction = getSetRoutingIsmRouteTx(ismAddress, {
         domainId: parseInt(domainId),
@@ -121,20 +124,23 @@ export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
       receipts.push(ownerReceipt);
     }
 
-    const deployedArtifact = {
+    const deployedArtifact: ArtifactDeployed<
+      RawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    > = {
       artifactState: ArtifactState.DEPLOYED,
       config: artifact.config,
       deployed: {
         address: ismAddress,
       },
-    } as const;
+    };
 
     return [deployedArtifact, receipts];
   }
 
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<Array<AnnotatedAleoTransaction & { annotation?: string }>> {
+  ): Promise<AnnotatedAleoTransaction[]> {
     const currentConfig = await this.read(artifact.deployed.address);
 
     // Pure data: compute domain route changes
@@ -145,9 +151,7 @@ export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
     );
 
     // Convert changes to transactions
-    const transactions: Array<
-      AnnotatedAleoTransaction & { annotation?: string }
-    > = [];
+    const transactions: AnnotatedAleoTransaction[] = [];
 
     for (const { domain, ismAddress } of changes.setRoutes) {
       const tx = getSetRoutingIsmRouteTx(artifact.deployed.address, {

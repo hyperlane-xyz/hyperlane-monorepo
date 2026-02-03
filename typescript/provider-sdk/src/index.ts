@@ -1,5 +1,12 @@
 export * as AltVM from './altvm.js';
-export { ArtifactDeployed, ArtifactNew, ArtifactState } from './artifact.js';
+export {
+  ArtifactDeployed,
+  ArtifactNew,
+  ArtifactState,
+  type ArtifactReader,
+  type ArtifactWriter,
+  type ArtifactUnderived,
+} from './artifact.js';
 export { ChainMetadataForAltVM } from './chain.js';
 export {
   computeRoutingIsmDomainChanges,
