@@ -2,8 +2,11 @@
 pragma solidity ^0.8.13;
 
 import {ITokenBridge, Quote} from "../interfaces/ITokenBridge.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {SafeERC20} from "@openzeppelin/contracts/token/ERC20/utils/SafeERC20.sol";
 
 contract MockValueTransferBridge is ITokenBridge {
+    using SafeERC20 for IERC20;
     address public collateral;
 
     constructor(address _collateral) {
@@ -33,6 +36,13 @@ contract MockValueTransferBridge is ITokenBridge {
         bytes32 _recipient,
         uint256 _amountOut
     ) external payable virtual override returns (bytes32 transferId) {
+        // Pull tokens from caller (warp token) - caller must have approved this bridge
+        IERC20(collateral).safeTransferFrom(
+            msg.sender,
+            address(this),
+            _amountOut
+        );
+
         emit SentTransferRemote(
             uint32(block.chainid),
             _destinationDomain,

@@ -90,4 +90,17 @@ export class CosmNativeCoreAdapter
 
     return true;
   }
+
+  async isDelivered(
+    messageId: HexString,
+    _blockTag?: string | number,
+  ): Promise<boolean> {
+    const provider = await this.multiProvider.getCosmJsNativeProvider(
+      this.chainName,
+    );
+    return provider.isMessageDelivered({
+      mailboxAddress: this.addresses.mailbox,
+      messageId: messageId,
+    });
+  }
 }

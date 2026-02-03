@@ -38,17 +38,13 @@ impl ApplicationOperationVerifier for DummyApplicationOperationVerifier {
     }
 }
 
-pub fn dummy_message_loader_metrics(domain_id: u32) -> MessageDbLoaderMetrics {
+pub fn dummy_message_loader_metrics() -> MessageDbLoaderMetrics {
     MessageDbLoaderMetrics {
-        max_last_known_message_nonce_gauge: IntGauge::new(
-            "dummy_max_last_known_message_nonce_gauge",
+        last_known_message_nonce_gauge: IntGauge::new(
+            "dummy_last_known_message_nonce_gauge",
             "help string",
         )
         .unwrap(),
-        last_known_message_nonce_gauges: HashMap::from([(
-            domain_id,
-            IntGauge::new("dummy_last_known_message_nonce_gauge", "help string").unwrap(),
-        )]),
     }
 }
 
@@ -88,7 +84,7 @@ fn dummy_message_loader(
             Default::default(),
             Default::default(),
             Default::default(),
-            dummy_message_loader_metrics(origin_domain.id()),
+            dummy_message_loader_metrics(),
             HashMap::from([(destination_domain.id(), send_channel)]),
             HashMap::from([(destination_domain.id(), message_context)]),
             vec![].into(),
@@ -276,7 +272,7 @@ async fn test_forward_backward_iterator() {
     mock_db
         .expect_retrieve_processed_by_nonce()
         .returning(|_| Ok(Some(false)));
-    let dummy_metrics = dummy_message_loader_metrics(0);
+    let dummy_metrics = dummy_message_loader_metrics();
     let db = Arc::new(mock_db);
 
     let mut forward_backward_iterator = ForwardBackwardIterator::new(db.clone());

@@ -425,6 +425,13 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
     return 0;
   }
 
+  // Sort allowedRebalancingBridges by bridge address
+  if (a.bridge && b.bridge) {
+    if (a.bridge < b.bridge) return -1;
+    if (a.bridge > b.bridge) return 1;
+    return 0;
+  }
+
   if (a < b) return -1;
   if (a > b) return 1;
 
