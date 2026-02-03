@@ -365,7 +365,7 @@ export class MultisigMetadataBuilder implements MetadataBuilder {
 
     // Count signed validators
     const signedValidators = validatorInfos.filter(
-      (v) => v.status === 'signed',
+      (v) => v.status === ValidatorStatus.Signed,
     );
     const signedCount = signedValidators.length;
     const quorumMet = signedCount >= context.ism.threshold;

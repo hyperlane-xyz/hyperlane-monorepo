@@ -164,7 +164,8 @@ export function isMetadataBuildable(
 export function getSignedValidatorCount(
   result: MultisigMetadataBuildResult,
 ): number {
-  return result.validators.filter((v) => v.status === 'signed').length;
+  return result.validators.filter((v) => v.status === ValidatorStatus.Signed)
+    .length;
 }
 
 /** Check if quorum is met for multisig results */
