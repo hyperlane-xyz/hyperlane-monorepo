@@ -45,6 +45,9 @@ export function getProtocolExchangeRateDecimals(
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
     case ProtocolType.Starknet:
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
+    // Forward-compatibility: Unknown protocols use ALTVM decimals as a safe default.
+    // This allows IGP calculations to proceed when registry contains new protocol types
+    // not yet known to this SDK version. The ALTVM value (10) is a reasonable middle-ground.
     case ProtocolType.Unknown:
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
   }

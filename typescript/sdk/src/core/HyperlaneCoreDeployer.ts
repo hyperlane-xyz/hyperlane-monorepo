@@ -8,6 +8,7 @@ import {
 import {
   Address,
   addBufferToGasLimit,
+  assert,
   isZeroishAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -16,7 +17,7 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer.js';
-import { DeployableHookType, HookConfig } from '../hook/types.js';
+import { DeployableHookType, HookConfig, HookType } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
@@ -220,6 +221,10 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     if (typeof config === 'string') {
       return Object.values(hooks)[0];
     } else {
+      assert(
+        config.type !== HookType.UNKNOWN,
+        `Cannot deploy unknown hook type`,
+      );
       const hookType = config.type as DeployableHookType;
       return hooks[hookType];
     }

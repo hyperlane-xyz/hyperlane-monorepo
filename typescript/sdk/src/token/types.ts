@@ -310,7 +310,7 @@ const KnownTokenTypes: string[] = Object.values(TokenType).filter(
   (t) => t !== TokenType.unknown,
 );
 
-const KnownHypTokenConfigSchema = z.discriminatedUnion('type', [
+const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   OpL2TokenConfigSchema,
   OpL1TokenConfigSchema,
@@ -324,7 +324,7 @@ const KnownHypTokenConfigSchema = z.discriminatedUnion('type', [
   UnknownTokenConfigSchema,
 ]);
 
-export type HypTokenConfig = z.infer<typeof KnownHypTokenConfigSchema>;
+export type HypTokenConfig = z.infer<typeof AllHypTokenConfigSchema>;
 
 /**
  * @remarks
@@ -342,7 +342,7 @@ export const HypTokenConfigSchema = z.preprocess((val) => {
     }
   }
   return val;
-}, KnownHypTokenConfigSchema);
+}, AllHypTokenConfigSchema);
 
 export const HypTokenRouterConfigSchema = z.preprocess(
   preprocessWarpRouteDeployConfig,
