@@ -250,7 +250,7 @@ async function postDeploy<Config extends object>(
 
     let savedVerification = {};
     try {
-      savedVerification = readJson(cache.verification);
+      savedVerification = readJson(cache.verification) ?? {};
     } catch (e) {
       console.error(
         chalk.red('Failed to load cached verification inputs. Error: ', e),

@@ -161,9 +161,11 @@ export async function writeJsonWithAppendMode(
   let data = newData;
   if (appendMode && pathExists(filepath)) {
     const existing = readJson<Record<string, any>>(filepath);
-    data = Object.fromEntries(
-      Object.keys(newData).map((key) => [key, existing[key] ?? newData[key]]),
-    );
+    if (existing) {
+      data = Object.fromEntries(
+        Object.keys(newData).map((key) => [key, existing[key] ?? newData[key]]),
+      );
+    }
   }
   await writeAndFormatJsonAtPath(filepath, data);
 }

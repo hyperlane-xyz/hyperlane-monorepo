@@ -54,6 +54,9 @@ describe('Balance Alert Thresholds', async function () {
       const proposedThresholds = readJson<ChainMap<number>>(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
       );
+      if (!proposedThresholds) {
+        throw new Error(`Empty thresholds file for ${alert}`);
+      }
 
       // Compare thresholds
       const allChains = new Set([

@@ -5,7 +5,7 @@ import * as fs from 'fs';
 import * as path from 'path';
 import yargs from 'yargs';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
@@ -39,7 +39,9 @@ function readJSONFiles(directory: string): Record<string, TxFile[]> {
         }
         txs = arr[0];
       } else {
-        txs = readJson<TxFile>(filePath);
+        const loadedTxs = readJson<TxFile>(filePath);
+        assert(loadedTxs, `Empty transaction file at ${filePath}`);
+        txs = loadedTxs;
       }
 
       const chainId = txs.chainId;

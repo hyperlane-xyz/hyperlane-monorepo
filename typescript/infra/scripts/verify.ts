@@ -4,6 +4,7 @@ import {
   PostDeploymentContractVerifier,
   VerificationInput,
 } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { assertEnvironment } from '../src/config/environment.js';
@@ -33,8 +34,12 @@ async function main() {
   const multiProvider = await config.getMultiProvider();
 
   // grab verification artifacts
-  const verification: ChainMap<VerificationInput> = readJson(
+  const verification = readJson<ChainMap<VerificationInput>>(
     verificationArtifactPath,
+  );
+  assert(
+    verification,
+    `Empty verification artifact at ${verificationArtifactPath}`,
   );
 
   // fetch explorer API keys from GCP

@@ -16,6 +16,7 @@ import {
 import {
   Address,
   ProtocolType,
+  assert,
   difference,
   inCIMode,
   objFilter,
@@ -726,9 +727,10 @@ export function getAddresses(
   if (isRegistryModule(environment, module)) {
     addresses = getChainAddresses();
   } else {
-    addresses = readJson<ChainMap<ChainAddresses>>(
-      getInfraLandfillPath(environment, module),
-    );
+    const path = getInfraLandfillPath(environment, module);
+    const loadedAddresses = readJson<ChainMap<ChainAddresses>>(path);
+    assert(loadedAddresses, `Empty addresses file at ${path}`);
+    addresses = loadedAddresses;
   }
 
   // Filter by chains if specified, otherwise use environment chains

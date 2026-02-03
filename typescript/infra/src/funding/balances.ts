@@ -1,5 +1,5 @@
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import {
@@ -107,6 +107,7 @@ export function readAllThresholds(): ThresholdsData {
     const thresholdsFile = `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[thresholdType].configFileName}`;
 
     const chainMap = readJson<ChainMap<number>>(thresholdsFile);
+    assert(chainMap, `Empty thresholds file at ${thresholdsFile}`);
 
     result[thresholdType] = chainMap;
   }

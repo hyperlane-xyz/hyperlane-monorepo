@@ -3,7 +3,7 @@ import { ChildProcess } from 'child_process';
 import yargs from 'yargs';
 
 import { ChainMap } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import {
@@ -85,10 +85,10 @@ async function main() {
       const alertRule = await fetchGrafanaAlert(alert, saToken);
 
       // read the proposed thresholds from the config file
-      let proposedThresholds: ChainMap<number> = {};
-      proposedThresholds = readJson(
+      const proposedThresholds = readJson<ChainMap<number>>(
         `${THRESHOLD_CONFIG_PATH}/${alertConfigMapping[alert].configFileName}`,
       );
+      assert(proposedThresholds, `Empty thresholds config for ${alert}`);
 
       // parse the current thresholds from the existing query
       const existingQuery = alertRule.queries[0];
@@ -172,9 +172,10 @@ async function validateBalanceThresholdConfigs() {
   const balanceThresholdTypes = Object.values(BalanceThresholdType);
   const balanceThresholdConfigs = balanceThresholdTypes.reduce(
     (acc, balanceThresholdType) => {
-      const thresholds = readJson(
+      const thresholds = readJson<ChainMap<string>>(
         `${THRESHOLD_CONFIG_PATH}/${balanceThresholdConfigMapping[balanceThresholdType].configFileName}`,
-      ) as ChainMap<string>;
+      );
+      assert(thresholds, `Empty thresholds config for ${balanceThresholdType}`);
 
       return {
         ...acc,

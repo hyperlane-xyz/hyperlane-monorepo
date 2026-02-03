@@ -77,6 +77,7 @@ export function loadAndValidateGasOracleConfig(
   configPath: string,
 ): ChainMap<ChainMap<GasOracleConfigWithOverhead>> {
   const rawConfig = readJson(configPath);
+  assert(rawConfig, `Empty gas oracle config file at ${configPath}`);
 
   try {
     const validated = GasOracleConfigFileSchema.parse(rawConfig);

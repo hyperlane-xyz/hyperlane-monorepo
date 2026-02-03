@@ -21,14 +21,14 @@ const environmentChainConfigs = {
     // to get around the agent JSON configs living outside the typescript rootDir
     agentJsonConfig: readJson<AgentConfig>(
       getAgentConfigJsonPath(AgentEnvironment.Mainnet),
-    ),
+    )!,
     supportedChainNames: mainnet3SupportedChainNames,
   },
   testnet4: {
     agentChainConfig: testnet4AgentChainConfig,
     agentJsonConfig: readJson<AgentConfig>(
       getAgentConfigJsonPath(AgentEnvironment.Testnet),
-    ),
+    )!,
     supportedChainNames: testnet4SupportedChainNames,
   },
 };

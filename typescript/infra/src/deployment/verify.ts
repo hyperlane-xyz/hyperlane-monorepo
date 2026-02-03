@@ -1,4 +1,5 @@
 import { BuildArtifact, ChainMap } from '@hyperlane-xyz/sdk';
+import { assert } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { fetchGCPSecret } from '../utils/gcloud.js';
@@ -11,7 +12,9 @@ export function extractBuildArtifact(buildArtifactPath: string): BuildArtifact {
   }
 
   // return as BuildArtifact
-  return readJson<BuildArtifact>(buildArtifactPath);
+  const artifact = readJson<BuildArtifact>(buildArtifactPath);
+  assert(artifact, `Empty build artifact at ${buildArtifactPath}`);
+  return artifact;
 }
 
 // fetch explorer API keys from GCP

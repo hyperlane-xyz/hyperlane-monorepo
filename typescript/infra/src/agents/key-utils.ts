@@ -6,6 +6,7 @@ import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import {
   Address,
   ProtocolType,
+  assert,
   deepEquals,
   objMap,
   rootLogger,
@@ -578,10 +579,11 @@ export async function persistValidatorAddressesToLocalArtifacts(
 
 export function fetchLocalKeyAddresses(role: Role): LocalRoleAddresses {
   try {
-    const addresses: LocalRoleAddresses = readJsonFromDir(
+    const addresses = readJsonFromDir<LocalRoleAddresses>(
       CONFIG_DIRECTORY_PATH,
       `${role}.json`,
     );
+    assert(addresses, `Empty key addresses file for role ${role}`);
 
     logger.debug(`Fetching addresses locally for ${role} role ...`);
     return addresses;

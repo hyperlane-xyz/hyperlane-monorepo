@@ -27,7 +27,7 @@ import {
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
 import { SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
@@ -501,7 +501,9 @@ export function loadCoreProgramIds(
   );
 
   try {
-    return readJson(programIdsPath);
+    const programIds = readJson<CoreProgramIds>(programIdsPath);
+    assert(programIds, `Empty program IDs file at ${programIdsPath}`);
+    return programIds;
   } catch (error) {
     throw new Error(`Failed to load program IDs from ${programIdsPath}.`);
   }

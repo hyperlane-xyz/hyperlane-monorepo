@@ -13,7 +13,7 @@ import {
   MultiProtocolProvider,
   SvmMultiProtocolSignerAdapter,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { Contexts } from '../../config/contexts.js';
@@ -373,7 +373,8 @@ async function processChain(
 
   // Load configuration from file
   const configPath = multisigIsmConfigPath(environment, context, chain);
-  const config: SvmMultisigConfigMap = readJson(configPath);
+  const config = readJson<SvmMultisigConfigMap>(configPath);
+  assert(config, `Empty MultisigIsm config file at ${configPath}`);
 
   rootLogger.info(
     chalk.gray(
