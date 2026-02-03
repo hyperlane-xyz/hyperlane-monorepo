@@ -18,6 +18,12 @@ import {
 // Load environment
 const deployEnv = (process.env.DEPLOY_ENV || 'testnet4') as DeployEnv;
 
+// Note: Scripts use `--log-level error` to suppress warnings about eth_getBlockReceipts
+// failures. Some RPC providers don't support this batch method, causing Ponder to emit
+// warnings with stack traces. However, Ponder automatically falls back to individual
+// eth_getTransactionReceipt calls, so these warnings are benign. Use `dev:verbose` to
+// see all logs when debugging.
+
 // Load chain configs and addresses
 const chains = await loadChainConfigs(deployEnv);
 const addresses = await loadContractAddresses(chains);
