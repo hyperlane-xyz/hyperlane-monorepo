@@ -63,7 +63,7 @@ catalog:
   '@aws-sdk/client-kms': ^3.577.0
 
   # Registry
-  '@hyperlane-xyz/registry': 23.7.0
+  '@hyperlane-xyz/registry': 23.12.0
 
   # CLI prompts
   '@inquirer/prompts': 3.3.2
