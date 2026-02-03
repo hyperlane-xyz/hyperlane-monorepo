@@ -35,8 +35,8 @@ jobs:
           - full-simulation_whale-transfers
           - full-simulation_balanced-bidirectional
           - full-simulation_random-with-headroom
+          - full-simulation_inflight-guard
           # Other test files
-          - inflight-guard
           - harness-setup
           - unidirectional
     steps:
