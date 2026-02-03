@@ -1,5 +1,6 @@
 import { fromZodError } from 'zod-validation-error';
 
+import { assert } from '@hyperlane-xyz/utils';
 import { readYamlOrJson } from '@hyperlane-xyz/utils/fs';
 
 import {
@@ -20,7 +21,8 @@ export class RebalancerConfig {
    * @param configFilePath Path to the config file
    */
   static load(configFilePath: string) {
-    const config: RebalancerConfigFileInput = readYamlOrJson(configFilePath);
+    const config = readYamlOrJson<RebalancerConfigFileInput>(configFilePath);
+    assert(config, `Empty rebalancer config file at ${configFilePath}`);
 
     const validationResult = RebalancerConfigSchema.safeParse(config);
 
