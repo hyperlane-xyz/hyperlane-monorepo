@@ -36,8 +36,8 @@ export class AltVMFileSubmitter implements ITransactionSubmitter {
         `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
       );
       allTxs.unshift(...maybeExistingTxs);
-    } catch {
-      // if file is empty we simply continue and write the first contents of the file below
+    } catch (e) {
+      this.logger.debug(`Invalid transactions read from ${filepath}`, e);
     }
 
     writeYamlOrJson(filepath, allTxs);
