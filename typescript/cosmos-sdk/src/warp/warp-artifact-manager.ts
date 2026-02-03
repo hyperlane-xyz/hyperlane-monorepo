@@ -7,8 +7,8 @@ import {
   type ArtifactWriter,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
+  type DeployedRawWarpArtifact,
   type DeployedWarpAddress,
-  type DeployedWarpArtifact,
   type IRawWarpArtifactManager,
   type RawWarpArtifactConfigs,
   type WarpType,
@@ -45,7 +45,7 @@ export class CosmosWarpArtifactManager implements IRawWarpArtifactManager {
     return QueryClient.withExtensions(cometClient, setupWarpExtension);
   }
 
-  async readWarpToken(address: string): Promise<DeployedWarpArtifact> {
+  async readWarpToken(address: string): Promise<DeployedRawWarpArtifact> {
     const query = await this.getQuery();
     const altVMType = await getWarpTokenType(query, address);
 

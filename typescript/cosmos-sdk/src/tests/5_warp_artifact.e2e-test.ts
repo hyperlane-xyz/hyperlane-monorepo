@@ -15,6 +15,7 @@ import {
   type DeployedWarpAddress,
   type RawCollateralWarpArtifactConfig,
   type RawSyntheticWarpArtifactConfig,
+  type RawWarpArtifactConfig,
   type WarpArtifactConfig,
   type WarpType,
 } from '@hyperlane-xyz/provider-sdk/warp';
@@ -554,6 +555,37 @@ describe('Cosmos Warp Artifacts (e2e)', function () {
           const txs = await writer.update(deployedToken);
 
           // Should have no transactions (ISM still undefined)
+          expect(txs).to.be.an('array').with.length(0);
+        });
+
+        it('should not generate ISM update tx when current ism is undefined and the 0 address is provided in the config', async () => {
+          const initialConfig = getConfig();
+
+          const writer = artifactManager.createWriter(type, cosmosSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          const updatedConfig: ArtifactDeployed<
+            RawWarpArtifactConfig,
+            DeployedWarpAddress
+          > = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: '0x0000000000000000000000000000000000000000',
+                },
+              },
+            },
+          };
+
+          // Try to update with ISM still undefined (should not generate tx)
+          const txs = await writer.update(updatedConfig);
+
+          // Should generate 0 transactions (ISM unchanged)
           expect(txs).to.be.an('array').with.length(0);
         });
       });
