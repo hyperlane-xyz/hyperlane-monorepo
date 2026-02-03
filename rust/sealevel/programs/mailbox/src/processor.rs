@@ -718,7 +718,7 @@ fn outbox_dispatch(
     );
 
     // Store the Outbox with the new updates.
-    OutboxAccount::from(outbox).store(outbox_info, true)?;
+    OutboxAccount::from(*outbox).store(outbox_info, true)?;
 
     set_return_data(id.as_ref());
     Ok(())
@@ -859,7 +859,7 @@ fn transfer_ownership(
     outbox.transfer_ownership(owner_info, new_owner)?;
 
     // Store the updated outbox.
-    OutboxAccount::from(outbox).store(outbox_info, false)?;
+    OutboxAccount::from(*outbox).store(outbox_info, false)?;
 
     Ok(())
 }
@@ -922,7 +922,7 @@ fn set_protocol_fee_config(
     outbox.protocol_fee = new_protocol_fee_config;
 
     // Store the updated outbox.
-    OutboxAccount::from(outbox).store(outbox_info, false)?;
+    OutboxAccount::from(*outbox).store(outbox_info, false)?;
 
     Ok(())
 }

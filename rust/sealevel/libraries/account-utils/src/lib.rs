@@ -83,11 +83,21 @@ where
         // Account data is zero initialized.
         let initialized = bool::deserialize(buf)?;
         let data = if initialized {
-            Some(T::deserialize(buf).map(Box::new)?)
+            Some(Self::deserialize_boxed(buf)?)
         } else {
             None
         };
         Ok(data)
+    }
+
+    /// Deserializes to a Box<T>. This function is intentionally not inlined
+    /// so that the large stack frame for T is isolated and released after return.
+    /// This prevents stack overflow when used in CPI contexts.
+    #[inline(never)]
+    fn deserialize_boxed(buf: &mut &[u8]) -> Result<Box<T>, ProgramError> {
+        T::deserialize(buf)
+            .map(Box::new)
+            .map_err(|_| ProgramError::BorshIoError)
     }
 
     /// Deserializes the account data from the given slice and wraps it in an `AccountData`.

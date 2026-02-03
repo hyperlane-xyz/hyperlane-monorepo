@@ -7,13 +7,29 @@ use crate::accumulator::{
     H256, TREE_DEPTH, ZERO_HASHES,
 };
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, Clone, new, PartialEq, Eq)]
+#[derive(BorshSerialize, Debug, Clone, new, PartialEq, Eq)]
 /// An incremental merkle tree, modeled on the eth2 deposit contract
 pub struct IncrementalMerkle {
     /// The branch of the tree
     pub branch: [H256; TREE_DEPTH],
     /// The number of leaves in the tree
     pub count: usize,
+}
+
+/// Custom BorshDeserialize implementation to avoid stack overflow in Solana BPF.
+/// The default derive would put [H256; 32] (1024 bytes) on the stack, which combined
+/// with other data can exceed the 4KB BPF stack limit during CPI calls.
+impl BorshDeserialize for IncrementalMerkle {
+    #[inline(never)]
+    fn deserialize_reader<R: std::io::Read>(reader: &mut R) -> std::io::Result<Self> {
+        // Deserialize branch elements one at a time to avoid large stack allocation
+        let mut branch = [H256::zero(); TREE_DEPTH];
+        for item in branch.iter_mut() {
+            *item = H256::deserialize_reader(reader)?;
+        }
+        let count = usize::deserialize_reader(reader)?;
+        Ok(Self { branch, count })
+    }
 }
 
 impl Default for IncrementalMerkle {

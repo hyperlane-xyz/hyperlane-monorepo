@@ -130,10 +130,11 @@ impl AccessControl for Outbox {
 
 impl Outbox {
     /// Verifies that the given account is the canonical Outbox PDA and returns the deserialized inner data.
+    /// Returns Box<Outbox> to avoid stack overflow during CPI calls (Outbox is 1118 bytes).
     pub fn verify_account_and_fetch_inner(
         program_id: &Pubkey,
         outbox_account_info: &AccountInfo,
-    ) -> Result<Self, ProgramError> {
+    ) -> Result<Box<Self>, ProgramError> {
         let outbox =
             OutboxAccount::fetch(&mut &outbox_account_info.data.borrow()[..])?.into_inner();
         let expected_outbox_key = Pubkey::create_program_address(
@@ -147,7 +148,7 @@ impl Outbox {
             return Err(ProgramError::IllegalOwner);
         }
 
-        Ok(*outbox)
+        Ok(outbox)
     }
 }
 
