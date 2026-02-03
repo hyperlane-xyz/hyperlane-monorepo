@@ -220,7 +220,7 @@ describe('Rebalancer Simulation', function () {
    * Inflight Guard Test
    *
    * This test demonstrates the inflight tracking problem: with slow bridges (3s)
-   * and fast polling (200ms), a rebalancer without inflight awareness will
+   * and polling at 1000ms, a rebalancer without inflight awareness will
    * over-rebalance because it doesn't account for pending transfers.
    *
    * CURRENT LIMITATION: ProductionRebalancerService tracks self-created rebalance
