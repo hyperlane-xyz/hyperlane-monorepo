@@ -31,7 +31,7 @@ import {
 export class AleoRoutingIsmRawReader extends BaseRoutingIsmRawReader<AnyAleoNetworkClient> {
   constructor(aleoClient: AnyAleoNetworkClient) {
     super(aleoClient, (client, address) =>
-      getRoutingIsmConfig(client as AnyAleoNetworkClient, address),
+      getRoutingIsmConfig(client, address),
     );
   }
 }
@@ -47,8 +47,7 @@ export class AleoRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
   ) {
     super(
       aleoClient,
-      (client, address) =>
-        getRoutingIsmConfig(client as AnyAleoNetworkClient, address),
+      (client, address) => getRoutingIsmConfig(client, address),
       eqAddressAleo,
       {
         // Note: Aleo's create flow is special (empty ISM + set routes), handled in overridden create()
