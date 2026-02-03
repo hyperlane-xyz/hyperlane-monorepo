@@ -21,8 +21,8 @@ export interface RoutingIsmDomainChanges {
  * Pure function that computes domain route changes needed to update
  * a routing ISM from current state to expected state.
  *
- * Extracts the core algorithm from AltvmRoutingIsmWriter.update() without
- * protocol-specific dependencies or transaction building.
+ * Protocol-agnostic comparison logic without transaction building.
+ * VM SDKs use this to determine what routes to add/remove.
  *
  * @param current - Current deployed routing ISM artifact with config
  * @param expected - Expected routing ISM configuration
