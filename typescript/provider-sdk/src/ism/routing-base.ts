@@ -206,7 +206,7 @@ export class AltvmRoutingIsmWriter<
         });
 
         transactions.push({
-          annotation: `Set ism for domain ${domain} to ISM ${expectedIsmAddress} on ${IsmType.ROUTING}`,
+          annotation: `Set ISM for domain ${domain} to ISM ${expectedIsmAddress}`,
           ...tx,
         });
       }
@@ -222,7 +222,7 @@ export class AltvmRoutingIsmWriter<
         });
 
         transactions.push({
-          annotation: `Remove ism for domain ${domain} on ${IsmType.ROUTING}`,
+          annotation: `Remove ISM for domain ${domain}`,
           ...tx,
         });
       }
@@ -236,7 +236,7 @@ export class AltvmRoutingIsmWriter<
       });
 
       transactions.push({
-        annotation: `Transfer ownership of ${IsmType.ROUTING} from ${currentConfig.config.owner} to ${config.owner}`,
+        annotation: `Transfer ownership from ${currentConfig.config.owner} to ${config.owner}`,
         ...tx,
       });
     }
