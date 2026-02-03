@@ -77,23 +77,11 @@ async fn setup_client() -> (BanksClient, Keypair) {
         processor!(process_instruction),
     );
 
-    program_test.add_program(
-        "spl_token_2022",
-        spl_token_2022::id(),
-        processor!(spl_token_2022::processor::Processor::process),
-    );
-
-    program_test.add_program(
-        "spl_token",
-        spl_token::id(),
-        processor!(spl_token::processor::Processor::process),
-    );
-
-    program_test.add_program(
-        "spl_associated_token_account",
-        spl_associated_token_account::id(),
-        processor!(spl_associated_token_account::processor::process_instruction),
-    );
+    // Use the bundled BPF programs for SPL Token, Token 2022, and ATA instead of processor!-based ones.
+    // The processor!-based approach doesn't work because spl-token-2022 v10 and spl-associated-token-account v8
+    // use solana_cpi::invoke which bypasses ProgramTest's syscall stubs.
+    // The bundled BPF programs are actual compiled programs that use proper syscalls.
+    // Note: We don't call add_program for these - ProgramTest automatically loads them.
 
     // spl_noop just logs data and returns success - provide a simple processor
     fn noop_processor(
