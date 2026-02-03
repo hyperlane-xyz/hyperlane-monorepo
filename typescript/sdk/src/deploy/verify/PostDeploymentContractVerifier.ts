@@ -46,7 +46,10 @@ export class PostDeploymentContractVerifier extends MultiGeneric<VerificationInp
           contractVerifier = this.zkSyncContractVerifier;
         }
 
-        if (family === ExplorerFamily.Other) {
+        if (
+          family === ExplorerFamily.Other ||
+          family === ExplorerFamily.Unknown
+        ) {
           this.logger.warn(
             `Skipping verification for ${chain} due to unsupported explorer family.`,
           );
