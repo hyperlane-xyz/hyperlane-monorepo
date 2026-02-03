@@ -1,6 +1,7 @@
 ---
+'@hyperlane-xyz/rebalancer': patch
 '@hyperlane-xyz/deploy-sdk': patch
-'@hyperlane-xyz/utils': patch
+'@hyperlane-xyz/utils': minor
 '@hyperlane-xyz/cli': patch
 ---
 
