@@ -31,7 +31,7 @@
     "type": "synthetic",
     "decimals": 6,
     "name": "Aleo",
-    "owner": "FUEyWicwhuRwAn5thRj6XrVwogWUeoCUX38iV2xW61Za",
+    "owner": "ABJnd4eWexNte9GYy21ud5hvSwFKWedveP6GCFxXKkCw",
     "symbol": "ALEO",
     "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/ea47535339bc8d1ebc4435aa7ee66ea53ba2f669/deployments/warp_routes/ALEO/metadata.json",
     "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF",
