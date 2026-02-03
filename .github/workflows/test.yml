@@ -128,6 +128,7 @@ jobs:
     needs: [set-base-sha]
     outputs:
       only_rust: ${{ steps.decide.outputs.only_rust }}
+      skip_cli_e2e: ${{ steps.decide.outputs.skip_cli_e2e }}
     runs-on: ubuntu-latest
     steps:
       - uses: actions/checkout@v6
@@ -148,6 +149,33 @@ jobs:
           path_pattern: 'rust/'
           path_pattern_only: 'true'
 
+      - name: Check if CLI e2e can be skipped
+        id: check-skip-cli
+        run: |
+          BASE_SHA="${{ needs.set-base-sha.outputs.base_sha }}"
+          HEAD_SHA="${{ needs.set-base-sha.outputs.current_sha }}"
+
+          if ! CHANGED_FILES=$(git diff --name-only "$BASE_SHA"..."$HEAD_SHA" 2>/dev/null); then
+            echo "skip_cli=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          if [[ -z "$CHANGED_FILES" ]]; then
+            echo "skip_cli=false" >> $GITHUB_OUTPUT
+            exit 0
+          fi
+
+          # CLI e2e can be skipped if ALL changes are in rust/ OR typescript/infra/
+          # CLI doesn't depend on either of these
+          RELEVANT_CHANGES=$(echo "$CHANGED_FILES" | grep -vE '^(rust/|typescript/infra/)' || true)
+
+          if [[ -z "$RELEVANT_CHANGES" ]]; then
+            echo "skip_cli=true" >> $GITHUB_OUTPUT
+            echo "Changes only in rust/ and/or typescript/infra/, CLI e2e can be skipped"
+          else
+            echo "skip_cli=false" >> $GITHUB_OUTPUT
+          fi
+
       - name: Decide whether to skip TS jobs
         id: decide
         run: |
@@ -155,15 +183,18 @@ jobs:
 
           if [[ "${{ steps.context.outputs.should_skip }}" == "true" ]]; then
             echo "only_rust=true" >> $GITHUB_OUTPUT
+            echo "skip_cli_e2e=true" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           if [[ "${{ steps.context.outputs.must_run }}" == "true" ]]; then
             echo "only_rust=false" >> $GITHUB_OUTPUT
+            echo "skip_cli_e2e=false" >> $GITHUB_OUTPUT
             exit 0
           fi
 
           echo "only_rust=${{ steps.check-rust.outputs.only_changes }}" >> $GITHUB_OUTPUT
+          echo "skip_cli_e2e=${{ steps.check-skip-cli.outputs.skip_cli }}" >> $GITHUB_OUTPUT
 
   pnpm-test-run:
     runs-on: depot-ubuntu-latest
@@ -279,7 +310,7 @@ jobs:
   cli-evm-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -348,7 +379,7 @@ jobs:
   cli-cosmos-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -388,7 +419,7 @@ jobs:
   cli-radix-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
@@ -427,7 +458,7 @@ jobs:
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 20
     strategy:
       fail-fast: false
@@ -459,7 +490,7 @@ jobs:
   cli-aleo-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    if: needs.rust-only.outputs.skip_cli_e2e != 'true'
     timeout-minutes: 10
     strategy:
       fail-fast: false
