@@ -267,6 +267,11 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
       assert(chainAddress, `Could not fetch addresses for chain ${chain}`);
       const originInterchainAccountRouter =
         chainAddress.interchainAccountRouter;
+      assert(
+        originInterchainAccountRouter,
+        `Could not fetch originInterchainAccountRouter for chain ${chain}`,
+      );
+
       return [
         chain,
         {
