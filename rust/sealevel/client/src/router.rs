@@ -16,6 +16,7 @@ const BPF_LOADER_UPGRADEABLE_ID: Pubkey =
 
 /// Instruction enum for BPF Loader Upgradeable
 #[derive(serde::Serialize)]
+#[allow(dead_code)]
 enum UpgradeableLoaderInstruction {
     InitializeBuffer,
     Write { offset: u32, bytes: Vec<u8> },

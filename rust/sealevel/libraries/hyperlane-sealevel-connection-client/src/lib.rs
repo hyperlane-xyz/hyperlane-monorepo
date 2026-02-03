@@ -1,5 +1,4 @@
 use access_control::AccessControl;
-use borsh::BorshSerialize;
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     account_info::AccountInfo, program::set_return_data, program_error::ProgramError,

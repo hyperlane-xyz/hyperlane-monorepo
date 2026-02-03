@@ -140,6 +140,7 @@ impl Context {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn add(self, instruction: Instruction) -> Self {
         self.add_with_optional_description(instruction, None)
@@ -250,9 +251,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             })
             .collect();
 
-        let is_solana = chain_name
-            .as_ref()
-            .map_or(false, |ch| ch == "solanamainnet");
+        let is_solana = chain_name.as_ref().is_some_and(|ch| ch == "solanamainnet");
 
         let new_entry = TransactionEntry {
             chain_name: chain_name.clone(),
