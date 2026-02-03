@@ -1,7 +1,7 @@
 import { type ChildProcess, spawn } from 'child_process';
 import { providers } from 'ethers';
 
-import { retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger } from '../index.js';
 
 const LOCAL_HOST = 'http://127.0.0.1';
 
@@ -73,22 +73,4 @@ export async function forkChain(
     kill,
     process: anvilProcess,
   };
-}
-
-export async function impersonateAccounts(
-  provider: providers.JsonRpcProvider,
-  accounts: string[],
-): Promise<void> {
-  await Promise.all(
-    accounts.map((address) =>
-      provider.send('anvil_impersonateAccount', [address]),
-    ),
-  );
-}
-
-export async function stopImpersonatingAccount(
-  provider: providers.JsonRpcProvider,
-  address: string,
-): Promise<void> {
-  await provider.send('anvil_stopImpersonatingAccount', [address]);
 }

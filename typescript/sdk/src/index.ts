@@ -839,16 +839,10 @@ export { getCosmosRegistryChain } from './utils/cosmos.js';
 export { verifyScale } from './utils/decimals.js';
 export { filterByChains } from './utils/filter.js';
 export {
-  AnvilForkResult,
-  ForkChainOptions,
-  forkChain,
-  impersonateAccounts,
-  stopImpersonatingAccount as stopImpersonating,
-} from './utils/anvil.js';
-export {
   ANVIL_RPC_METHODS,
   getLocalProvider,
   impersonateAccount,
+  impersonateAccounts,
   increaseTime,
   mine,
   resetFork,
