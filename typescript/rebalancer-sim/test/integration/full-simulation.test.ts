@@ -213,6 +213,43 @@ describe('Rebalancer Simulation', function () {
   });
 
   // ============================================================================
+  // INFLIGHT GUARD
+  // ============================================================================
+
+  /**
+   * Inflight Guard Test
+   *
+   * This test demonstrates the inflight tracking problem: with slow bridges (3s)
+   * and fast polling (200ms), a rebalancer without inflight awareness will
+   * over-rebalance because it doesn't account for pending transfers.
+   *
+   * CURRENT LIMITATION: ProductionRebalancerService tracks self-created rebalance
+   * intents via ActionTracker's in-memory store, but user transfer tracking relies
+   * on ExplorerClient which has no indexed data in simulation (Anvil).
+   * Until a mock ExplorerClient is implemented, this test runs as report-only.
+   */
+  it('inflight-guard: demonstrates over-rebalancing with slow bridge (report only)', async function () {
+    // This test takes longer due to 3s bridge delays and runs multiple rebalancers
+    this.timeout(120000);
+
+    const { results } = await runScenarioWithRebalancers('inflight-guard', {
+      anvilRpc: anvil.rpc,
+    });
+
+    // Report results - demonstrates over-rebalancing behavior
+    console.log('\n  INFLIGHT GUARD REPORT:');
+    for (const result of results) {
+      console.log(
+        `    ${result.rebalancerName}: ${result.kpis.totalRebalances} rebalances`,
+      );
+    }
+    console.log('    (Expected with proper inflight tracking: ≤2 rebalances)');
+    console.log(
+      '    Note: Currently both over-rebalance due to Explorer unavailability in simulation',
+    );
+  });
+
+  // ============================================================================
   // BASELINE (NO REBALANCER)
   // ============================================================================
 

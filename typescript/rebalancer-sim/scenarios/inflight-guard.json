@@ -82,5 +82,8 @@
       }
     }
   },
-  "expectations": {}
+  "expectations": {
+    "maxRebalances": 2,
+    "_note": "maxRebalances expectation not enforced in tests - currently report-only due to Explorer unavailability in simulation"
+  }
 }
