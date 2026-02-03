@@ -11,8 +11,7 @@ import {
 } from '@cosmjs/stargate';
 import { type CometClient, connectComet } from '@cosmjs/tendermint-rpc';
 
-import { warpTypes } from '@hyperlane-xyz/cosmos-types';
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { type AltVM } from '@hyperlane-xyz/provider-sdk';
 import { assert, strip0x } from '@hyperlane-xyz/utils';
 
 import {
@@ -87,6 +86,15 @@ import {
   getSetRoutingIsmRouteTx,
 } from '../ism/ism-tx.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as R } from '../registry.js';
+import { getWarpTokenType } from '../warp/warp-query.js';
+import {
+  getCreateCollateralTokenTx,
+  getCreateSyntheticTokenTx,
+  getEnrollRemoteRouterTx,
+  getSetTokenIsmTx,
+  getSetTokenOwnerTx,
+  getUnenrollRemoteRouterTx,
+} from '../warp/warp-tx.js';
 
 export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   private readonly query: QueryClient &
@@ -297,20 +305,7 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     });
     assert(token, `found no token for id ${req.tokenAddress}`);
 
-    let token_type: AltVM.TokenType;
-
-    switch (token.token_type) {
-      case warpTypes.HypTokenType.HYP_TOKEN_TYPE_COLLATERAL:
-        token_type = AltVM.TokenType.collateral;
-        break;
-      case warpTypes.HypTokenType.HYP_TOKEN_TYPE_SYNTHETIC:
-        token_type = AltVM.TokenType.synthetic;
-        break;
-      default:
-        throw new Error(
-          `Failed to determine token type for address ${req.tokenAddress}`,
-        );
-    }
+    const token_type = await getWarpTokenType(this.query, req.tokenAddress);
 
     return {
       address: token.id,
@@ -574,53 +569,36 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
   ): Promise<MsgCreateCollateralTokenEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateCollateralToken.proto.type,
-      value: R.MsgCreateCollateralToken.proto.converter.create({
-        owner: req.signer,
-        origin_mailbox: req.mailboxAddress,
-        origin_denom: req.collateralDenom,
-      }),
-    };
+    return getCreateCollateralTokenTx(req.signer, {
+      mailboxAddress: req.mailboxAddress,
+      collateralDenom: req.collateralDenom,
+    });
   }
 
   async getCreateSyntheticTokenTransaction(
     req: AltVM.ReqCreateSyntheticToken,
   ): Promise<MsgCreateSyntheticTokenEncodeObject> {
-    return {
-      typeUrl: R.MsgCreateSyntheticToken.proto.type,
-      value: R.MsgCreateSyntheticToken.proto.converter.create({
-        owner: req.signer,
-        origin_mailbox: req.mailboxAddress,
-      }),
-    };
+    return getCreateSyntheticTokenTx(req.signer, {
+      mailboxAddress: req.mailboxAddress,
+    });
   }
 
   async getSetTokenOwnerTransaction(
     req: AltVM.ReqSetTokenOwner,
   ): Promise<MsgSetTokenEncodeObject> {
-    return {
-      typeUrl: R.MsgSetToken.proto.type,
-      value: R.MsgSetToken.proto.converter.create({
-        owner: req.signer,
-        token_id: req.tokenAddress,
-        new_owner: req.newOwner,
-        renounce_ownership: !req.newOwner,
-      }),
-    };
+    return getSetTokenOwnerTx(req.signer, {
+      tokenAddress: req.tokenAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getSetTokenIsmTransaction(
     req: AltVM.ReqSetTokenIsm,
   ): Promise<MsgSetTokenEncodeObject> {
-    return {
-      typeUrl: R.MsgSetToken.proto.type,
-      value: R.MsgSetToken.proto.converter.create({
-        owner: req.signer,
-        token_id: req.tokenAddress,
-        ism_id: req.ismAddress,
-      }),
-    };
+    return getSetTokenIsmTx(req.signer, {
+      tokenAddress: req.tokenAddress,
+      ismAddress: req.ismAddress,
+    });
   }
 
   async getSetTokenHookTransaction(
@@ -632,31 +610,21 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
   async getEnrollRemoteRouterTransaction(
     req: AltVM.ReqEnrollRemoteRouter,
   ): Promise<MsgEnrollRemoteRouterEncodeObject> {
-    return {
-      typeUrl: R.MsgEnrollRemoteRouter.proto.type,
-      value: R.MsgEnrollRemoteRouter.proto.converter.create({
-        owner: req.signer,
-        token_id: req.tokenAddress,
-        remote_router: {
-          receiver_domain: req.remoteRouter.receiverDomainId,
-          receiver_contract: req.remoteRouter.receiverAddress,
-          gas: req.remoteRouter.gas,
-        },
-      }),
-    };
+    return getEnrollRemoteRouterTx(req.signer, {
+      tokenAddress: req.tokenAddress,
+      remoteDomainId: req.remoteRouter.receiverDomainId,
+      remoteRouterAddress: req.remoteRouter.receiverAddress,
+      gas: req.remoteRouter.gas,
+    });
   }
 
   async getUnenrollRemoteRouterTransaction(
     req: AltVM.ReqUnenrollRemoteRouter,
   ): Promise<MsgUnrollRemoteRouterEncodeObject> {
-    return {
-      typeUrl: R.MsgUnrollRemoteRouter.proto.type,
-      value: R.MsgUnrollRemoteRouter.proto.converter.create({
-        owner: req.signer,
-        token_id: req.tokenAddress,
-        receiver_domain: req.receiverDomainId,
-      }),
-    };
+    return getUnenrollRemoteRouterTx(req.signer, {
+      tokenAddress: req.tokenAddress,
+      remoteDomainId: req.receiverDomainId,
+    });
   }
 
   async getTransferTransaction(
