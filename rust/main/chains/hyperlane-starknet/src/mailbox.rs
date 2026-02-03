@@ -155,18 +155,18 @@ impl Mailbox for StarknetMailbox {
         message: &HyperlaneMessage,
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
-        let contract_call = self.process_contract_call(message, metadata).await?;
+        // let contract_call = self.process_contract_call(message, metadata).await?;
 
-        // Get fee estimate from the provider
-        let fee_estimate = contract_call
-            .estimate_fee()
-            .await
-            .map_err(HyperlaneStarknetError::from)?;
+        // // Get fee estimate from the provider
+        // let fee_estimate = contract_call
+        //     .estimate_fee()
+        //     .await
+        //     .map_err(HyperlaneStarknetError::from)?;
 
         Ok(TxCostEstimate {
-            gas_limit: fee_estimate.l2_gas_consumed.into(), // use l2 gas as an approximation, as its the most relevant
+            gas_limit: 1.into(), // use l2 gas as an approximation, as its the most relevant
             gas_price: FixedPointNumber::zero(),
-            l2_gas_limit: Some(fee_estimate.l2_gas_consumed.into()),
+            l2_gas_limit: Some(1.into()),
         })
     }
 
