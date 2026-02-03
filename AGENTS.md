@@ -1,6 +1,6 @@
-# CLAUDE.md
+# AGENTS.md
 
-This file provides guidance to Claude Code when working with code in this repository.
+This file provides guidance to AI coding assistants when working with code in this repository.
 
 **Be extremely concise. Sacrifice grammar for concision. Terse responses preferred. No fluff.**
 
@@ -510,7 +510,7 @@ Available MCP servers:
 | `hyperlane-explorer` | Message status queries        |
 | `notion`             | Documentation access          |
 
-## Tips for Claude Code Sessions
+## Tips for AI Coding Sessions
 
 1. **Run tests incrementally** - Don't run full test suite; run specific tests for changed code
 2. **Check existing patterns** - Search codebase for similar implementations before writing new code
@@ -532,7 +532,7 @@ Available MCP servers:
 - Check `git log` or blame before assuming why code exists
 - Verify imports exist in `package.json` before using them
 
-## When Claude Gets It Wrong
+## When the AI Gets It Wrong
 
 If output seems wrong, check:
 
