@@ -107,11 +107,11 @@ fn reorg_event_is_correct(
         reorg_event.checkpoint_index,
         expected_local_merkle_tree.index()
     );
-    // timestamp diff should be less than 60 seconds (generous tolerance for slow CI)
+    // timestamp diff should be less than 5 seconds
     let timestamp_diff = reorg_event.unix_timestamp as i64 - unix_timestamp as i64;
     assert!(
-        timestamp_diff.abs() < 60,
-        "timestamp_diff {} should be < 60",
+        timestamp_diff.abs() < 5,
+        "timestamp_diff {} should be < 5",
         timestamp_diff
     );
 
@@ -123,7 +123,6 @@ fn reorg_event_is_correct(
     expected = "Incorrect tree root. Most likely a reorg has occurred. Please reach out for help, this is a potentially serious error impacting signed messages. Do NOT forcefully resume operation of this validator. Keep it crashlooping or shut down until you receive support."
 )]
 async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
-    let unix_timestamp = chrono::Utc::now().timestamp() as u64;
     let expected_reorg_period = 12;
 
     let pre_reorg_merke_insertions = [
@@ -170,6 +169,7 @@ async fn reorg_is_detected_and_persisted_to_checkpoint_storage() {
 
     // expect the checkpoint syncer to post the reorg event to the checkpoint storage
     // and not submit any checkpoints (this is checked implicitly, by not setting any `expect`s)
+    let unix_timestamp = chrono::Utc::now().timestamp() as u64;
     let mut mock_checkpoint_syncer = MockCheckpointSyncer::new();
     let mock_onchain_merkle_tree_clone = mock_onchain_merkle_tree.clone();
     mock_checkpoint_syncer
