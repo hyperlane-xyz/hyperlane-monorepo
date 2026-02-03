@@ -32,7 +32,7 @@ export class AltVMFileSubmitter implements ITransactionSubmitter {
     const maybeExistingTxs = readYamlOrJson(filepath);
     if (maybeExistingTxs !== null) {
       if (!Array.isArray(maybeExistingTxs)) {
-        this.logger.error(
+        this.logger.debug(
           `Target filepath ${filepath} has existing data, but is not an array. Overwriting.`,
         );
       } else {
