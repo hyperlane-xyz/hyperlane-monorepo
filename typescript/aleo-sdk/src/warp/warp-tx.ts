@@ -5,6 +5,7 @@ import type {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   eqAddressAleo,
+  eqOptionalAddress,
   isNullish,
   isZeroishAddress,
   strip0x,
@@ -263,14 +264,10 @@ export async function getWarpTokenUpdateTxs<
   const updateTxs: AnnotatedAleoTransaction[] = [];
 
   // Update ISM if changed
-  const currentIsm =
-    currentConfig.interchainSecurityModule?.deployed.address ??
-    ALEO_NULL_ADDRESS;
-  const newIsm =
-    expectedConfig.interchainSecurityModule?.deployed.address ??
-    ALEO_NULL_ADDRESS;
+  const currentIsm = currentConfig.interchainSecurityModule?.deployed.address;
+  const newIsm = expectedConfig.interchainSecurityModule?.deployed.address;
 
-  if (!eqAddressAleo(currentIsm, newIsm)) {
+  if (!eqOptionalAddress(currentIsm, newIsm, eqAddressAleo)) {
     const setIsmTx = getSetTokenIsmTx(deployed.address, newIsm);
     updateTxs.push({
       annotation: 'Updating token ISM',
@@ -279,10 +276,10 @@ export async function getWarpTokenUpdateTxs<
   }
 
   // Update hook if changed
-  const currentHook = currentConfig.hook?.deployed.address ?? ALEO_NULL_ADDRESS;
-  const newHook = expectedConfig.hook?.deployed.address ?? ALEO_NULL_ADDRESS;
+  const currentHook = currentConfig.hook?.deployed.address;
+  const newHook = expectedConfig.hook?.deployed.address;
 
-  if (!eqAddressAleo(currentHook, newHook)) {
+  if (!eqOptionalAddress(currentHook, newHook, eqAddressAleo)) {
     const setIsmTx = getSetTokenHookTx(deployed.address, newHook);
     updateTxs.push({
       annotation: 'Updating token Hook',
