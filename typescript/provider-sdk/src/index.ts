@@ -11,6 +11,7 @@ export { ChainMetadataForAltVM } from './chain.js';
 export {
   computeRoutingIsmDomainChanges,
   RoutingIsmDomainChanges,
+  routingIsmQueryResultToArtifact,
 } from './ism/routing-update.js';
 export { DeployedIsmAddress, RawRoutingIsmArtifactConfig } from './ism.js';
 export { MinimumRequiredGasByAction, GasAction } from './mingas.js';

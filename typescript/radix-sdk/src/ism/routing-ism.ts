@@ -5,13 +5,12 @@ import {
   type ArtifactNew,
   type ArtifactReader,
   ArtifactState,
-  type ArtifactUnderived,
   type ArtifactWriter,
   type DeployedIsmAddress,
   type RawRoutingIsmArtifactConfig,
   computeRoutingIsmDomainChanges,
+  routingIsmQueryResultToArtifact,
 } from '@hyperlane-xyz/provider-sdk';
-import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { type TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
 import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
@@ -38,28 +37,7 @@ export class RadixRoutingIsmReader
     ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
   > {
     const ismConfig = await getDomainRoutingIsmConfig(this.gateway, address);
-
-    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
-    for (const route of ismConfig.routes) {
-      domains[route.domainId] = {
-        deployed: {
-          address: route.ismAddress,
-        },
-        artifactState: ArtifactState.UNDERIVED,
-      };
-    }
-
-    return {
-      artifactState: ArtifactState.DEPLOYED,
-      config: {
-        type: IsmType.ROUTING,
-        owner: ismConfig.owner,
-        domains,
-      },
-      deployed: {
-        address: ismConfig.address,
-      },
-    };
+    return routingIsmQueryResultToArtifact(ismConfig);
   }
 }
 

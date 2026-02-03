@@ -1,6 +1,11 @@
 import { isNullish } from '@hyperlane-xyz/utils';
 
-import { ArtifactDeployed } from '../artifact.js';
+import { IsmType } from '../altvm.js';
+import {
+  ArtifactDeployed,
+  ArtifactState,
+  ArtifactUnderived,
+} from '../artifact.js';
 import { DeployedIsmAddress, RawRoutingIsmArtifactConfig } from '../ism.js';
 
 /**
@@ -58,4 +63,43 @@ export function computeRoutingIsmDomainChanges(
   }
 
   return { setRoutes, removeRoutes };
+}
+
+/**
+ * Pure function that transforms a routing ISM query result from chain
+ * into a deployed artifact structure.
+ *
+ * Converts the routes array from the query into a domains object where
+ * each nested ISM is marked as UNDERIVED (address-only reference).
+ *
+ * @param queryResult - Raw routing ISM data from chain query
+ * @returns Deployed routing ISM artifact with UNDERIVED nested ISMs
+ */
+export function routingIsmQueryResultToArtifact(queryResult: {
+  address: string;
+  owner: string;
+  routes: Array<{ domainId: number; ismAddress: string }>;
+}): ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress> {
+  const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
+
+  for (const route of queryResult.routes) {
+    domains[route.domainId] = {
+      deployed: {
+        address: route.ismAddress,
+      },
+      artifactState: ArtifactState.UNDERIVED,
+    };
+  }
+
+  return {
+    artifactState: ArtifactState.DEPLOYED,
+    config: {
+      type: IsmType.ROUTING,
+      owner: queryResult.owner,
+      domains,
+    },
+    deployed: {
+      address: queryResult.address,
+    },
+  };
 }
