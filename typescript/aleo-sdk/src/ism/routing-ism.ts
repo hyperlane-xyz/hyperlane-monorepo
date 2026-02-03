@@ -1,7 +1,13 @@
-import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
+import {
+  type ArtifactDeployed,
+  type ArtifactNew,
+  ArtifactState,
+} from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   BaseRoutingIsmRawReader,
   BaseRoutingIsmRawWriter,
+  type DeployedIsmAddress,
+  type RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { eqAddressAleo } from '@hyperlane-xyz/utils';
 
@@ -68,19 +74,12 @@ export class AleoRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
    * Override create() to handle Aleo's special flow: create empty ISM, then set routes
    */
   async create(
-    artifact: Parameters<
-      BaseRoutingIsmRawWriter<
-        AnyAleoNetworkClient,
-        AnnotatedAleoTransaction,
-        AleoReceipt
-      >['create']
-    >[0],
-  ): ReturnType<
-    BaseRoutingIsmRawWriter<
-      AnyAleoNetworkClient,
-      AnnotatedAleoTransaction,
-      AleoReceipt
-    >['create']
+    artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
+  ): Promise<
+    [
+      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+      AleoReceipt[],
+    ]
   > {
     const { config } = artifact;
     const ismManagerProgramId = await this.signer.getIsmManager();
