@@ -29,7 +29,7 @@
     "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "dev": "tsc --watch",
-    "test": "echo \"no tests in tron-sdk\""
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts'"
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
