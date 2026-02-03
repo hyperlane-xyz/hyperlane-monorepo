@@ -3,6 +3,7 @@ import * as ponderSchema from 'ponder:schema';
 
 import { getAdapter } from '../db/adapter.js';
 import { checkAndHandleReorg } from '../db/reorg.js';
+import { getLogger } from '../utils/logger.js';
 import { updateProgress } from '../utils/progress.js';
 
 // =============================================================================
@@ -35,14 +36,15 @@ ponder.on(
     });
 
     if (!blockId) {
-      console.error(`Failed to store block for ${chainName}`);
+      getLogger().error({ chain: chainName }, 'Failed to store block');
       return;
     }
 
     // Skip if missing transactionIndex
     if (event.transaction.transactionIndex == null) {
-      console.warn(
-        `No transactionIndex for GasPayment in block ${event.block.number}, skipping`,
+      getLogger().warn(
+        { chain: chainName, block: event.block.number },
+        'No transactionIndex for GasPayment, skipping',
       );
       return;
     }
@@ -71,23 +73,28 @@ ponder.on(
     );
 
     if (!txId) {
-      console.error(`Failed to store transaction for ${chainName}`);
+      getLogger().error({ chain: chainName }, 'Failed to store transaction');
       return;
     }
 
     // Get origin domain ID from chainId
     const originDomainId = await adapter.getDomainId(chainId);
     if (!originDomainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return;
     }
 
     // Check if destination domain exists
     const destDomainExists = await adapter.domainExists(destinationDomain);
     if (!destDomainExists) {
-      console.warn(
-        `Unknown destination domain ${destinationDomain} for GasPayment msg=${messageId} ` +
-          `(origin=${chainName}, block=${event.block.number})`,
+      getLogger().warn(
+        {
+          destination: destinationDomain,
+          messageId,
+          origin: chainName,
+          block: event.block.number,
+        },
+        'Unknown destination domain for GasPayment',
       );
       return;
     }

@@ -2,6 +2,8 @@ import { and, eq } from 'drizzle-orm';
 import { type NodePgDatabase, drizzle } from 'drizzle-orm/node-postgres';
 import pg from 'pg';
 
+import { getLogger } from '../utils/logger.js';
+
 import * as schema from './schema.js';
 
 /**
@@ -133,7 +135,7 @@ export class PonderDbAdapter {
   ): Promise<number | undefined> {
     const domainId = await this.getDomainId(chainId);
     if (!domainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return undefined;
     }
 
@@ -251,9 +253,10 @@ export class PonderDbAdapter {
            ON CONFLICT DO NOTHING`,
           [txId, log.logIndex, addressHex, topicsLiteral, dataHex],
         );
-      } catch (err: any) {
-        console.warn(
-          `Failed to store log ${log.logIndex} for txId=${txId}: ${err.message}`,
+      } catch (err) {
+        getLogger().warn(
+          { txId, logIndex: log.logIndex, err },
+          'Failed to store transaction log',
         );
       }
     }
@@ -270,7 +273,7 @@ export class PonderDbAdapter {
   ): Promise<void> {
     const domainId = await this.getDomainId(chainId);
     if (!domainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return;
     }
 
@@ -334,7 +337,7 @@ export class PonderDbAdapter {
   ): Promise<void> {
     const domainId = await this.getDomainId(chainId);
     if (!domainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return;
     }
 
@@ -365,7 +368,7 @@ export class PonderDbAdapter {
   ): Promise<void> {
     const domainId = await this.getDomainId(chainId);
     if (!domainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return;
     }
 
@@ -397,7 +400,7 @@ export class PonderDbAdapter {
   ): Promise<void> {
     const domainId = await this.getDomainId(chainId);
     if (!domainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return;
     }
 
@@ -426,7 +429,7 @@ export class PonderDbAdapter {
   ): Promise<void> {
     const domainId = await this.getDomainId(chainId);
     if (!domainId) {
-      console.warn(`No domain found for chainId ${chainId}`);
+      getLogger().warn({ chainId }, 'No domain found for chainId');
       return;
     }
 
