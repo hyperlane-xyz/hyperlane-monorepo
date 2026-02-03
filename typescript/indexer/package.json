@@ -14,6 +14,7 @@
     "build": "tsc",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
+    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:compare": "tsx scripts/compare.ts"
   },
@@ -30,10 +31,16 @@
   "devDependencies": {
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.11.11",
+    "@types/sinon": "catalog:",
+    "chai": "catalog:",
     "eslint": "catalog:",
+    "mocha": "catalog:",
     "prettier": "catalog:",
+    "sinon": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
