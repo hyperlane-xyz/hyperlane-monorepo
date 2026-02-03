@@ -80,7 +80,7 @@ export class CosmosMessageIdMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transaction = await getCreateMessageIdMultisigIsmTx(
+    const transaction = getCreateMessageIdMultisigIsmTx(
       this.signer.getSignerAddress(),
       {
         validators: config.validators,
@@ -167,7 +167,7 @@ export class CosmosMerkleRootMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transaction = await getCreateMerkleRootMultisigIsmTx(
+    const transaction = getCreateMerkleRootMultisigIsmTx(
       this.signer.getSignerAddress(),
       {
         validators: config.validators,

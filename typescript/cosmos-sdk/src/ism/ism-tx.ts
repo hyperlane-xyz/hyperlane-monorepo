@@ -9,9 +9,9 @@ import {
 } from '../hyperlane/interchain_security/messages.js';
 import { COSMOS_MODULE_MESSAGE_REGISTRY as MessageRegistry } from '../registry.js';
 
-export async function getCreateTestIsmTx(
+export function getCreateTestIsmTx(
   fromAddress: string,
-): Promise<MsgCreateNoopIsmEncodeObject> {
+): MsgCreateNoopIsmEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgCreateNoopIsm.proto.type,
     value: MessageRegistry.MsgCreateNoopIsm.proto.converter.create({
@@ -20,10 +20,10 @@ export async function getCreateTestIsmTx(
   };
 }
 
-export async function getCreateMessageIdMultisigIsmTx(
+export function getCreateMessageIdMultisigIsmTx(
   fromAddress: string,
   config: { validators: string[]; threshold: number },
-): Promise<MsgCreateMessageIdMultisigIsmEncodeObject> {
+): MsgCreateMessageIdMultisigIsmEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgCreateMessageIdMultisigIsm.proto.type,
     value: MessageRegistry.MsgCreateMessageIdMultisigIsm.proto.converter.create(
@@ -36,10 +36,10 @@ export async function getCreateMessageIdMultisigIsmTx(
   };
 }
 
-export async function getCreateMerkleRootMultisigIsmTx(
+export function getCreateMerkleRootMultisigIsmTx(
   fromAddress: string,
   config: { validators: string[]; threshold: number },
-): Promise<MsgCreateMerkleRootMultisigIsmEncodeObject> {
+): MsgCreateMerkleRootMultisigIsmEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgCreateMerkleRootMultisigIsm.proto.type,
     value:
@@ -51,10 +51,10 @@ export async function getCreateMerkleRootMultisigIsmTx(
   };
 }
 
-export async function getCreateRoutingIsmTx(
+export function getCreateRoutingIsmTx(
   fromAddress: string,
   routes: Array<{ domainId: number; ismAddress: string }>,
-): Promise<MsgCreateRoutingIsmEncodeObject> {
+): MsgCreateRoutingIsmEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgCreateRoutingIsm.proto.type,
     value: MessageRegistry.MsgCreateRoutingIsm.proto.converter.create({
@@ -67,13 +67,13 @@ export async function getCreateRoutingIsmTx(
   };
 }
 
-export async function getSetRoutingIsmRouteTx(
+export function getSetRoutingIsmRouteTx(
   ownerAddress: string,
   config: {
     ismAddress: string;
     domainIsm: { domainId: number; ismAddress: string };
   },
-): Promise<MsgSetRoutingIsmDomainEncodeObject> {
+): MsgSetRoutingIsmDomainEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgSetRoutingIsmDomain.proto.type,
     value: MessageRegistry.MsgSetRoutingIsmDomain.proto.converter.create({
@@ -87,10 +87,10 @@ export async function getSetRoutingIsmRouteTx(
   };
 }
 
-export async function getRemoveRoutingIsmRouteTx(
+export function getRemoveRoutingIsmRouteTx(
   ownerAddress: string,
   config: { ismAddress: string; domainId: number },
-): Promise<MsgRemoveRoutingIsmDomainEncodeObject> {
+): MsgRemoveRoutingIsmDomainEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgRemoveRoutingIsmDomain.proto.type,
     value: MessageRegistry.MsgRemoveRoutingIsmDomain.proto.converter.create({
@@ -101,10 +101,10 @@ export async function getRemoveRoutingIsmRouteTx(
   };
 }
 
-export async function getSetRoutingIsmOwnerTx(
+export function getSetRoutingIsmOwnerTx(
   ownerAddress: string,
   config: { ismAddress: string; newOwner: string },
-): Promise<MsgUpdateRoutingIsmOwnerEncodeObject> {
+): MsgUpdateRoutingIsmOwnerEncodeObject {
   return {
     typeUrl: MessageRegistry.MsgUpdateRoutingIsmOwner.proto.type,
     value: MessageRegistry.MsgUpdateRoutingIsmOwner.proto.converter.create({

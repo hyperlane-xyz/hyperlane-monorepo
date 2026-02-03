@@ -2,14 +2,16 @@ import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import {
   type ArtifactDeployed,
+  type ArtifactNew,
+  type ArtifactReader,
+  ArtifactState,
+  type ArtifactUnderived,
+  type ArtifactWriter,
   type DeployedIsmAddress,
   type RawRoutingIsmArtifactConfig,
   computeRoutingIsmDomainChanges,
 } from '@hyperlane-xyz/provider-sdk';
-import {
-  AltvmRoutingIsmReader,
-  AltvmRoutingIsmWriter,
-} from '@hyperlane-xyz/provider-sdk/ism';
+import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 import { eqAddressCosmos } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
@@ -29,9 +31,40 @@ import {
  * Returns nested ISMs as address-only references (UNDERIVED state).
  * The GenericIsmReader from deploy-sdk handles recursive expansion of nested ISMs.
  */
-export class CosmosRoutingIsmReader extends AltvmRoutingIsmReader<CosmosIsmQueryClient> {
-  constructor(query: CosmosIsmQueryClient) {
-    super(query, (client, address) => getRoutingIsmConfig(client, address));
+export class CosmosRoutingIsmReader
+  implements ArtifactReader<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+{
+  constructor(protected readonly query: CosmosIsmQueryClient) {}
+
+  async read(
+    address: string,
+  ): Promise<
+    ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+  > {
+    const ismConfig = await getRoutingIsmConfig(this.query, address);
+
+    // Convert routes to UNDERIVED artifacts (address-only references)
+    const domains: Record<number, ArtifactUnderived<DeployedIsmAddress>> = {};
+    for (const route of ismConfig.routes) {
+      domains[route.domainId] = {
+        deployed: {
+          address: route.ismAddress,
+        },
+        artifactState: ArtifactState.UNDERIVED,
+      };
+    }
+
+    return {
+      artifactState: ArtifactState.DEPLOYED,
+      config: {
+        type: IsmType.ROUTING,
+        owner: ismConfig.owner,
+        domains,
+      },
+      deployed: {
+        address: ismConfig.address,
+      },
+    };
   }
 }
 
@@ -39,33 +72,73 @@ export class CosmosRoutingIsmReader extends AltvmRoutingIsmReader<CosmosIsmQuery
  * Writer for Cosmos Routing ISM (raw).
  * Handles deployment and updates of routing ISMs including domain route management and ownership transfers.
  */
-export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
-  CosmosIsmQueryClient,
-  AnnotatedEncodeObject,
-  DeliverTxResponse
-> {
-  constructor(query: CosmosIsmQueryClient, signer: CosmosNativeSigner) {
-    super(
-      query,
-      (client, address) => getRoutingIsmConfig(client, address),
-      eqAddressCosmos,
-      {
-        create: getCreateRoutingIsmTx,
-        setRoute: getSetRoutingIsmRouteTx,
-        removeRoute: getRemoveRoutingIsmRouteTx,
-        setOwner: getSetRoutingIsmOwnerTx,
-      },
-      async (receipt) => getNewContractAddress(receipt),
-      () => signer.getSignerAddress(),
-      async (tx) => signer.sendAndConfirmTransaction(tx),
+export class CosmosRoutingIsmWriter
+  extends CosmosRoutingIsmReader
+  implements ArtifactWriter<RawRoutingIsmArtifactConfig, DeployedIsmAddress>
+{
+  constructor(
+    query: CosmosIsmQueryClient,
+    private readonly signer: CosmosNativeSigner,
+  ) {
+    super(query);
+  }
+
+  async create(
+    artifact: ArtifactNew<RawRoutingIsmArtifactConfig>,
+  ): Promise<
+    [
+      ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
+      DeliverTxResponse[],
+    ]
+  > {
+    const { config } = artifact;
+    const signerAddress = this.signer.getSignerAddress();
+    const receipts: DeliverTxResponse[] = [];
+
+    const routes = Object.entries(config.domains).map(
+      ([domainId, artifact]) => ({
+        domainId: parseInt(domainId),
+        ismAddress: artifact.deployed.address,
+      }),
     );
+
+    const transaction = getCreateRoutingIsmTx(signerAddress, routes);
+
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    receipts.push(receipt);
+    const ismAddress = getNewContractAddress(receipt);
+
+    // Transfer ownership if config.owner differs from signer
+    if (!eqAddressCosmos(config.owner, signerAddress)) {
+      const ownerTransferTx = getSetRoutingIsmOwnerTx(signerAddress, {
+        ismAddress,
+        newOwner: config.owner,
+      });
+
+      const ownerReceipt =
+        await this.signer.sendAndConfirmTransaction(ownerTransferTx);
+      receipts.push(ownerReceipt);
+    }
+
+    const deployedArtifact: ArtifactDeployed<
+      RawRoutingIsmArtifactConfig,
+      DeployedIsmAddress
+    > = {
+      artifactState: ArtifactState.DEPLOYED,
+      config: artifact.config,
+      deployed: {
+        address: ismAddress,
+      },
+    };
+
+    return [deployedArtifact, receipts];
   }
 
   async update(
     artifact: ArtifactDeployed<RawRoutingIsmArtifactConfig, DeployedIsmAddress>,
-  ): Promise<Array<AnnotatedEncodeObject & { annotation?: string }>> {
+  ): Promise<AnnotatedEncodeObject[]> {
     const currentConfig = await this.read(artifact.deployed.address);
-    const signerAddress = await this.getSignerAddress();
+    const signerAddress = this.signer.getSignerAddress();
 
     // Pure data: compute domain route changes
     const changes = computeRoutingIsmDomainChanges(
@@ -75,11 +148,10 @@ export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
     );
 
     // Convert changes to transactions
-    const transactions: Array<AnnotatedEncodeObject & { annotation?: string }> =
-      [];
+    const transactions: AnnotatedEncodeObject[] = [];
 
     for (const { domain, ismAddress } of changes.setRoutes) {
-      const tx = await getSetRoutingIsmRouteTx(signerAddress, {
+      const tx = getSetRoutingIsmRouteTx(signerAddress, {
         ismAddress: artifact.deployed.address,
         domainIsm: { domainId: domain, ismAddress },
       });
@@ -90,7 +162,7 @@ export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
     }
 
     for (const { domain } of changes.removeRoutes) {
-      const tx = await getRemoveRoutingIsmRouteTx(signerAddress, {
+      const tx = getRemoveRoutingIsmRouteTx(signerAddress, {
         ismAddress: artifact.deployed.address,
         domainId: domain,
       });
@@ -102,7 +174,7 @@ export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
 
     // Ownership transfer (must be last as current owner executes all updates)
     if (!eqAddressCosmos(artifact.config.owner, currentConfig.config.owner)) {
-      const tx = await getSetRoutingIsmOwnerTx(signerAddress, {
+      const tx = getSetRoutingIsmOwnerTx(signerAddress, {
         ismAddress: artifact.deployed.address,
         newOwner: artifact.config.owner,
       });

@@ -66,9 +66,7 @@ export class CosmosTestIsmWriter
   ): Promise<
     [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, DeliverTxResponse[]]
   > {
-    const transaction = await getCreateTestIsmTx(
-      this.signer.getSignerAddress(),
-    );
+    const transaction = getCreateTestIsmTx(this.signer.getSignerAddress());
 
     const receipt = await this.signer.sendAndConfirmTransaction(transaction);
     const ismAddress = getNewContractAddress(receipt);
