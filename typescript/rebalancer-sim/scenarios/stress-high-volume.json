@@ -1,0 +1,482 @@
+{
+  "name": "stress-high-volume",
+  "description": "Load tests the simulation with high transfer volume.",
+  "expectedBehavior": "50 transfers over 20 seconds with Poisson distribution (~2.5 tx/sec average).\nRandom origin/destination creates unpredictable imbalances.\nTests rebalancer stability under sustained load.\nPoisson distribution creates realistic bursty traffic patterns.",
+  "duration": 20000,
+  "chains": ["chain1", "chain2", "chain3"],
+  "transfers": [
+    {
+      "id": "rnd-000000",
+      "timestamp": 71,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "2312458793795101290",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000001",
+      "timestamp": 173,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "1281166152609728329",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000002",
+      "timestamp": 536,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1735392188476673307",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000003",
+      "timestamp": 685,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "4790699375137442511",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000004",
+      "timestamp": 1546,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "3076729247379650982",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000005",
+      "timestamp": 1629,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1884870889907824491",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000006",
+      "timestamp": 1647,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "1356286151532406375",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000007",
+      "timestamp": 2117,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "1843891641131674244",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000008",
+      "timestamp": 2359,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "2645910195698921961",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000009",
+      "timestamp": 2482,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "2973978200814945775",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000010",
+      "timestamp": 3879,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2194096116977402004",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000011",
+      "timestamp": 4346,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2134339985076341907",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000012",
+      "timestamp": 4467,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "4936073339567049113",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000013",
+      "timestamp": 4728,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2402187002960999956",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000014",
+      "timestamp": 4880,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1656624677420970122",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000015",
+      "timestamp": 5787,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "2939200205401536252",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000016",
+      "timestamp": 6496,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "2995438118288421133",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000017",
+      "timestamp": 6583,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "1169344514584632852",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000018",
+      "timestamp": 6873,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2962852017137189549",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000019",
+      "timestamp": 6996,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "1652642471030278718",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000020",
+      "timestamp": 7238,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4552176464364786215",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000021",
+      "timestamp": 7293,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4629784559177946297",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000022",
+      "timestamp": 7466,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3939670831652060224",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000023",
+      "timestamp": 7672,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3738965437356577603",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000024",
+      "timestamp": 8654,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "1465731038009411898",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000025",
+      "timestamp": 9981,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "2844243400129382388",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000026",
+      "timestamp": 9994,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "2850174605122528659",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000027",
+      "timestamp": 10657,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "1629147187067792891",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000028",
+      "timestamp": 10941,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "1962675159237663030",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000029",
+      "timestamp": 11345,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "4508076325319861034",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000030",
+      "timestamp": 12037,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "3911549513060551254",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000031",
+      "timestamp": 13259,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "1689516495365931681",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000032",
+      "timestamp": 13365,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "1306508724047052265",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000033",
+      "timestamp": 14223,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1640803283332415824",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000034",
+      "timestamp": 15341,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "4195138724006189871",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000035",
+      "timestamp": 15362,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "1439411941083102804",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000036",
+      "timestamp": 15726,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "2297885460607888381",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000037",
+      "timestamp": 16859,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3880252271644700732",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000038",
+      "timestamp": 17309,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "4570759838293048090",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000039",
+      "timestamp": 17357,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "2509374797851331364",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000040",
+      "timestamp": 17666,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "3671290940392792489",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000041",
+      "timestamp": 18039,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "3519067256785541020",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000042",
+      "timestamp": 18263,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "4534197844118682673",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000043",
+      "timestamp": 18759,
+      "origin": "chain1",
+      "destination": "chain3",
+      "amount": "1859691603345609614",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000044",
+      "timestamp": 18888,
+      "origin": "chain3",
+      "destination": "chain1",
+      "amount": "3269811121019515037",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000045",
+      "timestamp": 19046,
+      "origin": "chain2",
+      "destination": "chain3",
+      "amount": "2549881729642206840",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000046",
+      "timestamp": 20000,
+      "origin": "chain2",
+      "destination": "chain1",
+      "amount": "2582529070238174234",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000047",
+      "timestamp": 20000,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "4373720453292797880",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000048",
+      "timestamp": 20000,
+      "origin": "chain3",
+      "destination": "chain2",
+      "amount": "1663006380274578703",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    },
+    {
+      "id": "rnd-000049",
+      "timestamp": 20000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "2133367747552744189",
+      "user": "0x79caf7532af96f0b3565f620770e29e5bcfea037"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 100,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain3": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    },
+    "chain3": {
+      "chain1": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      },
+      "chain2": {
+        "deliveryDelay": 500,
+        "failureRate": 0,
+        "deliveryJitter": 100
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain1": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain3": {
+        "weighted": {
+          "weight": "0.333",
+          "tolerance": "0.15"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "minCompletionRate": 0.85
+  }
+}
