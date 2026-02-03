@@ -8,10 +8,10 @@ import { isFile, pathExists, readFileAtPath, writeToFile } from './utils.js';
  * Reads and parses a JSON file.
  * Returns null for empty or whitespace-only files (matching YAML behavior).
  */
-export function readJson<T>(filepath: string): T {
+export function readJson<T>(filepath: string): T | null {
   const content = readFileAtPath(filepath);
   if (content.trim() === '') {
-    return null as T;
+    return null;
   }
   return JSON.parse(content) as T;
 }
@@ -45,7 +45,7 @@ export function mergeJson<T extends Record<string, unknown>>(
 ): void {
   if (isFile(filepath)) {
     const previous = readJson<T>(filepath);
-    writeJson(filepath, objMerge(previous, obj));
+    writeJson(filepath, previous ? objMerge(previous, obj) : obj);
   } else {
     writeJson(filepath, obj);
   }
@@ -54,7 +54,10 @@ export function mergeJson<T extends Record<string, unknown>>(
 /**
  * Reads JSON from a directory with the specified filename.
  */
-export function readJsonFromDir<T>(directory: string, filename: string): T {
+export function readJsonFromDir<T>(
+  directory: string,
+  filename: string,
+): T | null {
   return readJson<T>(path.join(directory, filename));
 }
 
@@ -93,7 +96,7 @@ export function writeJsonWithAppendMode(
   let data = newData;
   if (appendMode && pathExists(filepath)) {
     const existing = readJson<Record<string, unknown>>(filepath);
-    // Merge newData into existing, preserving existing values for keys that already exist
+    // Spreading null is safe: {...newData, ...null} equals {...newData}
     data = { ...newData, ...existing };
   }
   writeJson(filepath, data);

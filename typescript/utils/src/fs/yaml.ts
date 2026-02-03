@@ -60,7 +60,7 @@ export function mergeYaml<T extends Record<string, unknown>>(
 ): void {
   if (isFile(filepath)) {
     const previous = readYaml<T>(filepath);
-    writeYaml(filepath, objMerge(previous, obj));
+    writeYaml(filepath, previous ? objMerge(previous, obj) : obj);
   } else {
     writeYaml(filepath, obj);
   }

@@ -248,5 +248,21 @@ describe('Format utilities', () => {
       const result = readYamlOrJson<Record<string, string>>(yamlFile);
       expect(result).to.deep.equal({ existing: 'data', new: 'data' });
     });
+
+    it('writes only new data when JSON file is empty', () => {
+      const jsonFile = path.join(testDir, 'empty.json');
+      fs.writeFileSync(jsonFile, '');
+      mergeYamlOrJson(jsonFile, { new: 'data' }, 'json');
+      const result = readYamlOrJson<Record<string, string>>(jsonFile);
+      expect(result).to.deep.equal({ new: 'data' });
+    });
+
+    it('writes only new data when YAML file is empty', () => {
+      const yamlFile = path.join(testDir, 'empty.yaml');
+      fs.writeFileSync(yamlFile, '');
+      mergeYamlOrJson(yamlFile, { new: 'data' });
+      const result = readYamlOrJson<Record<string, string>>(yamlFile);
+      expect(result).to.deep.equal({ new: 'data' });
+    });
   });
 });

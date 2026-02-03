@@ -61,8 +61,16 @@ function resolveYamlOrJsonFn<T>(
 /**
  * Reads and parses a YAML or JSON file based on extension or explicit format.
  */
-export function readYamlOrJson<T>(filepath: string, format?: FileFormat): T {
-  return resolveYamlOrJsonFn<T>(filepath, readJson<T>, readYaml<T>, format);
+export function readYamlOrJson<T>(
+  filepath: string,
+  format?: FileFormat,
+): T | null {
+  return resolveYamlOrJsonFn<T | null>(
+    filepath,
+    readJson<T>,
+    readYaml<T>,
+    format,
+  );
 }
 
 /**
