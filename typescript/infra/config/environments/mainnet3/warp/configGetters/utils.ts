@@ -4,6 +4,7 @@ import { WarpRouteId } from '@hyperlane-xyz/registry';
 import {
   ChainMap,
   ChainName,
+  ChainSubmissionStrategy,
   HypTokenRouterConfig,
   MovableTokenConfig,
   TokenFeeConfigInput,
@@ -212,4 +213,20 @@ export function getFixedRoutingFeeConfig(
     owner,
     feeContracts,
   };
+}
+
+/**
+ * Creates a file submitter strategy config for the given chains.
+ * 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion.
+ */
+export function getFileSubmitterStrategyConfig(
+  chains: readonly string[],
+  filepath: string,
+): ChainSubmissionStrategy {
+  return Object.fromEntries(
+    chains.map((chain) => [
+      chain,
+      { submitter: { type: 'file', filepath, chain } },
+    ]),
+  ) as unknown as ChainSubmissionStrategy;
 }

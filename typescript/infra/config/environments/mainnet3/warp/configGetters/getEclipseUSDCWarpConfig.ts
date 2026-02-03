@@ -19,6 +19,7 @@ import { SEALEVEL_WARP_ROUTE_HANDLER_GAS_AMOUNT } from '../consts.js';
 import { WarpRouteIds } from '../warpIds.js';
 
 import {
+  getFileSubmitterStrategyConfig,
   getFixedRoutingFeeConfig,
   getRebalancingUSDCConfigForChain,
   getUSDCRebalancingBridgesConfigFor,
@@ -208,23 +209,11 @@ export const getEclipseUSDCWarpConfig = async (
   return Object.fromEntries(configs);
 };
 
-export function getUSDCEclipseFileSubmitterStrategyConfig(): ChainSubmissionStrategy {
-  // 'file' submitter type is CLI-specific (not in SDK types), so we use type assertion
-  return Object.fromEntries(
-    Object.entries(ownersByChain)
-      .filter(([chain, _]) => evmDeploymentChains.includes(chain))
-      .map(([chain, _]) => [
-        chain,
-        {
-          submitter: {
-            type: 'file',
-            filepath: '/tmp/eclipse-usdc-combined.json',
-            chain,
-          },
-        },
-      ]),
-  ) as unknown as ChainSubmissionStrategy;
-}
+export const getUSDCEclipseFileSubmitterStrategyConfig = () =>
+  getFileSubmitterStrategyConfig(
+    evmDeploymentChains,
+    '/tmp/eclipse-usdc-combined.json',
+  );
 
 export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
   const safeChains = ['ethereum', 'arbitrum', 'base', 'optimism'] as const;
