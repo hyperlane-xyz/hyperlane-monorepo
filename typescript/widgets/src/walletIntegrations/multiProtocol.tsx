@@ -126,6 +126,7 @@ export function useAccounts(
         [ProtocolType.Starknet]: starknetAccountInfo,
         [ProtocolType.Radix]: radixAccountInfo,
         [ProtocolType.Aleo]: aleoAccountInfo,
+        [ProtocolType.Tron]: evmAccountInfo,
       },
       readyAccounts,
     }),
@@ -241,6 +242,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
       [ProtocolType.Starknet]: starknetWallet,
       [ProtocolType.Radix]: radixWallet,
       [ProtocolType.Aleo]: aleoWallet,
+      [ProtocolType.Tron]: evmWallet,
     }),
     [
       evmWallet,
@@ -270,6 +272,7 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
       [ProtocolType.Starknet]: onConnectStarknet,
       [ProtocolType.Radix]: onConnectRadix,
       [ProtocolType.Aleo]: onConnectAleo,
+      [ProtocolType.Tron]: onConnectEthereum,
     }),
     [
       onConnectEthereum,
@@ -328,6 +331,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
         disconnectRadix,
       ),
       [ProtocolType.Aleo]: onClickDisconnect(ProtocolType.Aleo, disconnectAleo),
+      [ProtocolType.Tron]: onClickDisconnect(ProtocolType.Tron, disconnectEvm),
     }),
     [
       disconnectEvm,
@@ -374,6 +378,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
         [ProtocolType.Starknet]: starknetChain,
         [ProtocolType.Radix]: radixChain,
         [ProtocolType.Aleo]: aleoChain,
+        [ProtocolType.Tron]: evmChain,
       },
       readyChains,
     }),
@@ -460,6 +465,11 @@ export function useTransactionFns(
         sendMultiTransaction: onSendMultiAleoTx,
         switchNetwork: onSwitchAleoNetwork,
       },
+      [ProtocolType.Tron]: {
+        sendTransaction: onSendEvmTx,
+        sendMultiTransaction: onSendMultiEvmTx,
+        switchNetwork: onSwitchEvmNetwork,
+      },
     }),
     [
       onSendEvmTx,
@@ -510,6 +520,9 @@ export function useWatchAsset(
       },
       [ProtocolType.Aleo]: {
         addAsset: aleoAddAsset,
+      },
+      [ProtocolType.Tron]: {
+        addAsset: evmAddAsset,
       },
     }),
     [

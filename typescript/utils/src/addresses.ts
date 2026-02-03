@@ -1,7 +1,9 @@
 import { fromBech32, normalizeBech32, toBech32 } from '@cosmjs/encoding';
 import { PublicKey } from '@solana/web3.js';
 import { bech32m } from 'bech32';
+import bs58 from 'bs58';
 import { Wallet, utils as ethersUtils } from 'ethers';
+import { createHash } from 'node:crypto';
 import {
   addAddressPadding,
   encode,
@@ -21,6 +23,9 @@ const RADIX_ADDRESS_REGEX =
   /^(account|component)_(rdx|loc|sim|tdx_[\d]_)[a-z0-9]{55}$/;
 const ALEO_ADDRESS_REGEX =
   /^([a-z0-9_]+\.aleo\/aleo1[a-z0-9]{58}|aleo1[a-z0-9]{58})$/;
+// Tron addresses are Base58Check encoded, 34 characters, starting with 'T'
+// They use the same character set as Bitcoin (no 0, O, I, l)
+const TRON_ADDRESS_REGEX = /^T[1-9A-HJ-NP-Za-km-z]{33}$/;
 
 const HEX_BYTES32_REGEX = /^0x[a-fA-F0-9]{64}$/;
 
@@ -40,6 +45,8 @@ const COSMOS_TX_HASH_REGEX = /^(0x)?[A-Fa-f0-9]{64}$/;
 const STARKNET_TX_HASH_REGEX = /^(0x)?[0-9a-fA-F]{64}$/;
 const RADIX_TX_HASH_REGEX = /^txid_(rdx|sim|tdx_[\d]_)[a-z0-9]{59}$/;
 const ALEO_TX_HASH_REGEX = /^at1[a-z0-9]{58}$/;
+// Tron transaction hashes are 64 hex characters (no 0x prefix typically)
+const TRON_TX_HASH_REGEX = /^[a-fA-F0-9]{64}$/;
 
 const EVM_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const SEALEVEL_ZEROISH_ADDRESS_REGEX = /^1+$/;
@@ -53,6 +60,8 @@ const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
 // - aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc
 const ALEO_ZEROISH_ADDRESS_REGEX =
   /^(?:[a-z0-9_]+\.aleo\/)?aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
+// Tron zero address is T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb (all zeros with checksum)
+const TRON_ZEROISH_ADDRESS_REGEX = /^T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -99,6 +108,10 @@ export function isAddressAleo(address: Address) {
   return ALEO_ADDRESS_REGEX.test(address);
 }
 
+export function isAddressTron(address: Address) {
+  return TRON_ADDRESS_REGEX.test(address);
+}
+
 export function getAddressProtocolType(address: Address) {
   if (!address) return undefined;
   if (isAddressEvm(address)) {
@@ -115,6 +128,8 @@ export function getAddressProtocolType(address: Address) {
     return ProtocolType.Starknet;
   } else if (isAddressRadix(address)) {
     return ProtocolType.Radix;
+  } else if (isAddressTron(address)) {
+    return ProtocolType.Tron;
   } else {
     return undefined;
   }
@@ -201,6 +216,11 @@ export function isValidAddressAleo(address: Address) {
   }
 }
 
+// Validates Tron address format (Base58Check, 34 chars, starts with 'T')
+export function isValidAddressTron(address: Address) {
+  return TRON_ADDRESS_REGEX.test(address);
+}
+
 export function isValidAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
@@ -211,6 +231,7 @@ export function isValidAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Starknet]: isValidAddressStarknet,
       [ProtocolType.Radix]: isValidAddressRadix,
       [ProtocolType.Aleo]: isValidAddressAleo,
+      [ProtocolType.Tron]: isValidAddressTron,
     },
     address,
     false,
@@ -262,6 +283,11 @@ export function normalizeAddressAleo(address: Address) {
   return address;
 }
 
+// Tron addresses are already normalized in Base58Check format
+export function normalizeAddressTron(address: Address) {
+  return address;
+}
+
 export function normalizeAddress(address: Address, protocol?: ProtocolType) {
   return routeAddressUtil(
     {
@@ -272,6 +298,7 @@ export function normalizeAddress(address: Address, protocol?: ProtocolType) {
       [ProtocolType.Starknet]: normalizeAddressStarknet,
       [ProtocolType.Radix]: normalizeAddressRadix,
       [ProtocolType.Aleo]: normalizeAddressAleo,
+      [ProtocolType.Tron]: normalizeAddressTron,
     },
     address,
     address,
@@ -303,6 +330,10 @@ export function eqAddressAleo(a1: Address, a2: Address) {
   return normalizeAddressAleo(a1) === normalizeAddressAleo(a2);
 }
 
+export function eqAddressTron(a1: Address, a2: Address) {
+  return normalizeAddressTron(a1) === normalizeAddressTron(a2);
+}
+
 export function eqAddress(a1: Address, a2: Address) {
   const p1 = getAddressProtocolType(a1);
   const p2 = getAddressProtocolType(a2);
@@ -316,6 +347,7 @@ export function eqAddress(a1: Address, a2: Address) {
       [ProtocolType.Starknet]: (_a1) => eqAddressStarknet(_a1, a2),
       [ProtocolType.Radix]: (_a1) => eqAddressRadix(_a1, a2),
       [ProtocolType.Aleo]: (_a1) => eqAddressAleo(_a1, a2),
+      [ProtocolType.Tron]: (_a1) => eqAddressTron(_a1, a2),
     },
     a1,
     false,
@@ -347,6 +379,10 @@ export function isValidTransactionHashAleo(input: string) {
   return ALEO_TX_HASH_REGEX.test(input);
 }
 
+export function isValidTransactionHashTron(input: string) {
+  return TRON_TX_HASH_REGEX.test(input);
+}
+
 export function isValidTransactionHash(input: string, protocol: ProtocolType) {
   if (protocol === ProtocolType.Ethereum) {
     return isValidTransactionHashEvm(input);
@@ -362,6 +398,8 @@ export function isValidTransactionHash(input: string, protocol: ProtocolType) {
     return isValidTransactionHashRadix(input);
   } else if (protocol === ProtocolType.Aleo) {
     return isValidTransactionHashAleo(input);
+  } else if (protocol === ProtocolType.Tron) {
+    return isValidTransactionHashTron(input);
   } else {
     return false;
   }
@@ -375,7 +413,8 @@ export function isZeroishAddress(address: Address) {
     COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX.test(address) ||
     STARKNET_ZEROISH_ADDRESS_REGEX.test(address) ||
     RADIX_ZEROISH_ADDRESS_REGEX.test(address) ||
-    ALEO_ZEROISH_ADDRESS_REGEX.test(address)
+    ALEO_ZEROISH_ADDRESS_REGEX.test(address) ||
+    TRON_ZEROISH_ADDRESS_REGEX.test(address)
   );
 }
 
@@ -453,6 +492,20 @@ export function addressToBytesAleo(address: Address): Uint8Array {
   return new Uint8Array(bech32m.fromWords(bech32m.decode(aleoAddress).words));
 }
 
+// Converts Tron Base58Check address to bytes (21 bytes: 0x41 prefix + 20 byte address)
+// Returns 32-byte padded array for consistency with other protocols
+export function addressToBytesTron(address: Address): Uint8Array {
+  const decoded = bs58.decode(address);
+  // Remove checksum (last 4 bytes), keep 21 bytes (0x41 prefix + 20 byte address)
+  const addressBytes = decoded.slice(0, 21);
+  // Remove the 0x41 prefix to get the 20-byte EVM-compatible address
+  const evmBytes = addressBytes.slice(1);
+  // Pad to 32 bytes from the left
+  const padded = new Uint8Array(32);
+  padded.set(evmBytes, 12);
+  return padded;
+}
+
 export function addressToBytes(
   address: Address,
   protocol?: ProtocolType,
@@ -466,6 +519,7 @@ export function addressToBytes(
       [ProtocolType.Starknet]: addressToBytesStarknet,
       [ProtocolType.Radix]: addressToBytesRadix,
       [ProtocolType.Aleo]: addressToBytesAleo,
+      [ProtocolType.Tron]: addressToBytesTron,
     },
     address,
     new Uint8Array(),
@@ -583,6 +637,25 @@ export function bytesToAddressAleo(bytes: Uint8Array): Address {
   return `program.aleo/${bech32m.encode('aleo', bech32m.toWords(bytes))}`;
 }
 
+// Converts 32-byte padded address back to Tron Base58Check format
+export function bytesToAddressTron(bytes: Uint8Array): Address {
+  // Extract the last 20 bytes (EVM-compatible address)
+  const evmBytes = bytes.slice(bytes.length - 20);
+  // Prepend 0x41 (Tron mainnet prefix)
+  const addressBytes = new Uint8Array(21);
+  addressBytes[0] = 0x41;
+  addressBytes.set(evmBytes, 1);
+  // Calculate checksum (double SHA256 of first 21 bytes, take first 4 bytes)
+  const hash1 = createHash('sha256').update(addressBytes).digest();
+  const hash2 = createHash('sha256').update(hash1).digest();
+  const checksum = hash2.slice(0, 4);
+  // Combine address + checksum and encode as Base58
+  const fullAddress = new Uint8Array(25);
+  fullAddress.set(addressBytes, 0);
+  fullAddress.set(checksum, 21);
+  return bs58.encode(fullAddress);
+}
+
 export function bytesToProtocolAddress(
   bytes: Uint8Array,
   toProtocol: ProtocolType,
@@ -606,6 +679,8 @@ export function bytesToProtocolAddress(
     return bytesToAddressRadix(bytes, prefix!);
   } else if (toProtocol === ProtocolType.Aleo) {
     return bytesToAddressAleo(bytes);
+  } else if (toProtocol === ProtocolType.Tron) {
+    return bytesToAddressTron(bytes);
   } else {
     throw new Error(`Unsupported protocol for address ${toProtocol}`);
   }

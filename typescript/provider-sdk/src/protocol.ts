@@ -20,6 +20,7 @@ export enum ProtocolType {
   Starknet = 'starknet',
   Radix = 'radix',
   Aleo = 'aleo',
+  Tron = 'tron',
 }
 
 // A type that also allows for literal values of the enum
@@ -33,6 +34,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
   [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Tron]: 'sun',
 };
 
 export type SignerConfig = Pick<

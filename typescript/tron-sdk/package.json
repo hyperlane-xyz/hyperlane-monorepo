@@ -1,0 +1,60 @@
+{
+  "name": "@hyperlane-xyz/tron-sdk",
+  "version": "23.0.0",
+  "description": "Hyperlane TypeScript SDK for Tron",
+  "type": "module",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
+    }
+  },
+  "types": "dist/index.d.ts",
+  "files": [
+    "/dist"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "keywords": [
+    "hyperlane",
+    "tron",
+    "blockchain",
+    "sdk"
+  ],
+  "license": "Apache-2.0",
+  "scripts": {
+    "build": "rm -rf ./dist && tsc",
+    "format": "prettier --write .",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "prettier": "prettier --write ./src",
+    "clean": "rm -rf ./dist ./cache",
+    "dev": "tsc --watch",
+    "test": "echo \"no tests in tron-sdk\""
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/eslint-config": "workspace:^",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/mocha": "catalog:",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "chai": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "mocha": "catalog:",
+    "prettier": "catalog:",
+    "ts-node": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "ethers": "catalog:",
+    "tronweb": "catalog:"
+  }
+}

@@ -44,6 +44,11 @@ import {
   RadixSDKReceipt,
   RadixSDKTransaction,
 } from '@hyperlane-xyz/radix-sdk';
+import {
+  TronProvider as TronSDKProvider,
+  TronSDKReceipt,
+  TronSDKTransaction,
+} from '@hyperlane-xyz/tron-sdk';
 import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
@@ -58,6 +63,7 @@ export enum ProviderType {
   ZkSync = 'zksync',
   Radix = 'radix',
   Aleo = 'aleo',
+  Tron = 'tron',
 }
 
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
@@ -71,6 +77,7 @@ export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
   [ProtocolType.Starknet]: ProviderType.Starknet,
   [ProtocolType.Radix]: ProviderType.Radix,
   [ProtocolType.Aleo]: ProviderType.Aleo,
+  [ProtocolType.Tron]: ProviderType.Tron,
 };
 
 export type ProviderMap<Value> = Partial<Record<ProviderType, Value>>;
@@ -118,7 +125,16 @@ type ProtocolTypesMapping = {
     contract: null;
     receipt: AleoTransactionReceipt;
   };
+  [ProtocolType.Tron]: {
+    transaction: TronTransaction;
+    provider: TronProvider;
+    contract: null;
+    receipt: TronTransactionReceipt;
+  };
 };
+
+// Forward declarations for Tron types used in ProtocolTypesMapping
+// The actual interfaces are defined later in the file
 
 type ProtocolTyped<
   T extends ProtocolType,
@@ -213,6 +229,11 @@ export interface AleoProvider extends TypedProviderBase<AleoSDKProvider> {
   provider: AleoSDKProvider;
 }
 
+export interface TronProvider extends TypedProviderBase<TronSDKProvider> {
+  type: ProviderType.Tron;
+  provider: TronSDKProvider;
+}
+
 export interface ZKSyncProvider extends TypedProviderBase<ZKSyncBaseProvider> {
   type: ProviderType.ZkSync;
   provider: ZKSyncBaseProvider;
@@ -229,7 +250,8 @@ export type TypedProvider =
   | StarknetJsProvider
   | ZKSyncProvider
   | RadixProvider
-  | AleoProvider;
+  | AleoProvider
+  | TronProvider;
 
 /**
  * Contracts with discriminated union of provider type
@@ -350,6 +372,12 @@ export interface AleoTransaction
   transaction: AleoSDKTransaction;
 }
 
+export interface TronTransaction
+  extends TypedTransactionBase<TronSDKTransaction> {
+  type: ProviderType.Tron;
+  transaction: TronSDKTransaction;
+}
+
 export interface ZKSyncTransaction
   extends TypedTransactionBase<zkSyncTypes.TransactionRequest> {
   type: ProviderType.ZkSync;
@@ -367,7 +395,8 @@ export type TypedTransaction =
   | StarknetJsTransaction
   | ZKSyncTransaction
   | RadixTransaction
-  | AleoTransaction;
+  | AleoTransaction
+  | TronTransaction;
 
 export type AnnotatedEV5Transaction = Annotated<EV5Transaction>;
 
@@ -468,6 +497,12 @@ export interface AleoTransactionReceipt
   receipt: AleoSDKReceipt;
 }
 
+export interface TronTransactionReceipt
+  extends TypedTransactionReceiptBase<TronSDKReceipt> {
+  type: ProviderType.Tron;
+  receipt: TronSDKReceipt;
+}
+
 export type TypedTransactionReceipt =
   | EthersV5TransactionReceipt
   | ViemTransactionReceipt
@@ -478,4 +513,5 @@ export type TypedTransactionReceipt =
   | StarknetJsTransactionReceipt
   | ZKSyncTransactionReceipt
   | RadixTransactionReceipt
-  | AleoTransactionReceipt;
+  | AleoTransactionReceipt
+  | TronTransactionReceipt;
