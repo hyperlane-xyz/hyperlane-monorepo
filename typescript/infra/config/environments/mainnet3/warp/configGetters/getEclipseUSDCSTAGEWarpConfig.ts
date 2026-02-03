@@ -1,5 +1,5 @@
 import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
-import { difference } from '@hyperlane-xyz/utils';
+import { assert, difference } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';

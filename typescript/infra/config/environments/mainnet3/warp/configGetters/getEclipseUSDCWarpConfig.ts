@@ -9,7 +9,11 @@ import {
 import { assert, difference } from '@hyperlane-xyz/utils';
 
 import { RouterConfigWithoutOwner } from '../../../../../src/config/warp.js';
-import { getChainAddresses, getChainMetadata } from '../../../../registry.js';
+import {
+  getChainAddresses,
+  getChainMetadata,
+  getRegistry,
+} from '../../../../registry.js';
 import { awIcas } from '../../governance/ica/aw.js';
 import { awSafes } from '../../governance/safe/aw.js';
 import { getWarpFeeOwner } from '../../governance/utils.js';
@@ -139,15 +143,13 @@ export const getEclipseUSDCWarpConfig = async (
       rebalancingConfigByChain,
     );
 
+    const proxyAdmin = getChainAddresses()[currentChain].proxyAdmin;
+    assert(proxyAdmin, `proxyAdmin is undefined for ${currentChain}`);
     configs.push([
       currentChain,
       {
         ...baseConfig,
-        proxyAdmin: {
-          owner:
-            awProxyAdminOwners[currentChain] ?? chainOwners[currentChain].owner,
-          address: awProxyAdminAddresses[currentChain],
-        },
+        ownerOverrides: { proxyAdmin },
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(currentChain),
           rebalanceableCollateralChains.filter((c) => c !== currentChain),
