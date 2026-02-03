@@ -3,6 +3,7 @@ import * as ponderSchema from 'ponder:schema';
 
 import { getAdapter } from '../db/adapter.js';
 import { checkAndHandleReorg } from '../db/reorg.js';
+import { getLogger } from '../utils/logger.js';
 import { updateProgress } from '../utils/progress.js';
 
 // =============================================================================
@@ -34,14 +35,15 @@ ponder.on(
     });
 
     if (!blockId) {
-      console.error(`Failed to store block for ${chainName}`);
+      getLogger().error({ chain: chainName }, 'Failed to store block');
       return;
     }
 
     // Skip if missing transactionIndex
     if (event.transaction.transactionIndex == null) {
-      console.warn(
-        `No transactionIndex for MerkleTreeInsertion in block ${event.block.number}, skipping`,
+      getLogger().warn(
+        { chain: chainName, block: event.block.number },
+        'No transactionIndex for MerkleTreeInsertion, skipping',
       );
       return;
     }
@@ -70,7 +72,7 @@ ponder.on(
     );
 
     if (!txId) {
-      console.error(`Failed to store transaction for ${chainName}`);
+      getLogger().error({ chain: chainName }, 'Failed to store transaction');
       return;
     }
 

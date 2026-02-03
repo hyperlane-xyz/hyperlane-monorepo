@@ -3,6 +3,8 @@ import { http } from 'viem';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
+import { getLogger } from '../utils/logger.js';
+
 export type DeployEnv = 'mainnet3' | 'testnet4';
 
 export interface IndexerChainConfig {
@@ -45,9 +47,9 @@ export async function loadChainConfigs(
     chainsToIndex.length > 0 ? chainsToIndex : Object.keys(allMetadata);
 
   if (chainsToIndex.length > 0) {
-    console.log(`Indexing specified chains: ${chainsToIndex.join(', ')}`);
+    getLogger().info({ chains: chainsToIndex }, 'Indexing specified chains');
   } else {
-    console.log(`Indexing all ${env} EVM chains from registry`);
+    getLogger().info({ env }, 'Indexing all EVM chains from registry');
   }
 
   // Parse RPC URL overrides from environment
@@ -59,7 +61,7 @@ export async function loadChainConfigs(
   for (const chainName of chainNames) {
     const metadata = allMetadata[chainName];
     if (!metadata) {
-      console.warn(`Chain ${chainName} not found in registry, skipping`);
+      getLogger().warn({ chain: chainName }, 'Chain not found in registry');
       continue;
     }
 
@@ -82,7 +84,7 @@ export async function loadChainConfigs(
     // Get RPC URL: env override > registry
     const rpcUrl = getRpcUrl(chainName, metadata, rpcOverrides);
     if (!rpcUrl) {
-      console.warn(`No RPC URL for ${chainName}, skipping`);
+      getLogger().warn({ chain: chainName }, 'No RPC URL, skipping chain');
       continue;
     }
 
@@ -127,8 +129,8 @@ function parseRpcOverrides(): Record<string, string> {
   if (jsonOverrides) {
     try {
       Object.assign(overrides, JSON.parse(jsonOverrides));
-    } catch {
-      console.warn('Failed to parse CHAIN_RPC_URLS JSON');
+    } catch (err) {
+      getLogger().warn({ err }, 'Failed to parse CHAIN_RPC_URLS JSON');
     }
   }
 

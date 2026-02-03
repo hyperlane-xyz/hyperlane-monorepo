@@ -4,6 +4,8 @@
  */
 import { pruneBlockHashCache } from '../db/reorg.js';
 
+import { getLogger } from './logger.js';
+
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ViemClient = any;
 
@@ -42,7 +44,7 @@ function initChainProgress(
       lastLogTime: Date.now(),
       lastLatestBlockFetch: 0,
     });
-    console.log(`[${chainName}] Starting indexer from block ${startBlock}`);
+    getLogger().info({ chain: chainName, startBlock }, 'Starting indexer');
   }
 }
 
@@ -81,12 +83,12 @@ export async function updateProgress(
         progress.latestBlock = Number(block.number);
         progress.lastLatestBlockFetch = now;
       }
-    } catch (err: unknown) {
+    } catch (err) {
       // Log once per chain if fetching fails
       if (progress.latestBlock === 0) {
-        const msg = err instanceof Error ? err.message : String(err);
-        console.warn(
-          `[${chainName}] Could not fetch latest block for ETA: ${msg}`,
+        getLogger().warn(
+          { chain: chainName, err },
+          'Could not fetch latest block for ETA',
         );
         progress.lastLatestBlockFetch = now; // Don't spam retries
       }
@@ -116,7 +118,14 @@ function logProgress(progress: ChainProgress): void {
   const blocksPerSecond = blocksProcessed / elapsed;
   const eventsPerSecond = progress.eventCount / elapsed;
 
-  let message = `[${progress.chainName}] block=${progress.currentBlock}`;
+  const logData: Record<string, unknown> = {
+    chain: progress.chainName,
+    block: progress.currentBlock,
+    events: progress.eventCount,
+    eventsPerSec: Number(eventsPerSecond.toFixed(1)),
+  };
+
+  let status = 'indexing';
 
   if (progress.latestBlock > 0) {
     const remaining = progress.latestBlock - progress.currentBlock;
@@ -125,17 +134,18 @@ function logProgress(progress: ChainProgress): void {
         (progress.latestBlock - progress.startBlock)) *
       100;
 
+    logData.latestBlock = progress.latestBlock;
+    logData.percentComplete = Number(percentComplete.toFixed(1));
+
     if (remaining > 0 && blocksPerSecond > 0) {
       const etaSeconds = remaining / blocksPerSecond;
-      message += ` (${percentComplete.toFixed(1)}%, ~${formatEta(etaSeconds)} remaining)`;
+      logData.etaRemaining = formatEta(etaSeconds);
     } else if (remaining <= 0) {
-      message += ' (synced, live indexing)';
+      status = 'synced';
     }
   }
 
-  message += ` | ${progress.eventCount} events | ${eventsPerSecond.toFixed(1)} events/s`;
-
-  console.log(message);
+  getLogger().info(logData, `Indexer progress: ${status}`);
 }
 
 /**

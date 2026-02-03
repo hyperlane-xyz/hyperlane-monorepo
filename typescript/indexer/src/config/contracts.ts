@@ -1,3 +1,5 @@
+import { getLogger } from '../utils/logger.js';
+
 import type { IndexerChainConfig } from './chains.js';
 
 export interface ContractAddresses {
@@ -27,7 +29,7 @@ export async function loadContractAddresses(
   for (const chain of chains) {
     const addresses = allAddresses[chain.name];
     if (!addresses?.mailbox) {
-      console.warn(`No mailbox address for ${chain.name}, skipping`);
+      getLogger().warn({ chain: chain.name }, 'No mailbox address, skipping');
       continue;
     }
 
