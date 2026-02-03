@@ -41,7 +41,6 @@
         "@hyperlane-xyz/core": "workspace:*",
         "@hyperlane-xyz/metrics": "workspace:*",
         "@hyperlane-xyz/provider-sdk": "workspace:*",
-        "@hyperlane-xyz/relayer": "workspace:*",
         "@hyperlane-xyz/registry": "catalog:",
         "@hyperlane-xyz/sdk": "workspace:*",
         "@hyperlane-xyz/utils": "workspace:*",
@@ -61,6 +60,7 @@
     "devDependencies": {
         "@ethersproject/constants": "*",
         "execa": "^9.5.3",
+        "@hyperlane-xyz/relayer": "workspace:*",
         "@hyperlane-xyz/tsconfig": "workspace:^",
         "@types/chai-as-promised": "catalog:",
         "@types/express": "^5.0.3",
