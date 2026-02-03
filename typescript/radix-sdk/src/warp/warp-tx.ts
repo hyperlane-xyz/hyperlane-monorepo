@@ -17,6 +17,7 @@ import {
 } from '@hyperlane-xyz/provider-sdk/warp';
 import {
   eqAddressRadix,
+  eqOptionalAddress,
   isZeroishAddress,
   strip0x,
 } from '@hyperlane-xyz/utils';
@@ -210,7 +211,7 @@ export async function getWarpTokenUpdateTxs<
   const currentIsm = currentConfig.interchainSecurityModule?.deployed.address;
   const newIsm = expectedConfig.interchainSecurityModule?.deployed.address;
 
-  if (!eqAddressRadix(currentIsm ?? '', newIsm ?? '')) {
+  if (!eqOptionalAddress(currentIsm, newIsm, eqAddressRadix)) {
     const setIsmTx = await getSetTokenIsmTx(base, signerAddress, {
       tokenAddress: deployed.address,
       ismAddress: newIsm,

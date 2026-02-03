@@ -643,6 +643,37 @@ describe('Radix Warp Tokens (e2e)', function () {
           const readToken2 = await reader.read(deployedToken.deployed.address);
           expect(readToken2.config.interchainSecurityModule).to.be.undefined;
         });
+
+        it('should not generate ISM update tx when current ism is undefined and the 0 address is provided in the config', async () => {
+          const initialConfig = getConfig();
+
+          const writer = artifactManager.createWriter(type, radixSigner);
+          const [deployedToken] = await writer.create({
+            config: initialConfig,
+          });
+
+          const updatedConfig: ArtifactDeployed<
+            RawWarpArtifactConfig,
+            DeployedWarpAddress
+          > = {
+            ...deployedToken,
+            config: {
+              ...deployedToken.config,
+              interchainSecurityModule: {
+                artifactState: ArtifactState.UNDERIVED,
+                deployed: {
+                  address: '0x0000000000000000000000000000000000000000',
+                },
+              },
+            },
+          };
+
+          // Try to update with ISM still undefined (should not generate tx)
+          const txs = await writer.update(updatedConfig);
+
+          // Should generate 0 transactions (ISM unchanged)
+          expect(txs).to.be.an('array').with.length(0);
+        });
       });
 
       it('should encode all update transactions with current owner as sender after ownership transfer', async () => {
