@@ -5,7 +5,7 @@ import { type DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { readYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../../utils/files.js';
 import { ANVIL_KEY, REGISTRY_PATH } from '../consts.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
@@ -116,7 +116,7 @@ export async function readCoreConfig(
   coreConfigPath: string,
 ): Promise<DerivedCoreConfig> {
   await hyperlaneCoreRead(chain, coreConfigPath);
-  return readYamlOrJson(coreConfigPath);
+  return readYamlOrJsonOrThrow(coreConfigPath);
 }
 
 /**

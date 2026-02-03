@@ -3,7 +3,7 @@ import { $, type ProcessPromise } from 'zx';
 import { type ChainName, type IsmConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -70,7 +70,7 @@ export class HyperlaneE2EIsmTestCommands {
     outPath: string,
   ): Promise<string> {
     await this.deploy(privateKey, configPath, outPath);
-    const output = readYamlOrJson<{ address: string }>(outPath);
+    const output = readYamlOrJsonOrThrow<{ address: string }>(outPath);
     return output.address;
   }
 
@@ -82,6 +82,6 @@ export class HyperlaneE2EIsmTestCommands {
     outPath: string,
   ): Promise<IsmConfig> {
     await this.read(address, outPath);
-    return readYamlOrJson(outPath);
+    return readYamlOrJsonOrThrow<IsmConfig>(outPath);
   }
 }

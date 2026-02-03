@@ -8,7 +8,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, normalizeConfig } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CORE_CONFIG_PATH_BY_PROTOCOL,
@@ -33,7 +36,7 @@ describe('hyperlane core apply ism (Aleo E2E tests)', async function () {
 
   // Reset the core deploy config before each test
   beforeEach(async function () {
-    const coreConfig: CoreConfig = await readYamlOrJson(
+    const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(
       CORE_CONFIG_PATH_BY_PROTOCOL.aleo,
     );
     writeYamlOrJson(
@@ -70,7 +73,7 @@ describe('hyperlane core apply ism (Aleo E2E tests)', async function () {
 
   for (const ismConfig of Object.values(testCases)) {
     it(`should update the defaultIsm to a ${ismConfig.type}`, async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(
+      const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(
         CORE_CONFIG_PATH_BY_PROTOCOL.aleo,
       );
 

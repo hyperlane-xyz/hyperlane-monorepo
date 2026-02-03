@@ -31,7 +31,10 @@ import {
   pick,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH,
@@ -95,15 +98,21 @@ describe('hyperlane warp deploy e2e tests', async function () {
   let providerChain2: JsonRpcProvider;
 
   before(async function () {
-    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    chain2Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_2_METADATA_PATH,
+    );
     providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain3Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_3_METADATA_PATH,
+    );
     chain3DomainId = chain3Metadata.domainId;
 
-    const chain4Metadata: ChainMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    const chain4Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_4_METADATA_PATH,
+    );
     chain4DomainId = chain4Metadata.domainId;
 
     // Deploy core contracts to populate the registry
@@ -159,7 +168,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           await tokenChain2.symbol(),
         );
 
-      const coreConfig: WarpCoreConfig = readYamlOrJson(
+      const coreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
         COMBINED_WARP_CORE_CONFIG_PATH,
       );
 
@@ -232,7 +241,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           await tokenChain2.symbol(),
         );
 
-      const coreConfig: WarpCoreConfig = readYamlOrJson(
+      const coreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
         COMBINED_WARP_CORE_CONFIG_PATH,
       );
 
@@ -423,7 +432,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           await tokenChain2.symbol(),
         );
 
-      const coreConfig: WarpCoreConfig = readYamlOrJson(
+      const coreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
         COMBINED_WARP_CORE_CONFIG_PATH,
       );
       const [syntheticTokenConfig] = coreConfig.tokens.filter(
@@ -531,7 +540,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
           await tokenChain2.symbol(),
         );
 
-      const coreConfig: WarpCoreConfig = readYamlOrJson(
+      const coreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
         COMBINED_WARP_CORE_CONFIG_PATH,
       );
 

@@ -10,7 +10,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
@@ -44,7 +47,9 @@ describe('hyperlane core deploy e2e tests', async function () {
   let initialOwnerAddress: Address;
 
   before(async () => {
-    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chainMetadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_2_METADATA_PATH,
+    );
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
@@ -227,7 +232,7 @@ describe('hyperlane core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with the mailbox owner set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(CORE_CONFIG_PATH);
 
       const newOwner = randomAddress().toLowerCase();
 
@@ -250,7 +255,7 @@ describe('hyperlane core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with ProxyAdmin owner of the mailbox set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(CORE_CONFIG_PATH);
 
       const newOwner = randomAddress().toLowerCase();
 

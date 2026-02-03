@@ -11,7 +11,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { getDomainId } from '../commands/helpers.js';
 import {
@@ -45,7 +48,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     ]);
 
     // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+    const warpConfig = readYamlOrJsonOrThrow<WarpRouteDeployConfig>(
       WARP_CONFIG_PATH_EXAMPLE,
     );
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
@@ -93,7 +96,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     };
 
     // Write the updated config
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
     // Apply the changes
     await hyperlaneWarpApply(
@@ -156,7 +159,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     };
 
     // Write the updated config
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
     // Apply the changes
     await hyperlaneWarpApply(
@@ -204,7 +207,7 @@ describe('hyperlane warp apply config extension tests', async function () {
     // Remove remoteRouters and destinationGas as they are written in readWarpConfig
     delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
     delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
-    await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
     await hyperlaneWarpApply(
       warpDeployPath,
       WARP_CORE_CONFIG_PATH_2,
@@ -212,7 +215,8 @@ describe('hyperlane warp apply config extension tests', async function () {
       WARP_DEPLOY_2_ID,
     );
 
-    const updatedConfig: WarpRouteDeployConfig = readYamlOrJson(warpDeployPath);
+    const updatedConfig =
+      readYamlOrJsonOrThrow<WarpRouteDeployConfig>(warpDeployPath);
 
     expect(normalizeConfig(warpDeployConfig)).to.deep.equal(
       normalizeConfig(updatedConfig),

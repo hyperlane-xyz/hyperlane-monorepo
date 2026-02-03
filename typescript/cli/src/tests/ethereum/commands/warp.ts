@@ -18,7 +18,11 @@ import { createAltVMSigners } from '../../../context/altvm.js';
 import { getContext } from '../../../context/context.js';
 import { type CommandContext } from '../../../context/types.js';
 import { extendWarpRoute as extendWarpRouteWithoutApplyTransactions } from '../../../deploy/warp.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJson,
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import {
   ANVIL_DEPLOYER_ADDRESS,
   ANVIL_KEY,
@@ -314,7 +318,7 @@ export async function readWarpConfig(
 ): Promise<WarpRouteDeployConfigMailboxRequired> {
   const warpAddress = getDeployedWarpAddress(chain, warpCorePath);
   await hyperlaneWarpRead(chain, warpAddress!, warpDeployPath);
-  return readYamlOrJson(warpDeployPath);
+  return readYamlOrJsonOrThrow(warpDeployPath);
 }
 
 type GetWarpTokenConfigByTokenTypeOptions = {
@@ -512,7 +516,7 @@ export async function updateWarpOwnerConfig(
     warpDeployPath,
   );
   warpDeployConfig[chain].owner = owner;
-  await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+  writeYamlOrJson(warpDeployPath, warpDeployConfig);
 
   return warpDeployPath;
 }

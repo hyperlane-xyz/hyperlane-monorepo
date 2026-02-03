@@ -16,7 +16,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
@@ -55,7 +58,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
   let chainMetadata: ChainMetadata;
 
   before(async () => {
-    chainMetadata = readYamlOrJson(CHAIN_1_METADATA_PATH);
+    chainMetadata = readYamlOrJsonOrThrow(CHAIN_1_METADATA_PATH);
 
     assert(chainMetadata.gasPrice, 'gasPrice not defined in chain metadata');
 
@@ -251,7 +254,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with the mailbox owner set to the address in the config', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(CORE_CONFIG_PATH);
 
       const newOwner = await randomCosmosAddress(
         chainMetadata.bech32Prefix || 'hyp',
@@ -276,7 +279,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with the provided address as the owner of the defaultHook', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(CORE_CONFIG_PATH);
 
       coreConfig.owner = initialOwnerAddress;
 
@@ -304,7 +307,7 @@ describe('hyperlane cosmosnative core deploy e2e tests', async function () {
     });
 
     it('should create a core deployment with the provided address as the owner of the defaultIsm', async () => {
-      const coreConfig: CoreConfig = await readYamlOrJson(CORE_CONFIG_PATH);
+      const coreConfig = readYamlOrJsonOrThrow<CoreConfig>(CORE_CONFIG_PATH);
 
       coreConfig.owner = initialOwnerAddress;
 

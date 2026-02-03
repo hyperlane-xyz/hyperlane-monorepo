@@ -7,7 +7,7 @@ import {
 import { type ChainMetadata, type ProtocolMap } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../utils/files.js';
 
 export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
 
@@ -177,7 +177,7 @@ export const TEST_CHAIN_METADATA_BY_PROTOCOL: ProtocolChainMap<
   TestChainMetadata
 > = objMap(TEST_CHAIN_NAMES_BY_PROTOCOL, (protocol, chainNames) => {
   return objMap(chainNames, (chainName, _name): TestChainMetadata => {
-    const currentChainMetadata: ChainMetadata = readYamlOrJson(
+    const currentChainMetadata: ChainMetadata = readYamlOrJsonOrThrow(
       TEST_CHAIN_METADATA_PATH_BY_PROTOCOL[protocol][chainName],
     );
 

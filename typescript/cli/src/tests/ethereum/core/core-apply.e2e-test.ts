@@ -16,7 +16,10 @@ import {
   addressToBytes32,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   ANVIL_KEY,
@@ -58,8 +61,12 @@ describe('hyperlane core apply e2e tests', async function () {
   let chain3DomainId: Domain;
 
   before(async () => {
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain2Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_2_METADATA_PATH,
+    );
+    const chain3Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_3_METADATA_PATH,
+    );
 
     const provider = new ethers.providers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,

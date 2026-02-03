@@ -9,7 +9,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
@@ -83,10 +86,10 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
       hyperlaneCore2.deploy(HYP_KEY_BY_PROTOCOL.aleo),
     ]);
 
-    chain1CoreAddress = readYamlOrJson(
+    chain1CoreAddress = readYamlOrJsonOrThrow<ChainAddresses>(
       `${REGISTRY_PATH}/chains/${TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1}/addresses.yaml`,
     );
-    chain2CoreAddress = readYamlOrJson(
+    chain2CoreAddress = readYamlOrJsonOrThrow<ChainAddresses>(
       `${REGISTRY_PATH}/chains/${TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_2}/addresses.yaml`,
     );
 
@@ -157,7 +160,7 @@ describe('hyperlane warp read (Aleo E2E tests)', async function () {
 
       expect(output.exitCode).to.equal(0);
 
-      const config: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const config = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
         WARP_READ_OUTPUT_PATH,
       );
 

@@ -15,7 +15,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deployToken } from '../commands/helpers.js';
 import {
@@ -52,7 +55,9 @@ describe('hyperlane warp check e2e tests', async function () {
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
 
-    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chainMetadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_2_METADATA_PATH,
+    );
 
     const provider = new ethers.providers.JsonRpcProvider(
       chainMetadata.rpcUrls[0].http,
@@ -201,7 +206,7 @@ describe('hyperlane warp check e2e tests', async function () {
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
-      const deployConfig: WarpRouteDeployConfig = readYamlOrJson(
+      const deployConfig = readYamlOrJsonOrThrow<WarpRouteDeployConfig>(
         WARP_DEPLOY_OUTPUT_PATH,
       );
 
@@ -230,7 +235,7 @@ describe('hyperlane warp check e2e tests', async function () {
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
       await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
 
-      const deployConfig: WarpRouteDeployConfig = readYamlOrJson(
+      const deployConfig = readYamlOrJsonOrThrow<WarpRouteDeployConfig>(
         WARP_DEPLOY_OUTPUT_PATH,
       );
 
@@ -238,7 +243,7 @@ describe('hyperlane warp check e2e tests', async function () {
       deployConfig[CHAIN_NAME_2].scale = 1;
 
       deployConfig[CHAIN_NAME_3].decimals = 34;
-      deployConfig[CHAIN_NAME_2].scale = 2;
+      deployConfig[CHAIN_NAME_3].scale = 2;
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, deployConfig);
 

@@ -15,7 +15,7 @@ import {
   normalizeAddress,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJsonOrThrow, writeYamlOrJson } from '../../utils/files.js';
 import { type HyperlaneE2ECoreTestCommands } from '../commands/core.js';
 import { type HyperlaneE2EWarpTestCommands } from '../commands/warp.js';
 
@@ -94,7 +94,7 @@ export function createIsmUpdateTests(
       });
 
       const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+        readYamlOrJsonOrThrow(config.warpReadOutputPath);
 
       const ismConfig =
         updatedWarpDeployConfig[config.chainName].interchainSecurityModule;
@@ -155,7 +155,7 @@ export function createIsmUpdateTests(
       });
 
       const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+        readYamlOrJsonOrThrow(config.warpReadOutputPath);
 
       const ismConfig =
         updatedWarpDeployConfig[config.chainName].interchainSecurityModule;
@@ -201,7 +201,7 @@ export function createIsmUpdateTests(
       });
 
       let updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+        readYamlOrJsonOrThrow(config.warpReadOutputPath);
 
       expect(updatedWarpDeployConfig[config.chainName].interchainSecurityModule)
         .to.not.be.undefined;
@@ -222,7 +222,9 @@ export function createIsmUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      updatedWarpDeployConfig = readYamlOrJson(config.warpReadOutputPath);
+      updatedWarpDeployConfig = readYamlOrJsonOrThrow(
+        config.warpReadOutputPath,
+      );
 
       const ismConfig =
         updatedWarpDeployConfig[config.chainName].interchainSecurityModule;
@@ -265,7 +267,7 @@ export function createIsmUpdateTests(
       });
 
       let updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+        readYamlOrJsonOrThrow(config.warpReadOutputPath);
 
       const initialIsm =
         updatedWarpDeployConfig[config.chainName].interchainSecurityModule;
@@ -321,7 +323,9 @@ export function createIsmUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      updatedWarpDeployConfig = readYamlOrJson(config.warpReadOutputPath);
+      updatedWarpDeployConfig = readYamlOrJsonOrThrow(
+        config.warpReadOutputPath,
+      );
 
       const finalIsm =
         updatedWarpDeployConfig[config.chainName].interchainSecurityModule;
@@ -383,7 +387,7 @@ export function createIsmUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJsonOrThrow(
         config.warpReadOutputPath,
       );
       const firstIsmConfig =
@@ -408,7 +412,7 @@ export function createIsmUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJsonOrThrow(
         config.warpReadOutputPath,
       );
       const secondIsmConfig =
@@ -455,7 +459,7 @@ export function createIsmUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJsonOrThrow(
         config.warpReadOutputPath,
       );
       const firstIsmConfig =
@@ -493,7 +497,7 @@ export function createIsmUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJsonOrThrow(
         config.warpReadOutputPath,
       );
       const secondIsmConfig =

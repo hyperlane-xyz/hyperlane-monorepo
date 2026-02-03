@@ -18,7 +18,7 @@ import {
 
 import { getContext } from '../../../context/context.js';
 import { IcaDeployStatus } from '../../../deploy/ica.js';
-import { readYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { hyperlaneIcaDeploy, hyperlaneIcaDeployRaw } from '../commands/ica.js';
 import {
@@ -58,9 +58,15 @@ describe('hyperlane ica deploy e2e tests', async function () {
       deployOrUseExistingCore(CHAIN_NAME_4, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
 
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    const chain4Metadata: ChainMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    const chain2Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_2_METADATA_PATH,
+    );
+    const chain3Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_3_METADATA_PATH,
+    );
+    const chain4Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_4_METADATA_PATH,
+    );
 
     chain2DomainId = chain2Metadata.domainId!;
     chain3DomainId = chain3Metadata.domainId!;

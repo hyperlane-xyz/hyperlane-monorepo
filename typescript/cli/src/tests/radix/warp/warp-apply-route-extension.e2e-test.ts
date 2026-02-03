@@ -7,7 +7,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
@@ -132,8 +135,10 @@ describe('hyperlane warp apply (Radix E2E tests)', async function () {
       outputPath: WARP_READ_OUTPUT_PATH,
     });
 
-    const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-      readYamlOrJson(WARP_READ_OUTPUT_PATH);
+    const updatedWarpDeployConfig =
+      readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+        WARP_READ_OUTPUT_PATH,
+      );
 
     for (const chainName of Object.keys(warpDeployConfig)) {
       assertWarpRouteConfig(

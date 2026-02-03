@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../../utils/files.js';
 import {
   CONFIRM_DETECTED_OWNER_STEP,
   KeyBoardKeys,
@@ -71,8 +71,8 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfig =
-        readYamlOrJson(WARP_CONFIG_PATH_2);
+      const warpConfig =
+        readYamlOrJsonOrThrow<WarpRouteDeployConfig>(WARP_CONFIG_PATH_2);
 
       assertWarpConfig(warpConfig, CHAIN_NAME_2);
     });
@@ -91,8 +91,8 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfig =
-        readYamlOrJson(WARP_CONFIG_PATH_2);
+      const warpConfig =
+        readYamlOrJsonOrThrow<WarpRouteDeployConfig>(WARP_CONFIG_PATH_2);
 
       [CHAIN_NAME_2, CHAIN_NAME_3].map((chainName) =>
         assertWarpConfig(warpConfig, chainName),
@@ -131,8 +131,8 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfig =
-        readYamlOrJson(WARP_CONFIG_PATH_2);
+      const warpConfig =
+        readYamlOrJsonOrThrow<WarpRouteDeployConfig>(WARP_CONFIG_PATH_2);
 
       expect(warpConfig[CHAIN_NAME_2]).not.to.be.undefined;
 
@@ -178,7 +178,7 @@ describe('hyperlane warp init e2e tests', async function () {
 
       await handlePrompts(output, steps);
 
-      const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+      const warpConfig = readYamlOrJsonOrThrow<WarpRouteDeployConfig>(
         `${E2E_TEST_CONFIGS_PATH}/anvil/deployments/warp_routes/${warpRouteId}-deploy.yaml`,
       );
       assertWarpConfig(warpConfig, CHAIN_NAME_2);

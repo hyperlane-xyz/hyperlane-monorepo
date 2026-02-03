@@ -22,7 +22,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJson,
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   deploy4626Vault,
@@ -111,7 +115,8 @@ export async function runWarpBridgeTests(
       targetChain = CHAIN_NAME_2;
     }
 
-    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(routeConfigPath);
+    const warpCoreConfig: WarpCoreConfig =
+      readYamlOrJsonOrThrow(routeConfigPath);
     if (warpConfig[CHAIN_NAME_2].type.match(/.*xerc20.*/i)) {
       const tx = await config.xERC202.addBridge({
         bridge: getTokenAddressFromWarpConfig(warpCoreConfig, CHAIN_NAME_2),
@@ -158,8 +163,12 @@ export async function runWarpBridgeTests(
 }
 
 export async function setupChains(): Promise<WarpBridgeTestConfig> {
-  const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-  const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+  const chain2Metadata: ChainMetadata = readYamlOrJsonOrThrow(
+    CHAIN_2_METADATA_PATH,
+  );
+  const chain3Metadata: ChainMetadata = readYamlOrJsonOrThrow(
+    CHAIN_3_METADATA_PATH,
+  );
 
   const providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
   const providerChain3 = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);

@@ -22,7 +22,11 @@ import {
 import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { WarpSendLogs } from '../../../send/transfer.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJson,
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deployToken } from '../commands/helpers.js';
 import {
@@ -57,8 +61,12 @@ describe('hyperlane warp send e2e tests', async function () {
       deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
     ]);
 
-    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain2Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_2_METADATA_PATH,
+    );
+    const chain3Metadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_3_METADATA_PATH,
+    );
 
     const providerChain2 = new JsonRpcProvider(chain2Metadata.rpcUrls[0].http);
     const providerChain3 = new JsonRpcProvider(chain3Metadata.rpcUrls[0].http);

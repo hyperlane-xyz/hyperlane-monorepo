@@ -5,7 +5,7 @@ import { type ChainName, type DerivedCoreConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../context/context.js';
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -102,7 +102,7 @@ export class HyperlaneE2ECoreTestCommands {
    */
   public async readConfig(): Promise<DerivedCoreConfig> {
     await this.read();
-    return readYamlOrJson(this.coreOutputPath);
+    return readYamlOrJsonOrThrow(this.coreOutputPath);
   }
 
   /**

@@ -2,7 +2,7 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType } from '@hyperlane-xyz/sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
@@ -61,7 +61,7 @@ describe('hyperlane warp apply ISM updates (Aleo E2E tests)', async function () 
   before(async function () {
     await hyperlaneCore1.deploy(HYP_KEY_BY_PROTOCOL.aleo);
 
-    chain1CoreAddress = readYamlOrJson(
+    chain1CoreAddress = readYamlOrJsonOrThrow(
       `${REGISTRY_PATH}/chains/${TEST_CHAIN_NAMES_BY_PROTOCOL.aleo.CHAIN_NAME_1}/addresses.yaml`,
     );
   });

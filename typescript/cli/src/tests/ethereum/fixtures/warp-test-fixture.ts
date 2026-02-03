@@ -3,7 +3,10 @@ import {
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { createSnapshot, restoreSnapshot } from '../commands/helpers.js';
 
 export interface WarpTestFixtureConfig {
@@ -53,7 +56,7 @@ export class WarpTestFixture {
   }
 
   loadCoreConfig(): void {
-    this.coreConfig = readYamlOrJson(this.config.coreConfigPath);
+    this.coreConfig = readYamlOrJsonOrThrow(this.config.coreConfigPath);
   }
 
   setCoreConfig(config: WarpCoreConfig): void {

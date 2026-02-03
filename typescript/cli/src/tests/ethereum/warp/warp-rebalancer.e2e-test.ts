@@ -31,7 +31,10 @@ import {
   toWei,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import {
   createSnapshot,
@@ -151,10 +154,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
     await hyperlaneWarpDeploy(warpDeploymentPath, warpRouteId);
 
     // After deployment, read the core config that was generated
-    warpCoreConfig = readYamlOrJson(warpCoreConfigPath);
-    chain2Metadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
-    chain3Metadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    chain4Metadata = readYamlOrJson(CHAIN_4_METADATA_PATH);
+    warpCoreConfig = readYamlOrJsonOrThrow(warpCoreConfigPath);
+    chain2Metadata = readYamlOrJsonOrThrow(CHAIN_2_METADATA_PATH);
+    chain3Metadata = readYamlOrJsonOrThrow(CHAIN_3_METADATA_PATH);
+    chain4Metadata = readYamlOrJsonOrThrow(CHAIN_4_METADATA_PATH);
 
     console.log('Bridging tokens...');
 

@@ -14,7 +14,7 @@ import {
   normalizeAddress,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CONFIRM_DETECTED_OWNER_STEP,
@@ -100,7 +100,7 @@ describe('hyperlane core init e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const deploymentCoreConfig: CoreConfig =
-        readYamlOrJson(CORE_CONFIG_PATH_2);
+        readYamlOrJsonOrThrow(CORE_CONFIG_PATH_2);
       assertCoreInitConfig(deploymentCoreConfig, owner, feeHookOwner);
     });
   });
@@ -124,7 +124,7 @@ describe('hyperlane core init e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const deploymentCoreConfig: CoreConfig =
-        readYamlOrJson(CORE_CONFIG_PATH_2);
+        readYamlOrJsonOrThrow(CORE_CONFIG_PATH_2);
       assertCoreInitConfig(deploymentCoreConfig, owner);
     });
 
@@ -152,7 +152,7 @@ describe('hyperlane core init e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const deploymentCoreConfig: CoreConfig =
-        readYamlOrJson(CORE_CONFIG_PATH_2);
+        readYamlOrJsonOrThrow(CORE_CONFIG_PATH_2);
       assertCoreInitConfig(
         deploymentCoreConfig,
         owner,
@@ -181,7 +181,7 @@ describe('hyperlane core init e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const deploymentCoreConfig: CoreConfig =
-        readYamlOrJson(CORE_CONFIG_PATH_2);
+        readYamlOrJsonOrThrow(CORE_CONFIG_PATH_2);
       assertCoreInitConfig(deploymentCoreConfig, owner);
     });
 
@@ -209,7 +209,7 @@ describe('hyperlane core init e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const deploymentCoreConfig: CoreConfig =
-        readYamlOrJson(CORE_CONFIG_PATH_2);
+        readYamlOrJsonOrThrow(CORE_CONFIG_PATH_2);
       assertCoreInitConfig(
         deploymentCoreConfig,
         owner,

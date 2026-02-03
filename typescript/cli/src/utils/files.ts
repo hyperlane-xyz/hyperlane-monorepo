@@ -4,7 +4,9 @@ import fs from 'fs';
 import path from 'path';
 import { LineCounter, stringify as yamlStringify } from 'yaml';
 
+import { assert } from '@hyperlane-xyz/utils';
 import {
+  type FileFormat,
   indentYamlOrJson,
   // Re-export core fs utilities from utils/fs
   isFile,
@@ -59,6 +61,29 @@ export type ArtifactsFile = {
   filename: string;
   description: string;
 };
+
+/**
+ * Reads and parses a JSON file, throwing an error if the file is empty.
+ * Use this in tests or CLI commands where empty files indicate a configuration error.
+ */
+export function readJsonOrThrow<T>(filepath: string): T {
+  const result = readJson<T>(filepath);
+  assert(result, `Empty JSON file at ${filepath}`);
+  return result;
+}
+
+/**
+ * Reads and parses a YAML or JSON file, throwing an error if the file is empty.
+ * Use this in tests or CLI commands where empty files indicate a configuration error.
+ */
+export function readYamlOrJsonOrThrow<T>(
+  filepath: string,
+  format?: FileFormat,
+): T {
+  const result = readYamlOrJson<T>(filepath, format);
+  assert(result, `Empty config file at ${filepath}`);
+  return result;
+}
 
 /**
  * @deprecated Use tryReadYaml from @hyperlane-xyz/utils/fs instead

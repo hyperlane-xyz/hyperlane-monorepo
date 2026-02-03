@@ -5,7 +5,10 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, type WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
@@ -159,8 +162,8 @@ describe('hyperlane warp read e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const warpReadResult: WarpRouteDeployConfig =
-        readYamlOrJson(readOutputPath);
+      const warpReadResult =
+        readYamlOrJsonOrThrow<WarpRouteDeployConfig>(readOutputPath);
       expect(warpReadResult[CHAIN_NAME_1]).not.to.be.undefined;
       expect(warpReadResult[CHAIN_NAME_1].type).to.equal(TokenType.collateral);
 

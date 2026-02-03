@@ -7,7 +7,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJsonOrThrow } from '../../utils/files.js';
 
 import { localTestRunCmdPrefix } from './helpers.js';
 
@@ -58,7 +58,7 @@ export class HyperlaneE2EWarpTestCommands {
    * Retrieves the deployed Warp address from the Warp core config.
    */
   public getDeployedWarpAddress(chain: string, warpCorePath: string) {
-    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
+    const warpCoreConfig: WarpCoreConfig = readYamlOrJsonOrThrow(warpCorePath);
     WarpCoreConfigSchema.parse(warpCoreConfig);
 
     const token = warpCoreConfig.tokens.find((t) => t.chainName === chain);
@@ -112,7 +112,7 @@ export class HyperlaneE2EWarpTestCommands {
   ): Promise<WarpRouteDeployConfigMailboxRequired> {
     const warpAddress = this.getDeployedWarpAddress(chain, warpCorePath);
     await this.read(chain, warpAddress!);
-    return readYamlOrJson(this.outputPath);
+    return readYamlOrJsonOrThrow(this.outputPath);
   }
 
   /**

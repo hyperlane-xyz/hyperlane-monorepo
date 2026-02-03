@@ -17,7 +17,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address, addressToBytes32 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { deployToken } from '../commands/helpers.js';
 import {
@@ -218,7 +221,7 @@ describe('hyperlane warp check e2e tests', async function () {
       warpDeployConfig[CHAIN_NAME_3].remoteRouters = undefined;
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
 
-      const warpCore: WarpCoreConfig = readYamlOrJson(
+      const warpCore = readYamlOrJsonOrThrow<WarpCoreConfig>(
         WARP_CORE_CONFIG_PATH_2_3,
       );
 

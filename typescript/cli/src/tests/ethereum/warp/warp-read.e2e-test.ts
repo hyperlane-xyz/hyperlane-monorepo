@@ -5,7 +5,10 @@ import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import { TokenType, type WarpRouteDeployConfig } from '@hyperlane-xyz/sdk';
 import { type Address, ProtocolType } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   KeyBoardKeys,
@@ -75,9 +78,8 @@ describe('hyperlane warp read e2e tests', async function () {
     await hyperlaneCore2.deployOrUseExistingCore(ANVIL_KEY);
 
     // Create a new warp config using the example
-    const exampleWarpConfig: WarpRouteDeployConfig = readYamlOrJson(
-      WARP_CONFIG_PATH_EXAMPLE,
-    );
+    const exampleWarpConfig: WarpRouteDeployConfig =
+      await readYamlOrJsonOrThrow(WARP_CONFIG_PATH_EXAMPLE);
     anvil2Config = { [CHAIN_NAME_2]: { ...exampleWarpConfig.anvil1 } };
     writeYamlOrJson(WARP_CONFIG_PATH_2, anvil2Config);
   });
@@ -107,7 +109,7 @@ describe('hyperlane warp read e2e tests', async function () {
       expect(output.exitCode).to.equal(0);
 
       const warpReadResult: WarpRouteDeployConfig =
-        readYamlOrJson(WARP_CONFIG_PATH_2);
+        await readYamlOrJsonOrThrow(WARP_CONFIG_PATH_2);
       expect(warpReadResult[CHAIN_NAME_2]).not.to.be.undefined;
       expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.native);
     });
@@ -155,7 +157,7 @@ describe('hyperlane warp read e2e tests', async function () {
       expect(finalOutput.exitCode).to.equal(0);
 
       const warpReadResult: WarpRouteDeployConfig =
-        readYamlOrJson(readOutputPath);
+        await readYamlOrJsonOrThrow(readOutputPath);
       expect(warpReadResult[CHAIN_NAME_2]).not.to.be.undefined;
       expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.synthetic);
 
@@ -212,8 +214,8 @@ describe('hyperlane warp read e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(0);
 
-      const warpReadResult: WarpRouteDeployConfig =
-        readYamlOrJson(readOutputPath);
+      const warpReadResult =
+        readYamlOrJsonOrThrow<WarpRouteDeployConfig>(readOutputPath);
       expect(warpReadResult[CHAIN_NAME_2]).not.to.be.undefined;
       expect(warpReadResult[CHAIN_NAME_2].type).to.equal(TokenType.synthetic);
 

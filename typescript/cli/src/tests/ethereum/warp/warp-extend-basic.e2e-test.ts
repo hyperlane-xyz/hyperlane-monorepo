@@ -9,7 +9,10 @@ import {
   type WarpRouteDeployConfig,
 } from '@hyperlane-xyz/sdk';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { getDomainId } from '../commands/helpers.js';
 import {
@@ -47,7 +50,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     ]);
 
     // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+    const warpConfig = readYamlOrJsonOrThrow<WarpRouteDeployConfig>(
       WARP_CONFIG_PATH_EXAMPLE,
     );
 
@@ -308,7 +311,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     const TEST_COINGECKO_ID = 'ethereum';
 
     // Read and modify warp core config to add metadata
-    const warpCoreConfig: WarpCoreConfig = readYamlOrJson(
+    const warpCoreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
       WARP_CORE_CONFIG_PATH_2,
     );
     warpCoreConfig.tokens[0].logoURI = TEST_LOGO_URI;
@@ -339,7 +342,7 @@ describe('hyperlane warp apply basic extension tests', async function () {
     ]);
 
     // Read resulting config and verify metadata preserved
-    const resultConfig: WarpCoreConfig = readYamlOrJson(
+    const resultConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
       COMBINED_WARP_CORE_CONFIG_PATH,
     );
     const chain2Token = resultConfig.tokens.find(

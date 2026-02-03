@@ -24,7 +24,10 @@ import {
   addressToBytes32,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
@@ -182,7 +185,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       outputPath: WARP_READ_OUTPUT_PATH,
     });
 
-    const config: DerivedWarpRouteDeployConfig = readYamlOrJson(
+    const config = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
       WARP_READ_OUTPUT_PATH,
     );
 
@@ -242,7 +245,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
         outputPath: WARP_READ_OUTPUT_PATH,
       });
 
-      const config: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const config = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
         WARP_READ_OUTPUT_PATH,
       );
 
@@ -265,7 +268,8 @@ describe('hyperlane warp deploy e2e tests', async function () {
         ).to.eql(addressToBytes32(unsupportedChainAddress));
       }
 
-      const warpCoreConfig: WarpCoreConfig = readYamlOrJson(WARP_CORE_PATH);
+      const warpCoreConfig =
+        readYamlOrJsonOrThrow<WarpCoreConfig>(WARP_CORE_PATH);
       const unsuportedChainData = warpCoreConfig.tokens.find(
         (tokenConfig) =>
           tokenConfig.chainName ===

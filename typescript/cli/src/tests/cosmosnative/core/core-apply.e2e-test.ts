@@ -13,7 +13,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import {
   CHAIN_1_METADATA_PATH,
@@ -43,7 +46,9 @@ describe('hyperlane core apply e2e tests', async function () {
   let initialOwnerAddress: Address;
 
   before(async () => {
-    const chainMetadata: ChainMetadata = readYamlOrJson(CHAIN_1_METADATA_PATH);
+    const chainMetadata = readYamlOrJsonOrThrow<ChainMetadata>(
+      CHAIN_1_METADATA_PATH,
+    );
 
     const wallet = await DirectSecp256k1Wallet.fromKey(
       Uint8Array.from(Buffer.from(HYP_KEY, 'hex')),

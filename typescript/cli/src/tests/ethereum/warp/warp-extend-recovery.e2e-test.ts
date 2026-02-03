@@ -10,7 +10,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import { getContext } from '../../../context/context.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { deployOrUseExistingCore } from '../commands/core.js';
 import { getDomainId } from '../commands/helpers.js';
 import {
@@ -46,7 +49,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
     ]);
 
     // Create a new warp config using the example
-    const warpConfig: WarpRouteDeployConfig = readYamlOrJson(
+    const warpConfig = readYamlOrJsonOrThrow<WarpRouteDeployConfig>(
       WARP_CONFIG_PATH_EXAMPLE,
     );
     const anvil2Config = { anvil2: { ...warpConfig.anvil1 } };
@@ -86,9 +89,9 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       CHAIN_NAME_3,
     ]);
 
-    const warpCoreConfig = readYamlOrJson(
+    const warpCoreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
       COMBINED_WARP_CORE_CONFIG_PATH,
-    ) as WarpCoreConfig;
+    );
     const deployedTokenRoute = warpCoreConfig.tokens.find(
       (t) => t.chainName === CHAIN_NAME_2,
     )?.addressOrDenom;

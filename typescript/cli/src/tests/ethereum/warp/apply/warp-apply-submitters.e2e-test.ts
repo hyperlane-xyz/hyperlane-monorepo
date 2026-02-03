@@ -25,7 +25,11 @@ import {
   assert,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
+import {
+  readYamlOrJson,
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
 import {
@@ -248,7 +252,7 @@ describe('hyperlane warp apply with submitters', async function () {
     assert(maybeGeneratedTxFilePath, 'expected the tx file output');
 
     const [generatedTxFilePath] = maybeGeneratedTxFilePath;
-    const txFile: CallData[] = readYamlOrJson(generatedTxFilePath);
+    const txFile: CallData[] = readYamlOrJsonOrThrow(generatedTxFilePath);
     const executeTransaction = txFile.pop();
     assert(
       executeTransaction,
@@ -497,7 +501,7 @@ describe('hyperlane warp apply with submitters', async function () {
         version: string;
         chainId: string;
         transactions: { to: string; data: string }[];
-      } = readYamlOrJson(filePath);
+      } = readYamlOrJsonOrThrow(filePath);
 
       // Verify Safe Transaction Builder JSON format
       expect(txBuilderJson).to.have.property('version', '1.0');

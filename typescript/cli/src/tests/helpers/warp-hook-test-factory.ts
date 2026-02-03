@@ -8,7 +8,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type ProtocolType, assert } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../utils/files.js';
+import { readYamlOrJsonOrThrow, writeYamlOrJson } from '../../utils/files.js';
 import { type HyperlaneE2EWarpTestCommands } from '../commands/warp.js';
 
 /**
@@ -84,8 +84,10 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+      const updatedWarpDeployConfig =
+        readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+          config.warpReadOutputPath,
+        );
 
       const hookConfig = updatedWarpDeployConfig[config.chainName].hook;
 
@@ -151,8 +153,10 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+      const updatedWarpDeployConfig =
+        readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+          config.warpReadOutputPath,
+        );
 
       const hookConfig = updatedWarpDeployConfig[config.chainName].hook;
 
@@ -193,8 +197,10 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      let updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+      let updatedWarpDeployConfig =
+        readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+          config.warpReadOutputPath,
+        );
 
       expect(updatedWarpDeployConfig[config.chainName].hook).to.not.be
         .undefined;
@@ -215,7 +221,10 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      updatedWarpDeployConfig = readYamlOrJson(config.warpReadOutputPath);
+      updatedWarpDeployConfig =
+        readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+          config.warpReadOutputPath,
+        );
 
       const hookConfig = updatedWarpDeployConfig[config.chainName].hook;
 
@@ -261,8 +270,10 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      let updatedWarpDeployConfig: DerivedWarpRouteDeployConfig =
-        readYamlOrJson(config.warpReadOutputPath);
+      let updatedWarpDeployConfig =
+        readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+          config.warpReadOutputPath,
+        );
 
       const initialHook = updatedWarpDeployConfig[config.chainName].hook;
 
@@ -312,7 +323,10 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      updatedWarpDeployConfig = readYamlOrJson(config.warpReadOutputPath);
+      updatedWarpDeployConfig =
+        readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
+          config.warpReadOutputPath,
+        );
 
       const finalHook = updatedWarpDeployConfig[config.chainName].hook;
 
@@ -361,7 +375,7 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const firstConfig = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
         config.warpReadOutputPath,
       );
       const firstHookConfig = firstConfig[config.chainName].hook;
@@ -388,7 +402,7 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const secondConfig = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
         config.warpReadOutputPath,
       );
       const secondHookConfig = secondConfig[config.chainName].hook;
@@ -446,7 +460,7 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const firstConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const firstConfig = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
         config.warpReadOutputPath,
       );
       const firstHookConfig = firstConfig[config.chainName].hook;
@@ -499,7 +513,7 @@ export function createHookUpdateTests(
         outputPath: config.warpReadOutputPath,
       });
 
-      const secondConfig: DerivedWarpRouteDeployConfig = readYamlOrJson(
+      const secondConfig = readYamlOrJsonOrThrow<DerivedWarpRouteDeployConfig>(
         config.warpReadOutputPath,
       );
       const secondHookConfig = secondConfig[config.chainName].hook;

@@ -22,7 +22,10 @@ import {
   randomInt,
 } from '@hyperlane-xyz/utils';
 
-import { readYamlOrJson, writeYamlOrJson } from '../../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../../commands/warp.js';
 import {
@@ -309,7 +312,7 @@ describe('hyperlane warp apply owner update tests', async function () {
       hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
     });
 
-    const coreConfig: WarpCoreConfig = readYamlOrJson(
+    const coreConfig = readYamlOrJsonOrThrow<WarpCoreConfig>(
       DEFAULT_EVM_WARP_CORE_PATH,
     );
 

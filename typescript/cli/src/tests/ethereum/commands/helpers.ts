@@ -28,7 +28,10 @@ import {
 import { type Address, assert, inCIMode } from '@hyperlane-xyz/utils';
 
 import { getContext } from '../../../context/context.js';
-import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
+import {
+  readYamlOrJsonOrThrow,
+  writeYamlOrJson,
+} from '../../../utils/files.js';
 import { KeyBoardKeys, type TestPromptAction } from '../../commands/helpers.js';
 import {
   ANVIL_KEY,
@@ -154,7 +157,7 @@ export function getTokenAddressFromWarpConfig(
  * Retrieves the deployed Warp address from the Warp core config.
  */
 export function getDeployedWarpAddress(chain: string, warpCorePath: string) {
-  const warpCoreConfig: WarpCoreConfig = readYamlOrJson(warpCorePath);
+  const warpCoreConfig: WarpCoreConfig = readYamlOrJsonOrThrow(warpCorePath);
   WarpCoreConfigSchema.parse(warpCoreConfig);
   return warpCoreConfig.tokens.find((t) => t.chainName === chain)!
     .addressOrDenom;
