@@ -25,9 +25,7 @@ import {
  */
 export class CosmosRoutingIsmReader extends AltvmRoutingIsmReader<CosmosIsmQueryClient> {
   constructor(query: CosmosIsmQueryClient) {
-    super(query, (client, address) =>
-      getRoutingIsmConfig(client as CosmosIsmQueryClient, address),
-    );
+    super(query, (client, address) => getRoutingIsmConfig(client, address));
   }
 }
 
@@ -43,8 +41,7 @@ export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
   constructor(query: CosmosIsmQueryClient, signer: CosmosNativeSigner) {
     super(
       query,
-      (client, address) =>
-        getRoutingIsmConfig(client as CosmosIsmQueryClient, address),
+      (client, address) => getRoutingIsmConfig(client, address),
       eqAddressCosmos,
       {
         create: getCreateRoutingIsmTx,

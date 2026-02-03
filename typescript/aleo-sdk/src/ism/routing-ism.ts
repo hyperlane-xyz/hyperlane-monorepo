@@ -87,7 +87,7 @@ export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
     // Create empty routing ISM
     const createTransaction = getCreateRoutingIsmTx(ismManagerProgramId);
     const expectedNonce = await getNewContractExpectedNonce(
-      this.client as AnyAleoNetworkClient,
+      this.client,
       ismManagerProgramId,
     );
     const createReceipt =
@@ -95,7 +95,7 @@ export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
     receipts.push(createReceipt);
 
     const ismAddress = await getNewIsmAddress(
-      this.client as AnyAleoNetworkClient,
+      this.client,
       ismManagerProgramId,
       expectedNonce,
     );
