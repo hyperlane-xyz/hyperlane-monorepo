@@ -2,12 +2,15 @@ import type { StartedTestContainer } from 'testcontainers';
 
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import { DEFAULT_E2E_TEST_TIMEOUT, runAleoNode } from '../testing/index.js';
+import { runAleoNode } from '../testing/index.js';
+
+// Timeout for setup: image pull + container startup (120s) + buffer
+const SETUP_TIMEOUT_MS = 150_000;
 
 let aleoNodeContainer: StartedTestContainer | undefined;
 
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(SETUP_TIMEOUT_MS);
 
   rootLogger.info('Starting Aleo devnode...');
   aleoNodeContainer = await runAleoNode();
@@ -15,7 +18,7 @@ before(async function () {
 });
 
 after(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  this.timeout(SETUP_TIMEOUT_MS);
 
   if (aleoNodeContainer) {
     rootLogger.info('Stopping Aleo devnode...');
