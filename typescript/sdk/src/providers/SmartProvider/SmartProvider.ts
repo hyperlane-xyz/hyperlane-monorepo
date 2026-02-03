@@ -614,7 +614,8 @@ export class HyperlaneSmartProvider
       // For CALL_EXCEPTION, check if it's a real revert or decode failure
       const hasRevertData = !!e.data && e.data !== '0x';
       // Check for JSON-RPC error code 3 (nested in error.error.code by ethers)
-      const jsonRpcErrorCode = e.error?.error?.code;
+      // Also check shallower level as error nesting varies
+      const jsonRpcErrorCode = e.error?.error?.code ?? e.error?.code;
       const isJsonRpcRevert = jsonRpcErrorCode === 3;
       // No nested error means ethers failed to decode empty return data - permanent
       const isEmptyReturnDecodeFailure = !e.error;
