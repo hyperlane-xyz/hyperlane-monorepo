@@ -295,33 +295,14 @@ export class BridgeMockController extends EventEmitter {
       const originDomain = this.domains[transfer.origin];
       const destDomain = this.domains[transfer.destination];
 
-      // Check bridge balance - only process what the bridge actually holds
+      // Burn from origin bridge (tokens are guaranteed to be there since SentTransferRemote fired)
       const originCollateralToken = ERC20Test__factory.connect(
         originDomain.collateralToken,
         deployer,
       );
-      const bridgeBalance = await originCollateralToken.balanceOf(
-        originDomain.bridge,
-      );
-
-      // Only deliver what's actually in the bridge (strict conservation)
-      const deliveryAmount =
-        bridgeBalance.toBigInt() < transfer.amount
-          ? bridgeBalance.toBigInt()
-          : transfer.amount;
-
-      if (deliveryAmount === 0n) {
-        logger.warn(
-          { transferId: transfer.id, origin: transfer.origin },
-          'Bridge has no tokens to deliver - skipping',
-        );
-        return;
-      }
-
-      // Burn from origin bridge
       const burnTx = await originCollateralToken.burnFrom(
         originDomain.bridge,
-        deliveryAmount.toString(),
+        transfer.amount.toString(),
       );
       await burnTx.wait();
 
@@ -332,12 +313,9 @@ export class BridgeMockController extends EventEmitter {
       );
       const mintTx = await destCollateralToken.mintTo(
         destDomain.warpToken,
-        deliveryAmount.toString(),
+        transfer.amount.toString(),
       );
       await mintTx.wait();
-
-      // Update transfer amount to what was actually delivered
-      transfer.amount = deliveryAmount;
     });
   }
 
