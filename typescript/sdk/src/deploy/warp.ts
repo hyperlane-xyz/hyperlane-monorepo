@@ -1,20 +1,25 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  AltVMDeployer,
-  AltVMWarpModule,
   createHookWriter,
   createIsmWriter,
-  ismConfigToArtifact,
+  createWarpTokenWriter,
 } from '@hyperlane-xyz/deploy-sdk';
 import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
+import { ArtifactState } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
   HookConfig as ProviderHookConfig,
   hookConfigToArtifact,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { IsmConfig as ProviderIsmConfig } from '@hyperlane-xyz/provider-sdk/ism';
+import {
+  IsmConfig as ProviderIsmConfig,
+  ismConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/ism';
 import { AnnotatedTx, TxReceipt } from '@hyperlane-xyz/provider-sdk/module';
-import { WarpConfig as ProviderWarpConfig } from '@hyperlane-xyz/provider-sdk/warp';
+import {
+  WarpConfig as ProviderWarpConfig,
+  warpConfigToArtifact,
+} from '@hyperlane-xyz/provider-sdk/warp';
 import {
   Address,
   addressToBytes32,
@@ -121,7 +126,10 @@ export async function executeWarpDeploy(
   for (const protocol of protocols) {
     const protocolSpecificConfig = objFilter(
       modifiedConfig,
-      (chainName, config): config is any =>
+      (
+        chainName,
+        config,
+      ): config is WarpRouteDeployConfigMailboxRequired['string'] =>
         multiProvider.getProtocol(chainName) === protocol &&
         !config.foreignDeployment,
     );
@@ -148,16 +156,31 @@ export async function executeWarpDeploy(
         break;
       }
       default: {
-        const signersMap = objMap(protocolSpecificConfig, (chain, _) =>
-          mustGet(altVmSigners, chain),
-        );
+        const chainLookup = altVmChainLookup(multiProvider);
 
-        const deployer = new AltVMDeployer(signersMap);
+        const deployResults: ChainMap<Address> = {};
+        for (const chain of objKeys(protocolSpecificConfig)) {
+          const config = mustGet(protocolSpecificConfig, chain);
+          const signer = mustGet(altVmSigners, chain);
+          const chainMetadata = chainLookup.getChainMetadata(chain);
+          const writer = createWarpTokenWriter(
+            chainMetadata,
+            chainLookup,
+            signer,
+          );
+
+          const artifact = warpConfigToArtifact(
+            config as ProviderWarpConfig,
+            chainLookup,
+          );
+
+          const [deployed] = await writer.create(artifact);
+          deployResults[chain] = deployed.deployed.address;
+        }
+
         deployedContracts = {
           ...deployedContracts,
-          ...(await deployer.deploy(
-            protocolSpecificConfig as Record<string, ProviderWarpConfig>,
-          )),
+          ...deployResults,
         };
 
         break;
@@ -482,19 +505,19 @@ export async function enrollCrossChainRouters(
         }
         default: {
           const signer = mustGet(altVmSigners, currentChain);
+          const chainLookup = altVmChainLookup(multiProvider);
+          const chainMetadata = chainLookup.getChainMetadata(currentChain);
 
-          const warpModule = new AltVMWarpModule(
-            altVmChainLookup(multiProvider),
+          const writer = createWarpTokenWriter(
+            chainMetadata,
+            chainLookup,
             signer,
-            {
-              chain: currentChain,
-              config: resolvedConfigMap[currentChain] as ProviderWarpConfig,
-              addresses: {
-                deployedTokenRoute: deployedContracts[currentChain],
-              },
-            },
           );
-          const actualConfig = await warpModule.read();
+
+          const actualConfig = await writer.deriveWarpConfig(
+            deployedContracts[currentChain],
+          );
+
           const expectedConfig: HypTokenRouterConfig = {
             ...actualConfig,
             owner: resolvedConfigMap[currentChain].owner,
@@ -502,9 +525,18 @@ export async function enrollCrossChainRouters(
             destinationGas,
           };
 
-          transactions = await warpModule.update(
+          const artifact = warpConfigToArtifact(
             expectedConfig as ProviderWarpConfig,
+            chainLookup,
           );
+
+          const deployedArtifact = {
+            artifactState: ArtifactState.DEPLOYED,
+            config: artifact.config,
+            deployed: { address: deployedContracts[currentChain] },
+          };
+
+          transactions = await writer.update(deployedArtifact);
         }
       }
 
