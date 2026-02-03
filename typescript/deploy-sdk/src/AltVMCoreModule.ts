@@ -15,6 +15,7 @@ import {
 import {
   DerivedIsmConfig,
   IsmConfig,
+  ismConfigToArtifact,
   mergeIsmArtifacts,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import {
@@ -28,7 +29,6 @@ import { Address, Logger, rootLogger } from '@hyperlane-xyz/utils';
 import { AltVMCoreReader } from './AltVMCoreReader.js';
 import { createHookWriter } from './hook/hook-writer.js';
 import { createIsmWriter } from './ism/generic-ism-writer.js';
-import { ismConfigToArtifact } from './ism/ism-config-utils.js';
 import { validateIsmConfig } from './utils/validation.js';
 
 export class AltVMCoreModule implements HypModule<CoreModuleType> {
