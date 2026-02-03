@@ -23,6 +23,19 @@ import { getEnvironmentConfig } from '../core-utils.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
+  rootLogger.warn(
+    chalk.yellow(
+      '\n' +
+        '='.repeat(80) +
+        '\n' +
+        'DEPRECATED: Use `hyperlane warp xerc20` commands instead. ' +
+        'This script will be removed in a future release.\n' +
+        '='.repeat(80) +
+        '\n',
+    ),
+  );
+
   const { environment, warpRouteId, chains, dryRun } = await withChains(
     withKnownWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
