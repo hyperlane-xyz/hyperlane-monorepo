@@ -1,7 +1,13 @@
 import { PopulatedTransaction } from 'ethers';
+import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 
 import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  normalizeAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -21,6 +27,44 @@ import {
   isXERC20TokenConfig,
 } from './types.js';
 import { detectXERC20Type } from './xerc20.js';
+
+/**
+ * Minimal ABI for parsing ConfigurationChanged events from Velodrome XERC20
+ */
+const minimalXERC20VSABI = [
+  {
+    anonymous: false,
+    inputs: [
+      {
+        indexed: true,
+        internalType: 'address',
+        name: 'bridge',
+        type: 'address',
+      },
+      {
+        indexed: false,
+        internalType: 'uint112',
+        name: 'bufferCap',
+        type: 'uint112',
+      },
+      {
+        indexed: false,
+        internalType: 'uint128',
+        name: 'rateLimitPerSecond',
+        type: 'uint128',
+      },
+    ],
+    name: 'ConfigurationChanged',
+    type: 'event',
+  },
+] as const;
+
+const CONFIGURATION_CHANGED_EVENT_SELECTOR = toEventSelector(
+  getAbiItem({
+    abi: minimalXERC20VSABI,
+    name: 'ConfigurationChanged',
+  }),
+);
 
 /**
  * Standard XERC20 limits (mint/burn max limits)
@@ -240,10 +284,70 @@ export class XERC20WarpModule {
   }
 
   /**
-   * Read current limits for bridges on an XERC20.
-   * @param chain - Chain to read from
-   * @param bridges - Optional specific bridges to read. If not provided, reads the warp route bridge.
+   * Read all bridges configured on-chain for a Velodrome XERC20 by parsing ConfigurationChanged events.
+   * Standard XERC20 returns empty array since it has no event-based bridge enumeration.
    */
+  async readOnChainBridges(chain: ChainName): Promise<Address[]> {
+    const xerc20Type = await this.detectType(chain);
+
+    if (xerc20Type === 'standard') {
+      this.logger.debug(
+        'Standard XERC20 does not support on-chain bridge enumeration',
+      );
+      return [];
+    }
+
+    const xERC20Address = await this.getXERC20Address(chain);
+    const provider = this.multiProvider.getProvider(chain);
+
+    const filter = {
+      address: xERC20Address,
+      topics: [CONFIGURATION_CHANGED_EVENT_SELECTOR],
+      fromBlock: 0,
+      toBlock: 'latest',
+    };
+
+    const rawLogs = await provider.getLogs(filter);
+
+    const logs = rawLogs.map((log) => ({
+      address: log.address as `0x${string}`,
+      blockHash: log.blockHash as `0x${string}`,
+      blockNumber: BigInt(log.blockNumber),
+      data: log.data as `0x${string}`,
+      logIndex: log.logIndex,
+      transactionHash: log.transactionHash as `0x${string}`,
+      transactionIndex: log.transactionIndex,
+      removed: log.removed,
+      topics: log.topics as [`0x${string}`, ...`0x${string}`[]],
+    }));
+
+    const parsedLogs = parseEventLogs({
+      abi: minimalXERC20VSABI,
+      eventName: 'ConfigurationChanged',
+      logs,
+    });
+
+    const bridgeToLatestLog = new Map<string, (typeof parsedLogs)[0]>();
+    for (const log of parsedLogs) {
+      const bridge = normalizeAddress(log.args.bridge);
+      const existing = bridgeToLatestLog.get(bridge);
+      if (!existing || log.blockNumber > existing.blockNumber) {
+        bridgeToLatestLog.set(bridge, log);
+      }
+    }
+
+    const activeBridges: Address[] = [];
+    for (const [bridge, log] of bridgeToLatestLog) {
+      const hasNonZeroLimits =
+        log.args.bufferCap !== 0n || log.args.rateLimitPerSecond !== 0n;
+      if (hasNonZeroLimits) {
+        activeBridges.push(bridge);
+      }
+    }
+
+    return activeBridges;
+  }
+
   async readLimits(
     chain: ChainName,
     bridges?: Address[],
@@ -305,11 +409,16 @@ export class XERC20WarpModule {
       limitMismatches: [],
     };
 
-    const expectedBridges = Object.keys(expectedLimits);
+    const expectedBridges = Object.keys(expectedLimits).map((addr) =>
+      normalizeAddress(addr),
+    );
+    const expectedBridgesSet = new Set(expectedBridges);
+
     const actualLimits = await this.readLimits(chain, expectedBridges);
 
     for (const [bridge, expected] of Object.entries(expectedLimits)) {
-      const actual = actualLimits[bridge];
+      const normalizedBridge = normalizeAddress(bridge);
+      const actual = actualLimits[normalizedBridge] ?? actualLimits[bridge];
 
       if (!actual || this.limitsAreZero(actual)) {
         result.missingBridges.push(bridge);
@@ -318,6 +427,15 @@ export class XERC20WarpModule {
 
       if (!this.limitsMatch(expected, actual)) {
         result.limitMismatches.push({ bridge, expected, actual });
+      }
+    }
+
+    if (xerc20Type === 'velodrome') {
+      const onChainBridges = await this.readOnChainBridges(chain);
+      for (const bridge of onChainBridges) {
+        if (!expectedBridgesSet.has(normalizeAddress(bridge))) {
+          result.extraBridges.push(bridge);
+        }
       }
     }
 

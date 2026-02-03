@@ -350,6 +350,76 @@ describe('XERC20WarpModule', () => {
       expect(drift.limitMismatches[0].expected.type).to.equal('standard');
       expect(drift.limitMismatches[0].actual.type).to.equal('standard');
     });
+
+    it('detects extra bridges for Velodrome XERC20', async () => {
+      const config = createWarpConfig('velodrome');
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
+
+      sandbox.stub(module, 'detectType').resolves('velodrome');
+      sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
+
+      sandbox.stub(module, 'readLimits').resolves({
+        [WARP_ROUTE_ADDRESS]: {
+          type: 'velodrome',
+          bufferCap: '1000000000000000000',
+          rateLimitPerSecond: '100000000000000000',
+        },
+        [EXTRA_BRIDGE_ADDRESS]: {
+          type: 'velodrome',
+          bufferCap: '2000000000000000000',
+          rateLimitPerSecond: '200000000000000000',
+        },
+      });
+
+      sandbox
+        .stub(module, 'readOnChainBridges')
+        .resolves([
+          WARP_ROUTE_ADDRESS,
+          EXTRA_BRIDGE_ADDRESS,
+          BRIDGE_ADDRESS_1,
+          BRIDGE_ADDRESS_2,
+        ]);
+
+      const drift = await module.detectDrift(TestChainName.test1);
+
+      expect(drift.xerc20Type).to.equal('velodrome');
+      expect(drift.extraBridges).to.have.lengthOf(2);
+      expect(drift.extraBridges).to.include(BRIDGE_ADDRESS_1);
+      expect(drift.extraBridges).to.include(BRIDGE_ADDRESS_2);
+    });
+
+    it('does not detect extra bridges for Standard XERC20', async () => {
+      const config = createWarpConfig('standard');
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
+
+      sandbox.stub(module, 'detectType').resolves('standard');
+      sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
+
+      sandbox.stub(module, 'readLimits').resolves({
+        [WARP_ROUTE_ADDRESS]: {
+          type: 'standard',
+          mint: '1000000000000000000',
+          burn: '500000000000000000',
+        },
+        [EXTRA_BRIDGE_ADDRESS]: {
+          type: 'standard',
+          mint: '2000000000000000000',
+          burn: '1000000000000000000',
+        },
+      });
+
+      const drift = await module.detectDrift(TestChainName.test1);
+
+      expect(drift.extraBridges).to.have.lengthOf(0);
+    });
   });
 
   describe('generateDriftCorrectionTxs', () => {
