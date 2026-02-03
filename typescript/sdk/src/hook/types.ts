@@ -44,14 +44,17 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  UNKNOWN: 'unknownHook',
 } as const;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
-export const HookTypeToContractNameMap: Record<
-  Exclude<HookType, typeof HookType.CUSTOM>,
-  string
-> = {
+export type DeployableHookType = Exclude<
+  HookType,
+  typeof HookType.CUSTOM | typeof HookType.UNKNOWN
+>;
+
+export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
   [HookType.MERKLE_TREE]: 'merkleTreeHook',
   [HookType.INTERCHAIN_GAS_PAYMASTER]: 'interchainGasPaymaster',
   [HookType.AGGREGATION]: 'staticAggregationHook',
@@ -200,6 +203,13 @@ export const CCIPHookSchema = z.object({
   destinationChain: z.string(),
 });
 
+export const UnknownHookSchema = z
+  .object({
+    type: z.literal(HookType.UNKNOWN),
+  })
+  .passthrough();
+export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
+
 export const HookConfigSchema = z.union([
   ZHash,
   ProtocolFeeSchema,
@@ -214,6 +224,7 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  UnknownHookSchema,
 ]);
 
 // TODO: deprecate in favor of CoreConfigSchema

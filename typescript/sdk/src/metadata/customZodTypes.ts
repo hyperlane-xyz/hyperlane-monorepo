@@ -4,6 +4,43 @@
  */
 import { z } from 'zod';
 
+/**
+ * Creates a forward-compatible Zod schema for enums that normalizes unknown values.
+ *
+ * When registry is updated with new enum values, older SDK versions will parse
+ * the unknown value as the specified `unknownValue` instead of failing entirely.
+ *
+ * This enables:
+ * - Old SDK + New Registry: Works - unknown values become `Unknown` variant
+ * - New SDK + Old Registry: Works - known values parse normally
+ * - TypeScript exhaustiveness checking forces explicit handling of unknown cases
+ *
+ * @param enumObj - The enum or const object to validate against
+ * @param unknownValue - The value to use for unknown/new enum variants
+ * @returns A Zod schema that accepts any string but normalizes unknown values
+ *
+ * @example
+ * ```ts
+ * const zProtocolType = forwardCompatibleEnum(ProtocolType, ProtocolType.Unknown);
+ * zProtocolType.parse('ethereum'); // => ProtocolType.Ethereum
+ * zProtocolType.parse('newprotocol'); // => ProtocolType.Unknown
+ * ```
+ */
+export function forwardCompatibleEnum<T extends Record<string, string>>(
+  enumObj: T,
+  unknownValue: T[keyof T],
+): z.ZodEffects<z.ZodUnion<[z.ZodNativeEnum<T>, z.ZodString]>, T[keyof T]> {
+  const validValues = Object.values(enumObj) as T[keyof T][];
+  return z
+    .nativeEnum(enumObj)
+    .or(z.string())
+    .transform((val): T[keyof T] => {
+      return validValues.includes(val as T[keyof T])
+        ? (val as T[keyof T])
+        : unknownValue;
+    });
+}
+
 /** Zod uint schema */
 export const ZUint = z.number().int().nonnegative();
 /** Zod NonZeroUint schema */

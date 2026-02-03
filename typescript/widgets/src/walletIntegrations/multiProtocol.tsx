@@ -2,7 +2,12 @@ import { useMemo } from 'react';
 
 import { cosmoshub } from '@hyperlane-xyz/registry';
 import { ChainName, MultiProtocolProvider } from '@hyperlane-xyz/sdk';
-import { Address, HexString, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  HexString,
+  KnownProtocolType,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 import { widgetLogger } from '../logger.js';
 
@@ -76,7 +81,7 @@ export function useAccounts(
   multiProvider: MultiProtocolProvider,
   blacklistedAddresses: Address[] = [],
 ): {
-  accounts: Record<ProtocolType, AccountInfo>;
+  accounts: Record<KnownProtocolType, AccountInfo>;
   readyAccounts: Array<AccountInfo>;
 } {
   const evmAccountInfo = useEthereumAccount(multiProvider);
@@ -162,7 +167,7 @@ export function useAccountAddressForChain(
 export function getAccountAddressForChain(
   multiProvider: MultiProtocolProvider,
   chainName?: ChainName,
-  accounts?: Record<ProtocolType, AccountInfo>,
+  accounts?: Record<KnownProtocolType, AccountInfo>,
 ): Address | undefined {
   if (!chainName || !accounts) return undefined;
   const protocol = multiProvider.getProtocol(chainName);
@@ -215,7 +220,7 @@ export function getAddressFromAccountAndChain(
 export function getAccountAddressAndPubKey(
   multiProvider: MultiProtocolProvider,
   chainName?: ChainName,
-  accounts?: Record<ProtocolType, AccountInfo>,
+  accounts?: Record<KnownProtocolType, AccountInfo>,
 ): { address?: Address; publicKey?: Promise<HexString> } {
   const address = getAccountAddressForChain(multiProvider, chainName, accounts);
   if (!accounts || !chainName || !address) return {};
@@ -224,7 +229,7 @@ export function getAccountAddressAndPubKey(
   return { address, publicKey };
 }
 
-export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
+export function useWalletDetails(): Record<KnownProtocolType, WalletDetails> {
   const evmWallet = useEthereumWalletDetails();
   const solWallet = useSolanaWalletDetails();
   const cosmosWallet = useCosmosWalletDetails();
@@ -253,7 +258,7 @@ export function useWalletDetails(): Record<ProtocolType, WalletDetails> {
   );
 }
 
-export function useConnectFns(): Record<ProtocolType, () => void> {
+export function useConnectFns(): Record<KnownProtocolType, () => void> {
   const onConnectEthereum = useEthereumConnectFn();
   const onConnectSolana = useSolanaConnectFn();
   const onConnectCosmos = useCosmosConnectFn();
@@ -282,7 +287,10 @@ export function useConnectFns(): Record<ProtocolType, () => void> {
   );
 }
 
-export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
+export function useDisconnectFns(): Record<
+  KnownProtocolType,
+  () => Promise<void>
+> {
   const disconnectEvm = useEthereumDisconnectFn();
   const disconnectSol = useSolanaDisconnectFn();
   const disconnectCosmos = useCosmosDisconnectFn();
@@ -341,7 +349,7 @@ export function useDisconnectFns(): Record<ProtocolType, () => Promise<void>> {
 }
 
 export function useActiveChains(multiProvider: MultiProtocolProvider): {
-  chains: Record<ProtocolType, ActiveChainInfo>;
+  chains: Record<KnownProtocolType, ActiveChainInfo>;
   readyChains: Array<ActiveChainInfo>;
 } {
   const evmChain = useEthereumActiveChain(multiProvider);
@@ -391,7 +399,7 @@ export function useActiveChains(multiProvider: MultiProtocolProvider): {
 
 export function useTransactionFns(
   multiProvider: MultiProtocolProvider,
-): Record<ProtocolType, ChainTransactionFns> {
+): Record<KnownProtocolType, ChainTransactionFns> {
   const {
     switchNetwork: onSwitchEvmNetwork,
     sendTransaction: onSendEvmTx,
@@ -480,7 +488,7 @@ export function useTransactionFns(
 
 export function useWatchAsset(
   multiProvider: MultiProtocolProvider,
-): Record<ProtocolType, WatchAssetFns> {
+): Record<KnownProtocolType, WatchAssetFns> {
   const { addAsset: evmAddAsset } = useEthereumWatchAsset(multiProvider);
   const { addAsset: solanaAddAsset } = useSolanaWatchAsset(multiProvider);
   const { addAsset: cosmosAddAsset } = useCosmosWatchAsset(multiProvider);

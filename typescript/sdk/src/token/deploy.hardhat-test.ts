@@ -143,10 +143,10 @@ describe('TokenDeployer', async () => {
       let checker: HypERC20Checker;
       let app: HypERC20App;
       beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
-          // @ts-ignore
           token: token(),
         };
 
@@ -237,10 +237,10 @@ describe('TokenDeployer', async () => {
       });
 
       beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
-          // @ts-ignore
           token: token(),
         };
         const warpRoute = await deployer.deploy(config);

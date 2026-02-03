@@ -930,7 +930,7 @@ describe('EvmHookModule', async () => {
       it(`update owner in an existing ${config.type} not owned by deployer`, async () => {
         // hook owner is not the deployer
         config.owner = randomAddress();
-        const originalOwner = config.owner;
+        const originalOwner = config.owner as string;
 
         // create a new hook
         const { hook, initialHookAddress } = await createHook(config);
@@ -950,7 +950,7 @@ describe('EvmHookModule', async () => {
       it(`update owner in an existing ${config.type} not owned by deployer and no change`, async () => {
         // hook owner is not the deployer
         config.owner = randomAddress();
-        const originalOwner = config.owner;
+        const originalOwner = config.owner as string;
 
         // create a new hook
         const { hook, initialHookAddress } = await createHook(config);

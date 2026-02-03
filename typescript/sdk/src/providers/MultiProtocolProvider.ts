@@ -132,6 +132,7 @@ export class MultiProtocolProvider<
     const metadata = this.tryGetChainMetadata(chainNameOrId);
     if (!metadata) return null;
     const { protocol, name, chainId, rpcUrls } = metadata;
+    if (protocol === ProtocolType.Unknown) return null;
     type = type || PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol];
     if (!type) return null;
 

@@ -70,9 +70,15 @@ export const IsmType = {
   WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
   CCIP: 'ccipIsm',
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
+  UNKNOWN: 'unknownIsm',
 } as const;
 
 export type IsmType = (typeof IsmType)[keyof typeof IsmType];
+
+export type DeployableIsmType = Exclude<
+  IsmType,
+  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
+>;
 
 // ISM types that can be updated in-place
 export const MUTABLE_ISM_TYPE: IsmType[] = [
@@ -138,6 +144,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
+    case IsmType.UNKNOWN:
+      return ModuleType.UNUSED;
   }
 }
 
@@ -242,6 +250,7 @@ export type DeployedIsmType = {
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
   [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
+  [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -365,6 +374,13 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     message: 'Threshold must be less than or equal to the number of modules',
   });
 
+export const UnknownIsmConfigSchema = z
+  .object({
+    type: z.literal(IsmType.UNKNOWN),
+  })
+  .passthrough();
+export type UnknownIsmConfig = z.infer<typeof UnknownIsmConfigSchema>;
+
 export const IsmConfigSchema = z.union([
   ZHash,
   TestIsmConfigSchema,
@@ -379,4 +395,5 @@ export const IsmConfigSchema = z.union([
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,
+  UnknownIsmConfigSchema,
 ]);

@@ -1,6 +1,6 @@
 import { FC, SVGProps } from 'react';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
 import { AleoLogo } from './Aleo.js';
 import { CosmosLogo } from './Cosmos.js';
@@ -10,7 +10,7 @@ import { SolanaLogo } from './Solana.js';
 import { StarknetLogo } from './Starknet.js';
 
 export const PROTOCOL_TO_LOGO: Record<
-  ProtocolType,
+  KnownProtocolType,
   FC<Omit<SVGProps<SVGSVGElement>, 'ref'>>
 > = {
   [ProtocolType.Ethereum]: EthereumLogo,

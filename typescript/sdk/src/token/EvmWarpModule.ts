@@ -62,6 +62,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
+import { DeployableTokenType, TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -1127,6 +1128,11 @@ export class EvmWarpModule extends HyperlaneModule<
   ): Promise<AnnotatedEV5Transaction[]> {
     const updateTransactions: AnnotatedEV5Transaction[] = [];
 
+    assert(
+      expectedConfig.type !== TokenType.unknown,
+      'Cannot upgrade warp route with unknown token type',
+    );
+
     // This should be impossible since we try catch the call to `PACKAGE_VERSION`
     // in `EvmWarpRouteReader.fetchPackageVersion`
     assert(
@@ -1171,10 +1177,11 @@ export class EvmWarpModule extends HyperlaneModule<
       this.chainName,
       expectedConfig,
     );
+    const tokenType = expectedConfig.type as DeployableTokenType;
     const implementation = await deployer.deployContractWithName(
       this.chainName,
-      expectedConfig.type,
-      hypERC20contracts[expectedConfig.type],
+      tokenType,
+      hypERC20contracts[tokenType],
       constructorArgs,
       undefined,
       false,

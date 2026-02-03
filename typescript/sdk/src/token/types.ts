@@ -298,12 +298,19 @@ export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema
 >;
 
-/**
- * @remarks
- * The discriminatedUnion is basically a switch statement for zod schemas
- * It uses the 'type' key to pick from the array of schemas to validate
- */
-export const HypTokenConfigSchema = z.discriminatedUnion('type', [
+export const UnknownTokenConfigSchema = TokenMetadataSchema.partial()
+  .extend({
+    type: z.literal(TokenType.unknown),
+  })
+  .passthrough();
+export type UnknownTokenConfig = z.infer<typeof UnknownTokenConfigSchema>;
+export const isUnknownTokenConfig = isCompliant(UnknownTokenConfigSchema);
+
+const KnownTokenTypes: string[] = Object.values(TokenType).filter(
+  (t) => t !== TokenType.unknown,
+);
+
+const KnownHypTokenConfigSchema = z.discriminatedUnion('type', [
   NativeTokenConfigSchema,
   OpL2TokenConfigSchema,
   OpL1TokenConfigSchema,
@@ -314,8 +321,28 @@ export const HypTokenConfigSchema = z.discriminatedUnion('type', [
   CctpTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  UnknownTokenConfigSchema,
 ]);
-export type HypTokenConfig = z.infer<typeof HypTokenConfigSchema>;
+
+export type HypTokenConfig = z.infer<typeof KnownHypTokenConfigSchema>;
+
+/**
+ * @remarks
+ * The discriminatedUnion is basically a switch statement for zod schemas
+ * It uses the 'type' key to pick from the array of schemas to validate
+ */
+export const HypTokenConfigSchema = z.preprocess((val) => {
+  if (typeof val === 'object' && val !== null && 'type' in val) {
+    const obj = val as { type: unknown };
+    if (
+      typeof obj.type === 'string' &&
+      !KnownTokenTypes.includes(obj.type as TokenType)
+    ) {
+      return { ...obj, type: TokenType.unknown };
+    }
+  }
+  return val;
+}, KnownHypTokenConfigSchema);
 
 export const HypTokenRouterConfigSchema = z.preprocess(
   preprocessWarpRouteDeployConfig,

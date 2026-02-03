@@ -108,6 +108,10 @@ export class Token implements IToken {
    */
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
     const { protocol, name: chainName, logoURI } = chainMetadata;
+    assert(
+      protocol !== ProtocolType.Unknown,
+      'Cannot create native token for unknown protocol',
+    );
     const nativeToken =
       chainMetadata.nativeToken || PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[protocol];
 

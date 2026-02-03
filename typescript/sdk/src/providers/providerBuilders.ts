@@ -19,6 +19,7 @@ import {
   CosmJsProvider,
   CosmJsWasmProvider,
   EthersV5Provider,
+  KnownProtocolType,
   ProviderType,
   RadixProvider,
   SolanaWeb3Provider,
@@ -210,7 +211,7 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
 };
 
 export const protocolToDefaultProviderBuilder: Record<
-  ProtocolType,
+  KnownProtocolType,
   ProviderBuilderFn<TypedProvider>
 > = {
   [ProtocolType.Ethereum]: defaultEthersV5ProviderBuilder,

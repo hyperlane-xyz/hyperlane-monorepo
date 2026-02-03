@@ -9,9 +9,12 @@ export enum ProtocolType {
   Starknet = 'starknet',
   Radix = 'radix',
   Aleo = 'aleo',
+  Unknown = 'unknown',
 }
 // A type that also allows for literal values of the enum
 export type ProtocolTypeValue = `${ProtocolType}`;
+// All protocol types except Unknown - for use in mappings that only support known protocols
+export type KnownProtocolType = Exclude<ProtocolType, ProtocolType.Unknown>;
 
 export const ProtocolSmallestUnit = {
   [ProtocolType.Ethereum]: 'wei',
@@ -21,6 +24,7 @@ export const ProtocolSmallestUnit = {
   [ProtocolType.Starknet]: 'fri',
   [ProtocolType.Radix]: 'attos',
   [ProtocolType.Aleo]: 'microcredits',
+  [ProtocolType.Unknown]: 'unknown',
 };
 
 /********* BASIC TYPES *********/

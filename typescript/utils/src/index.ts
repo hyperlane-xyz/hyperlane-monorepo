@@ -200,6 +200,7 @@ export {
   Domain,
   EvmChainId,
   HexString,
+  KnownProtocolType,
   MerkleProof,
   MessageStatus,
   Numberish,
