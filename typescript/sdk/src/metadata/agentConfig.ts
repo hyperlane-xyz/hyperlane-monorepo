@@ -333,7 +333,7 @@ const GasPaymentEnforcementBaseSchema = z.object({
     'An optional matching list, any message that matches will use this policy. By default all messages will match.',
   ),
 });
-const GasPaymentEnforcementSchema = z.union([
+export const GasPaymentEnforcementSchema = z.union([
   GasPaymentEnforcementBaseSchema.extend({
     type: z.literal(GasPaymentEnforcementPolicyType.None).optional(),
   }),
@@ -346,10 +346,21 @@ const GasPaymentEnforcementSchema = z.union([
     gasFraction: z
       .string()
       .regex(/^\d+ ?\/ ?[1-9]\d*$/)
-      .optional(),
+      .default('1/2')
+      .transform((val) => {
+        const match = val.match(/^(\d+) ?\/ ?([1-9]\d*)$/);
+        if (!match) return { numerator: 1, denominator: 2 };
+        return {
+          numerator: parseInt(match[1], 10),
+          denominator: parseInt(match[2], 10),
+        };
+      }),
   }),
 ]);
 export type GasPaymentEnforcement = z.infer<typeof GasPaymentEnforcementSchema>;
+export type GasPaymentEnforcementInput = z.input<
+  typeof GasPaymentEnforcementSchema
+>;
 
 const MetricAppContextSchema = z.object({
   name: z.string().min(1),

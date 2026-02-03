@@ -7,15 +7,24 @@ import {
   DispatchedMessage,
   EvmHookReader,
   EvmIsmReader,
+  GasPaymentEnforcement,
+  GasPaymentEnforcementPolicyType,
+  GasPolicyStatus,
   HookConfig,
+  HookType,
   HyperlaneCore,
+  IgpHookConfig,
   IsmConfig,
   MultiProvider,
+  getGasPaymentForMessage,
+  messageMatchesMatchingList,
+  parseGasPaymentsFromReceipt,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
   WithAddress,
   assert,
+  deepFind,
   messageId,
   objMap,
   objMerge,
@@ -33,6 +42,20 @@ import { messageMatchesWhitelist } from './whitelist.js';
 type DerivedHookConfig = WithAddress<Exclude<HookConfig, Address>>;
 type DerivedIsmConfig = WithAddress<Exclude<IsmConfig, Address>>;
 
+export class GasPaymentEnforcementError extends Error {
+  constructor(
+    public readonly messageId: string,
+    public readonly status: GasPolicyStatus,
+  ) {
+    const reason =
+      status === GasPolicyStatus.NoPaymentFound
+        ? 'no gas payment found'
+        : 'gas payment below policy minimum';
+    super(`Message ${messageId} gas payment enforcement failed: ${reason}`);
+    this.name = 'GasPaymentEnforcementError';
+  }
+}
+
 export class HyperlaneRelayer {
   protected multiProvider: MultiProvider;
   protected metadataBuilder: BaseMetadataBuilder;
@@ -40,6 +63,7 @@ export class HyperlaneRelayer {
   protected readonly retryTimeout: number;
 
   protected readonly whitelist: ChainMap<Set<Address>> | undefined;
+  protected readonly gasPaymentEnforcement: GasPaymentEnforcement[];
   protected readonly observer: RelayerObserver;
 
   public backlog: RelayerCache['backlog'];
@@ -54,12 +78,14 @@ export class HyperlaneRelayer {
     caching = true,
     retryTimeout = 1000,
     whitelist = undefined,
+    gasPaymentEnforcement = [],
     observer = {},
   }: {
     core: HyperlaneCore;
     caching?: boolean;
     retryTimeout?: number;
     whitelist?: ChainMap<Address[]>;
+    gasPaymentEnforcement?: GasPaymentEnforcement[];
     observer?: RelayerObserver;
   }) {
     this.core = core;
@@ -68,6 +94,7 @@ export class HyperlaneRelayer {
     this.metadataBuilder = new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
     this.observer = observer;
+    this.gasPaymentEnforcement = gasPaymentEnforcement;
     if (whitelist) {
       this.whitelist = objMap(
         whitelist,
@@ -239,17 +266,58 @@ export class HyperlaneRelayer {
     }
 
     const startTime = Date.now();
-    try {
-      this.logger.debug({ message }, `Simulating recipient message handling`);
-      await this.core.estimateHandle(message);
 
-      // parallelizable because configs are on different chains
-      const [ism, hook] = await Promise.all([
+    // Fetch configs - parallelizable because they're on different chains
+    let ism: DerivedIsmConfig;
+    let hook: DerivedHookConfig;
+    try {
+      [ism, hook] = await Promise.all([
         this.getRecipientIsmConfig(message),
         this.getSenderHookConfig(message),
       ]);
-      this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
+    } catch (error) {
+      this.observer.onEvent?.({
+        type: 'messageFailed',
+        message,
+        originChain,
+        destinationChain,
+        messageId: message.id,
+        error: error as Error,
+        dispatchTx,
+      });
+      throw error;
+    }
+    this.logger.debug({ ism, hook }, `Retrieved ISM and hook configs`);
 
+    // Estimate gas before checking payment (needed for OnChainFeeQuoting)
+    // Returns '0' if estimation fails (e.g., ZkSync chains without funded signer)
+    this.logger.debug({ message }, `Simulating recipient message handling`);
+    const gasEstimate = await this.core.estimateHandle(message);
+
+    // Check gas payment enforcement (like whitelist - emits messageSkipped)
+    if (this.gasPaymentEnforcement.length > 0) {
+      const gasStatus = await this.checkGasPayment(
+        message,
+        dispatchTx,
+        hook,
+        gasEstimate,
+      );
+      if (gasStatus !== GasPolicyStatus.PolicyMet) {
+        this.observer.onEvent?.({
+          type: 'messageSkipped',
+          message,
+          originChain,
+          destinationChain,
+          messageId: message.id,
+          reason: 'gas_payment',
+          dispatchTx,
+        });
+        throw new GasPaymentEnforcementError(message.id, gasStatus);
+      }
+    }
+
+    // Relay the message
+    try {
       const metadata = await this.metadataBuilder.build({
         message,
         ism,
@@ -288,6 +356,133 @@ export class HyperlaneRelayer {
   hydrate(cache: RelayerCache): void {
     assert(this.cache, 'Caching not enabled');
     this.cache = objMerge(this.cache, cache);
+  }
+
+  /**
+   * Check if gas payment meets enforcement policy for a message.
+   * @param message The dispatched message
+   * @param dispatchTx The dispatch transaction receipt
+   * @param hook Optional hook config (will derive internally if not provided)
+   * @param gasEstimate Optional gas estimate for OnChainFeeQuoting policy (will estimate internally if not provided)
+   * @returns GasPolicyStatus indicating whether the policy is met
+   */
+  public async checkGasPayment(
+    message: DispatchedMessage,
+    dispatchTx: providers.TransactionReceipt,
+    hook?: DerivedHookConfig,
+    gasEstimate?: string,
+  ): Promise<GasPolicyStatus> {
+    // Find the first matching policy
+    const matchInfo = {
+      id: message.id,
+      origin: message.parsed.origin,
+      destination: message.parsed.destination,
+      sender: message.parsed.sender,
+      recipient: message.parsed.recipient,
+      body: message.parsed.body,
+    };
+
+    const policy = this.gasPaymentEnforcement.find((p) =>
+      messageMatchesMatchingList(p.matchingList, matchInfo),
+    );
+
+    // No matching policy or no enforcement configured = allow
+    if (!policy) {
+      return GasPolicyStatus.PolicyMet;
+    }
+
+    // None policy = always allow
+    if (
+      policy.type === GasPaymentEnforcementPolicyType.None ||
+      policy.type === undefined
+    ) {
+      return GasPolicyStatus.PolicyMet;
+    }
+
+    // Derive hook config if not provided
+    const derivedHook = hook ?? (await this.getSenderHookConfig(message));
+
+    // Find IGP address from hook config
+    type IgpWithAddress = WithAddress<IgpHookConfig>;
+    const igpConfig = deepFind<DerivedHookConfig, IgpWithAddress>(
+      derivedHook,
+      (v): v is IgpWithAddress =>
+        typeof v === 'object' &&
+        v !== null &&
+        'type' in v &&
+        v.type === HookType.INTERCHAIN_GAS_PAYMASTER &&
+        'address' in v,
+    );
+
+    if (!igpConfig) {
+      // If policy requires payment but no IGP exists, that's a config error
+      return GasPolicyStatus.NoPaymentFound;
+    }
+
+    // Parse gas payments from dispatch tx
+    const payments = parseGasPaymentsFromReceipt(dispatchTx, igpConfig.address);
+    const payment = getGasPaymentForMessage(
+      payments,
+      message.id,
+      message.parsed.destination,
+    );
+
+    if (!payment) {
+      return GasPolicyStatus.NoPaymentFound;
+    }
+
+    // Evaluate policy
+    if (policy.type === GasPaymentEnforcementPolicyType.Minimum) {
+      const minPayment = BigInt(policy.payment ?? 0);
+      if (payment.payment < minPayment) {
+        return GasPolicyStatus.PolicyNotMet;
+      }
+      return GasPolicyStatus.PolicyMet;
+    }
+
+    if (policy.type === GasPaymentEnforcementPolicyType.OnChainFeeQuoting) {
+      // Estimate gas if not provided
+      const estimate = gasEstimate ?? (await this.core.estimateHandle(message));
+
+      // If gas estimation failed (returns '0'), we can't verify the policy
+      // This can happen on ZkSync chains that require a funded signer for estimation
+      if (estimate === '0') {
+        this.logger.warn(
+          { messageId: message.id },
+          `Gas estimation unavailable, cannot verify OnChainFeeQuoting policy`,
+        );
+        return GasPolicyStatus.PolicyNotMet;
+      }
+
+      // Check that gasAmount paid meets the required fraction of estimated gas
+      // gasFraction = numerator/denominator (e.g. 1/2 = require 50% of estimate)
+      // Type assertion needed because Zod union doesn't narrow correctly after transform
+      const gasFraction = policy.gasFraction as unknown as {
+        numerator: number;
+        denominator: number;
+      };
+      const gasEstimateBigInt = BigInt(estimate);
+
+      // Required gas = gasEstimate * numerator / denominator
+      const requiredGas =
+        (gasEstimateBigInt * BigInt(gasFraction.numerator)) /
+        BigInt(gasFraction.denominator);
+
+      if (payment.gasAmount < requiredGas) {
+        this.logger.debug(
+          {
+            gasAmount: payment.gasAmount.toString(),
+            requiredGas: requiredGas.toString(),
+            gasEstimate: estimate,
+          },
+          `Gas payment insufficient for OnChainFeeQuoting policy`,
+        );
+        return GasPolicyStatus.PolicyNotMet;
+      }
+      return GasPolicyStatus.PolicyMet;
+    }
+
+    return GasPolicyStatus.PolicyMet;
   }
 
   // fill cache with default ISM and hook configs for quicker relaying (optional)
