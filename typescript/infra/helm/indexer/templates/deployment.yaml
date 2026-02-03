@@ -21,6 +21,23 @@ spec:
       {{- if .Values.serviceAccount.create }}
       serviceAccountName: {{ include "indexer.serviceAccountName" . }}
       {{- end }}
+      {{- if .Values.migrations.enabled }}
+      initContainers:
+        - name: migrate
+          image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
+          imagePullPolicy: {{ .Values.image.pullPolicy }}
+          command: ["pnpm", "db:migrate"]
+          env:
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "indexer.fullname" . }}-env-var-secret
+          {{- end }}
+      {{- end }}
       containers:
         - name: indexer
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"

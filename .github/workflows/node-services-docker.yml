@@ -25,6 +25,7 @@ on:
       - 'typescript/ccip-server/**'
       - 'typescript/keyfunder/**'
       - 'typescript/relayer/**'
+      - 'typescript/indexer/**'
       - 'typescript/Dockerfile.node-service'
       - 'pnpm-lock.yaml'
       - '.dockerignore'
@@ -145,6 +146,7 @@ jobs:
           ${REGISTRY}/hyperlane-key-funder:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-ts-relayer:${TAG_SHA_DATE}
           ${REGISTRY}/hyperlane-offchain-lookup-server:${TAG_SHA_DATE}
+          ${REGISTRY}/hyperlane-indexer:${TAG_SHA_DATE}
           EOF
           )
           echo "tags<<EOF" >> $GITHUB_OUTPUT
@@ -162,6 +164,7 @@ jobs:
           | 🔑 key-funder | \`${TAG_SHA_DATE}\` |
           | 🚀 ts-relayer | \`${TAG_SHA_DATE}\` |
           | 🔍 offchain-lookup-server | \`${TAG_SHA_DATE}\` |
+          | 📊 indexer | \`${TAG_SHA_DATE}\` |
 
           **Full image paths:**
           \`\`\`
