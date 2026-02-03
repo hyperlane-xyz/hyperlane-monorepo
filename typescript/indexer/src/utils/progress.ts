@@ -2,6 +2,7 @@
  * Progress tracking for indexer backfill.
  * Logs periodic updates during historical sync.
  */
+import { pruneBlockHashCache } from '../db/reorg.js';
 
 // eslint-disable-next-line @typescript-eslint/no-explicit-any
 type ViemClient = any;
@@ -25,7 +26,7 @@ const LATEST_BLOCK_REFRESH_MS = 60_000; // Refresh latest block every 60 seconds
 /**
  * Initialize progress tracking for a chain.
  */
-export function initChainProgress(
+function initChainProgress(
   chainId: number,
   chainName: string,
   startBlock: number,
@@ -99,6 +100,10 @@ export async function updateProgress(
   if (shouldLog) {
     logProgress(progress);
     progress.lastLogTime = now;
+
+    // Prune old block hash cache entries to prevent memory growth
+    // Keep last 256 blocks (covers ~2 epochs for finality)
+    pruneBlockHashCache(chainId, blockNumber);
   }
 }
 
@@ -145,18 +150,5 @@ function formatEta(seconds: number): string {
     const hours = Math.floor(seconds / 3600);
     const minutes = Math.ceil((seconds % 3600) / 60);
     return `${hours}h ${minutes}m`;
-  }
-}
-
-/**
- * Mark chain as fully synced.
- */
-export function markSynced(chainId: number): void {
-  const progress = chainProgress.get(chainId);
-  if (progress) {
-    const elapsed = (Date.now() - progress.startTime) / 1000;
-    console.log(
-      `[${progress.chainName}] Backfill complete: ${progress.eventCount} events in ${formatEta(elapsed)}`,
-    );
   }
 }

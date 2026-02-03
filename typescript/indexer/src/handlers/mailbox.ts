@@ -2,6 +2,7 @@ import { ponder } from 'ponder:registry';
 import * as ponderSchema from 'ponder:schema';
 
 import { getAdapter } from '../db/adapter.js';
+import { checkAndHandleReorg } from '../db/reorg.js';
 import {
   computeMessageId,
   extractAddress,
@@ -82,6 +83,13 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
 
   // Compute message ID directly from message bytes (keccak256 hash)
   const messageId = computeMessageId(message);
+
+  // Check for reorg before storing block data
+  await checkAndHandleReorg(
+    chainId,
+    Number(event.block.number),
+    event.block.hash,
+  );
 
   // Store block
   const blockId = await adapter.storeBlock(chainId, {
@@ -316,6 +324,13 @@ ponder.on('Mailbox:ProcessId', async ({ event, context }: any) => {
 
   // Clean up
   pendingProcessEvents.delete(processKey);
+
+  // Check for reorg before storing block data
+  await checkAndHandleReorg(
+    processData.chainId,
+    Number(processData.block.number),
+    processData.block.hash,
+  );
 
   // Store block
   const blockId = await adapter.storeBlock(processData.chainId, {
