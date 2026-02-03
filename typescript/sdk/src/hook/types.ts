@@ -210,6 +210,42 @@ export const UnknownHookSchema = z
   .passthrough();
 export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
 
+const KnownHookTypes: string[] = Object.values(HookType).filter(
+  (t) => t !== HookType.UNKNOWN,
+);
+
+/**
+ * Recursively normalizes unknown hook type values to HookType.UNKNOWN.
+ * Use this before parsing with HookConfigSchema when configs may contain
+ * hook types not yet known to this SDK version.
+ */
+export function normalizeUnknownHookTypes<T>(config: T): T {
+  if (config === null || typeof config !== 'object') {
+    return config;
+  }
+
+  if (Array.isArray(config)) {
+    return config.map(normalizeUnknownHookTypes) as T;
+  }
+
+  const obj = config as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'type' && typeof value === 'string') {
+      normalized[key] = KnownHookTypes.includes(value)
+        ? value
+        : HookType.UNKNOWN;
+    } else if (typeof value === 'object' && value !== null) {
+      normalized[key] = normalizeUnknownHookTypes(value);
+    } else {
+      normalized[key] = value;
+    }
+  }
+
+  return normalized as T;
+}
+
 export const HookConfigSchema = z.union([
   ZHash,
   ProtocolFeeSchema,
@@ -226,6 +262,16 @@ export const HookConfigSchema = z.union([
   CCIPHookSchema,
   UnknownHookSchema,
 ]);
+
+/**
+ * Forward-compatible hook config schema that normalizes unknown hook types.
+ * Use this instead of HookConfigSchema when parsing configs that may contain
+ * hook types added in newer registry versions.
+ */
+export const SafeParseHookConfigSchema = z.preprocess(
+  normalizeUnknownHookTypes,
+  HookConfigSchema,
+);
 
 // TODO: deprecate in favor of CoreConfigSchema
 export const HooksConfigSchema = z.object({

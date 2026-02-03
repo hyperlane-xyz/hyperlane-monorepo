@@ -381,6 +381,40 @@ export const UnknownIsmConfigSchema = z
   .passthrough();
 export type UnknownIsmConfig = z.infer<typeof UnknownIsmConfigSchema>;
 
+const KnownIsmTypes: string[] = Object.values(IsmType).filter(
+  (t) => t !== IsmType.UNKNOWN,
+);
+
+/**
+ * Recursively normalizes unknown ISM type values to IsmType.UNKNOWN.
+ * Use this before parsing with IsmConfigSchema when configs may contain
+ * ISM types not yet known to this SDK version.
+ */
+export function normalizeUnknownIsmTypes<T>(config: T): T {
+  if (config === null || typeof config !== 'object') {
+    return config;
+  }
+
+  if (Array.isArray(config)) {
+    return config.map(normalizeUnknownIsmTypes) as T;
+  }
+
+  const obj = config as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'type' && typeof value === 'string') {
+      normalized[key] = KnownIsmTypes.includes(value) ? value : IsmType.UNKNOWN;
+    } else if (typeof value === 'object' && value !== null) {
+      normalized[key] = normalizeUnknownIsmTypes(value);
+    } else {
+      normalized[key] = value;
+    }
+  }
+
+  return normalized as T;
+}
+
 export const IsmConfigSchema = z.union([
   ZHash,
   TestIsmConfigSchema,
@@ -397,3 +431,13 @@ export const IsmConfigSchema = z.union([
   InterchainAccountRouterIsmSchema,
   UnknownIsmConfigSchema,
 ]);
+
+/**
+ * Forward-compatible ISM config schema that normalizes unknown ISM types.
+ * Use this instead of IsmConfigSchema when parsing configs that may contain
+ * ISM types added in newer registry versions.
+ */
+export const SafeParseIsmConfigSchema = z.preprocess(
+  normalizeUnknownIsmTypes,
+  IsmConfigSchema,
+);

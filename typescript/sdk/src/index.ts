@@ -205,12 +205,14 @@ export {
   IgpSchema,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
+  normalizeUnknownHookTypes,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  SafeParseHookConfigSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
@@ -261,6 +263,7 @@ export {
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  normalizeUnknownIsmTypes,
   NullIsmConfig,
   OffchainLookupIsmConfig,
   OpStackIsmConfig,
@@ -269,6 +272,7 @@ export {
   PausableIsmConfigSchema,
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
+  SafeParseIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
