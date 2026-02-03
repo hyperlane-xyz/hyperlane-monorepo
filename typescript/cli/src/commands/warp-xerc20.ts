@@ -3,15 +3,19 @@ import { type CommandModule } from 'yargs';
 
 import {
   type AnnotatedEV5Transaction,
+  type ChainName,
   type WarpRouteDeployConfigMailboxRequired,
   type XERC20Limits,
   type XERC20LimitsMap,
   XERC20WarpModule,
   getRouterAddressesFromWarpCoreConfig,
 } from '@hyperlane-xyz/sdk';
-import { assert, objFilter } from '@hyperlane-xyz/utils';
+import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
-import { type CommandModuleWithContext } from '../context/types.js';
+import {
+  type CommandContext,
+  type CommandModuleWithContext,
+} from '../context/types.js';
 import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
 import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
 import { getWarpConfigs } from '../utils/warp.js';
@@ -119,42 +123,21 @@ const setLimits: CommandModuleWithContext<
     chain,
     out,
   }) => {
-    logCommandHeader('Hyperlane XERC20 Set Limits');
-
     const limits = parseLimitsFromArgs({ mint, burn, bufferCap, rateLimit });
-
-    const { warpDeployConfig } = await getWarpConfigs({
+    await generateBridgeLimitTxs({
       context,
-      warpRouteId,
       symbol,
-      warpDeployConfigPath: configPath,
-      warpCoreConfigPath: warp,
+      warp,
+      warpRouteId,
+      configPath,
+      bridge,
+      limits,
+      chain,
+      out,
+      commandName: 'Set Limits',
+      txGenerator: (module, chainName, bridgeAddr, lim) =>
+        module.generateSetLimitsTxs(chainName, bridgeAddr, lim),
     });
-
-    const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-    const module = new XERC20WarpModule(context.multiProvider, filteredConfig);
-    const transactions: AnnotatedEV5Transaction[] = [];
-
-    for (const chainName of Object.keys(filteredConfig)) {
-      logBlue(`Generating set-limits transactions for ${chainName}...`);
-      const txs = await module.generateSetLimitsTxs(chainName, bridge, limits);
-      transactions.push(...txs);
-    }
-
-    if (transactions.length === 0) {
-      logRed(
-        'No transactions generated. Check that the chains have XERC20 configs.',
-      );
-      process.exit(1);
-    }
-
-    writeYamlOrJson(out, transactions, 'yaml');
-    logGreen(
-      `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
-    );
-    log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
-
-    process.exit(0);
   },
 };
 
@@ -215,42 +198,21 @@ const addBridge: CommandModuleWithContext<
     chain,
     out,
   }) => {
-    logCommandHeader('Hyperlane XERC20 Add Bridge');
-
     const limits = parseLimitsFromArgs({ mint, burn, bufferCap, rateLimit });
-
-    const { warpDeployConfig } = await getWarpConfigs({
+    await generateBridgeLimitTxs({
       context,
-      warpRouteId,
       symbol,
-      warpDeployConfigPath: configPath,
-      warpCoreConfigPath: warp,
+      warp,
+      warpRouteId,
+      configPath,
+      bridge,
+      limits,
+      chain,
+      out,
+      commandName: 'Add Bridge',
+      txGenerator: (module, chainName, bridgeAddr, lim) =>
+        module.generateAddBridgeTxs(chainName, bridgeAddr, lim),
     });
-
-    const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-    const module = new XERC20WarpModule(context.multiProvider, filteredConfig);
-    const transactions: AnnotatedEV5Transaction[] = [];
-
-    for (const chainName of Object.keys(filteredConfig)) {
-      logBlue(`Generating add-bridge transactions for ${chainName}...`);
-      const txs = await module.generateAddBridgeTxs(chainName, bridge, limits);
-      transactions.push(...txs);
-    }
-
-    if (transactions.length === 0) {
-      logRed(
-        'No transactions generated. Check that the chains have XERC20 configs.',
-      );
-      process.exit(1);
-    }
-
-    writeYamlOrJson(out, transactions, 'yaml');
-    logGreen(
-      `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
-    );
-    log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
-
-    process.exit(0);
   },
 };
 
@@ -433,6 +395,74 @@ function parseLimitsFromArgs(args: {
   };
 }
 
+async function generateBridgeLimitTxs({
+  context,
+  symbol,
+  warp,
+  warpRouteId,
+  configPath,
+  bridge,
+  limits,
+  chain,
+  out,
+  commandName,
+  txGenerator,
+}: {
+  context: CommandContext;
+  symbol?: string;
+  warp?: string;
+  warpRouteId?: string;
+  configPath?: string;
+  bridge: Address;
+  limits: XERC20Limits;
+  chain?: string;
+  out: string;
+  commandName: string;
+  txGenerator: (
+    module: XERC20WarpModule,
+    chainName: ChainName,
+    bridge: Address,
+    limits: XERC20Limits,
+  ) => Promise<AnnotatedEV5Transaction[]>;
+}): Promise<void> {
+  logCommandHeader(`Hyperlane XERC20 ${commandName}`);
+
+  const { warpDeployConfig } = await getWarpConfigs({
+    context,
+    warpRouteId,
+    symbol,
+    warpDeployConfigPath: configPath,
+    warpCoreConfigPath: warp,
+  });
+
+  const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
+  const module = new XERC20WarpModule(context.multiProvider, filteredConfig);
+  const transactions: AnnotatedEV5Transaction[] = [];
+
+  for (const chainName of Object.keys(filteredConfig)) {
+    logBlue(
+      `Generating ${commandName.toLowerCase()} transactions for ${chainName}...`,
+    );
+    const txs = await txGenerator(module, chainName, bridge, limits);
+    transactions.push(...txs);
+  }
+
+  if (transactions.length === 0) {
+    logRed(
+      'No transactions generated. Check that the chains have XERC20 configs.',
+    );
+    process.exit(1);
+  }
+
+  writeYamlOrJson(out, transactions, 'yaml');
+  logGreen(
+    `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
+  );
+  log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
+
+  process.exit(0);
+}
+
 function filterConfigByChain(
   config: WarpRouteDeployConfigMailboxRequired,
   chain?: string,
@@ -440,7 +470,12 @@ function filterConfigByChain(
   if (!chain) return config;
 
   const chainNames = chain.split(',').map((c) => c.trim());
-  return objFilter(config, (chainName, _): _ is any =>
-    chainNames.includes(chainName),
+  return objFilter(
+    config,
+    (
+      chainName,
+      chainConfig,
+    ): chainConfig is WarpRouteDeployConfigMailboxRequired[string] =>
+      chainNames.includes(chainName),
   );
 }
