@@ -54,6 +54,19 @@ export class TronProvider {
         throw new Error('getTotalSupply requires TRC20 contract interaction');
     }
     /**
+     * Call a contract view function (read-only, no transaction).
+     * Uses TronWeb's triggerConstantContract for view/pure functions.
+     */
+    async callContractView(contractAddress, functionSelector, parameters = []) {
+        const result = await this.tronWeb.transactionBuilder.triggerConstantContract(contractAddress, functionSelector, {}, parameters);
+        if (!result.result?.result) {
+            throw new Error(`Contract view call failed: ${result.result?.message || 'Unknown error'}`);
+        }
+        // Return the first result (most common case)
+        // For multiple return values, caller should handle the array
+        return result.constant_result?.[0];
+    }
+    /**
      * Get current energy price from the network.
      * Energy price is returned as a comma-separated string of "timestamp:price" pairs.
      * We take the latest (last) price.

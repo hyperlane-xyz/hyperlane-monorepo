@@ -103,8 +103,11 @@ export class TronSigner extends TronProvider {
         const contractAddress = this.tronWeb.address.fromHex(tx.contract_address);
         return { address: contractAddress, txId: tx.txID };
     }
-    // Helper to call a contract method
-    async callContractMethod(contractAddress, functionSelector, parameters = [], callValue = 0) {
+    /**
+     * Call a contract method (state-changing transaction).
+     * This is exposed publicly for ISM factory deployments.
+     */
+    async callContract(contractAddress, functionSelector, parameters = [], callValue = 0) {
         const tx = await this.tronWeb.transactionBuilder.triggerSmartContract(contractAddress, functionSelector, {
             feeLimit: DEFAULT_CALL_FEE_LIMIT,
             callValue,
@@ -123,19 +126,27 @@ export class TronSigner extends TronProvider {
         throw new Error(`Mailbox deployment requires compiled artifacts. Use deployContract() with ABI/bytecode.`);
     }
     async setDefaultIsm(req) {
-        await this.callContractMethod(req.mailboxAddress, 'setDefaultIsm(address)', [{ type: 'address', value: req.ismAddress }]);
+        await this.callContract(req.mailboxAddress, 'setDefaultIsm(address)', [
+            { type: 'address', value: req.ismAddress },
+        ]);
         return { ismAddress: req.ismAddress };
     }
     async setDefaultHook(req) {
-        await this.callContractMethod(req.mailboxAddress, 'setDefaultHook(address)', [{ type: 'address', value: req.hookAddress }]);
+        await this.callContract(req.mailboxAddress, 'setDefaultHook(address)', [
+            { type: 'address', value: req.hookAddress },
+        ]);
         return { hookAddress: req.hookAddress };
     }
     async setRequiredHook(req) {
-        await this.callContractMethod(req.mailboxAddress, 'setRequiredHook(address)', [{ type: 'address', value: req.hookAddress }]);
+        await this.callContract(req.mailboxAddress, 'setRequiredHook(address)', [
+            { type: 'address', value: req.hookAddress },
+        ]);
         return { hookAddress: req.hookAddress };
     }
     async setMailboxOwner(req) {
-        await this.callContractMethod(req.mailboxAddress, 'transferOwnership(address)', [{ type: 'address', value: req.newOwner }]);
+        await this.callContract(req.mailboxAddress, 'transferOwnership(address)', [
+            { type: 'address', value: req.newOwner },
+        ]);
         return { newOwner: req.newOwner };
     }
     async createMerkleRootMultisigIsm(_req) {
@@ -148,20 +159,22 @@ export class TronSigner extends TronProvider {
         throw new Error('ISM deployment requires compiled artifacts');
     }
     async setRoutingIsmRoute(req) {
-        await this.callContractMethod(req.ismAddress, 'set(uint32,address)', [
+        await this.callContract(req.ismAddress, 'set(uint32,address)', [
             { type: 'uint32', value: req.route.domainId },
             { type: 'address', value: req.route.ismAddress },
         ]);
         return { route: req.route };
     }
     async removeRoutingIsmRoute(req) {
-        await this.callContractMethod(req.ismAddress, 'remove(uint32)', [
+        await this.callContract(req.ismAddress, 'remove(uint32)', [
             { type: 'uint32', value: req.domainId },
         ]);
         return { domainId: req.domainId };
     }
     async setRoutingIsmOwner(req) {
-        await this.callContractMethod(req.ismAddress, 'transferOwnership(address)', [{ type: 'address', value: req.newOwner }]);
+        await this.callContract(req.ismAddress, 'transferOwnership(address)', [
+            { type: 'address', value: req.newOwner },
+        ]);
         return { newOwner: req.newOwner };
     }
     async createNoopIsm(_req) {
@@ -174,11 +187,13 @@ export class TronSigner extends TronProvider {
         throw new Error('Hook deployment requires compiled artifacts');
     }
     async setInterchainGasPaymasterHookOwner(req) {
-        await this.callContractMethod(req.hookAddress, 'transferOwnership(address)', [{ type: 'address', value: req.newOwner }]);
+        await this.callContract(req.hookAddress, 'transferOwnership(address)', [
+            { type: 'address', value: req.newOwner },
+        ]);
         return { newOwner: req.newOwner };
     }
     async setDestinationGasConfig(req) {
-        await this.callContractMethod(req.hookAddress, 'setDestinationGasConfigs((uint32,(address,uint96))[])', [
+        await this.callContract(req.hookAddress, 'setDestinationGasConfigs((uint32,(address,uint96))[])', [
             {
                 type: 'tuple[]',
                 value: [
@@ -214,11 +229,13 @@ export class TronSigner extends TronProvider {
         throw new Error('Token deployment requires compiled artifacts');
     }
     async setTokenOwner(req) {
-        await this.callContractMethod(req.tokenAddress, 'transferOwnership(address)', [{ type: 'address', value: req.newOwner }]);
+        await this.callContract(req.tokenAddress, 'transferOwnership(address)', [
+            { type: 'address', value: req.newOwner },
+        ]);
         return { newOwner: req.newOwner };
     }
     async setTokenIsm(req) {
-        await this.callContractMethod(req.tokenAddress, 'setInterchainSecurityModule(address)', [
+        await this.callContract(req.tokenAddress, 'setInterchainSecurityModule(address)', [
             {
                 type: 'address',
                 value: req.ismAddress ??
@@ -228,7 +245,7 @@ export class TronSigner extends TronProvider {
         return { ismAddress: req.ismAddress ?? '' };
     }
     async setTokenHook(req) {
-        await this.callContractMethod(req.tokenAddress, 'setHook(address)', [
+        await this.callContract(req.tokenAddress, 'setHook(address)', [
             {
                 type: 'address',
                 value: req.hookAddress ??
@@ -238,14 +255,16 @@ export class TronSigner extends TronProvider {
         return { hookAddress: req.hookAddress ?? '' };
     }
     async enrollRemoteRouter(req) {
-        await this.callContractMethod(req.tokenAddress, 'enrollRemoteRouter(uint32,bytes32)', [
+        await this.callContract(req.tokenAddress, 'enrollRemoteRouter(uint32,bytes32)', [
             { type: 'uint32', value: req.remoteRouter.receiverDomainId },
             { type: 'bytes32', value: req.remoteRouter.receiverAddress },
         ]);
         return { receiverDomainId: req.remoteRouter.receiverDomainId };
     }
     async unenrollRemoteRouter(req) {
-        await this.callContractMethod(req.tokenAddress, 'unenrollRemoteRouter(uint32)', [{ type: 'uint32', value: req.receiverDomainId }]);
+        await this.callContract(req.tokenAddress, 'unenrollRemoteRouter(uint32)', [
+            { type: 'uint32', value: req.receiverDomainId },
+        ]);
         return { receiverDomainId: req.receiverDomainId };
     }
     async transfer(req) {
@@ -260,7 +279,7 @@ export class TronSigner extends TronProvider {
             tokenAddress: req.tokenAddress,
             destinationDomainId: req.destinationDomainId,
         });
-        await this.callContractMethod(req.tokenAddress, 'transferRemote(uint32,bytes32,uint256)', [
+        await this.callContract(req.tokenAddress, 'transferRemote(uint32,bytes32,uint256)', [
             { type: 'uint32', value: req.destinationDomainId },
             { type: 'bytes32', value: req.recipient },
             { type: 'uint256', value: req.amount.toString() },

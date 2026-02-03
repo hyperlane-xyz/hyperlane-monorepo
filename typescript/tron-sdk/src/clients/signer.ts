@@ -173,8 +173,11 @@ export class TronSigner
     return { address: contractAddress, txId: tx.txID };
   }
 
-  // Helper to call a contract method
-  private async callContractMethod(
+  /**
+   * Call a contract method (state-changing transaction).
+   * This is exposed publicly for ISM factory deployments.
+   */
+  async callContract(
     contractAddress: string,
     functionSelector: string,
     parameters: { type: string; value: unknown }[] = [],
@@ -217,44 +220,36 @@ export class TronSigner
   async setDefaultIsm(
     req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>,
   ): Promise<AltVM.ResSetDefaultIsm> {
-    await this.callContractMethod(
-      req.mailboxAddress,
-      'setDefaultIsm(address)',
-      [{ type: 'address', value: req.ismAddress }],
-    );
+    await this.callContract(req.mailboxAddress, 'setDefaultIsm(address)', [
+      { type: 'address', value: req.ismAddress },
+    ]);
     return { ismAddress: req.ismAddress };
   }
 
   async setDefaultHook(
     req: Omit<AltVM.ReqSetDefaultHook, 'signer'>,
   ): Promise<AltVM.ResSetDefaultHook> {
-    await this.callContractMethod(
-      req.mailboxAddress,
-      'setDefaultHook(address)',
-      [{ type: 'address', value: req.hookAddress }],
-    );
+    await this.callContract(req.mailboxAddress, 'setDefaultHook(address)', [
+      { type: 'address', value: req.hookAddress },
+    ]);
     return { hookAddress: req.hookAddress };
   }
 
   async setRequiredHook(
     req: Omit<AltVM.ReqSetRequiredHook, 'signer'>,
   ): Promise<AltVM.ResSetRequiredHook> {
-    await this.callContractMethod(
-      req.mailboxAddress,
-      'setRequiredHook(address)',
-      [{ type: 'address', value: req.hookAddress }],
-    );
+    await this.callContract(req.mailboxAddress, 'setRequiredHook(address)', [
+      { type: 'address', value: req.hookAddress },
+    ]);
     return { hookAddress: req.hookAddress };
   }
 
   async setMailboxOwner(
     req: Omit<AltVM.ReqSetMailboxOwner, 'signer'>,
   ): Promise<AltVM.ResSetMailboxOwner> {
-    await this.callContractMethod(
-      req.mailboxAddress,
-      'transferOwnership(address)',
-      [{ type: 'address', value: req.newOwner }],
-    );
+    await this.callContract(req.mailboxAddress, 'transferOwnership(address)', [
+      { type: 'address', value: req.newOwner },
+    ]);
     return { newOwner: req.newOwner };
   }
 
@@ -279,7 +274,7 @@ export class TronSigner
   async setRoutingIsmRoute(
     req: Omit<AltVM.ReqSetRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmRoute> {
-    await this.callContractMethod(req.ismAddress, 'set(uint32,address)', [
+    await this.callContract(req.ismAddress, 'set(uint32,address)', [
       { type: 'uint32', value: req.route.domainId },
       { type: 'address', value: req.route.ismAddress },
     ]);
@@ -289,7 +284,7 @@ export class TronSigner
   async removeRoutingIsmRoute(
     req: Omit<AltVM.ReqRemoveRoutingIsmRoute, 'signer'>,
   ): Promise<AltVM.ResRemoveRoutingIsmRoute> {
-    await this.callContractMethod(req.ismAddress, 'remove(uint32)', [
+    await this.callContract(req.ismAddress, 'remove(uint32)', [
       { type: 'uint32', value: req.domainId },
     ]);
     return { domainId: req.domainId };
@@ -298,11 +293,9 @@ export class TronSigner
   async setRoutingIsmOwner(
     req: Omit<AltVM.ReqSetRoutingIsmOwner, 'signer'>,
   ): Promise<AltVM.ResSetRoutingIsmOwner> {
-    await this.callContractMethod(
-      req.ismAddress,
-      'transferOwnership(address)',
-      [{ type: 'address', value: req.newOwner }],
-    );
+    await this.callContract(req.ismAddress, 'transferOwnership(address)', [
+      { type: 'address', value: req.newOwner },
+    ]);
     return { newOwner: req.newOwner };
   }
 
@@ -327,18 +320,16 @@ export class TronSigner
   async setInterchainGasPaymasterHookOwner(
     req: Omit<AltVM.ReqSetInterchainGasPaymasterHookOwner, 'signer'>,
   ): Promise<AltVM.ResSetInterchainGasPaymasterHookOwner> {
-    await this.callContractMethod(
-      req.hookAddress,
-      'transferOwnership(address)',
-      [{ type: 'address', value: req.newOwner }],
-    );
+    await this.callContract(req.hookAddress, 'transferOwnership(address)', [
+      { type: 'address', value: req.newOwner },
+    ]);
     return { newOwner: req.newOwner };
   }
 
   async setDestinationGasConfig(
     req: Omit<AltVM.ReqSetDestinationGasConfig, 'signer'>,
   ): Promise<AltVM.ResSetDestinationGasConfig> {
-    await this.callContractMethod(
+    await this.callContract(
       req.hookAddress,
       'setDestinationGasConfigs((uint32,(address,uint96))[])',
       [
@@ -400,18 +391,16 @@ export class TronSigner
   async setTokenOwner(
     req: Omit<AltVM.ReqSetTokenOwner, 'signer'>,
   ): Promise<AltVM.ResSetTokenOwner> {
-    await this.callContractMethod(
-      req.tokenAddress,
-      'transferOwnership(address)',
-      [{ type: 'address', value: req.newOwner }],
-    );
+    await this.callContract(req.tokenAddress, 'transferOwnership(address)', [
+      { type: 'address', value: req.newOwner },
+    ]);
     return { newOwner: req.newOwner };
   }
 
   async setTokenIsm(
     req: Omit<AltVM.ReqSetTokenIsm, 'signer'>,
   ): Promise<AltVM.ResSetTokenIsm> {
-    await this.callContractMethod(
+    await this.callContract(
       req.tokenAddress,
       'setInterchainSecurityModule(address)',
       [
@@ -429,7 +418,7 @@ export class TronSigner
   async setTokenHook(
     req: Omit<AltVM.ReqSetTokenHook, 'signer'>,
   ): Promise<AltVM.ResSetTokenHook> {
-    await this.callContractMethod(req.tokenAddress, 'setHook(address)', [
+    await this.callContract(req.tokenAddress, 'setHook(address)', [
       {
         type: 'address',
         value:
@@ -443,7 +432,7 @@ export class TronSigner
   async enrollRemoteRouter(
     req: Omit<AltVM.ReqEnrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResEnrollRemoteRouter> {
-    await this.callContractMethod(
+    await this.callContract(
       req.tokenAddress,
       'enrollRemoteRouter(uint32,bytes32)',
       [
@@ -457,11 +446,9 @@ export class TronSigner
   async unenrollRemoteRouter(
     req: Omit<AltVM.ReqUnenrollRemoteRouter, 'signer'>,
   ): Promise<AltVM.ResUnenrollRemoteRouter> {
-    await this.callContractMethod(
-      req.tokenAddress,
-      'unenrollRemoteRouter(uint32)',
-      [{ type: 'uint32', value: req.receiverDomainId }],
-    );
+    await this.callContract(req.tokenAddress, 'unenrollRemoteRouter(uint32)', [
+      { type: 'uint32', value: req.receiverDomainId },
+    ]);
     return { receiverDomainId: req.receiverDomainId };
   }
 
@@ -487,7 +474,7 @@ export class TronSigner
       destinationDomainId: req.destinationDomainId,
     });
 
-    await this.callContractMethod(
+    await this.callContract(
       req.tokenAddress,
       'transferRemote(uint32,bytes32,uint256)',
       [

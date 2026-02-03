@@ -21,6 +21,14 @@ export declare class TronProvider implements AltVM.IProvider<TronSDKTransaction>
     getBalance(req: AltVM.ReqGetBalance): Promise<bigint>;
     getTotalSupply(_req: AltVM.ReqGetTotalSupply): Promise<bigint>;
     /**
+     * Call a contract view function (read-only, no transaction).
+     * Uses TronWeb's triggerConstantContract for view/pure functions.
+     */
+    callContractView(contractAddress: string, functionSelector: string, parameters?: {
+        type: string;
+        value: unknown;
+    }[]): Promise<unknown>;
+    /**
      * Get current energy price from the network.
      * Energy price is returned as a comma-separated string of "timestamp:price" pairs.
      * We take the latest (last) price.

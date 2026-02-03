@@ -17,7 +17,14 @@ export declare class TronSigner extends TronProvider implements AltVM.ISigner<Tr
     sendAndConfirmBatchTransactions(_transactions: TronSDKTransaction[]): Promise<TronSDKReceipt>;
     private waitForConfirmation;
     private deployContract;
-    private callContractMethod;
+    /**
+     * Call a contract method (state-changing transaction).
+     * This is exposed publicly for ISM factory deployments.
+     */
+    callContract(contractAddress: string, functionSelector: string, parameters?: {
+        type: string;
+        value: unknown;
+    }[], callValue?: number): Promise<TronSDKReceipt>;
     createMailbox(_req: Omit<AltVM.ReqCreateMailbox, 'signer'>): Promise<AltVM.ResCreateMailbox>;
     setDefaultIsm(req: Omit<AltVM.ReqSetDefaultIsm, 'signer'>): Promise<AltVM.ResSetDefaultIsm>;
     setDefaultHook(req: Omit<AltVM.ReqSetDefaultHook, 'signer'>): Promise<AltVM.ResSetDefaultHook>;
