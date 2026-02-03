@@ -5,8 +5,6 @@ import { Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
 import {
   HypXERC20Lockbox__factory,
   IXERC20Lockbox__factory,
-  IXERC20VS__factory,
-  IXERC20__factory,
 } from '@hyperlane-xyz/core';
 import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -467,7 +465,7 @@ export async function deriveStandardBridgesConfig(
 }
 
 /**
- * Detects the XERC20 type (Standard or Velodrome) by checking for interface methods.
+ * Detects the XERC20 type (Standard or Velodrome) by checking for interface selectors in bytecode.
  * @param provider - Ethers provider
  * @param address - Contract address to check
  * @returns 'standard' if setLimits method exists, 'velodrome' if setBufferCap exists
@@ -477,22 +475,30 @@ export async function detectXERC20Type(
   provider: ethers.providers.Provider,
   address: Address,
 ): Promise<'standard' | 'velodrome'> {
-  // Try Velodrome first (setBufferCap method)
-  try {
-    const velodromeXerc20 = IXERC20VS__factory.connect(address, provider);
-    await velodromeXerc20.callStatic.setBufferCap(address, 0);
-    return 'velodrome';
-  } catch {
-    // Not Velodrome, continue to Standard check
+  const code = await provider.getCode(address);
+  if (!code || code === '0x') {
+    throw new Error(
+      `Unable to detect XERC20 type for ${address}. Contract has no bytecode.`,
+    );
   }
 
-  // Try Standard (setLimits method)
-  try {
-    const standardXerc20 = IXERC20__factory.connect(address, provider);
-    await standardXerc20.callStatic.setLimits(address, 0, 0);
+  const normalizedCode = code.toLowerCase();
+  const setBufferCapSelector = ethers.utils
+    .id('setBufferCap(address,uint256)')
+    .slice(2, 10)
+    .toLowerCase();
+  const setLimitsSelector = ethers.utils
+    .id('setLimits(address,uint256,uint256)')
+    .slice(2, 10)
+    .toLowerCase();
+
+  // Prefer Velodrome if both selectors are present.
+  if (normalizedCode.includes(setBufferCapSelector)) {
+    return 'velodrome';
+  }
+
+  if (normalizedCode.includes(setLimitsSelector)) {
     return 'standard';
-  } catch {
-    // Not Standard either
   }
 
   // Neither type detected

@@ -297,7 +297,7 @@ describe('XERC20WarpModule', () => {
       expect(drift.missingBridges).to.include(WARP_ROUTE_ADDRESS);
     });
 
-    it('detects limit mismatches', async () => {
+    it('detects missing bridges', async () => {
       const config = createWarpConfig('standard');
       module = new XERC20WarpModule(
         multiProvider,
