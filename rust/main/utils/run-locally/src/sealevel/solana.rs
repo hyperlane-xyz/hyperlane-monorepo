@@ -16,12 +16,12 @@ use crate::utils::{
 
 pub const SOLANA_AGENT_BIN_PATH: &str = "target/debug";
 
-/// Solana CLI version for compiling programs
-pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "1.14.20";
-pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/solana-labs/solana";
+/// Agave CLI version for compiling programs (v3.x supports Rust 2024 edition)
+pub const SOLANA_CONTRACTS_CLI_VERSION: &str = "3.0.14";
+pub const SOLANA_CONTRACTS_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 /// Solana version used by mainnet validators
-pub const SOLANA_NETWORK_CLI_VERSION: &str = "2.0.24";
+pub const SOLANA_NETWORK_CLI_VERSION: &str = "3.0.14";
 pub const SOLANA_NETWORK_CLI_RELEASE_URL: &str = "github.com/anza-xyz/agave";
 
 const SOLANA_PROGRAM_LIBRARY_ARCHIVE: &str =
