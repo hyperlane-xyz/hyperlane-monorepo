@@ -303,8 +303,8 @@ export function altVMIsmTypeToProviderSdkType(
 
 // Re-export base classes for routing ISM
 export {
-  BaseRoutingIsmRawReader,
-  BaseRoutingIsmRawWriter,
+  AltvmRoutingIsmReader,
+  AltvmRoutingIsmWriter,
   type RoutingIsmQueryResult,
   type RoutingIsmTxBuilders,
 } from './ism/routing-base.js';

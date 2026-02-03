@@ -1,8 +1,8 @@
 import { GatewayApiClient } from '@radixdlt/babylon-gateway-api-sdk';
 
 import {
-  BaseRoutingIsmRawReader,
-  BaseRoutingIsmRawWriter,
+  AltvmRoutingIsmReader,
+  AltvmRoutingIsmWriter,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { eqAddressRadix } from '@hyperlane-xyz/utils';
 
@@ -21,7 +21,7 @@ import {
   getSetRoutingIsmOwnerTx,
 } from './ism-tx.js';
 
-export class RadixRoutingIsmRawReader extends BaseRoutingIsmRawReader<GatewayApiClient> {
+export class RadixRoutingIsmReader extends AltvmRoutingIsmReader<GatewayApiClient> {
   constructor(gateway: Readonly<GatewayApiClient>) {
     super(gateway, (client, address) =>
       getDomainRoutingIsmConfig(client, address),
@@ -29,7 +29,7 @@ export class RadixRoutingIsmRawReader extends BaseRoutingIsmRawReader<GatewayApi
   }
 }
 
-export class RadixRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
+export class RadixRoutingIsmWriter extends AltvmRoutingIsmWriter<
   GatewayApiClient,
   RadixSDKTransaction,
   RadixSDKReceipt

@@ -24,10 +24,7 @@ import {
   RadixMessageIdMultisigIsmReader,
   RadixMessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
-import {
-  RadixRoutingIsmRawReader,
-  RadixRoutingIsmRawWriter,
-} from './routing-ism.js';
+import { RadixRoutingIsmReader, RadixRoutingIsmWriter } from './routing-ism.js';
 import { RadixTestIsmReader, RadixTestIsmWriter } from './test-ism.js';
 
 /**
@@ -87,7 +84,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new RadixRoutingIsmRawReader(
+        return new RadixRoutingIsmReader(
           this.gateway,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
@@ -133,7 +130,7 @@ export class RadixIsmArtifactManager implements IRawIsmArtifactManager {
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new RadixRoutingIsmRawWriter(
+        return new RadixRoutingIsmWriter(
           this.gateway,
           baseSigner,
           this.base,

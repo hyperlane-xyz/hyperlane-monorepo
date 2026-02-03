@@ -4,8 +4,8 @@ import {
   ArtifactState,
 } from '@hyperlane-xyz/provider-sdk/artifact';
 import {
-  BaseRoutingIsmRawReader,
-  BaseRoutingIsmRawWriter,
+  AltvmRoutingIsmReader,
+  AltvmRoutingIsmWriter,
   type DeployedIsmAddress,
   type RawRoutingIsmArtifactConfig,
 } from '@hyperlane-xyz/provider-sdk/ism';
@@ -28,7 +28,7 @@ import {
   getSetRoutingIsmRouteTx,
 } from './ism-tx.js';
 
-export class AleoRoutingIsmRawReader extends BaseRoutingIsmRawReader<AnyAleoNetworkClient> {
+export class AleoRoutingIsmReader extends AltvmRoutingIsmReader<AnyAleoNetworkClient> {
   constructor(aleoClient: AnyAleoNetworkClient) {
     super(aleoClient, (client, address) =>
       getRoutingIsmConfig(client, address),
@@ -36,7 +36,7 @@ export class AleoRoutingIsmRawReader extends BaseRoutingIsmRawReader<AnyAleoNetw
   }
 }
 
-export class AleoRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
+export class AleoRoutingIsmWriter extends AltvmRoutingIsmWriter<
   AnyAleoNetworkClient,
   AnnotatedAleoTransaction,
   AleoReceipt

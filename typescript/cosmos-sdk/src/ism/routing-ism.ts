@@ -1,8 +1,8 @@
 import { type DeliverTxResponse } from '@cosmjs/stargate';
 
 import {
-  BaseRoutingIsmRawReader,
-  BaseRoutingIsmRawWriter,
+  AltvmRoutingIsmReader,
+  AltvmRoutingIsmWriter,
 } from '@hyperlane-xyz/provider-sdk/ism';
 import { eqAddressCosmos } from '@hyperlane-xyz/utils';
 
@@ -23,7 +23,7 @@ import {
  * Returns nested ISMs as address-only references (UNDERIVED state).
  * The GenericIsmReader from deploy-sdk handles recursive expansion of nested ISMs.
  */
-export class CosmosRoutingIsmRawReader extends BaseRoutingIsmRawReader<CosmosIsmQueryClient> {
+export class CosmosRoutingIsmReader extends AltvmRoutingIsmReader<CosmosIsmQueryClient> {
   constructor(query: CosmosIsmQueryClient) {
     super(query, (client, address) =>
       getRoutingIsmConfig(client as CosmosIsmQueryClient, address),
@@ -35,7 +35,7 @@ export class CosmosRoutingIsmRawReader extends BaseRoutingIsmRawReader<CosmosIsm
  * Writer for Cosmos Routing ISM (raw).
  * Handles deployment and updates of routing ISMs including domain route management and ownership transfers.
  */
-export class CosmosRoutingIsmRawWriter extends BaseRoutingIsmRawWriter<
+export class CosmosRoutingIsmWriter extends AltvmRoutingIsmWriter<
   CosmosIsmQueryClient,
   AnnotatedEncodeObject,
   DeliverTxResponse

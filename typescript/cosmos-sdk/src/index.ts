@@ -21,7 +21,7 @@ export {
   CosmosMessageIdMultisigIsmReader,
   CosmosMerkleRootMultisigIsmReader,
 } from './ism/multisig-ism.js';
-export { CosmosRoutingIsmRawReader } from './ism/routing-ism.js';
+export { CosmosRoutingIsmReader } from './ism/routing-ism.js';
 
 // Hook Artifact Management
 export { CosmosHookArtifactManager } from './hook/hook-artifact-manager.js';

@@ -60,7 +60,7 @@ export type RoutingIsmTxBuilders<TTx> = {
  * Protocol SDKs extend this and pass their query function in the constructor.
  * Note: Does not implement ArtifactReader to allow protocol SDKs to use their own types.
  */
-export class BaseRoutingIsmRawReader<TClient> {
+export class AltvmRoutingIsmReader<TClient> {
   constructor(
     protected readonly client: Readonly<TClient>,
     private readonly queryFn: (
@@ -108,11 +108,11 @@ export class BaseRoutingIsmRawReader<TClient> {
  * Protocol SDKs extend this and pass their transaction builders and utility functions in the constructor.
  * Note: Does not implement ArtifactWriter to allow protocol SDKs to use their own types.
  */
-export class BaseRoutingIsmRawWriter<
+export class AltvmRoutingIsmWriter<
   TClient,
   TTx,
   TReceipt,
-> extends BaseRoutingIsmRawReader<TClient> {
+> extends AltvmRoutingIsmReader<TClient> {
   constructor(
     client: Readonly<TClient>,
     queryFn: (
