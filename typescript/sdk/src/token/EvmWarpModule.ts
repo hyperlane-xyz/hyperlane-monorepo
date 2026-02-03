@@ -60,6 +60,7 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { XERC20WarpModule } from './XERC20WarpModule.js';
@@ -811,12 +812,20 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    // Build a single-chain warp route config for the XERC20WarpModule
     const warpRouteConfig = { [this.chainName]: expectedConfig };
+    const warpCoreConfig = {
+      tokens: [
+        {
+          chainName: this.chainName,
+          addressOrDenom: this.args.addresses.deployedTokenRoute,
+        },
+      ],
+    } as WarpCoreConfig;
 
     const xerc20Module = new XERC20WarpModule(
       this.multiProvider,
       warpRouteConfig,
+      warpCoreConfig,
     );
 
     const drift = await xerc20Module.detectDrift(this.chainName);

@@ -3,6 +3,7 @@ import sinon from 'sinon';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
 import {
   StandardXERC20Limits,
@@ -14,6 +15,7 @@ import { TokenType } from './config.js';
 import { WarpRouteDeployConfig, XERC20Type } from './types.js';
 
 const XERC20_ADDRESS = '0x1111111111111111111111111111111111111111';
+const WARP_ROUTE_ADDRESS = '0x5555555555555555555555555555555555555555';
 const BRIDGE_ADDRESS_1 = '0x2222222222222222222222222222222222222222';
 const BRIDGE_ADDRESS_2 = '0x3333333333333333333333333333333333333333';
 const EXTRA_BRIDGE_ADDRESS = '0x4444444444444444444444444444444444444444';
@@ -22,6 +24,16 @@ describe('XERC20WarpModule', () => {
   let multiProvider: MultiProvider;
   let module: XERC20WarpModule;
   let sandbox: sinon.SinonSandbox;
+
+  const createWarpCoreConfig = (): WarpCoreConfig =>
+    ({
+      tokens: [
+        {
+          chainName: TestChainName.test1,
+          addressOrDenom: WARP_ROUTE_ADDRESS,
+        },
+      ],
+    }) as WarpCoreConfig;
 
   const createWarpConfig = (
     xerc20Type: 'standard' | 'velodrome',
@@ -100,7 +112,11 @@ describe('XERC20WarpModule', () => {
   describe('generateSetLimitsTxs', () => {
     it('generates setLimits tx for Standard XERC20', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('standard');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -126,7 +142,11 @@ describe('XERC20WarpModule', () => {
 
     it('generates setBufferCap and setRateLimitPerSecond txs for Velodrome XERC20', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('velodrome');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -152,7 +172,11 @@ describe('XERC20WarpModule', () => {
   describe('generateAddBridgeTxs', () => {
     it('delegates to generateSetLimitsTxs for Standard XERC20', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('standard');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -174,7 +198,11 @@ describe('XERC20WarpModule', () => {
 
     it('generates addBridge tx for Velodrome XERC20', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('velodrome');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -199,7 +227,11 @@ describe('XERC20WarpModule', () => {
   describe('generateRemoveBridgeTxs', () => {
     it('generates removeBridge tx for Velodrome XERC20', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('velodrome');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -215,7 +247,11 @@ describe('XERC20WarpModule', () => {
 
     it('throws for Standard XERC20', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('standard');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -236,13 +272,17 @@ describe('XERC20WarpModule', () => {
   describe('detectDrift', () => {
     it('detects missing bridges', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('standard');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
 
       sandbox.stub(module, 'readLimits').resolves({
-        [XERC20_ADDRESS]: {
+        [WARP_ROUTE_ADDRESS]: {
           type: 'standard',
           mint: '0',
           burn: '0',
@@ -254,18 +294,49 @@ describe('XERC20WarpModule', () => {
       expect(drift.chain).to.equal(TestChainName.test1);
       expect(drift.xERC20Address).to.equal(XERC20_ADDRESS);
       expect(drift.xerc20Type).to.equal('standard');
-      expect(drift.missingBridges).to.include(XERC20_ADDRESS);
+      expect(drift.missingBridges).to.include(WARP_ROUTE_ADDRESS);
     });
 
     it('detects limit mismatches', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('standard');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
 
       sandbox.stub(module, 'readLimits').resolves({
-        [XERC20_ADDRESS]: {
+        [WARP_ROUTE_ADDRESS]: {
+          type: 'standard',
+          mint: '0',
+          burn: '0',
+        },
+      });
+
+      const drift = await module.detectDrift(TestChainName.test1);
+
+      expect(drift.chain).to.equal(TestChainName.test1);
+      expect(drift.xERC20Address).to.equal(XERC20_ADDRESS);
+      expect(drift.xerc20Type).to.equal('standard');
+      expect(drift.missingBridges).to.include(WARP_ROUTE_ADDRESS);
+    });
+
+    it('detects limit mismatches', async () => {
+      const config = createWarpConfig('standard');
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
+
+      sandbox.stub(module, 'detectType').resolves('standard');
+      sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
+
+      sandbox.stub(module, 'readLimits').resolves({
+        [WARP_ROUTE_ADDRESS]: {
           type: 'standard',
           mint: '500000000000000000',
           burn: '250000000000000000',
@@ -275,7 +346,7 @@ describe('XERC20WarpModule', () => {
       const drift = await module.detectDrift(TestChainName.test1);
 
       expect(drift.limitMismatches).to.have.lengthOf(1);
-      expect(drift.limitMismatches[0].bridge).to.equal(XERC20_ADDRESS);
+      expect(drift.limitMismatches[0].bridge).to.equal(WARP_ROUTE_ADDRESS);
       expect(drift.limitMismatches[0].expected.type).to.equal('standard');
       expect(drift.limitMismatches[0].actual.type).to.equal('standard');
     });
@@ -284,7 +355,11 @@ describe('XERC20WarpModule', () => {
   describe('generateDriftCorrectionTxs', () => {
     it('generates txs to remove extra bridges for Velodrome', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       sandbox.stub(module, 'detectType').resolves('velodrome');
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
@@ -305,7 +380,11 @@ describe('XERC20WarpModule', () => {
 
     it('handles empty drift result', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const drift: XERC20DriftResult = {
         chain: TestChainName.test1,
@@ -326,7 +405,11 @@ describe('XERC20WarpModule', () => {
   describe('getXERC20Address', () => {
     it('returns token address for XERC20 type', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const address = await (module as any).getXERC20Address(
         TestChainName.test1,
@@ -337,7 +420,11 @@ describe('XERC20WarpModule', () => {
 
     it('throws for non-XERC20 chain', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       try {
         await (module as any).getXERC20Address(TestChainName.test2);
@@ -351,7 +438,11 @@ describe('XERC20WarpModule', () => {
   describe('limitsMatch', () => {
     it('returns true for matching Standard limits', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const a: StandardXERC20Limits = {
         type: 'standard',
@@ -371,7 +462,11 @@ describe('XERC20WarpModule', () => {
 
     it('returns false for mismatched Standard limits', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const a: StandardXERC20Limits = {
         type: 'standard',
@@ -391,7 +486,11 @@ describe('XERC20WarpModule', () => {
 
     it('returns true for matching Velodrome limits', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const a: VelodromeXERC20Limits = {
         type: 'velodrome',
@@ -411,7 +510,11 @@ describe('XERC20WarpModule', () => {
 
     it('returns false for type mismatch', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const a: StandardXERC20Limits = {
         type: 'standard',
@@ -433,7 +536,11 @@ describe('XERC20WarpModule', () => {
   describe('limitsAreZero', () => {
     it('returns true for zero Standard limits', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const limits: StandardXERC20Limits = {
         type: 'standard',
@@ -448,7 +555,11 @@ describe('XERC20WarpModule', () => {
 
     it('returns false for non-zero Standard limits', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const limits: StandardXERC20Limits = {
         type: 'standard',
@@ -463,7 +574,11 @@ describe('XERC20WarpModule', () => {
 
     it('returns true for zero Velodrome limits', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const limits: VelodromeXERC20Limits = {
         type: 'velodrome',
@@ -480,7 +595,11 @@ describe('XERC20WarpModule', () => {
   describe('toStandardLimits', () => {
     it('converts xERC20Limits to StandardXERC20Limits', async () => {
       const config = createWarpConfig('standard');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const xERC20Limits = {
         mint: BigInt('1000000000000000000'),
@@ -500,7 +619,11 @@ describe('XERC20WarpModule', () => {
   describe('toVelodromeLimits', () => {
     it('converts RateLimitMidPoint to VelodromeXERC20Limits', async () => {
       const config = createWarpConfig('velodrome');
-      module = new XERC20WarpModule(multiProvider, config);
+      module = new XERC20WarpModule(
+        multiProvider,
+        config,
+        createWarpCoreConfig(),
+      );
 
       const rateLimits = {
         bufferCap: BigInt('1000000000000000000'),

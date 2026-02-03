@@ -7,6 +7,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { ChainName } from '../types.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
 import {
   EvmXERC20Adapter,
@@ -76,9 +77,22 @@ export class XERC20WarpModule {
   constructor(
     protected readonly multiProvider: MultiProvider,
     protected readonly warpRouteConfig: WarpRouteDeployConfig,
+    protected readonly warpCoreConfig: WarpCoreConfig,
   ) {
     this.multiProtocolProvider =
       MultiProtocolProvider.fromMultiProvider(multiProvider);
+  }
+
+  /**
+   * Get the warp route bridge address for a chain from the warp core config.
+   */
+  protected getWarpRouteBridgeAddress(chain: ChainName): Address {
+    const token = this.warpCoreConfig.tokens.find((t) => t.chainName === chain);
+    assert(
+      token?.addressOrDenom,
+      `Missing warp route address for chain ${chain} in warpCoreConfig`,
+    );
+    return token.addressOrDenom;
   }
 
   /**
@@ -238,7 +252,7 @@ export class XERC20WarpModule {
     const xerc20Type = await this.detectType(chain);
 
     const limitsMap: XERC20LimitsMap = {};
-    const bridgesToRead = bridges ?? (await this.getConfiguredBridges(chain));
+    const bridgesToRead = bridges ?? this.getConfiguredBridges(chain);
 
     if (xerc20Type === 'standard') {
       const adapter = new EvmXERC20Adapter(chain, this.multiProtocolProvider, {
@@ -368,8 +382,7 @@ export class XERC20WarpModule {
     }
 
     const warpRouteLimits = xERC20.warpRouteLimits;
-
-    const warpRouteBridge = chainConfig.token;
+    const warpRouteBridge = this.getWarpRouteBridgeAddress(chain);
 
     if (warpRouteLimits.type === XERC20Type.Standard) {
       if (warpRouteLimits.mint && warpRouteLimits.burn) {
@@ -418,13 +431,14 @@ export class XERC20WarpModule {
   /**
    * Get configured bridges for a chain from the warp config
    */
-  protected async getConfiguredBridges(chain: ChainName): Promise<Address[]> {
+  protected getConfiguredBridges(chain: ChainName): Address[] {
     const chainConfig = this.warpRouteConfig[chain];
     if (!chainConfig || !isXERC20TokenConfig(chainConfig)) {
       return [];
     }
 
-    const bridges: Address[] = [chainConfig.token];
+    const warpRouteBridge = this.getWarpRouteBridgeAddress(chain);
+    const bridges: Address[] = [warpRouteBridge];
 
     if (chainConfig.xERC20?.extraBridges) {
       for (const extra of chainConfig.xERC20.extraBridges) {
