@@ -394,18 +394,3 @@ export const ponderTransactionLogRelations = relations(
     }),
   }),
 );
-
-// =============================================================================
-// Type exports for use in adapter
-// =============================================================================
-export type PonderBlock = typeof ponderBlock.$inferInsert;
-export type PonderTransaction = typeof ponderTransaction.$inferInsert;
-export type PonderMessage = typeof ponderMessage.$inferInsert;
-export type PonderDeliveredMessage = typeof ponderDeliveredMessage.$inferInsert;
-export type PonderGasPayment = typeof ponderGasPayment.$inferInsert;
-export type PonderMerkleTreeInsertion =
-  typeof ponderMerkleTreeInsertion.$inferInsert;
-export type PonderRawMessageDispatch =
-  typeof ponderRawMessageDispatch.$inferInsert;
-export type PonderReorgEvent = typeof ponderReorgEvent.$inferInsert;
-export type PonderTransactionLog = typeof ponderTransactionLog.$inferInsert;

@@ -75,47 +75,6 @@ export async function checkAndHandleReorg(
 }
 
 /**
- * Clear the block hash cache for a chain.
- * Useful when restarting indexing.
- */
-export function clearBlockHashCache(chainId?: number): void {
-  if (chainId !== undefined) {
-    // Clear only entries for this chain
-    for (const key of blockHashCache.keys()) {
-      if (key.startsWith(`${chainId}-`)) {
-        blockHashCache.delete(key);
-      }
-    }
-  } else {
-    // Clear all
-    blockHashCache.clear();
-  }
-}
-
-/**
- * Get recent reorg events for a chain.
- * Queries the ponder_reorg_event table.
- */
-export async function getRecentReorgs(
-  _chainId: number,
-  _limit = 10,
-): Promise<ReorgEvent[]> {
-  // This would need a query method on the adapter
-  // For now, return empty - implement when needed
-  return [];
-}
-
-export interface ReorgEvent {
-  id: number;
-  domain: number;
-  detectedAt: Date;
-  reorgedBlockHeight: number;
-  reorgedBlockHash: `0x${string}`;
-  newBlockHash: `0x${string}`;
-  affectedMsgIds: `0x${string}`[];
-}
-
-/**
  * Prune old block hash cache entries to prevent memory growth.
  * Called periodically to remove entries for blocks that are now finalized.
  *

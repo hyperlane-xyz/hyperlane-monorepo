@@ -90,10 +90,6 @@ export class PonderDbAdapter {
     this.db = drizzle(this.pool, { schema });
   }
 
-  async close(): Promise<void> {
-    await this.pool.end();
-  }
-
   /**
    * Get domain ID from chain ID. Caches results.
    */
