@@ -7,6 +7,7 @@ import {
 import {
   assert,
   eqAddressCosmos,
+  eqOptionalAddress,
   isZeroishAddress,
 } from '@hyperlane-xyz/utils';
 
@@ -146,7 +147,7 @@ export function getWarpTokenUpdateTxs<TConfig extends RawWarpArtifactConfig>(
   const currentIsm = currentConfig.interchainSecurityModule?.deployed.address;
   const newIsm = expectedConfig.interchainSecurityModule?.deployed.address;
 
-  if (!eqAddressCosmos(currentIsm ?? '', newIsm ?? '')) {
+  if (!eqOptionalAddress(currentIsm, newIsm, eqAddressCosmos)) {
     if (newIsm) {
       const setIsmTx = getSetTokenIsmTx(signerAddress, {
         tokenAddress: deployed.address,
