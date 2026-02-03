@@ -369,9 +369,11 @@ export class XERC20WarpModule {
 
     const warpRouteLimits = xERC20.warpRouteLimits;
 
+    const warpRouteBridge = chainConfig.token;
+
     if (warpRouteLimits.type === XERC20Type.Standard) {
       if (warpRouteLimits.mint && warpRouteLimits.burn) {
-        limitsMap['warpRoute'] = {
+        limitsMap[warpRouteBridge] = {
           type: 'standard',
           mint: warpRouteLimits.mint,
           burn: warpRouteLimits.burn,
@@ -379,7 +381,7 @@ export class XERC20WarpModule {
       }
     } else if (warpRouteLimits.type === XERC20Type.Velo) {
       if (warpRouteLimits.bufferCap && warpRouteLimits.rateLimitPerSecond) {
-        limitsMap['warpRoute'] = {
+        limitsMap[warpRouteBridge] = {
           type: 'velodrome',
           bufferCap: warpRouteLimits.bufferCap,
           rateLimitPerSecond: warpRouteLimits.rateLimitPerSecond,
@@ -422,7 +424,7 @@ export class XERC20WarpModule {
       return [];
     }
 
-    const bridges: Address[] = [];
+    const bridges: Address[] = [chainConfig.token];
 
     if (chainConfig.xERC20?.extraBridges) {
       for (const extra of chainConfig.xERC20.extraBridges) {

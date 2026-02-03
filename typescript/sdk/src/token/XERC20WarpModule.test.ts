@@ -242,7 +242,7 @@ describe('XERC20WarpModule', () => {
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
 
       sandbox.stub(module, 'readLimits').resolves({
-        warpRoute: {
+        [XERC20_ADDRESS]: {
           type: 'standard',
           mint: '0',
           burn: '0',
@@ -254,7 +254,7 @@ describe('XERC20WarpModule', () => {
       expect(drift.chain).to.equal(TestChainName.test1);
       expect(drift.xERC20Address).to.equal(XERC20_ADDRESS);
       expect(drift.xerc20Type).to.equal('standard');
-      expect(drift.missingBridges).to.include('warpRoute');
+      expect(drift.missingBridges).to.include(XERC20_ADDRESS);
     });
 
     it('detects limit mismatches', async () => {
@@ -265,7 +265,7 @@ describe('XERC20WarpModule', () => {
       sandbox.stub(module as any, 'getXERC20Address').resolves(XERC20_ADDRESS);
 
       sandbox.stub(module, 'readLimits').resolves({
-        warpRoute: {
+        [XERC20_ADDRESS]: {
           type: 'standard',
           mint: '500000000000000000',
           burn: '250000000000000000',
@@ -275,7 +275,7 @@ describe('XERC20WarpModule', () => {
       const drift = await module.detectDrift(TestChainName.test1);
 
       expect(drift.limitMismatches).to.have.lengthOf(1);
-      expect(drift.limitMismatches[0].bridge).to.equal('warpRoute');
+      expect(drift.limitMismatches[0].bridge).to.equal(XERC20_ADDRESS);
       expect(drift.limitMismatches[0].expected.type).to.equal('standard');
       expect(drift.limitMismatches[0].actual.type).to.equal('standard');
     });
