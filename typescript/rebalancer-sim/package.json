@@ -42,6 +42,7 @@
     "eslint": "catalog:",
     "mocha": "catalog:",
     "prettier": "catalog:",
+    "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
