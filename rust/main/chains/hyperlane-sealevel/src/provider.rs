@@ -32,7 +32,7 @@ use hyperlane_core::{
     TxnReceiptInfo, H256, H512, U256,
 };
 
-use crate::alt::load_alt;
+use crate::alt::fetch_alt;
 use crate::error::HyperlaneSealevelError;
 use crate::fallback::{SealevelFallbackRpcClient, SubmitSealevelRpc};
 use crate::priority_fee::PriorityFeeOracle;
@@ -129,8 +129,8 @@ pub struct SealevelProvider {
     domain: HyperlaneDomain,
     native_token: NativeToken,
     recipient_provider: RecipientProvider,
-    /// Lazily loaded ALT cache for transaction size reduction.
-    /// Maps ALT address to loaded account data. ALTs are assumed static once loaded.
+    /// Lazily fetched ALT cache for transaction size reduction.
+    /// Maps ALT address to fetched account data. ALTs are assumed static once fetched.
     /// Note: Keep the number of different ALTs small to avoid memory bloat.
     alt_cache: Arc<RwLock<HashMap<Pubkey, AddressLookupTableAccount>>>,
 }
@@ -186,8 +186,8 @@ impl SealevelProviderForLander for SealevelProvider {
 
         // Build versioned transaction with ALT if provided, otherwise legacy
         if let Some(alt_pubkey) = alt_address {
-            // Lazily load ALT if not cached
-            let alt_account = self.get_or_load_alt(alt_pubkey).await?;
+            // Lazily fetch ALT if not cached
+            let alt_account = self.get_or_fetch_alt(alt_pubkey).await?;
 
             let message = MessageV0::try_compile(
                 &payer.pubkey(),
@@ -410,9 +410,12 @@ impl SealevelProvider {
         }
     }
 
-    /// Lazily loads an ALT from the chain if not already cached.
-    /// Returns the cached or newly loaded ALT account.
-    async fn get_or_load_alt(&self, alt_address: Pubkey) -> ChainResult<AddressLookupTableAccount> {
+    /// Lazily fetches an ALT from the chain if not already cached.
+    /// Returns the cached or newly fetched ALT account.
+    async fn get_or_fetch_alt(
+        &self,
+        alt_address: Pubkey,
+    ) -> ChainResult<AddressLookupTableAccount> {
         // Check cache first (read lock)
         {
             let cache = self.alt_cache.read().await;
@@ -421,13 +424,13 @@ impl SealevelProvider {
             }
         }
 
-        // Not cached - load from chain and cache (write lock)
-        let alt_account = load_alt(&self.rpc_client, alt_address).await?;
+        // Not cached - fetch from chain and cache (write lock)
+        let alt_account = fetch_alt(&self.rpc_client, alt_address).await?;
         tracing::info!(
             domain = %self.domain,
             alt_address = %alt_address,
             num_accounts = alt_account.addresses.len(),
-            "Loaded and cached ALT"
+            "Fetched and cached ALT"
         );
 
         let mut cache = self.alt_cache.write().await;

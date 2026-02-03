@@ -6,12 +6,12 @@
 //!
 //! When an ALT is configured for a chain (via `mailboxProcessAlt` in chain config):
 //! - The mailbox includes the ALT address in the process payload
-//! - The provider lazily loads the ALT and uses VersionedTransaction with V0 message
+//! - The provider lazily fetches the ALT and uses VersionedTransaction with V0 message
 //!
 //! When no ALT is configured:
 //! - Legacy Transaction format is used (compatible with all SVM chains)
 //!
-//! ALTs are assumed to be static once created. The provider caches loaded ALTs
+//! ALTs are assumed to be static once created. The provider caches fetched ALTs
 //! indefinitely.
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
@@ -21,11 +21,11 @@ use solana_sdk::pubkey::Pubkey;
 
 use crate::rpc::fallback::SealevelFallbackRpcClient;
 
-/// Load an ALT from the chain into the Solana SDK's native type.
+/// Fetch an ALT from the chain into the Solana SDK's native type.
 ///
 /// This fetches the ALT account data and deserializes it into an `AddressLookupTableAccount`
 /// which can be used directly with `MessageV0::try_compile`.
-pub async fn load_alt(
+pub async fn fetch_alt(
     rpc: &SealevelFallbackRpcClient,
     alt_address: Pubkey,
 ) -> ChainResult<AddressLookupTableAccount> {
