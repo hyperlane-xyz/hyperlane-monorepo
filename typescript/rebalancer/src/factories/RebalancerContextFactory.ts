@@ -3,7 +3,8 @@ import { type Logger } from 'pino';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import {
   type ChainMap,
-  HyperlaneCore,
+  type CoreAddresses,
+  MultiProtocolCore,
   MultiProtocolProvider,
   MultiProvider,
   type Token,
@@ -45,6 +46,7 @@ export class RebalancerContextFactory {
    * @param warpCore - An instance of `WarpCore` configured for the specified `warpRouteId`.
    * @param tokensByChainName - A map of chain->token to ease the lookup of token by chain
    * @param multiProvider - MultiProvider instance
+   * @param multiProtocolProvider - MultiProtocolProvider instance (with mailbox metadata)
    * @param registry - IRegistry instance
    * @param logger - Logger instance
    */
@@ -53,6 +55,7 @@ export class RebalancerContextFactory {
     private readonly warpCore: WarpCore,
     private readonly tokensByChainName: ChainMap<Token>,
     private readonly multiProvider: MultiProvider,
+    private readonly multiProtocolProvider: MultiProtocolProvider,
     private readonly registry: IRegistry,
     private readonly logger: Logger,
   ) {}
@@ -87,7 +90,7 @@ export class RebalancerContextFactory {
     const mpp =
       multiProtocolProvider ??
       MultiProtocolProvider.fromMultiProvider(multiProvider);
-    const provider = mpp.extendChainMetadata(mailboxes);
+    const extendedMultiProtocolProvider = mpp.extendChainMetadata(mailboxes);
 
     const warpCoreConfig = await registry.getWarpRoute(config.warpRouteId);
     if (!warpCoreConfig) {
@@ -95,7 +98,10 @@ export class RebalancerContextFactory {
         `Warp route config for ${config.warpRouteId} not found in registry`,
       );
     }
-    const warpCore = WarpCore.FromConfig(provider, warpCoreConfig);
+    const warpCore = WarpCore.FromConfig(
+      extendedMultiProtocolProvider,
+      warpCoreConfig,
+    );
     const tokensByChainName = Object.fromEntries(
       warpCore.tokens.map((t) => [t.chainName, t]),
     );
@@ -111,6 +117,7 @@ export class RebalancerContextFactory {
       warpCore,
       tokensByChainName,
       multiProvider,
+      extendedMultiProtocolProvider,
       registry,
       logger,
     );
@@ -228,11 +235,24 @@ export class RebalancerContextFactory {
     // 2. Create ExplorerClient
     const explorerClient = new ExplorerClient(explorerUrl);
 
-    // 3. Get HyperlaneCore from registry
-    const addresses = await this.registry.getAddresses();
-    const hyperlaneCore = HyperlaneCore.fromAddressesMap(
-      addresses,
-      this.multiProvider,
+    // 3. Get MultiProtocolCore from registry (supports all VM types)
+    // Only fetch/validate addresses for warp route chains (not all registry chains)
+    const warpRouteChains = new Set(
+      this.warpCore.tokens.map((t) => t.chainName),
+    );
+    const coreAddresses: ChainMap<CoreAddresses> = {};
+    for (const chain of warpRouteChains) {
+      const addrs = await this.registry.getChainAddresses(chain);
+      if (!addrs?.mailbox) {
+        throw new Error(
+          `Missing mailbox address for chain ${chain} in registry`,
+        );
+      }
+      coreAddresses[chain] = addrs as CoreAddresses;
+    }
+    const multiProtocolCore = MultiProtocolCore.fromAddressesMap(
+      coreAddresses,
+      this.multiProtocolProvider,
     );
 
     // 4. Get rebalancer address from signer
@@ -265,7 +285,7 @@ export class RebalancerContextFactory {
       intentStore,
       actionStore,
       explorerClient,
-      hyperlaneCore,
+      multiProtocolCore,
       trackerConfig,
       this.logger,
     );

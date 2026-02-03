@@ -1,18 +1,16 @@
 import type { Logger } from 'pino';
 import { v4 as uuidv4 } from 'uuid';
 
-import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
+import type { MultiProtocolCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
-import type {
-  ConfirmedBlockTag,
-  ConfirmedBlockTags,
-} from '../interfaces/IMonitor.js';
+import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type {
   ExplorerClient,
   ExplorerMessage,
 } from '../utils/ExplorerClient.js';
+import { getConfirmedBlockTag } from '../utils/blockTag.js';
 
 import type {
   CreateRebalanceActionParams,
@@ -43,7 +41,7 @@ export class ActionTracker implements IActionTracker {
     private readonly rebalanceIntentStore: IRebalanceIntentStore,
     private readonly rebalanceActionStore: IRebalanceActionStore,
     private readonly explorerClient: ExplorerClient,
-    private readonly core: HyperlaneCore,
+    private readonly core: MultiProtocolCore,
     private readonly config: ActionTrackerConfig,
     private readonly logger: Logger,
   ) {}
@@ -171,11 +169,10 @@ export class ActionTracker implements IActionTracker {
 
     const existingTransfers = await this.getInProgressTransfers();
     for (const transfer of existingTransfers) {
-      const chainName = this.core.multiProvider.getChainName(
+      const blockTag = await this.getConfirmedBlockTag(
         transfer.destination,
+        confirmedBlockTags,
       );
-      const blockTag = confirmedBlockTags?.[chainName];
-
       const delivered = await this.isMessageDelivered(
         transfer.messageId,
         transfer.destination,
@@ -263,11 +260,10 @@ export class ActionTracker implements IActionTracker {
     const inProgressActions =
       await this.rebalanceActionStore.getByStatus('in_progress');
     for (const action of inProgressActions) {
-      const chainName = this.core.multiProvider.getChainName(
+      const blockTag = await this.getConfirmedBlockTag(
         action.destination,
+        confirmedBlockTags,
       );
-      const blockTag = confirmedBlockTags?.[chainName];
-
       const delivered = await this.isMessageDelivered(
         action.messageId,
         action.destination,
@@ -515,45 +511,43 @@ export class ActionTracker implements IActionTracker {
 
   // === Private Helpers ===
 
+  /**
+   * Get the confirmed block tag for delivery checks.
+   * Uses cached value from Monitor event if available, otherwise computes on-demand.
+   */
   private async getConfirmedBlockTag(
-    chainName: string,
-  ): Promise<ConfirmedBlockTag> {
-    try {
-      const metadata = this.core.multiProvider.getChainMetadata(chainName);
-      const reorgPeriod = metadata.blocks?.reorgPeriod ?? 32;
+    destination: Domain,
+    confirmedBlockTags?: ConfirmedBlockTags,
+  ): Promise<string | number | undefined> {
+    const chainName = this.core.multiProvider.getChainName(destination);
 
-      if (typeof reorgPeriod === 'string') {
-        return reorgPeriod as ConfirmedBlockTag;
-      }
-
-      const provider = this.core.multiProvider.getProvider(chainName);
-      const latestBlock = await provider.getBlockNumber();
-      return Math.max(0, latestBlock - reorgPeriod);
-    } catch (error) {
-      this.logger.warn(
-        { chain: chainName, error: (error as Error).message },
-        'Failed to get confirmed block, using latest',
-      );
-      return undefined;
+    // If tags provided (from Monitor event), use cached value
+    if (confirmedBlockTags) {
+      return confirmedBlockTags[chainName];
     }
+
+    // Otherwise compute on-demand (e.g., during initialize())
+    return getConfirmedBlockTag(
+      this.core.multiProvider,
+      chainName,
+      this.logger,
+    );
   }
 
   private async isMessageDelivered(
     messageId: string,
     destination: Domain,
-    providedBlockTag?: ConfirmedBlockTag,
+    blockTag?: string | number,
   ): Promise<boolean> {
     try {
       const chainName = this.core.multiProvider.getChainName(destination);
-      const mailbox = this.core.getContracts(chainName).mailbox;
-
-      const blockTag =
-        providedBlockTag ?? (await this.getConfirmedBlockTag(chainName));
-      const delivered = await mailbox.delivered(messageId, { blockTag });
+      const delivered = await this.core
+        .adapter(chainName)
+        .isDelivered(messageId, blockTag);
 
       this.logger.debug(
-        { messageId, destination: chainName, blockTag, delivered },
-        'Checked message delivery at confirmed block',
+        { messageId, destination: chainName, delivered, blockTag },
+        'Checked message delivery',
       );
 
       return delivered;
