@@ -56,7 +56,10 @@ import { getEclipseEthereumSolanaUSDTWarpConfig } from './environments/mainnet3/
 import { getEclipseEthereumWBTCWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseEthereumWBTCWarpConfig.js';
 import { getEclipseStrideTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideSTTIAWarpConfig.js';
 import { getEclipseStrideStTiaWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseStrideTIAWarpConfig.js';
-import { getEclipseUSDCSTAGEWarpConfig } from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
+import {
+  getEclipseUSDCSTAGEWarpConfig,
+  getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
+} from './environments/mainnet3/warp/configGetters/getEclipseUSDCSTAGEWarpConfig.js';
 import {
   getEclipseUSDCStrategyConfig,
   getEclipseUSDCWarpConfig,
@@ -223,6 +226,8 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
   [WarpRouteIds.EclipseUSDC]: getUSDCEclipseFileSubmitterStrategyConfig,
+  [WarpRouteIds.EclipseUSDCSTAGE]:
+    getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
   [WarpRouteIds.MainnetCCTPV2Fast]: getCCTPV2StrategyConfig,
   [WarpRouteIds.MainnetCCTPV2Standard]: getCCTPV2StrategyConfig,
