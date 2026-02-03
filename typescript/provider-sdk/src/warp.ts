@@ -207,7 +207,7 @@ export type RawWarpArtifactConfig = RawWarpArtifactConfigs[WarpType];
  */
 export type DeployedRawWarpArtifact = ArtifactDeployed<
   ConfigOnChain<RawWarpArtifactConfig>,
-  DeployedIsmAddress
+  DeployedWarpAddress
 >;
 
 /**

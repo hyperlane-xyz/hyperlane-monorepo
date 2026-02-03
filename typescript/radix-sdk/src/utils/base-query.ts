@@ -207,14 +207,13 @@ export function getFieldPropertyFromEntityState<
   property: TKey,
   formatter?: (value: NonNullable<EntityField[TKey]>) => T,
 ): T | NonNullable<EntityField[TKey]> {
-  const result: T | NonNullable<EntityField[TKey]> | undefined = formatter
-    ? tryGetFieldPropertyFromEntityState(fieldName, entityState, property)
-    : tryGetFieldPropertyFromEntityState(
-        fieldName,
-        entityState,
-        property,
-        formatter,
-      );
+  const result: T | NonNullable<EntityField[TKey]> | undefined =
+    tryGetFieldPropertyFromEntityState(
+      fieldName,
+      entityState,
+      property,
+      formatter,
+    );
 
   assert(
     !isNullish(result),

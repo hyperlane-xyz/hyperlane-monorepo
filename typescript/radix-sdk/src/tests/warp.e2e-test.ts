@@ -372,12 +372,11 @@ describe('Radix Warp Tokens (e2e)', function () {
         expect(readToken.config.remoteRouters[DOMAIN_1].address).to.equal(
           '0xc2c6885c3c9e16064d86ce46b7a1ac57888a1e60b2ce88d2504347d3418399c4',
         );
-        expect(
-          eqAddressRadix(
-            readToken.config.interchainSecurityModule?.deployed.address!,
-            customIsmAddress,
-          ),
-        ).to.be.true;
+
+        const currentIsmAddress =
+          readToken.config.interchainSecurityModule?.deployed.address;
+        assert(currentIsmAddress, 'Expected current ism address to be set');
+        expect(eqAddressRadix(currentIsmAddress, customIsmAddress)).to.be.true;
         expect(eqAddressRadix(readToken.config.owner, TEST_RADIX_BURN_ADDRESS))
           .to.be.true;
       });
@@ -413,12 +412,12 @@ describe('Radix Warp Tokens (e2e)', function () {
           // Verify ISM is set
           const reader = artifactManager.createReader(type);
           const readToken1 = await reader.read(deployedToken.deployed.address);
-          expect(
-            eqAddressRadix(
-              readToken1.config.interchainSecurityModule?.deployed.address!,
-              customIsmAddress,
-            ),
-          ).to.be.true;
+
+          const currentIsmAddress =
+            readToken1.config.interchainSecurityModule?.deployed.address;
+          assert(currentIsmAddress, 'Expected current ism address to be set');
+          expect(eqAddressRadix(currentIsmAddress, customIsmAddress)).to.be
+            .true;
 
           // Update to clear ISM (set to undefined)
           const updatedConfig: ArtifactDeployed<any, DeployedWarpAddress> = {
@@ -482,12 +481,12 @@ describe('Radix Warp Tokens (e2e)', function () {
 
           // Verify ISM is now set
           const readToken2 = await reader.read(deployedToken.deployed.address);
-          expect(
-            eqAddressRadix(
-              readToken2.config.interchainSecurityModule?.deployed.address!,
-              customIsmAddress,
-            ),
-          ).to.be.true;
+
+          const currentIsmAddress =
+            readToken2.config.interchainSecurityModule?.deployed.address;
+          assert(currentIsmAddress, 'Expected current ism address to be set');
+          expect(eqAddressRadix(currentIsmAddress, customIsmAddress)).to.be
+            .true;
         });
 
         it('should change ISM when updated to different address', async () => {
@@ -510,12 +509,11 @@ describe('Radix Warp Tokens (e2e)', function () {
           // Verify first ISM is set
           const reader = artifactManager.createReader(type);
           const readToken1 = await reader.read(deployedToken.deployed.address);
-          expect(
-            eqAddressRadix(
-              readToken1.config.interchainSecurityModule?.deployed.address!,
-              firstIsmAddress,
-            ),
-          ).to.be.true;
+
+          const currentIsmAddress =
+            readToken1.config.interchainSecurityModule?.deployed.address;
+          assert(currentIsmAddress, 'Expected current ism address to be set');
+          expect(eqAddressRadix(currentIsmAddress, firstIsmAddress)).to.be.true;
 
           // Update to second ISM
           const secondIsmAddress = TEST_RADIX_DEPLOYER_ADDRESS;
@@ -542,12 +540,12 @@ describe('Radix Warp Tokens (e2e)', function () {
 
           // Verify ISM changed to second address
           const readToken2 = await reader.read(deployedToken.deployed.address);
-          expect(
-            eqAddressRadix(
-              readToken2.config.interchainSecurityModule?.deployed.address!,
-              secondIsmAddress,
-            ),
-          ).to.be.true;
+
+          const currentIsmAddress2 =
+            readToken2.config.interchainSecurityModule?.deployed.address;
+          assert(currentIsmAddress2, 'Expected current ism address to be set');
+          expect(eqAddressRadix(currentIsmAddress2, secondIsmAddress)).to.be
+            .true;
         });
 
         it('should not generate ISM update tx when ISM unchanged', async () => {
@@ -611,12 +609,12 @@ describe('Radix Warp Tokens (e2e)', function () {
           // Verify ISM is set
           const reader = artifactManager.createReader(type);
           const readToken1 = await reader.read(deployedToken.deployed.address);
-          expect(
-            eqAddressRadix(
-              readToken1.config.interchainSecurityModule?.deployed.address!,
-              customIsmAddress,
-            ),
-          ).to.be.true;
+
+          const currentIsmAddress =
+            readToken1.config.interchainSecurityModule?.deployed.address;
+          assert(currentIsmAddress, 'Expected current ism address to be set');
+          expect(eqAddressRadix(currentIsmAddress, customIsmAddress)).to.be
+            .true;
 
           // Update to zero address (should unset ISM)
           const zeroAddress = '0000000000000000000000000000000000000000';
@@ -754,12 +752,11 @@ describe('Radix Warp Tokens (e2e)', function () {
 
         // Verify all updates succeeded
         const finalToken = await writer.read(deployedToken.deployed.address);
-        expect(
-          eqAddressRadix(
-            finalToken.config.interchainSecurityModule?.deployed.address!,
-            newIsmAddress,
-          ),
-        ).to.be.true;
+
+        const currentIsmAddress =
+          finalToken.config.interchainSecurityModule?.deployed.address;
+        assert(currentIsmAddress, 'Expected current ism address to be set');
+        expect(eqAddressRadix(currentIsmAddress, newIsmAddress)).to.be.true;
         expect(finalToken.config.remoteRouters[DOMAIN_1]).to.be.undefined;
         expect(finalToken.config.remoteRouters[DOMAIN_2]).to.exist;
         expect(finalToken.config.destinationGas[DOMAIN_2]).to.equal('200000');
