@@ -5,5 +5,10 @@
     "rootDir": "./src"
   },
   "exclude": ["./node_modules/", "./dist/", "./tmp.ts"],
-  "include": ["./src/*.ts", "./src/eslint-rules/*.ts", "./src/fs/*.ts"]
+  "include": [
+    "./src/*.ts",
+    "./src/eslint-rules/*.ts",
+    "./src/fs/*.ts",
+    "./src/anvil/*.ts"
+  ]
 }

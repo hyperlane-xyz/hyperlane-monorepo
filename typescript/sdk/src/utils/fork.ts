@@ -191,3 +191,14 @@ export async function revertToSnapshot(
 ): Promise<boolean> {
   return provider.send(ANVIL_RPC_METHODS.REVERT, [snapshotId]);
 }
+
+export async function impersonateAccounts(
+  provider: providers.JsonRpcProvider,
+  accounts: string[],
+): Promise<void> {
+  await Promise.all(
+    accounts.map((address) =>
+      provider.send(ANVIL_RPC_METHODS.IMPERSONATE_ACCOUNT, [address]),
+    ),
+  );
+}

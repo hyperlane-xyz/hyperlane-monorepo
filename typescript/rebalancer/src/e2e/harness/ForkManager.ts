@@ -9,8 +9,8 @@ import {
   type ChainMetadata,
   type ChainName,
   MultiProvider,
-  forkChain as forkChainBase,
 } from '@hyperlane-xyz/sdk';
+import { forkChain as forkChainBase } from '@hyperlane-xyz/utils/anvil';
 
 import { allocatePorts, releasePorts } from './PortAllocator.js';
 
