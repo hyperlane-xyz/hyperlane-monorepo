@@ -39,9 +39,9 @@
       "accounts": [],
       "args": [
         {
-          "name": "remoteRouterConfig",
+          "name": "remoteRouterConfigProxy",
           "type": {
-            "defined": "RemoteRouterConfig"
+            "defined": "RemoteRouterConfigProxy"
           }
         }
       ],
@@ -58,7 +58,7 @@
           "name": "args",
           "type": {
             "vec": {
-              "defined": "RemoteRouterConfig"
+              "defined": "RemoteRouterConfigProxy"
             }
           }
         }
@@ -76,7 +76,7 @@
           "name": "args",
           "type": {
             "vec": {
-              "defined": "GasRouterConfig"
+              "defined": "GasRouterConfigProxy"
             }
           }
         }
@@ -221,6 +221,50 @@
             "name": "pluginData",
             "type": {
               "defined": "T"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RemoteRouterConfigProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "router",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "GasRouterConfigProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "gas",
+            "type": {
+              "option": "u64"
             }
           }
         ]

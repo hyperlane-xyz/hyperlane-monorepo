@@ -3,7 +3,8 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use hyperlane_sealevel_connection_client::{
+// Re-export types used in instruction enum for IDL generation
+pub use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
@@ -21,6 +22,22 @@ use crate::hyperlane_token_pda_seeds;
 // ============================================================================
 // Proxy types for IDL generation
 // ============================================================================
+
+/// Proxy for RemoteRouterConfig from hyperlane_sealevel_connection_client.
+#[derive(BorshDeserialize, BorshSerialize, ShankType)]
+#[shank(
+    import_from = "hyperlane_sealevel_connection_client",
+    rename = "RemoteRouterConfig"
+)]
+pub struct RemoteRouterConfigProxy;
+
+/// Proxy for GasRouterConfig from hyperlane_sealevel_connection_client.
+#[derive(BorshDeserialize, BorshSerialize, ShankType)]
+#[shank(
+    import_from = "hyperlane_sealevel_connection_client",
+    rename = "GasRouterConfig"
+)]
+pub struct GasRouterConfigProxy;
 
 /// Proxy for InterchainGasPaymasterType from hyperlane_sealevel_igp.
 #[derive(BorshDeserialize, BorshSerialize, ShankType)]
@@ -42,10 +59,13 @@ pub enum Instruction {
     /// Transfer tokens to a remote recipient.
     TransferRemote(TransferRemote),
     /// Enroll a remote router. Only owner.
+    #[idl_type("RemoteRouterConfigProxy")]
     EnrollRemoteRouter(RemoteRouterConfig),
     /// Enroll multiple remote routers. Only owner.
+    #[idl_type("Vec<RemoteRouterConfigProxy>")]
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
     /// Enroll multiple remote routers. Only owner.
+    #[idl_type("Vec<GasRouterConfigProxy>")]
     SetDestinationGasConfigs(Vec<GasRouterConfig>),
     /// Set the interchain security module. Only owner.
     SetInterchainSecurityModule(Option<Pubkey>),

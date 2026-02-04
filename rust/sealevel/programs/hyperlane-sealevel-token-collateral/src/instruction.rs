@@ -36,19 +36,19 @@ pub struct InitProxy;
 )]
 pub struct TransferRemoteProxy;
 
-/// Proxy for RemoteRouterConfig from hyperlane_sealevel_connection_client.
+/// Proxy for RemoteRouterConfigProxy from hyperlane_sealevel_token_lib.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, ShankType)]
 #[shank(
-    import_from = "hyperlane_sealevel_connection_client",
-    rename = "RemoteRouterConfig"
+    import_from = "hyperlane_sealevel_token_lib",
+    rename = "RemoteRouterConfigProxy"
 )]
 pub struct RemoteRouterConfigProxy;
 
-/// Proxy for GasRouterConfig from hyperlane_sealevel_connection_client.
+/// Proxy for GasRouterConfigProxy from hyperlane_sealevel_token_lib.
 #[derive(borsh::BorshDeserialize, borsh::BorshSerialize, ShankType)]
 #[shank(
-    import_from = "hyperlane_sealevel_connection_client",
-    rename = "GasRouterConfig"
+    import_from = "hyperlane_sealevel_token_lib",
+    rename = "GasRouterConfigProxy"
 )]
 pub struct GasRouterConfigProxy;
 

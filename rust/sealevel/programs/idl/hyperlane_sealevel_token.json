@@ -39,9 +39,9 @@
       "accounts": [],
       "args": [
         {
-          "name": "remoteRouterConfig",
+          "name": "remoteRouterConfigProxy",
           "type": {
-            "defined": "RemoteRouterConfig"
+            "defined": "RemoteRouterConfigProxy"
           }
         }
       ],
@@ -58,7 +58,7 @@
           "name": "args",
           "type": {
             "vec": {
-              "defined": "RemoteRouterConfig"
+              "defined": "RemoteRouterConfigProxy"
             }
           }
         }
@@ -76,7 +76,7 @@
           "name": "args",
           "type": {
             "vec": {
-              "defined": "GasRouterConfig"
+              "defined": "GasRouterConfigProxy"
             }
           }
         }
@@ -332,7 +332,7 @@
             "name": "EnrollRemoteRouter",
             "fields": [
               {
-                "defined": "RemoteRouterConfig"
+                "defined": "RemoteRouterConfigProxy"
               }
             ]
           },
@@ -341,7 +341,7 @@
             "fields": [
               {
                 "vec": {
-                  "defined": "RemoteRouterConfig"
+                  "defined": "RemoteRouterConfigProxy"
                 }
               }
             ]
@@ -351,7 +351,7 @@
             "fields": [
               {
                 "vec": {
-                  "defined": "GasRouterConfig"
+                  "defined": "GasRouterConfigProxy"
                 }
               }
             ]
