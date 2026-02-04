@@ -1,5 +1,51 @@
 # @hyperlane-xyz/sdk
 
+## 23.0.0
+
+### Major Changes
+
+- 80f3635: feat: aleo nexus ui support
+
+### Minor Changes
+
+- d1d90d2: Extracted shared gas estimation utilities: `estimateHandleGasForRecipient()` for `handle()` calls and `estimateCallGas()` for individual contract calls. Added `HyperlaneCore.estimateHandleGas()` accepting minimal params. Refactored `InterchainAccount.estimateIcaHandleGas()` to use shared utilities.
+- 7c22cff: Added optional `blockTag` parameter to `getBridgedSupply()` method in `IHypTokenAdapter` interface and all EVM adapter implementations. This allows querying bridged supply at a specific block height or using block parameter tags (finalized, safe, latest, etc.).
+- 52fd0f8: Added `estimateIcaHandleGas()` public method to estimate destination gas for ICA calls. `getCallRemote()` now extracts gasLimit from hookMetadata for accurate IGP quoting with the `quoteGasPayment(uint32,uint256)` overload. Fixed `hookMetadata` type from `BigNumber` to `string` in `GetCallRemoteSettings`.
+- 6ddef74: Fix warp check for Aleo.
+- 9aa93f4: Added optional `waitConfirmations` parameter to `sendTransaction()` and `handleTx()` methods in MultiProvider, which allowed callers to specify a custom number of confirmations or a block tag like "finalized" or "safe" to wait for before returning. Added `waitForBlockTag()` helper method that polled until the tagged block number reached the transaction's block number. Exported new `SendTransactionOptions` interface from SDK.
+- 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
+
+  - Moved `HyperlaneRelayer` class from SDK to new package
+  - Moved ISM metadata builders from SDK to relayer package
+  - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
+  - Added Prometheus metrics support with `/metrics` endpoint (enabled by default on port 9090)
+  - CLI and infra now import from new package
+  - **Breaking**: The following exports were removed from `@hyperlane-xyz/sdk` and are now available from `@hyperlane-xyz/relayer`:
+    - `HyperlaneRelayer`, `RelayerCacheSchema`, `messageMatchesWhitelist`
+    - `BaseMetadataBuilder`, `decodeIsmMetadata`
+    - All metadata builder classes (`AggregationMetadataBuilder`, `MultisigMetadataBuilder`, etc.)
+  - `offchainLookupRequestMessageHash` remains exported from SDK for ccip-server compatibility
+  - Added `randomDeployableIsmConfig` test utility to SDK for generating deployable ISM configs with custom validators
+
+### Patch Changes
+
+- 52fd0f8: Fixed `getCallRemote` in InterchainAccount to query ISM using origin domain instead of destination domain. The `isms` mapping is indexed by origin (where messages come FROM), not destination.
+- 576cd95: Updated `proxyAdminUpdateTxs()` to respect `ownerOverrides.proxyAdmin` when determining the expected proxyAdmin owner. The priority is now: `ownerOverrides.proxyAdmin` > `proxyAdmin.owner` > `owner`.
+- a5d6cae: Fixed legacy ICA router support in InterchainAccount: use routerOverride for gas estimation and ISM lookup, and query mailbox directly for accurate quotes on legacy routers that don't support hookMetadata.
+- Updated dependencies [c8f6f6c]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [80f3635]
+  - @hyperlane-xyz/aleo-sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/deploy-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@23.0.0
+  - @hyperlane-xyz/radix-sdk@23.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/starknet-core@23.0.0
+
 ## 22.0.0
 
 ### Minor Changes

@@ -1,5 +1,17 @@
 # @hyperlane-xyz/utils
 
+## 23.0.0
+
+### Minor Changes
+
+- 52fd0f8: Added StandardHookMetadata utilities: `formatStandardHookMetadata()` for building hook metadata, `parseStandardHookMetadata()` for parsing all fields, `extractRefundAddressFromMetadata()` and `hasValidRefundAddress()` for refund address helpers.
+
+### Patch Changes
+
+- a10cfc8: ISM update test coverage was improved by creating a shared test factory that works across AltVM protocols (Cosmos, Aleo, Radix). The factory supports explicit test skipping configuration through a `skipTests` parameter, making protocol-specific limitations clear in test configuration rather than hidden in implementation.
+
+  Aleo address handling was fixed to properly support ISM unsetting. The `isZeroishAddress` regex now matches Aleo null addresses both with and without program ID prefix. The `fromAleoAddress` helper was updated to handle addresses without the '/' separator. The `getSetTokenIsmTransaction` method now converts zero addresses to `ALEO_NULL_ADDRESS` before processing.
+
 ## 22.0.0
 
 ### Minor Changes

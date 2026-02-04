@@ -187,7 +187,8 @@ jobs:
 
       - name: Install gitleaks
         id: gitleaks-install
-        if: github.event_name != 'merge_group'
+        # Skip for merge_group and external PRs (forks don't have access to GITLEAKS_LICENSE secret)
+        if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -265,6 +266,8 @@ jobs:
           - core-deploy
           - core-init
           - core-read
+          # ISM Commands
+          - ism
           # Other commands
           - relay
           - status
@@ -331,7 +334,10 @@ jobs:
           - core-check
           - core-deploy
           - core-read
+          # ISM Commands
+          - ism
           # Warp Commands
+          - warp-apply-ism-updates
           - warp-deploy
           - warp-read
     steps:
@@ -366,8 +372,11 @@ jobs:
           # Core Commands
           - core-deploy
           - core-apply
+          # ISM Commands
+          - ism
           # Warp Commands
           - warp-deploy
+          - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
@@ -437,7 +446,11 @@ jobs:
           - core-apply-mailbox
           - core-deploy
           - core-read
+          # ISM Commands
+          - ism
           # Warp Commands
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
           - warp-deploy

@@ -1,5 +1,21 @@
 # @hyperlane-xyz/deploy-sdk
 
+## 1.2.1
+
+### Patch Changes
+
+- 0b8c4ea: Fixed hook update logic for warp routes. The warp route reader now properly reads hook addresses from deployed contracts instead of hardcoding zero address. Hook update idempotency check fixed to use deepEquals with config normalization instead of reference equality, preventing unnecessary redeployments when applying identical configs. Aleo provider updated to handle null/zero hook addresses correctly. Protocol capability check added to restrict hook updates to Aleo only. Comprehensive test suite added covering hook type transitions (none→MerkleTree, MerkleTree→IGP, MerkleTree→none), IGP config updates (gas configs, beneficiary), and idempotency validation.
+- Updated dependencies [c8f6f6c]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [80f3635]
+  - @hyperlane-xyz/aleo-sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@23.0.0
+  - @hyperlane-xyz/radix-sdk@23.0.0
+
 ## 1.2.0
 
 ### Minor Changes

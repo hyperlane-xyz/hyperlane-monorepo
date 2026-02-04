@@ -26,7 +26,7 @@ export function getRawBalances(
 
     // Ignore tokens that are not in the provided chains list
     if (!chainSet.has(token.chainName)) {
-      logger.info(
+      logger.debug(
         {
           context: getRawBalances.name,
           chain: token.chainName,
@@ -40,7 +40,7 @@ export function getRawBalances(
 
     // Ignore tokens that are not collateralized or are otherwise ineligible
     if (!isCollateralizedTokenEligibleForRebalancing(token)) {
-      logger.info(
+      logger.debug(
         {
           context: getRawBalances.name,
           chain: token.chainName,

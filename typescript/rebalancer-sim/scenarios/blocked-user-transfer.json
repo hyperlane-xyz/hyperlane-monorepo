@@ -1,0 +1,62 @@
+{
+  "name": "blocked-user-transfer",
+  "description": "Tests scenario where user transfer is BLOCKED at destination due to insufficient collateral, and rebalancer doesn't act because weights appear within tolerance.",
+  "expectedBehavior": "With 50/50 weights and 50% tolerance, initial state is balanced (40/40). User transfer of 50 tokens to chain2 exceeds chain2 collateral (50 > 40), blocking delivery. After user locks tokens on chain1, state is 90/40 (69%/31%) which is within tolerance (25-75%). Rebalancer sees no need to act. Transfer stays stuck.",
+  "duration": 15000,
+  "chains": ["chain1", "chain2"],
+  "initialImbalance": {},
+  "transfers": [
+    {
+      "id": "blocked-transfer-1",
+      "timestamp": 500,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "50000000000000000000",
+      "user": "0x1111111111111111111111111111111111111111"
+    }
+  ],
+  "defaultInitialCollateral": "40000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 0,
+    "rebalancerPollingFrequency": 1000,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 3000,
+        "failureRate": 0,
+        "deliveryJitter": 0
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 3000,
+        "failureRate": 0,
+        "deliveryJitter": 0
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain1": {
+        "weighted": {
+          "weight": "0.5",
+          "tolerance": "0.5"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "weighted": {
+          "weight": "0.5",
+          "tolerance": "0.5"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {
+    "_note": "Both rebalancers show 0% completion. Weights within tolerance (25-75%), so no rebalancing triggered. With mock Explorer: rebalancer should see blocked transfer and proactively add collateral to chain2."
+  }
+}

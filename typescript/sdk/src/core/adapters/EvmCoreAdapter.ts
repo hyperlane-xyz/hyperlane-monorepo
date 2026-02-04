@@ -68,4 +68,12 @@ export class EvmCoreAdapter extends BaseEvmAdapter implements ICoreAdapter {
       maxAttempts,
     );
   }
+
+  async isDelivered(
+    messageId: HexString,
+    blockTag?: string | number,
+  ): Promise<boolean> {
+    const mailbox = this.core.getContracts(this.chainName).mailbox;
+    return mailbox.delivered(messageId, { blockTag });
+  }
 }

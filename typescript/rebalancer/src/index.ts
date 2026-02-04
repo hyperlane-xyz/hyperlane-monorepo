@@ -16,17 +16,18 @@ export type {
 
 // Core rebalancing logic
 export { Rebalancer } from './core/Rebalancer.js';
-export { WithInflightGuard } from './core/WithInflightGuard.js';
-export { WithSemaphore } from './core/WithSemaphore.js';
 
 // Configuration
 export { RebalancerConfig } from './config/RebalancerConfig.js';
 export {
+  getStrategyChainConfig,
+  getStrategyChainNames,
   RebalancerBaseChainConfigSchema,
   RebalancerConfigSchema,
   RebalancerMinAmountConfigSchema,
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
+  RebalancerStrategySchema,
   RebalancerWeightedChainConfigSchema,
   StrategyConfigSchema,
 } from './config/types.js';
@@ -42,6 +43,7 @@ export type {
 
 // Strategy
 export { BaseStrategy } from './strategy/BaseStrategy.js';
+export { CompositeStrategy } from './strategy/CompositeStrategy.js';
 export { WeightedStrategy } from './strategy/WeightedStrategy.js';
 export { MinAmountStrategy } from './strategy/MinAmountStrategy.js';
 export { StrategyFactory } from './strategy/StrategyFactory.js';
@@ -57,13 +59,20 @@ export { PriceGetter } from './metrics/PriceGetter.js';
 export type {
   IRebalancer,
   PreparedTransaction,
+  RebalanceRoute,
+  RebalanceExecutionResult,
 } from './interfaces/IRebalancer.js';
 export type {
   IStrategy,
-  RebalancingRoute,
+  StrategyRoute,
   RawBalances,
+  InflightContext,
 } from './interfaces/IStrategy.js';
-export type { IMonitor } from './interfaces/IMonitor.js';
+export type {
+  ConfirmedBlockTag,
+  ConfirmedBlockTags,
+  IMonitor,
+} from './interfaces/IMonitor.js';
 export {
   MonitorEventType,
   MonitorEvent,
@@ -81,6 +90,9 @@ export type {
 export { getRawBalances } from './utils/balanceUtils.js';
 export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.js';
 export { ExplorerClient } from './utils/ExplorerClient.js';
+
+// Tracking
+export { InflightContextAdapter } from './tracking/InflightContextAdapter.js';
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';

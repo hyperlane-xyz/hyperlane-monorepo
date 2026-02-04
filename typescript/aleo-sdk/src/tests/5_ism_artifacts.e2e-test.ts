@@ -492,6 +492,42 @@ describe('5. aleo sdk ISM artifacts (readers and writers) e2e tests', async func
       );
     });
 
+    it('should set owner during creation when different from signer', async () => {
+      // Use a burn address as the owner
+      const burnAddress =
+        'aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc';
+
+      const config: RawRoutingIsmArtifactConfig = {
+        type: AltVM.IsmType.ROUTING,
+        owner: burnAddress,
+        domains: {
+          [DOMAIN_1]: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: testIsmAddress },
+          },
+          [DOMAIN_2]: {
+            artifactState: ArtifactState.UNDERIVED,
+            deployed: { address: multisigIsmAddress },
+          },
+        },
+      };
+
+      const writer = artifactManager.createWriter(
+        AltVM.IsmType.ROUTING,
+        signer,
+      );
+      const [routingIsm, receipts] = await writer.create({ config });
+
+      // Verify owner transfer happened during creation
+      // Should have 1 create tx + 2 setRoute txs + 1 setOwner tx
+      expect(receipts).to.have.length(4);
+
+      // Read back and verify owner was set correctly
+      const reader = artifactManager.createReader(AltVM.IsmType.ROUTING);
+      const readIsm = await reader.read(routingIsm.deployed.address);
+      expect(readIsm.config.owner).to.equal(burnAddress);
+    });
+
     it('should transfer ownership of the ISM', async () => {
       const config: RawRoutingIsmArtifactConfig = {
         type: AltVM.IsmType.ROUTING,

@@ -123,4 +123,8 @@ export const warpFeesIcas: ChainMap<Address> = {
   zetachain: '0xaFfA4F4a4Cb428730336F7F984f88104e2C52640',
   zircuit: '0x07e7CC23eb3cdA50C9B8C8E91bC7398AbA7258BF',
   zoramainnet: '0xB037564662aD53537656b9a716e65ec1Ac8190fe',
+
+  // Jan 29, 2026 - Migrating Ontology to v2 ICAs
+  // ----------------------------------------------------------
+  ontology: '0xeBc831a04AfD55b3DBc4C10a62cd7dd176eB2992',
 };

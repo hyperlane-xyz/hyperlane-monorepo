@@ -6,7 +6,7 @@ Standalone service for funding Hyperlane agent keys with native tokens across mu
 
 The KeyFunder service:
 
-- Funds agent keys (relayers, kathy, rebalancer) to maintain desired balances
+- Funds agent keys (relayers, rebalancer) to maintain desired balances
 - Claims accumulated fees from InterchainGasPaymaster (IGP) contracts
 - Sweeps excess funds from the funder wallet to a safe address
 
@@ -23,8 +23,6 @@ version: '1'
 roles:
   hyperlane-relayer:
     address: '0x74cae0ecc47b02ed9b9d32e000fd70b9417970c5'
-  hyperlane-kathy:
-    address: '0x5fb02f40f56d15f0442a39d11a23f73747095b20'
   hyperlane-rebalancer:
     address: '0xdef456...'
 
@@ -33,7 +31,7 @@ chains:
   ethereum:
     balances:
       hyperlane-relayer: '0.5'
-      hyperlane-kathy: '0.4'
+      hyperlane-rebalancer: '0.4'
     igp:
       address: '0x6cA0B6D43F8e45C82e57eC5a5F2Bce4bF2b6F1f7'
       claimThreshold: '0.2'
