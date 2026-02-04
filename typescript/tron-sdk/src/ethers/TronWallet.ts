@@ -35,7 +35,7 @@ export class TronWallet extends Wallet {
 
   /** Convert ethers 0x address to Tron 41-prefixed hex */
   private toTronHex(address: string): string {
-    return '41' + strip0x(address);
+    return '41' + strip0x(address).toLowerCase();
   }
 
   /** Convert Tron address to ethers 0x address */
@@ -57,7 +57,7 @@ export class TronWallet extends Wallet {
     assert(tx.gasLimit, 'gasLimit is required');
     assert(tx.gasPrice, 'gasPrice is required');
 
-    // Convert gasLimit to feeLimit: feeLimit = gasLimit × gasPrice
+    // Convert gasLimit to feeLimit in SUN (1 TRX = 1,000,000 SUN)
     const gasPrice = BigNumber.from(tx.gasPrice);
     const gasLimit = BigNumber.from(tx.gasLimit);
     const feeLimit = gasLimit.mul(gasPrice).toNumber();
@@ -82,11 +82,11 @@ export class TronWallet extends Wallet {
 
       contractAddress = this.toEvmAddress(tronTx.contract_address);
     } else if (tx.data && tx.data !== '0x') {
-      // Contract call
+      // Contract call - use 'input' option for raw ABI-encoded calldata
       const result = await this.tronWeb.transactionBuilder.triggerSmartContract(
         this.toTronHex(tx.to),
-        '',
-        { feeLimit, callValue, rawParameter: strip0x(tx.data.toString()) },
+        '', // Empty functionSelector since we pass raw encoded data via input
+        { feeLimit, callValue, input: strip0x(tx.data.toString()) },
         [],
         this.tronAddress,
       );
