@@ -160,6 +160,17 @@ export class EvmWarpModule extends HyperlaneModule<
     const actualConfig = await this.read();
     const transactions = [];
 
+    let xerc20Txs: AnnotatedEV5Transaction[] = [];
+    if (isXERC20TokenConfig(expectedConfig)) {
+      const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+        this.multiProvider,
+        this.chainName,
+        expectedConfig,
+        this.args.addresses.deployedTokenRoute,
+      );
+      xerc20Txs = await module.update(config);
+    }
+
     /**
      * @remark
      * The order of operations matter
@@ -198,7 +209,7 @@ export class EvmWarpModule extends HyperlaneModule<
       ...this.createUpdateEverclearFeeParamsTxs(actualConfig, expectedConfig),
       ...this.createRemoveEverclearFeeParamsTxs(actualConfig, expectedConfig),
 
-      ...(await this.createXERC20DriftCorrectionTxs(expectedConfig)),
+      ...xerc20Txs,
 
       ...this.createOwnershipUpdateTxs(actualConfig, expectedConfig),
       ...proxyAdminUpdateTxs(
@@ -795,23 +806,6 @@ export class EvmWarpModule extends HyperlaneModule<
         ),
       };
     });
-  }
-
-  async createXERC20DriftCorrectionTxs(
-    expectedConfig: HypTokenRouterConfig,
-  ): Promise<AnnotatedEV5Transaction[]> {
-    if (!isXERC20TokenConfig(expectedConfig)) {
-      return [];
-    }
-
-    const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
-      this.multiProvider,
-      this.chainName,
-      expectedConfig,
-      this.args.addresses.deployedTokenRoute,
-    );
-
-    return module.update(config);
   }
 
   /**
