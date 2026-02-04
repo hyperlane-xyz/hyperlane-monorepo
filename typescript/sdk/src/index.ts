@@ -714,13 +714,19 @@ export { HypERC20Deployer, HypERC721Deployer } from './token/deploy.js';
 export { EvmWarpModule } from './token/EvmWarpModule.js';
 export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
+  EvmXERC20Reader,
   StandardXERC20Limits,
   VelodromeXERC20Limits,
-  XERC20DriftResult,
   XERC20Limits,
   XERC20LimitsMap,
-  XERC20WarpModule,
-} from './token/XERC20WarpModule.js';
+  limitsAreZero,
+  limitsMatch,
+} from './token/EvmXERC20Reader.js';
+export {
+  EvmXERC20Module,
+  XERC20ModuleAddresses,
+  XERC20ModuleConfig,
+} from './token/EvmXERC20Module.js';
 export { IToken, TokenArgs, TokenConfigSchema } from './token/IToken.js';
 export { Token, getCollateralTokenAdapter } from './token/Token.js';
 export { TokenAmount } from './token/TokenAmount.js';

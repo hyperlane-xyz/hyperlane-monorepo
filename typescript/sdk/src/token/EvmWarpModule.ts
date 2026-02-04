@@ -60,10 +60,9 @@ import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
 import { RemoteRouters, resolveRouterMapConfig } from '../router/types.js';
 import { ChainName, ChainNameOrId } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
-import { WarpCoreConfig } from '../warp/types.js';
 
 import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
-import { XERC20WarpModule } from './XERC20WarpModule.js';
+import { EvmXERC20Module } from './EvmXERC20Module.js';
 import { DeployableTokenType, TokenType } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import { hypERC20contracts } from './contracts.js';
@@ -798,13 +797,6 @@ export class EvmWarpModule extends HyperlaneModule<
     });
   }
 
-  /**
-   * Create transactions to correct XERC20 limit drift.
-   * Detects bridges and limits that don't match config and generates correction txs.
-   *
-   * @param expectedConfig - The expected token router configuration.
-   * @returns Ethereum transactions to correct XERC20 drift.
-   */
   async createXERC20DriftCorrectionTxs(
     expectedConfig: HypTokenRouterConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
@@ -812,41 +804,14 @@ export class EvmWarpModule extends HyperlaneModule<
       return [];
     }
 
-    const warpRouteConfig = { [this.chainName]: expectedConfig };
-    const warpCoreConfig = {
-      tokens: [
-        {
-          chainName: this.chainName,
-          addressOrDenom: this.args.addresses.deployedTokenRoute,
-        },
-      ],
-    } as WarpCoreConfig;
-
-    const xerc20Module = new XERC20WarpModule(
+    const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
       this.multiProvider,
-      warpRouteConfig,
-      warpCoreConfig,
+      this.chainName,
+      expectedConfig,
+      this.args.addresses.deployedTokenRoute,
     );
 
-    const drift = await xerc20Module.detectDrift(this.chainName);
-
-    const hasDrift =
-      drift.missingBridges.length > 0 ||
-      drift.extraBridges.length > 0 ||
-      drift.limitMismatches.length > 0;
-
-    if (!hasDrift) {
-      return [];
-    }
-
-    this.logger.info(
-      `Detected XERC20 drift on ${this.chainName}: ` +
-        `${drift.missingBridges.length} missing bridges, ` +
-        `${drift.extraBridges.length} extra bridges, ` +
-        `${drift.limitMismatches.length} limit mismatches`,
-    );
-
-    return xerc20Module.generateDriftCorrectionTxs(drift);
+    return module.update(config);
   }
 
   /**
