@@ -105,7 +105,7 @@ export function getCombinedWarpRoutePath(
 ): string {
   return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
-    chains.sort().join('-'),
+    [...chains].sort().join('-'),
   )}-config.yaml`;
 }
 
@@ -115,13 +115,13 @@ export function getCombinedWarpDeployPath(
 ): string {
   return `${REGISTRY_PATH}/deployments/warp_routes/${createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
-    chains.sort().join('-'),
+    [...chains].sort().join('-'),
   )}-deploy.yaml`;
 }
 
 export function getWarpRouteId(tokenSymbol: string, chains: string[]): string {
   return createWarpRouteConfigId(
     tokenSymbol.toUpperCase(),
-    chains.sort().join('-'),
+    [...chains].sort().join('-'),
   );
 }
