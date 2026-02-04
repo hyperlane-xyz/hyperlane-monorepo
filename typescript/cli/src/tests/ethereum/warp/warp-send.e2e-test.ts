@@ -112,7 +112,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
     });
     expect(exitCode).to.equal(0);
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
@@ -129,7 +129,7 @@ describe('hyperlane warp send e2e tests', async function () {
     // Test with chains parameter
     const { stdout: stdoutChains, exitCode: exitCodeChains } =
       await hyperlaneWarpSendRelay({
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: warpId,
         chains: [CHAIN_NAME_3, CHAIN_NAME_2],
       });
     expect(exitCodeChains).to.equal(0);
@@ -143,7 +143,7 @@ describe('hyperlane warp send e2e tests', async function () {
     // Test with --round-trip parameter with --chains
     const { stdout: stdoutRoundTrip, exitCode: exitCodeRoundTrip } =
       await hyperlaneWarpSendRelay({
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: warpId,
         chains: [CHAIN_NAME_2, CHAIN_NAME_3],
         roundTrip: true,
       });
@@ -155,7 +155,7 @@ describe('hyperlane warp send e2e tests', async function () {
       stdout: stdoutRoundTripOriginDestination,
       exitCode: exitCodeRoundTripOriginDestination,
     } = await hyperlaneWarpSendRelay({
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
       roundTrip: true,
@@ -265,7 +265,7 @@ describe('hyperlane warp send e2e tests', async function () {
       const { stdout, exitCode } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: warpId,
         relay: true,
         value: testAmount,
       });
@@ -297,6 +297,10 @@ describe('hyperlane warp send e2e tests', async function () {
     ]);
     const tokenSymbolChain2 = await tokenChain2.symbol();
 
+    const warpId = createWarpRouteConfigId(
+      tokenSymbolChain2,
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
+    );
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
       tokenSymbolChain2,
       [WARP_DEPLOY_DEFAULT_FILE_NAME],
@@ -318,7 +322,7 @@ describe('hyperlane warp send e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -339,7 +343,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout } = await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
       value: Number(collateral),
     });
     expect(stdout).to.include(WarpSendLogs.SUCCESS);
@@ -355,6 +359,10 @@ describe('hyperlane warp send e2e tests', async function () {
   });
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.synthetic}`, async function () {
+    const warpId = createWarpRouteConfigId(
+      'ETH',
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
+    );
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
       WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
@@ -373,7 +381,7 @@ describe('hyperlane warp send e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -392,7 +400,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
     });
 
     expect(exitCode).to.equal(0);
@@ -411,6 +419,10 @@ describe('hyperlane warp send e2e tests', async function () {
   });
 
   it(`should be able to bridge between ${TokenType.native} and ${TokenType.native}`, async function () {
+    const warpId = createWarpRouteConfigId(
+      'ETH',
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
+    );
     const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
       WARP_DEPLOY_DEFAULT_FILE_NAME,
     ]);
@@ -429,7 +441,7 @@ describe('hyperlane warp send e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
     const config: ChainMap<Token> = (
       readYamlOrJson(WARP_CORE_CONFIG_PATH_2_3) as WarpCoreConfig
@@ -446,7 +458,7 @@ describe('hyperlane warp send e2e tests', async function () {
       await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
 
     const { stdout, exitCode } = await hyperlaneWarpSendRelay({
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
       value: Number(collateral),
     });
 
@@ -463,9 +475,10 @@ describe('hyperlane warp send e2e tests', async function () {
   });
 
   it(`should not be able to bridge between ${TokenType.native} and ${TokenType.native} when the token on the destination chain does not have enough collateral`, async function () {
-    const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath('ETH', [
+    const warpId = createWarpRouteConfigId(
+      'ETH',
       WARP_DEPLOY_DEFAULT_FILE_NAME,
-    ]);
+    );
 
     const warpConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
@@ -481,7 +494,7 @@ describe('hyperlane warp send e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
     const [nativeBalanceOnChain1Before, nativeBalanceOnChain2Before] =
       await Promise.all([walletChain2.getBalance(), walletChain3.getBalance()]);
@@ -489,7 +502,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { exitCode, stdout } = await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
       value: Number(parseEther('1')),
     }).nothrow();
 
@@ -512,9 +525,9 @@ describe('hyperlane warp send e2e tests', async function () {
     ]);
     const tokenSymbolChain2 = await tokenChain2.symbol();
 
-    const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(
+    const warpId = createWarpRouteConfigId(
       tokenSymbolChain2,
-      [WARP_DEPLOY_DEFAULT_FILE_NAME],
+      WARP_DEPLOY_DEFAULT_FILE_NAME,
     );
 
     const warpConfig: WarpRouteDeployConfig = {
@@ -533,7 +546,7 @@ describe('hyperlane warp send e2e tests', async function () {
     };
 
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
-    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH);
+    await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, warpId);
 
     const [tokenBalanceOnChain2Before, tokenBalanceOnChain3Before] =
       await Promise.all([
@@ -544,7 +557,7 @@ describe('hyperlane warp send e2e tests', async function () {
     const { exitCode, stdout } = await hyperlaneWarpSendRelay({
       origin: CHAIN_NAME_2,
       destination: CHAIN_NAME_3,
-      warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+      warpRouteId: warpId,
     }).nothrow();
 
     expect(exitCode).to.equal(1);

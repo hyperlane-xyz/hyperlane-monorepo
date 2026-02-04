@@ -30,6 +30,7 @@ import {
   REGISTRY_PATH,
   WARP_CONFIG_PATH_1,
   WARP_CORE_CONFIG_PATH_1,
+  WARP_DEPLOY_1_ID,
   WARP_DEPLOY_CONFIG_PATH_1,
 } from '../consts.js';
 
@@ -124,7 +125,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: nonExistingFilePath,
+          warpRouteId: nonExistingFilePath,
         })
         .stdio('pipe')
         .nothrow();
@@ -133,7 +134,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route deploy config found!`,
       );
     });
 
@@ -180,7 +181,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarp
-        .deployRaw({ warpDeployPath: WARP_DEPLOY_CONFIG_PATH_1 })
+        .deployRaw({ warpRouteId: WARP_DEPLOY_1_ID })
         .stdio('pipe')
         .nothrow();
 
@@ -279,7 +280,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: nonExistingFilePath,
+          warpRouteId: nonExistingFilePath,
           skipConfirmationPrompts: true,
         })
         .stdio('pipe')
@@ -289,7 +290,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route deploy config found!`,
       );
     });
 
@@ -332,7 +333,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       // Deploy
       const output = hyperlaneWarp
         .deployRaw({
-          warpDeployPath: WARP_DEPLOY_CONFIG_PATH_1,
+          warpRouteId: WARP_DEPLOY_1_ID,
           skipConfirmationPrompts: true,
         })
         .stdio('pipe')

@@ -60,7 +60,10 @@ describe('hyperlane warp check e2e tests', async function () {
     ]);
   });
 
-  async function deployAndExportWarpRoute(): Promise<WarpRouteDeployConfig> {
+  async function deployAndExportWarpRoute(): Promise<{
+    warpConfig: WarpRouteDeployConfig;
+    warpRouteId: string;
+  }> {
     writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
     // currently warp deploy is not writing the deploy config to the registry
     // should remove this once the deploy config is written to the registry
@@ -76,7 +79,7 @@ describe('hyperlane warp check e2e tests', async function () {
 
     await hyperlaneWarpDeploy(WARP_DEPLOY_OUTPUT_PATH, currentWarpId);
 
-    return warpConfig;
+    return { warpConfig, warpRouteId: currentWarpId };
   }
 
   // Reset config before each test to avoid test changes intertwining
@@ -97,13 +100,12 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  describe('hyperlane warp check --config ... --warp ...', () => {
+  describe('hyperlane warp check --warp-route-id ...', () => {
     it(`should not find any differences between the on chain config and the local one`, async function () {
-      await deployAndExportWarpRoute();
+      const { warpRouteId } = await deployAndExportWarpRoute();
 
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId,
       });
 
       expect(output.exitCode).to.equal(0);
@@ -119,11 +121,10 @@ describe('hyperlane warp check e2e tests', async function () {
       });
 
       it(`should not find any differences between the on chain config and the local one`, async function () {
-        await deployAndExportWarpRoute();
+        const { warpRouteId } = await deployAndExportWarpRoute();
 
         const output = await hyperlaneWarpCheckRaw({
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-          warpCoreConfigPath: combinedWarpCoreConfigPath,
+          warpRouteId,
         });
 
         expect(output.exitCode).to.equal(0);
@@ -143,11 +144,10 @@ describe('hyperlane warp check e2e tests', async function () {
       });
 
       it(`should not find any differences between the on chain config and the local one`, async function () {
-        await deployAndExportWarpRoute();
+        const { warpRouteId } = await deployAndExportWarpRoute();
 
         const output = await hyperlaneWarpCheckRaw({
-          warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-          warpCoreConfigPath: combinedWarpCoreConfigPath,
+          warpRouteId,
         });
 
         expect(output.exitCode).to.equal(0);
@@ -156,7 +156,8 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences between the local config and the on chain config in the ism`, async function () {
-      const warpDeployConfig = await deployAndExportWarpRoute();
+      const { warpConfig: warpDeployConfig, warpRouteId } =
+        await deployAndExportWarpRoute();
       warpDeployConfig[CHAIN_NAME_3].interchainSecurityModule = {
         type: IsmType.TRUSTED_RELAYER,
         relayer: ownerAddress,
@@ -164,10 +165,13 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED:`;
       const expectedActualText = `ACTUAL: "${zeroAddress.toLowerCase()}"\n`;
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+      const registryDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
+      );
+      writeYamlOrJson(registryDeployPath, warpDeployConfig);
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -178,7 +182,8 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences between the local config and the on chain config`, async function () {
-      const warpDeployConfig = await deployAndExportWarpRoute();
+      const { warpConfig: warpDeployConfig, warpRouteId } =
+        await deployAndExportWarpRoute();
 
       const wrongOwner = randomAddress();
       warpDeployConfig[CHAIN_NAME_3].owner = wrongOwner;
@@ -186,11 +191,14 @@ describe('hyperlane warp check e2e tests', async function () {
       const expectedDiffText = `EXPECTED: "${wrongOwner.toLowerCase()}"\n`;
       const expectedActualText = `ACTUAL: "${ownerAddress.toLowerCase()}"\n`;
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+      const registryDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
+      );
+      writeYamlOrJson(registryDeployPath, warpDeployConfig);
 
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId,
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
@@ -199,27 +207,25 @@ describe('hyperlane warp check e2e tests', async function () {
     });
 
     it(`should find differences in the remoteRouters config between the local and on chain config`, async function () {
-      const warpDeployConfig = await deployAndExportWarpRoute();
-
-      const WARP_CORE_CONFIG_PATH_2_3 = getCombinedWarpRoutePath(tokenSymbol, [
-        CHAIN_NAME_3,
-      ]);
+      const { warpConfig: warpDeployConfig, warpRouteId } =
+        await deployAndExportWarpRoute();
 
       // Unenroll CHAIN 2 from CHAIN 3
       warpDeployConfig[CHAIN_NAME_3].remoteRouters = {};
 
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
-      await hyperlaneWarpApply(
-        WARP_DEPLOY_OUTPUT_PATH,
-        WARP_CORE_CONFIG_PATH_2_3,
+      const registryDeployPath = combinedWarpCoreConfigPath.replace(
+        '-config.yaml',
+        '-deploy.yaml',
       );
+      writeYamlOrJson(registryDeployPath, warpDeployConfig);
+      await hyperlaneWarpApply(warpRouteId);
 
       // Reset the config to the original state to trigger the inconsistency
       warpDeployConfig[CHAIN_NAME_3].remoteRouters = undefined;
-      writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpDeployConfig);
+      writeYamlOrJson(registryDeployPath, warpDeployConfig);
 
       const warpCore: WarpCoreConfig = readYamlOrJson(
-        WARP_CORE_CONFIG_PATH_2_3,
+        combinedWarpCoreConfigPath,
       );
 
       // Find the token for CHAIN_NAME_2 since we're unenrolling it from CHAIN 3
@@ -234,8 +240,7 @@ describe('hyperlane warp check e2e tests', async function () {
       );
 
       const output = await hyperlaneWarpCheckRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
-        warpCoreConfigPath: combinedWarpCoreConfigPath,
+        warpRouteId,
       }).nothrow();
 
       expect(output.exitCode).to.equal(1);
