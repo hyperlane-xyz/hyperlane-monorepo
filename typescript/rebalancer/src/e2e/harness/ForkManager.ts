@@ -1,4 +1,5 @@
 import { ethers, providers } from 'ethers';
+import { type Logger, pino } from 'pino';
 
 import {
   type IRegistry,
@@ -91,9 +92,11 @@ function createMergedRegistryWithForks(
 export class ForkManager {
   private forkContext?: ForkContext;
   private config: ForkManagerConfig;
+  private readonly logger: Logger;
 
   constructor(config: ForkManagerConfig) {
     this.config = config;
+    this.logger = pino({ level: 'debug' }).child({ module: 'ForkManager' });
   }
 
   async start(): Promise<ForkContext> {
@@ -154,8 +157,11 @@ export class ForkManager {
 
   private async killForks(forks: Map<string, ForkResult>): Promise<void> {
     const killPromises = Array.from(forks.values()).map((fork) =>
-      fork.kill().catch((_err) => {
-        // Silently ignore kill errors - fork may already be dead
+      fork.kill().catch((err) => {
+        this.logger.debug(
+          { chain: fork.chainName, error: err.message },
+          'Fork kill failed (may already be dead)',
+        );
       }),
     );
     await Promise.all(killPromises);
