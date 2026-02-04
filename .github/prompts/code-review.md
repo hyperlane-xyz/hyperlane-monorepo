@@ -45,6 +45,13 @@ Review this pull request. Focus on:
 - **Avoid type casts** - Fix underlying types rather than using `as` assertions
 - **No `any` types** - Use `unknown` with type guards if type is truly unknown
 
+## Common TypeScript Anti-Patterns
+
+- **`forEach` with assignment** - `arr.forEach(x => (obj[x] = val))` returns value; use `for-of` with block body
+- **`array.sort()` mutates** - Use `[...array].sort()` to avoid mutating input
+- **Double-cast `as unknown as X`** - Hides type mismatches; use single cast or fix types
+- **Stale test `describe()` strings** - Keep in sync with actual CLI flags/behavior
+
 ## Solidity Patterns
 
 - **Events for state changes** - All storage mutations should emit events

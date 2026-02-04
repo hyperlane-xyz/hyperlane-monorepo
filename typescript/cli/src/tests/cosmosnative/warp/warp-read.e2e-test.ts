@@ -100,7 +100,7 @@ describe('hyperlane warp read e2e tests', async function () {
     writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
   });
 
-  describe('hyperlane warp read --config ...', () => {
+  describe('hyperlane warp read (no args)', () => {
     it('should exit early if no symbol or no chain and address', async () => {
       await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 
@@ -169,7 +169,7 @@ describe('hyperlane warp read e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp read --chain ... --config ...', () => {
+  describe('hyperlane warp read --chain ... --warp-route-id ...', () => {
     it('should be able to read a warp route', async function () {
       await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 

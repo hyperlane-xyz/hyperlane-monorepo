@@ -65,7 +65,7 @@ describe('resolveWarpRouteId', () => {
       getWarpRoute: async (routeId: string) => {
         return warpCoreConfigs[routeId] || null;
       },
-    }) as unknown as IRegistry;
+    }) as IRegistry;
 
   const createMockContext = (
     skipConfirmation: boolean = false,
@@ -74,7 +74,7 @@ describe('resolveWarpRouteId', () => {
     ({
       registry,
       skipConfirmation,
-    }) as unknown as CommandContext;
+    }) as CommandContext;
 
   it('should return warp route ID unchanged when it contains a slash', async () => {
     const context = createMockContext();

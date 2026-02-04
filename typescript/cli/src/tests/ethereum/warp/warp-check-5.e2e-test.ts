@@ -108,7 +108,7 @@ describe('hyperlane warp check e2e tests', async function () {
     };
   });
 
-  describe('hyperlane warp check --config ... --warp ...', () => {
+  describe('hyperlane warp check --warp-route-id ...', () => {
     it(`should find differences in the hook config between the local and on chain config if it needs to be expanded`, async function () {
       warpConfig[CHAIN_NAME_2].hook = {
         type: HookType.MERKLE_TREE,
