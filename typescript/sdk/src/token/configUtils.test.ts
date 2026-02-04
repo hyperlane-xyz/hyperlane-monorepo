@@ -8,8 +8,11 @@ import { IsmType } from '../ism/types.js';
 
 import { TokenType } from './config.js';
 import {
+  filterWarpCoreConfigMapByChains,
+  getChainsFromWarpCoreConfig,
   resolveTokenFeeAddress,
   transformConfigToCheck,
+  warpCoreConfigMatchesChains,
 } from './configUtils.js';
 import { HypTokenConfig } from './types.js';
 
@@ -315,6 +318,104 @@ describe('configUtils', () => {
 
       expect(result.token).to.equal(ROUTER_ADDRESS);
       expect(result.type).to.equal(TokenFeeType.RoutingFee);
+    });
+  });
+
+  describe('getChainsFromWarpCoreConfig', () => {
+    it('should return chain names from tokens', () => {
+      const config = {
+        tokens: [
+          { chainName: 'ethereum', addressOrDenom: '0x1' },
+          { chainName: 'arbitrum', addressOrDenom: '0x2' },
+          { chainName: 'optimism', addressOrDenom: '0x3' },
+        ],
+      } as any;
+
+      const result = getChainsFromWarpCoreConfig(config);
+      expect(result).to.deep.equal(['ethereum', 'arbitrum', 'optimism']);
+    });
+
+    it('should return empty array for empty tokens', () => {
+      const config = { tokens: [] } as any;
+      const result = getChainsFromWarpCoreConfig(config);
+      expect(result).to.deep.equal([]);
+    });
+  });
+
+  describe('warpCoreConfigMatchesChains', () => {
+    const config = {
+      tokens: [
+        { chainName: 'ethereum', addressOrDenom: '0x1' },
+        { chainName: 'arbitrum', addressOrDenom: '0x2' },
+        { chainName: 'optimism', addressOrDenom: '0x3' },
+      ],
+    } as any;
+
+    it('should return true when all chains are present', () => {
+      expect(warpCoreConfigMatchesChains(config, ['ethereum', 'arbitrum'])).to
+        .be.true;
+    });
+
+    it('should return true for single chain match', () => {
+      expect(warpCoreConfigMatchesChains(config, ['optimism'])).to.be.true;
+    });
+
+    it('should return false when a chain is missing', () => {
+      expect(warpCoreConfigMatchesChains(config, ['ethereum', 'polygon'])).to.be
+        .false;
+    });
+
+    it('should return true for empty chains array', () => {
+      expect(warpCoreConfigMatchesChains(config, [])).to.be.true;
+    });
+  });
+
+  describe('filterWarpCoreConfigMapByChains', () => {
+    const configMap = {
+      'ETH/ethereum-arbitrum': {
+        tokens: [
+          { chainName: 'ethereum', addressOrDenom: '0x1' },
+          { chainName: 'arbitrum', addressOrDenom: '0x2' },
+        ],
+      },
+      'ETH/ethereum-optimism': {
+        tokens: [
+          { chainName: 'ethereum', addressOrDenom: '0x3' },
+          { chainName: 'optimism', addressOrDenom: '0x4' },
+        ],
+      },
+      'USDC/arbitrum-optimism': {
+        tokens: [
+          { chainName: 'arbitrum', addressOrDenom: '0x5' },
+          { chainName: 'optimism', addressOrDenom: '0x6' },
+        ],
+      },
+    } as any;
+
+    it('should filter to routes containing all specified chains', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, [
+        'ethereum',
+        'arbitrum',
+      ]);
+      expect(Object.keys(result)).to.deep.equal(['ETH/ethereum-arbitrum']);
+    });
+
+    it('should return multiple routes when chains match multiple', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, ['ethereum']);
+      expect(Object.keys(result).sort()).to.deep.equal([
+        'ETH/ethereum-arbitrum',
+        'ETH/ethereum-optimism',
+      ]);
+    });
+
+    it('should return empty object when no routes match', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, ['polygon']);
+      expect(Object.keys(result)).to.have.lengthOf(0);
+    });
+
+    it('should return all routes for empty chains array', () => {
+      const result = filterWarpCoreConfigMapByChains(configMap, []);
+      expect(Object.keys(result)).to.have.lengthOf(3);
     });
   });
 });

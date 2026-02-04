@@ -118,8 +118,9 @@ export const DEFAULT_STRATEGY_CONFIG_PATH = `${os.homedir()}/.hyperlane/strategi
 
 export const warpRouteIdCommandOption: Options = {
   type: 'string',
-  description: 'Warp route ID from registry (e.g., ETH/hyperlane)',
-  alias: 'w',
+  description:
+    'Warp route ID from registry (e.g., ETH/hyperlane). Aliases: -w, --id',
+  alias: ['w', 'id'],
 };
 
 export const chainTargetsCommandOption: Options = stringArrayOptionConfig({
