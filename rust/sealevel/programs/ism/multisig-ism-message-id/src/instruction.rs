@@ -1,6 +1,7 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H160;
+use shank::{ShankInstruction, ShankType};
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
@@ -12,33 +13,63 @@ use std::collections::HashSet;
 
 use crate::{access_control_pda_seeds, domain_data_pda_seeds, error::Error};
 
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankInstruction)]
 pub enum Instruction {
     /// Initializes the program.
-    ///
-    /// Accounts:
-    /// 0. `[signer]` The new owner and payer of the access control PDA.
-    /// 1. `[writable]` The access control PDA account.
-    /// 2. `[executable]` The system program account.
+    #[account(
+        0,
+        signer,
+        name = "payer",
+        desc = "The new owner and payer of the access control PDA"
+    )]
+    #[account(
+        1,
+        writable,
+        name = "access_control_pda",
+        desc = "The access control PDA account"
+    )]
+    #[account(2, name = "system_program", desc = "The system program account")]
     Initialize,
     /// Input: domain ID, validators, & threshold to set.
-    ///
-    /// Accounts:
-    /// 0. `[signer]` The access control owner and payer of the domain PDA.
-    /// 1. `[]` The access control PDA account.
-    /// 2. `[writable]` The PDA relating to the provided domain.
-    /// 3. `[executable]` OPTIONAL - The system program account. Required if creating the domain PDA.
+    #[account(
+        0,
+        signer,
+        name = "owner_payer",
+        desc = "The access control owner and payer of the domain PDA"
+    )]
+    #[account(
+        1,
+        name = "access_control_pda",
+        desc = "The access control PDA account"
+    )]
+    #[account(
+        2,
+        writable,
+        name = "domain_pda",
+        desc = "The PDA relating to the provided domain"
+    )]
+    #[account(
+        3,
+        name = "system_program",
+        desc = "OPTIONAL - The system program account. Required if creating the domain PDA"
+    )]
+    #[idl_type("DomainedValidatorsAndThreshold")]
     SetValidatorsAndThreshold(Domained<ValidatorsAndThreshold>),
     /// Gets the owner from the access control data.
-    ///
-    /// Accounts:
-    /// 0. `[]` The access control PDA account.
+    #[account(
+        0,
+        name = "access_control_pda",
+        desc = "The access control PDA account"
+    )]
     GetOwner,
     /// Sets the owner in the access control data.
-    ///
-    /// Accounts:
-    /// 0. `[signer]` The current access control owner.
-    /// 1. `[]` The access control PDA account.
+    #[account(0, signer, name = "owner", desc = "The current access control owner")]
+    #[account(
+        1,
+        writable,
+        name = "access_control_pda",
+        desc = "The access control PDA account"
+    )]
     TransferOwnership(Option<Pubkey>),
 }
 
@@ -55,17 +86,27 @@ impl TryFrom<&[u8]> for Instruction {
 }
 
 /// Holds data relating to a specific domain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone, ShankType)]
 pub struct Domained<T> {
+    #[skip]
     pub domain: u32,
+    #[skip]
     pub data: T,
 }
 
 /// A configuration of a validator set and threshold.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, Clone, ShankType)]
 pub struct ValidatorsAndThreshold {
+    #[idl_type("Vec<[u8; 20]>")]
     pub validators: Vec<H160>,
     pub threshold: u8,
+}
+
+/// Domain-specific validators and threshold configuration for IDL generation.
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone, ShankType)]
+pub struct DomainedValidatorsAndThreshold {
+    pub domain: u32,
+    pub data: ValidatorsAndThreshold,
 }
 
 impl ValidatorsAndThreshold {

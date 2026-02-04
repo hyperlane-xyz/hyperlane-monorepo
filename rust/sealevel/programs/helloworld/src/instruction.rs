@@ -1,8 +1,11 @@
 //! HelloWorld instructions.
 
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+
+#[allow(unused_imports)]
+use crate::types::{RemoteRouterConfig, RemoteRouterConfigProxy};
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use shank::{ShankInstruction, ShankType};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
     program_error::ProgramError,
@@ -12,7 +15,7 @@ use solana_program::{
 use crate::program_storage_pda_seeds;
 
 /// Init instruction data.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, ShankType)]
 pub struct Init {
     /// The local domain.
     pub local_domain: u32,
@@ -27,7 +30,7 @@ pub struct Init {
 }
 
 /// A HelloWorld message.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, ShankType)]
 pub struct HelloWorldMessage {
     /// The destination domain.
     pub destination: u32,
@@ -36,15 +39,37 @@ pub struct HelloWorldMessage {
 }
 
 /// Instructions for the program.
-#[derive(BorshSerialize, BorshDeserialize, Debug)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, ShankInstruction)]
+#[rustfmt::skip]
 pub enum HelloWorldInstruction {
     /// Initializes the program.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, signer, name = "payer", desc = "Payer")]
+    #[account(2, writable, name = "program_storage", desc = "Program storage PDA")]
     Init(Init),
+
     /// Dispatches a message using the dispatch authority.
+    #[account(0, writable, name = "program_storage", desc = "Program storage")]
+    #[account(1, name = "mailbox_program", desc = "Mailbox program")]
+    #[account(2, writable, name = "mailbox_outbox", desc = "Mailbox outbox PDA")]
+    #[account(3, name = "dispatch_authority", desc = "Dispatch authority PDA")]
+    #[account(4, name = "system_program", desc = "System program")]
+    #[account(5, name = "spl_noop", desc = "SPL Noop program")]
+    #[account(6, signer, name = "payer", desc = "Payer")]
+    #[account(7, signer, name = "unique_message", desc = "Unique message account")]
+    #[account(8, writable, name = "dispatched_message", desc = "Dispatched message PDA")]
     SendHelloWorld(HelloWorldMessage),
+
     /// Sets the ISM.
+    #[account(0, writable, name = "program_storage", desc = "Program storage PDA")]
+    #[account(1, signer, name = "owner", desc = "Owner")]
     SetInterchainSecurityModule(Option<Pubkey>),
+
     /// Enrolls remote routers
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, writable, name = "program_storage", desc = "Program storage PDA")]
+    #[account(2, signer, name = "owner", desc = "Owner")]
+    #[idl_type("Vec<RemoteRouterConfigProxy>")]
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
 }
 

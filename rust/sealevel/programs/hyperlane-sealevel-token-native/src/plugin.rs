@@ -9,6 +9,7 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::SerializableAccountMeta;
+use shank::ShankAccount;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     instruction::AccountMeta,
@@ -40,7 +41,7 @@ macro_rules! hyperlane_token_native_collateral_pda_seeds {
 /// A plugin for the Hyperlane token program that transfers native
 /// tokens in from a sender when sending to a remote chain, and transfers
 /// native tokens out to recipients when receiving from a remote chain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct NativePlugin {
     /// The bump seed for the native collateral PDA account.
     pub native_collateral_bump: u8,

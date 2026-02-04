@@ -6,7 +6,11 @@ use std::io::Read;
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
-use hyperlane_core::{accumulator::incremental::IncrementalMerkle as MerkleTree, H256};
+use hyperlane_core::H256;
+
+#[allow(unused_imports)]
+use crate::types::{MerkleTree, MerkleTreeProxy};
+use shank::ShankAccount;
 use solana_program::{
     account_info::AccountInfo, clock::Slot, program_error::ProgramError, pubkey::Pubkey,
 };
@@ -17,7 +21,7 @@ use crate::{mailbox_inbox_pda_seeds, mailbox_outbox_pda_seeds, protocol_fee::Pro
 pub type InboxAccount = AccountData<Inbox>;
 
 /// The Inbox account data, which is used when processing messages.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq, ShankAccount)]
 pub struct Inbox {
     /// The local domain.
     pub local_domain: u32,
@@ -90,7 +94,7 @@ impl Inbox {
 pub type OutboxAccount = AccountData<Outbox>;
 
 /// The Outbox account data, which is used when dispatching messages.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, Eq, ShankAccount)]
 pub struct Outbox {
     /// The local domain.
     pub local_domain: u32,
@@ -99,6 +103,7 @@ pub struct Outbox {
     /// The owner of this program, which has privileged permissions.
     pub owner: Option<Pubkey>,
     /// The merkle tree of dispatched messages.
+    #[idl_type("MerkleTreeProxy")]
     pub tree: MerkleTree,
     /// Max protocol fee that can be set.
     pub max_protocol_fee: u64,
@@ -160,13 +165,14 @@ pub type DispatchedMessageAccount = AccountData<DispatchedMessage>;
 pub const DISPATCHED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"DISPATCH";
 
 /// A dispatched message.
-#[derive(Debug, Default, Eq, PartialEq)]
+#[derive(Debug, Default, Eq, PartialEq, ShankAccount)]
 pub struct DispatchedMessage {
     /// The discriminator, intended to be set to `DISPATCHED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
     /// The nonce of the message.
     pub nonce: u32,
     /// The slot in which the message was dispatched.
+    #[idl_type(u64)]
     pub slot: Slot,
     /// The unique message pubkey used when the message was dispatched.
     pub unique_message_pubkey: Pubkey,
@@ -256,7 +262,7 @@ pub type ProcessedMessageAccount = AccountData<ProcessedMessage>;
 pub const PROCESSED_MESSAGE_DISCRIMINATOR: &[u8; 8] = b"PROCESSD";
 
 /// A processed message.
-#[derive(Debug, Default, Eq, PartialEq, BorshSerialize)]
+#[derive(Debug, Default, Eq, PartialEq, BorshSerialize, ShankAccount)]
 pub struct ProcessedMessage {
     /// The discriminator, intended to be set to `PROCESSED_MESSAGE_DISCRIMINATOR`.
     pub discriminator: [u8; 8],
@@ -264,8 +270,10 @@ pub struct ProcessedMessage {
     /// This way, we can easily index processed messages.
     pub sequence: u64,
     /// The message ID of the processed message.
+    #[idl_type("[u8; 32]")]
     pub message_id: H256,
     /// The slot in which the message was processed.
+    #[idl_type(u64)]
     pub slot: Slot,
 }
 
