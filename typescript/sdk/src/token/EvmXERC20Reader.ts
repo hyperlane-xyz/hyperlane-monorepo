@@ -143,12 +143,17 @@ export class EvmXERC20Reader extends HyperlaneReader {
       logs,
     });
 
-    // Track latest log per bridge
+    // Track latest log per bridge (use logIndex as tiebreaker for same block)
     const bridgeToLatestLog = new Map<string, (typeof parsedLogs)[0]>();
     for (const log of parsedLogs) {
       const bridge = normalizeAddress(log.args.bridge);
       const existing = bridgeToLatestLog.get(bridge);
-      if (!existing || log.blockNumber > existing.blockNumber) {
+      const isMoreRecent =
+        !existing ||
+        log.blockNumber > existing.blockNumber ||
+        (log.blockNumber === existing.blockNumber &&
+          log.logIndex > existing.logIndex);
+      if (isMoreRecent) {
         bridgeToLatestLog.set(bridge, log);
       }
     }

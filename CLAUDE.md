@@ -422,8 +422,8 @@ Common issues caught in code review:
 // Define
 export enum MyType { Foo = 'foo', Bar = 'bar' }
 
-// In interfaces
-export interface FooConfig { type: typeof MyType.Foo; ... }
+// In interfaces - use the enum member type directly
+export interface FooConfig { type: MyType.Foo; ... }
 
 // In comparisons
 if (config.type === MyType.Foo) { ... }

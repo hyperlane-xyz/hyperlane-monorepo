@@ -216,7 +216,7 @@ export class EvmXERC20Module extends HyperlaneModule<
     const chainId = this.multiProvider.getEvmChainId(this.chainName);
     const transactions: AnnotatedEV5Transaction[] = [];
 
-    if (limits.type === 'standard') {
+    if (limits.type === XERC20Type.Standard) {
       const adapter = new EvmXERC20Adapter(
         this.chainName,
         this.multiProtocolProvider,
@@ -265,7 +265,7 @@ export class EvmXERC20Module extends HyperlaneModule<
     bridge: Address,
     limits: XERC20Limits,
   ): Promise<AnnotatedEV5Transaction[]> {
-    if (limits.type === 'standard') {
+    if (limits.type === XERC20Type.Standard) {
       return this.generateSetLimitsTxs(bridge, limits);
     }
 
@@ -364,7 +364,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       const warpRouteLimits = xERC20Config.warpRouteLimits;
 
       if (warpRouteLimits.type === XERC20Type.Standard) {
-        if (warpRouteLimits.mint && warpRouteLimits.burn) {
+        if (warpRouteLimits.mint != null && warpRouteLimits.burn != null) {
           limits[warpRouteAddress] = {
             type: XERC20Type.Standard,
             mint: warpRouteLimits.mint,
@@ -372,7 +372,10 @@ export class EvmXERC20Module extends HyperlaneModule<
           };
         }
       } else if (warpRouteLimits.type === XERC20Type.Velo) {
-        if (warpRouteLimits.bufferCap && warpRouteLimits.rateLimitPerSecond) {
+        if (
+          warpRouteLimits.bufferCap != null &&
+          warpRouteLimits.rateLimitPerSecond != null
+        ) {
           limits[warpRouteAddress] = {
             type: XERC20Type.Velo,
             bufferCap: warpRouteLimits.bufferCap,
@@ -386,7 +389,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       for (const extraBridge of xERC20Config.extraBridges) {
         const { lockbox, limits: bridgeLimits } = extraBridge;
         if (bridgeLimits.type === XERC20Type.Standard) {
-          if (bridgeLimits.mint && bridgeLimits.burn) {
+          if (bridgeLimits.mint != null && bridgeLimits.burn != null) {
             limits[lockbox] = {
               type: XERC20Type.Standard,
               mint: bridgeLimits.mint,
@@ -394,7 +397,10 @@ export class EvmXERC20Module extends HyperlaneModule<
             };
           }
         } else if (bridgeLimits.type === XERC20Type.Velo) {
-          if (bridgeLimits.bufferCap && bridgeLimits.rateLimitPerSecond) {
+          if (
+            bridgeLimits.bufferCap != null &&
+            bridgeLimits.rateLimitPerSecond != null
+          ) {
             limits[lockbox] = {
               type: XERC20Type.Velo,
               bufferCap: bridgeLimits.bufferCap,
