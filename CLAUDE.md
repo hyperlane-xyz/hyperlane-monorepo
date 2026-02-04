@@ -522,6 +522,7 @@ Available MCP servers:
 8. **Use `assert()` liberally** - For preconditions, invariants, and unexpected states
 9. **Check error patterns first** - Review existing error handling before adding new try/catch
 10. **Question fallbacks** - Undefined values often signal bugs; don't mask with defaults
+11. **Rebuild shared packages** - After changing `typescript/sdk` or `typescript/utils`, run `pnpm build` from repo root; Turbo handles deps/caching
 
 ## Verify Before Acting
 
