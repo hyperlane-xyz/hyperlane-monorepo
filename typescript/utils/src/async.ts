@@ -7,19 +7,18 @@ interface Recoverable {
   isRecoverable?: boolean;
 }
 
-export interface LazyAsyncOptions {
-  cacheErrors?: boolean;
-}
-
+/**
+ * Lazily initialized async value with deduplication.
+ * Concurrent callers share the same initialization promise.
+ * After successful init, returns cached value immediately.
+ * On error, clears state to allow retry on next call.
+ */
 export class LazyAsync<T> {
   private promise?: Promise<T>;
   private value?: T;
   private hasValue = false;
 
-  constructor(
-    private readonly initializer: () => Promise<T>,
-    private readonly options: LazyAsyncOptions = {},
-  ) {}
+  constructor(private readonly initializer: () => Promise<T>) {}
 
   get(): Promise<T> {
     if (this.hasValue) return Promise.resolve(this.value as T);
@@ -47,7 +46,7 @@ export class LazyAsync<T> {
       this.hasValue = true;
       return this.value;
     } catch (error) {
-      if (!this.options.cacheErrors) this.promise = undefined;
+      this.promise = undefined;
       throw error;
     }
   }

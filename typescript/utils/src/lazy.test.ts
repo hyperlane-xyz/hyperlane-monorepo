@@ -78,35 +78,6 @@ describe('LazyAsync', () => {
     expect(calls).to.equal(2);
   });
 
-  it('caches errors when cacheErrors is true', async () => {
-    let calls = 0;
-    const lazy = new LazyAsync(
-      async () => {
-        calls += 1;
-        throw new Error('boom');
-      },
-      { cacheErrors: true },
-    );
-
-    let err1: Error | undefined;
-    try {
-      await lazy.get();
-    } catch (e) {
-      err1 = e as Error;
-    }
-
-    let err2: Error | undefined;
-    try {
-      await lazy.get();
-    } catch (e) {
-      err2 = e as Error;
-    }
-
-    expect(err1?.message).to.equal('boom');
-    expect(err2?.message).to.equal('boom');
-    expect(calls).to.equal(1);
-  });
-
   it('reset clears and allows re-init', async () => {
     let calls = 0;
     const lazy = new LazyAsync(async () => {
