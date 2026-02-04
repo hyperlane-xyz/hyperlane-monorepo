@@ -9,6 +9,7 @@ Review this pull request. Focus on:
 - **Use existing utilities** - Search codebase before adding new helpers
 - **Prefer `??` over `||`** - Preserves zero/empty string as valid values
 - **Use `assert()` for preconditions** - Import from `@hyperlane-xyz/utils`
+- **Use `isNullish()` for null checks** - Type-safe null/undefined check from `@hyperlane-xyz/utils`
 
 ## Architecture
 
@@ -44,6 +45,18 @@ Review this pull request. Focus on:
 - **Zod schemas** - Follow existing patterns in `typescript/sdk/src/` for config validation
 - **Avoid type casts** - Fix underlying types rather than using `as` assertions
 - **No `any` types** - Use `unknown` with type guards if type is truly unknown
+- **No unnecessary assertions** - `!` (non-null) and `as` often mask bugs; prefer proper null checks
+
+## Common TypeScript Anti-Patterns
+
+- **`forEach` with assignment** - `arr.forEach(x => (obj[x] = val))` returns value; use `for-of` with block body
+- **`array.sort()` mutates** - Use `[...array].sort()` to avoid mutating input
+- **Double-cast `as unknown as X`** - Hides type mismatches; use single cast or fix types
+- **Non-null assertion `!`** - `value!` masks potential nulls; use `if (value)` or `??` instead
+- **Placeholder strings in typed maps** - Don't use `map['placeholder']` when type expects `Address`
+- **Duplicate test names** - Two `it('does X')` in same file hides intent; make names distinct
+- **Stale test `describe()` strings** - Keep in sync with actual CLI flags/behavior
+- **Unused imports** - Remove imports that aren't used
 
 ## Solidity Patterns
 
