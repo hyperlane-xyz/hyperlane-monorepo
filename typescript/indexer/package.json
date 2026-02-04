@@ -25,6 +25,7 @@
     "drizzle-orm": "^0.38.3",
     "hono": "catalog:",
     "pg": "^8.13.1",
+    "pino": "catalog:",
     "ponder": "^0.16.3",
     "viem": "catalog:"
   },
