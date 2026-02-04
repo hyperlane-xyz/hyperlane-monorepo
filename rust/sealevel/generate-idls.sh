@@ -13,7 +13,22 @@ echo "Generating IDLs for Hyperlane Sealevel programs..."
 echo "Output directory: $IDL_DIR"
 echo ""
 
-# Tier 1: Core Infrastructure
+# Tier 0: Library Crates (for IDL imports)
+echo "=== Tier 0: Library Crates ==="
+
+echo "Generating IDL for hyperlane-core..."
+cd "$SCRIPT_DIR/../main/hyperlane-core"
+shank idl -p hyperlane-core
+
+echo "Generating IDL for hyperlane-sealevel-connection-client..."
+cd "$SCRIPT_DIR/libraries/hyperlane-sealevel-connection-client"
+shank idl -p hyperlane-sealevel-connection-client
+
+echo "Generating IDL for hyperlane-sealevel-token-lib..."
+cd "$SCRIPT_DIR/libraries/hyperlane-sealevel-token"
+shank idl -p hyperlane-sealevel-token-lib
+
+echo ""
 echo "=== Tier 1: Core Infrastructure ==="
 
 echo "Generating IDL for mailbox..."

@@ -1,0 +1,334 @@
+{
+  "version": "2.0.0",
+  "name": "hyperlane_core",
+  "instructions": [],
+  "types": [
+    {
+      "name": "IncrementalMerkle",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "branch",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                },
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "count",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ModuleType",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Unused"
+          },
+          {
+            "name": "Routing"
+          },
+          {
+            "name": "Aggregation"
+          },
+          {
+            "name": "LegacyMultisig"
+          },
+          {
+            "name": "MerkleRootMultisig"
+          },
+          {
+            "name": "MessageIdMultisig"
+          },
+          {
+            "name": "Null"
+          },
+          {
+            "name": "CcipRead"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 0,
+      "name": "LeafReached",
+      "msg": "Trying to push in a leaf"
+    },
+    {
+      "code": 1,
+      "name": "MerkleTreeFull",
+      "msg": "No more space in the MerkleTree"
+    },
+    {
+      "code": 2,
+      "name": "Invalid",
+      "msg": "MerkleTree is invalid"
+    },
+    {
+      "code": 3,
+      "name": "DepthTooSmall",
+      "msg": "Incorrect Depth provided"
+    },
+    {
+      "code": 0,
+      "name": "UnknownDomainName",
+      "msg": "Domain name (`{0}`) does not match the name of a known domain id; the name is probably misspelled."
+    },
+    {
+      "code": 1,
+      "name": "DomainNameMismatch",
+      "msg": "The domain name (`{0}`) implies a different domain than the domain id provided; the domain id ({1}) is probably wrong."
+    },
+    {
+      "code": 0,
+      "name": "StrParse",
+      "msg": "Invalid integer provided as a string: {0}"
+    },
+    {
+      "code": 1,
+      "name": "InvalidInt",
+      "msg": "Provided number is an invalid integer: {0}"
+    },
+    {
+      "code": 2,
+      "name": "Other",
+      "msg": "Could not parse integer: {0}"
+    },
+    {
+      "code": 0,
+      "name": "HyperlaneProtocolError",
+      "msg": "transparent"
+    },
+    {
+      "code": 1,
+      "name": "ContractError",
+      "msg": "transparent"
+    },
+    {
+      "code": 2,
+      "name": "ContractNotFound",
+      "msg": "Address is not a contract {0}"
+    },
+    {
+      "code": 3,
+      "name": "TransactionDropped",
+      "msg": "Transaction dropped from mempool {0:?}"
+    },
+    {
+      "code": 4,
+      "name": "Other",
+      "msg": "transparent"
+    },
+    {
+      "code": 5,
+      "name": "TransactionTimeout",
+      "msg": "Transaction submission timed out"
+    },
+    {
+      "code": 6,
+      "name": "SignerUnavailable",
+      "msg": "Signer unavailable"
+    },
+    {
+      "code": 7,
+      "name": "BatchingFailed",
+      "msg": "Batching transaction failed"
+    },
+    {
+      "code": 8,
+      "name": "BatchIsEmpty",
+      "msg": "Cannot submit empty batch"
+    },
+    {
+      "code": 9,
+      "name": "StrOrIntParseError",
+      "msg": "Data parsing error {0:?}"
+    },
+    {
+      "code": 10,
+      "name": "Utf8",
+      "msg": "{0}"
+    },
+    {
+      "code": 11,
+      "name": "JsonParseError",
+      "msg": "{0}"
+    },
+    {
+      "code": 12,
+      "name": "HexParseError",
+      "msg": "{0}"
+    },
+    {
+      "code": 13,
+      "name": "UintParseError",
+      "msg": "{0}"
+    },
+    {
+      "code": 14,
+      "name": "FromDecStrError",
+      "msg": "{0}"
+    },
+    {
+      "code": 15,
+      "name": "ParseIntError",
+      "msg": "{0}"
+    },
+    {
+      "code": 16,
+      "name": "HashParsingError",
+      "msg": "{0}"
+    },
+    {
+      "code": 17,
+      "name": "InvalidRequest",
+      "msg": "Invalid Request: {msg:?}"
+    },
+    {
+      "code": 18,
+      "name": "ParseError",
+      "msg": "ParseError: {msg:?}"
+    },
+    {
+      "code": 19,
+      "name": "InsufficientFunds",
+      "msg": "Insufficient funds. Required: {required:?}, available: {available:?}"
+    },
+    {
+      "code": 20,
+      "name": "PrimitiveTypeError",
+      "msg": "transparent"
+    },
+    {
+      "code": 21,
+      "name": "ParseBigDecimalError",
+      "msg": "transparent"
+    },
+    {
+      "code": 22,
+      "name": "RpcClientError",
+      "msg": "transparent"
+    },
+    {
+      "code": 23,
+      "name": "TokioJoinError",
+      "msg": "transparent"
+    },
+    {
+      "code": 24,
+      "name": "CustomError",
+      "msg": "{0}"
+    },
+    {
+      "code": 25,
+      "name": "EyreError",
+      "msg": "{0}"
+    },
+    {
+      "code": 26,
+      "name": "HyperlaneSignerError",
+      "msg": "{0}"
+    },
+    {
+      "code": 27,
+      "name": "InvalidReorgPeriod",
+      "msg": "Invalid reorg period: {0:?}"
+    },
+    {
+      "code": 28,
+      "name": "TryFromIntError",
+      "msg": "{0}"
+    },
+    {
+      "code": 29,
+      "name": "SimulationFailed",
+      "msg": "Simulation failed: {0}"
+    },
+    {
+      "code": 0,
+      "name": "SignatureError",
+      "msg": "transparent"
+    },
+    {
+      "code": 1,
+      "name": "IoError",
+      "msg": "transparent"
+    },
+    {
+      "code": 2,
+      "name": "UnknownDomainId",
+      "msg": "Unknown or invalid domain ID ({0})"
+    },
+    {
+      "code": 3,
+      "name": "ProcessGasLimitRequired",
+      "msg": "A gas limit was expected for `process` contract call"
+    },
+    {
+      "code": 0,
+      "name": "FallbackProvidersFailed",
+      "msg": "All fallback providers failed. (Errors: {0:?})"
+    },
+    {
+      "code": 0,
+      "name": "NoGasUsed",
+      "msg": "Provider did not return gas used"
+    },
+    {
+      "code": 1,
+      "name": "CouldNotFindTransactionByHash",
+      "msg": "Could not find transaction from provider with hash {0:?}"
+    },
+    {
+      "code": 2,
+      "name": "CouldNotFindBlockByHeight",
+      "msg": "Could not find block from provider with height {0:?}"
+    },
+    {
+      "code": 3,
+      "name": "BlockWithoutHash",
+      "msg": "Block with height {0:?} does not contain its hash"
+    },
+    {
+      "code": 4,
+      "name": "IncorrectBlockByHeight",
+      "msg": "Requested block with height {0:?}, received block with height {1:?}"
+    },
+    {
+      "code": 0,
+      "name": "InconsistentCheckpoints",
+      "msg": "Multisig signed checkpoint is for inconsistent checkpoints"
+    },
+    {
+      "code": 1,
+      "name": "EmptySignatures",
+      "msg": "Multisig signed checkpoint has no signatures"
+    },
+    {
+      "code": 0,
+      "name": "Overflow",
+      "msg": "Overflow when creating primitive type"
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "hyperlane-core"
+  }
+}

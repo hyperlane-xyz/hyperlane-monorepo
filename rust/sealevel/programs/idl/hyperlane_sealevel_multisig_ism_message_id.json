@@ -1,0 +1,287 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_multisig_ism_message_id",
+  "instructions": [
+    {
+      "name": "Initialize",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "The new owner and payer of the access control PDA"
+          ]
+        },
+        {
+          "name": "accessControlPda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The access control PDA account"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The system program account"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "SetValidatorsAndThreshold",
+      "accounts": [
+        {
+          "name": "ownerPayer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "The access control owner and payer of the domain PDA"
+          ]
+        },
+        {
+          "name": "accessControlPda",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The access control PDA account"
+          ]
+        },
+        {
+          "name": "domainPda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The PDA relating to the provided domain"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "OPTIONAL - The system program account. Required if creating the domain PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "domainedValidatorsAndThreshold",
+          "type": {
+            "defined": "DomainedValidatorsAndThreshold"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "GetOwner",
+      "accounts": [
+        {
+          "name": "accessControlPda",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "The access control PDA account"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    },
+    {
+      "name": "TransferOwnership",
+      "accounts": [
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "The current access control owner"
+          ]
+        },
+        {
+          "name": "accessControlPda",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "The access control PDA account"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "DomainData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "validatorsAndThreshold",
+            "type": {
+              "defined": "ValidatorsAndThreshold"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "AccessControlData",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "bumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "Domained",
+      "type": {
+        "kind": "struct",
+        "fields": []
+      }
+    },
+    {
+      "name": "ValidatorsAndThreshold",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "validators",
+            "type": {
+              "vec": {
+                "array": [
+                  "u8",
+                  20
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "threshold",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "DomainedValidatorsAndThreshold",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "data",
+            "type": {
+              "defined": "ValidatorsAndThreshold"
+            }
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 1,
+      "name": "AccountOutOfOrder",
+      "msg": "Account not found in the correct order"
+    },
+    {
+      "code": 2,
+      "name": "AccountNotOwner",
+      "msg": "Account is not owner"
+    },
+    {
+      "code": 3,
+      "name": "ProgramIdNotOwner",
+      "msg": "Program ID is not owner"
+    },
+    {
+      "code": 4,
+      "name": "AccountNotInitialized",
+      "msg": "Account not initialized"
+    },
+    {
+      "code": 5,
+      "name": "InvalidSignatureRecoveryId",
+      "msg": "Invalid signature recovery ID"
+    },
+    {
+      "code": 6,
+      "name": "InvalidSignature",
+      "msg": "Invalid signature"
+    },
+    {
+      "code": 7,
+      "name": "ThresholdNotMet",
+      "msg": "Threshold not met"
+    },
+    {
+      "code": 8,
+      "name": "InvalidValidatorsAndThreshold",
+      "msg": "Invalid validators and threshold"
+    },
+    {
+      "code": 9,
+      "name": "AlreadyInitialized",
+      "msg": "Already initialized"
+    },
+    {
+      "code": 10,
+      "name": "InvalidMetadata",
+      "msg": "Invalid metadata"
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneMultisigIsm1111111111111111111111111"
+  }
+}

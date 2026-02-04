@@ -1,0 +1,724 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_mailbox",
+  "instructions": [
+    {
+      "name": "Init",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Payer and owner"
+          ]
+        },
+        {
+          "name": "inbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Inbox PDA"
+          ]
+        },
+        {
+          "name": "outbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "init",
+          "type": {
+            "defined": "Init"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "InboxProcess",
+      "accounts": [
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer account"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "inbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Inbox PDA"
+          ]
+        },
+        {
+          "name": "processAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Process authority PDA"
+          ]
+        },
+        {
+          "name": "processedMessage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Processed message PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "inboxProcess",
+          "type": {
+            "defined": "InboxProcess"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "InboxSetDefaultIsm",
+      "accounts": [
+        {
+          "name": "inbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Inbox PDA"
+          ]
+        },
+        {
+          "name": "outbox",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": true,
+          "isSigner": true,
+          "docs": [
+            "Mailbox owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pubkey",
+          "type": "publicKey"
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    },
+    {
+      "name": "InboxGetRecipientIsm",
+      "accounts": [
+        {
+          "name": "inbox",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Inbox PDA"
+          ]
+        },
+        {
+          "name": "recipient",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Recipient program"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "pubkey",
+          "type": "publicKey"
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      }
+    },
+    {
+      "name": "OutboxDispatch",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        },
+        {
+          "name": "senderSigner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Message sender signer"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "splNoop",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "SPL Noop program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer"
+          ]
+        },
+        {
+          "name": "uniqueMessageAccount",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Unique message account"
+          ]
+        },
+        {
+          "name": "dispatchedMessage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Dispatched message PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "outboxDispatch",
+          "type": {
+            "defined": "OutboxDispatch"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 4
+      }
+    },
+    {
+      "name": "OutboxGetCount",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 5
+      }
+    },
+    {
+      "name": "OutboxGetLatestCheckpoint",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 6
+      }
+    },
+    {
+      "name": "OutboxGetRoot",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 7
+      }
+    },
+    {
+      "name": "GetOwner",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 8
+      }
+    },
+    {
+      "name": "TransferOwnership",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Current owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 9
+      }
+    },
+    {
+      "name": "ClaimProtocolFees",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        },
+        {
+          "name": "beneficiary",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Fee beneficiary"
+          ]
+        }
+      ],
+      "args": [],
+      "discriminant": {
+        "type": "u8",
+        "value": 10
+      }
+    },
+    {
+      "name": "SetProtocolFeeConfig",
+      "accounts": [
+        {
+          "name": "outbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Outbox PDA"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Current owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "protocolFee",
+          "type": {
+            "defined": "ProtocolFee"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 11
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "Inbox",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "localDomain",
+            "type": "u32"
+          },
+          {
+            "name": "inboxBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "defaultIsm",
+            "type": "publicKey"
+          },
+          {
+            "name": "processedCount",
+            "type": "u64"
+          }
+        ]
+      }
+    },
+    {
+      "name": "Outbox",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "localDomain",
+            "type": "u32"
+          },
+          {
+            "name": "outboxBumpSeed",
+            "type": "u8"
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "tree",
+            "type": {
+              "defined": "MerkleTreeProxy"
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "maxProtocolFee",
+            "type": "u64"
+          },
+          {
+            "name": "protocolFee",
+            "type": {
+              "defined": "ProtocolFee"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "DispatchedMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discriminator",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
+          },
+          {
+            "name": "nonce",
+            "type": "u32"
+          },
+          {
+            "name": "slot",
+            "type": "u64",
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "uniqueMessagePubkey",
+            "type": "publicKey"
+          },
+          {
+            "name": "encodedMessage",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProcessedMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "discriminator",
+            "type": {
+              "array": [
+                "u8",
+                8
+              ]
+            }
+          },
+          {
+            "name": "sequence",
+            "type": "u64"
+          },
+          {
+            "name": "messageId",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "slot",
+            "type": "u64",
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "Init",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "localDomain",
+            "type": "u32"
+          },
+          {
+            "name": "defaultIsm",
+            "type": "publicKey"
+          },
+          {
+            "name": "maxProtocolFee",
+            "type": "u64"
+          },
+          {
+            "name": "protocolFee",
+            "type": {
+              "defined": "ProtocolFee"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "OutboxDispatch",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "sender",
+            "type": "publicKey"
+          },
+          {
+            "name": "destinationDomain",
+            "type": "u32"
+          },
+          {
+            "name": "recipient",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "messageBody",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "InboxProcess",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "metadata",
+            "type": "bytes"
+          },
+          {
+            "name": "message",
+            "type": "bytes"
+          }
+        ]
+      }
+    },
+    {
+      "name": "ProtocolFee",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "fee",
+            "type": "u64"
+          },
+          {
+            "name": "beneficiary",
+            "type": "publicKey"
+          }
+        ]
+      }
+    },
+    {
+      "name": "MerkleTreeProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "branch",
+            "type": {
+              "array": [
+                {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                },
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "count",
+            "type": "u64"
+          }
+        ]
+      }
+    }
+  ],
+  "errors": [
+    {
+      "code": 1,
+      "name": "EncodeError",
+      "msg": "Encoding error"
+    },
+    {
+      "code": 2,
+      "name": "DecodeError",
+      "msg": "Decoding error"
+    },
+    {
+      "code": 3,
+      "name": "UnsupportedMessageVersion",
+      "msg": "Unsupported message version"
+    },
+    {
+      "code": 4,
+      "name": "DestinationDomainNotLocalDomain",
+      "msg": "Message's destination domain is not the local domain"
+    },
+    {
+      "code": 5,
+      "name": "MessageAlreadyProcessed",
+      "msg": "Message has already been processed"
+    },
+    {
+      "code": 6,
+      "name": "ExtraneousAccount",
+      "msg": "Unused account(s) provided"
+    },
+    {
+      "code": 7,
+      "name": "MaxMessageSizeExceeded",
+      "msg": "Message is larger than the maximum allowed"
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneMailbox11111111111111111111111111111"
+  }
+}

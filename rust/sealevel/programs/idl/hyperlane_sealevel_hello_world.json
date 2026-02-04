@@ -1,0 +1,387 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_hello_world",
+  "instructions": [
+    {
+      "name": "Init",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer"
+          ]
+        },
+        {
+          "name": "programStorage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Program storage PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "init",
+          "type": {
+            "defined": "Init"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "SendHelloWorld",
+      "accounts": [
+        {
+          "name": "programStorage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Program storage"
+          ]
+        },
+        {
+          "name": "mailboxProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Mailbox program"
+          ]
+        },
+        {
+          "name": "mailboxOutbox",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Mailbox outbox PDA"
+          ]
+        },
+        {
+          "name": "dispatchAuthority",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "Dispatch authority PDA"
+          ]
+        },
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "splNoop",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "SPL Noop program"
+          ]
+        },
+        {
+          "name": "payer",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Payer"
+          ]
+        },
+        {
+          "name": "uniqueMessage",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Unique message account"
+          ]
+        },
+        {
+          "name": "dispatchedMessage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Dispatched message PDA"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "helloWorldMessage",
+          "type": {
+            "defined": "HelloWorldMessage"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "SetInterchainSecurityModule",
+      "accounts": [
+        {
+          "name": "programStorage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Program storage PDA"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    },
+    {
+      "name": "EnrollRemoteRouters",
+      "accounts": [
+        {
+          "name": "systemProgram",
+          "isMut": false,
+          "isSigner": false,
+          "docs": [
+            "System program"
+          ]
+        },
+        {
+          "name": "programStorage",
+          "isMut": true,
+          "isSigner": false,
+          "docs": [
+            "Program storage PDA"
+          ]
+        },
+        {
+          "name": "owner",
+          "isMut": false,
+          "isSigner": true,
+          "docs": [
+            "Owner"
+          ]
+        }
+      ],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "vec": {
+              "defined": "RemoteRouterConfigProxy"
+            }
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "HelloWorldStorage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "localDomain",
+            "type": "u32"
+          },
+          {
+            "name": "mailbox",
+            "type": "publicKey"
+          },
+          {
+            "name": "ism",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "igp",
+            "type": {
+              "option": {
+                "tuple": [
+                  "publicKey",
+                  {
+                    "defined": "InterchainGasPaymasterType"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "sent",
+            "type": "u64"
+          },
+          {
+            "name": "received",
+            "type": "u64"
+          },
+          {
+            "name": "sentTo",
+            "type": {
+              "hashMap": [
+                "u32",
+                "u64"
+              ]
+            }
+          },
+          {
+            "name": "receivedFrom",
+            "type": {
+              "hashMap": [
+                "u32",
+                "u64"
+              ]
+            }
+          },
+          {
+            "name": "routers",
+            "type": {
+              "hashMap": [
+                "u32",
+                {
+                  "array": [
+                    "u8",
+                    32
+                  ]
+                }
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "Init",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "localDomain",
+            "type": "u32"
+          },
+          {
+            "name": "mailbox",
+            "type": "publicKey"
+          },
+          {
+            "name": "ism",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "igp",
+            "type": {
+              "option": {
+                "tuple": [
+                  "publicKey",
+                  {
+                    "defined": "InterchainGasPaymasterType"
+                  }
+                ]
+              }
+            }
+          },
+          {
+            "name": "owner",
+            "type": {
+              "option": "publicKey"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "HelloWorldMessage",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destination",
+            "type": "u32"
+          },
+          {
+            "name": "message",
+            "type": "string"
+          }
+        ]
+      }
+    },
+    {
+      "name": "RemoteRouterConfigProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "router",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneHelloWorld1111111111111111111111111"
+  }
+}

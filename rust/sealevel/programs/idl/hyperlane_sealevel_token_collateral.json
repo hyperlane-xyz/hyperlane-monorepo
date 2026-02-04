@@ -1,0 +1,406 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_token_collateral",
+  "instructions": [
+    {
+      "name": "Init",
+      "accounts": [],
+      "args": [
+        {
+          "name": "init",
+          "type": {
+            "defined": "InitProxy"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 0
+      }
+    },
+    {
+      "name": "TransferRemote",
+      "accounts": [],
+      "args": [
+        {
+          "name": "transferRemote",
+          "type": {
+            "defined": "TransferRemoteProxy"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 1
+      }
+    },
+    {
+      "name": "EnrollRemoteRouter",
+      "accounts": [],
+      "args": [
+        {
+          "name": "remoteRouterConfig",
+          "type": {
+            "defined": "RemoteRouterConfig"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 2
+      }
+    },
+    {
+      "name": "EnrollRemoteRouters",
+      "accounts": [],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "vec": {
+              "defined": "RemoteRouterConfig"
+            }
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 3
+      }
+    },
+    {
+      "name": "SetDestinationGasConfigs",
+      "accounts": [],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "vec": {
+              "defined": "GasRouterConfig"
+            }
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 4
+      }
+    },
+    {
+      "name": "SetInterchainSecurityModule",
+      "accounts": [],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 5
+      }
+    },
+    {
+      "name": "SetInterchainGasPaymaster",
+      "accounts": [],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": {
+              "tuple": [
+                "publicKey",
+                {
+                  "defined": "InterchainGasPaymasterTypeProxy"
+                }
+              ]
+            }
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 6
+      }
+    },
+    {
+      "name": "TransferOwnership",
+      "accounts": [],
+      "args": [
+        {
+          "name": "args",
+          "type": {
+            "option": "publicKey"
+          }
+        }
+      ],
+      "discriminant": {
+        "type": "u8",
+        "value": 7
+      }
+    }
+  ],
+  "accounts": [
+    {
+      "name": "CollateralPlugin",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "splTokenProgram",
+            "type": "publicKey"
+          },
+          {
+            "name": "mint",
+            "type": "publicKey"
+          },
+          {
+            "name": "escrow",
+            "type": "publicKey"
+          },
+          {
+            "name": "escrowBump",
+            "type": "u8"
+          },
+          {
+            "name": "ataPayerBump",
+            "type": "u8"
+          }
+        ]
+      }
+    }
+  ],
+  "types": [
+    {
+      "name": "InitProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "mailbox",
+            "type": "publicKey"
+          },
+          {
+            "name": "interchainSecurityModule",
+            "type": {
+              "option": "publicKey"
+            }
+          },
+          {
+            "name": "interchainGasPaymaster",
+            "type": {
+              "option": {
+                "tuple": [
+                  "publicKey",
+                  {
+                    "defined": "InterchainGasPaymasterTypeProxy"
+                  }
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "decimals",
+            "type": "u8"
+          },
+          {
+            "name": "remoteDecimals",
+            "type": "u8"
+          }
+        ]
+      }
+    },
+    {
+      "name": "TransferRemoteProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "destinationDomain",
+            "type": "u32"
+          },
+          {
+            "name": "recipient",
+            "type": {
+              "array": [
+                "u8",
+                32
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          },
+          {
+            "name": "amountOrId",
+            "type": {
+              "array": [
+                "u64",
+                4
+              ]
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "RemoteRouterConfigProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "router",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "GasRouterConfigProxy",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "gas",
+            "type": {
+              "option": "u64"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "InterchainGasPaymasterTypeProxy",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Igp",
+            "fields": [
+              "publicKey"
+            ]
+          },
+          {
+            "name": "OverheadIgp",
+            "fields": [
+              "publicKey"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "TokenInstructionProxy",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Init",
+            "fields": [
+              {
+                "defined": "InitProxy"
+              }
+            ]
+          },
+          {
+            "name": "TransferRemote",
+            "fields": [
+              {
+                "defined": "TransferRemoteProxy"
+              }
+            ]
+          },
+          {
+            "name": "EnrollRemoteRouter",
+            "fields": [
+              {
+                "defined": "RemoteRouterConfig"
+              }
+            ]
+          },
+          {
+            "name": "EnrollRemoteRouters",
+            "fields": [
+              {
+                "vec": {
+                  "defined": "RemoteRouterConfig"
+                }
+              }
+            ]
+          },
+          {
+            "name": "SetDestinationGasConfigs",
+            "fields": [
+              {
+                "vec": {
+                  "defined": "GasRouterConfig"
+                }
+              }
+            ]
+          },
+          {
+            "name": "SetInterchainSecurityModule",
+            "fields": [
+              {
+                "option": "publicKey"
+              }
+            ]
+          },
+          {
+            "name": "SetInterchainGasPaymaster",
+            "fields": [
+              {
+                "option": {
+                  "tuple": [
+                    "publicKey",
+                    {
+                      "defined": "InterchainGasPaymasterTypeProxy"
+                    }
+                  ]
+                }
+              }
+            ]
+          },
+          {
+            "name": "TransferOwnership",
+            "fields": [
+              {
+                "option": "publicKey"
+              }
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "HyperlaneTokenCollateral1111111111111111111"
+  }
+}
