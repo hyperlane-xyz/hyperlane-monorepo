@@ -1,8 +1,17 @@
+import { BigNumber } from 'ethers';
+
 import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import { ProtocolType } from '@hyperlane-xyz/utils';
 
 export const TEST_CHAINS = ['ethereum', 'arbitrum', 'base'] as const;
 export type TestChain = (typeof TEST_CHAINS)[number];
+
+export const ANVIL_TEST_PRIVATE_KEY =
+  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
+export const TEST_TIMEOUT_MS = 300000;
+
+export const DEFAULT_TRANSFER_AMOUNT = BigNumber.from('600000000');
 
 export const USDC_ADDRESSES: Record<TestChain, string> = {
   ethereum: '0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48',
