@@ -34,17 +34,20 @@ export class EvmMultiProtocolSignerAdapter
     if (technicalStack === ChainTechnicalStack.ZkSync) {
       wallet = new ZkSyncWallet(privateKey);
     } else if (technicalStack === ChainTechnicalStack.Tron) {
+      const { restUrls } = multiProvider.getChainMetadata(chainName);
       assert(
         rpcUrls.length > 0,
         `No RPC URLs configured for Tron chain ${chainName}`,
       );
+      assert(
+        restUrls && restUrls.length > 0,
+        `No REST URLs configured for Tron chain ${chainName}. Tron requires restUrls for the TronWeb HTTP API.`,
+      );
       const rpcUrl = rpcUrls[0].http;
       const provider = new TronJsonRpcProvider(rpcUrl);
-      // TronWeb needs the HTTP API URL, not JSON-RPC
-      // Use second RPC URL if available, otherwise strip /jsonrpc from first URL
-      const tronGridUrl =
-        rpcUrls.length > 1 ? rpcUrls[1].http : rpcUrl.replace(/\/jsonrpc$/, '');
-      wallet = new TronWallet(privateKey, provider, tronGridUrl);
+      // TronWeb needs the HTTP API URL (restUrls) for transaction building
+      const tronHttpUrl = restUrls[0].http;
+      wallet = new TronWallet(privateKey, provider, tronHttpUrl);
     } else {
       wallet = new Wallet(privateKey);
     }

@@ -1,17 +1,31 @@
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 
+// Test stack selection via environment variable (default: anvil)
+const TEST_STACK = process.env.TEST_STACK || 'anvil';
+
 export const E2E_TEST_CONFIGS_PATH = './test-configs';
-export const REGISTRY_PATH = `${E2E_TEST_CONFIGS_PATH}/anvil`;
+
+// Registry path switches based on test stack
+export const REGISTRY_PATH =
+  TEST_STACK === 'tron'
+    ? `${E2E_TEST_CONFIGS_PATH}/tron`
+    : `${E2E_TEST_CONFIGS_PATH}/anvil`;
+
 export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
+// Key switches based on test stack
 export const ANVIL_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+  TEST_STACK === 'tron'
+    ? 'da146374a75310b9666e834ee4ad0866d6f4035967bfc76217c5a495fff9f0d0'
+    : '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+
 export const ANVIL_DEPLOYER_ADDRESS =
   '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const E2E_TEST_BURN_ADDRESS =
   '0x0000000000000000000000000000000000000001';
 export const COINGECKO_API_KEY = 'CG-Gmk12Pz3A4L9qR5XtV7Kd8N3';
 
+// Chain names stay the same - Tron registry uses anvil2/3/4 aliases
 export const CHAIN_NAME_2 = 'anvil2';
 export const CHAIN_NAME_3 = 'anvil3';
 export const CHAIN_NAME_4 = 'anvil4';
@@ -46,7 +60,12 @@ export const WARP_DEPLOY_CONFIG_CHAIN_3 = `${TEMP_PATH}/warp-route-deployment-3.
 export const JSON_RPC_ICA_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-ica-strategy.yaml`;
 export const JSON_RPC_TIMELOCK_STRATEGY_CONFIG_PATH = `${EXAMPLES_PATH}/submit/strategy/json-rpc-timelock-strategy.yaml`;
 
-export const DEFAULT_E2E_TEST_TIMEOUT = 100_000; // Long timeout since these tests can take a while
+// Timeout switches based on test stack (Tron is slower)
+export const DEFAULT_E2E_TEST_TIMEOUT =
+  TEST_STACK === 'tron' ? 180_000 : 100_000;
+
+// Export test stack for conditional logic in setup
+export const IS_TRON_TEST = TEST_STACK === 'tron';
 
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,

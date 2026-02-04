@@ -52,12 +52,13 @@ export class TronWallet extends Wallet {
   async sendTransaction(
     transaction: providers.TransactionRequest,
   ): Promise<providers.TransactionResponse> {
-    // Populate transaction (estimates gas if not set)
+    // Populate transaction (estimates gas and gas price if not set)
     const tx = await this.populateTransaction(transaction);
     assert(tx.gasLimit, 'gasLimit is required');
+    assert(tx.gasPrice, 'gasPrice is required');
 
     // Convert gasLimit to feeLimit: feeLimit = gasLimit × gasPrice
-    const gasPrice = await this.provider!.getGasPrice();
+    const gasPrice = BigNumber.from(tx.gasPrice);
     const feeLimit = BigNumber.from(tx.gasLimit).mul(gasPrice).toNumber();
     const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
 

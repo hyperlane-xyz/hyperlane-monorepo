@@ -62,7 +62,7 @@ export async function runTronNode(
   rootLogger.info(
     `Waiting for Tron node to be ready for ${chainMetadata.name}`,
   );
-  await waitForTronNodeReady(chainMetadata.rpcPort);
+  await waitForTronNodeReady(chainMetadata.rpcPort, chainMetadata.httpPort);
 
   return environment;
 }
@@ -79,19 +79,48 @@ export async function stopTronNode(
 
 /**
  * Poll until the Tron node is ready to process transactions.
- * Checks eth_blockNumber to verify the node is producing blocks.
+ * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock).
  */
-async function waitForTronNodeReady(rpcPort: number): Promise<void> {
+async function waitForTronNodeReady(
+  rpcPort: number,
+  httpPort: number,
+): Promise<void> {
   const provider = new TronJsonRpcProvider(`http://127.0.0.1:${rpcPort}`);
 
+  // Wait for JSON-RPC to be ready
   await pollAsync(
     async () => {
       const blockNumber = await provider.getBlockNumber();
       if (blockNumber === 0) {
         throw new Error('Block number is 0, node not ready');
       }
-      rootLogger.info(`Tron node ready at block ${blockNumber}`);
+      rootLogger.info(`Tron JSON-RPC ready at block ${blockNumber}`);
       return blockNumber;
+    },
+    1000, // poll every 1 second
+    60, // max 60 attempts (60 seconds)
+  );
+
+  // Wait for HTTP API to be ready (required for TronWeb transaction building)
+  await pollAsync(
+    async () => {
+      const response = await fetch(
+        `http://127.0.0.1:${httpPort}/wallet/getblock`,
+        {
+          method: 'POST',
+          headers: { 'Content-Type': 'application/json' },
+          body: JSON.stringify({ detail: false }),
+        },
+      );
+      if (!response.ok) {
+        throw new Error(`HTTP API not ready: ${response.status}`);
+      }
+      const data = await response.json();
+      if (!data.blockID) {
+        throw new Error('HTTP API returned invalid block data');
+      }
+      rootLogger.info(`Tron HTTP API ready`);
+      return data;
     },
     1000, // poll every 1 second
     60, // max 60 attempts (60 seconds)
