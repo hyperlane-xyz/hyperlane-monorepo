@@ -79,8 +79,12 @@ export async function resolveWarpRouteId({
     }
 
     if (matchingIds.length === 0) {
-      // No symbol matches found - return as-is for backward compatibility
-      // This allows downstream code to handle the missing route (e.g., file path handling)
+      if (chains && chains.length > 0) {
+        throw new Error(
+          `No warp route found for symbol "${symbol}" spanning chains: ${chains.join(', ')}. ` +
+            `Try without --chains to see all available routes for this symbol.`,
+        );
+      }
       return warpRouteId;
     }
 
@@ -136,6 +140,7 @@ export async function getWarpConfigs({
 }): Promise<{
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
+  resolvedWarpRouteId: string;
 }> {
   const resolvedWarpRouteId = await resolveWarpRouteId({
     context,
@@ -152,7 +157,7 @@ export async function getWarpConfigs({
     context,
   });
 
-  return { warpDeployConfig, warpCoreConfig };
+  return { warpDeployConfig, warpCoreConfig, resolvedWarpRouteId };
 }
 
 export function filterWarpConfigsToMatchingChains(
