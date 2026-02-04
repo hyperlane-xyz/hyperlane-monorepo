@@ -307,14 +307,18 @@ async function resolveIcaDeployChains(
 async function resolveSubmitChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
-  const { multiProvider } = argv.context;
-  const transactions = getTransactions(argv.transactions);
+  try {
+    const { multiProvider } = argv.context;
+    const transactions = getTransactions(argv.transactions);
 
-  const chainIds = new Set(transactions.map((tx) => tx.chainId));
-  const chains = Array.from(chainIds).map((chainId) =>
-    multiProvider.getChainName(chainId),
-  );
+    const chainIds = new Set(transactions.map((tx) => tx.chainId));
+    const chains = Array.from(chainIds).map((chainId) =>
+      multiProvider.getChainName(chainId),
+    );
 
-  assert(chains.length > 0, 'No transactions found in file');
-  return chains;
+    assert(chains.length > 0, 'No transactions found in file');
+    return chains;
+  } catch (error) {
+    throw new Error(`Failed to resolve submit command chains: ${error}`);
+  }
 }
