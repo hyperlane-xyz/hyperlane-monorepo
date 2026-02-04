@@ -1,5 +1,6 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
+import type { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
@@ -20,6 +21,7 @@ export interface CreateRebalanceIntentParams {
   priority?: number;
   strategyType?: string;
   executionMethod?: ExecutionMethod;
+  externalBridge?: ExternalBridgeType;
 }
 
 export interface CreateRebalanceActionParams {

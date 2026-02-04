@@ -1,5 +1,7 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
+import type { ExternalBridgeType } from '../config/types.js';
+
 import type { IStore } from './store/IStore.js';
 
 // === Base Interfaces ===
@@ -42,7 +44,7 @@ export type RebalanceActionStatus = 'in_progress' | 'complete' | 'failed';
 /**
  * Execution method for rebalancing:
  * - `movable_collateral`: Uses MovableCollateralRouter.rebalance() on-chain
- * - `inventory`: Uses external bridges (LiFi) + transferRemote
+ * - `inventory`: Uses external bridges + transferRemote
  */
 export type ExecutionMethod = 'movable_collateral' | 'inventory';
 
@@ -72,6 +74,7 @@ export interface RebalanceIntent extends TrackedActionBase {
   priority?: number; // Optional - missing for recovered intents
   strategyType?: string; // Optional - missing for recovered intents
   executionMethod?: ExecutionMethod; // Optional - defaults to movable_collateral
+  externalBridge?: ExternalBridgeType; // Optional - external bridge type (e.g., LiFi)
 }
 
 export interface RebalanceAction extends TrackedActionBase {

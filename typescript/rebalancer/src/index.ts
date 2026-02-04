@@ -57,16 +57,23 @@ export { PriceGetter } from './metrics/PriceGetter.js';
 
 // Interfaces
 export type {
+  ExecutionResult,
+  IInventoryRebalancer,
+  IMovableCollateralRebalancer,
   IRebalancer,
+  InventoryExecutionResult,
+  MovableCollateralExecutionResult,
   PreparedTransaction,
-  RebalanceRoute,
-  RebalanceExecutionResult,
+  RebalancerType,
 } from './interfaces/IRebalancer.js';
 export type {
   IStrategy,
-  StrategyRoute,
-  RawBalances,
   InflightContext,
+  InventoryRoute,
+  MovableCollateralRoute,
+  RawBalances,
+  Route,
+  StrategyRoute,
 } from './interfaces/IStrategy.js';
 export type {
   ConfirmedBlockTag,

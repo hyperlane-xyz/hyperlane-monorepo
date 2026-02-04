@@ -253,6 +253,7 @@ export class CollateralDeficitStrategy extends BaseStrategy {
           origin: surplus.chain,
           destination: deficit.chain,
           amount: transferAmount,
+          executionType: 'movableCollateral',
           bridge: bridgeConfig.bridge,
         });
       }

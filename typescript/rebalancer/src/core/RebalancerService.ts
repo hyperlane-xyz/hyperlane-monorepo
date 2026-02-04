@@ -1,4 +1,3 @@
-import { randomUUID } from 'crypto';
 import { Logger } from 'pino';
 
 import { IRegistry } from '@hyperlane-xyz/registry';
@@ -18,15 +17,17 @@ import {
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import {
   MonitorEvent,
   MonitorEventType,
   MonitorPollingError,
   MonitorStartError,
 } from '../interfaces/IMonitor.js';
-import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
-import type { IStrategy } from '../interfaces/IStrategy.js';
+import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type {
+  IStrategy,
+  MovableCollateralRoute,
+} from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 import {
@@ -117,7 +118,7 @@ export class RebalancerService {
   private mode: 'manual' | 'daemon';
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
-  private inventoryRebalancer?: IInventoryRebalancer;
+  private inventoryRebalancer?: IRebalancer;
   private inventoryMonitor?: IInventoryMonitor;
   private bridge?: IExternalBridge;
   private orchestrator?: RebalancerOrchestrator;
@@ -172,22 +173,26 @@ export class RebalancerService {
     // Create strategy
     this.strategy = await this.contextFactory.createStrategy(this.metrics);
 
-    // Create rebalancer (unless in monitor-only mode)
-    if (!this.config.monitorOnly) {
-      this.rebalancer = this.contextFactory.createRebalancer(this.metrics);
-    } else {
-      this.logger.warn(
-        'Running in monitorOnly mode: no transactions will be executed.',
-      );
-    }
-
     // Create ActionTracker for tracking inflight actions
+    // Must be created BEFORE rebalancer since rebalancer needs it
     const { tracker, adapter } =
       await this.contextFactory.createActionTracker();
     this.actionTracker = tracker;
     this.inflightContextAdapter = adapter;
     await this.actionTracker.initialize();
     this.logger.info('ActionTracker initialized');
+
+    // Create rebalancer (unless in monitor-only mode)
+    if (!this.config.monitorOnly) {
+      this.rebalancer = this.contextFactory.createRebalancer(
+        this.actionTracker,
+        this.metrics,
+      );
+    } else {
+      this.logger.warn(
+        'Running in monitorOnly mode: no transactions will be executed.',
+      );
+    }
 
     // Create inventory components if any chains use inventory execution type
     if (
@@ -206,16 +211,22 @@ export class RebalancerService {
       }
     }
 
+    const rebalancers: IRebalancer[] = [];
+    if (this.rebalancer) {
+      rebalancers.push(this.rebalancer);
+    }
+    if (this.inventoryRebalancer) {
+      rebalancers.push(this.inventoryRebalancer);
+    }
+
     // Create orchestrator for cycle execution
     this.orchestrator = new RebalancerOrchestrator({
       strategy: this.strategy,
       actionTracker: this.actionTracker,
       inflightContextAdapter: this.inflightContextAdapter,
-      multiProvider: this.multiProvider,
       rebalancerConfig: this.rebalancerConfig,
       logger: this.logger,
-      rebalancer: this.rebalancer,
-      inventoryRebalancer: this.inventoryRebalancer,
+      rebalancers,
       inventoryMonitor: this.inventoryMonitor,
       bridge: this.bridge,
       metrics: this.metrics,
@@ -280,14 +291,15 @@ export class RebalancerService {
       originConfig.override?.[destination]?.bridge ?? originConfig.bridge;
 
     try {
-      const route: RebalanceRoute = {
-        intentId: randomUUID(),
+      const manualRoute: MovableCollateralRoute & { intentId: string } = {
         origin,
         destination,
         amount: BigInt(toWei(amount, originToken.decimals)),
+        executionType: 'movableCollateral',
         bridge,
+        intentId: `manual-${Date.now()}`,
       };
-      await this.rebalancer.rebalance([route]);
+      await this.rebalancer.rebalance([manualRoute]);
       this.logger.info(
         `✅ Manual rebalance from ${origin} to ${destination} for amount ${amount} submitted successfully.`,
       );

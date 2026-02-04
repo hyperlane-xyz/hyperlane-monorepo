@@ -23,7 +23,6 @@ import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -224,7 +223,10 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createRebalancer(metrics?: Metrics): IRebalancer {
+  public createRebalancer(
+    actionTracker: IActionTracker,
+    metrics?: Metrics,
+  ): IRebalancer {
     this.logger.debug(
       { warpRouteId: this.config.warpRouteId },
       'Creating Rebalancer',
@@ -235,6 +237,7 @@ export class RebalancerContextFactory {
       this.multiProvider.metadata,
       this.tokensByChainName,
       this.multiProvider,
+      actionTracker,
       this.logger,
       metrics,
     );
@@ -342,7 +345,7 @@ export class RebalancerContextFactory {
     actionTracker: IActionTracker,
   ): Promise<{
     inventoryMonitor: IInventoryMonitor;
-    inventoryRebalancer: IInventoryRebalancer;
+    inventoryRebalancer: IRebalancer;
     exteralBridge: IExternalBridge;
   } | null> {
     const { inventorySigner, externalBridges } = this.config;

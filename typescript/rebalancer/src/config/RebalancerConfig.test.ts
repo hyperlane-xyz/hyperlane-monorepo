@@ -629,6 +629,35 @@ describe('per-chain bridge configuration', () => {
       /externalBridges\.lifi.*required|lifi.*not configured/i,
     );
   });
+
+  it('should require externalBridge field when executionType is inventory', () => {
+    const data = {
+      warpRouteId: 'test-route',
+      strategy: [
+        {
+          rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+          chains: {
+            ethereum: {
+              weighted: { weight: 100, tolerance: 5 },
+              executionType: ExecutionType.Inventory,
+            },
+          },
+        },
+      ],
+      inventorySigner: '0x1234567890123456789012345678901234567890',
+      externalBridges: {
+        lifi: {
+          integrator: 'test-app',
+        },
+      },
+    };
+
+    writeYamlOrJson(TEST_CONFIG_PATH_BRIDGE, data);
+
+    expect(() => RebalancerConfig.load(TEST_CONFIG_PATH_BRIDGE)).to.throw(
+      /ethereum.*inventory execution.*externalBridge/i,
+    );
+  });
 });
 
 describe('getAllBridges', () => {

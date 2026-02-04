@@ -10,9 +10,10 @@ import {
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 
+import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { Route } from '../interfaces/IStrategy.js';
+import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import { createMockBridgeQuote } from '../test/lifiMocks.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type { RebalanceIntent } from '../tracking/types.js';
@@ -198,11 +199,15 @@ describe('InventoryRebalancer E2E', () => {
   });
 
   // Helper to create test routes and intents
-  function createTestRoute(overrides?: Partial<Route>): Route {
+  function createTestRoute(
+    overrides?: Partial<InventoryRoute>,
+  ): InventoryRoute {
     return {
       origin: ARBITRUM_CHAIN,
       destination: SOLANA_CHAIN,
       amount: 10000000000n, // 10k USDC (6 decimals)
+      executionType: 'inventory',
+      externalBridge: ExternalBridgeType.LiFi,
       ...overrides,
     };
   }
@@ -238,7 +243,7 @@ describe('InventoryRebalancer E2E', () => {
       // Setup: Strategy says move from arbitrum→solana
       // We need inventory on SOLANA (destination/deficit) to call transferRemote FROM there
       const route = createTestRoute();
-      const intent = createTestIntent(); // Configures mock to return intent
+      createTestIntent();
 
       // Inventory is checked on DESTINATION (solana), not origin
       inventoryMonitor.getAvailableInventory
@@ -246,13 +251,12 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Single successful result
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
       expect(results[0].route).to.deep.equal(route);
-      expect(results[0].intent.id).to.equal(intent.id);
 
       // Verify: transferRemote was called via adapter
       expect(adapterStub.quoteTransferRemoteGas.calledOnce).to.be.true;
@@ -283,7 +287,7 @@ describe('InventoryRebalancer E2E', () => {
         .withArgs(SOLANA_CHAIN)
         .resolves(5000000000n);
 
-      await inventoryRebalancer.execute([route]);
+      await inventoryRebalancer.rebalance([route]);
 
       // Verify populateTransferRemoteTx params
       // Direction is SWAPPED: transferRemote from solana TO arbitrum
@@ -316,7 +320,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryMonitor.getTotalInventory.resolves(PARTIAL_AMOUNT);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with partial amount
       expect(results).to.have.lengthOf(1);
@@ -345,12 +349,10 @@ describe('InventoryRebalancer E2E', () => {
       // Total inventory (excluding origin) = 0.005 ETH
       inventoryMonitor.getTotalInventory.resolves(PARTIAL_AMOUNT);
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
-      // Verify: Intent is still returned (not completed)
-      // The intent status will be updated by ActionTracker when action is created
-      expect(results[0].intent.status).to.equal('not_started');
-      // Note: In real flow, ActionTracker.createRebalanceAction transitions to 'in_progress'
+      // Verify: Partial transfer succeeded
+      expect(results[0].success).to.be.true;
     });
   });
 
@@ -368,7 +370,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryMonitor.getBalances.resolves(new Map());
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Failure result
       expect(results).to.have.lengthOf(1);
@@ -401,7 +403,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(5000000000n);
 
       // Execute with multiple routes
-      const results = await inventoryRebalancer.execute([route1, route2]);
+      const results = await inventoryRebalancer.rebalance([route1, route2]);
 
       // Verify: Only ONE route processed (single-intent architecture)
       expect(results).to.have.lengthOf(1);
@@ -440,19 +442,18 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n); // Plenty of inventory
 
       // Execute with new route (should be ignored in favor of existing intent)
-      const results = await inventoryRebalancer.execute([newRoute]);
+      const results = await inventoryRebalancer.rebalance([newRoute]);
 
       // Verify: Existing intent was continued (not new route)
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
-      expect(results[0].intent.id).to.equal('existing-intent');
 
-      // Verify: No new intent was created
+      // Verify: No new intent was created (existing was used)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
     });
 
     it('returns empty results when no routes provided and no active intent', async () => {
-      const results = await inventoryRebalancer.execute([]);
+      const results = await inventoryRebalancer.rebalance([]);
 
       expect(results).to.have.lengthOf(0);
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
@@ -484,13 +485,13 @@ describe('InventoryRebalancer E2E', () => {
         .withArgs(SOLANA_CHAIN)
         .resolves(10000000000n);
 
-      const results = await inventoryRebalancer.execute([newRoute]);
+      const results = await inventoryRebalancer.rebalance([newRoute]);
 
       // Verify: Existing not_started intent was continued (not new route)
       expect(results).to.have.lengthOf(1);
-      expect(results[0].intent.id).to.equal('stuck-not-started-intent');
+      expect(results[0].success).to.be.true;
 
-      // Verify: No new intent was created
+      // Verify: No new intent was created (existing was continued)
       expect(actionTracker.createRebalanceIntent.called).to.be.false;
     });
   });
@@ -506,7 +507,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
       multiProvider.sendTransaction.rejects(new Error('Transaction failed'));
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
@@ -525,7 +526,7 @@ describe('InventoryRebalancer E2E', () => {
         .withArgs(SOLANA_CHAIN)
         .resolves(10000000000n);
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
@@ -542,7 +543,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
       adapterStub.quoteTransferRemoteGas.rejects(new Error('Gas quote failed'));
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.false;
@@ -593,7 +594,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(availableInventory);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with full requested amount (since we have enough for amount + costs)
       expect(results).to.have.lengthOf(1);
@@ -646,7 +647,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryMonitor.getTotalInventory.resolves(partialAmount);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with reduced amount
       expect(results).to.have.lengthOf(1);
@@ -689,7 +690,7 @@ describe('InventoryRebalancer E2E', () => {
       inventoryMonitor.getBalances.resolves(new Map());
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Failure due to insufficient funds
       expect(results).to.have.lengthOf(1);
@@ -725,7 +726,7 @@ describe('InventoryRebalancer E2E', () => {
         .resolves(10000000000n);
 
       // Execute
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Success with full amount (no IGP deduction)
       expect(results).to.have.lengthOf(1);
@@ -734,44 +735,6 @@ describe('InventoryRebalancer E2E', () => {
       const populateParams =
         adapterStub.populateTransferRemoteTx.firstCall.args[0];
       expect(populateParams.weiAmountOrId).to.equal(10000000000n); // Full amount
-    });
-  });
-
-  describe('getAvailableAmount', () => {
-    it('returns available inventory when less than requested', async () => {
-      const route = createTestRoute({ amount: 10000000000n });
-      // Checks inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(5000000000n);
-
-      const available = await inventoryRebalancer.getAvailableAmount(route);
-
-      expect(available).to.equal(5000000000n);
-    });
-
-    it('returns requested amount when inventory is sufficient', async () => {
-      const route = createTestRoute({ amount: 5000000000n });
-      // Checks inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
-
-      const available = await inventoryRebalancer.getAvailableAmount(route);
-
-      expect(available).to.equal(5000000000n);
-    });
-
-    it('returns zero when no inventory available', async () => {
-      const route = createTestRoute({ amount: 10000000000n });
-      // Checks inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      const available = await inventoryRebalancer.getAvailableAmount(route);
-
-      expect(available).to.equal(0n);
     });
   });
 
@@ -834,7 +797,7 @@ describe('InventoryRebalancer E2E', () => {
 
       inventoryMonitor.getTotalInventory.resolves(availableOnDestination);
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -864,7 +827,7 @@ describe('InventoryRebalancer E2E', () => {
 
       inventoryMonitor.getTotalInventory.resolves(maxTransferable);
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -949,7 +912,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -994,7 +957,7 @@ describe('InventoryRebalancer E2E', () => {
 
       inventoryMonitor.getTotalInventory.resolves(BigInt(10e18));
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -1112,7 +1075,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       expect(results).to.have.lengthOf(1);
       expect(results[0].success).to.be.true;
@@ -1174,7 +1137,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      await inventoryRebalancer.execute([route]);
+      await inventoryRebalancer.rebalance([route]);
 
       // Verify: 5% buffer applied (1 ETH * 1.05 = 1.05 ETH)
       // The bridge plan uses pre-validated amounts (for ERC20, full inventory available)
@@ -1248,7 +1211,7 @@ describe('InventoryRebalancer E2E', () => {
         .onSecondCall()
         .rejects(new Error('Bridge execution failed'));
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Overall success (at least one bridge succeeded)
       expect(results).to.have.lengthOf(1);
@@ -1312,7 +1275,7 @@ describe('InventoryRebalancer E2E', () => {
       // All bridges fail
       bridge.execute.rejects(new Error('Bridge execution failed'));
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Failure when all bridges fail
       expect(results).to.have.lengthOf(1);
@@ -1397,7 +1360,7 @@ describe('InventoryRebalancer E2E', () => {
         }),
       );
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should fail because no sources pass viability check at planning time
       expect(results).to.have.lengthOf(1);
@@ -1477,7 +1440,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should succeed
       expect(results).to.have.lengthOf(1);
@@ -1552,7 +1515,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should succeed because ERC20 viability check doesn't include gasCosts
       expect(results).to.have.lengthOf(1);
@@ -1629,7 +1592,7 @@ describe('InventoryRebalancer E2E', () => {
         toChain: 1399811149,
       });
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should succeed - bridge is viable
       expect(results).to.have.lengthOf(1);
@@ -1702,7 +1665,7 @@ describe('InventoryRebalancer E2E', () => {
       // Quote fails for viability check
       bridge.quote.rejects(new Error('LiFi API timeout'));
 
-      const results = await inventoryRebalancer.execute([route]);
+      const results = await inventoryRebalancer.rebalance([route]);
 
       // Verify: Should fail because quote error means no viable sources
       expect(results).to.have.lengthOf(1);

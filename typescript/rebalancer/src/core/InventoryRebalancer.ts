@@ -15,8 +15,9 @@ import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import type {
   IInventoryRebalancer,
   InventoryExecutionResult,
-} from '../interfaces/IInventoryRebalancer.js';
-import type { Route } from '../interfaces/IStrategy.js';
+  RebalancerType,
+} from '../interfaces/IRebalancer.js';
+import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
 import type {
   PartialInventoryIntent,
@@ -78,6 +79,7 @@ export interface InventoryRebalancerConfig {
  * - `inventory_deposit`: transferRemote to deposit collateral on deficit chain
  */
 export class InventoryRebalancer implements IInventoryRebalancer {
+  public readonly rebalancerType: RebalancerType = 'inventory';
   private readonly logger: Logger;
   private readonly config: InventoryRebalancerConfig;
   private readonly inventoryMonitor: IInventoryMonitor;
@@ -211,8 +213,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * 2. If exists, continue existing intent (ignores new routes)
    * 3. If not, take only the FIRST route and create a single intent
    */
-  async execute(routes: Route[]): Promise<InventoryExecutionResult[]> {
-    // Clear consumed inventory tracking at the start of each execution cycle
+  async rebalance(
+    routes: InventoryRoute[],
+  ): Promise<InventoryExecutionResult[]> {
     this.consumedInventory.clear();
 
     // 1. Check for existing in_progress intent
@@ -251,6 +254,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       destination: this.multiProvider.getDomainId(route.destination),
       amount: route.amount,
       executionMethod: 'inventory',
+      externalBridge: route.externalBridge,
     });
 
     this.logger.debug(
@@ -289,7 +293,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return [
         {
           route,
-          intent,
           success: false,
           error: (error as Error).message,
         },
@@ -316,10 +319,12 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   ): Promise<InventoryExecutionResult[]> {
     const { intent, remaining } = partial;
 
-    const route: Route = {
+    const route: InventoryRoute = {
       origin: this.multiProvider.getChainName(intent.origin),
       destination: this.multiProvider.getChainName(intent.destination),
       amount: remaining,
+      executionType: 'inventory',
+      externalBridge: intent.externalBridge!,
     };
 
     this.logger.info(
@@ -373,7 +378,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return [
         {
           route,
-          intent,
           success: false,
           error: (error as Error).message,
         },
@@ -398,7 +402,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * 3. Call transferRemote FROM destination TO origin (swapped)
    */
   private async executeRoute(
-    route: Route,
+    route: InventoryRoute,
     intent: RebalanceIntent,
   ): Promise<InventoryExecutionResult> {
     const { origin, destination, amount } = route;
@@ -480,7 +484,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
       return {
         route,
-        intent,
         success: true,
         reason: 'completed_with_acceptable_loss',
       };
@@ -488,10 +491,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Swap the route for executeTransferRemote: destination → origin
     // This ensures transferRemote is called FROM destination, ADDING collateral there
-    const swappedRoute: Route = {
+    const swappedRoute: InventoryRoute = {
+      ...route,
       origin: destination, // transferRemote called FROM here
       destination: origin, // Hyperlane message goes TO here
-      amount,
     };
 
     if (maxTransferable >= amount) {
@@ -505,7 +508,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       return { ...result, route };
     } else if (maxTransferable > 0n && maxTransferable >= minViableTransfer) {
       // Partial transfer: Transfer available inventory when economically viable
-      const partialSwappedRoute = { ...swappedRoute, amount: maxTransferable };
+      const partialSwappedRoute: InventoryRoute = {
+        ...swappedRoute,
+        amount: maxTransferable,
+      };
       const result = await this.executeTransferRemote(
         partialSwappedRoute,
         intent,
@@ -553,7 +559,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
         return {
           route,
-          intent,
           success: false,
           error: 'No inventory available on any monitored chain',
         };
@@ -590,7 +595,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
         return {
           route,
-          intent,
           success: false,
           error: 'No viable bridge sources available',
         };
@@ -681,12 +685,10 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       }
 
       if (successCount === 0) {
-        // Include specific error messages to help diagnose failures (e.g., insufficient funds)
         const errorDetails =
           failedErrors.length > 0 ? ` (${failedErrors.join('; ')})` : '';
         return {
           route,
-          intent,
           success: false,
           error: `All inventory movements failed${errorDetails}`,
         };
@@ -703,7 +705,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Parallel inventory movements completed, transferRemote will execute after bridges complete',
       );
 
-      return { route, intent, success: true };
+      return { route, success: true };
     }
   }
 
@@ -723,7 +725,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * @param gasQuote - Pre-calculated gas quote from calculateTransferCosts
    */
   private async executeTransferRemote(
-    route: Route,
+    route: InventoryRoute,
     intent: RebalanceIntent,
     gasQuote: { igpQuote: { amount: bigint } },
   ): Promise<InventoryExecutionResult> {
@@ -827,29 +829,9 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     return {
       route,
-      intent,
       success: true,
       amountSent: amount,
     };
-  }
-
-  /**
-   * Check if a route can be executed with current inventory.
-   * Returns the amount that can be fulfilled immediately.
-   *
-   * Note: Checks inventory on DESTINATION chain since that's where
-   * transferRemote is called FROM (swapped direction).
-   */
-  async getAvailableAmount(route: Route): Promise<bigint> {
-    // Check inventory on destination (deficit chain) since that's where
-    // we call transferRemote FROM
-    const availableInventory =
-      await this.inventoryMonitor.getAvailableInventory(route.destination);
-
-    // Return the minimum of available inventory and requested amount
-    return availableInventory < route.amount
-      ? availableInventory
-      : route.amount;
   }
 
   /**

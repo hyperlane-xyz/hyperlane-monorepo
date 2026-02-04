@@ -232,6 +232,24 @@ export const RebalancerConfigSchema = z
             path: ['strategy', strategyIndex, 'chains', chainName, 'bridge'],
           });
         }
+
+        // externalBridge is required for inventory execution type
+        if (
+          executionType === ExecutionType.Inventory &&
+          !chainConfig.externalBridge
+        ) {
+          ctx.addIssue({
+            code: z.ZodIssueCode.custom,
+            message: `Chain '${chainName}' uses inventory execution but has no 'externalBridge' configured`,
+            path: [
+              'strategy',
+              strategyIndex,
+              'chains',
+              chainName,
+              'externalBridge',
+            ],
+          });
+        }
       }
     }
 

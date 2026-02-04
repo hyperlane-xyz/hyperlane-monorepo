@@ -3,13 +3,10 @@ import chaiAsPromised from 'chai-as-promised';
 import { pino } from 'pino';
 import Sinon from 'sinon';
 
-import type { MultiProvider } from '@hyperlane-xyz/sdk';
-
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { ExecutionType, RebalancerStrategyOptions } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
 import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
-import type { IInventoryRebalancer } from '../interfaces/IInventoryRebalancer.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -50,24 +47,9 @@ function createMockRebalancerConfig(): RebalancerConfig {
   } as RebalancerConfig;
 }
 
-function createMockMultiProvider(): MultiProvider {
-  return {
-    getDomainId: Sinon.stub().callsFake((chain: string) => {
-      const domains: Record<string, number> = { ethereum: 1, arbitrum: 42161 };
-      return domains[chain] ?? 0;
-    }),
-    getSigner: Sinon.stub().returns({
-      getAddress: Sinon.stub().resolves(TEST_ADDRESSES.signer),
-    }),
-    metadata: {
-      ethereum: { domainId: 1 },
-      arbitrum: { domainId: 42161 },
-    },
-  } as unknown as MultiProvider;
-}
-
 function createMockRebalancer(): IRebalancer & { rebalance: Sinon.SinonStub } {
   return {
+    rebalancerType: 'movableCollateral' as const,
     rebalance: Sinon.stub().resolves([]),
   };
 }
@@ -126,12 +108,12 @@ function createMockInflightContextAdapter(): InflightContextAdapter & {
   };
 }
 
-function createMockInventoryRebalancer(): IInventoryRebalancer & {
-  execute: Sinon.SinonStub;
+function createMockInventoryRebalancer(): IRebalancer & {
+  rebalance: Sinon.SinonStub;
 } {
   return {
-    execute: Sinon.stub().resolves([]),
-    getAvailableAmount: Sinon.stub().resolves(0n),
+    rebalancerType: 'inventory' as const,
+    rebalance: Sinon.stub().resolves([]),
   };
 }
 
@@ -222,9 +204,9 @@ describe('RebalancerOrchestrator', () => {
         strategy,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
+        rebalancers: [],
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
@@ -249,9 +231,9 @@ describe('RebalancerOrchestrator', () => {
         strategy,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
+        rebalancers: [],
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
@@ -287,7 +269,6 @@ describe('RebalancerOrchestrator', () => {
             origin: 'ethereum',
             destination: 'arbitrum',
             amount: 1000n,
-            intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
           },
           success: true,
@@ -299,19 +280,14 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const actionTracker = createMockActionTracker();
-      (actionTracker.createRebalanceIntent as Sinon.SinonStub).resolves({
-        id: 'intent-1',
-        status: 'not_started',
-      });
 
       const inflightAdapter = createMockInflightContextAdapter();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        rebalancer,
+        rebalancers: [rebalancer],
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
       };
@@ -325,9 +301,6 @@ describe('RebalancerOrchestrator', () => {
       expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
       expect(rebalancer.rebalance.calledOnce).to.be.true;
-      expect(
-        (actionTracker.createRebalanceAction as Sinon.SinonStub).calledOnce,
-      ).to.be.true;
     });
 
     it('should handle failed movable collateral routes', async () => {
@@ -348,7 +321,6 @@ describe('RebalancerOrchestrator', () => {
             origin: 'ethereum',
             destination: 'arbitrum',
             amount: 1000n,
-            intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
           },
           success: false,
@@ -357,19 +329,14 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const actionTracker = createMockActionTracker();
-      (actionTracker.createRebalanceIntent as Sinon.SinonStub).resolves({
-        id: 'intent-1',
-        status: 'not_started',
-      });
 
       const inflightAdapter = createMockInflightContextAdapter();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        rebalancer,
+        rebalancers: [rebalancer],
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
       };
@@ -382,19 +349,11 @@ describe('RebalancerOrchestrator', () => {
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(result.executedCount).to.equal(0);
       expect(result.failedCount).to.equal(1);
-      expect((actionTracker.failRebalanceIntent as Sinon.SinonStub).calledOnce)
-        .to.be.true;
-      expect(
-        (actionTracker.failRebalanceIntent as Sinon.SinonStub).calledWith(
-          'intent-1',
-        ),
-      ).to.be.true;
     });
   });
 
   describe('executeCycle() - Inventory Routes Only', () => {
     it('should execute inventory routes successfully', async () => {
-      // Config with inventory chain
       const config: RebalancerConfig = {
         warpRouteId: 'TEST/route',
         strategyConfig: [
@@ -428,17 +387,13 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.execute.resolves([
+      inventoryRebalancer.rebalance.resolves([
         {
           success: true,
           route: {
             origin: 'ethereum',
             destination: 'arbitrum',
             amount: 1000n,
-          },
-          intent: {
-            id: 'intent-1',
-            status: 'in_progress',
           },
         },
       ]);
@@ -449,11 +404,10 @@ describe('RebalancerOrchestrator', () => {
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        inventoryRebalancer,
+        rebalancers: [inventoryRebalancer],
         inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: config,
         logger: testLogger,
       };
@@ -464,15 +418,14 @@ describe('RebalancerOrchestrator', () => {
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).to.have.lengthOf(1);
-      expect(inventoryRebalancer.execute.calledOnce).to.be.true;
+      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
       expect((inventoryMonitor.refresh as Sinon.SinonStub).calledTwice).to.be
-        .true; // Once before strategy, once before execution
+        .true;
     });
   });
 
   describe('executeCycle() - Mixed Routes', () => {
     it('should execute both movable collateral and inventory routes', async () => {
-      // Config with mixed execution types
       const config: RebalancerConfig = {
         warpRouteId: 'TEST/route',
         strategyConfig: [
@@ -523,7 +476,6 @@ describe('RebalancerOrchestrator', () => {
             origin: 'ethereum',
             destination: 'optimism',
             amount: 1000n,
-            intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
           },
           success: true,
@@ -533,7 +485,7 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.execute.resolves([
+      inventoryRebalancer.rebalance.resolves([
         {
           success: true,
           route: {
@@ -541,30 +493,20 @@ describe('RebalancerOrchestrator', () => {
             destination: 'ethereum',
             amount: 500n,
           },
-          intent: {
-            id: 'intent-2',
-            status: 'in_progress',
-          },
         },
       ]);
 
       const inventoryMonitor = createMockInventoryMonitor();
       const actionTracker = createMockActionTracker();
-      (actionTracker.createRebalanceIntent as Sinon.SinonStub).resolves({
-        id: 'intent-1',
-        status: 'not_started',
-      });
 
       const inflightAdapter = createMockInflightContextAdapter();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        rebalancer,
-        inventoryRebalancer,
+        rebalancers: [rebalancer, inventoryRebalancer],
         inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: config,
         logger: testLogger,
       };
@@ -575,15 +517,15 @@ describe('RebalancerOrchestrator', () => {
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).to.have.lengthOf(2);
-      expect(result.executedCount).to.equal(1); // Only movable collateral counts
+      expect(result.executedCount).to.equal(1);
       expect(result.failedCount).to.equal(0);
       expect(rebalancer.rebalance.calledOnce).to.be.true;
-      expect(inventoryRebalancer.execute.calledOnce).to.be.true;
+      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
     });
   });
 
   describe('executeCycle() - Continue Inventory Intents', () => {
-    it('should call inventoryRebalancer.execute([]) when no routes proposed', async () => {
+    it('should call inventoryRebalancer.rebalance([]) when no routes proposed', async () => {
       const config: RebalancerConfig = {
         warpRouteId: 'TEST/route',
         strategyConfig: [
@@ -607,10 +549,10 @@ describe('RebalancerOrchestrator', () => {
       } as RebalancerConfig;
 
       const strategy = createMockStrategy();
-      strategy.getRebalancingRoutes.returns([]); // No routes proposed
+      strategy.getRebalancingRoutes.returns([]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.execute.resolves([]);
+      inventoryRebalancer.rebalance.resolves([]);
 
       const inventoryMonitor = createMockInventoryMonitor();
       const actionTracker = createMockActionTracker();
@@ -618,11 +560,10 @@ describe('RebalancerOrchestrator', () => {
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        inventoryRebalancer,
+        rebalancers: [inventoryRebalancer],
         inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: config,
         logger: testLogger,
       };
@@ -632,12 +573,11 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      // CRITICAL: Verify inventoryRebalancer.execute was called with empty array
-      expect(inventoryRebalancer.execute.calledOnce).to.be.true;
-      expect(inventoryRebalancer.execute.calledWith([])).to.be.true;
+      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(inventoryRebalancer.rebalance.calledWith([])).to.be.true;
     });
 
-    it('should NOT call inventoryRebalancer.execute([]) when routes are proposed', async () => {
+    it('should NOT call inventoryRebalancer.rebalance([]) when routes are proposed', async () => {
       const config: RebalancerConfig = {
         warpRouteId: 'TEST/route',
         strategyConfig: [
@@ -671,17 +611,13 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const inventoryRebalancer = createMockInventoryRebalancer();
-      inventoryRebalancer.execute.resolves([
+      inventoryRebalancer.rebalance.resolves([
         {
           success: true,
           route: {
             origin: 'ethereum',
             destination: 'arbitrum',
             amount: 1000n,
-          },
-          intent: {
-            id: 'intent-1',
-            status: 'in_progress',
           },
         },
       ]);
@@ -692,11 +628,10 @@ describe('RebalancerOrchestrator', () => {
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        inventoryRebalancer,
+        rebalancers: [inventoryRebalancer],
         inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: config,
         logger: testLogger,
       };
@@ -706,12 +641,11 @@ describe('RebalancerOrchestrator', () => {
 
       await orchestrator.executeCycle(event);
 
-      // Verify inventoryRebalancer.execute was called ONCE with the route (not twice)
-      expect(inventoryRebalancer.execute.calledOnce).to.be.true;
-      expect(inventoryRebalancer.execute.calledWith([])).to.be.false;
+      expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
+      expect(inventoryRebalancer.rebalance.calledWith([])).to.be.false;
     });
 
-    it('should NOT call inventoryRebalancer.execute([]) when inventoryRebalancer is undefined', async () => {
+    it('should NOT call inventoryRebalancer.rebalance([]) when inventoryRebalancer is not in rebalancers', async () => {
       const strategy = createMockStrategy();
       strategy.getRebalancingRoutes.returns([]);
 
@@ -722,16 +656,14 @@ describe('RebalancerOrchestrator', () => {
         strategy,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
-        // No inventoryRebalancer
+        rebalancers: [],
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
       const event = createMonitorEvent();
 
-      // Should not throw
       await orchestrator.executeCycle(event);
     });
   });
@@ -752,15 +684,14 @@ describe('RebalancerOrchestrator', () => {
         strategy,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
+        rebalancers: [],
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
       const event = createMonitorEvent();
 
-      // Should not throw
       const result = await orchestrator.executeCycle(event);
 
       expect(result.proposedRoutes).to.have.lengthOf(0);
@@ -779,9 +710,9 @@ describe('RebalancerOrchestrator', () => {
         strategy,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
+        rebalancers: [],
         bridge,
       };
 
@@ -821,7 +752,6 @@ describe('RebalancerOrchestrator', () => {
             origin: 'ethereum',
             destination: 'arbitrum',
             amount: 1000n,
-            intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
           },
           success: true,
@@ -831,20 +761,15 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const actionTracker = createMockActionTracker();
-      (actionTracker.createRebalanceIntent as Sinon.SinonStub).resolves({
-        id: 'intent-1',
-        status: 'not_started',
-      });
 
       const inflightAdapter = createMockInflightContextAdapter();
       const metrics = createMockMetrics();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        rebalancer,
+        rebalancers: [rebalancer],
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
         metrics,
@@ -879,7 +804,6 @@ describe('RebalancerOrchestrator', () => {
             origin: 'ethereum',
             destination: 'arbitrum',
             amount: 1000n,
-            intentId: 'intent-1',
             bridge: TEST_ADDRESSES.bridge,
           },
           success: false,
@@ -888,20 +812,15 @@ describe('RebalancerOrchestrator', () => {
       ]);
 
       const actionTracker = createMockActionTracker();
-      (actionTracker.createRebalanceIntent as Sinon.SinonStub).resolves({
-        id: 'intent-1',
-        status: 'not_started',
-      });
 
       const inflightAdapter = createMockInflightContextAdapter();
       const metrics = createMockMetrics();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
-        rebalancer,
+        rebalancers: [rebalancer],
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
         metrics,
@@ -930,9 +849,9 @@ describe('RebalancerOrchestrator', () => {
         strategy,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
-        multiProvider: createMockMultiProvider(),
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
+        rebalancers: [],
         metrics,
       };
 
