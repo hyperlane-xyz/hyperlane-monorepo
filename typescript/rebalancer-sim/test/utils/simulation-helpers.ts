@@ -142,7 +142,8 @@ export async function runScenarioWithRebalancers(
             domain.collateralToken,
             deployer,
           );
-          await token.mintTo(domain.warpToken, extraAmount);
+          const mintTx = await token.mintTo(domain.warpToken, extraAmount);
+          await mintTx.wait();
           console.log(
             `  Applied imbalance: +${ethers.utils.formatEther(extraAmount)} tokens to ${chainName}`,
           );
