@@ -1,0 +1,86 @@
+{
+  "name": "inflight-guard",
+  "description": "Tests rebalancer behavior with slow bridge and fast polling to demonstrate inflight guard importance.",
+  "expectedBehavior": "With SLOW bridge (3s) and FAST polling (200ms), a rebalancer without inflight tracking will over-rebalance.\nWithout inflight guard: Multiple redundant transfers sent before first one delivers.\nWith inflight guard: Only 1-2 transfers sent, tracking pending amounts.",
+  "duration": 8000,
+  "chains": ["chain1", "chain2"],
+  "initialImbalance": {
+    "chain1": "50000000000000000000"
+  },
+  "transfers": [
+    {
+      "id": "keepalive-1",
+      "timestamp": 1000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1000000000000000",
+      "user": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "id": "keepalive-2",
+      "timestamp": 3000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1000000000000000",
+      "user": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "id": "keepalive-3",
+      "timestamp": 5000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1000000000000000",
+      "user": "0x1111111111111111111111111111111111111111"
+    },
+    {
+      "id": "keepalive-4",
+      "timestamp": 7000,
+      "origin": "chain1",
+      "destination": "chain2",
+      "amount": "1000000000000000",
+      "user": "0x1111111111111111111111111111111111111111"
+    }
+  ],
+  "defaultInitialCollateral": "100000000000000000000",
+  "defaultTiming": {
+    "userTransferDeliveryDelay": 0,
+    "rebalancerPollingFrequency": 200,
+    "userTransferInterval": 100
+  },
+  "defaultBridgeConfig": {
+    "chain1": {
+      "chain2": {
+        "deliveryDelay": 3000,
+        "failureRate": 0,
+        "deliveryJitter": 0
+      }
+    },
+    "chain2": {
+      "chain1": {
+        "deliveryDelay": 3000,
+        "failureRate": 0,
+        "deliveryJitter": 0
+      }
+    }
+  },
+  "defaultStrategyConfig": {
+    "type": "weighted",
+    "chains": {
+      "chain1": {
+        "weighted": {
+          "weight": "0.5",
+          "tolerance": "0.05"
+        },
+        "bridgeLockTime": 500
+      },
+      "chain2": {
+        "weighted": {
+          "weight": "0.5",
+          "tolerance": "0.05"
+        },
+        "bridgeLockTime": 500
+      }
+    }
+  },
+  "expectations": {}
+}

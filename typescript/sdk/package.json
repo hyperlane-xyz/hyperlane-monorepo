@@ -1,7 +1,7 @@
 {
   "name": "@hyperlane-xyz/sdk",
   "description": "The official SDK for the Hyperlane Network",
-  "version": "22.0.0",
+  "version": "23.0.0",
   "dependencies": {
     "@arbitrum/sdk": "catalog:",
     "@aws-sdk/client-s3": "catalog:",

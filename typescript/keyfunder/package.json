@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/keyfunder",
-  "version": "0.0.0",
+  "version": "0.0.1",
   "private": true,
   "description": "Hyperlane Key Funder Service - funds agent keys with native tokens",
   "type": "module",

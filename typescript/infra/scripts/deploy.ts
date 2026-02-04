@@ -4,7 +4,6 @@ import path from 'path';
 import prompts from 'prompts';
 
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
-import { HelloWorldDeployer } from '@hyperlane-xyz/helloworld';
 import {
   ChainMap,
   ContractVerifier,
@@ -228,15 +227,6 @@ async function main() {
     }));
     deployer = new TestQuerySenderDeployer(
       multiProvider,
-      contractVerifier,
-      concurrentDeploy,
-    );
-  } else if (module === Modules.HELLO_WORLD) {
-    const { core } = await getHyperlaneCore(environment, multiProvider);
-    config = core.getRouterConfig(envConfig.owners);
-    deployer = new HelloWorldDeployer(
-      multiProvider,
-      undefined,
       contractVerifier,
       concurrentDeploy,
     );

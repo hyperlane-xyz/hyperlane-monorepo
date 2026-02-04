@@ -57,4 +57,8 @@ export const awSafes: ChainMap<Address> = {
   ronin: '0x5F7771EA40546e2932754C263455Cb0023a55ca7',
   metis: '0xf6B817Cf8b4440F38951851cf1160969039966A2',
   metal: '0x41A4e3425c7FeE8711D1C1b2c2acc1879F849b45',
+
+  // Jan 29, 2026 - Migrating Viction to Safes
+  // ----------------------------------------------------------
+  viction: '0x18165B1cb2969B79D2a0f67AECe0bf7bb44a7CaD',
 };

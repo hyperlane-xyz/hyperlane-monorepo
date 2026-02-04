@@ -1,5 +1,34 @@
 # @hyperlane-xyz/widgets
 
+## 23.0.0
+
+### Major Changes
+
+- 80f3635: feat: aleo nexus ui support
+
+### Patch Changes
+
+- Updated dependencies [d1d90d2]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [c8f6f6c]
+- Updated dependencies [7c22cff]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [6ddef74]
+- Updated dependencies [80f3635]
+- Updated dependencies [576cd95]
+- Updated dependencies [9aa93f4]
+- Updated dependencies [42b72c3]
+- Updated dependencies [a5d6cae]
+  - @hyperlane-xyz/sdk@23.0.0
+  - @hyperlane-xyz/aleo-sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@23.0.0
+  - @hyperlane-xyz/radix-sdk@23.0.0
+
 ## 22.0.0
 
 ### Patch Changes

@@ -42,6 +42,20 @@ export const rebalancerPollingErrorsTotal = new Counter({
   labelNames: ['warp_route_id'],
 });
 
+export const rebalancerIntentsCreatedTotal = new Counter({
+  name: 'hyperlane_rebalancer_intents_created_total',
+  help: 'Total number of rebalancing intents (routes) created.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'strategy', 'origin', 'destination'],
+});
+
+export const rebalancerActionsCreatedTotal = new Counter({
+  name: 'hyperlane_rebalancer_actions_created_total',
+  help: 'Total number of rebalancing actions (transactions) attempted.',
+  registers: [metricsRegister],
+  labelNames: ['warp_route_id', 'origin', 'destination', 'succeeded'],
+});
+
 /**
  * Updates token balance metrics for a warp route token.
  */

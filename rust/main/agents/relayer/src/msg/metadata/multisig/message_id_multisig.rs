@@ -60,7 +60,12 @@ impl MultisigIsmMetadataBuilder for MessageIdMultisigMetadataBuilder {
 
         let quorum_checkpoint = unwrap_or_none_result!(
             checkpoint_syncer
-                .fetch_checkpoint(validators, threshold as usize, leaf_index)
+                .fetch_checkpoint(
+                    validators,
+                    threshold as usize,
+                    leaf_index,
+                    self.base_builder().destination_domain()
+                )
                 .await
                 .map_err(|err| MetadataBuildError::FailedToBuild(err.to_string()))?,
             debug!("No quorum checkpoint found")

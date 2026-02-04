@@ -35,6 +35,7 @@ describe('getRawBalances', () => {
           bridgedSupply: tokenBridgedSupply,
         },
       ],
+      confirmedBlockTags: { mainnet: 1000 },
     };
   });
 

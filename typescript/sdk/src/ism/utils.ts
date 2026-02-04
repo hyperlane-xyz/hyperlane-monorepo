@@ -1,4 +1,4 @@
-import { ethers } from 'ethers';
+import { ethers, utils } from 'ethers';
 
 import {
   AbstractStorageMultisigIsm__factory,
@@ -653,4 +653,15 @@ export function isIsmCompatible({
   // Skip compatibility check for non-static ISMs as they're always supported
   if (!isStaticIsm(ismType)) return true;
   return isStaticDeploymentSupported(chainTechnicalStack);
+}
+
+export function offchainLookupRequestMessageHash(
+  sender: string,
+  callData: string,
+  urlTemplate: string,
+): string {
+  return utils.solidityKeccak256(
+    ['string', 'address', 'bytes', 'string'],
+    ['HYPERLANE_OFFCHAINLOOKUP', sender, callData, urlTemplate],
+  );
 }

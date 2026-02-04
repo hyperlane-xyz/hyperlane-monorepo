@@ -85,7 +85,7 @@ export class RadixWarpTx {
     await this.signer.signAndBroadcast(transactionManifest);
   }
 
-  public async setTokenIsm({ token, ism }: { token: string; ism: string }) {
+  public async setTokenIsm({ token, ism }: { token: string; ism?: string }) {
     const transactionManifest = await this.populate.setTokenIsm({
       from_address: this.account.address,
       token,

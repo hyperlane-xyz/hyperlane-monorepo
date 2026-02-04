@@ -146,11 +146,14 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     // Check if configured token type matches actual token type
     if (isNativeTokenConfig(expectedConfig)) {
       try {
-        await this.multiProvider.estimateGas(chain, {
-          to: hypToken.address,
-          from: NON_ZERO_SENDER_ADDRESS,
-          value: BigNumber.from(1),
-        });
+        await this.multiProvider.estimateGas(
+          chain,
+          {
+            to: hypToken.address,
+            value: BigNumber.from(1),
+          },
+          NON_ZERO_SENDER_ADDRESS,
+        );
       } catch {
         const violation: TokenMismatchViolation = {
           type: 'deployed token not payable',

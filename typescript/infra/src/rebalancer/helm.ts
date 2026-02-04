@@ -6,9 +6,10 @@ import { fromZodError } from 'zod-validation-error';
 import {
   type RebalancerConfigFileInput,
   RebalancerConfigSchema,
+  getStrategyChainNames,
 } from '@hyperlane-xyz/rebalancer';
 import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
-import { isObjEmpty, rootLogger } from '@hyperlane-xyz/utils';
+import { rootLogger } from '@hyperlane-xyz/utils';
 import { readYaml } from '@hyperlane-xyz/utils/fs';
 
 import { DockerImageRepos, mainnetDockerTags } from '../../config/docker.js';
@@ -64,8 +65,8 @@ export class RebalancerHelmManager extends HelmManager {
       throw new Error(fromZodError(validationResult.error).message);
     }
 
-    const { chains } = validationResult.data.strategy;
-    if (isObjEmpty(chains)) {
+    const chainNames = getStrategyChainNames(validationResult.data.strategy);
+    if (chainNames.length === 0) {
       throw new Error('No chains configured');
     }
 

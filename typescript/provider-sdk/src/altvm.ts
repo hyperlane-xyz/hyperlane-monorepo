@@ -411,7 +411,8 @@ export type ResSetTokenOwner = {
 export type ReqSetTokenIsm = {
   signer: string;
   tokenAddress: string;
-  ismAddress: string;
+  // Not supplying an ism address means setting it to the default ism
+  ismAddress?: string;
 };
 export type ResSetTokenIsm = {
   ismAddress: string;
@@ -420,7 +421,7 @@ export type ResSetTokenIsm = {
 export type ReqSetTokenHook = {
   signer: string;
   tokenAddress: string;
-  hookAddress: string;
+  hookAddress?: string;
 };
 export type ResSetTokenHook = {
   hookAddress: string;

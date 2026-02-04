@@ -1545,7 +1545,7 @@ export class GovernTransactionReader {
       expectedRemoteIcaAddress &&
       eqAddress(remoteIcaAddress, expectedRemoteIcaAddress);
     const isValidLegacyIca =
-      expectedRemoteIcaAddress &&
+      expectedLegacyRemoteIcaAddress &&
       eqAddress(remoteIcaAddress, expectedLegacyRemoteIcaAddress);
 
     if (!isValidIca && !isValidLegacyIca) {

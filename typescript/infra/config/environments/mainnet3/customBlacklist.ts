@@ -234,4 +234,7 @@ export const blacklistedMessageIds = [
   '0xd6aeef7c092a88aa23ad53227aeb834ae731d059b3ce749db8451e761f3f15ac',
   '0xfacde0fcb624617bd5e3357bb89d896e6acb4fdd6d9f4d46c2b0af06cecdbec7',
   '0x522a590ceda199121cace2dba1487efb11f640ec2d98d04b9f158cd4345db94b',
+
+  // USDC/eclipsemainnet warp transfer to USDC contract itself [2026-01-30]
+  '0x4190cf8c0419cd966fc96fcb9050be3d941cb06974667bd768f22e90abcec6a6',
 ];

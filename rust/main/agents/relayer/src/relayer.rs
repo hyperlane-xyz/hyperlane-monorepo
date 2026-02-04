@@ -829,11 +829,7 @@ impl Relayer {
         send_channels: HashMap<u32, UnboundedSender<QueueOperation>>,
         task_monitor: TaskMonitor,
     ) -> eyre::Result<JoinHandle<()>> {
-        let metrics = MessageDbLoaderMetrics::new(
-            &self.core.metrics,
-            &origin.domain,
-            self.destinations.keys(),
-        );
+        let metrics = MessageDbLoaderMetrics::new(&self.core.metrics, &origin.domain);
         let destination_ctxs: HashMap<_, _> = self
             .destinations
             .keys()

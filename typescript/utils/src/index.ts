@@ -1,4 +1,5 @@
 export {
+  hexToBech32mPrefix,
   hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,

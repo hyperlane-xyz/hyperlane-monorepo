@@ -8,7 +8,6 @@ import {
   ERC20,
   ERC20__factory,
   ERC4626__factory,
-  GasRouter__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -548,22 +547,7 @@ export class EvmMovableCollateralAdapter
     domain: Domain,
     recipient: Address,
     amount: Numberish,
-    isWarp: boolean,
   ): Promise<InterchainGasQuote[]> {
-    // TODO: In the future, all bridges should get quotes from the quoteTransferRemote function.
-    // Given that currently warp routes used as bridges do not, quotes need to be obtained differently.
-    // This can probably be removed in the future.
-    if (isWarp) {
-      const gasRouter = GasRouter__factory.connect(bridge, this.getProvider());
-      const gasPayment = await gasRouter.quoteGasPayment(domain);
-
-      return [
-        {
-          igpQuote: { amount: BigInt(gasPayment.toString()) },
-        },
-      ];
-    }
-
     const bridgeContract = ITokenBridge__factory.connect(
       bridge,
       this.getProvider(),
