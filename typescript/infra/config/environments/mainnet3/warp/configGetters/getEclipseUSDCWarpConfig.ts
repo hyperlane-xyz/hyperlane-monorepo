@@ -151,11 +151,11 @@ export const buildEclipseUSDCWarpConfig = async (
         usdcTokenAddresses[chain as keyof typeof usdcTokenAddresses];
       assert(usdcToken, `USDC address not defined for ${chain}`);
       chainConfig = {
+        ...tokenMetadata,
         type: TokenType.collateral,
         token: usdcToken,
         owner: ownersByChain[chain],
         mailbox: routerConfig[chain].mailbox,
-        ...tokenMetadata,
       };
     }
 
@@ -197,13 +197,14 @@ export const buildEclipseUSDCWarpConfig = async (
 export const getEclipseUSDCWarpConfig = async (
   routerConfig: ChainMap<RouterConfigWithoutOwner>,
 ): Promise<ChainMap<HypTokenRouterConfig>> => {
-  const chainAddresses = getChainAddresses();
   const proxyAdminOverride = Object.fromEntries(
-    rebalanceableCollateralChains.map((chain) => [
-      chain,
-      chainAddresses[chain].proxyAdmin,
-    ]),
-  ) as Partial<Record<DeploymentChain, string>>;
+    evmDeploymentChains.map((chain) => {
+      const safe = awSafes[chain];
+      assert(safe, `AW safe not defined for ${chain}`);
+
+      return [chain, safe];
+    }),
+  );
 
   return buildEclipseUSDCWarpConfig(routerConfig, {
     ownersByChain: productionOwnersByChain,
