@@ -2367,8 +2367,8 @@ importers:
         specifier: ^1.3.8
         version: 1.3.8(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
       '@codama/renderers-js':
-        specifier: github:antigremlin/renderers-js#cursor/import-generation-enhancement-4673
-        version: https://codeload.github.com/antigremlin/renderers-js/tar.gz/65b45b1bf38d36fd1ffac4b82a31297a90034334(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
+        specifier: github:antigremlin/renderers-js#contrib
+        version: https://codeload.github.com/antigremlin/renderers-js/tar.gz/1db7cb5fe0468dc528a0b7269702f08604906f7f(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)
       '@ethersproject/providers':
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
@@ -3907,8 +3907,8 @@ packages:
   '@codama/renderers-core@1.3.5':
     resolution: {integrity: sha512-MuZLU+3LZPQb1HuZffwZl+v5JHQDe5LYHGhA1wTMNlwRedYIysSxBjogHNciNIHsKP3JjmqyYmLO5LCEp3hjaQ==}
 
-  '@codama/renderers-js@https://codeload.github.com/antigremlin/renderers-js/tar.gz/65b45b1bf38d36fd1ffac4b82a31297a90034334':
-    resolution: {tarball: https://codeload.github.com/antigremlin/renderers-js/tar.gz/65b45b1bf38d36fd1ffac4b82a31297a90034334}
+  '@codama/renderers-js@https://codeload.github.com/antigremlin/renderers-js/tar.gz/1db7cb5fe0468dc528a0b7269702f08604906f7f':
+    resolution: {tarball: https://codeload.github.com/antigremlin/renderers-js/tar.gz/1db7cb5fe0468dc528a0b7269702f08604906f7f}
     version: 1.5.5
     engines: {node: '>=20.18.0'}
 
@@ -19378,7 +19378,7 @@ snapshots:
   '@codama/errors@1.5.0':
     dependencies:
       '@codama/node-types': 1.5.0
-      commander: 14.0.2
+      commander: 14.0.3
       picocolors: 1.1.1
 
   '@codama/node-types@1.5.0': {}
@@ -19405,7 +19405,7 @@ snapshots:
       '@codama/nodes': 1.5.0
       '@codama/visitors-core': 1.5.0
 
-  '@codama/renderers-js@https://codeload.github.com/antigremlin/renderers-js/tar.gz/65b45b1bf38d36fd1ffac4b82a31297a90034334(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)':
+  '@codama/renderers-js@https://codeload.github.com/antigremlin/renderers-js/tar.gz/1db7cb5fe0468dc528a0b7269702f08604906f7f(fastestsmallesttextencoderdecoder@1.0.22)(typescript@5.8.3)':
     dependencies:
       '@codama/errors': 1.5.0
       '@codama/nodes': 1.5.0
