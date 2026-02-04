@@ -187,23 +187,25 @@ describe('Collateral Deficit E2E', function () {
         amount: transferAmount,
         warpRecipient: userAddress,
       })
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    await context.orchestrator.executeCycle(event);
 
-    // Assert: Strategy proposed routes for the deficit chain
-    expect(cycleResult.proposedRoutes.length).to.be.greaterThan(0);
+    // Assert: Strategy created rebalance intents for the deficit chain
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.be.greaterThan(0);
 
-    const routeToArbitrum = cycleResult.proposedRoutes.find(
-      (r) => r.destination === 'arbitrum',
+    const intentToArbitrum = activeIntents.find(
+      (i) => i.destination === DOMAIN_IDS.arbitrum,
     );
-    expect(routeToArbitrum, 'Should have route destined for arbitrum').to.exist;
-    expect(routeToArbitrum!.amount).to.equal(400000000n);
-    expect(routeToArbitrum!.origin).to.equal('ethereum');
+    expect(intentToArbitrum, 'Should have intent destined for arbitrum').to
+      .exist;
+    expect(intentToArbitrum!.amount).to.equal(400000000n);
+    expect(intentToArbitrum!.origin).to.equal(DOMAIN_IDS.ethereum);
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
