@@ -29,8 +29,7 @@ import {
 } from '../utils/simulation-helpers.js';
 
 describe('Rebalancer Simulation', function () {
-  const anvilPort = 8545;
-  const anvil = setupAnvilTestSuite(this, anvilPort);
+  const anvil = setupAnvilTestSuite(this);
 
   before(async function () {
     ensureResultsDir();

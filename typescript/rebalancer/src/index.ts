@@ -65,7 +65,6 @@ export type {
 export type {
   IStrategy,
   StrategyRoute,
-  Route,
   RawBalances,
   InflightContext,
 } from './interfaces/IStrategy.js';
@@ -93,10 +92,12 @@ export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.
 export { ExplorerClient } from './utils/ExplorerClient.js';
 
 // Tracking
-export {
-  type IInflightContextAdapter,
-  InflightContextAdapter,
-} from './tracking/InflightContextAdapter.js';
+export { InflightContextAdapter } from './tracking/InflightContextAdapter.js';
+export type {
+  IActionTracker,
+  CreateRebalanceIntentParams,
+  CreateRebalanceActionParams,
+} from './tracking/IActionTracker.js';
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';

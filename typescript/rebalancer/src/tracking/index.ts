@@ -33,7 +33,4 @@ export type {
 } from './IActionTracker.js';
 
 // Export InflightContextAdapter
-export {
-  type IInflightContextAdapter,
-  InflightContextAdapter,
-} from './InflightContextAdapter.js';
+export { InflightContextAdapter } from './InflightContextAdapter.js';
