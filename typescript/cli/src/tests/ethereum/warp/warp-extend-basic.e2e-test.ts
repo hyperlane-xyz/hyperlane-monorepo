@@ -17,6 +17,7 @@ import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,
+  syncWarpDeployConfigToRegistry,
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
@@ -32,7 +33,6 @@ import {
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
   WARP_DEPLOY_CONFIG_CHAIN_2,
-  getCombinedWarpRoutePath,
 } from '../consts.js';
 
 describe('hyperlane warp apply basic extension tests', async function () {
@@ -83,12 +83,10 @@ describe('hyperlane warp apply basic extension tests', async function () {
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig1 = await readWarpConfig(
@@ -142,12 +140,10 @@ describe('hyperlane warp apply basic extension tests', async function () {
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
       strategyUrl: `${EXAMPLES_PATH}/submit/strategy/json-rpc-chain-strategy.yaml`,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig1 = await readWarpConfig(
@@ -202,12 +198,8 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     const updatedWarpDeployConfig_2 = await readWarpConfig(
       CHAIN_NAME_2,
@@ -268,12 +260,11 @@ describe('hyperlane warp apply basic extension tests', async function () {
 
     warpDeployConfig[CHAIN_NAME_3] = extendedConfig;
     writeYamlOrJson(WARP_DEPLOY_CONFIG_CHAIN_2, warpDeployConfig);
-    await hyperlaneWarpApply(
+    syncWarpDeployConfigToRegistry(
       WARP_DEPLOY_CONFIG_CHAIN_2,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
       WARP_DEPLOY_2_ID,
     );
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Check that chain2 is enrolled in chain1
     const updatedWarpDeployConfig_2 = await readWarpConfig(
@@ -331,12 +322,10 @@ describe('hyperlane warp apply basic extension tests', async function () {
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: WARP_DEPLOY_CONFIG_CHAIN_2,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
 
     // Read resulting config and verify metadata preserved
     const resultConfig: WarpCoreConfig = readYamlOrJson(

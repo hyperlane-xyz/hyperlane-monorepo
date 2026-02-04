@@ -19,6 +19,7 @@ import {
   hyperlaneWarpApply,
   hyperlaneWarpDeploy,
   readWarpConfig,
+  syncWarpDeployConfigToRegistry,
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
@@ -75,6 +76,7 @@ describe('hyperlane warp apply config extension tests', async function () {
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
     // First read the existing config
@@ -94,14 +96,10 @@ describe('hyperlane warp apply config extension tests', async function () {
 
     // Write the updated config
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
 
     // Apply the changes
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Read back the config to verify changes
     const updatedConfig = await readWarpConfig(
@@ -135,6 +133,7 @@ describe('hyperlane warp apply config extension tests', async function () {
       extendedConfig: config,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
     // First read the existing config
@@ -157,14 +156,10 @@ describe('hyperlane warp apply config extension tests', async function () {
 
     // Write the updated config
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
+    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
 
     // Apply the changes
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     // Read back the config to verify changes
     const updatedConfig = await readWarpConfig(
@@ -205,12 +200,8 @@ describe('hyperlane warp apply config extension tests', async function () {
     delete warpDeployConfig[CHAIN_NAME_2].remoteRouters;
     delete warpDeployConfig[CHAIN_NAME_2].destinationGas;
     await writeYamlOrJson(warpDeployPath, warpDeployConfig);
-    await hyperlaneWarpApply(
-      warpDeployPath,
-      WARP_CORE_CONFIG_PATH_2,
-      undefined,
-      WARP_DEPLOY_2_ID,
-    );
+    syncWarpDeployConfigToRegistry(warpDeployPath, WARP_DEPLOY_2_ID);
+    await hyperlaneWarpApply(WARP_DEPLOY_2_ID);
 
     const updatedConfig: WarpRouteDeployConfig = readYamlOrJson(warpDeployPath);
 

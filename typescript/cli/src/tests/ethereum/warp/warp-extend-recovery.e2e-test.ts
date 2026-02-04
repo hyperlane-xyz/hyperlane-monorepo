@@ -31,7 +31,6 @@ import {
   WARP_CONFIG_PATH_EXAMPLE,
   WARP_CORE_CONFIG_PATH_2,
   WARP_DEPLOY_2_ID,
-  getCombinedWarpRoutePath,
 } from '../consts.js';
 
 describe('hyperlane warp apply recovery extension tests', async function () {
@@ -79,12 +78,10 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       },
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: warpConfigPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
-    const COMBINED_WARP_CORE_CONFIG_PATH = getCombinedWarpRoutePath('ETH', [
-      CHAIN_NAME_2,
-      CHAIN_NAME_3,
-    ]);
+    const COMBINED_WARP_CORE_CONFIG_PATH = WARP_CORE_CONFIG_PATH_2;
 
     const warpCoreConfig = readYamlOrJson(
       COMBINED_WARP_CORE_CONFIG_PATH,
@@ -129,6 +126,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       },
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
       warpDeployPath: warpConfigPath,
+      warpRouteId: WARP_DEPLOY_2_ID,
     });
 
     const recoveredConfig = await readWarpConfig(
@@ -149,6 +147,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
+      combinedWarpRouteId,
     } = await setupIncompleteWarpRouteExtension(chain3Addresses);
 
     // Verify initial state - neither chain should be enrolled in the other
@@ -185,6 +184,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       extendedConfig: configToExtend,
       warpCorePath: combinedWarpCorePath,
       warpDeployPath: warpConfigPath,
+      warpRouteId: combinedWarpRouteId,
     });
 
     // Verify both chains are now properly configured
@@ -223,6 +223,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
+      combinedWarpRouteId,
     } = await setupIncompleteWarpRouteExtension(chain3Addresses);
 
     // Verify initial state - neither chain should be enrolled in the other
@@ -258,7 +259,8 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       chainToExtend: CHAIN_NAME_3,
       extendedConfig: configToExtend,
       warpCorePath: WARP_CORE_CONFIG_PATH_2,
-      warpDeployPath: combinedWarpCorePath,
+      warpDeployPath: warpConfigPath,
+      warpRouteId: combinedWarpRouteId,
     });
 
     // Verify both chains are now properly configured
@@ -297,6 +299,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       warpConfigPath,
       configToExtend,
       combinedWarpCorePath,
+      combinedWarpRouteId,
     } = await setupIncompleteWarpRouteExtension(chain3Addresses);
 
     // Verify initial state - gas values should not be set
@@ -328,6 +331,7 @@ describe('hyperlane warp apply recovery extension tests', async function () {
       extendedConfig: configToExtend,
       warpCorePath: combinedWarpCorePath,
       warpDeployPath: warpConfigPath,
+      warpRouteId: combinedWarpRouteId,
     });
 
     // Verify gas values are correctly set after extension

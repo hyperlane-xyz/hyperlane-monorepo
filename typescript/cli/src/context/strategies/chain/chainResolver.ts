@@ -74,9 +74,7 @@ async function resolveWarpRouteConfigChains(
 ): Promise<ChainName[]> {
   const warpDeployConfig = await getWarpRouteDeployConfig({
     context: argv.context,
-    warpRouteDeployConfigPath: argv.config,
     warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
   });
   argv.context.warpDeployConfig = warpDeployConfig;
   argv.context.chains = Object.keys(warpDeployConfig);
@@ -94,10 +92,9 @@ async function resolveWarpReadChains(
     argv.context.chains = await resolveChain(argv);
   }
 
-  if (argv.symbol || argv.warpRouteId) {
+  if (argv.warpRouteId) {
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       context: argv.context,
-      symbol: argv.symbol,
       warpRouteId: argv.warpRouteId,
     });
     argv.context.chains = warpCoreConfig.tokens.map((token) => token.chainName);
@@ -123,9 +120,6 @@ async function resolveWarpConfigChains(
   const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
     context: argv.context,
     warpRouteId: argv.warpRouteId,
-    symbol: argv.symbol,
-    warpDeployConfigPath: argv.config,
-    warpCoreConfigPath: argv.warp,
   });
   argv.context.warpCoreConfig = warpCoreConfig;
   argv.context.warpDeployConfig = warpDeployConfig;
