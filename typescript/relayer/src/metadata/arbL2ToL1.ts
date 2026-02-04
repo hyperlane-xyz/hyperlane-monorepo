@@ -22,7 +22,11 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { WithAddress, assert, rootLogger } from '@hyperlane-xyz/utils';
 
-import type { MetadataBuilder, MetadataContext } from './types.js';
+import type {
+  ArbL2ToL1MetadataBuildResult,
+  MetadataBuilder,
+  MetadataContext,
+} from './types.js';
 
 export type NitroChildToParentTransactionEvent = EventArgs<L2ToL1TxEvent>;
 export type ArbL2ToL1Metadata = Omit<
@@ -47,26 +51,69 @@ export class ArbL2ToL1MetadataBuilder implements MetadataBuilder {
       WithAddress<ArbL2ToL1IsmConfig>,
       WithAddress<ArbL2ToL1HookConfig>
     >,
-  ): Promise<string> {
+  ): Promise<ArbL2ToL1MetadataBuildResult> {
     assert(context.ism.type === IsmType.ARB_L2_TO_L1, 'Invalid ISM type');
     this.logger.debug({ context }, 'Building ArbL2ToL1 metadata');
+
+    const baseResult: Omit<ArbL2ToL1MetadataBuildResult, 'bridgeStatus'> = {
+      type: IsmType.ARB_L2_TO_L1,
+      ismAddress: context.ism.address,
+    };
 
     // if the executeTransaction call is already successful, we can call with null metadata
     const ism = AbstractMessageIdAuthorizedIsm__factory.connect(
       context.ism.address,
       this.core.multiProvider.getSigner(context.message.parsed.destination),
     );
-    const verified = await ism.isVerified(context.message.id);
+    const verified = await ism.isVerified(context.message.message);
     if (verified) {
       this.logger.debug(
         'Message is already verified, relaying without metadata...',
       );
-      return '0x';
+      return {
+        ...baseResult,
+        bridgeStatus: 'verified',
+        metadata: '0x',
+      };
     }
 
     // else build the metadata for outbox.executeTransaction call
-    const metadata = await this.buildArbitrumBridgeCalldata(context);
-    return ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(metadata);
+    try {
+      const arbMetadata = await this.buildArbitrumBridgeCalldata(context);
+      return {
+        ...baseResult,
+        bridgeStatus: 'confirmed',
+        metadata: ArbL2ToL1MetadataBuilder.encodeArbL2ToL1Metadata(arbMetadata),
+      };
+    } catch (error: any) {
+      // Parse the error to determine bridge status
+      const errorMessage = error?.message ?? String(error);
+
+      if (errorMessage.includes('Wait') && errorMessage.includes('blocks')) {
+        // Extract blocks remaining from error message
+        // Note: This parsing depends on error format from buildArbitrumBridgeCalldata
+        // e.g., "Wait 123 blocks until the challenge period..."
+        const blocksMatch = errorMessage.match(/Wait (\d+) blocks/);
+        const blocksRemaining = blocksMatch
+          ? parseInt(blocksMatch[1], 10)
+          : undefined;
+        return {
+          ...baseResult,
+          bridgeStatus: 'unconfirmed',
+          blocksRemaining,
+        };
+      }
+
+      if (errorMessage.includes('already been executed')) {
+        return {
+          ...baseResult,
+          bridgeStatus: 'executed',
+        };
+      }
+
+      // Re-throw unknown errors
+      throw error;
+    }
   }
 
   async buildArbitrumBridgeCalldata(

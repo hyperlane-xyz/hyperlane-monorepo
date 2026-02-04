@@ -303,6 +303,39 @@ describe('hyperlane warp check e2e tests', async function () {
     expect(output.text()).to.include('No violations found');
   });
 
+  it('should pass warp check when allowed rebalancing bridges are in different order', async () => {
+    assert(
+      warpConfig[CHAIN_NAME_2].type === TokenType.collateral,
+      'Expected config to be for a collateral token',
+    );
+
+    // Deploy with bridges in ascending order
+    const bridge1 = randomAddress();
+    const bridge2 = randomAddress();
+    const [sortedBridge1, sortedBridge2] = [bridge1, bridge2].sort();
+
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: sortedBridge1 }, { bridge: sortedBridge2 }],
+    };
+    await deployAndExportWarpRoute();
+
+    // Check with bridges in descending order (opposite of deployed)
+    warpConfig[CHAIN_NAME_2].allowedRebalancingBridges = {
+      [chain3DomainId]: [{ bridge: sortedBridge2 }, { bridge: sortedBridge1 }],
+    };
+    writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+
+    const output = await hyperlaneWarpCheckRaw({
+      warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+      warpCoreConfigPath: combinedWarpCoreConfigPath,
+    })
+      .stdio('pipe')
+      .nothrow();
+
+    expect(output.exitCode).to.equal(0);
+    expect(output.text()).to.include('No violations found');
+  });
+
   it('should report a violation if no allowed bridges are in the config but are set on chain', async () => {
     assert(
       warpConfig[CHAIN_NAME_2].type === TokenType.collateral,

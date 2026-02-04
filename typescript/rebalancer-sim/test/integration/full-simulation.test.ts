@@ -249,6 +249,49 @@ describe('Rebalancer Simulation', function () {
     );
   });
 
+  // BLOCKED USER TRANSFER
+  // ============================================================================
+
+  /**
+   * Blocked User Transfer Test
+   *
+   * Tests the gap when user transfers are BLOCKED at destination due to
+   * insufficient collateral. With 50/50 weights and 50% tolerance, state
+   * appears within tolerance after user initiates transfer (69%/31% is
+   * within 25-75% range). But destination chain2 can't pay out (40 tokens
+   * < 50 needed), so transfer stays stuck.
+   *
+   * Neither rebalancer acts because weights are within tolerance.
+   * With future mock Explorer, rebalancer should see blocked transfer
+   * and proactively add collateral to chain2.
+   */
+  it('blocked-user-transfer: demonstrates blocked transfer without Explorer (report only)', async function () {
+    this.timeout(120000);
+
+    const { results } = await runScenarioWithRebalancers(
+      'blocked-user-transfer',
+      {
+        anvilRpc: anvil.rpc,
+      },
+    );
+
+    console.log('\n  BLOCKED USER TRANSFER REPORT:');
+    for (const result of results) {
+      console.log(
+        `    ${result.rebalancerName}: completion=${(result.kpis.completionRate * 100).toFixed(0)}%, rebalances=${result.kpis.totalRebalances}`,
+      );
+    }
+    console.log(
+      '    (Expected: 0% completion for both - weights within tolerance, no rebalancing)',
+    );
+    console.log(
+      '    (Transfer blocked: chain2 has 40 tokens but needs 50 to pay out)',
+    );
+    console.log(
+      '    (With Explorer mock: rebalancer should see blocked transfer and act)',
+    );
+  });
+
   // ============================================================================
   // BASELINE (NO REBALANCER)
   // ============================================================================

@@ -210,6 +210,16 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
       ModuleType.ROUTING,
     );
 
+    // OPTIMIZATION: When we have messageContext, we only need to derive
+    // the specific ISM that will verify this message, not the full routing table.
+    // Just call route(message) and derive that single ISM directly.
+    if (this.messageContext) {
+      const routedIsmAddress = await abstractRoutingIsm.route(
+        this.messageContext.message,
+      );
+      return this.deriveIsmConfig(routedIsmAddress);
+    }
+
     // check if its the ICA ISM
     try {
       const icaInstance = InterchainAccountRouter__factory.connect(
@@ -217,11 +227,6 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
         this.provider,
       );
       await icaInstance.CCIP_READ_ISM();
-      if (this.messageContext) {
-        // Route via the message context to get routed ISM
-        const routedIsm = await icaInstance.route(this.messageContext.message);
-        return this.deriveIsmConfig(routedIsm);
-      }
       // If no message context, just return this ICA ISM placeholder
       return {
         address,
@@ -254,9 +259,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
 
     const defaultFallbackIsmInstance =
       DefaultFallbackRoutingIsm__factory.connect(address, this.provider);
-    const domainIds = this.messageContext
-      ? [BigNumber.from(this.messageContext.parsed.origin)]
-      : await defaultFallbackIsmInstance.domains();
+    const domainIds = await defaultFallbackIsmInstance.domains();
 
     const icaRouter = InterchainAccountRouter__factory.connect(
       address,
@@ -404,6 +407,7 @@ export class EvmIsmReader extends HyperlaneReader implements IsmReader {
     address: Address,
   ): Promise<WithAddress<AggregationIsmConfig>> {
     const ism = StaticAggregationIsm__factory.connect(address, this.provider);
+
     this.assertModuleType(await ism.moduleType(), ModuleType.AGGREGATION);
 
     const [modules, threshold] = await ism.modulesAndThreshold(

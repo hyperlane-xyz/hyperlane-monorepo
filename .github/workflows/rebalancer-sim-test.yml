@@ -36,6 +36,7 @@ jobs:
           - full-simulation_balanced-bidirectional
           - full-simulation_random-with-headroom
           - full-simulation_inflight-guard
+          - full-simulation_blocked-user-transfer
           # Other test files
           - harness-setup
           - unidirectional
