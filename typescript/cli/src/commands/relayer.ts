@@ -52,10 +52,11 @@ export const relayerCommand: CommandModuleWithContext<
         context,
         warpRouteId,
       });
-      warpCoreConfig.tokens.forEach(
-        ({ chainName, addressOrDenom }) =>
-          (whitelist[chainName] = [addressOrDenom!]),
-      );
+      for (const { chainName, addressOrDenom } of warpCoreConfig.tokens) {
+        if (addressOrDenom) {
+          whitelist[chainName] = [addressOrDenom];
+        }
+      }
     }
 
     const relayer = new HyperlaneRelayer({ core, whitelist });
