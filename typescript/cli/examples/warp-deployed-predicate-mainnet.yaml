@@ -1,0 +1,19 @@
+tokens:
+  - chainName: base
+    standard: EvmHypCollateral
+    decimals: 6
+    symbol: USDC
+    name: USD Coin
+    addressOrDenom: '0x659CAFbe5A0A5B8357192E7C280Fd1f77C28Bd9C'
+    collateralAddressOrDenom: '0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913'
+    connections:
+      - token: 'ethereum|ethereum|0x5f72C2D341884Ddf0F8A18155d8172f56Ae1eEEc'
+
+  - chainName: ethereum
+    standard: EvmHypSynthetic
+    decimals: 6
+    symbol: USDC
+    name: USD Coin
+    addressOrDenom: '0x5f72C2D341884Ddf0F8A18155d8172f56Ae1eEEc'
+    connections:
+      - token: 'ethereum|base|0x659CAFbe5A0A5B8357192E7C280Fd1f77C28Bd9C'

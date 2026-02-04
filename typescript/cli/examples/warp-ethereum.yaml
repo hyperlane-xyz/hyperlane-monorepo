@@ -1,0 +1,20 @@
+    ethereum:
+      owner: "0x380ad2e410688e0153125d01a6af9c4C27F7F0eC"
+      mailbox: "0xc005dc82818d67AF737725bD4bf75435d065D239"
+      hook: "0x0000000000000000000000000000000000000000"
+      interchainSecurityModule: "0x0000000000000000000000000000000000000000"
+      remoteRouters:
+        "8453":
+          address: "0x000000000000000000000000659cafbe5a0a5b8357192e7c280fd1f77c28bd9c"
+      name: USD Coin
+      symbol: USDC
+      decimals: 6
+      isNft: false
+      contractVersion: 10.1.5
+      type: synthetic
+      proxyAdmin:
+        address: "0x0fbF624e7FD62e01f83862AFdc6a33A6338dB857"
+        owner: "0x380ad2e410688e0153125d01a6af9c4C27F7F0eC"
+      destinationGas:
+        "8453": "68000"
+    

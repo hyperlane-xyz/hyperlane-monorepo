@@ -1,11 +1,14 @@
 import { stringify as yamlStringify } from 'yaml';
 
+import { TokenRouter__factory } from '@hyperlane-xyz/core';
 import { GasAction } from '@hyperlane-xyz/provider-sdk';
 import {
   type ChainName,
   type DispatchedMessage,
   HyperlaneCore,
   MultiProtocolProvider,
+  PredicateApiClient,
+  type PredicateAttestation,
   ProviderType,
   type Token,
   TokenAmount,
@@ -14,6 +17,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import {
   ProtocolType,
+  addressToByteHexString,
+  addressToBytes32,
   parseWarpRouteMessage,
   timeout,
 } from '@hyperlane-xyz/utils';
@@ -40,6 +45,8 @@ export async function sendTestTransfer({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  predicateApiKey,
+  attestation,
 }: {
   context: WriteCommandContext;
   warpCoreConfig: WarpCoreConfig;
@@ -50,6 +57,8 @@ export async function sendTestTransfer({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  predicateApiKey?: string;
+  attestation?: string;
 }) {
   const { multiProvider } = context;
 
@@ -90,6 +99,8 @@ export async function sendTestTransfer({
           skipWaitForDelivery,
           selfRelay,
           skipValidation,
+          predicateApiKey,
+          attestation,
         }),
         timeoutSec * 1000,
         'Timed out waiting for messages to be delivered',
@@ -108,6 +119,8 @@ async function executeDelivery({
   skipWaitForDelivery,
   selfRelay,
   skipValidation,
+  predicateApiKey,
+  attestation,
 }: {
   context: WriteCommandContext;
   origin: ChainName;
@@ -118,6 +131,8 @@ async function executeDelivery({
   skipWaitForDelivery: boolean;
   selfRelay?: boolean;
   skipValidation?: boolean;
+  predicateApiKey?: string;
+  attestation?: string;
 }) {
   const { multiProvider, registry } = context;
 
@@ -164,12 +179,81 @@ async function executeDelivery({
     }
   }
 
+  if (predicateApiKey || attestation) {
+    if (token.isNative()) {
+      throw new Error(
+        'Predicate compliance is not supported for native token warp routes. ' +
+          'Only ERC20 collateral and synthetic routes support Predicate attestations.',
+      );
+    }
+  }
+
+  let finalAttestation: PredicateAttestation | undefined;
+
+  if (attestation) {
+    try {
+      finalAttestation = JSON.parse(attestation);
+    } catch (e) {
+      throw new Error(`Invalid attestation JSON: ${e}`);
+    }
+  } else if (predicateApiKey) {
+    logBlue('Fetching Predicate attestation...');
+    const predicateClient = new PredicateApiClient(predicateApiKey);
+
+    const destinationDomain = multiProvider.getDomainId(destination);
+    const recipientBytes32 = addressToBytes32(
+      addressToByteHexString(recipient),
+    );
+    const tokenAmount = token.amount(amount);
+
+    const calldata = TokenRouter__factory.createInterface().encodeFunctionData(
+      'transferRemote(uint32,bytes32,uint256)',
+      [destinationDomain, recipientBytes32, tokenAmount.amount],
+    );
+
+    const quote = await warpCore.getInterchainTransferFee({
+      originTokenAmount: tokenAmount,
+      destination,
+      sender: signerAddress,
+      recipient,
+    });
+
+    const hypAdapter = token.getHypAdapter(
+      MultiProtocolProvider.fromMultiProvider(multiProvider),
+      origin,
+    );
+    let predicateTarget = token.addressOrDenom;
+    if ('getPredicateWrapperAddress' in hypAdapter) {
+      const wrapperAddress = await (
+        hypAdapter as {
+          getPredicateWrapperAddress: () => Promise<string | null>;
+        }
+      ).getPredicateWrapperAddress();
+      if (wrapperAddress) {
+        predicateTarget = wrapperAddress;
+        log(`Using PredicateRouterWrapper address: ${wrapperAddress}`);
+      }
+    }
+
+    const response = await predicateClient.fetchAttestation({
+      to: predicateTarget,
+      from: signerAddress,
+      data: calldata,
+      msg_value: quote.igpQuote.amount.toString(),
+      chain: origin,
+    });
+
+    finalAttestation = response.attestation;
+    logGreen('Predicate attestation obtained successfully');
+  }
+
   // TODO: override hook address for self-relay
   const transferTxs = await warpCore.getTransferRemoteTxs({
     originTokenAmount: new TokenAmount(amount, token),
     destination,
     sender: signerAddress,
     recipient,
+    attestation: finalAttestation,
   });
 
   const txReceipts = [];
