@@ -16,6 +16,7 @@ test-client = [
 
 [dependencies]
 borsh.workspace = true
+shank.workspace = true
 solana-program-test = { workspace = true, optional = true }
 solana-program.workspace = true
 solana-sdk = { workspace = true, optional = true }

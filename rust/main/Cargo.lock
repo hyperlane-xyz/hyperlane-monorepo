@@ -6020,6 +6020,7 @@ dependencies = [
  "serde",
  "serde_json",
  "sha3 0.10.8",
+ "shank",
  "solana-sdk",
  "strum 0.26.3",
  "strum_macros 0.26.4",
@@ -6294,6 +6295,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror 1.0.63",
 ]
@@ -6323,6 +6325,7 @@ dependencies = [
  "num-traits",
  "proc-macro-crate 1.2.1",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "spl-noop",
  "thiserror 1.0.63",
@@ -6354,6 +6357,7 @@ dependencies = [
  "num-derive 0.4.2",
  "num-traits",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror 1.0.63",
 ]
@@ -6368,6 +6372,7 @@ dependencies = [
  "hyperlane-core",
  "hyperlane-sealevel-mailbox",
  "serializable-account-meta",
+ "shank",
  "solana-program",
  "thiserror 1.0.63",
 ]
@@ -11004,6 +11009,48 @@ checksum = "75872d278a8f37ef87fa0ddbda7802605cb18344497949862c0d4dcb291eba60"
 dependencies = [
  "digest 0.10.7",
  "keccak",
+]
+
+[[package]]
+name = "shank"
+version = "0.4.6"
+source = "git+https://github.com/hyperlane-xyz/shank?branch=cursor%2Fidl-imports-proxy-struct-5cdf#50608da88200421fc458110d2ce82c62896333ab"
+dependencies = [
+ "shank_macro",
+]
+
+[[package]]
+name = "shank_macro"
+version = "0.4.6"
+source = "git+https://github.com/hyperlane-xyz/shank?branch=cursor%2Fidl-imports-proxy-struct-5cdf#50608da88200421fc458110d2ce82c62896333ab"
+dependencies = [
+ "proc-macro2 1.0.93",
+ "quote 1.0.42",
+ "shank_macro_impl",
+ "shank_render",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "shank_macro_impl"
+version = "0.4.6"
+source = "git+https://github.com/hyperlane-xyz/shank?branch=cursor%2Fidl-imports-proxy-struct-5cdf#50608da88200421fc458110d2ce82c62896333ab"
+dependencies = [
+ "anyhow",
+ "proc-macro2 1.0.93",
+ "quote 1.0.42",
+ "serde",
+ "syn 1.0.109",
+]
+
+[[package]]
+name = "shank_render"
+version = "0.4.6"
+source = "git+https://github.com/hyperlane-xyz/shank?branch=cursor%2Fidl-imports-proxy-struct-5cdf#50608da88200421fc458110d2ce82c62896333ab"
+dependencies = [
+ "proc-macro2 1.0.93",
+ "quote 1.0.42",
+ "shank_macro_impl",
 ]
 
 [[package]]
