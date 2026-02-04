@@ -40,6 +40,7 @@ import {
   hyperlaneWarpDeployRaw,
   hyperlaneWarpSendRelay,
   readWarpConfig,
+  resolveWarpRouteIdForDeploy,
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
@@ -52,7 +53,9 @@ import {
   REGISTRY_PATH,
   TEMP_PATH,
   TRON_KEY_1,
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
   WARP_DEPLOY_OUTPUT_PATH,
+  getWarpRouteId,
 } from '../consts.js';
 
 chai.use(chaiAsPromised);
@@ -63,6 +66,9 @@ const WARP_CORE_CONFIG_PATH_2_3 = GET_WARP_DEPLOY_CORE_CONFIG_OUTPUT_PATH(
   WARP_DEPLOY_OUTPUT_PATH,
   'VAULT',
 );
+const WARP_ROUTE_ID_2_3 = getWarpRouteId('VAULT', [
+  WARP_DEPLOY_DEFAULT_FILE_NAME,
+]);
 
 describe('hyperlane warp deploy e2e tests', async function () {
   this.timeout(1.5 * DEFAULT_E2E_TEST_TIMEOUT);
@@ -139,7 +145,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: nonExistingFilePath,
+        warpRouteId: nonExistingFilePath,
       })
         .stdio('pipe')
         .nothrow();
@@ -148,7 +154,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route deploy config found!`,
       );
     });
 
@@ -188,6 +194,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
 
       const steps: TestPromptAction[] = [
         {
@@ -204,7 +213,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -247,6 +256,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
 
       const steps: TestPromptAction[] = [
         {
@@ -263,7 +275,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -382,6 +394,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
 
       const steps: TestPromptAction[] = [
         {
@@ -398,7 +413,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
       })
         .stdio('pipe')
         .nothrow();
@@ -469,7 +484,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       ];
 
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: nonExistingFilePath,
+        warpRouteId: nonExistingFilePath,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
@@ -479,7 +494,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       expect(finalOutput.exitCode).to.equal(1);
       expect(finalOutput.text()).to.include(
-        `Warp route deployment config file not found at ${nonExistingFilePath}`,
+        `No warp route deploy config found!`,
       );
     });
 
@@ -512,6 +527,9 @@ describe('hyperlane warp deploy e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_OUTPUT_PATH, warpConfig);
+      const resolvedWarpRouteId = await resolveWarpRouteIdForDeploy(
+        WARP_DEPLOY_OUTPUT_PATH,
+      );
 
       const steps: TestPromptAction[] = [
         {
@@ -523,7 +541,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
 
       // Deploy
       const output = hyperlaneWarpDeployRaw({
-        warpDeployPath: WARP_DEPLOY_OUTPUT_PATH,
+        warpRouteId: resolvedWarpRouteId,
         skipConfirmationPrompts: true,
       })
         .stdio('pipe')
@@ -687,7 +705,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const { stdout: chain2Tochain3Stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_2,
         destination: CHAIN_NAME_3,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: WARP_ROUTE_ID_2_3,
       });
       expect(chain2Tochain3Stdout).to.include('anvil2 ➡️ anvil3');
 
@@ -695,7 +713,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       const { stdout: chain3Tochain2Stdout } = await hyperlaneWarpSendRelay({
         origin: CHAIN_NAME_3,
         destination: CHAIN_NAME_2,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: WARP_ROUTE_ID_2_3,
       });
       expect(chain3Tochain2Stdout).to.include('anvil3 ➡️ anvil2');
 
@@ -703,7 +721,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
       await hyperlaneWarpSendRelay({
         origin: 'anvil1',
         destination: CHAIN_NAME_3,
-        warpCorePath: WARP_CORE_CONFIG_PATH_2_3,
+        warpRouteId: WARP_ROUTE_ID_2_3,
       }).should.be.rejectedWith(
         'Error: Chain(s) anvil1 are not part of the warp route.',
       );

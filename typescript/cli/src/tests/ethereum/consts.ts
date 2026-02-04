@@ -1,15 +1,22 @@
+import path from 'path';
+import { fileURLToPath } from 'url';
+
 import { createWarpRouteConfigId } from '@hyperlane-xyz/registry';
 
 // Test stack selection via environment variable (default: anvil)
 const TEST_STACK = process.env.TEST_STACK || 'anvil';
 
-export const E2E_TEST_CONFIGS_PATH = './test-configs';
+const CLI_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '../../../',
+);
+export const E2E_TEST_CONFIGS_PATH = path.join(CLI_ROOT, 'test-configs');
 
 // Registry path switches based on test stack
 export const REGISTRY_PATH =
   TEST_STACK === 'tron'
-    ? `${E2E_TEST_CONFIGS_PATH}/tron`
-    : `${E2E_TEST_CONFIGS_PATH}/anvil`;
+    ? path.join(E2E_TEST_CONFIGS_PATH, 'tron')
+    : path.join(E2E_TEST_CONFIGS_PATH, 'anvil');
 
 export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
@@ -30,7 +37,7 @@ export const CHAIN_NAME_2 = 'anvil2';
 export const CHAIN_NAME_3 = 'anvil3';
 export const CHAIN_NAME_4 = 'anvil4';
 
-export const EXAMPLES_PATH = './examples';
+export const EXAMPLES_PATH = path.join(CLI_ROOT, 'examples');
 export const CORE_CONFIG_PATH =
   TEST_STACK === 'tron'
     ? `${EXAMPLES_PATH}/tron-core-config.yaml`
@@ -46,6 +53,7 @@ export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.
 export const WARP_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/warp-route-deployment-anvil2.yaml`;
 export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
+export const WARP_DEPLOY_OUTPUT_ID = 'ETH/warp-route-deployment';
 export const WARP_DEPLOY_2_ID = 'ETH/anvil2';
 export const WARP_CORE_CONFIG_PATH_2 = getCombinedWarpRoutePath('ETH', [
   CHAIN_NAME_2,
@@ -109,4 +117,11 @@ export function getCombinedWarpDeployPath(
     tokenSymbol.toUpperCase(),
     chains.sort().join('-'),
   )}-deploy.yaml`;
+}
+
+export function getWarpRouteId(tokenSymbol: string, chains: string[]): string {
+  return createWarpRouteConfigId(
+    tokenSymbol.toUpperCase(),
+    chains.sort().join('-'),
+  );
 }
