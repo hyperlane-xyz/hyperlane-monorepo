@@ -30,12 +30,8 @@ impl From<TronTxPrecursor> for VmSpecificTxData {
 
 impl TronTxPrecursor {
     pub fn from_data(data: &[u8]) -> Result<Self, LanderError> {
-        let (tx, function) =
-            serde_json::from_slice::<(TypedTransaction, Function)>(data).map_err(|err| {
-                DbError::Other(format!(
-                    "Failed to deserialize TronTxPrecursor from data: {err}",
-                ))
-            })?;
+        let (tx, function) = serde_json::from_slice::<(TypedTransaction, Function)>(data)
+            .map_err(|err| eyre::eyre!("Failed to deserialize TronTxPrecursor from data: {err}"))?;
         Ok(TronTxPrecursor::new(tx, function))
     }
 }
