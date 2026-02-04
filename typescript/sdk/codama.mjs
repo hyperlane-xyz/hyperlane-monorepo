@@ -1,11 +1,10 @@
 #!/usr/bin/env node
-
 import { rootNodeFromAnchor } from '@codama/nodes-from-anchor';
 import { renderVisitor } from '@codama/renderers-js';
 import { createFromRoot, rootNode } from 'codama';
 import { readFileSync } from 'node:fs';
-import { fileURLToPath } from 'node:url';
 import { dirname, join } from 'node:path';
+import { fileURLToPath } from 'node:url';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -28,7 +27,9 @@ const IDL_FILES = [
   'hyperlane_sealevel_test_ism.json',
 ];
 
-console.log('🔧 Generating TypeScript clients from Hyperlane Sealevel IDLs...\n');
+console.log(
+  '🔧 Generating TypeScript clients from Hyperlane Sealevel IDLs...\n',
+);
 console.log('📦 Loading and combining all IDLs into single Codama tree...\n');
 
 // Load all IDLs and convert to Codama nodes
@@ -43,7 +44,9 @@ for (const idlFile of IDL_FILES) {
     const anchorIdl = JSON.parse(idlContent);
 
     if (!anchorIdl.metadata || anchorIdl.metadata.origin !== 'shank') {
-      console.warn(`  ⚠️  Warning: ${programName} does not have metadata.origin set to 'shank'`);
+      console.warn(
+        `  ⚠️  Warning: ${programName} does not have metadata.origin set to 'shank'`,
+      );
     }
 
     const programNode = rootNodeFromAnchor(anchorIdl);
@@ -61,25 +64,28 @@ const [firstProgram, ...additionalPrograms] = programNodes;
 
 // Extract just the program nodes from rootNodes
 const mainProgram = firstProgram.program;
-const otherPrograms = additionalPrograms.map(root => root.program);
+const otherPrograms = additionalPrograms.map((root) => root.program);
 
 // Create combined root with all programs
 const combinedRoot = rootNode(mainProgram, otherPrograms);
 const codama = createFromRoot(combinedRoot);
 
-console.log(`\n🔨 Generating TypeScript clients with cross-program references...\n`);
+console.log(
+  `\n🔨 Generating TypeScript clients with cross-program references...\n`,
+);
 
 // Generate all clients in one pass so Codama can see cross-references
 codama.accept(
   renderVisitor(OUTPUT_DIR, {
     formatCode: true,
+    emitNodeEsmSpecifiers: true,
     prettierOptions: {
       semi: true,
       singleQuote: true,
       trailingComma: 'all',
       arrowParens: 'always',
     },
-  })
+  }),
 );
 
 console.log(`\n✨ All TypeScript clients generated successfully!`);

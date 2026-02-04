@@ -47,7 +47,7 @@
   },
   "devDependencies": {
     "@codama/nodes-from-anchor": "^1.3.8",
-    "@codama/renderers-js": "^1.5.5",
+    "@codama/renderers-js": "github:antigremlin/renderers-js#cursor/import-generation-enhancement-4673",
     "@ethersproject/providers": "*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
