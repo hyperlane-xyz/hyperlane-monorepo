@@ -187,35 +187,37 @@ describe('MinAmountStrategy E2E', function () {
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy(MIN_AMOUNT_STRATEGY_CONFIG)
       .withBalances('BELOW_MIN_ARB')
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    await context.orchestrator.executeCycle(event);
 
     // Assert: ethereum→arbitrum, amount=70 USDC to reach 120 target from 50
-    expect(cycleResult.proposedRoutes.length).to.equal(1);
-    expect(cycleResult.proposedRoutes[0].origin).to.equal('ethereum');
-    expect(cycleResult.proposedRoutes[0].destination).to.equal('arbitrum');
-    expect(cycleResult.proposedRoutes[0].amount).to.equal(70000000n);
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].origin).to.equal(DOMAIN_IDS.ethereum);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.arbitrum);
+    expect(activeIntents[0].amount).to.equal(70000000n);
   });
 
   it('should not propose routes when all chains at or above minimum', async function () {
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy(MIN_AMOUNT_STRATEGY_CONFIG)
       .withBalances('BALANCED')
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    await context.orchestrator.executeCycle(event);
 
     // Assert: No routes - all chains have 5000 USDC, well above 100 min
-    expect(cycleResult.proposedRoutes.length).to.equal(0);
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(0);
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
@@ -335,16 +337,13 @@ describe('MinAmountStrategy E2E', function () {
     // Should propose reduced amount or nothing to arb (within tolerance)
     const monitor2 = context.createMonitor(0);
     const event2 = await getFirstMonitorEvent(monitor2);
-    const cycleResult2 = await context.orchestrator.executeCycle(event2);
+    await context.orchestrator.executeCycle(event2);
 
     const blockTags = await context.getConfirmedBlockTags();
     await context.forkIndexer.sync(blockTags);
     await context.tracker.syncRebalanceActions(blockTags);
 
     // Check if new routes to arb were proposed
-    const routesToArb = cycleResult2.proposedRoutes.filter(
-      (r) => r.destination === 'arbitrum',
-    );
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const newActionsToArb = inProgressAfterCycle2.filter(
       (a) =>
@@ -353,12 +352,11 @@ describe('MinAmountStrategy E2E', function () {
         a.status === 'in_progress',
     );
 
-    if (routesToArb.length > 0 || newActionsToArb.length > 0) {
+    if (newActionsToArb.length > 0) {
       // If route was proposed, should be much smaller than original ~70 USDC
-      const proposedAmount =
-        routesToArb.length > 0
-          ? routesToArb[0].amount
-          : BigNumber.from(newActionsToArb[0].amount).toBigInt();
+      const proposedAmount = BigNumber.from(
+        newActionsToArb[0].amount,
+      ).toBigInt();
       expect(
         proposedAmount < 50000000n,
         `Amount to arb (${proposedAmount}) should be reduced accounting for inflight`,

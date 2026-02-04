@@ -804,16 +804,13 @@ describe('CompositeStrategy E2E', function () {
     // Should propose reduced amount or nothing to base
     const monitor2 = context.createMonitor(0);
     const event2 = await getFirstMonitorEvent(monitor2);
-    const cycleResult2 = await context.orchestrator.executeCycle(event2);
+    await context.orchestrator.executeCycle(event2);
 
     const blockTags12 = await context.getConfirmedBlockTags();
     await context.forkIndexer.sync(blockTags12);
     await context.tracker.syncRebalanceActions(blockTags12);
 
     // Check if new routes to base were proposed
-    const routesToBase = cycleResult2.proposedRoutes.filter(
-      (r) => r.destination === 'base',
-    );
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const newActionsToBase = inProgressAfterCycle2.filter(
       (a) =>
@@ -822,12 +819,11 @@ describe('CompositeStrategy E2E', function () {
         a.status === 'in_progress',
     );
 
-    if (routesToBase.length > 0 || newActionsToBase.length > 0) {
+    if (newActionsToBase.length > 0) {
       // If route was proposed, should be much smaller than original 1000 USDC
-      const proposedAmount =
-        routesToBase.length > 0
-          ? routesToBase[0].amount
-          : BigNumber.from(newActionsToBase[0].amount).toBigInt();
+      const proposedAmount = BigNumber.from(
+        newActionsToBase[0].amount,
+      ).toBigInt();
       expect(
         proposedAmount < 500000000n,
         `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,

@@ -172,35 +172,37 @@ describe('WeightedStrategy E2E', function () {
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy(WEIGHTED_STRATEGY_CONFIG)
       .withBalances('WEIGHTED_IMBALANCED')
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    await context.orchestrator.executeCycle(event);
 
-    // Assert: Strategy proposed routes for the imbalanced chain
-    expect(cycleResult.proposedRoutes.length).to.equal(1);
-    expect(cycleResult.proposedRoutes[0].origin).to.equal('ethereum');
-    expect(cycleResult.proposedRoutes[0].destination).to.equal('base');
-    expect(cycleResult.proposedRoutes[0].amount).to.equal(1000000000n);
+    // Assert: Strategy created rebalance intent for the imbalanced chain
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(1);
+    expect(activeIntents[0].origin).to.equal(DOMAIN_IDS.ethereum);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.base);
+    expect(activeIntents[0].amount).to.equal(1000000000n);
   });
 
   it('should not propose routes when within tolerance', async function () {
     const context = await TestRebalancer.builder(forkManager, multiProvider)
       .withStrategy(WEIGHTED_STRATEGY_CONFIG)
       .withBalances('WEIGHTED_WITHIN_TOLERANCE')
-      .withExecutionMode('propose')
+      .withExecutionMode('execute')
       .build();
 
     const monitor = context.createMonitor(0);
     const event = await getFirstMonitorEvent(monitor);
 
-    const cycleResult = await context.orchestrator.executeCycle(event);
+    await context.orchestrator.executeCycle(event);
 
-    // Assert: No routes proposed when within tolerance
-    expect(cycleResult.proposedRoutes.length).to.equal(0);
+    // Assert: No intents created when within tolerance
+    const activeIntents = await context.tracker.getActiveRebalanceIntents();
+    expect(activeIntents.length).to.equal(0);
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
@@ -323,19 +325,16 @@ describe('WeightedStrategy E2E', function () {
 
     // ===== CYCLE 2: Execute again - should account for inflight =====
     // Weighted now sees: base effective = current + inflight ≈ 2000 (target)
-    // Should propose reduced amount or nothing to base
+    // Should create reduced amount or nothing to base
     const monitor2 = context.createMonitor(0);
     const event2 = await getFirstMonitorEvent(monitor2);
-    const cycleResult2 = await context.orchestrator.executeCycle(event2);
+    await context.orchestrator.executeCycle(event2);
 
     const blockTags2 = await context.getConfirmedBlockTags();
     await context.forkIndexer.sync(blockTags2);
     await context.tracker.syncRebalanceActions(blockTags2);
 
-    // Check if new routes to base were proposed
-    const routesToBase = cycleResult2.proposedRoutes.filter(
-      (r) => r.destination === 'base',
-    );
+    // Check if new actions to base were created
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const newActionsToBase = inProgressAfterCycle2.filter(
       (a) =>
@@ -344,18 +343,17 @@ describe('WeightedStrategy E2E', function () {
         a.status === 'in_progress',
     );
 
-    if (routesToBase.length > 0 || newActionsToBase.length > 0) {
-      // If route was proposed, should be much smaller than original 1000 USDC
-      const proposedAmount =
-        routesToBase.length > 0
-          ? routesToBase[0].amount
-          : BigNumber.from(newActionsToBase[0].amount).toBigInt();
+    if (newActionsToBase.length > 0) {
+      // If action was created, should be much smaller than original 1000 USDC
+      const proposedAmount = BigNumber.from(
+        newActionsToBase[0].amount,
+      ).toBigInt();
       expect(
         proposedAmount < 500000000n,
         `Amount to base (${proposedAmount}) should be reduced accounting for inflight`,
       ).to.be.true;
     }
-    // If no new route to base, that's valid (within tolerance after inflight)
+    // If no new action to base, that's valid (within tolerance after inflight)
 
     // Verify inflight still exists and action tracking is working
     const finalInProgress = await context.tracker.getInProgressActions();
