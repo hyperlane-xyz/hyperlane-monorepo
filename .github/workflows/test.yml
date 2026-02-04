@@ -254,10 +254,13 @@ jobs:
     runs-on: depot-ubuntu-latest
     needs: [rust-only]
     if: needs.rust-only.outputs.only_rust == 'false'
-    timeout-minutes: 20
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
+        stack:
+          - ethereum
+          - tron
         test:
           # Core Commands
           - core-apply
@@ -314,8 +317,8 @@ jobs:
       - name: Checkout registry
         uses: ./.github/actions/checkout-registry
 
-      - name: CLI ethereum e2e tests (${{ matrix.test }})
-        run: pnpm -C typescript/cli test:ethereum:e2e
+      - name: CLI ${{ matrix.stack }} e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:${{ matrix.stack }}:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
