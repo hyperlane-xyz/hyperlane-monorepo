@@ -4,10 +4,12 @@ import { type CommandModule } from 'yargs';
 import {
   type AnnotatedEV5Transaction,
   type ChainName,
+  EvmXERC20Module,
+  type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
   type XERC20Limits,
   type XERC20LimitsMap,
-  XERC20WarpModule,
+  isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
@@ -134,8 +136,8 @@ const setLimits: CommandModuleWithContext<
       chain,
       out,
       commandName: 'Set Limits',
-      txGenerator: (module, chainName, bridgeAddr, lim) =>
-        module.generateSetLimitsTxs(chainName, bridgeAddr, lim),
+      txGenerator: (module, bridgeAddr, lim) =>
+        module.generateSetLimitsTxs(bridgeAddr, lim),
     });
   },
 };
@@ -209,8 +211,8 @@ const addBridge: CommandModuleWithContext<
       chain,
       out,
       commandName: 'Add Bridge',
-      txGenerator: (module, chainName, bridgeAddr, lim) =>
-        module.generateAddBridgeTxs(chainName, bridgeAddr, lim),
+      txGenerator: (module, bridgeAddr, lim) =>
+        module.generateAddBridgeTxs(bridgeAddr, lim),
     });
   },
 };
@@ -259,17 +261,25 @@ const removeBridge: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-    const module = new XERC20WarpModule(
-      context.multiProvider,
-      filteredConfig,
-      warpCoreConfig,
-    );
     const transactions: AnnotatedEV5Transaction[] = [];
 
     for (const chainName of Object.keys(filteredConfig)) {
+      const chainConfig = filteredConfig[chainName];
+      if (!isXERC20TokenConfig(chainConfig)) {
+        logRed(`Skipping ${chainName}: not an XERC20 config`);
+        continue;
+      }
+
       logBlue(`Generating remove-bridge transactions for ${chainName}...`);
       try {
-        const txs = await module.generateRemoveBridgeTxs(chainName, bridge);
+        const warpRouteAddress = getWarpRouteAddress(warpCoreConfig, chainName);
+        const { module } = await EvmXERC20Module.fromWarpRouteConfig(
+          context.multiProvider,
+          chainName,
+          chainConfig,
+          warpRouteAddress,
+        );
+        const txs = await module.generateRemoveBridgeTxs(bridge);
         transactions.push(...txs);
       } catch (error) {
         logRed(`Failed for ${chainName}: ${error}`);
@@ -328,22 +338,42 @@ const viewLimits: CommandModuleWithContext<
     });
 
     const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-    const module = new XERC20WarpModule(
-      context.multiProvider,
-      filteredConfig,
-      warpCoreConfig,
-    );
-
     const allLimits: Record<string, { type: string; limits: XERC20LimitsMap }> =
       {};
 
     for (const chainName of Object.keys(filteredConfig)) {
+      const chainConfig = filteredConfig[chainName];
+      if (!isXERC20TokenConfig(chainConfig)) {
+        logRed(`Skipping ${chainName}: not an XERC20 config`);
+        continue;
+      }
+
       logBlue(`Reading limits for ${chainName}...`);
       try {
-        const xerc20Type = await module.detectType(chainName);
-        const limits = await module.readLimits(chainName);
+        const warpRouteAddress = getWarpRouteAddress(warpCoreConfig, chainName);
+        const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+          context.multiProvider,
+          chainName,
+          chainConfig,
+          warpRouteAddress,
+        );
+
+        const onChainConfig = await module.read();
+        const onChainBridges = Object.keys(onChainConfig.limits);
+        const expectedBridges = Object.keys(config.limits);
+        const allBridges = [
+          ...new Set([...onChainBridges, ...expectedBridges]),
+        ];
+
+        const { xERC20 } = module.serialize();
+        const limits = await module.reader.readLimits(
+          xERC20,
+          allBridges,
+          onChainConfig.type,
+        );
+
         allLimits[chainName] = {
-          type: xerc20Type,
+          type: onChainConfig.type,
           limits,
         };
       } catch (error) {
@@ -357,6 +387,18 @@ const viewLimits: CommandModuleWithContext<
     process.exit(0);
   },
 };
+
+function getWarpRouteAddress(
+  warpCoreConfig: WarpCoreConfig,
+  chain: ChainName,
+): Address {
+  const token = warpCoreConfig.tokens.find((t) => t.chainName === chain);
+  assert(
+    token?.addressOrDenom,
+    `Missing warp route address for chain ${chain} in warpCoreConfig`,
+  );
+  return token.addressOrDenom;
+}
 
 function parseLimitsFromArgs(args: {
   mint?: string;
@@ -422,8 +464,7 @@ async function generateBridgeLimitTxs({
   out: string;
   commandName: string;
   txGenerator: (
-    module: XERC20WarpModule,
-    chainName: ChainName,
+    module: EvmXERC20Module,
     bridge: Address,
     limits: XERC20Limits,
   ) => Promise<AnnotatedEV5Transaction[]>;
@@ -439,18 +480,28 @@ async function generateBridgeLimitTxs({
   });
 
   const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
-  const module = new XERC20WarpModule(
-    context.multiProvider,
-    filteredConfig,
-    warpCoreConfig,
-  );
   const transactions: AnnotatedEV5Transaction[] = [];
 
   for (const chainName of Object.keys(filteredConfig)) {
+    const chainConfig = filteredConfig[chainName];
+    if (!isXERC20TokenConfig(chainConfig)) {
+      logRed(`Skipping ${chainName}: not an XERC20 config`);
+      continue;
+    }
+
     logBlue(
       `Generating ${commandName.toLowerCase()} transactions for ${chainName}...`,
     );
-    const txs = await txGenerator(module, chainName, bridge, limits);
+
+    const warpRouteAddress = getWarpRouteAddress(warpCoreConfig, chainName);
+    const { module } = await EvmXERC20Module.fromWarpRouteConfig(
+      context.multiProvider,
+      chainName,
+      chainConfig,
+      warpRouteAddress,
+    );
+
+    const txs = await txGenerator(module, bridge, limits);
     transactions.push(...txs);
   }
 
