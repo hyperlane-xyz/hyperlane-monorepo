@@ -40,3 +40,72 @@ export async function createDeploymentTransaction(
     signer,
   );
 }
+
+/**
+ * Constructs MetaProxy bytecode that embeds metadata in the contract
+ * @param implementationAddress - Address of implementation contract
+ * @param metadata - ABI-encoded metadata to embed
+ * @returns Complete MetaProxy bytecode
+ */
+export function buildMetaProxyBytecode(
+  implementationAddress: string,
+  metadata: string,
+): string {
+  const PREFIX =
+    '600b380380600b3d393df3363d3d373d3d3d3d60368038038091363936013d73';
+  const SUFFIX = '5af43d3d93803e603457fd5bf3';
+
+  // Remove 0x prefix if present
+  const cleanMetadata = metadata.startsWith('0x')
+    ? metadata.slice(2)
+    : metadata;
+  let cleanImpl = implementationAddress.startsWith('0x')
+    ? implementationAddress.slice(2)
+    : implementationAddress;
+
+  // Tron addresses have 41 prefix byte - strip it to get 20 bytes
+  if (cleanImpl.startsWith('41')) {
+    cleanImpl = cleanImpl.slice(2);
+  }
+
+  // Validate address is exactly 20 bytes (40 hex chars)
+  if (cleanImpl.length !== 40) {
+    throw new Error(
+      `Implementation address must be 20 bytes (40 hex chars), got ${cleanImpl.length}`,
+    );
+  }
+
+  // Convert metadata length to 32-byte hex (uint256)
+  const metadataLength = (cleanMetadata.length / 2)
+    .toString(16)
+    .padStart(64, '0');
+
+  return `0x${PREFIX}${cleanImpl}${SUFFIX}${cleanMetadata}${metadataLength}`;
+}
+
+/**
+ * Deploys a contract using raw bytecode (for MetaProxy deployments)
+ * @param tronweb - TronWeb instance
+ * @param bytecode - Complete bytecode to deploy
+ * @param signer - Deployer address
+ * @param contractName - Optional name for the contract
+ * @returns Transaction object
+ */
+export async function createRawBytecodeDeploymentTransaction(
+  tronweb: Readonly<TronWeb>,
+  bytecode: string,
+  signer: string,
+  contractName = 'MetaProxy',
+): Promise<any> {
+  return tronweb.transactionBuilder.createSmartContract(
+    {
+      feeLimit: 1_000_000_000,
+      callValue: 0,
+      abi: [],
+      bytecode,
+      parameters: [],
+      name: contractName,
+    },
+    signer,
+  );
+}

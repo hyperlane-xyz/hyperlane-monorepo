@@ -33,7 +33,7 @@ import {
 } from '../ism/ism-query.js';
 import {
   getCreateMerkleRootMultisigIsmTx,
-  getCreateMessageIdMultisigIsmTx,
+  getCreateMessageIdMultisigIsmImplementationTx,
   getCreateRoutingIsmTx,
   getCreateTestIsmTx,
   getRemoveRoutingIsmRouteTx,
@@ -618,10 +618,10 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<TronTransaction> {
-    return getCreateMessageIdMultisigIsmTx(this.tronweb, req.signer, {
-      validators: req.validators,
-      threshold: req.threshold,
-    });
+    return getCreateMessageIdMultisigIsmImplementationTx(
+      this.tronweb,
+      req.signer,
+    );
   }
 
   async getCreateRoutingIsmTransaction(

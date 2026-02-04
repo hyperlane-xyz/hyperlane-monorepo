@@ -180,12 +180,9 @@ export function defaultAleoProviderBuilder(
 
 export function defaultTronProviderBuilder(
   rpcUrls: RpcUrl[],
-  network: string | number,
+  _network: string | number,
 ): TronProvider {
-  const provider = new TronSDKProvider(
-    rpcUrls.map((rpc) => rpc.http),
-    network,
-  );
+  const provider = new TronSDKProvider(rpcUrls.map((rpc) => rpc.http));
   return { provider, type: ProviderType.Tron };
 }
 

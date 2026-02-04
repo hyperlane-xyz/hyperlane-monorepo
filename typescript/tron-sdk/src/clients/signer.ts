@@ -11,7 +11,10 @@ import {
   getSetOracleTx,
   getSetRemoteGasTx,
 } from '../hook/hook-tx.js';
-import { getInitRoutingIsmTx } from '../ism/ism-tx.js';
+import {
+  getCreateMessageIdMultisigIsmWithMetaProxyTx,
+  getInitRoutingIsmTx,
+} from '../ism/ism-tx.js';
 import {
   TRON_EMPTY_ADDRESS,
   createDeploymentTransaction,
@@ -225,14 +228,31 @@ export class TronSigner
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
     const tx = await this.getCreateMessageIdMultisigIsmTransaction({
-      ...req,
       signer: this.getSignerAddress(),
+      validators: req.validators,
+      threshold: req.threshold,
     });
 
     const receipt = await this.sendAndConfirmTransaction(tx);
+    const implAddress = this.tronweb.address.fromHex(receipt.contract_address);
+
+    const metaProxyTx = await getCreateMessageIdMultisigIsmWithMetaProxyTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      implAddress,
+      {
+        validators: req.validators,
+        threshold: req.threshold,
+      },
+    );
+
+    const metaProxyReceipt = await this.sendAndConfirmTransaction(metaProxyTx);
+    const ismAddress = this.tronweb.address.fromHex(
+      metaProxyReceipt.contract_address,
+    );
 
     return {
-      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
+      ismAddress,
     };
   }
 
