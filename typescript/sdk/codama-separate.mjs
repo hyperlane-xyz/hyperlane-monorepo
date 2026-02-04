@@ -3,7 +3,7 @@
 /* eslint-disable import/no-nodejs-modules */
 import { rootNodeFromAnchor } from '@codama/nodes-from-anchor';
 import { renderVisitor } from '@codama/renderers-js';
-import { createFromRoot, rootNode } from 'codama';
+import { createFromRoot } from 'codama';
 import { readFileSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
@@ -32,14 +32,12 @@ const IDL_FILES = [
 console.log(
   '🔧 Generating TypeScript clients from Hyperlane Sealevel IDLs...\n',
 );
-console.log('📦 Loading and combining all IDLs into single Codama tree...\n');
-
-// Load all IDLs and convert to Codama nodes
-const programNodes = [];
 
 for (const idlFile of IDL_FILES) {
   const idlPath = join(IDL_BASE, idlFile);
   const programName = idlFile.replace('.json', '');
+
+  console.log(`📦 Processing ${programName}...`);
 
   try {
     const idlContent = readFileSync(idlPath, 'utf-8');
@@ -51,44 +49,28 @@ for (const idlFile of IDL_FILES) {
       );
     }
 
-    const programNode = rootNodeFromAnchor(anchorIdl);
-    programNodes.push(programNode);
-    console.log(`  ✅ Loaded ${programName}`);
+    const rootNode = rootNodeFromAnchor(anchorIdl);
+    const codama = createFromRoot(rootNode);
+
+    codama.accept(
+      renderVisitor(join(OUTPUT_DIR, programName), {
+        formatCode: true,
+        emitNodeEsmSpecifiers: true,
+        prettierOptions: {
+          semi: true,
+          singleQuote: true,
+          trailingComma: 'all',
+          arrowParens: 'always',
+        },
+      }),
+    );
+
+    console.log(`  ✅ Generated client in ${OUTPUT_DIR}/${programName}`);
   } catch (error) {
-    console.error(`  ❌ Error loading ${programName}:`, error.message);
+    console.error(`  ❌ Error processing ${programName}:`, error.message);
     process.exit(1);
   }
 }
 
-// Combine all programs into a single root node
-// First program is the "main" program, rest are additional programs
-const [firstProgram, ...additionalPrograms] = programNodes;
-
-// Extract just the program nodes from rootNodes
-const mainProgram = firstProgram.program;
-const otherPrograms = additionalPrograms.map((root) => root.program);
-
-// Create combined root with all programs
-const combinedRoot = rootNode(mainProgram, otherPrograms);
-const codama = createFromRoot(combinedRoot);
-
-console.log(
-  `\n🔨 Generating TypeScript clients with cross-program references...\n`,
-);
-
-// Generate all clients in one pass so Codama can see cross-references
-codama.accept(
-  renderVisitor(OUTPUT_DIR, {
-    formatCode: true,
-    emitNodeEsmSpecifiers: true,
-    prettierOptions: {
-      semi: true,
-      singleQuote: true,
-      trailingComma: 'all',
-      arrowParens: 'always',
-    },
-  }),
-);
-
-console.log(`\n✨ All TypeScript clients generated successfully!`);
+console.log('\n✨ All TypeScript clients generated successfully!');
 console.log(`📁 Output directory: ${OUTPUT_DIR}`);

@@ -34,7 +34,6 @@ console.log(
 );
 console.log('📦 Loading and combining all IDLs into single Codama tree...\n');
 
-// Load all IDLs and convert to Codama nodes
 const programNodes = [];
 
 for (const idlFile of IDL_FILES) {
@@ -61,14 +60,10 @@ for (const idlFile of IDL_FILES) {
 }
 
 // Combine all programs into a single root node
-// First program is the "main" program, rest are additional programs
 const [firstProgram, ...additionalPrograms] = programNodes;
-
-// Extract just the program nodes from rootNodes
 const mainProgram = firstProgram.program;
 const otherPrograms = additionalPrograms.map((root) => root.program);
 
-// Create combined root with all programs
 const combinedRoot = rootNode(mainProgram, otherPrograms);
 const codama = createFromRoot(combinedRoot);
 
@@ -76,7 +71,6 @@ console.log(
   `\n🔨 Generating TypeScript clients with cross-program references...\n`,
 );
 
-// Generate all clients in one pass so Codama can see cross-references
 codama.accept(
   renderVisitor(OUTPUT_DIR, {
     formatCode: true,
