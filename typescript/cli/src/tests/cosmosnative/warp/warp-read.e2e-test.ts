@@ -102,7 +102,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --config ...', () => {
     it('should exit early if no symbol or no chain and address', async () => {
-      await hyperlaneWarp.deploy(WARP_DEPLOY_CONFIG_PATH_1, HYP_KEY);
+      await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 
       const output = await hyperlaneWarp.readRaw({}).nothrow();
 
@@ -136,7 +136,7 @@ describe('hyperlane warp read e2e tests', async function () {
       };
 
       writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH_1, warpConfig);
-      await hyperlaneWarp.deploy(WARP_DEPLOY_CONFIG_PATH_1, HYP_KEY);
+      await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 
       const steps: TestPromptAction[] = [
         // Select the hyp1-hyp2 HYP route from the selection prompt
@@ -171,11 +171,7 @@ describe('hyperlane warp read e2e tests', async function () {
 
   describe('hyperlane warp read --chain ... --config ...', () => {
     it('should be able to read a warp route', async function () {
-      await hyperlaneWarp.deploy(
-        WARP_DEPLOY_CONFIG_PATH_1,
-        HYP_KEY,
-        WARP_DEPLOY_1_ID,
-      );
+      await hyperlaneWarp.deploy(HYP_KEY, WARP_DEPLOY_1_ID);
 
       const warpReadResult: WarpRouteDeployConfig =
         await hyperlaneWarp.readConfig(CHAIN_NAME_1, WARP_CORE_CONFIG_PATH_1);

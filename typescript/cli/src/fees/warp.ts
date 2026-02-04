@@ -73,22 +73,16 @@ function getPlaceholderRecipient(
 
 export async function runWarpRouteFees({
   context,
-  symbol,
-  warpCoreConfigPath,
   warpRouteId,
   amount,
 }: {
   context: CommandContext;
-  symbol?: string;
-  warpCoreConfigPath?: string;
   warpRouteId?: string;
   amount: string;
 }): Promise<void> {
   // Load warp core config
   const warpCoreConfig: WarpCoreConfig = await getWarpCoreConfigOrExit({
     context,
-    symbol,
-    warp: warpCoreConfigPath,
     warpRouteId,
   });
 

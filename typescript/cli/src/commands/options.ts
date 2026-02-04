@@ -116,18 +116,10 @@ export const DEFAULT_WARP_ROUTE_DEPLOYMENT_CONFIG_PATH =
 export const DEFAULT_CORE_DEPLOYMENT_CONFIG_PATH = './configs/core-config.yaml';
 export const DEFAULT_STRATEGY_CONFIG_PATH = `${os.homedir()}/.hyperlane/strategies/default-strategy.yaml`;
 
-export const warpDeploymentConfigCommandOption: Options = {
+export const warpRouteIdCommandOption: Options = {
   type: 'string',
-  description:
-    'A path to a JSON or YAML file with a warp route deployment config.',
-  demandOption: false,
-  alias: 'wd',
-};
-
-export const warpCoreConfigCommandOption: Options = {
-  type: 'string',
-  description: 'File path to Warp Route config',
-  alias: 'wc',
+  description: 'Warp route ID from registry (e.g., ETH/hyperlane)',
+  alias: 'w',
 };
 
 export const chainTargetsCommandOption: Options = stringArrayOptionConfig({
@@ -176,11 +168,6 @@ export const fromAddressCommandOption: Options = {
 export const chainCommandOption: Options = {
   type: 'string',
   description: 'The specific chain to perform operations with.',
-};
-
-export const symbolCommandOption: Options = {
-  type: 'string',
-  description: 'Token symbol (e.g. ETH, USDC)',
 };
 
 export const validatorCommandOption: Options = stringArrayOptionConfig({
@@ -253,12 +240,6 @@ export const avsChainCommandOption: Options = {
   description: 'Chain to interact with the AVS on',
   demandOption: true,
   choices: ['ethereum'],
-};
-
-export const warpRouteIdCommandOption: Options = {
-  type: 'string',
-  description: 'Warp route ID to specify the warp route',
-  alias: 'id',
 };
 
 export const forkCommandOptions: Record<string, Options> = {
