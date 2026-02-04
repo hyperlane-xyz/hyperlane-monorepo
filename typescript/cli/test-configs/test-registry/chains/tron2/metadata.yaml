@@ -1,0 +1,15 @@
+# Tron test chain 2 - Local java-tron node
+# Uses protocol: ethereum with technicalStack: tron since TVM is EVM-compatible
+---
+chainId: 728126429 # Tron private network chain ID (different from tron1)
+domainId: 728126429
+name: tron2
+protocol: ethereum
+technicalStack: tron
+rpcUrls:
+  - http: http://127.0.0.1:8546/jsonrpc # JSON-RPC for ethers (different port)
+  - http: http://127.0.0.1:8091 # HTTP API for TronWeb (different port)
+nativeToken:
+  name: TRX
+  symbol: TRX
+  decimals: 6

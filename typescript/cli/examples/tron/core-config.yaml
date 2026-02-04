@@ -1,0 +1,23 @@
+# Core config for Tron test deployment
+# Uses aggregationHook with merkleTreeHook + IGP (more realistic than protocolFee only)
+# Uses the pre-funded test account from local-node genesis
+owner: '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'
+defaultIsm:
+  type: 'testIsm'
+  threshold: 1
+  validators:
+    - '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'
+defaultHook:
+  type: aggregationHook
+  hooks:
+    - type: merkleTreeHook
+    - type: interchainGasPaymaster
+      beneficiary: '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'
+      owner: '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'
+      oracleKey: '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'
+requiredHook:
+  type: protocolFee
+  maxProtocolFee: '1000000000000000000'
+  protocolFee: '200000000000000'
+  beneficiary: '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'
+  owner: '0x970BF2D2a8691BB27D9b7A7c32B3DdF7a8Cac3F8'

@@ -1,0 +1,23 @@
+version: "3.8"
+services:
+  tron-local:
+    image: tronprotocol/java-tron:latest
+    container_name: tron-local
+    platform: linux/amd64
+    deploy:
+      resources:
+        limits:
+          memory: 8g
+    ports:
+      - "8090:8090" # HTTP API
+      - "8545:8545" # JSON-RPC
+      - "50051:50051" # gRPC
+    volumes:
+      - ./conf:/java-tron/conf
+      - ./data:/java-tron/data
+      - ./logs:/java-tron/logs
+    command: >
+      -jvm "{-Xmx6g -Xms2g}"
+      -c /java-tron/conf/config.conf
+      -d /java-tron/data
+      -w

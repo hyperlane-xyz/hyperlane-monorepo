@@ -7,11 +7,16 @@
     ".": {
       "types": "./dist/index.d.ts",
       "default": "./dist/index.js"
+    },
+    "./testing": {
+      "types": "./dist/testing/index.d.ts",
+      "default": "./dist/testing/index.js"
     }
   },
   "types": "dist/index.d.ts",
   "files": [
-    "/dist"
+    "/dist",
+    "local-node"
   ],
   "homepage": "https://www.hyperlane.xyz",
   "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",

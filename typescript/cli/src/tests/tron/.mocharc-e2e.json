@@ -1,0 +1,7 @@
+{
+  "extensions": ["ts"],
+  "file": ["src/tests/tron/e2e-test.setup.ts"],
+  "node-option": ["import=tsx/esm"],
+  "exit": true,
+  "timeout": 180000
+}
