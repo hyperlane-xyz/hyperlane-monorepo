@@ -44,7 +44,11 @@ import {
   RadixSDKReceipt,
   RadixSDKTransaction,
 } from '@hyperlane-xyz/radix-sdk';
-import { Annotated, ProtocolType } from '@hyperlane-xyz/utils';
+import {
+  Annotated,
+  KnownProtocolType,
+  ProtocolType,
+} from '@hyperlane-xyz/utils';
 
 export enum ProviderType {
   EthersV5 = 'ethers-v5',
@@ -60,8 +64,10 @@ export enum ProviderType {
   Aleo = 'aleo',
 }
 
+export type { KnownProtocolType };
+
 export const PROTOCOL_TO_DEFAULT_PROVIDER_TYPE: Record<
-  ProtocolType,
+  KnownProtocolType,
   ProviderType
 > = {
   [ProtocolType.Ethereum]: ProviderType.EthersV5,
@@ -117,6 +123,12 @@ type ProtocolTypesMapping = {
     provider: AleoProvider;
     contract: null;
     receipt: AleoTransactionReceipt;
+  };
+  [ProtocolType.Unknown]: {
+    transaction: never;
+    provider: never;
+    contract: never;
+    receipt: never;
   };
 };
 

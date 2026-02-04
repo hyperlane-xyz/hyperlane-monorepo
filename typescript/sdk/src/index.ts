@@ -189,6 +189,7 @@ export {
   AggregationHookConfigSchema,
   ArbL2ToL1HookConfig,
   ArbL2ToL1HookSchema,
+  DeployableHookType,
   DerivedHookConfig,
   DomainRoutingHookConfig,
   DomainRoutingHookConfigSchema,
@@ -205,12 +206,14 @@ export {
   IgpSchema,
   MerkleTreeHookConfig,
   MerkleTreeSchema,
+  normalizeUnknownHookTypes,
   OpStackHookConfig,
   OpStackHookSchema,
   PausableHookConfig,
   PausableHookSchema,
   ProtocolFeeHookConfig,
   ProtocolFeeSchema,
+  SafeParseHookConfigSchema,
 } from './hook/types.js';
 export { isHookCompatible } from './hook/utils.js';
 export { EvmIsmReader } from './ism/EvmIsmReader.js';
@@ -249,6 +252,7 @@ export {
   AggregationIsmConfigSchema,
   ArbL2ToL1IsmConfig,
   ArbL2ToL1IsmConfigSchema,
+  DeployableIsmType,
   DeployedIsm,
   DeployedIsmType,
   DerivedIsmConfig,
@@ -262,6 +266,7 @@ export {
   MultisigConfigSchema,
   MultisigIsmConfig,
   MultisigIsmConfigSchema,
+  normalizeUnknownIsmTypes,
   NullIsmConfig,
   OffchainLookupIsmConfig,
   OpStackIsmConfig,
@@ -270,6 +275,7 @@ export {
   PausableIsmConfigSchema,
   RoutingIsmConfig,
   RoutingIsmConfigSchema,
+  SafeParseIsmConfigSchema,
   TrustedRelayerIsmConfig,
   TrustedRelayerIsmConfigSchema,
   WeightedMultisigIsmConfig,
@@ -689,7 +695,7 @@ export {
 } from './token/adapters/serialization.js';
 export { HypERC20App } from './token/app.js';
 export { HypERC20Checker } from './token/checker.js';
-export { TokenType } from './token/config.js';
+export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,

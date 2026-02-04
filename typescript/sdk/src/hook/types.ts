@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, isNullish } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
@@ -44,14 +44,17 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  UNKNOWN: 'unknownHook',
 } as const;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
-export const HookTypeToContractNameMap: Record<
-  Exclude<HookType, typeof HookType.CUSTOM>,
-  string
-> = {
+export type DeployableHookType = Exclude<
+  HookType,
+  typeof HookType.CUSTOM | typeof HookType.UNKNOWN
+>;
+
+export const HookTypeToContractNameMap: Record<DeployableHookType, string> = {
   [HookType.MERKLE_TREE]: 'merkleTreeHook',
   [HookType.INTERCHAIN_GAS_PAYMASTER]: 'interchainGasPaymaster',
   [HookType.AGGREGATION]: 'staticAggregationHook',
@@ -200,6 +203,54 @@ export const CCIPHookSchema = z.object({
   destinationChain: z.string(),
 });
 
+export const UnknownHookSchema = z
+  .object({
+    type: z.literal(HookType.UNKNOWN),
+  })
+  .passthrough();
+export type UnknownHookConfig = z.infer<typeof UnknownHookSchema>;
+
+const KnownHookTypes: string[] = Object.values(HookType).filter(
+  (t) => t !== HookType.UNKNOWN,
+);
+
+/**
+ * Recursively normalizes unknown hook type values to HookType.UNKNOWN.
+ * Use this before parsing with HookConfigSchema when configs may contain
+ * hook types not yet known to this SDK version.
+ *
+ * Note: String address configs (e.g., "0x...") are passed through unchanged
+ * since they represent deployed hook addresses, not hook type configs.
+ */
+export function normalizeUnknownHookTypes<T>(config: T): T {
+  // Handle nullish values and primitives (including string addresses)
+  if (isNullish(config) || typeof config !== 'object') {
+    return config;
+  }
+
+  if (Array.isArray(config)) {
+    return config.map(normalizeUnknownHookTypes) as T;
+  }
+
+  // At this point, config must be a non-null object (not array, not primitive)
+  const obj = config as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'type' && typeof value === 'string') {
+      normalized[key] = KnownHookTypes.includes(value)
+        ? value
+        : HookType.UNKNOWN;
+    } else if (typeof value === 'object' && !isNullish(value)) {
+      normalized[key] = normalizeUnknownHookTypes(value);
+    } else {
+      normalized[key] = value;
+    }
+  }
+
+  return normalized as T;
+}
+
 export const HookConfigSchema = z.union([
   ZHash,
   ProtocolFeeSchema,
@@ -214,7 +265,18 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  UnknownHookSchema,
 ]);
+
+/**
+ * Forward-compatible hook config schema that normalizes unknown hook types.
+ * Use this instead of HookConfigSchema when parsing configs that may contain
+ * hook types added in newer registry versions.
+ */
+export const SafeParseHookConfigSchema = z.preprocess(
+  normalizeUnknownHookTypes,
+  HookConfigSchema,
+);
 
 // TODO: deprecate in favor of CoreConfigSchema
 export const HooksConfigSchema = z.object({
