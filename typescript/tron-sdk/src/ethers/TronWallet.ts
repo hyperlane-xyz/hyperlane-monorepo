@@ -1,4 +1,4 @@
-import { BigNumber, Wallet, providers, utils } from 'ethers';
+import { BigNumber, Wallet, providers } from 'ethers';
 import { TronWeb } from 'tronweb';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
@@ -128,23 +128,5 @@ export class TronWallet extends Wallet {
         return receipt;
       },
     };
-  }
-
-  async signTransaction(
-    _transaction: providers.TransactionRequest,
-  ): Promise<string> {
-    throw new Error('Use sendTransaction instead');
-  }
-
-  async populateTransaction(
-    transaction: utils.Deferrable<providers.TransactionRequest>,
-  ): Promise<providers.TransactionRequest> {
-    const tx = await utils.resolveProperties(transaction);
-    if (tx.from == null) tx.from = this.address;
-    // Let ethers estimate gas if not provided
-    if (tx.gasLimit == null) {
-      tx.gasLimit = await this.provider!.estimateGas(tx);
-    }
-    return tx;
   }
 }
