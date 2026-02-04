@@ -4,6 +4,7 @@ import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
+  assert,
   normalizeAddress,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -103,6 +104,12 @@ export class EvmXERC20Module extends HyperlaneModule<
     expectedConfig: XERC20ModuleConfig,
   ): Promise<AnnotatedEV5Transaction[]> {
     const actualConfig = await this.read();
+
+    assert(
+      expectedConfig.type === actualConfig.type,
+      `XERC20 type mismatch: expected ${expectedConfig.type} but on-chain is ${actualConfig.type}`,
+    );
+
     const transactions: AnnotatedEV5Transaction[] = [];
 
     const { missingBridges, extraBridges, limitMismatches } =
@@ -187,12 +194,14 @@ export class EvmXERC20Module extends HyperlaneModule<
     let extraBridges: Address[] = [];
     if (expected.type === XERC20Type.Velo) {
       extraBridges = Object.keys(actual.limits)
-        .map((addr) => normalizeAddress(addr))
-        .filter(
-          (bridge) =>
-            !expectedBridgesSet.has(bridge) &&
-            !limitsAreZero(actual.limits[bridge]),
-        );
+        .filter((addr) => {
+          const normalized = normalizeAddress(addr);
+          return (
+            !expectedBridgesSet.has(normalized) &&
+            !limitsAreZero(actual.limits[addr])
+          );
+        })
+        .map((addr) => normalizeAddress(addr));
     }
 
     return { missingBridges, extraBridges, limitMismatches };
@@ -347,6 +356,12 @@ export class EvmXERC20Module extends HyperlaneModule<
     },
     warpRouteAddress: Address,
   ): Promise<{ module: EvmXERC20Module; config: XERC20ModuleConfig }> {
+    assert(
+      warpRouteConfig.type === TokenType.XERC20 ||
+        warpRouteConfig.type === TokenType.XERC20Lockbox,
+      `Expected XERC20 or XERC20Lockbox token type, got ${warpRouteConfig.type}`,
+    );
+
     let xERC20Address = warpRouteConfig.token;
     if (warpRouteConfig.type === TokenType.XERC20Lockbox) {
       const provider = multiProvider.getProvider(chain);
