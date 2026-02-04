@@ -39,7 +39,7 @@ import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { TokenType, gasOverhead } from './config.js';
+import { DeployableTokenType, TokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
@@ -85,7 +85,7 @@ const EVERCLEAR_TOKEN_BRIDGE_INITIALIZE_SIGNATURE =
   'initialize(address,address)';
 
 export const TOKEN_INITIALIZE_SIGNATURE = (
-  contractName: HypERC20contracts[TokenType],
+  contractName: HypERC20contracts[DeployableTokenType],
 ) => {
   switch (contractName) {
     case 'OPL2TokenBridgeNative':

@@ -1,11 +1,12 @@
 import { ProtocolType, assert, objMap } from '@hyperlane-xyz/utils';
 
 import {
+  KnownProtocolType,
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   ProviderType,
 } from '../providers/ProviderType.js';
 
-import { TokenType } from './config.js';
+import { DeployableTokenType, TokenType } from './config.js';
 
 export enum TokenStandard {
   // EVM
@@ -72,7 +73,10 @@ export enum TokenStandard {
 }
 
 // Allows for omission of protocol field in token args
-export const TOKEN_STANDARD_TO_PROTOCOL: Record<TokenStandard, ProtocolType> = {
+export const TOKEN_STANDARD_TO_PROTOCOL: Record<
+  TokenStandard,
+  KnownProtocolType
+> = {
   // EVM
   ERC20: ProtocolType.Ethereum,
   ERC721: ProtocolType.Ethereum,
@@ -242,6 +246,11 @@ export const tokenTypeToStandard = (
   protocolType: ProtocolType,
   tokenType: TokenType,
 ) => {
+  assert(
+    tokenType !== TokenType.unknown,
+    'Cannot determine token standard for unknown token type',
+  );
+
   switch (protocolType) {
     case ProtocolType.Ethereum: {
       return EVM_TOKEN_TYPE_TO_STANDARD[tokenType];
@@ -311,7 +320,10 @@ export const tokenTypeToStandard = (
   }
 };
 
-export const EVM_TOKEN_TYPE_TO_STANDARD: Record<TokenType, TokenStandard> = {
+export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
+  DeployableTokenType,
+  TokenStandard
+> = {
   [TokenType.native]: TokenStandard.EvmHypNative,
   [TokenType.collateral]: TokenStandard.EvmHypCollateral,
   [TokenType.collateralFiat]: TokenStandard.EvmHypCollateralFiat,
@@ -418,19 +430,21 @@ export const ALEO_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.synthetic]: TokenStandard.AleoHypSynthetic,
 };
 
-export const PROTOCOL_TO_NATIVE_STANDARD: Record<ProtocolType, TokenStandard> =
-  {
-    [ProtocolType.Ethereum]: TokenStandard.EvmNative,
-    [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
-    [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
-    [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
-    [ProtocolType.Starknet]: TokenStandard.StarknetNative,
-    [ProtocolType.Radix]: TokenStandard.RadixNative,
-    [ProtocolType.Aleo]: TokenStandard.AleoNative,
-  };
+export const PROTOCOL_TO_NATIVE_STANDARD: Record<
+  KnownProtocolType,
+  TokenStandard
+> = {
+  [ProtocolType.Ethereum]: TokenStandard.EvmNative,
+  [ProtocolType.Cosmos]: TokenStandard.CosmosNative,
+  [ProtocolType.CosmosNative]: TokenStandard.CosmosNative,
+  [ProtocolType.Sealevel]: TokenStandard.SealevelNative,
+  [ProtocolType.Starknet]: TokenStandard.StarknetNative,
+  [ProtocolType.Radix]: TokenStandard.RadixNative,
+  [ProtocolType.Aleo]: TokenStandard.AleoNative,
+};
 
 export const PROTOCOL_TO_HYP_NATIVE_STANDARD: Record<
-  ProtocolType,
+  KnownProtocolType,
   TokenStandard
 > = {
   [ProtocolType.Ethereum]: TokenStandard.EvmHypNative,

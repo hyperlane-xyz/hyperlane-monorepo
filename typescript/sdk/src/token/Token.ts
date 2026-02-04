@@ -3,6 +3,7 @@ import { MsgTransferEncodeObject } from '@cosmjs/stargate';
 
 import {
   Address,
+  KnownProtocolType,
   Numberish,
   ProtocolType,
   assert,
@@ -108,12 +109,18 @@ export class Token implements IToken {
    */
   static FromChainMetadataNativeToken(chainMetadata: ChainMetadata): Token {
     const { protocol, name: chainName, logoURI } = chainMetadata;
+    assert(
+      protocol !== ProtocolType.Unknown,
+      'Cannot create native token for unknown protocol',
+    );
+    const knownProtocol = protocol as KnownProtocolType;
     const nativeToken =
-      chainMetadata.nativeToken || PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[protocol];
+      chainMetadata.nativeToken ||
+      PROTOCOL_TO_DEFAULT_NATIVE_TOKEN[knownProtocol];
 
     return new Token({
       chainName,
-      standard: PROTOCOL_TO_NATIVE_STANDARD[protocol],
+      standard: PROTOCOL_TO_NATIVE_STANDARD[knownProtocol],
       addressOrDenom: nativeToken.denom ?? '',
       decimals: nativeToken.decimals,
       symbol: nativeToken.symbol,
