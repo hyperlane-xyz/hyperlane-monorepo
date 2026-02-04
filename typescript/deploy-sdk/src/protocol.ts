@@ -35,13 +35,6 @@ export async function loadProtocolProviders(
         registerProtocol(protocol, () => new AleoProtocolProvider());
         break;
       }
-      case ProtocolType.Tron: {
-        const { TronProtocolProvider } = await import(
-          '@hyperlane-xyz/tron-sdk'
-        );
-        registerProtocol(protocol, () => new TronProtocolProvider());
-        break;
-      }
     }
   }
 }

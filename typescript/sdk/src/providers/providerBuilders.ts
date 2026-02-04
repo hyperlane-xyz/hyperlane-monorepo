@@ -9,10 +9,7 @@ import { Provider as ZKProvider } from 'zksync-ethers';
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import {
-  TronJsonRpcProvider,
-  TronProvider as TronSDKProvider,
-} from '@hyperlane-xyz/tron-sdk';
+import { TronJsonRpcProvider } from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -27,7 +24,6 @@ import {
   RadixProvider,
   SolanaWeb3Provider,
   StarknetJsProvider,
-  TronProvider,
   TypedProvider,
   ViemProvider,
   ZKSyncProvider,
@@ -181,18 +177,16 @@ export function defaultAleoProviderBuilder(
   return { provider, type: ProviderType.Aleo };
 }
 
-export function defaultTronProviderBuilder(
+/**
+ * Returns an ethers-compatible TronJsonRpcProvider for use in MultiProvider.
+ * This handles Tron's missing eth_getTransactionCount and returns the raw provider.
+ */
+export function defaultTronEthersProviderBuilder(
   rpcUrls: RpcUrl[],
-  network: string | number,
-): TronProvider {
+  _network: number | string,
+): providers.Provider {
   assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  assert(isNumeric(network), 'Tron requires a numeric chain id');
-  const chainId = parseInt(network.toString(), 10);
-  const provider = new TronSDKProvider(
-    rpcUrls.map((rpc) => rpc.http),
-    chainId,
-  );
-  return { provider, type: ProviderType.Tron };
+  return new TronJsonRpcProvider(rpcUrls[0].http);
 }
 
 // Kept for backwards compatibility
@@ -208,18 +202,6 @@ export function defaultZKProviderBuilder(
   _network: number | string,
 ): ZKProvider {
   return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
-}
-
-/**
- * Returns an ethers-compatible TronJsonRpcProvider for use in MultiProvider.
- * This handles Tron's missing eth_getTransactionCount and eth_feeHistory methods.
- */
-export function defaultTronEthersProviderBuilder(
-  rpcUrls: RpcUrl[],
-  _network: number | string,
-): providers.Provider {
-  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
-  return new TronJsonRpcProvider(rpcUrls[0].http);
 }
 
 export type ProviderBuilderMap = Record<
@@ -238,7 +220,6 @@ export const defaultProviderBuilderMap: ProviderBuilderMap = {
   [ProviderType.ZkSync]: defaultZKSyncProviderBuilder,
   [ProviderType.Radix]: defaultRadixProviderBuilder,
   [ProviderType.Aleo]: defaultAleoProviderBuilder,
-  [ProviderType.Tron]: defaultTronProviderBuilder,
 };
 
 export const protocolToDefaultProviderBuilder: Record<
@@ -252,5 +233,4 @@ export const protocolToDefaultProviderBuilder: Record<
   [ProtocolType.Starknet]: defaultStarknetJsProviderBuilder,
   [ProtocolType.Radix]: defaultRadixProviderBuilder,
   [ProtocolType.Aleo]: defaultAleoProviderBuilder,
-  [ProtocolType.Tron]: defaultTronProviderBuilder,
 };

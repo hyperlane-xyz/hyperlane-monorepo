@@ -8,7 +8,6 @@ import { EthereumLogo } from './Ethereum.js';
 import { RadixLogo } from './Radix.js';
 import { SolanaLogo } from './Solana.js';
 import { StarknetLogo } from './Starknet.js';
-import { TronLogo } from './Tron.js';
 
 export const PROTOCOL_TO_LOGO: Record<
   ProtocolType,
@@ -21,5 +20,4 @@ export const PROTOCOL_TO_LOGO: Record<
   [ProtocolType.Starknet]: StarknetLogo,
   [ProtocolType.Radix]: RadixLogo,
   [ProtocolType.Aleo]: AleoLogo,
-  [ProtocolType.Tron]: TronLogo,
 };

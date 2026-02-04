@@ -45,8 +45,6 @@ export function getProtocolExchangeRateDecimals(
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
     case ProtocolType.Starknet:
       return TOKEN_EXCHANGE_RATE_DECIMALS_ALTVM;
-    case ProtocolType.Tron:
-      return TOKEN_EXCHANGE_RATE_DECIMALS_ETHEREUM;
   }
 }
 

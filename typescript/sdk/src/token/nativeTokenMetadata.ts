@@ -47,9 +47,4 @@ export const PROTOCOL_TO_DEFAULT_NATIVE_TOKEN: Record<
     name: 'Aleo',
     symbol: 'ALEO',
   },
-  [ProtocolType.Tron]: {
-    decimals: 6,
-    name: 'Tronix',
-    symbol: 'TRX',
-  },
 };

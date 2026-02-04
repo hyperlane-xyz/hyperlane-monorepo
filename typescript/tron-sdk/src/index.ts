@@ -4,10 +4,3 @@ export { TronWallet } from './ethers/TronWallet.js';
 
 // TronWeb utility provider (for Tron-specific operations)
 export { TronProvider } from './clients/provider.js';
-
-// Types
-export {
-  TronSDKOptions,
-  TronSDKReceipt,
-  TronSDKTransaction,
-} from './utils/types.js';
