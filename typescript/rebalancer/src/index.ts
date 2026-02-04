@@ -89,10 +89,16 @@ export {
 export type { IMetrics } from './interfaces/IMetrics.js';
 
 // Utils
-export { getBridgeConfig } from './utils/bridgeUtils.js';
+export {
+  getBridgeConfig,
+  isMovableCollateralConfig,
+  isInventoryConfig,
+} from './utils/bridgeUtils.js';
 export type {
   BridgeConfigWithOverride,
   BridgeConfig,
+  MovableCollateralBridgeConfig,
+  InventoryBridgeConfig,
 } from './utils/bridgeUtils.js';
 export { getRawBalances } from './utils/balanceUtils.js';
 export { isCollateralizedTokenEligibleForRebalancing } from './utils/tokenUtils.js';

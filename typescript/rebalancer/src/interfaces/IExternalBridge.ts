@@ -1,5 +1,7 @@
 import type { Logger } from 'pino';
 
+import type { ExternalBridgeType } from '../config/types.js';
+
 /**
  * Configuration for an external bridge.
  */
@@ -71,7 +73,7 @@ export type BridgeTransferStatus =
  * 3. getStatus() - Poll for transfer completion
  */
 export interface IExternalBridge {
-  readonly bridgeId: string;
+  readonly externalBridgeId: string;
   readonly logger: Logger;
 
   getNativeTokenAddress?(): string;
@@ -97,3 +99,11 @@ export interface IExternalBridge {
     toChain: number,
   ): Promise<BridgeTransferStatus>;
 }
+
+/**
+ * Registry mapping external bridge types to their implementations.
+ */
+export type ExternalBridgeRegistry = Record<
+  ExternalBridgeType,
+  IExternalBridge
+>;

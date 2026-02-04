@@ -15,7 +15,7 @@ import {
   hasInventoryChains,
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import {
   MonitorEvent,
   MonitorEventType,
@@ -119,7 +119,7 @@ export class RebalancerService {
   private inflightContextAdapter?: InflightContextAdapter;
   private inventoryRebalancer?: IRebalancer;
   private inventoryConfig?: InventoryMonitorConfig;
-  private externalBridge?: IExternalBridge;
+  private externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private orchestrator?: RebalancerOrchestrator;
 
   constructor(
@@ -197,7 +197,8 @@ export class RebalancerService {
       if (inventoryComponents) {
         this.inventoryConfig = inventoryComponents.inventoryConfig;
         this.inventoryRebalancer = inventoryComponents.inventoryRebalancer;
-        this.externalBridge = inventoryComponents.externalBridge;
+        this.externalBridgeRegistry =
+          inventoryComponents.externalBridgeRegistry;
         this.logger.info('Inventory rebalancing enabled');
       }
     }
@@ -225,7 +226,7 @@ export class RebalancerService {
       rebalancerConfig: this.rebalancerConfig,
       logger: this.logger,
       rebalancers,
-      externalBridge: this.externalBridge,
+      externalBridgeRegistry: this.externalBridgeRegistry,
       metrics: this.metrics,
     });
 

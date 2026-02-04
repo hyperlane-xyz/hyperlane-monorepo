@@ -6,7 +6,7 @@ import {
   getChainExecutionType,
   getStrategyChainNames,
 } from '../config/types.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import {
   type ConfirmedBlockTags,
   type MonitorEvent,
@@ -46,7 +46,7 @@ export interface RebalancerOrchestratorDeps {
 
   rebalancers: IRebalancer[];
 
-  externalBridge?: IExternalBridge;
+  externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   metrics?: Metrics;
 }
 
@@ -57,7 +57,7 @@ export class RebalancerOrchestrator {
   private readonly rebalancerConfig: RebalancerConfig;
   private readonly logger: Logger;
   private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
-  private readonly externalBridge?: IExternalBridge;
+  private readonly externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private readonly metrics?: Metrics;
 
   constructor(deps: RebalancerOrchestratorDeps) {
@@ -69,7 +69,7 @@ export class RebalancerOrchestrator {
     this.rebalancersByType = new Map(
       deps.rebalancers.map((r) => [r.rebalancerType, r]),
     );
-    this.externalBridge = deps.externalBridge;
+    this.externalBridgeRegistry = deps.externalBridgeRegistry;
     this.metrics = deps.metrics;
   }
 
@@ -165,9 +165,9 @@ export class RebalancerOrchestrator {
       ]);
 
       // Sync inventory movement actions via external bridge API
-      if (this.externalBridge) {
+      if (this.externalBridgeRegistry) {
         await this.actionTracker.syncInventoryMovementActions(
-          this.externalBridge,
+          this.externalBridgeRegistry,
         );
       }
 

@@ -1,7 +1,7 @@
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 
 import type {
@@ -32,8 +32,8 @@ export interface CreateRebalanceActionParams {
   type: ActionType; // Required - type of action being created
   messageId?: string; // Optional - not needed for inventory_movement
   txHash?: string;
-  bridgeTransferId?: string; // Optional - for inventory_movement (external bridge ID)
-  bridgeId?: string; // Optional - for inventory_movement (e.g., 'lifi')
+  externalBridgeTransferId?: string; // Optional - for inventory_movement (external transfer bridge ID)
+  externalBridgeId?: ExternalBridgeType; // Optional - for inventory_movement (e.g., 'lifi')
 }
 
 /**
@@ -75,11 +75,11 @@ export interface IActionTracker {
    * This is separate from syncRebalanceActions because inventory_movement actions
    * don't use Hyperlane messages and need to query the bridge's status API.
    *
-   * @param bridge - External bridge to query for status
+   * @param externalBridgeRegistry - Bridge registry to query for status
    * @returns Count of completed and failed actions
    */
   syncInventoryMovementActions(
-    bridge: IExternalBridge,
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>,
   ): Promise<{ completed: number; failed: number }>;
 
   // === Transfer Queries ===

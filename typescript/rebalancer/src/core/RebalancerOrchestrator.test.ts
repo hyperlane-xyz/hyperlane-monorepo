@@ -695,7 +695,7 @@ describe('RebalancerOrchestrator', () => {
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
         rebalancers: [],
-        externalBridge: bridge,
+        externalBridgeRegistry: { lifi: bridge },
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);
@@ -710,7 +710,7 @@ describe('RebalancerOrchestrator', () => {
       expect(
         (
           actionTracker.syncInventoryMovementActions as Sinon.SinonStub
-        ).calledWith(bridge),
+        ).calledWith({ lifi: bridge }),
       ).to.be.true;
     });
   });

@@ -5,7 +5,7 @@ import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
 import type { Address, Domain } from '@hyperlane-xyz/utils';
 import { parseWarpRouteMessage } from '@hyperlane-xyz/utils';
 
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type {
   ConfirmedBlockTag,
   ConfirmedBlockTags,
@@ -400,8 +400,8 @@ export class ActionTracker implements IActionTracker {
       intentId: params.intentId,
       messageId: params.messageId,
       txHash: params.txHash,
-      bridgeTransferId: params.bridgeTransferId,
-      bridgeId: params.bridgeId,
+      externalBridgeTransferId: params.externalBridgeTransferId,
+      externalBridgeId: params.externalBridgeId,
       origin: params.origin,
       destination: params.destination,
       amount: params.amount,
@@ -584,7 +584,7 @@ export class ActionTracker implements IActionTracker {
   }
 
   async syncInventoryMovementActions(
-    bridge: IExternalBridge,
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>,
   ): Promise<{ completed: number; failed: number }> {
     this.logger.debug('Syncing inventory movement actions');
 
@@ -613,8 +613,26 @@ export class ActionTracker implements IActionTracker {
         continue;
       }
 
+      // Skip if no externalBridgeId (shouldn't happen but be safe)
+      if (!action.externalBridgeId) {
+        this.logger.warn(
+          { actionId: action.id },
+          'Inventory movement action has no externalBridgeId',
+        );
+        continue;
+      }
+
+      const externalBridge = externalBridgeRegistry[action.externalBridgeId];
+      if (!externalBridge) {
+        this.logger.warn(
+          { actionId: action.id, bridgeId: action.externalBridgeId },
+          'Bridge not found in registry',
+        );
+        continue;
+      }
+
       try {
-        const status = await bridge.getStatus(
+        const status = await externalBridge.getStatus(
           action.txHash,
           action.origin,
           action.destination,

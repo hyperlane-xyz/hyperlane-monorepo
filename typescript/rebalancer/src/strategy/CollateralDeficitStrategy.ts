@@ -14,7 +14,10 @@ import type {
   StrategyRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import type { BridgeConfigWithOverride } from '../utils/bridgeUtils.js';
+import {
+  type BridgeConfigWithOverride,
+  isMovableCollateralConfig,
+} from '../utils/bridgeUtils.js';
 
 import { BaseStrategy, type Delta } from './BaseStrategy.js';
 
@@ -249,6 +252,17 @@ export class CollateralDeficitStrategy extends BaseStrategy {
           surplus.chain,
           deficit.chain,
         );
+        if (!isMovableCollateralConfig(bridgeConfig)) {
+          this.logger.warn(
+            {
+              origin: surplus.chain,
+              destination: deficit.chain,
+              executionType: bridgeConfig.executionType,
+            },
+            'Skipping route: CollateralDeficitStrategy requires movableCollateral bridge',
+          );
+          continue;
+        }
         routes.push({
           origin: surplus.chain,
           destination: deficit.chain,
@@ -316,7 +330,10 @@ export class CollateralDeficitStrategy extends BaseStrategy {
         rebalance.origin,
         rebalance.destination,
       );
-      return bridgeConfig?.bridge === rebalance.bridge;
+      return (
+        isMovableCollateralConfig(bridgeConfig) &&
+        bridgeConfig.bridge === rebalance.bridge
+      );
     });
   }
 

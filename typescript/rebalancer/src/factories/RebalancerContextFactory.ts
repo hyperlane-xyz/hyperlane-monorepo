@@ -15,13 +15,14 @@ import { LiFiBridge } from '../bridges/LiFiBridge.js';
 import { type RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   ExecutionType,
+  ExternalBridgeType,
   getAllBridges,
   getStrategyChainConfig,
   getStrategyChainNames,
 } from '../config/types.js';
 import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
@@ -89,6 +90,8 @@ export class RebalancerContextFactory {
       },
       'Creating RebalancerContextFactory',
     );
+
+    // TODO: should we pull addressed for chains we care about, i.e those in the warp config
     const addresses = await registry.getAddresses();
 
     // The Sealevel warp adapters require the Mailbox address, so we
@@ -351,13 +354,12 @@ export class RebalancerContextFactory {
     actionTracker: IActionTracker,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
-    externalBridge: IExternalBridge;
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
     inventoryConfig: InventoryMonitorConfig;
   } | null> {
     const { inventorySigner, externalBridges } = this.config;
-    const lifiConfig = externalBridges?.lifi;
 
-    if (!inventorySigner || !lifiConfig?.integrator) {
+    if (!inventorySigner) {
       this.logger.debug(
         'Inventory config not available, skipping inventory components creation',
       );
@@ -384,13 +386,38 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    const externalBridge = new LiFiBridge(
-      {
-        integrator: lifiConfig.integrator,
-        defaultSlippage: lifiConfig.defaultSlippage,
-      },
-      this.logger,
-    );
+    // Build registry dynamically from ExternalBridgeType enum
+    const externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+
+    for (const bridgeType of Object.values(ExternalBridgeType)) {
+      switch (bridgeType) {
+        case ExternalBridgeType.LiFi: {
+          const lifiConfig = externalBridges?.lifi;
+          if (lifiConfig?.integrator) {
+            externalBridgeRegistry[ExternalBridgeType.LiFi] = new LiFiBridge(
+              {
+                integrator: lifiConfig.integrator,
+                defaultSlippage: lifiConfig.defaultSlippage,
+              },
+              this.logger,
+            );
+          }
+          break;
+        }
+        default: {
+          // Exhaustive check - TypeScript will error if new enum value added
+          const _exhaustive: never = bridgeType;
+          throw new Error(`Unknown bridge type: ${_exhaustive}`);
+        }
+      }
+    }
+
+    if (Object.keys(externalBridgeRegistry).length === 0) {
+      this.logger.debug(
+        'No external bridges configured, skipping inventory components',
+      );
+      return null;
+    }
 
     // 3. Build inventory config
     const inventoryConfig: InventoryMonitorConfig = {
@@ -407,7 +434,7 @@ export class RebalancerContextFactory {
         inventoryChains,
       },
       actionTracker,
-      externalBridge,
+      externalBridgeRegistry,
       this.warpCore,
       this.multiProvider,
       this.logger,
@@ -421,7 +448,7 @@ export class RebalancerContextFactory {
       'Inventory components created successfully',
     );
 
-    return { inventoryRebalancer, externalBridge, inventoryConfig };
+    return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

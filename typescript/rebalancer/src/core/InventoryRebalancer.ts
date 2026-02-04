@@ -10,7 +10,11 @@ import {
   type WarpCore,
 } from '@hyperlane-xyz/sdk';
 
-import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
+import type { ExternalBridgeType } from '../config/types.js';
+import type {
+  ExternalBridgeRegistry,
+  IExternalBridge,
+} from '../interfaces/IExternalBridge.js';
 import type {
   IInventoryRebalancer,
   InventoryExecutionResult,
@@ -82,8 +86,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   private readonly logger: Logger;
   private readonly config: InventoryRebalancerConfig;
   private readonly actionTracker: IActionTracker;
-  // Bridge will be used for inventory_movement actions in future implementation
-  private readonly _bridge: IExternalBridge;
+  private readonly externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
   private readonly warpCore: WarpCore;
   private readonly multiProvider: MultiProvider;
 
@@ -103,14 +106,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   constructor(
     config: InventoryRebalancerConfig,
     actionTracker: IActionTracker,
-    bridge: IExternalBridge,
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>,
     warpCore: WarpCore,
     multiProvider: MultiProvider,
     logger: Logger,
   ) {
     this.config = config;
     this.actionTracker = actionTracker;
-    this._bridge = bridge;
+    this.externalBridgeRegistry = externalBridgeRegistry;
     this.warpCore = warpCore;
     this.multiProvider = multiProvider;
     this.logger = logger;
@@ -127,11 +130,24 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     );
   }
 
-  private getNativeTokenAddress(): string {
-    const addr = this._bridge.getNativeTokenAddress?.();
+  /**
+   * Get bridge instance by type from registry.
+   * Throws if bridge type not found.
+   */
+  private getExternalBridge(type: ExternalBridgeType): IExternalBridge {
+    const externalBridge = this.externalBridgeRegistry[type];
+    if (!externalBridge) {
+      throw new Error(`Bridge type '${type}' not found in registry`);
+    }
+    return externalBridge;
+  }
+
+  private getNativeTokenAddress(bridgeType: ExternalBridgeType): string {
+    const bridge = this.getExternalBridge(bridgeType);
+    const addr = bridge.getNativeTokenAddress?.();
     if (!addr) {
       throw new Error(
-        `Bridge '${this._bridge.bridgeId}' does not support getNativeTokenAddress()`,
+        `Bridge '${bridge.externalBridgeId}' does not support getNativeTokenAddress()`,
       );
     }
     return addr;
@@ -159,14 +175,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         );
       }
     }
-  }
-
-  /**
-   * Get the external bridge (for future inventory_movement implementation).
-   * TODO: Remove this getter once inventory_movement is implemented.
-   */
-  protected get bridge(): IExternalBridge {
-    return this._bridge;
   }
 
   /**
@@ -620,6 +628,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
           source.chain,
           destination,
           source.availableAmount,
+          route.externalBridge,
         );
 
         if (maxViable > 0n) {
@@ -692,6 +701,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
             destination,
             plan.amount,
             intent,
+            route.externalBridge,
           ),
         ),
       );
@@ -922,12 +932,14 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * @param sourceChain - Chain to bridge from
    * @param targetChain - Chain to bridge to
    * @param rawInventory - Raw available inventory on source chain
+   * @param externalBridgeType - External bridge type to use
    * @returns Maximum viable bridge amount (0 if not viable)
    */
   private async calculateMaxViableBridgeAmount(
     sourceChain: ChainName,
     targetChain: ChainName,
     rawInventory: bigint,
+    externalBridgeType: ExternalBridgeType,
   ): Promise<bigint> {
     const sourceToken = this.getTokenForChain(sourceChain);
     const targetToken = this.getTokenForChain(targetChain);
@@ -940,17 +952,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     // Convert HypNative token addresses to LiFi's native ETH representation
-    const fromTokenAddress = this.getNativeTokenAddress();
+    const fromTokenAddress = this.getNativeTokenAddress(externalBridgeType);
     const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? this.getNativeTokenAddress()
+      ? this.getNativeTokenAddress(externalBridgeType)
       : targetToken.addressOrDenom;
 
     const sourceChainId = Number(this.multiProvider.getChainId(sourceChain));
     const targetChainId = Number(this.multiProvider.getChainId(targetChain));
 
     try {
-      // Get quote to determine gas costs
-      const quote = await this._bridge.quote({
+      const exteralBridge = this.getExternalBridge(externalBridgeType);
+      const quote = await exteralBridge.quote({
         fromChain: sourceChainId,
         toChain: targetChainId,
         fromToken: fromTokenAddress,
@@ -1025,6 +1037,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * @param targetChain - Chain to move inventory to (origin chain for rebalancing)
    * @param amount - Pre-validated amount to bridge (gas already accounted for)
    * @param intent - Rebalance intent for tracking
+   * @param externalBridgeType - External bridge type to use
    * @returns Result with success status and optional txHash/error
    */
   private async executeInventoryMovement(
@@ -1032,6 +1045,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     targetChain: ChainName,
     amount: bigint,
     intent: RebalanceIntent,
+    externalBridgeType: ExternalBridgeType,
   ): Promise<{ success: boolean; txHash?: string; error?: string }> {
     const sourceToken = this.getTokenForChain(sourceChain);
     if (!sourceToken) {
@@ -1057,11 +1071,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     // Convert HypNative token addresses to LiFi's native ETH representation
     // For HypNative tokens, addressOrDenom is the warp route contract, not the native token
     const fromTokenAddress = isNativeTokenStandard(sourceToken.standard)
-      ? this.getNativeTokenAddress()
+      ? this.getNativeTokenAddress(externalBridgeType)
       : sourceToken.addressOrDenom;
 
     const toTokenAddress = isNativeTokenStandard(targetToken.standard)
-      ? this.getNativeTokenAddress()
+      ? this.getNativeTokenAddress(externalBridgeType)
       : targetToken.addressOrDenom;
 
     this.logger.debug(
@@ -1113,14 +1127,13 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     }
 
     try {
-      // The amount parameter is pre-validated by calculateMaxViableBridgeAmount
-      // Use fromAmount quote directly since we know we can afford this amount
-      const quote = await this._bridge.quote({
+      const externalBridge = this.getExternalBridge(externalBridgeType);
+      const quote = await externalBridge.quote({
         fromChain: sourceChainId,
         toChain: targetChainId,
         fromToken: fromTokenAddress,
         toToken: toTokenAddress,
-        fromAmount: effectiveAmount, // Use the pre-validated amount directly
+        fromAmount: effectiveAmount,
         fromAddress: this.config.inventorySigner,
         toAddress: this.config.inventorySigner,
       });
@@ -1162,13 +1175,11 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Received LiFi quote for inventory movement',
       );
 
-      // Get the signer for the source chain (use inventory signer if available)
       const signingProvider =
         this.config.inventoryMultiProvider ?? this.multiProvider;
       const signer = signingProvider.getSigner(sourceChain);
 
-      // Execute the bridge transfer
-      const result = await this._bridge.execute(quote, signer);
+      const result = await externalBridge.execute(quote, signer);
 
       this.logger.info(
         {
@@ -1180,8 +1191,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         'Inventory movement transaction executed',
       );
 
-      // Create the inventory_movement action for tracking
-      // Use inputRequired as that's what we're actually sending
       await this.actionTracker.createRebalanceAction({
         intentId: intent.id,
         origin: this.multiProvider.getDomainId(sourceChain),
@@ -1189,6 +1198,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
         amount: inputRequired,
         type: 'inventory_movement',
         txHash: result.txHash,
+        externalBridgeId: externalBridgeType,
       });
 
       // Track consumed inventory on source chain for this cycle

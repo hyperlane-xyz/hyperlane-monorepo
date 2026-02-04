@@ -168,7 +168,7 @@ export class UIStateManager extends EventEmitter {
       amount: action.amount.toString(),
       intentId: action.intentId,
       txHash: action.txHash || null,
-      bridgeTransferId: action.bridgeTransferId || null,
+      bridgeTransferId: action.externalBridgeTransferId || null,
       createdAt: action.createdAt,
       updatedAt: action.updatedAt,
     };

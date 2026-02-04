@@ -1,12 +1,40 @@
 import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import type { Address } from '@hyperlane-xyz/utils';
+
+import type { ExternalBridgeType } from '../config/types.js';
+
+type BaseBridgeConfig = {
+  bridgeMinAcceptedAmount?: string | number;
+};
+
+export type MovableCollateralBridgeConfig = BaseBridgeConfig & {
+  executionType: 'movableCollateral';
+  bridge: Address;
+};
+
+export type InventoryBridgeConfig = BaseBridgeConfig & {
+  executionType: 'inventory';
+  externalBridge: ExternalBridgeType;
+};
+
+export type BridgeConfig =
+  | MovableCollateralBridgeConfig
+  | InventoryBridgeConfig;
+
+export function isMovableCollateralConfig(
+  config: BridgeConfig,
+): config is MovableCollateralBridgeConfig {
+  return config.executionType === 'movableCollateral';
+}
+
+export function isInventoryConfig(
+  config: BridgeConfig,
+): config is InventoryBridgeConfig {
+  return config.executionType === 'inventory';
+}
 
 export type BridgeConfigWithOverride = BridgeConfig & {
   override?: ChainMap<Partial<BridgeConfig>>;
-};
-
-export type BridgeConfig = {
-  bridge: string;
-  bridgeMinAcceptedAmount: string | number;
 };
 
 /**
@@ -28,5 +56,5 @@ export function getBridgeConfig(
   const { override: _, ...baseConfig } = fromConfig;
 
   // Return a new object with the base config and any overrides
-  return { ...baseConfig, ...routeSpecificOverrides };
+  return { ...baseConfig, ...routeSpecificOverrides } as BridgeConfig;
 }
