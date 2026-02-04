@@ -5,7 +5,8 @@ import { assert } from '@hyperlane-xyz/utils';
 import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
-import { TRON_MAX_FEE, createDeploymentTransaction } from '../utils/index.js';
+import TransparentUpgradeableProxyAbi from '../abi/TransparentUpgradeableProxy.json' with { type: 'json' };
+import { createDeploymentTransaction } from '../utils/index.js';
 import { TronTransaction } from '../utils/types.js';
 
 export async function getCreateMerkleTreeHookTx(
@@ -30,6 +31,20 @@ export async function getCreateIgpTx(
   );
 }
 
+export async function getCreateProxyTx(
+  tronweb: Readonly<TronWeb>,
+  fromAddress: string,
+  implAddress: string,
+  proxyAdminAddress: string,
+): Promise<TronTransaction> {
+  return createDeploymentTransaction(
+    tronweb,
+    TransparentUpgradeableProxyAbi,
+    fromAddress,
+    [implAddress, proxyAdminAddress, '0x'],
+  );
+}
+
 export async function getInitIgpTx(
   tronweb: Readonly<TronWeb>,
   fromAddress: string,
@@ -41,7 +56,6 @@ export async function getInitIgpTx(
     config.igpAddress,
     'initialize(address,address)',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -84,7 +98,6 @@ export async function getSetOracleTx(
     config.igpAddress,
     'setGasOracle(address)',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -124,7 +137,6 @@ export async function getSetRemoteGasTx(
     oracleAddress,
     'setRemoteGasDataConfigs((uint32,uint128,uint128)[])',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -155,7 +167,6 @@ export async function getSetIgpOwnerTx(
     config.igpAddress,
     'transferOwnership(address)',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -198,7 +209,6 @@ export async function getSetIgpDestinationGasConfigTx(
     config.igpAddress,
     'setDestinationGasConfigs((uint32,(address,uint96))[])',
     {
-      feeLimit: TRON_MAX_FEE,
       callValue: 0,
     },
     [
@@ -211,6 +221,32 @@ export async function getSetIgpDestinationGasConfigTx(
             gasOverhead: c.gasOverhead,
           },
         })),
+      },
+    ],
+    tronweb.address.toHex(fromAddress),
+  );
+
+  return transaction;
+}
+
+export async function getRemoveIgpOwnerTx(
+  tronweb: Readonly<TronWeb>,
+  fromAddress: string,
+  config: {
+    igpAddress: string;
+    remoteDomainId: number;
+  },
+): Promise<TronTransaction> {
+  const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
+    config.igpAddress,
+    'removeDestinationGasConfigs(uint32[])',
+    {
+      callValue: 0,
+    },
+    [
+      {
+        type: 'uint32[]',
+        value: [config.remoteDomainId],
       },
     ],
     tronweb.address.toHex(fromAddress),

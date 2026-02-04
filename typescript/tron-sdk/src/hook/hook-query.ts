@@ -8,8 +8,14 @@ import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' }
 import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
 import { TronHookTypes } from '../utils/types.js';
 
+/**
+ * Type alias for query client with ISM extension.
+ * Used throughout ISM readers to ensure type safety.
+ */
+export type TronHookQueryClient = TronWeb;
+
 export async function getHookType(
-  query: TronWeb,
+  query: TronHookQueryClient,
   hookAddress: string,
 ): Promise<TronHookTypes> {
   const contract = query.contract(IPostDispatchHookAbi.abi, hookAddress);
@@ -35,7 +41,7 @@ export async function getHookType(
  * @throws Error if IGP hook not found
  */
 export async function getIgpHookConfig(
-  query: TronWeb,
+  query: TronHookQueryClient,
   hookId: string,
 ): Promise<{
   address: string;
@@ -61,7 +67,7 @@ export async function getIgpHookConfig(
 
     const domainIds = await igp.domains().call();
 
-    const destinationGasConfigs = {} as {
+    let destinationGasConfigs = {} as {
       [domainId: string]: {
         gasOracle: {
           tokenExchangeRate: string;
@@ -113,7 +119,7 @@ export async function getIgpHookConfig(
  * @throws Error if MerkleTree hook not found
  */
 export async function getMerkleTreeHookConfig(
-  query: TronWeb,
+  query: TronHookQueryClient,
   hookId: string,
 ): Promise<{
   address: string;

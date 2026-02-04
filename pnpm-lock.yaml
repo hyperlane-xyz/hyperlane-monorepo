@@ -2446,7 +2446,7 @@ importers:
         version: link:../provider-sdk
       '@hyperlane-xyz/registry':
         specifier: 'catalog:'
-        version: 23.7.0
+        version: 23.12.0
       '@hyperlane-xyz/utils':
         specifier: workspace:*
         version: link:../utils
@@ -2513,7 +2513,7 @@ importers:
         version: 3.5.3
       ts-node:
         specifier: 'catalog:'
-        version: 10.9.2(@types/node@22.19.1)(typescript@5.8.3)
+        version: 10.9.2(@types/node@24.10.9)(typescript@5.8.3)
       typescript:
         specifier: 'catalog:'
         version: 5.8.3

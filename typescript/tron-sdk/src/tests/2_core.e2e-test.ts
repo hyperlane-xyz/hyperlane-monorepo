@@ -7,12 +7,13 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
-describe('2. tron sdk core e2e tests', async function () {
+describe('2. aleo sdk core e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';
 
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let proxyAdminAddress: string;
 
   let mailboxAddress: string;
   let ismAddress: string;
@@ -29,6 +30,11 @@ describe('2. tron sdk core e2e tests', async function () {
       },
     });
 
+    const proxyAdmin = await signer.createProxyAdmin({
+      owner: signer.getSignerAddress(),
+    });
+    proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+
     const noopIsm = await signer.createNoopIsm({});
     ismAddress = noopIsm.ismAddress;
   });
@@ -41,6 +47,7 @@ describe('2. tron sdk core e2e tests', async function () {
     const txResponse = await signer.createMailbox({
       domainId: domainId,
       defaultIsmAddress: ismAddress,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -54,7 +61,7 @@ describe('2. tron sdk core e2e tests', async function () {
     expect(mailbox.address).to.equal(txResponse.mailboxAddress);
     expect(mailbox.owner).to.equal(signer.getSignerAddress());
     expect(mailbox.localDomain).to.equal(domainId);
-    expect(mailbox.defaultIsm).to.equal(ismAddress);
+    expect(mailbox.defaultIsm).to.be.empty;
     expect(mailbox.defaultHook).to.be.empty;
     expect(mailbox.requiredHook).to.be.empty;
 

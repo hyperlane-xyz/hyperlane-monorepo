@@ -563,6 +563,12 @@ export class CosmosNativeProvider implements AltVM.IProvider<EncodeObject> {
     );
   }
 
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<EncodeObject> {
+    throw new Error('ProxyAdmin is not supported on Cosmos');
+  }
+
   // ### GET WARP TXS ###
 
   async getCreateNativeTokenTransaction(

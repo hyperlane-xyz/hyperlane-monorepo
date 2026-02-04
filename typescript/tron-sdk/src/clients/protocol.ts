@@ -23,7 +23,7 @@ export class TronProtocolProvider implements ProtocolProvider {
   createProvider(chainMetadata: ChainMetadataForAltVM): Promise<IProvider> {
     assert(chainMetadata.rpcUrls, 'rpc urls undefined');
     const rpcUrls = chainMetadata.rpcUrls.map((rpc) => rpc.http);
-    return TronProvider.connect(rpcUrls, chainMetadata.domainId);
+    return TronProvider.connect(rpcUrls);
   }
 
   async createSigner(
@@ -49,15 +49,15 @@ export class TronProtocolProvider implements ProtocolProvider {
   }
 
   createIsmArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
+    chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
   }
 
   createHookArtifactManager(
-    _chainMetadata: ChainMetadataForAltVM,
-    _context?: { mailbox?: string },
+    chainMetadata: ChainMetadataForAltVM,
+    context?: { mailbox?: string; proxyAdmin?: string },
   ): IRawHookArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
@@ -65,10 +65,11 @@ export class TronProtocolProvider implements ProtocolProvider {
 
   getMinGas(): MinimumRequiredGasByAction {
     return {
-      CORE_DEPLOY_GAS: BigInt(1e6),
-      WARP_DEPLOY_GAS: BigInt(3e6),
-      TEST_SEND_GAS: BigInt(3e5),
-      AVS_GAS: BigInt(3e6),
+      CORE_DEPLOY_GAS: BigInt(1e9),
+      WARP_DEPLOY_GAS: BigInt(1e9),
+      ISM_DEPLOY_GAS: BigInt(1e9),
+      TEST_SEND_GAS: BigInt(1e9),
+      AVS_GAS: BigInt(1e9),
     };
   }
 }

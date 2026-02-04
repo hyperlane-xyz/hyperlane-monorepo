@@ -1,21 +1,29 @@
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+import { assert, ensure0x, sleep, strip0x } from '@hyperlane-xyz/utils';
 
-import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
+import ERC20Abi from '../abi/ERC20.json' with { type: 'json' };
 import HypERC20Abi from '../abi/HypERC20.json' with { type: 'json' };
 import HypERC20CollateralAbi from '../abi/HypERC20Collateral.json' with { type: 'json' };
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
 import IERC20Abi from '../abi/IERC20.json' with { type: 'json' };
-import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
 import MailboxAbi from '../abi/Mailbox.json' with { type: 'json' };
 import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
 import PausableHookAbi from '../abi/PausableHook.json' with { type: 'json' };
-import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import ProxyAdminAbi from '../abi/ProxyAdmin.json' with { type: 'json' };
 import ValidatorAnnounceAbi from '../abi/ValidatorAnnounce.json' with { type: 'json' };
-import { getHookType } from '../hook/hook-query.js';
-import { getSetIgpDestinationGasConfigTx } from '../hook/hook-tx.js';
+import {
+  getHookType,
+  getIgpHookConfig,
+  getMerkleTreeHookConfig,
+} from '../hook/hook-query.js';
+import {
+  getCreateIgpTx,
+  getRemoveIgpOwnerTx,
+  getSetIgpDestinationGasConfigTx,
+  getSetIgpOwnerTx,
+} from '../hook/hook-tx.js';
 import {
   getIsmType,
   getMerkleRootMultisigIsmConfig,
@@ -24,17 +32,21 @@ import {
   getRoutingIsmConfig,
 } from '../ism/ism-query.js';
 import {
-  getCreateMerkleRootMultisigIsmTx,
-  getCreateMessageIdMultisigIsmTx,
+  getCreateMerkleRootMultisigIsmImplementationTx,
+  getCreateMessageIdMultisigIsmImplementationTx,
   getCreateRoutingIsmTx,
   getCreateTestIsmTx,
   getRemoveRoutingIsmRouteTx,
   getSetRoutingIsmOwnerTx,
   getSetRoutingIsmRouteTx,
 } from '../ism/ism-tx.js';
-import { TRON_EMPTY_ADDRESS, TRON_MAX_FEE } from '../utils/index.js';
 import {
-  IABI,
+  EIP1967_ADMIN_SLOT,
+  TRON_EMPTY_ADDRESS,
+  createDeploymentTransaction,
+  decodeRevertReason,
+} from '../utils/index.js';
+import {
   TronHookTypes,
   TronIsmTypes,
   TronTransaction,
@@ -42,29 +54,20 @@ import {
 
 export class TronProvider implements AltVM.IProvider {
   protected readonly rpcUrls: string[];
-  protected readonly chainId: number;
 
   protected readonly tronweb: TronWeb;
 
-  static async connect(
-    rpcUrls: string[],
-    chainId: string | number,
-  ): Promise<TronProvider> {
+  static async connect(rpcUrls: string[]): Promise<TronProvider> {
     assert(rpcUrls.length > 0, `got no rpcUrls`);
 
     const { privateKey } = new TronWeb({
       fullHost: rpcUrls[0],
     }).createRandom();
-    return new TronProvider(rpcUrls, chainId, strip0x(privateKey));
+    return new TronProvider(rpcUrls, strip0x(privateKey));
   }
 
-  constructor(
-    rpcUrls: string[],
-    chainId: string | number,
-    privateKey?: string,
-  ) {
+  constructor(rpcUrls: string[], privateKey?: string) {
     this.rpcUrls = rpcUrls;
-    this.chainId = +chainId;
 
     if (!privateKey) {
       privateKey = new TronWeb({
@@ -78,25 +81,6 @@ export class TronProvider implements AltVM.IProvider {
     });
   }
 
-  protected async createDeploymentTransaction(
-    abi: IABI,
-    signer: string,
-    parameters: unknown[],
-  ): Promise<any> {
-    const options = {
-      feeLimit: 1_000_000_000,
-      callValue: 0,
-      userFeePercentage: 100,
-      originEnergyLimit: 10_000_000,
-      abi: abi.abi,
-      bytecode: abi.bytecode,
-      parameters,
-      name: abi.contractName,
-    };
-
-    return this.tronweb.transactionBuilder.createSmartContract(options, signer);
-  }
-
   protected async waitForTransaction(
     txid: string,
     timeout = 30000,
@@ -104,14 +88,7 @@ export class TronProvider implements AltVM.IProvider {
     const start = Date.now();
 
     while (Date.now() - start < timeout) {
-      let info;
-
-      try {
-        info = await this.tronweb.trx.getTransactionInfo(txid);
-      } catch {
-        await new Promise((resolve) => setTimeout(resolve, 2000));
-        continue;
-      }
+      const info = await this.tronweb.trx.getTransactionInfo(txid);
 
       if (info && info.id) {
         const result = info.receipt?.result;
@@ -126,7 +103,10 @@ export class TronProvider implements AltVM.IProvider {
           if (info.resMessage) {
             revertReason = this.tronweb.toUtf8(info.resMessage);
           } else if (info.contractResult && info.contractResult[0]) {
-            revertReason = info.contractResult[0];
+            revertReason = decodeRevertReason(
+              info.contractResult[0],
+              this.tronweb,
+            );
           }
 
           throw new Error(
@@ -135,10 +115,53 @@ export class TronProvider implements AltVM.IProvider {
         }
       }
 
-      await new Promise((resolve) => setTimeout(resolve, 2000));
+      await sleep(2000);
     }
 
     throw new Error(`Transaction timed out: ${txid}`);
+  }
+
+  protected async getProxyAdmin(
+    proxyAddress: string,
+  ): Promise<{ owner: string; address: string } | undefined> {
+    let proxyAdmin = undefined;
+
+    try {
+      const response: { result: string } = await this.tronweb.fullNode.request(
+        'jsonrpc',
+        {
+          jsonrpc: '2.0',
+          method: 'eth_getStorageAt',
+          params: [
+            ensure0x(this.tronweb.address.toHex(proxyAddress)),
+            EIP1967_ADMIN_SLOT,
+            'latest',
+          ],
+          id: 1,
+        },
+        'POST',
+      );
+
+      const ethAddress = strip0x(response.result).slice(-40);
+      const tronHex = '41' + ethAddress;
+
+      const proxyAdminAddress = this.tronweb.address.fromHex(tronHex);
+      const proxyAdminContract = this.tronweb.contract(
+        ProxyAdminAbi.abi,
+        proxyAdminAddress,
+      );
+
+      proxyAdmin = {
+        address: proxyAdminAddress,
+        owner: this.tronweb.address.fromHex(
+          await proxyAdminContract.owner().call(),
+        ),
+      };
+    } catch (error) {
+      // If query fails, leave proxyAdmin empty
+    }
+
+    return proxyAdmin;
   }
 
   // ### QUERY BASE ###
@@ -181,6 +204,8 @@ export class TronProvider implements AltVM.IProvider {
   async estimateTransactionFee(
     req: AltVM.ReqEstimateTransactionFee<TronTransaction>,
   ): Promise<AltVM.ResEstimateTransactionFee> {
+    const ENERGY_MULTIPLIER = 1.5;
+
     const value = req.transaction.raw_data.contract[0].parameter.value;
     const contractAddress = value.contract_address;
     const issuerAddress = value.owner_address;
@@ -205,26 +230,24 @@ export class TronProvider implements AltVM.IProvider {
     }
 
     const energyPriceData = await this.tronweb.trx.getEnergyPrices();
-    const energyParts = energyPriceData.split(',').at(-1);
-    if (!energyParts) {
-      throw new Error('Failed to retrieve energy price data');
-    }
+    const [_, energyPrice] = energyPriceData.split(',').at(-1)!.split(':');
 
-    const [_, energyPrice] = energyParts.split(':');
     const bandwidthPriceData = await this.tronweb.trx.getBandwidthPrices();
-    const bandwidthParts = bandwidthPriceData.split(',').at(-1);
-    if (!bandwidthParts) {
-      throw new Error('Failed to retrieve bandwidth price data');
-    }
+    const [__, bandwidthPrice] = bandwidthPriceData
+      .split(',')
+      .at(-1)!
+      .split(':');
 
-    const [__, bandwidthPrice] = bandwidthParts.split(':');
     const txSize = BigInt(req.transaction.raw_data_hex.length / 2 + 134); // Signature + Result + Protobuf
-    const energyFee = BigInt(energy_required) * BigInt(energyPrice);
+
+    const energy = BigInt(Math.ceil(energy_required * ENERGY_MULTIPLIER));
+
+    const energyFee = energy * BigInt(energyPrice);
     const bandwidthFee = txSize * BigInt(bandwidthPrice);
     const totalFeeSun = energyFee + bandwidthFee;
 
     return {
-      gasUnits: BigInt(energy_required),
+      gasUnits: energy,
       gasPrice: parseInt(energyPrice),
       fee: totalFeeSun,
     };
@@ -247,6 +270,8 @@ export class TronProvider implements AltVM.IProvider {
       await mailbox.requiredHook().call(),
     );
 
+    const proxyAdmin = await this.getProxyAdmin(req.mailboxAddress);
+
     return {
       address: req.mailboxAddress,
       owner: this.tronweb.address.fromHex(await mailbox.owner().call()),
@@ -255,6 +280,7 @@ export class TronProvider implements AltVM.IProvider {
       defaultHook: defaultHook === req.mailboxAddress ? '' : defaultHook,
       requiredHook: requiredHook === req.mailboxAddress ? '' : requiredHook,
       nonce: Number(await mailbox.nonce().call()),
+      proxyAdmin,
     };
   }
 
@@ -315,78 +341,20 @@ export class TronProvider implements AltVM.IProvider {
         return AltVM.HookType.INTERCHAIN_GAS_PAYMASTER;
       }
       default:
-        throw new Error(`Unknown Hook Type: ${hookType}`);
+        throw new Error(`Unknown ISM ModuleType: ${hookType}`);
     }
   }
 
   async getInterchainGasPaymasterHook(
     req: AltVM.ReqGetInterchainGasPaymasterHook,
   ): Promise<AltVM.ResGetInterchainGasPaymasterHook> {
-    const igp = this.tronweb.contract(
-      InterchainGasPaymasterAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = await igp.hookType().call();
-    assert(
-      Number(hookType) === 4,
-      `hook type does not equal INTERCHAIN_GAS_PAYMASTER`,
-    );
-
-    const domainIds = await igp.domains().call();
-
-    const destinationGasConfigs = {} as {
-      [domainId: string]: {
-        gasOracle: {
-          tokenExchangeRate: string;
-          gasPrice: string;
-        };
-        gasOverhead: string;
-      };
-    };
-
-    for (const domainId of domainIds) {
-      const c = await igp.destinationGasConfigs(domainId).call();
-
-      const gasOracle = this.tronweb.contract(
-        StorageGasOracleAbi.abi,
-        this.tronweb.address.fromHex(c.gasOracle),
-      );
-
-      const { tokenExchangeRate, gasPrice } = await gasOracle
-        .remoteGasData(domainId)
-        .call();
-
-      destinationGasConfigs[domainId.toString()] = {
-        gasOracle: {
-          tokenExchangeRate: tokenExchangeRate.toString(),
-          gasPrice: gasPrice.toString(),
-        },
-        gasOverhead: c.gasOverhead.toString(),
-      };
-    }
-
-    return {
-      address: req.hookAddress,
-      owner: this.tronweb.address.fromHex(await igp.owner().call()),
-      destinationGasConfigs,
-    };
+    return getIgpHookConfig(this.tronweb, req.hookAddress);
   }
 
   async getMerkleTreeHook(
     req: AltVM.ReqGetMerkleTreeHook,
   ): Promise<AltVM.ResGetMerkleTreeHook> {
-    const contract = this.tronweb.contract(
-      MerkleTreeHookAbi.abi,
-      req.hookAddress,
-    );
-
-    const hookType = await contract.hookType().call();
-    assert(Number(hookType) === 3, `hook type does not equal MERKLE_TREE`);
-
-    return {
-      address: req.hookAddress,
-    };
+    return getMerkleTreeHookConfig(this.tronweb, req.hookAddress);
   }
 
   async getNoopHook(req: AltVM.ReqGetNoopHook): Promise<AltVM.ResGetNoopHook> {
@@ -426,7 +394,7 @@ export class TronProvider implements AltVM.IProvider {
       tokenType = AltVM.TokenType.collateral;
     }
 
-    const token = {
+    let token: AltVM.ResGetToken = {
       address: req.tokenAddress,
       owner: this.tronweb.address.fromHex(await contract.owner().call()),
       tokenType,
@@ -439,13 +407,14 @@ export class TronProvider implements AltVM.IProvider {
       name: '',
       symbol: '',
       decimals: 0,
+      proxyAdmin: await this.getProxyAdmin(req.tokenAddress),
     };
 
     if (tokenType === AltVM.TokenType.native) {
       return token;
     }
 
-    const erc20 = this.tronweb.contract(ERC20TestAbi.abi, denom);
+    const erc20 = this.tronweb.contract(ERC20Abi.abi, denom);
 
     token.name = await erc20.name().call();
     token.symbol = await erc20.symbol().call();
@@ -469,11 +438,10 @@ export class TronProvider implements AltVM.IProvider {
 
     for (const domainId of domainIds) {
       const { gasLimit } = await contract.destinationGas(domainId).call();
-      const receiver = await contract.routers(domainId).call();
 
       remoteRouters.push({
         receiverDomainId: Number(domainId),
-        receiverAddress: ensure0x(receiver),
+        receiverAddress: await contract.routers(domainId).call(),
         gas: gasLimit.toString(),
       });
     }
@@ -516,15 +484,21 @@ export class TronProvider implements AltVM.IProvider {
   async quoteRemoteTransfer(
     req: AltVM.ReqQuoteRemoteTransfer,
   ): Promise<AltVM.ResQuoteRemoteTransfer> {
+    assert(req.recipient, `Tron quote remote transfer needs the recipient`);
+    assert(req.amount, `Tron quote remote transfer needs the amount`);
+
     const contract = this.tronweb.contract(HypNativeAbi.abi, req.tokenAddress);
 
     const { quotes } = await contract
-      .quoteTransferRemote(
-        req.destinationDomainId,
-        '0x726f757465725f61707000000000000000000000000000020000000000000005',
-        1000000,
-      )
+      .quoteTransferRemote(req.destinationDomainId, req.recipient, req.amount)
       .call();
+
+    if (!quotes.length) {
+      return {
+        denom: '',
+        amount: BigInt(0),
+      };
+    }
 
     const denom = this.tronweb.address.fromHex(quotes[0].token);
 
@@ -539,7 +513,7 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMailboxTransaction(
     req: AltVM.ReqCreateMailbox,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(MailboxAbi, req.signer, [
+    return createDeploymentTransaction(this.tronweb, MailboxAbi, req.signer, [
       req.domainId,
     ]);
   }
@@ -552,7 +526,6 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'setDefaultIsm(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -575,7 +548,6 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'setDefaultHook(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -598,7 +570,6 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'setRequiredHook(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -621,7 +592,6 @@ export class TronProvider implements AltVM.IProvider {
         req.mailboxAddress,
         'transferOwnership(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -639,19 +609,19 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMerkleRootMultisigIsmTransaction(
     req: AltVM.ReqCreateMerkleRootMultisigIsm,
   ): Promise<TronTransaction> {
-    return getCreateMerkleRootMultisigIsmTx(this.tronweb, req.signer, {
-      validators: req.validators,
-      threshold: req.threshold,
-    });
+    return getCreateMerkleRootMultisigIsmImplementationTx(
+      this.tronweb,
+      req.signer,
+    );
   }
 
   async getCreateMessageIdMultisigIsmTransaction(
     req: AltVM.ReqCreateMessageIdMultisigIsm,
   ): Promise<TronTransaction> {
-    return getCreateMessageIdMultisigIsmTx(this.tronweb, req.signer, {
-      validators: req.validators,
-      threshold: req.threshold,
-    });
+    return getCreateMessageIdMultisigIsmImplementationTx(
+      this.tronweb,
+      req.signer,
+    );
   }
 
   async getCreateRoutingIsmTransaction(
@@ -696,42 +666,27 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateMerkleTreeHookTransaction(
     req: AltVM.ReqCreateMerkleTreeHook,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(MerkleTreeHookAbi, req.signer, [
-      req.mailboxAddress,
-    ]);
+    return createDeploymentTransaction(
+      this.tronweb,
+      MerkleTreeHookAbi,
+      req.signer,
+      [req.mailboxAddress],
+    );
   }
 
   async getCreateInterchainGasPaymasterHookTransaction(
     req: AltVM.ReqCreateInterchainGasPaymasterHook,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(
-      InterchainGasPaymasterAbi,
-      req.signer,
-      [],
-    );
+    return getCreateIgpTx(this.tronweb, req.signer);
   }
 
   async getSetInterchainGasPaymasterHookOwnerTransaction(
     req: AltVM.ReqSetInterchainGasPaymasterHookOwner,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.hookAddress,
-        'transferOwnership(address)',
-        {
-          feeLimit: TRON_MAX_FEE,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'address',
-            value: req.newOwner,
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getSetIgpOwnerTx(this.tronweb, req.signer, {
+      igpAddress: req.hookAddress,
+      newOwner: req.newOwner,
+    });
   }
 
   async getSetDestinationGasConfigTransaction(
@@ -751,38 +706,43 @@ export class TronProvider implements AltVM.IProvider {
   async getRemoveDestinationGasConfigTransaction(
     req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<TronTransaction> {
-    const { transaction } =
-      await this.tronweb.transactionBuilder.triggerSmartContract(
-        req.hookAddress,
-        'removeDestinationGasConfigs(uint32[])',
-        {
-          feeLimit: TRON_MAX_FEE,
-          callValue: 0,
-        },
-        [
-          {
-            type: 'uint32[]',
-            value: [req.remoteDomainId],
-          },
-        ],
-        this.tronweb.address.toHex(req.signer),
-      );
-
-    return transaction;
+    return getRemoveIgpOwnerTx(this.tronweb, req.signer, {
+      igpAddress: req.hookAddress,
+      remoteDomainId: req.remoteDomainId,
+    });
   }
 
   async getCreateNoopHookTransaction(
     req: AltVM.ReqCreateNoopHook,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(PausableHookAbi, req.signer, []);
+    return createDeploymentTransaction(
+      this.tronweb,
+      PausableHookAbi,
+      req.signer,
+      [],
+    );
   }
 
   async getCreateValidatorAnnounceTransaction(
     req: AltVM.ReqCreateValidatorAnnounce,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(ValidatorAnnounceAbi, req.signer, [
-      req.mailboxAddress,
-    ]);
+    return createDeploymentTransaction(
+      this.tronweb,
+      ValidatorAnnounceAbi,
+      req.signer,
+      [req.mailboxAddress],
+    );
+  }
+
+  async getCreateProxyAdminTransaction(
+    req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<TronTransaction> {
+    return createDeploymentTransaction(
+      this.tronweb,
+      ProxyAdminAbi,
+      req.signer,
+      [],
+    );
   }
 
   // ### GET WARP TXS ###
@@ -790,7 +750,7 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateNativeTokenTransaction(
     req: AltVM.ReqCreateNativeToken,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(HypNativeAbi, req.signer, [
+    return createDeploymentTransaction(this.tronweb, HypNativeAbi, req.signer, [
       1,
       req.mailboxAddress,
     ]);
@@ -799,17 +759,18 @@ export class TronProvider implements AltVM.IProvider {
   async getCreateCollateralTokenTransaction(
     req: AltVM.ReqCreateCollateralToken,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(HypERC20CollateralAbi, req.signer, [
-      req.collateralDenom,
-      1,
-      req.mailboxAddress,
-    ]);
+    return createDeploymentTransaction(
+      this.tronweb,
+      HypERC20CollateralAbi,
+      req.signer,
+      [req.collateralDenom, 1, req.mailboxAddress],
+    );
   }
 
   async getCreateSyntheticTokenTransaction(
     req: AltVM.ReqCreateSyntheticToken,
   ): Promise<TronTransaction> {
-    return this.createDeploymentTransaction(HypERC20Abi, req.signer, [
+    return createDeploymentTransaction(this.tronweb, HypERC20Abi, req.signer, [
       req.decimals,
       1,
       req.mailboxAddress,
@@ -824,7 +785,6 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'transferOwnership(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -847,13 +807,12 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'setInterchainSecurityModule(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
           {
             type: 'address',
-            value: req.ismAddress,
+            value: req.ismAddress || '',
           },
         ],
         this.tronweb.address.toHex(req.signer),
@@ -870,13 +829,12 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'setHook(address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
           {
             type: 'address',
-            value: req.hookAddress,
+            value: req.hookAddress || '',
           },
         ],
         this.tronweb.address.toHex(req.signer),
@@ -893,7 +851,6 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'enrollRemoteRouter(uint32,bytes32)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -920,7 +877,6 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'unenrollRemoteRouter(uint32)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -944,17 +900,16 @@ export class TronProvider implements AltVM.IProvider {
           req.denom,
           'transfer(address,uint256)',
           {
-            feeLimit: TRON_MAX_FEE,
             callValue: 0,
           },
           [
             {
               type: 'address',
-              value: req.recipient,
+              value: [req.recipient],
             },
             {
               type: 'uint256',
-              value: req.amount,
+              value: [req.amount],
             },
           ],
           this.tronweb.address.toHex(req.signer),
@@ -982,7 +937,6 @@ export class TronProvider implements AltVM.IProvider {
         req.tokenAddress,
         'transferRemote(uint32,bytes32,uint256)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue:
             tokenType === AltVM.TokenType.native ? Number(req.amount) : 0,
         },

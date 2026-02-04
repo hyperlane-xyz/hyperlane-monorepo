@@ -8,12 +8,13 @@ import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
-describe('4. tron sdk warp e2e tests', async function () {
+describe('4. aleo sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';
 
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let proxyAdminAddress: string;
 
   let mailboxAddress: string;
   let collateralDenom: string;
@@ -33,8 +34,14 @@ describe('4. tron sdk warp e2e tests', async function () {
       },
     });
 
+    const proxyAdmin = await signer.createProxyAdmin({
+      owner: signer.getSignerAddress(),
+    });
+    proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+
     const mailbox = await signer.createMailbox({
       domainId: domainId,
+      proxyAdminAddress,
     });
     mailboxAddress = mailbox.mailboxAddress;
 
@@ -69,6 +76,7 @@ describe('4. tron sdk warp e2e tests', async function () {
     // ACT
     const txResponse = await signer.createNativeToken({
       mailboxAddress,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -98,6 +106,7 @@ describe('4. tron sdk warp e2e tests', async function () {
     const txResponse = await signer.createCollateralToken({
       mailboxAddress,
       collateralDenom,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -127,6 +136,7 @@ describe('4. tron sdk warp e2e tests', async function () {
       name: 'test',
       denom: 'test',
       decimals: 6,
+      proxyAdminAddress,
     });
 
     // ASSERT
@@ -197,6 +207,7 @@ describe('4. tron sdk warp e2e tests', async function () {
     // ARRANGE
     const { tokenAddress: newTokenAddress } = await signer.createNativeToken({
       mailboxAddress,
+      proxyAdminAddress,
     });
 
     let token = await signer.getToken({
@@ -277,10 +288,15 @@ describe('4. tron sdk warp e2e tests', async function () {
       hookAddress,
     });
 
+    const recipient =
+      '0xe98b09dff7176053c651a4dc025af3e4f6a442415e9b85dd076ac0ff66b4b1ed';
+
     // ACT
     const quote = await signer.quoteRemoteTransfer({
       tokenAddress: nativeTokenAddress,
       destinationDomainId: domainId,
+      recipient,
+      amount: '1000000',
     });
 
     // ASSERT

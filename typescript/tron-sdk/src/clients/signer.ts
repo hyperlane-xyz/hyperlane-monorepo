@@ -1,17 +1,25 @@
+import { assert } from 'chai';
 import { TronWeb } from 'tronweb';
 
 import { AltVM } from '@hyperlane-xyz/provider-sdk';
-import { assert } from '@hyperlane-xyz/utils';
 
 import HypNativeAbi from '../abi/HypNative.json' with { type: 'json' };
+import TransparentUpgradeableProxyAbi from '../abi/TransparentUpgradeableProxy.json' with { type: 'json' };
 import {
   getCreateOracleTx,
   getInitIgpTx,
   getSetOracleTx,
   getSetRemoteGasTx,
 } from '../hook/hook-tx.js';
-import { getInitRoutingIsmTx } from '../ism/ism-tx.js';
-import { TRON_EMPTY_ADDRESS, TRON_MAX_FEE } from '../utils/index.js';
+import {
+  getCreateMerkleRootMultisigIsmWithMetaProxyTx,
+  getCreateMessageIdMultisigIsmWithMetaProxyTx,
+  getInitRoutingIsmTx,
+} from '../ism/ism-tx.js';
+import {
+  TRON_EMPTY_ADDRESS,
+  createDeploymentTransaction,
+} from '../utils/index.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
 import { TronProvider } from './provider.js';
@@ -29,19 +37,12 @@ export class TronSigner
 
     const metadata = extraParams.metadata as Record<string, unknown>;
     assert(metadata, `metadata not defined in extra params`);
-    assert(metadata.chainId, `chainId not defined in metadata extra params`);
 
-    const chainId = parseInt(metadata.chainId.toString());
-
-    return new TronSigner(rpcUrls, chainId, privateKey);
+    return new TronSigner(rpcUrls, privateKey);
   }
 
-  protected constructor(
-    rpcUrls: string[],
-    chainId: string | number,
-    privateKey: string,
-  ) {
-    super(rpcUrls, chainId, privateKey);
+  protected constructor(rpcUrls: string[], privateKey: string) {
+    super(rpcUrls, privateKey);
   }
 
   getSignerAddress(): string {
@@ -67,13 +68,6 @@ export class TronSigner
   ): Promise<TronReceipt> {
     const signedTx = await this.tronweb.trx.sign(transaction);
     const result = await this.tronweb.trx.sendRawTransaction(signedTx);
-
-    if (!result?.result || !result.txid) {
-      throw new Error(
-        `Failed to broadcast transaction: ${result.code ?? result.message ?? 'unknown error'}`,
-      );
-    }
-
     const receipt = await this.waitForTransaction(result.txid);
 
     return receipt;
@@ -90,25 +84,42 @@ export class TronSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    const tx = await this.getCreateMailboxTransaction({
+    // Tron always uses proxy deployment - proxyAdminAddress must be provided
+    if (!req.proxyAdminAddress) {
+      throw new Error(
+        'proxyAdminAddress is required for Tron mailbox deployment',
+      );
+    }
+
+    // 1. Deploy Mailbox implementation
+    const implTx = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.getSignerAddress(),
     });
-
-    const receipt = await this.sendAndConfirmTransaction(tx);
-
-    const mailboxAddress = this.tronweb.address.fromHex(
-      receipt.contract_address,
+    const implReceipt = await this.sendAndConfirmTransaction(implTx);
+    const implementationAddress = this.tronweb.address.fromHex(
+      implReceipt.contract_address,
     );
 
-    // init mailbox with own mailbox address as placeholder. the sdk
-    // will treat the mailbox address as a null address
+    // 2. Deploy TransparentUpgradeableProxy
+    // Note: We pass empty bytes for _data and initialize separately below
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
+      TransparentUpgradeableProxyAbi,
+      this.getSignerAddress(),
+      [implementationAddress, req.proxyAdminAddress, '0x'],
+    );
+    const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
+    const mailboxAddress = this.tronweb.address.fromHex(
+      proxyReceipt.contract_address,
+    );
+
+    // 3. Initialize the Mailbox through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         mailboxAddress,
         'initialize(address,address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -118,7 +129,7 @@ export class TronSigner
           },
           {
             type: 'address',
-            value: req.defaultIsmAddress || mailboxAddress,
+            value: mailboxAddress,
           },
           {
             type: 'address',
@@ -203,14 +214,31 @@ export class TronSigner
     req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
     const tx = await this.getCreateMerkleRootMultisigIsmTransaction({
-      ...req,
       signer: this.getSignerAddress(),
+      validators: req.validators,
+      threshold: req.threshold,
     });
 
     const receipt = await this.sendAndConfirmTransaction(tx);
+    const implAddress = this.tronweb.address.fromHex(receipt.contract_address);
+
+    const metaProxyTx = await getCreateMerkleRootMultisigIsmWithMetaProxyTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      implAddress,
+      {
+        validators: req.validators,
+        threshold: req.threshold,
+      },
+    );
+
+    const metaProxyReceipt = await this.sendAndConfirmTransaction(metaProxyTx);
+    const ismAddress = this.tronweb.address.fromHex(
+      metaProxyReceipt.contract_address,
+    );
 
     return {
-      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
+      ismAddress,
     };
   }
 
@@ -218,14 +246,31 @@ export class TronSigner
     req: Omit<AltVM.ReqCreateMessageIdMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMessageIdMultisigIsm> {
     const tx = await this.getCreateMessageIdMultisigIsmTransaction({
-      ...req,
       signer: this.getSignerAddress(),
+      validators: req.validators,
+      threshold: req.threshold,
     });
 
     const receipt = await this.sendAndConfirmTransaction(tx);
+    const implAddress = this.tronweb.address.fromHex(receipt.contract_address);
+
+    const metaProxyTx = await getCreateMessageIdMultisigIsmWithMetaProxyTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      implAddress,
+      {
+        validators: req.validators,
+        threshold: req.threshold,
+      },
+    );
+
+    const metaProxyReceipt = await this.sendAndConfirmTransaction(metaProxyTx);
+    const ismAddress = this.tronweb.address.fromHex(
+      metaProxyReceipt.contract_address,
+    );
 
     return {
-      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
+      ismAddress,
     };
   }
 
@@ -474,26 +519,85 @@ export class TronSigner
     };
   }
 
-  // ### TX WARP ###
-
-  async createNativeToken(
-    req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
-  ): Promise<AltVM.ResCreateNativeToken> {
-    const tx = await this.getCreateNativeTokenTransaction({
+  async createProxyAdmin(
+    req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<AltVM.ResCreateProxyAdmin> {
+    const tx = await this.getCreateProxyAdminTransaction({
       ...req,
       signer: this.getSignerAddress(),
     });
 
     const receipt = await this.sendAndConfirmTransaction(tx);
+    const proxyAdminAddress = this.tronweb.address.fromHex(
+      receipt.contract_address,
+    );
 
-    const tokenAddress = this.tronweb.address.fromHex(receipt.contract_address);
+    // Transfer ownership if owner is provided and different from signer
+    if (req.owner && req.owner !== this.getSignerAddress()) {
+      const { transaction } =
+        await this.tronweb.transactionBuilder.triggerSmartContract(
+          proxyAdminAddress,
+          'transferOwnership(address)',
+          {
+            callValue: 0,
+          },
+          [
+            {
+              type: 'address',
+              value: req.owner,
+            },
+          ],
+          this.tronweb.address.toHex(this.getSignerAddress()),
+        );
 
+      await this.sendAndConfirmTransaction(transaction);
+    }
+
+    return {
+      proxyAdminAddress,
+    };
+  }
+
+  // ### TX WARP ###
+
+  async createNativeToken(
+    req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
+  ): Promise<AltVM.ResCreateNativeToken> {
+    // Tron always uses proxy deployment - proxyAdminAddress must be provided
+    if (!req.proxyAdminAddress) {
+      throw new Error(
+        'proxyAdminAddress is required for Tron native token deployment',
+      );
+    }
+
+    // 1. Deploy token implementation
+    const implTx = await this.getCreateNativeTokenTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+    const implReceipt = await this.sendAndConfirmTransaction(implTx);
+    const implementationAddress = this.tronweb.address.fromHex(
+      implReceipt.contract_address,
+    );
+
+    // 2. Deploy TransparentUpgradeableProxy
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
+      TransparentUpgradeableProxyAbi,
+      this.getSignerAddress(),
+      [implementationAddress, req.proxyAdminAddress, '0x'],
+    );
+    const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
+    const tokenAddress = this.tronweb.address.fromHex(
+      proxyReceipt.contract_address,
+    );
+
+    // 3. Initialize the token through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
         'initialize(address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -523,21 +627,41 @@ export class TronSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    const tx = await this.getCreateCollateralTokenTransaction({
+    // Tron always uses proxy deployment - proxyAdminAddress must be provided
+    if (!req.proxyAdminAddress) {
+      throw new Error(
+        'proxyAdminAddress is required for Tron collateral token deployment',
+      );
+    }
+
+    // 1. Deploy token implementation
+    const implTx = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.getSignerAddress(),
     });
+    const implReceipt = await this.sendAndConfirmTransaction(implTx);
+    const implementationAddress = this.tronweb.address.fromHex(
+      implReceipt.contract_address,
+    );
 
-    const receipt = await this.sendAndConfirmTransaction(tx);
+    // 2. Deploy TransparentUpgradeableProxy
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
+      TransparentUpgradeableProxyAbi,
+      this.getSignerAddress(),
+      [implementationAddress, req.proxyAdminAddress, '0x'],
+    );
+    const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
+    const tokenAddress = this.tronweb.address.fromHex(
+      proxyReceipt.contract_address,
+    );
 
-    const tokenAddress = this.tronweb.address.fromHex(receipt.contract_address);
-
+    // 3. Initialize the token through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
         'initialize(address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -567,21 +691,41 @@ export class TronSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    const tx = await this.getCreateSyntheticTokenTransaction({
+    // Tron always uses proxy deployment - proxyAdminAddress must be provided
+    if (!req.proxyAdminAddress) {
+      throw new Error(
+        'proxyAdminAddress is required for Tron synthetic token deployment',
+      );
+    }
+
+    // 1. Deploy token implementation
+    const implTx = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.getSignerAddress(),
     });
+    const implReceipt = await this.sendAndConfirmTransaction(implTx);
+    const implementationAddress = this.tronweb.address.fromHex(
+      implReceipt.contract_address,
+    );
 
-    const receipt = await this.sendAndConfirmTransaction(tx);
+    // 2. Deploy TransparentUpgradeableProxy
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
+      TransparentUpgradeableProxyAbi,
+      this.getSignerAddress(),
+      [implementationAddress, req.proxyAdminAddress, '0x'],
+    );
+    const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
+    const tokenAddress = this.tronweb.address.fromHex(
+      proxyReceipt.contract_address,
+    );
 
-    const tokenAddress = this.tronweb.address.fromHex(receipt.contract_address);
-
+    // 3. Initialize the token through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
         'initialize(uint256,string,string,address,address,address)',
         {
-          feeLimit: TRON_MAX_FEE,
           callValue: 0,
         },
         [
@@ -646,7 +790,7 @@ export class TronSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      ismAddress: req.ismAddress,
+      ismAddress: req.ismAddress || '',
     };
   }
 
@@ -661,7 +805,7 @@ export class TronSigner
     await this.sendAndConfirmTransaction(tx);
 
     return {
-      hookAddress: req.hookAddress,
+      hookAddress: req.hookAddress || '',
     };
   }
 
@@ -683,7 +827,6 @@ export class TronSigner
         req.remoteRouter.gas,
       )
       .send({
-        feeLimit: TRON_MAX_FEE,
         callValue: 0,
         shouldPollResponse: true,
       });

@@ -5,10 +5,16 @@ import { assert } from '@hyperlane-xyz/utils';
 import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
 import IInterchainSecurityModuleAbi from '../abi/IInterchainSecurityModule.json' with { type: 'json' };
 import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
-import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
-import StorageMessageIdMultisigIsmAbi from '../abi/StorageMessageIdMultisigIsm.json' with { type: 'json' };
+import StaticMerkleRootMultisigIsmAbi from '../abi/StaticMerkleRootMultisigIsm.json' with { type: 'json' };
+import StaticMessageIdMultisigIsmAbi from '../abi/StaticMessageIdMultisigIsm.json' with { type: 'json' };
 import { TRON_EMPTY_MESSAGE } from '../utils/index.js';
 import { TronIsmTypes } from '../utils/types.js';
+
+/**
+ * Type alias for query client with ISM extension.
+ * Used throughout ISM readers to ensure type safety.
+ */
+export type TronIsmQueryClient = TronWeb;
 
 /**
  * Query ISM type from address.
@@ -19,7 +25,7 @@ import { TronIsmTypes } from '../utils/types.js';
  * @throws Error if ISM not found or unknown type
  */
 export async function getIsmType(
-  query: TronWeb,
+  query: TronIsmQueryClient,
   ismAddress: string,
 ): Promise<TronIsmTypes> {
   try {
@@ -58,7 +64,7 @@ export async function getIsmType(
  * @throws Error if NoopIsm not found
  */
 export async function getNoopIsmConfig(
-  query: TronWeb,
+  query: TronIsmQueryClient,
   ismAddress: string,
 ): Promise<{ address: string }> {
   try {
@@ -86,7 +92,7 @@ export async function getNoopIsmConfig(
  * @throws Error if Message ID Multisig ISM not found
  */
 export async function getMessageIdMultisigIsmConfig(
-  query: TronWeb,
+  query: TronIsmQueryClient,
   ismAddress: string,
 ): Promise<{
   address: string;
@@ -95,7 +101,7 @@ export async function getMessageIdMultisigIsmConfig(
 }> {
   try {
     const contract = query.contract(
-      StorageMessageIdMultisigIsmAbi.abi,
+      StaticMessageIdMultisigIsmAbi.abi,
       ismAddress,
     );
 
@@ -124,7 +130,7 @@ export async function getMessageIdMultisigIsmConfig(
  * @throws Error if Merkle Root Multisig ISM not found
  */
 export async function getMerkleRootMultisigIsmConfig(
-  query: TronWeb,
+  query: TronIsmQueryClient,
   ismAddress: string,
 ): Promise<{
   address: string;
@@ -133,7 +139,7 @@ export async function getMerkleRootMultisigIsmConfig(
 }> {
   try {
     const contract = query.contract(
-      StorageMerkleRootMultisigIsmAbi.abi,
+      StaticMerkleRootMultisigIsmAbi.abi,
       ismAddress,
     );
 
@@ -162,7 +168,7 @@ export async function getMerkleRootMultisigIsmConfig(
  * @throws Error if routing ISM not found
  */
 export async function getRoutingIsmConfig(
-  query: TronWeb,
+  query: TronIsmQueryClient,
   ismAddress: string,
 ): Promise<{
   address: string;

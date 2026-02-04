@@ -7,12 +7,13 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
-describe('3. tron sdk post dispatch e2e tests', async function () {
+describe('3. aleo sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';
 
   let signer: AltVM.ISigner<TronTransaction, TronReceipt>;
+  let proxyAdminAddress: string;
 
   let mailboxAddress: string;
   let igpAddress: string;
@@ -28,10 +29,16 @@ describe('3. tron sdk post dispatch e2e tests', async function () {
       },
     });
 
+    const proxyAdmin = await signer.createProxyAdmin({
+      owner: signer.getSignerAddress(),
+    });
+    proxyAdminAddress = proxyAdmin.proxyAdminAddress;
+
     const domainId = 1234;
 
     const mailbox = await signer.createMailbox({
       domainId: domainId,
+      proxyAdminAddress,
     });
     mailboxAddress = mailbox.mailboxAddress;
   });

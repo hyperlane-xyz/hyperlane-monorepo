@@ -18,15 +18,7 @@ if [[ $? -ne 0 ]]; then
   exit 1
 fi
 
-echo "Waiting for Tron API to respond on 127.0.0.1:9090..."
-for i in {1..60}; do
-  if curl -s -X POST http://127.0.0.1:9090/wallet/getnowblock > /dev/null; then
-    echo "Tron API is LIVE!"
-    break
-  fi
-  echo "Still waiting for API... ($((i*5))s)"
-  sleep 5
-done
+sleep 10
 
 echo "Running E2E tests"
 
