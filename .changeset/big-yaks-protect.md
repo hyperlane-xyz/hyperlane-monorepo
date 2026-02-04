@@ -2,4 +2,4 @@
 '@hyperlane-xyz/deploy-sdk': patch
 ---
 
-fix: altvm file submitter when initial file is empty
+fix: replace error with debug log in altvm file submitter
