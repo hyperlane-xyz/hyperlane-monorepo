@@ -16,7 +16,6 @@ import {
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import {
   MonitorEvent,
   MonitorEventType,
@@ -29,7 +28,7 @@ import type {
   MovableCollateralRoute,
 } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
-import { Monitor } from '../monitor/Monitor.js';
+import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import {
   type IActionTracker,
   InflightContextAdapter,
@@ -119,8 +118,8 @@ export class RebalancerService {
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
   private inventoryRebalancer?: IRebalancer;
-  private inventoryMonitor?: IInventoryMonitor;
-  private bridge?: IExternalBridge;
+  private inventoryConfig?: InventoryMonitorConfig;
+  private externalBridge?: IExternalBridge;
   private orchestrator?: RebalancerOrchestrator;
 
   constructor(
@@ -155,12 +154,6 @@ export class RebalancerService {
       this.registry,
       this.logger,
     );
-
-    // Create monitor (always needed for daemon mode)
-    if (this.mode === 'daemon') {
-      const checkFrequency = this.config.checkFrequency ?? 60_000;
-      this.monitor = this.contextFactory.createMonitor(checkFrequency);
-    }
 
     // Create metrics if enabled
     if (this.config.withMetrics) {
@@ -202,13 +195,19 @@ export class RebalancerService {
       const inventoryComponents =
         await this.contextFactory.createInventoryComponents(this.actionTracker);
       if (inventoryComponents) {
-        this.inventoryMonitor = inventoryComponents.inventoryMonitor;
+        this.inventoryConfig = inventoryComponents.inventoryConfig;
         this.inventoryRebalancer = inventoryComponents.inventoryRebalancer;
-        // TODO: we want to eventually support multiple bridges
-        // TODO: rename this to inventoryBridge
-        this.bridge = inventoryComponents.exteralBridge;
+        this.externalBridge = inventoryComponents.externalBridge;
         this.logger.info('Inventory rebalancing enabled');
       }
+    }
+
+    if (this.mode === 'daemon') {
+      const checkFrequency = this.config.checkFrequency ?? 60_000;
+      this.monitor = this.contextFactory.createMonitor(
+        checkFrequency,
+        this.inventoryConfig,
+      );
     }
 
     const rebalancers: IRebalancer[] = [];
@@ -219,7 +218,6 @@ export class RebalancerService {
       rebalancers.push(this.inventoryRebalancer);
     }
 
-    // Create orchestrator for cycle execution
     this.orchestrator = new RebalancerOrchestrator({
       strategy: this.strategy,
       actionTracker: this.actionTracker,
@@ -227,8 +225,7 @@ export class RebalancerService {
       rebalancerConfig: this.rebalancerConfig,
       logger: this.logger,
       rebalancers,
-      inventoryMonitor: this.inventoryMonitor,
-      bridge: this.bridge,
+      externalBridge: this.externalBridge,
       metrics: this.metrics,
     });
 

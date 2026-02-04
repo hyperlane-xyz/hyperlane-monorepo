@@ -6,7 +6,6 @@ import Sinon from 'sinon';
 import type { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { ExecutionType, RebalancerStrategyOptions } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import { MonitorEventType } from '../interfaces/IMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -110,19 +109,12 @@ function createMockInflightContextAdapter(): InflightContextAdapter & {
 
 function createMockInventoryRebalancer(): IRebalancer & {
   rebalance: Sinon.SinonStub;
+  setInventoryBalances: Sinon.SinonStub;
 } {
   return {
     rebalancerType: 'inventory' as const,
     rebalance: Sinon.stub().resolves([]),
-  };
-}
-
-function createMockInventoryMonitor(): IInventoryMonitor {
-  return {
-    getBalances: Sinon.stub().resolves(new Map()),
-    getAvailableInventory: Sinon.stub().resolves(0n),
-    refresh: Sinon.stub().resolves(),
-    getTotalInventory: Sinon.stub().resolves(0n),
+    setInventoryBalances: Sinon.stub(),
   };
 }
 
@@ -398,14 +390,12 @@ describe('RebalancerOrchestrator', () => {
         },
       ]);
 
-      const inventoryMonitor = createMockInventoryMonitor();
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
         rebalancers: [inventoryRebalancer],
-        inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
         rebalancerConfig: config,
@@ -419,8 +409,6 @@ describe('RebalancerOrchestrator', () => {
 
       expect(result.proposedRoutes).to.have.lengthOf(1);
       expect(inventoryRebalancer.rebalance.calledOnce).to.be.true;
-      expect((inventoryMonitor.refresh as Sinon.SinonStub).calledTwice).to.be
-        .true;
     });
   });
 
@@ -496,7 +484,6 @@ describe('RebalancerOrchestrator', () => {
         },
       ]);
 
-      const inventoryMonitor = createMockInventoryMonitor();
       const actionTracker = createMockActionTracker();
 
       const inflightAdapter = createMockInflightContextAdapter();
@@ -504,7 +491,6 @@ describe('RebalancerOrchestrator', () => {
       const deps: RebalancerOrchestratorDeps = {
         strategy,
         rebalancers: [rebalancer, inventoryRebalancer],
-        inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
         rebalancerConfig: config,
@@ -554,14 +540,12 @@ describe('RebalancerOrchestrator', () => {
       const inventoryRebalancer = createMockInventoryRebalancer();
       inventoryRebalancer.rebalance.resolves([]);
 
-      const inventoryMonitor = createMockInventoryMonitor();
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
         rebalancers: [inventoryRebalancer],
-        inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
         rebalancerConfig: config,
@@ -622,14 +606,12 @@ describe('RebalancerOrchestrator', () => {
         },
       ]);
 
-      const inventoryMonitor = createMockInventoryMonitor();
       const actionTracker = createMockActionTracker();
       const inflightAdapter = createMockInflightContextAdapter();
 
       const deps: RebalancerOrchestratorDeps = {
         strategy,
         rebalancers: [inventoryRebalancer],
-        inventoryMonitor,
         actionTracker,
         inflightContextAdapter: inflightAdapter,
         rebalancerConfig: config,
@@ -713,7 +695,7 @@ describe('RebalancerOrchestrator', () => {
         rebalancerConfig: createMockRebalancerConfig(),
         logger: testLogger,
         rebalancers: [],
-        bridge,
+        externalBridge: bridge,
       };
 
       const orchestrator = new RebalancerOrchestrator(deps);

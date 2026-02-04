@@ -11,7 +11,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import type {
   IInventoryRebalancer,
   InventoryExecutionResult,
@@ -82,12 +81,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   public readonly rebalancerType: RebalancerType = 'inventory';
   private readonly logger: Logger;
   private readonly config: InventoryRebalancerConfig;
-  private readonly inventoryMonitor: IInventoryMonitor;
   private readonly actionTracker: IActionTracker;
   // Bridge will be used for inventory_movement actions in future implementation
   private readonly _bridge: IExternalBridge;
   private readonly warpCore: WarpCore;
   private readonly multiProvider: MultiProvider;
+
+  /**
+   * Internal balance storage for inventory tracking.
+   * Updated via setInventoryBalances() before each rebalance cycle.
+   */
+  private inventoryBalances: Map<ChainName, bigint> = new Map();
 
   /**
    * Tracks inventory consumed during the current execution cycle.
@@ -98,7 +102,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
   constructor(
     config: InventoryRebalancerConfig,
-    inventoryMonitor: IInventoryMonitor,
     actionTracker: IActionTracker,
     bridge: IExternalBridge,
     warpCore: WarpCore,
@@ -106,7 +109,6 @@ export class InventoryRebalancer implements IInventoryRebalancer {
     logger: Logger,
   ) {
     this.config = config;
-    this.inventoryMonitor = inventoryMonitor;
     this.actionTracker = actionTracker;
     this._bridge = bridge;
     this.warpCore = warpCore;
@@ -175,6 +177,54 @@ export class InventoryRebalancer implements IInventoryRebalancer {
   }
 
   /**
+   * Set inventory balances from external source.
+   * Called before each rebalance cycle to update internal state.
+   */
+  setInventoryBalances(balances: Record<ChainName, bigint>): void {
+    this.inventoryBalances = new Map(Object.entries(balances));
+    this.logger.debug(
+      {
+        chains: Array.from(this.inventoryBalances.keys()),
+        balances: Object.fromEntries(
+          Array.from(this.inventoryBalances.entries()).map(
+            ([chain, balance]) => [chain, balance.toString()],
+          ),
+        ),
+      },
+      'Updated inventory balances',
+    );
+  }
+
+  /**
+   * Get available inventory for a chain.
+   * Returns 0n for unknown chains.
+   */
+  private getAvailableInventory(chain: ChainName): bigint {
+    return this.inventoryBalances.get(chain) ?? 0n;
+  }
+
+  /**
+   * Get all inventory balances.
+   */
+  private getBalances(): Map<ChainName, bigint> {
+    return this.inventoryBalances;
+  }
+
+  /**
+   * Calculate total inventory across all chains, excluding specified chains.
+   */
+  private getTotalInventory(excludeChains: ChainName[]): bigint {
+    const excludeSet = new Set(excludeChains);
+    let total = 0n;
+    for (const [chain, balance] of this.inventoryBalances) {
+      if (!excludeSet.has(chain)) {
+        total += balance;
+      }
+    }
+    return total;
+  }
+
+  /**
    * Get the effective available inventory for a chain, accounting for
    * inventory already consumed during this execution cycle.
    *
@@ -183,10 +233,8 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * @param chain - The chain to check inventory for
    * @returns Effective available inventory (cached - consumed)
    */
-  private async getEffectiveAvailableInventory(
-    chain: ChainName,
-  ): Promise<bigint> {
-    const cached = await this.inventoryMonitor.getAvailableInventory(chain);
+  private getEffectiveAvailableInventory(chain: ChainName): bigint {
+    const cached = this.getAvailableInventory(chain);
     const consumed = this.consumedInventory.get(chain) ?? 0n;
     const effective = cached > consumed ? cached - consumed : 0n;
 
@@ -419,8 +467,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Check available inventory on the DESTINATION (deficit) chain
     // We need inventory here because transferRemote is called FROM this chain
-    const availableInventory =
-      await this.getEffectiveAvailableInventory(destination);
+    const availableInventory = this.getEffectiveAvailableInventory(destination);
 
     this.logger.info(
       {
@@ -451,7 +498,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
 
     // Calculate total inventory across all chains
     // Note: consumedInventory tracking is handled separately within this cycle
-    const totalInventory = await this.inventoryMonitor.getTotalInventory([]);
+    const totalInventory = this.getTotalInventory([]);
 
     this.logger.info(
       {
@@ -544,7 +591,7 @@ export class InventoryRebalancer implements IInventoryRebalancer {
       );
 
       // Get all available source chains with raw inventory
-      const allSources = await this.selectAllSourceChains(destination);
+      const allSources = this.selectAllSourceChains(destination);
 
       if (allSources.length === 0) {
         this.logger.warn(
@@ -838,18 +885,17 @@ export class InventoryRebalancer implements IInventoryRebalancer {
    * Select all source chains with available inventory for bridging.
    * Returns sources sorted by available amount (highest first).
    */
-  private async selectAllSourceChains(
+  private selectAllSourceChains(
     targetChain: ChainName,
-  ): Promise<Array<{ chain: ChainName; availableAmount: bigint }>> {
-    const balances = await this.inventoryMonitor.getBalances();
+  ): Array<{ chain: ChainName; availableAmount: bigint }> {
+    const balances = this.getBalances();
     const sources: Array<{ chain: ChainName; availableAmount: bigint }> = [];
 
     for (const [chainName, balance] of balances) {
       if (chainName === targetChain) continue;
 
       const consumed = this.consumedInventory.get(chainName) ?? 0n;
-      const effectiveAvailable =
-        balance.available > consumed ? balance.available - consumed : 0n;
+      const effectiveAvailable = balance > consumed ? balance - consumed : 0n;
 
       if (effectiveAvailable > 0n) {
         sources.push({ chain: chainName, availableAmount: effectiveAvailable });

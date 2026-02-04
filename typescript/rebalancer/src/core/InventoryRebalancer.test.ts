@@ -12,7 +12,6 @@ import {
 
 import { ExternalBridgeType } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import type { InventoryRoute } from '../interfaces/IStrategy.js';
 import { createMockBridgeQuote } from '../test/lifiMocks.js';
 import type { IActionTracker } from '../tracking/IActionTracker.js';
@@ -30,7 +29,6 @@ const testLogger = pino({ level: 'silent' });
 describe('InventoryRebalancer E2E', () => {
   let inventoryRebalancer: InventoryRebalancer;
   let config: InventoryRebalancerConfig;
-  let inventoryMonitor: SinonStubbedInstance<IInventoryMonitor>;
   let actionTracker: SinonStubbedInstance<IActionTracker>;
   let bridge: SinonStubbedInstance<IExternalBridge>;
   let warpCore: any;
@@ -50,14 +48,6 @@ describe('InventoryRebalancer E2E', () => {
       inventorySigner: INVENTORY_SIGNER,
       inventoryChains: [ARBITRUM_CHAIN, SOLANA_CHAIN],
     };
-
-    // Mock IInventoryMonitor
-    inventoryMonitor = {
-      getBalances: Sinon.stub(),
-      getAvailableInventory: Sinon.stub(),
-      refresh: Sinon.stub(),
-      getTotalInventory: Sinon.stub(),
-    } as SinonStubbedInstance<IInventoryMonitor>;
 
     // Mock IActionTracker
     actionTracker = {
@@ -176,22 +166,21 @@ describe('InventoryRebalancer E2E', () => {
       }),
     };
 
-    // Default mock for getTotalInventory - returns very high value so tests default to full transfer
-    // Individual tests can override this for specific scenarios
-    inventoryMonitor.getTotalInventory.resolves(
-      BigInt('1000000000000000000000'), // 1000 ETH - ensures amount <= totalInventory
-    );
-
     // Create InventoryRebalancer
     inventoryRebalancer = new InventoryRebalancer(
       config,
-      inventoryMonitor,
       actionTracker as unknown as IActionTracker,
       bridge as unknown as IExternalBridge,
       warpCore as unknown as WarpCore,
       multiProvider as unknown as MultiProvider,
       testLogger,
     );
+
+    // Set default high inventory balances - tests can override via setInventoryBalances
+    inventoryRebalancer.setInventoryBalances({
+      [ARBITRUM_CHAIN]: BigInt('1000000000000000000000'),
+      [SOLANA_CHAIN]: BigInt('1000000000000000000000'),
+    });
   });
 
   afterEach(() => {
@@ -246,9 +235,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent();
 
       // Inventory is checked on DESTINATION (solana), not origin
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -283,9 +273,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: 5000000000n });
 
       // Inventory checked on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(5000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 5000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       await inventoryRebalancer.rebalance([route]);
 
@@ -311,13 +302,11 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute({ amount: FULL_AMOUNT });
       createTestIntent({ amount: FULL_AMOUNT });
 
-      // Inventory checked on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(PARTIAL_AMOUNT); // Only 0.005 ETH available
-
-      // Total inventory for logging
-      inventoryMonitor.getTotalInventory.resolves(PARTIAL_AMOUNT);
+      // Inventory checked on DESTINATION (solana) - Only 0.005 ETH available
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: PARTIAL_AMOUNT,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -342,12 +331,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: FULL_AMOUNT });
 
       // Inventory checked on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(PARTIAL_AMOUNT);
-
-      // Total inventory (excluding origin) = 0.005 ETH
-      inventoryMonitor.getTotalInventory.resolves(PARTIAL_AMOUNT);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: PARTIAL_AMOUNT,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -361,13 +348,11 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute();
       createTestIntent();
 
-      // No inventory on DESTINATION (solana) - that's where we need it to call transferRemote
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      // Mock getBalances to return empty Map (no other chains with inventory)
-      inventoryMonitor.getBalances.resolves(new Map());
+      // No inventory anywhere
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -398,9 +383,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ id: 'intent-1', amount: 5000000000n });
 
       // Inventory on DESTINATION of first route (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(5000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 5000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute with multiple routes
       const results = await inventoryRebalancer.rebalance([route1, route2]);
@@ -436,10 +422,11 @@ describe('InventoryRebalancer E2E', () => {
       // New route that would be ignored
       const newRoute = createTestRoute({ amount: 5000000000n });
 
-      // Inventory on DESTINATION of existing intent (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n); // Plenty of inventory
+      // Inventory on DESTINATION of existing intent (solana) - Plenty of inventory
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute with new route (should be ignored in favor of existing intent)
       const results = await inventoryRebalancer.rebalance([newRoute]);
@@ -481,9 +468,10 @@ describe('InventoryRebalancer E2E', () => {
       const newRoute = createTestRoute({ amount: 5000000000n });
 
       // Provide sufficient inventory for execution
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       const results = await inventoryRebalancer.rebalance([newRoute]);
 
@@ -502,9 +490,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent();
 
       // Inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
       multiProvider.sendTransaction.rejects(new Error('Transaction failed'));
 
       const results = await inventoryRebalancer.rebalance([route]);
@@ -522,9 +511,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent();
 
       // Even with inventory, if no token for destination, it should fail
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -538,9 +528,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent();
 
       // Inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
       adapterStub.quoteTransferRemoteGas.rejects(new Error('Gas quote failed'));
 
       const results = await inventoryRebalancer.rebalance([route]);
@@ -589,9 +580,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: requestedAmount });
 
       // Inventory on DESTINATION (solana) where transferRemote is called FROM
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(availableInventory);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -635,16 +627,11 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: requestedAmount });
 
       // Inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(availableInventory);
-
-      // For partial transfer to happen with 50% threshold logic:
-      // - amount > totalInventory (so looping is required)
-      // - maxTransferable >= 50% of totalInventory
-      // Here: totalInventory = partialAmount (same as what's on destination)
       // Since 100% is consolidated on destination, partial transfer should happen
-      inventoryMonitor.getTotalInventory.resolves(partialAmount);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableInventory,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -682,12 +669,11 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: 10000000000000000n });
 
       // Available inventory on DESTINATION (solana) is less than total reservation (IGP + gas)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(TOTAL_RESERVATION - 1n); // Just under the threshold
-
-      // Mock getBalances to return empty Map (no other chains with inventory)
-      inventoryMonitor.getBalances.resolves(new Map());
+      // Just under the threshold, no inventory anywhere else
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: TOTAL_RESERVATION - 1n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -721,9 +707,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: 10000000000n });
 
       // Inventory on DESTINATION (solana)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(10000000000n);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 10000000000n,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       // Execute
       const results = await inventoryRebalancer.rebalance([route]);
@@ -791,11 +778,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount });
 
       // Inventory on destination (SOLANA)
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(availableOnDestination);
-
-      inventoryMonitor.getTotalInventory.resolves(availableOnDestination);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableOnDestination,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -821,11 +807,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount });
 
       // 0.6 ETH available on destination
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(maxTransferable);
-
-      inventoryMonitor.getTotalInventory.resolves(maxTransferable);
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: maxTransferable,
+        [ARBITRUM_CHAIN]: 0n,
+      });
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -863,41 +848,11 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute({ amount });
       createTestIntent({ amount });
 
-      // Inventory on destination - too small after costs
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(availableOnDestination);
-
-      // Inventory on source - needed for executeInventoryMovement
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(availableOnSource);
-
-      inventoryMonitor.getTotalInventory.resolves(
-        availableOnDestination + availableOnSource,
-      );
-
-      // Mock getBalances to provide sources for bridging
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: availableOnSource,
-              available: availableOnSource,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            {
-              chainName: SOLANA_CHAIN,
-              balance: availableOnDestination,
-              available: availableOnDestination,
-            },
-          ],
-        ]),
-      );
+      // Inventory on destination - too small after costs, but source has inventory
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: availableOnDestination,
+        [ARBITRUM_CHAIN]: availableOnSource,
+      });
 
       // Mock bridge
       bridge.quote.resolves(
@@ -951,11 +906,10 @@ describe('InventoryRebalancer E2E', () => {
       createTestIntent({ amount: smallAmount });
 
       // Even with plenty of inventory, small amount triggers early exit
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(BigInt(10e18)); // 10 ETH available
-
-      inventoryMonitor.getTotalInventory.resolves(BigInt(10e18));
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: BigInt(10e18),
+        [ARBITRUM_CHAIN]: BigInt(10e18),
+      });
 
       const results = await inventoryRebalancer.rebalance([route]);
 
@@ -1020,47 +974,12 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute({ amount });
       createTestIntent({ amount });
 
-      // No inventory on destination
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      // Inventory on sources - needed for executeInventoryMovement
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(perChainInventory);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(BASE_CHAIN)
-        .resolves(perChainInventory);
-
-      // Low total inventory to trigger bridging
-      inventoryMonitor.getTotalInventory.resolves(BigInt(1.2e18));
-
-      // Two source chains with inventory
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: perChainInventory,
-              available: perChainInventory,
-            },
-          ],
-          [
-            BASE_CHAIN,
-            {
-              chainName: BASE_CHAIN,
-              balance: perChainInventory,
-              available: perChainInventory,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      // No inventory on destination, inventory on sources
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: perChainInventory,
+        [BASE_CHAIN]: perChainInventory,
+      });
 
       // Mock bridge quotes and execution
       bridge.quote.resolves(
@@ -1092,34 +1011,11 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute({ amount });
       createTestIntent({ amount });
 
-      // No inventory on destination
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      // Inventory on source - needed for executeInventoryMovement
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(availableInventory);
-
-      inventoryMonitor.getTotalInventory.resolves(availableInventory);
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: availableInventory,
-              available: availableInventory,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      // No inventory on destination, plenty on source
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: availableInventory,
+      });
 
       // Capture the quote amount from executeInventoryMovement
       // (calculateMaxViableBridgeAmount doesn't quote for ERC20 tokens)
@@ -1153,45 +1049,12 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute({ amount });
       createTestIntent({ amount });
 
-      // No inventory on destination
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      // Inventory on sources - needed for executeInventoryMovement
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(perChainInventory);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(BASE_CHAIN)
-        .resolves(perChainInventory);
-
-      inventoryMonitor.getTotalInventory.resolves(BigInt(1.2e18));
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: perChainInventory,
-              available: perChainInventory,
-            },
-          ],
-          [
-            BASE_CHAIN,
-            {
-              chainName: BASE_CHAIN,
-              balance: perChainInventory,
-              available: perChainInventory,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      // No inventory on destination, inventory on sources
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: perChainInventory,
+        [BASE_CHAIN]: perChainInventory,
+      });
 
       bridge.quote.resolves(
         createMockBridgeQuote({
@@ -1225,45 +1088,12 @@ describe('InventoryRebalancer E2E', () => {
       const route = createTestRoute({ amount });
       createTestIntent({ amount });
 
-      // No inventory on destination
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      // Inventory on sources - needed for executeInventoryMovement
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(perChainInventory);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(BASE_CHAIN)
-        .resolves(perChainInventory);
-
-      inventoryMonitor.getTotalInventory.resolves(BigInt(1.2e18));
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: perChainInventory,
-              available: perChainInventory,
-            },
-          ],
-          [
-            BASE_CHAIN,
-            {
-              chainName: BASE_CHAIN,
-              balance: perChainInventory,
-              available: perChainInventory,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      // No inventory on destination, inventory on sources
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: perChainInventory,
+        [BASE_CHAIN]: perChainInventory,
+      });
 
       bridge.quote.resolves(
         createMockBridgeQuote({
@@ -1317,34 +1147,11 @@ describe('InventoryRebalancer E2E', () => {
       // Raw balance on source chain (ARBITRUM) - the limiting factor
       const rawBalance = BigInt('2194632084196208'); // ~0.00219 ETH
 
-      // No inventory on destination - triggers bridge from ARBITRUM
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-
-      // Inventory on source - raw balance that's too low
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(rawBalance);
-
-      inventoryMonitor.getTotalInventory.resolves(rawBalance);
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: rawBalance,
-              available: rawBalance,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      // No inventory on destination, low balance on source
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
 
       // Mock quote with gas costs that exceed 10% threshold when multiplied by 20
       // rawBalance = 0.00219 ETH
@@ -1397,31 +1204,10 @@ describe('InventoryRebalancer E2E', () => {
       // Plenty of balance on source chain
       const rawBalance = BigInt(2e18); // 2 ETH - more than enough
 
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(rawBalance);
-
-      inventoryMonitor.getTotalInventory.resolves(rawBalance);
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: rawBalance,
-              available: rawBalance,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
 
       // Quote with reasonable costs well under the balance
       bridge.quote.resolves(
@@ -1473,31 +1259,10 @@ describe('InventoryRebalancer E2E', () => {
       // Small token balance (but gas is paid in ETH, so this shouldn't matter for viability)
       const tokenBalance = BigInt(1e18);
 
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(tokenBalance);
-
-      inventoryMonitor.getTotalInventory.resolves(tokenBalance);
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: tokenBalance,
-              available: tokenBalance,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: tokenBalance,
+      });
 
       // Quote with high gas costs (but for ERC20, this shouldn't trigger viability check)
       bridge.quote.resolves(
@@ -1547,31 +1312,10 @@ describe('InventoryRebalancer E2E', () => {
       // Large balance - should be viable
       const rawBalance = BigInt(1e18); // 1 ETH
 
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(rawBalance);
-
-      inventoryMonitor.getTotalInventory.resolves(rawBalance);
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: rawBalance,
-              available: rawBalance,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
 
       // gasCosts = 0.001 ETH, estimated = 0.02 ETH (20x multiplier)
       // maxViable = 1 ETH - 0.02 ETH = 0.98 ETH
@@ -1636,31 +1380,10 @@ describe('InventoryRebalancer E2E', () => {
 
       const rawBalance = BigInt(2e18); // 2 ETH
 
-      inventoryMonitor.getAvailableInventory
-        .withArgs(SOLANA_CHAIN)
-        .resolves(0n);
-      inventoryMonitor.getAvailableInventory
-        .withArgs(ARBITRUM_CHAIN)
-        .resolves(rawBalance);
-
-      inventoryMonitor.getTotalInventory.resolves(rawBalance);
-
-      inventoryMonitor.getBalances.resolves(
-        new Map([
-          [
-            ARBITRUM_CHAIN,
-            {
-              chainName: ARBITRUM_CHAIN,
-              balance: rawBalance,
-              available: rawBalance,
-            },
-          ],
-          [
-            SOLANA_CHAIN,
-            { chainName: SOLANA_CHAIN, balance: 0n, available: 0n },
-          ],
-        ]),
-      );
+      inventoryRebalancer.setInventoryBalances({
+        [SOLANA_CHAIN]: 0n,
+        [ARBITRUM_CHAIN]: rawBalance,
+      });
 
       // Quote fails for viability check
       bridge.quote.rejects(new Error('LiFi API timeout'));

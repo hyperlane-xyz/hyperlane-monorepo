@@ -22,13 +22,11 @@ import {
 import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import { PriceGetter } from '../metrics/PriceGetter.js';
-import { InventoryMonitor } from '../monitor/InventoryMonitor.js';
-import { Monitor } from '../monitor/Monitor.js';
+import { type InventoryMonitorConfig, Monitor } from '../monitor/Monitor.js';
 import { StrategyFactory } from '../strategy/StrategyFactory.js';
 import {
   ActionTracker,
@@ -162,7 +160,10 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createMonitor(checkFrequency: number): Monitor {
+  public createMonitor(
+    checkFrequency: number,
+    inventoryConfig?: InventoryMonitorConfig,
+  ): Monitor {
     this.logger.debug(
       {
         warpRouteId: this.config.warpRouteId,
@@ -170,7 +171,12 @@ export class RebalancerContextFactory {
       },
       'Creating Monitor',
     );
-    return new Monitor(checkFrequency, this.warpCore, this.logger);
+    return new Monitor(
+      checkFrequency,
+      this.warpCore,
+      this.logger,
+      inventoryConfig,
+    );
   }
 
   public async createStrategy(metrics?: Metrics): Promise<IStrategy> {
@@ -344,9 +350,9 @@ export class RebalancerContextFactory {
   public async createInventoryComponents(
     actionTracker: IActionTracker,
   ): Promise<{
-    inventoryMonitor: IInventoryMonitor;
     inventoryRebalancer: IRebalancer;
-    exteralBridge: IExternalBridge;
+    externalBridge: IExternalBridge;
+    inventoryConfig: InventoryMonitorConfig;
   } | null> {
     const { inventorySigner, externalBridges } = this.config;
     const lifiConfig = externalBridges?.lifi;
@@ -378,7 +384,7 @@ export class RebalancerContextFactory {
       return null;
     }
 
-    const bridge = new LiFiBridge(
+    const externalBridge = new LiFiBridge(
       {
         integrator: lifiConfig.integrator,
         defaultSlippage: lifiConfig.defaultSlippage,
@@ -386,15 +392,11 @@ export class RebalancerContextFactory {
       this.logger,
     );
 
-    // 3. Create InventoryMonitor
-    const inventoryMonitor = new InventoryMonitor(
-      {
-        inventorySigner,
-        inventoryChains,
-      },
-      this.warpCore,
-      this.logger,
-    );
+    // 3. Build inventory config
+    const inventoryConfig: InventoryMonitorConfig = {
+      inventoryAddress: inventorySigner,
+      chains: inventoryChains,
+    };
 
     // 4. Create InventoryRebalancer
     // Use inventoryMultiProvider for inventory operations if available, otherwise fall back to multiProvider
@@ -404,9 +406,8 @@ export class RebalancerContextFactory {
         inventoryMultiProvider: this.inventoryMultiProvider,
         inventoryChains,
       },
-      inventoryMonitor,
       actionTracker,
-      bridge,
+      externalBridge,
       this.warpCore,
       this.multiProvider,
       this.logger,
@@ -420,7 +421,7 @@ export class RebalancerContextFactory {
       'Inventory components created successfully',
     );
 
-    return { inventoryMonitor, inventoryRebalancer, exteralBridge: bridge };
+    return { inventoryRebalancer, externalBridge, inventoryConfig };
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

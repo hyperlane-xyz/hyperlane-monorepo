@@ -7,7 +7,6 @@ import {
   getStrategyChainNames,
 } from '../config/types.js';
 import type { IExternalBridge } from '../interfaces/IExternalBridge.js';
-import type { IInventoryMonitor } from '../interfaces/IInventoryMonitor.js';
 import {
   type ConfirmedBlockTags,
   type MonitorEvent,
@@ -24,6 +23,8 @@ import {
   InflightContextAdapter,
 } from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
+
+import { InventoryRebalancer } from './InventoryRebalancer.js';
 
 /**
  * Result of a rebalancing cycle.
@@ -45,8 +46,7 @@ export interface RebalancerOrchestratorDeps {
 
   rebalancers: IRebalancer[];
 
-  inventoryMonitor?: IInventoryMonitor;
-  bridge?: IExternalBridge;
+  externalBridge?: IExternalBridge;
   metrics?: Metrics;
 }
 
@@ -57,8 +57,7 @@ export class RebalancerOrchestrator {
   private readonly rebalancerConfig: RebalancerConfig;
   private readonly logger: Logger;
   private readonly rebalancersByType: Map<RebalancerType, IRebalancer>;
-  private readonly inventoryMonitor?: IInventoryMonitor;
-  private readonly bridge?: IExternalBridge;
+  private readonly externalBridge?: IExternalBridge;
   private readonly metrics?: Metrics;
 
   constructor(deps: RebalancerOrchestratorDeps) {
@@ -70,8 +69,7 @@ export class RebalancerOrchestrator {
     this.rebalancersByType = new Map(
       deps.rebalancers.map((r) => [r.rebalancerType, r]),
     );
-    this.inventoryMonitor = deps.inventoryMonitor;
-    this.bridge = deps.bridge;
+    this.externalBridge = deps.externalBridge;
     this.metrics = deps.metrics;
   }
 
@@ -91,11 +89,6 @@ export class RebalancerOrchestrator {
     }
 
     await this.syncActionTracker(event.confirmedBlockTags);
-
-    // Refresh and log inventory balances for visibility
-    if (this.inventoryMonitor) {
-      await this.inventoryMonitor.refresh();
-    }
 
     const rawBalances = getRawBalances(
       getStrategyChainNames(this.rebalancerConfig.strategyConfig),
@@ -136,7 +129,7 @@ export class RebalancerOrchestrator {
         'Routes proposed',
       );
 
-      const results = await this.executeWithTracking(strategyRoutes);
+      const results = await this.executeWithTracking(strategyRoutes, event);
       executedCount = results.executedCount;
       failedCount = results.failedCount;
     } else {
@@ -145,7 +138,7 @@ export class RebalancerOrchestrator {
 
     const inventoryRebalancer = this.rebalancersByType.get('inventory');
     if (inventoryRebalancer && strategyRoutes.length === 0) {
-      await this.executeRoutes([], inventoryRebalancer);
+      await this.executeRoutes([], inventoryRebalancer, event);
     }
 
     this.logger.info('Polling cycle completed');
@@ -172,8 +165,10 @@ export class RebalancerOrchestrator {
       ]);
 
       // Sync inventory movement actions via external bridge API
-      if (this.bridge) {
-        await this.actionTracker.syncInventoryMovementActions(this.bridge);
+      if (this.externalBridge) {
+        await this.actionTracker.syncInventoryMovementActions(
+          this.externalBridge,
+        );
       }
 
       await this.actionTracker.logStoreContents();
@@ -194,6 +189,7 @@ export class RebalancerOrchestrator {
 
   private async executeWithTracking(
     routes: StrategyRoute[],
+    event: MonitorEvent,
   ): Promise<{ executedCount: number; failedCount: number }> {
     const { movableCollateral, inventory } = this.classifyRoutes(routes);
 
@@ -206,6 +202,7 @@ export class RebalancerOrchestrator {
       const results = await this.executeRoutes(
         movableCollateral,
         movableCollateralRebalancer,
+        event,
       );
       executedCount = results.filter((r) => r.success).length;
       failedCount = results.filter((r) => !r.success).length;
@@ -213,7 +210,7 @@ export class RebalancerOrchestrator {
 
     const inventoryRebalancer = this.rebalancersByType.get('inventory');
     if (inventory.length > 0 && inventoryRebalancer) {
-      await this.executeRoutes(inventory, inventoryRebalancer);
+      await this.executeRoutes(inventory, inventoryRebalancer, event);
     }
 
     return { executedCount, failedCount };
@@ -266,9 +263,12 @@ export class RebalancerOrchestrator {
   private async executeRoutes(
     routes: StrategyRoute[],
     rebalancer: IRebalancer,
+    event: MonitorEvent,
   ): Promise<ExecutionResult[]> {
-    if (rebalancer.rebalancerType === 'inventory' && this.inventoryMonitor) {
-      await this.inventoryMonitor.refresh();
+    if (rebalancer.rebalancerType === 'inventory' && event.inventoryBalances) {
+      (rebalancer as InventoryRebalancer).setInventoryBalances(
+        event.inventoryBalances,
+      );
     }
 
     try {
