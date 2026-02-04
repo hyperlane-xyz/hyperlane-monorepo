@@ -255,17 +255,20 @@ describe('Rebalancer Simulation', function () {
   /**
    * Blocked User Transfer Test
    *
-   * Tests the gap when user transfers are BLOCKED at destination due to
-   * insufficient collateral. With 50/50 weights and 50% tolerance, state
-   * appears within tolerance after user initiates transfer (69%/31% is
-   * within 25-75% range). But destination chain2 can't pay out (40 tokens
-   * < 50 needed), so transfer stays stuck.
+   * Tests that the ProductionRebalancer proactively adds collateral when
+   * user transfers are pending but blocked due to insufficient collateral.
    *
-   * Neither rebalancer acts because weights are within tolerance.
-   * With future mock Explorer, rebalancer should see blocked transfer
-   * and proactively add collateral to chain2.
+   * Scenario: 130 total tokens split 90/40 between chain1/chain2.
+   * User initiates 50 token transfer from chain1 → chain2.
+   * chain2 only has 40 tokens but needs 50 to pay out.
+   *
+   * SimpleRebalancer: Only sees on-chain balances, doesn't know about pending
+   * transfer, weights appear within tolerance → no action → transfer stuck
+   *
+   * ProductionRebalancer: Mock adapter tracks pending transfer, strategy
+   * reserves collateral for it, detects deficit → rebalances → transfer succeeds
    */
-  it('blocked-user-transfer: demonstrates blocked transfer without Explorer (report only)', async function () {
+  it('blocked-user-transfer: ProductionRebalancer proactively adds collateral for pending transfers', async function () {
     this.timeout(120000);
 
     const { results } = await runScenarioWithRebalancers(
@@ -281,15 +284,38 @@ describe('Rebalancer Simulation', function () {
         `    ${result.rebalancerName}: completion=${(result.kpis.completionRate * 100).toFixed(0)}%, rebalances=${result.kpis.totalRebalances}`,
       );
     }
-    console.log(
-      '    (Expected: 0% completion for both - weights within tolerance, no rebalancing)',
+
+    // Find results by rebalancer type
+    const productionResult = results.find(
+      (r) => r.rebalancerName === 'ProductionRebalancerService',
     );
-    console.log(
-      '    (Transfer blocked: chain2 has 40 tokens but needs 50 to pay out)',
+    const simpleResult = results.find(
+      (r) => r.rebalancerName === 'SimpleRebalancer',
     );
-    console.log(
-      '    (With Explorer mock: rebalancer should see blocked transfer and act)',
-    );
+
+    // SimpleRebalancer without inflight tracking should fail to complete
+    if (simpleResult) {
+      expect(simpleResult.kpis.completionRate).to.equal(
+        0,
+        'SimpleRebalancer should have 0% completion (blocked transfer)',
+      );
+      expect(simpleResult.kpis.totalRebalances).to.equal(
+        0,
+        'SimpleRebalancer should not rebalance (weights within tolerance)',
+      );
+    }
+
+    // ProductionRebalancer with inflight tracking should complete
+    if (productionResult) {
+      expect(productionResult.kpis.completionRate).to.equal(
+        1.0,
+        'ProductionRebalancer should have 100% completion (proactive collateral)',
+      );
+      expect(productionResult.kpis.totalRebalances).to.be.greaterThan(
+        0,
+        'ProductionRebalancer should rebalance (sees pending transfer deficit)',
+      );
+    }
   });
 
   // ============================================================================

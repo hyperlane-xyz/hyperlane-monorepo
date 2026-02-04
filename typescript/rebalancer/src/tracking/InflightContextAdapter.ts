@@ -5,10 +5,19 @@ import type { InflightContext } from '../interfaces/IStrategy.js';
 import type { IActionTracker } from './IActionTracker.js';
 
 /**
+ * Interface for adapters that provide inflight context to strategies.
+ * This allows mocking inflight context in simulations without needing
+ * a full ActionTracker/ExplorerClient setup.
+ */
+export interface IInflightContextAdapter {
+  getInflightContext(): Promise<InflightContext>;
+}
+
+/**
  * Adapter that converts ActionTracker data to strategy-consumable InflightContext.
  * Handles conversion from Domain IDs (used by ActionTracker) to ChainNames (used by Strategy).
  */
-export class InflightContextAdapter {
+export class InflightContextAdapter implements IInflightContextAdapter {
   constructor(
     private readonly actionTracker: IActionTracker,
     private readonly multiProvider: MultiProvider,

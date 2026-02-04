@@ -11,8 +11,13 @@ import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import type { IRebalancerRunner, RebalancerSimConfig } from '../types.js';
+import type {
+  IRebalancerRunner,
+  InflightContextCallbacks,
+  RebalancerSimConfig,
+} from '../types.js';
 
+import { MockInflightContextAdapter } from './MockInflightContextAdapter.js';
 import { SimulationRegistry } from './SimulationRegistry.js';
 
 // Silent logger for the rebalancer service (internal)
@@ -112,12 +117,16 @@ export class ProductionRebalancerRunner
   private config?: RebalancerSimConfig;
   private service?: RebalancerService;
   private running = false;
+  private mockAdapter?: MockInflightContextAdapter;
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
     await cleanupProductionRebalancer();
 
     this.config = config;
+
+    // Create mock inflight context adapter for simulation
+    this.mockAdapter = new MockInflightContextAdapter();
   }
 
   async start(): Promise<void> {
@@ -217,7 +226,7 @@ export class ProductionRebalancerRunner
       strategyConfig,
     ] as StrategyConfig[]);
 
-    // Create service
+    // Create service with mock inflight context adapter
     this.service = new RebalancerService(
       multiProvider,
       multiProtocolProvider,
@@ -229,6 +238,7 @@ export class ProductionRebalancerRunner
         monitorOnly: false,
         withMetrics: false,
         logger: silentLogger,
+        inflightContextAdapter: this.mockAdapter,
       },
     );
 
@@ -274,6 +284,10 @@ export class ProductionRebalancerRunner
     }
 
     this.config = undefined;
+    if (this.mockAdapter) {
+      this.mockAdapter.clear();
+      this.mockAdapter = undefined;
+    }
     this.removeAllListeners();
   }
 
@@ -285,5 +299,38 @@ export class ProductionRebalancerRunner
     // Wait for a reasonable settle time
     const settleTime = Math.min(timeoutMs, 2000);
     await new Promise((resolve) => setTimeout(resolve, settleTime));
+  }
+
+  /**
+   * Get callbacks for wiring inflight context updates.
+   * SimulationEngine uses these to notify about pending transfers and rebalances.
+   */
+  getInflightCallbacks(): InflightContextCallbacks | undefined {
+    if (!this.mockAdapter) {
+      return undefined;
+    }
+
+    return {
+      onTransferInitiated: (
+        origin: string,
+        destination: string,
+        amount: bigint,
+      ) => {
+        this.mockAdapter!.addPendingTransfer({ origin, destination, amount });
+      },
+      onTransferDelivered: (origin: string, destination: string) => {
+        this.mockAdapter!.removePendingTransfer(origin, destination);
+      },
+      onRebalanceInitiated: (
+        origin: string,
+        destination: string,
+        amount: bigint,
+      ) => {
+        this.mockAdapter!.addPendingRebalance({ origin, destination, amount });
+      },
+      onRebalanceDelivered: (origin: string, destination: string) => {
+        this.mockAdapter!.removePendingRebalance(origin, destination);
+      },
+    };
   }
 }

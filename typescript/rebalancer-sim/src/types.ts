@@ -378,6 +378,41 @@ export interface ChainStrategyConfig {
 }
 
 /**
+ * Callbacks for wiring inflight context updates in simulation.
+ * The simulation engine uses these to notify the rebalancer about
+ * pending transfers and rebalances.
+ */
+export interface InflightContextCallbacks {
+  /**
+   * Called when a user transfer is initiated (before delivery)
+   */
+  onTransferInitiated: (
+    origin: string,
+    destination: string,
+    amount: bigint,
+  ) => void;
+
+  /**
+   * Called when a user transfer is delivered
+   */
+  onTransferDelivered: (origin: string, destination: string) => void;
+
+  /**
+   * Called when a rebalance transfer is initiated via bridge
+   */
+  onRebalanceInitiated: (
+    origin: string,
+    destination: string,
+    amount: bigint,
+  ) => void;
+
+  /**
+   * Called when a rebalance transfer completes via bridge
+   */
+  onRebalanceDelivered: (origin: string, destination: string) => void;
+}
+
+/**
  * Interface for rebalancer runners in simulation
  */
 export interface IRebalancerRunner {
@@ -413,6 +448,13 @@ export interface IRebalancerRunner {
    * Subscribe to rebalancer events
    */
   on(event: 'rebalance', listener: (e: RebalancerEvent) => void): this;
+
+  /**
+   * Get callbacks for inflight context updates (optional).
+   * If supported, SimulationEngine wires these to bridge/message events.
+   * Returns undefined if the runner doesn't support inflight tracking.
+   */
+  getInflightCallbacks?(): InflightContextCallbacks | undefined;
 }
 
 /**

@@ -36,7 +36,7 @@ import { Metrics } from '../metrics/Metrics.js';
 import { Monitor } from '../monitor/Monitor.js';
 import {
   type IActionTracker,
-  InflightContextAdapter,
+  type IInflightContextAdapter,
 } from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
@@ -61,6 +61,13 @@ export interface RebalancerServiceConfig {
 
   /** Service version for logging */
   version?: string;
+
+  /**
+   * Optional pre-configured inflight context adapter.
+   * If provided, skips ActionTracker creation and uses this adapter directly.
+   * Useful for simulation/testing where inflight context is mocked externally.
+   */
+  inflightContextAdapter?: IInflightContextAdapter;
 }
 
 export interface ManualRebalanceRequest {
@@ -120,7 +127,7 @@ export class RebalancerService {
   private metrics?: Metrics;
   private mode: 'manual' | 'daemon';
   private actionTracker?: IActionTracker;
-  private inflightContextAdapter?: InflightContextAdapter;
+  private inflightContextAdapter?: IInflightContextAdapter;
 
   constructor(
     private readonly multiProvider: MultiProvider,
@@ -179,13 +186,22 @@ export class RebalancerService {
       );
     }
 
-    // Create ActionTracker for tracking inflight actions
-    const { tracker, adapter } =
-      await this.contextFactory.createActionTracker();
-    this.actionTracker = tracker;
-    this.inflightContextAdapter = adapter;
-    await this.actionTracker.initialize();
-    this.logger.info('ActionTracker initialized');
+    // Create or use provided inflight context adapter
+    if (this.config.inflightContextAdapter) {
+      // Use externally provided adapter (e.g., for simulation/testing)
+      this.inflightContextAdapter = this.config.inflightContextAdapter;
+      this.logger.info(
+        'Using externally provided InflightContextAdapter (no ActionTracker)',
+      );
+    } else {
+      // Create ActionTracker for tracking inflight actions
+      const { tracker, adapter } =
+        await this.contextFactory.createActionTracker();
+      this.actionTracker = tracker;
+      this.inflightContextAdapter = adapter;
+      await this.actionTracker.initialize();
+      this.logger.info('ActionTracker initialized');
+    }
 
     this.logger.info(
       {
@@ -418,12 +434,21 @@ export class RebalancerService {
   /**
    * Execute rebalancing with intent tracking.
    * Creates intents and assigns IDs to routes before execution, then processes results by ID.
+   * If ActionTracker is not available (e.g., using external inflightContextAdapter),
+   * falls back to simple execution without tracking.
    */
   private async executeWithTracking(
     strategyRoutes: StrategyRoute[],
   ): Promise<void> {
-    if (!this.rebalancer || !this.actionTracker) {
-      this.logger.warn('Rebalancer or ActionTracker not available, skipping');
+    if (!this.rebalancer) {
+      this.logger.warn('Rebalancer not available, skipping');
+      return;
+    }
+
+    // Fall back to simple execution if ActionTracker is not available
+    // (e.g., when using an external inflightContextAdapter for simulation)
+    if (!this.actionTracker) {
+      await this.executeWithoutTracking(strategyRoutes);
       return;
     }
 
@@ -525,6 +550,73 @@ export class RebalancerService {
           'Rebalance intent marked as failed',
         );
       }
+    }
+  }
+
+  /**
+   * Execute rebalancing without ActionTracker tracking.
+   * Used when an external inflightContextAdapter is provided (e.g., simulation).
+   * Simply executes the routes and logs results.
+   */
+  private async executeWithoutTracking(
+    strategyRoutes: StrategyRoute[],
+  ): Promise<void> {
+    assert(this.rebalancer, 'Rebalancer must be available');
+
+    // Generate simple IDs for routes (not tracked in ActionTracker)
+    const rebalanceRoutes: RebalanceRoute[] = strategyRoutes.map((route) => ({
+      ...route,
+      intentId: randomUUID(),
+    }));
+
+    this.logger.debug(
+      { routeCount: rebalanceRoutes.length },
+      'Executing rebalance routes (without tracking)',
+    );
+
+    try {
+      const results = await this.rebalancer.rebalance(rebalanceRoutes);
+      const failedResults = results.filter((r) => !r.success);
+      if (failedResults.length > 0) {
+        this.metrics?.recordRebalancerFailure();
+        this.logger.warn(
+          { failureCount: failedResults.length, total: results.length },
+          'Rebalancer cycle completed with failures',
+        );
+      } else {
+        this.metrics?.recordRebalancerSuccess();
+        this.logger.info(
+          { routeCount: results.length },
+          'Rebalancer completed a cycle successfully (no tracking)',
+        );
+      }
+
+      // Log results for debugging
+      for (const result of results) {
+        if (result.success) {
+          this.logger.debug(
+            {
+              origin: result.route.origin,
+              destination: result.route.destination,
+              messageId: result.messageId,
+              txHash: result.txHash,
+            },
+            'Rebalance executed successfully',
+          );
+        } else {
+          this.logger.warn(
+            {
+              origin: result.route.origin,
+              destination: result.route.destination,
+              error: result.error,
+            },
+            'Rebalance execution failed',
+          );
+        }
+      }
+    } catch (error: any) {
+      this.metrics?.recordRebalancerFailure();
+      this.logger.error({ error }, 'Error while rebalancing');
     }
   }
 

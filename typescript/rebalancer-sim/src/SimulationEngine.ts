@@ -13,6 +13,7 @@ import { MessageTracker } from './MessageTracker.js';
 import type {
   BridgeMockConfig,
   IRebalancerRunner,
+  InflightContextCallbacks,
   MultiDomainDeploymentResult,
   RebalancerSimConfig,
   SimulationResult,
@@ -43,6 +44,7 @@ export class SimulationEngine {
   private isRunning = false;
   private mailboxProcessingInterval?: NodeJS.Timeout;
   private mailboxProcessingInFlight = false;
+  private inflightCallbacks?: InflightContextCallbacks;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
@@ -94,6 +96,12 @@ export class SimulationEngine {
       // Wire up MessageTracker events for KPI tracking
       this.messageTracker.on('message_delivered', (message) => {
         this.kpiCollector!.recordTransferComplete(message.transferId);
+
+        // Notify inflight context adapter
+        this.inflightCallbacks?.onTransferDelivered(
+          message.origin,
+          message.destination,
+        );
       });
 
       this.messageTracker.on('message_failed', ({ message }) => {
@@ -119,14 +127,33 @@ export class SimulationEngine {
         );
         // Link bridge transfer ID to rebalance ID for completion tracking
         this.kpiCollector!.linkBridgeTransfer(event.transfer.id, rebalanceId);
+
+        // Notify inflight context adapter
+        this.inflightCallbacks?.onRebalanceInitiated(
+          event.transfer.origin,
+          event.transfer.destination,
+          event.transfer.amount,
+        );
       });
 
       this.bridgeController.on('transfer_delivered', (event) => {
         this.kpiCollector!.recordRebalanceComplete(event.transfer.id);
+
+        // Notify inflight context adapter
+        this.inflightCallbacks?.onRebalanceDelivered(
+          event.transfer.origin,
+          event.transfer.destination,
+        );
       });
 
       this.bridgeController.on('transfer_failed', (event) => {
         this.kpiCollector!.recordRebalanceFailed(event.transfer.id);
+
+        // Notify inflight context adapter (treat failed as delivered for inflight tracking)
+        this.inflightCallbacks?.onRebalanceDelivered(
+          event.transfer.origin,
+          event.transfer.destination,
+        );
       });
 
       // Build warp config for rebalancer
@@ -141,6 +168,9 @@ export class SimulationEngine {
       };
 
       await rebalancer.initialize(rebalancerConfig);
+
+      // Get inflight callbacks if the rebalancer supports them
+      this.inflightCallbacks = rebalancer.getInflightCallbacks?.();
 
       // Start rebalancer daemon
       await rebalancer.start();
@@ -205,6 +235,8 @@ export class SimulationEngine {
       this.provider.removeAllListeners();
       // Force polling to stop
       this.provider.polling = false;
+      // Clear inflight callbacks
+      this.inflightCallbacks = undefined;
     }
   }
 
@@ -293,6 +325,13 @@ export class SimulationEngine {
           transfer.origin,
           transfer.destination,
           timing.userTransferDeliveryDelay,
+        );
+
+        // Notify inflight context adapter that a user transfer is pending
+        this.inflightCallbacks?.onTransferInitiated(
+          transfer.origin,
+          transfer.destination,
+          transfer.amount,
         );
       } catch (error) {
         logger.error(
