@@ -47,11 +47,13 @@ pub fn sanitize_dynamic_accounts(
         }
     });
 
-    // On SVM, if an instruction specifies the same account twice, if one of them is a signer
-    // then the SVM ends up treating the other as a signer as well, even if the other AccountMeta
-    // didn't ask for it!
+    // On SVM, if a transaction's top level instruction specifies the same account twice, if one of
+    // them is a signer then the SVM ends up treating the other as a signer as well, even if the other
+    // AccountMeta didn't ask for it!
     // This means that if one of the dynamic account metas includes the payer, the
     // CPI made into the program will end up providing the payer account as a signer.
+    // Note this limitation is only for top level instructions, and an inner CPI is allowed to have
+    // an account specified twice with one being a signer and the other not.
     if account_metas.iter().any(|meta| meta.pubkey == *payer) {
         return Err(ChainCommunicationError::from_other_str(
             "Dynamic account metas contain payer account",
