@@ -12,7 +12,7 @@ WORKDIR /hyperlane-monorepo
 
 # Install build dependencies
 RUN apt-get update && apt-get install -y --no-install-recommends \
-    git g++ make python3 ca-certificates curl bash \
+    git g++ make python3 ca-certificates curl bash jq unzip \
     && rm -rf /var/lib/apt/lists/*
 
 # Install Foundry (needed for solidity deps:soldeer)
