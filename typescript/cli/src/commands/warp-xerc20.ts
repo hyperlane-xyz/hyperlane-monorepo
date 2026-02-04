@@ -28,7 +28,7 @@ import {
   type WriteCommandContext,
 } from '../context/types.js';
 import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
-import { indentYamlOrJson, isFile, writeYamlOrJson } from '../utils/files.js';
+import { indentYamlOrJson, isFile } from '../utils/files.js';
 import { getWarpConfigs } from '../utils/warp.js';
 
 import {
@@ -41,8 +41,6 @@ import {
   warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
-
-const DEFAULT_OUTPUT_PATH = './xerc20-txs.yaml';
 
 const XERC20_WARP_ROUTE_BUILDER = {
   config: warpDeploymentConfigCommandOption,
@@ -86,7 +84,6 @@ const setLimits: CommandModuleWithWriteContext<
     bufferCap?: string;
     rateLimit?: string;
     chains?: string[];
-    out: string;
     strategy?: string;
     receipts: string;
   }
@@ -117,16 +114,11 @@ const setLimits: CommandModuleWithWriteContext<
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
-    strategy: strategyCommandOption,
+    strategy: { ...strategyCommandOption, demandOption: false },
     receipts: outputFileCommandOption(
       './generated/transactions/receipts',
       false,
       'Output directory for transaction receipts',
-    ),
-    out: outputFileCommandOption(
-      DEFAULT_OUTPUT_PATH,
-      false,
-      'Output transaction file path (used when no strategy provided)',
     ),
   },
   handler: async ({
@@ -141,7 +133,6 @@ const setLimits: CommandModuleWithWriteContext<
     bufferCap,
     rateLimit,
     chains,
-    out,
     strategy,
     receipts,
   }) => {
@@ -155,7 +146,6 @@ const setLimits: CommandModuleWithWriteContext<
       bridge,
       limits,
       chains,
-      out,
       strategy,
       receipts,
       commandName: 'Set Limits',
@@ -173,7 +163,6 @@ const addBridge: CommandModuleWithWriteContext<
     bufferCap?: string;
     rateLimit?: string;
     chains?: string[];
-    out: string;
     strategy?: string;
     receipts: string;
   }
@@ -204,16 +193,11 @@ const addBridge: CommandModuleWithWriteContext<
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
-    strategy: strategyCommandOption,
+    strategy: { ...strategyCommandOption, demandOption: false },
     receipts: outputFileCommandOption(
       './generated/transactions/receipts',
       false,
       'Output directory for transaction receipts',
-    ),
-    out: outputFileCommandOption(
-      DEFAULT_OUTPUT_PATH,
-      false,
-      'Output transaction file path (used when no strategy provided)',
     ),
   },
   handler: async ({
@@ -228,7 +212,6 @@ const addBridge: CommandModuleWithWriteContext<
     bufferCap,
     rateLimit,
     chains,
-    out,
     strategy,
     receipts,
   }) => {
@@ -242,7 +225,6 @@ const addBridge: CommandModuleWithWriteContext<
       bridge,
       limits,
       chains,
-      out,
       strategy,
       receipts,
       commandName: 'Add Bridge',
@@ -256,7 +238,6 @@ const removeBridge: CommandModuleWithWriteContext<
   XERC20WarpRouteBuilder & {
     bridge: string;
     chains?: string[];
-    out: string;
     strategy?: string;
     receipts: string;
   }
@@ -271,16 +252,11 @@ const removeBridge: CommandModuleWithWriteContext<
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
-    strategy: strategyCommandOption,
+    strategy: { ...strategyCommandOption, demandOption: false },
     receipts: outputFileCommandOption(
       './generated/transactions/receipts',
       false,
       'Output directory for transaction receipts',
-    ),
-    out: outputFileCommandOption(
-      DEFAULT_OUTPUT_PATH,
-      false,
-      'Output transaction file path (used when no strategy provided)',
     ),
   },
   handler: async ({
@@ -291,7 +267,6 @@ const removeBridge: CommandModuleWithWriteContext<
     config: configPath,
     bridge,
     chains,
-    out,
     strategy,
     receipts,
   }) => {
@@ -339,16 +314,7 @@ const removeBridge: CommandModuleWithWriteContext<
       process.exit(1);
     }
 
-    if (strategy) {
-      await submitTransactions(context, transactions, strategy, receipts);
-    } else {
-      writeYamlOrJson(out, transactions, 'yaml');
-      logGreen(
-        `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
-      );
-      log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
-    }
-
+    await submitTransactions(context, transactions, strategy, receipts);
     process.exit(0);
   },
 };
@@ -492,7 +458,7 @@ function parseLimitsFromArgs(args: {
 async function submitTransactions(
   context: CommandContext,
   transactions: AnnotatedEV5Transaction[],
-  strategy: string,
+  strategy: string | undefined,
   receipts: string,
 ): Promise<void> {
   if (isFile(receipts)) {
@@ -511,7 +477,7 @@ async function submitTransactions(
       context: context as WriteCommandContext,
       chain,
       transactions: txs,
-      strategyPath: strategy,
+      strategyPath: strategy ?? '',
       receiptsFilepath: receipts,
     });
     logBlue(`Submission complete for chain ${chain}`);
@@ -527,7 +493,6 @@ async function generateBridgeLimitTxs({
   bridge,
   limits,
   chains,
-  out,
   strategy,
   receipts,
   commandName,
@@ -541,7 +506,6 @@ async function generateBridgeLimitTxs({
   bridge: Address;
   limits: XERC20Limits;
   chains?: string[];
-  out: string;
   strategy?: string;
   receipts: string;
   commandName: string;
@@ -594,16 +558,7 @@ async function generateBridgeLimitTxs({
     process.exit(1);
   }
 
-  if (strategy) {
-    await submitTransactions(context, transactions, strategy, receipts);
-  } else {
-    writeYamlOrJson(out, transactions, 'yaml');
-    logGreen(
-      `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
-    );
-    log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
-  }
-
+  await submitTransactions(context, transactions, strategy, receipts);
   process.exit(0);
 }
 
