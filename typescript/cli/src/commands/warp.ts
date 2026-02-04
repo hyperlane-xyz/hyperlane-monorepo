@@ -369,9 +369,14 @@ const send: CommandModuleWithWriteContext<
     sourceToken,
     destinationToken,
   }) => {
+    const filterChains = [origin, destination, ...(chainsArg || [])]
+      .filter(Boolean)
+      .filter((v, i, a) => a.indexOf(v) === i) as string[];
+
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       warpRouteId,
       context,
+      chains: filterChains.length > 0 ? filterChains : undefined,
     });
     let chains = chainsArg?.length ? chainsArg : [];
 
