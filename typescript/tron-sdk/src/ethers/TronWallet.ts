@@ -59,7 +59,8 @@ export class TronWallet extends Wallet {
 
     // Convert gasLimit to feeLimit: feeLimit = gasLimit × gasPrice
     const gasPrice = BigNumber.from(tx.gasPrice);
-    const feeLimit = BigNumber.from(tx.gasLimit).mul(gasPrice).toNumber();
+    const gasLimit = BigNumber.from(tx.gasLimit);
+    const feeLimit = gasLimit.mul(gasPrice).toNumber();
     const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
 
     let tronTx: any;
@@ -74,10 +75,11 @@ export class TronWallet extends Wallet {
           bytecode: strip0x(tx.data.toString()),
           feeLimit,
           callValue,
-          parameters: [],
+          originEnergyLimit: gasLimit.toNumber(),
         },
         this.tronAddress,
       );
+
       contractAddress = this.toEvmAddress(tronTx.contract_address);
     } else if (tx.data && tx.data !== '0x') {
       // Contract call
@@ -109,7 +111,8 @@ export class TronWallet extends Wallet {
 
     const txHash = ensure0x(tronTx.txID);
 
-    return {
+    // Build the transaction response
+    const response: providers.TransactionResponse = {
       hash: txHash,
       confirmations: 0,
       from: this.address,
@@ -122,12 +125,20 @@ export class TronWallet extends Wallet {
       chainId: (await this.provider!.getNetwork()).chainId,
       wait: async (_confirmations?: number) => {
         const receipt = await this.provider!.waitForTransaction(txHash);
-        // Inject contract address if not present
-        if (contractAddress && !receipt.contractAddress) {
+        // Always use the contract address from TronWeb for deployments
+        if (contractAddress) {
           (receipt as any).contractAddress = contractAddress;
+        }
+        // Check if transaction reverted
+        if (receipt.status === 0) {
+          throw new Error(
+            `Transaction ${txHash} reverted on Tron (status=0). Receipt: ${JSON.stringify(receipt)}`,
+          );
         }
         return receipt;
       },
     };
+
+    return response;
   }
 }
