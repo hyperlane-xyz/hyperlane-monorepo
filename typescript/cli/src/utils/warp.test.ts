@@ -169,14 +169,23 @@ describe('resolveWarpRouteId', () => {
       expect(result).to.equal('ETH/ethereum-optimism');
     });
 
-    it('should return value as-is when no routes match chains filter (backward compatibility)', async () => {
+    it('should throw explicit error when no routes match chains filter', async () => {
       const context = createMockContext();
-      const result = await resolveWarpRouteId({
-        context,
-        warpRouteId: 'eth',
-        chains: ['polygon'],
-      });
-      expect(result).to.equal('eth');
+      try {
+        await resolveWarpRouteId({
+          context,
+          warpRouteId: 'eth',
+          chains: ['polygon'],
+        });
+        expect.fail('Should have thrown an error');
+      } catch (error) {
+        expect((error as Error).message).to.include(
+          'No warp route found for symbol "ETH" spanning chains: polygon',
+        );
+        expect((error as Error).message).to.include(
+          'Try without --chains to see all available routes',
+        );
+      }
     });
 
     it('should not filter when chains is empty array', async () => {
@@ -290,7 +299,7 @@ describe('getWarpCoreConfigOrExit', () => {
       expect.fail('Should have thrown an error');
     } catch (error) {
       expect((error as Error).message).to.include(
-        'No warp route found with ID',
+        'No warp route found for symbol "ETH" spanning chains: polygon',
       );
     }
   });
