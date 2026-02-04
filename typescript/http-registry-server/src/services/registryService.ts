@@ -5,16 +5,16 @@ import {
   MergedRegistry,
   RegistryType,
 } from '@hyperlane-xyz/registry';
-import { assert } from '@hyperlane-xyz/utils';
+import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
 import { IWatcher } from './watcherService.js';
 
 export class RegistryService {
   private registry: IRegistry | null = null;
   private lastRefresh: number = Date.now();
-  private refreshPromise: Promise<IRegistry> | null = null;
   private isDirty = false;
   private isWatcherActive = false;
+  private readonly registryRefresh = new LazyAsync(() => this.getRegistry());
 
   constructor(
     private readonly getRegistry: () => Promise<IRegistry>,
@@ -24,7 +24,8 @@ export class RegistryService {
   ) {}
 
   async initialize() {
-    this.registry = await this.getRegistry();
+    this.registry = await this.registryRefresh.get();
+    this.lastRefresh = Date.now();
     this.startWatching();
   }
 
@@ -95,19 +96,13 @@ export class RegistryService {
       !this.registry;
 
     if (shouldRefresh) {
-      if (this.refreshPromise) {
-        return this.refreshPromise;
-      }
-
       this.logger.info('Refreshing registry cache...');
-      this.refreshPromise = this.getRegistry();
-      try {
-        this.registry = await this.refreshPromise;
-        this.isDirty = false;
-        this.lastRefresh = now;
-      } finally {
-        this.refreshPromise = null;
+      if (this.registryRefresh.isInitialized()) {
+        this.registryRefresh.reset();
       }
+      this.registry = await this.registryRefresh.get();
+      this.isDirty = false;
+      this.lastRefresh = now;
     }
 
     assert(this.registry, 'Could not fetch current registry');

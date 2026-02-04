@@ -5,7 +5,7 @@ import { Logger } from 'pino';
 import { startMetricsServer } from '@hyperlane-xyz/metrics';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, LazyAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RelayerConfigInput } from '../config/schema.js';
 import { HyperlaneRelayer } from '../core/HyperlaneRelayer.js';
@@ -23,6 +23,7 @@ export interface RelayerServiceConfig {
 
 export class RelayerService {
   private relayer?: HyperlaneRelayer;
+  private relayerLazy?: LazyAsync<HyperlaneRelayer>;
   private metricsServer?: http.Server;
   private readonly logger: Logger;
   readonly metrics: RelayerMetrics;
@@ -100,6 +101,17 @@ export class RelayerService {
       return this.relayer;
     }
 
+    if (!this.relayerLazy) {
+      this.relayerLazy = new LazyAsync(() => this.createRelayer(whitelist));
+    }
+
+    this.relayer = await this.relayerLazy.get();
+    return this.relayer;
+  }
+
+  private async createRelayer(
+    whitelist?: ChainMap<Address[]>,
+  ): Promise<HyperlaneRelayer> {
     const chainAddresses = await this.registry.getAddresses();
     const core = HyperlaneCore.fromAddressesMap(
       chainAddresses,

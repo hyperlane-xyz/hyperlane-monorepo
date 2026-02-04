@@ -9,6 +9,7 @@ Review this pull request. Focus on:
 - **Use existing utilities** - Search codebase before adding new helpers
 - **Prefer `??` over `||`** - Preserves zero/empty string as valid values
 - **Use `assert()` for preconditions** - Import from `@hyperlane-xyz/utils`
+- **Async lazy init** - Prefer `LazyAsync` from `@hyperlane-xyz/utils` for cached async initialization
 
 ## Architecture
 

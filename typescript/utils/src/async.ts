@@ -7,6 +7,52 @@ interface Recoverable {
   isRecoverable?: boolean;
 }
 
+export interface LazyAsyncOptions {
+  cacheErrors?: boolean;
+}
+
+export class LazyAsync<T> {
+  private promise?: Promise<T>;
+  private value?: T;
+  private hasValue = false;
+
+  constructor(
+    private readonly initializer: () => Promise<T>,
+    private readonly options: LazyAsyncOptions = {},
+  ) {}
+
+  get(): Promise<T> {
+    if (this.hasValue) return Promise.resolve(this.value as T);
+    this.promise ??= this.initialize();
+    return this.promise;
+  }
+
+  reset(): void {
+    this.promise = undefined;
+    this.value = undefined;
+    this.hasValue = false;
+  }
+
+  isInitialized(): boolean {
+    return this.hasValue;
+  }
+
+  peek(): T | undefined {
+    return this.hasValue ? (this.value as T) : undefined;
+  }
+
+  private async initialize(): Promise<T> {
+    try {
+      this.value = await this.initializer();
+      this.hasValue = true;
+      return this.value;
+    } catch (error) {
+      if (!this.options.cacheErrors) this.promise = undefined;
+      throw error;
+    }
+  }
+}
+
 /**
  * Return a promise that resolves in ms milliseconds.
  * @param ms Time to wait
