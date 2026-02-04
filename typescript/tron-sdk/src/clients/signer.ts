@@ -12,6 +12,7 @@ import {
   getSetRemoteGasTx,
 } from '../hook/hook-tx.js';
 import {
+  getCreateMerkleRootMultisigIsmWithMetaProxyTx,
   getCreateMessageIdMultisigIsmWithMetaProxyTx,
   getInitRoutingIsmTx,
 } from '../ism/ism-tx.js';
@@ -213,14 +214,31 @@ export class TronSigner
     req: Omit<AltVM.ReqCreateMerkleRootMultisigIsm, 'signer'>,
   ): Promise<AltVM.ResCreateMerkleRootMultisigIsm> {
     const tx = await this.getCreateMerkleRootMultisigIsmTransaction({
-      ...req,
       signer: this.getSignerAddress(),
+      validators: req.validators,
+      threshold: req.threshold,
     });
 
     const receipt = await this.sendAndConfirmTransaction(tx);
+    const implAddress = this.tronweb.address.fromHex(receipt.contract_address);
+
+    const metaProxyTx = await getCreateMerkleRootMultisigIsmWithMetaProxyTx(
+      this.tronweb,
+      this.getSignerAddress(),
+      implAddress,
+      {
+        validators: req.validators,
+        threshold: req.threshold,
+      },
+    );
+
+    const metaProxyReceipt = await this.sendAndConfirmTransaction(metaProxyTx);
+    const ismAddress = this.tronweb.address.fromHex(
+      metaProxyReceipt.contract_address,
+    );
 
     return {
-      ismAddress: this.tronweb.address.fromHex(receipt.contract_address),
+      ismAddress,
     };
   }
 

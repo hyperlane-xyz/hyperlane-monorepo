@@ -2,8 +2,8 @@ import { TronWeb } from 'tronweb';
 
 import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
 import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
+import StaticMerkleRootMultisigIsmAbi from '../abi/StaticMerkleRootMultisigIsm.json' with { type: 'json' };
 import StaticMessageIdMultisigIsmAbi from '../abi/StaticMessageIdMultisigIsm.json' with { type: 'json' };
-import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import {
   buildMetaProxyBytecode,
   createDeploymentTransaction,
@@ -31,6 +31,24 @@ export async function getCreateMessageIdMultisigIsmImplementationTx(
   return createDeploymentTransaction(
     tronweb,
     StaticMessageIdMultisigIsmAbi,
+    fromAddress,
+    [],
+  );
+}
+
+/**
+ * Deploys StaticMerkleRootMultisigIsm implementation contract (deploy once, reuse)
+ * @param tronweb - TronWeb instance
+ * @param fromAddress - Deployer address
+ * @returns Transaction to deploy implementation
+ */
+export async function getCreateMerkleRootMultisigIsmImplementationTx(
+  tronweb: Readonly<TronWeb>,
+  fromAddress: string,
+): Promise<TronTransaction> {
+  return createDeploymentTransaction(
+    tronweb,
+    StaticMerkleRootMultisigIsmAbi,
     fromAddress,
     [],
   );
@@ -71,16 +89,38 @@ export async function getCreateMessageIdMultisigIsmWithMetaProxyTx(
   );
 }
 
-export async function getCreateMerkleRootMultisigIsmTx(
+/**
+ * Creates transaction to deploy MerkleRootMultisigIsm using MetaProxy pattern
+ * This embeds config in bytecode rather than constructor, enabling deterministic addresses
+ * @param tronweb - TronWeb instance
+ * @param fromAddress - Deployer address
+ * @param implementationAddress - Address of deployed StaticMerkleRootMultisigIsm implementation
+ * @param config - Validators and threshold configuration
+ * @returns Transaction to deploy MetaProxy ISM
+ */
+export async function getCreateMerkleRootMultisigIsmWithMetaProxyTx(
   tronweb: Readonly<TronWeb>,
   fromAddress: string,
+  implementationAddress: string,
   config: { validators: string[]; threshold: number },
 ): Promise<TronTransaction> {
-  return createDeploymentTransaction(
-    tronweb,
-    StorageMerkleRootMultisigIsmAbi,
-    fromAddress,
+  // ABI encode the metadata: (address[], uint8)
+  const metadata = tronweb.utils.abi.encodeParams(
+    ['address[]', 'uint8'],
     [config.validators, config.threshold],
+  );
+
+  // Build MetaProxy bytecode with embedded metadata
+  const metaProxyBytecode = buildMetaProxyBytecode(
+    tronweb.address.toHex(implementationAddress),
+    metadata,
+  );
+
+  return createRawBytecodeDeploymentTransaction(
+    tronweb,
+    metaProxyBytecode,
+    fromAddress,
+    'StaticMerkleRootMultisigIsm',
   );
 }
 

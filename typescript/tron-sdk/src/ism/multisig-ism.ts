@@ -20,7 +20,8 @@ import {
   getMessageIdMultisigIsmConfig,
 } from './ism-query.js';
 import {
-  getCreateMerkleRootMultisigIsmTx,
+  getCreateMerkleRootMultisigIsmImplementationTx,
+  getCreateMerkleRootMultisigIsmWithMetaProxyTx,
   getCreateMessageIdMultisigIsmImplementationTx,
   getCreateMessageIdMultisigIsmWithMetaProxyTx,
 } from './ism-tx.js';
@@ -174,19 +175,31 @@ export class TronMerkleRootMultisigIsmWriter
   > {
     const { config } = artifact;
 
-    const transaction = await getCreateMerkleRootMultisigIsmTx(
+    const transaction = await getCreateMerkleRootMultisigIsmImplementationTx(
       this.signer.getTronweb(),
       this.signer.getSignerAddress(),
+    );
+
+    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const implAddress = this.signer
+      .getTronweb()
+      .address.fromHex(receipt.contract_address);
+
+    const metaProxyTx = await getCreateMerkleRootMultisigIsmWithMetaProxyTx(
+      this.signer.getTronweb(),
+      this.signer.getSignerAddress(),
+      implAddress,
       {
         validators: config.validators,
         threshold: config.threshold,
       },
     );
 
-    const receipt = await this.signer.sendAndConfirmTransaction(transaction);
+    const metaProxyReceipt =
+      await this.signer.sendAndConfirmTransaction(metaProxyTx);
     const ismAddress = this.signer
       .getTronweb()
-      .address.fromHex(receipt.contract_address);
+      .address.fromHex(metaProxyReceipt.contract_address);
 
     const deployedArtifact: ArtifactDeployed<
       MultisigIsmConfig,

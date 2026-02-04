@@ -5,8 +5,8 @@ import { assert } from '@hyperlane-xyz/utils';
 import DomainRoutingIsmAbi from '../abi/DomainRoutingIsm.json' with { type: 'json' };
 import IInterchainSecurityModuleAbi from '../abi/IInterchainSecurityModule.json' with { type: 'json' };
 import NoopIsmAbi from '../abi/NoopIsm.json' with { type: 'json' };
+import StaticMerkleRootMultisigIsmAbi from '../abi/StaticMerkleRootMultisigIsm.json' with { type: 'json' };
 import StaticMessageIdMultisigIsmAbi from '../abi/StaticMessageIdMultisigIsm.json' with { type: 'json' };
-import StorageMerkleRootMultisigIsmAbi from '../abi/StorageMerkleRootMultisigIsm.json' with { type: 'json' };
 import { TRON_EMPTY_MESSAGE } from '../utils/index.js';
 import { TronIsmTypes } from '../utils/types.js';
 
@@ -139,7 +139,7 @@ export async function getMerkleRootMultisigIsmConfig(
 }> {
   try {
     const contract = query.contract(
-      StorageMerkleRootMultisigIsmAbi.abi,
+      StaticMerkleRootMultisigIsmAbi.abi,
       ismAddress,
     );
 

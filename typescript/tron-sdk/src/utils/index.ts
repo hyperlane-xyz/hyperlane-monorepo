@@ -1,5 +1,7 @@
 import { TronWeb } from 'tronweb';
 
+import { strip0x } from '@hyperlane-xyz/utils';
+
 import { IABI } from './types.js';
 
 export const TRON_EMPTY_ADDRESS = 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb';
@@ -56,12 +58,8 @@ export function buildMetaProxyBytecode(
   const SUFFIX = '5af43d3d93803e603457fd5bf3';
 
   // Remove 0x prefix if present
-  const cleanMetadata = metadata.startsWith('0x')
-    ? metadata.slice(2)
-    : metadata;
-  let cleanImpl = implementationAddress.startsWith('0x')
-    ? implementationAddress.slice(2)
-    : implementationAddress;
+  const cleanMetadata = strip0x(metadata);
+  let cleanImpl = strip0x(implementationAddress);
 
   // Tron addresses have 41 prefix byte - strip it to get 20 bytes
   if (cleanImpl.startsWith('41')) {
