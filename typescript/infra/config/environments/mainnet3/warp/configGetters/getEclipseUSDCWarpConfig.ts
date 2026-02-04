@@ -81,7 +81,7 @@ export const rebalanceableCollateralChains = [
 ] as const satisfies DeploymentChain[];
 
 const productionOwnersByChain: Record<DeploymentChain, string> = {
-  ethereum: awIcas.ethereum,
+  ethereum: awSafes.ethereum,
   arbitrum: awIcas.arbitrum,
   base: awIcas.base,
   optimism: awIcas.optimism,
