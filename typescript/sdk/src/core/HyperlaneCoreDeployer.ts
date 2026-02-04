@@ -221,6 +221,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     if (typeof config === 'string') {
       return Object.values(hooks)[0];
     } else {
+      // Fail fast for unknown hook types from newer registry versions
       assert(
         config.type !== HookType.UNKNOWN,
         `Cannot deploy unknown hook type`,

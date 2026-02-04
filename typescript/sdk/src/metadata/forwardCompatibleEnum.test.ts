@@ -270,6 +270,17 @@ describe('forwardCompatibleEnum', () => {
       expect(normalized.array[0].type).to.equal(HookType.MERKLE_TREE);
       expect(normalized.array[1].type).to.equal(HookType.UNKNOWN);
     });
+
+    it('normalizeUnknownHookTypes should pass through string addresses unchanged', () => {
+      const hookAddress = '0x1234567890123456789012345678901234567890';
+      const normalized = normalizeUnknownHookTypes(hookAddress);
+      expect(normalized).to.equal(hookAddress);
+    });
+
+    it('normalizeUnknownHookTypes should handle null and undefined', () => {
+      expect(normalizeUnknownHookTypes(null)).to.equal(null);
+      expect(normalizeUnknownHookTypes(undefined)).to.equal(undefined);
+    });
   });
 
   describe('IsmType normalization', () => {
@@ -329,6 +340,17 @@ describe('forwardCompatibleEnum', () => {
       expect(normalized.nested.type).to.equal(IsmType.UNKNOWN);
       expect(normalized.array[0].type).to.equal(IsmType.TEST_ISM);
       expect(normalized.array[1].type).to.equal(IsmType.UNKNOWN);
+    });
+
+    it('normalizeUnknownIsmTypes should pass through string addresses unchanged', () => {
+      const ismAddress = '0x1234567890123456789012345678901234567890';
+      const normalized = normalizeUnknownIsmTypes(ismAddress);
+      expect(normalized).to.equal(ismAddress);
+    });
+
+    it('normalizeUnknownIsmTypes should handle null and undefined', () => {
+      expect(normalizeUnknownIsmTypes(null)).to.equal(null);
+      expect(normalizeUnknownIsmTypes(undefined)).to.equal(undefined);
     });
   });
 });

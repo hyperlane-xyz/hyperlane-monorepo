@@ -1,6 +1,6 @@
 import { z } from 'zod';
 
-import { Address, WithAddress } from '@hyperlane-xyz/utils';
+import { Address, WithAddress, isNullish } from '@hyperlane-xyz/utils';
 
 import { ProtocolAgnositicGasOracleConfigWithTypicalCostSchema } from '../gas/oracle/types.js';
 import { ZHash } from '../metadata/customZodTypes.js';
@@ -218,9 +218,13 @@ const KnownHookTypes: string[] = Object.values(HookType).filter(
  * Recursively normalizes unknown hook type values to HookType.UNKNOWN.
  * Use this before parsing with HookConfigSchema when configs may contain
  * hook types not yet known to this SDK version.
+ *
+ * Note: String address configs (e.g., "0x...") are passed through unchanged
+ * since they represent deployed hook addresses, not hook type configs.
  */
 export function normalizeUnknownHookTypes<T>(config: T): T {
-  if (config === null || typeof config !== 'object') {
+  // Handle nullish values and primitives (including string addresses)
+  if (isNullish(config) || typeof config !== 'object') {
     return config;
   }
 
@@ -228,6 +232,7 @@ export function normalizeUnknownHookTypes<T>(config: T): T {
     return config.map(normalizeUnknownHookTypes) as T;
   }
 
+  // At this point, config must be a non-null object (not array, not primitive)
   const obj = config as Record<string, unknown>;
   const normalized: Record<string, unknown> = {};
 
@@ -236,7 +241,7 @@ export function normalizeUnknownHookTypes<T>(config: T): T {
       normalized[key] = KnownHookTypes.includes(value)
         ? value
         : HookType.UNKNOWN;
-    } else if (typeof value === 'object' && value !== null) {
+    } else if (typeof value === 'object' && !isNullish(value)) {
       normalized[key] = normalizeUnknownHookTypes(value);
     } else {
       normalized[key] = value;
