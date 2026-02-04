@@ -4,6 +4,7 @@ import { filterWarpRoutesIds } from '@hyperlane-xyz/registry';
 import {
   type WarpCoreConfig,
   type WarpRouteDeployConfigMailboxRequired,
+  filterWarpCoreConfigMapByChains,
 } from '@hyperlane-xyz/sdk';
 import {
   assert,
@@ -25,13 +26,16 @@ import { logRed } from '../logger.js';
 export async function getWarpCoreConfigOrExit({
   context,
   warpRouteId,
+  chains,
 }: {
   context: CommandContext;
   warpRouteId?: string;
+  chains?: string[];
 }): Promise<WarpCoreConfig> {
   const resolvedWarpRouteId = await resolveWarpRouteId({
     context,
     warpRouteId,
+    chains,
   });
   const config = await context.registry.getWarpRoute(resolvedWarpRouteId);
   assert(config, `No warp route found with ID "${resolvedWarpRouteId}"`);
@@ -42,22 +46,68 @@ export async function resolveWarpRouteId({
   context,
   warpRouteId,
   promptByDeploymentConfigs,
+  chains,
 }: {
   context: CommandContext;
   warpRouteId?: string;
   promptByDeploymentConfigs?: boolean;
+  /** Filter routes to only those spanning all specified chains */
+  chains?: string[];
 }): Promise<string> {
+  const deployments = (await context.registry.listRegistryContent())
+    .deployments;
+  const source = promptByDeploymentConfigs
+    ? deployments.warpDeployConfig
+    : deployments.warpRoutes;
+
   if (warpRouteId) {
-    return warpRouteId;
+    if (warpRouteId.includes('/')) {
+      return warpRouteId;
+    }
+
+    const symbol = warpRouteId.toUpperCase();
+    let matchingIds: string[];
+
+    // When chains are specified, load full configs and filter by chains
+    if (chains && chains.length > 0) {
+      const warpConfigs = await context.registry.getWarpRoutes({ symbol });
+      const filtered = filterWarpCoreConfigMapByChains(warpConfigs, chains);
+      matchingIds = Object.keys(filtered);
+    } else {
+      const { ids } = filterWarpRoutesIds(source, { symbol });
+      matchingIds = ids;
+    }
+
+    if (matchingIds.length === 0) {
+      // No symbol matches found - return as-is for backward compatibility
+      // This allows downstream code to handle the missing route (e.g., file path handling)
+      return warpRouteId;
+    }
+
+    if (matchingIds.length === 1) {
+      return matchingIds[0];
+    }
+
+    if (context.skipConfirmation) {
+      throw new Error(
+        `Multiple warp routes found for symbol "${symbol}". ` +
+          `Specify full route ID:\n${matchingIds.map((id) => `  - ${id}`).join('\n')}`,
+      );
+    }
+
+    return (await search({
+      message: `Multiple routes found for "${symbol}". Select one:`,
+      source: (term) =>
+        matchingIds.filter((id) =>
+          id.toLowerCase().includes(term?.toLowerCase() || ''),
+        ),
+      pageSize: 20,
+    })) as string;
   }
 
   assert(!context.skipConfirmation, 'Warp route ID is required (use -w)');
 
-  const { ids: routeIds } = filterWarpRoutesIds(
-    (await context.registry.listRegistryContent()).deployments[
-      promptByDeploymentConfigs ? 'warpDeployConfig' : 'warpRoutes'
-    ],
-  );
+  const { ids: routeIds } = filterWarpRoutesIds(source);
 
   assert(routeIds.length !== 0, 'No warp routes found in registry');
 
@@ -78,9 +128,11 @@ export async function resolveWarpRouteId({
 export async function getWarpConfigs({
   context,
   warpRouteId,
+  chains,
 }: {
   context: CommandContext | WriteCommandContext;
   warpRouteId?: string;
+  chains?: string[];
 }): Promise<{
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
@@ -88,6 +140,7 @@ export async function getWarpConfigs({
   const resolvedWarpRouteId = await resolveWarpRouteId({
     context,
     warpRouteId,
+    chains,
   });
 
   const warpCoreConfig = await readWarpCoreConfig({
