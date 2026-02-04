@@ -1,18 +1,11 @@
+// Ethers-compatible adapters (primary interface)
+export { TronJsonRpcProvider } from './ethers/TronJsonRpcProvider.js';
+export { TronWallet } from './ethers/TronWallet.js';
+
+// TronWeb utility provider (for Tron-specific operations)
 export { TronProvider } from './clients/provider.js';
-export { TronProtocolProvider } from './clients/protocol.js';
-export { TronSigner } from './clients/signer.js';
-export {
-  TronHookArtifactManager,
-  TronIgpHookReader,
-  TronIgpHookWriter,
-  TronMerkleTreeHookReader,
-  TronMerkleTreeHookWriter,
-} from './hook/hook-artifact-manager.js';
-export {
-  TronIsmArtifactManager,
-  TronTestIsmReader,
-  TronTestIsmWriter,
-} from './ism/ism-artifact-manager.js';
+
+// Types
 export {
   TronSDKOptions,
   TronSDKReceipt,

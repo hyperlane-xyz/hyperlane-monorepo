@@ -9,7 +9,10 @@ import { Provider as ZKProvider } from 'zksync-ethers';
 import { AleoProvider as AleoSDKProvider } from '@hyperlane-xyz/aleo-sdk';
 import { CosmosNativeProvider } from '@hyperlane-xyz/cosmos-sdk';
 import { RadixProvider as RadixSDKProvider } from '@hyperlane-xyz/radix-sdk';
-import { TronProvider as TronSDKProvider } from '@hyperlane-xyz/tron-sdk';
+import {
+  TronJsonRpcProvider,
+  TronProvider as TronSDKProvider,
+} from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert, isNumeric } from '@hyperlane-xyz/utils';
 
 import { ChainMetadata, RpcUrl } from '../metadata/chainMetadataTypes.js';
@@ -182,12 +185,13 @@ export function defaultTronProviderBuilder(
   rpcUrls: RpcUrl[],
   network: string | number,
 ): TronProvider {
+  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
   assert(isNumeric(network), 'Tron requires a numeric chain id');
   const chainId = parseInt(network.toString(), 10);
-  const provider = new TronSDKProvider({
-    rpcUrls: rpcUrls.map((rpc) => rpc.http),
+  const provider = new TronSDKProvider(
+    rpcUrls.map((rpc) => rpc.http),
     chainId,
-  });
+  );
   return { provider, type: ProviderType.Tron };
 }
 
@@ -204,6 +208,18 @@ export function defaultZKProviderBuilder(
   _network: number | string,
 ): ZKProvider {
   return defaultZKSyncProviderBuilder(rpcUrls, _network).provider;
+}
+
+/**
+ * Returns an ethers-compatible TronJsonRpcProvider for use in MultiProvider.
+ * This handles Tron's missing eth_getTransactionCount and eth_feeHistory methods.
+ */
+export function defaultTronEthersProviderBuilder(
+  rpcUrls: RpcUrl[],
+  _network: number | string,
+): providers.Provider {
+  assert(rpcUrls.length > 0, 'At least one RPC URL required for Tron');
+  return new TronJsonRpcProvider(rpcUrls[0].http);
 }
 
 export type ProviderBuilderMap = Record<

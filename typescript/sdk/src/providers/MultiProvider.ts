@@ -37,6 +37,7 @@ import { AnnotatedEV5Transaction } from './ProviderType.js';
 import {
   ProviderBuilderFn,
   defaultProviderBuilder,
+  defaultTronEthersProviderBuilder,
   defaultZKProviderBuilder,
 } from './providerBuilders.js';
 
@@ -131,6 +132,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
     } else if (rpcUrls.length) {
       if (technicalStack === ChainTechnicalStack.ZkSync) {
         this.providers[name] = defaultZKProviderBuilder(rpcUrls, chainId);
+      } else if (technicalStack === ChainTechnicalStack.Tron) {
+        this.providers[name] = defaultTronEthersProviderBuilder(
+          rpcUrls,
+          chainId,
+        );
       } else {
         this.providers[name] = this.providerBuilder(rpcUrls, chainId);
       }
@@ -379,7 +385,22 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         ...overrides,
       });
       // manually wait for deploy tx to be confirmed for non-zksync chains
-      await this.handleTx(chainNameOrId, contract.deployTransaction);
+      const receipt = await this.handleTx(
+        chainNameOrId,
+        contract.deployTransaction,
+      );
+
+      // For Tron, the contract address from ethers is wrong (it uses Ethereum's
+      // CREATE formula with nonce). Get the actual address from the receipt.
+      if (
+        technicalStack === ChainTechnicalStack.Tron &&
+        receipt.contractAddress
+      ) {
+        // Re-attach contract to correct address, preserving deployTransaction
+        const deployTransaction = contract.deployTransaction;
+        contract = contract.attach(receipt.contractAddress) as Contract;
+        (contract as any).deployTransaction = deployTransaction;
+      }
     }
 
     this.logger.trace(

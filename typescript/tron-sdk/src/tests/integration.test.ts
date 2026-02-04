@@ -22,10 +22,7 @@ describe('Tron Integration Tests', function () {
     if (!shouldRun) {
       this.skip();
     }
-    provider = new TronProvider({
-      rpcUrls: [SHASTA_RPC],
-      chainId: SHASTA_CHAIN_ID,
-    });
+    provider = new TronProvider(SHASTA_RPC, SHASTA_CHAIN_ID);
   });
 
   describe('Network connectivity', function () {
@@ -37,7 +34,7 @@ describe('Tron Integration Tests', function () {
 
     it('should get current block height', async function () {
       this.timeout(15000);
-      const height = await provider.getHeight();
+      const height = await provider.getBlockHeight();
       expect(height).to.be.a('number');
       expect(height).to.be.greaterThan(0);
       console.log(`    Current Shasta block height: ${height}`);
@@ -48,9 +45,9 @@ describe('Tron Integration Tests', function () {
     it('should get balance of zero address', async function () {
       this.timeout(15000);
       // Zero address - query should not throw
-      const balance = await provider.getBalance({
-        address: 'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
-      });
+      const balance = await provider.getBalance(
+        'T9yD14Nj9j7xAB4dbGeiX9h8unkKHxuWwb',
+      );
       expect(typeof balance).to.equal('bigint');
       // Note: The zero address may have balance from errant transfers
       console.log(`    Zero address balance: ${balance} sun`);
@@ -60,9 +57,9 @@ describe('Tron Integration Tests', function () {
       this.timeout(15000);
       // This is a well-known Shasta faucet address that should have funds
       // If this test fails, the address may have been depleted
-      const balance = await provider.getBalance({
-        address: 'TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a', // Shasta faucet
-      });
+      const balance = await provider.getBalance(
+        'TYsbWxNnyTgsZaTFaue9hqpxkU3Fkco94a', // Shasta faucet
+      );
       expect(typeof balance).to.equal('bigint');
       // Faucet should have some balance
       console.log(`    Faucet balance: ${balance} sun`);
@@ -78,16 +75,13 @@ describe('Tron Integration Tests', function () {
       console.log(`    Current energy price: ${energyPrice} sun/energy`);
     });
 
-    it('should estimate transaction fee', async function () {
+    it('should get current bandwidth price', async function () {
       this.timeout(15000);
-      const estimate = await provider.estimateTransactionFee({
-        transaction: undefined as never, // Use default estimate
-      });
-      expect(estimate.gasUnits).to.be.a('bigint');
-      expect(estimate.gasPrice).to.be.a('number');
-      expect(estimate.fee).to.be.a('bigint');
+      const bandwidthPrice = await provider.getBandwidthPrice();
+      expect(bandwidthPrice).to.be.a('number');
+      expect(bandwidthPrice).to.be.greaterThan(0);
       console.log(
-        `    Estimated fee: ${estimate.fee} sun (${estimate.gasUnits} energy @ ${estimate.gasPrice} sun/energy)`,
+        `    Current bandwidth price: ${bandwidthPrice} sun/bandwidth`,
       );
     });
   });

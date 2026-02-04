@@ -1,6 +1,7 @@
 import { Wallet, ethers } from 'ethers';
 import { Wallet as ZkSyncWallet } from 'zksync-ethers';
 
+import { TronJsonRpcProvider, TronWallet } from '@hyperlane-xyz/tron-sdk';
 import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { ChainTechnicalStack } from '../../index.js';
@@ -21,17 +22,29 @@ export class EvmMultiProtocolSignerAdapter
     multiProtocolProvider: MultiProtocolProvider,
   ) {
     const multiProvider = multiProtocolProvider.toMultiProvider();
-    const { technicalStack } = multiProvider.getChainMetadata(chainName);
+    const { technicalStack, rpcUrls } =
+      multiProvider.getChainMetadata(chainName);
 
     assert(
       ethers.utils.isHexString(privateKey),
       `Private key for chain ${chainName} should be a hex string`,
     );
 
-    const wallet =
-      technicalStack === ChainTechnicalStack.ZkSync
-        ? new ZkSyncWallet(privateKey)
-        : new Wallet(privateKey);
+    let wallet: Wallet;
+    if (technicalStack === ChainTechnicalStack.ZkSync) {
+      wallet = new ZkSyncWallet(privateKey);
+    } else if (technicalStack === ChainTechnicalStack.Tron) {
+      assert(
+        rpcUrls.length > 0,
+        `No RPC URLs configured for Tron chain ${chainName}`,
+      );
+      const rpcUrl = rpcUrls[0].http;
+      const provider = new TronJsonRpcProvider(rpcUrl);
+      wallet = new TronWallet(privateKey, provider, rpcUrl);
+    } else {
+      wallet = new Wallet(privateKey);
+    }
+
     multiProvider.setSigner(this.chainName, wallet);
     this.multiProvider = multiProvider;
   }

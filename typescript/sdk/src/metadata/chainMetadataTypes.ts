@@ -33,6 +33,7 @@ export enum ChainTechnicalStack {
   OpStack = 'opstack',
   PolygonCDK = 'polygoncdk',
   PolkadotSubstrate = 'polkadotsubstrate',
+  Tron = 'tron',
   ZkSync = 'zksync',
   Other = 'other',
 }
