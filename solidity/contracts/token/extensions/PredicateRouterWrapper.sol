@@ -50,14 +50,18 @@ import {Ownable} from "@openzeppelin/contracts/access/Ownable.sol";
  *
  * @custom:oz-version 4.9.x (uses Ownable without constructor argument)
  */
-contract PredicateRouterWrapper is AbstractPostDispatchHook, PredicateClient, Ownable {
+contract PredicateRouterWrapper is
+    AbstractPostDispatchHook,
+    PredicateClient,
+    Ownable
+{
     using SafeERC20 for IERC20;
 
     // ============ Constants ============
 
-    /// @notice Hook type identifier (UNUSED as this is a custom hook)
+    /// @notice Hook type identifier for Predicate router wrapper
     uint8 public constant override hookType =
-        uint8(IPostDispatchHook.HookTypes.UNUSED);
+        uint8(IPostDispatchHook.HookTypes.PREDICATE_ROUTER_WRAPPER);
 
     // ============ Immutables ============
 

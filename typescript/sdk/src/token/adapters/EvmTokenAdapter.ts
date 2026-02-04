@@ -22,6 +22,7 @@ import {
   HypXERC20Lockbox__factory,
   HypXERC20__factory,
   IFiatToken__factory,
+  IPostDispatchHook__factory,
   ITokenBridge__factory,
   IXERC20,
   IXERC20VS,
@@ -29,6 +30,8 @@ import {
   IXERC20__factory,
   MovableCollateralRouter,
   MovableCollateralRouter__factory,
+  PredicateRouterWrapper__factory,
+  StaticAggregationHook__factory,
   TokenRouter,
   TokenRouter__factory,
 } from '@hyperlane-xyz/core';
@@ -49,6 +52,7 @@ import {
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
+import { OnchainHookType } from '../../hook/types.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
@@ -382,6 +386,7 @@ class BaseEvmHypCollateralAdapter
 {
   public readonly collateralContract: TokenRouter;
   protected wrappedTokenAddress?: Address;
+  private predicateWrapperAddress: Address | null | undefined;
 
   constructor(
     public readonly chainName: ChainName,
@@ -408,6 +413,71 @@ class BaseEvmHypCollateralAdapter
     });
   }
 
+  protected async getPredicateWrapperAddress(): Promise<Address | null> {
+    if (this.predicateWrapperAddress !== undefined) {
+      return this.predicateWrapperAddress;
+    }
+
+    try {
+      const hookAddress = await this.collateralContract.hook();
+      if (hookAddress === ethersConstants.AddressZero) {
+        this.predicateWrapperAddress = null;
+        return null;
+      }
+
+      const provider = this.getProvider();
+      const warpRouteAddress = this.addresses.token.toLowerCase();
+
+      const foundWrapper = await this.findPredicateWrapperInHook(
+        hookAddress,
+        warpRouteAddress,
+        provider,
+      );
+      this.predicateWrapperAddress = foundWrapper;
+    } catch {
+      this.predicateWrapperAddress = null;
+    }
+    return this.predicateWrapperAddress;
+  }
+
+  private async findPredicateWrapperInHook(
+    hookAddress: Address,
+    warpRouteAddress: string,
+    provider: ReturnType<typeof this.getProvider>,
+  ): Promise<Address | null> {
+    const hook = IPostDispatchHook__factory.connect(hookAddress, provider);
+    const hookType = await hook.hookType();
+
+    if (hookType === OnchainHookType.PREDICATE_ROUTER_WRAPPER) {
+      const wrapper = PredicateRouterWrapper__factory.connect(
+        hookAddress,
+        provider,
+      );
+      const warpRouteFromWrapper = await wrapper.warpRoute();
+      if (warpRouteFromWrapper.toLowerCase() === warpRouteAddress) {
+        return hookAddress;
+      }
+    }
+
+    if (hookType === OnchainHookType.AGGREGATION) {
+      const aggregationHook = StaticAggregationHook__factory.connect(
+        hookAddress,
+        provider,
+      );
+      const subHooks = await aggregationHook.hooks('0x');
+      for (const subHook of subHooks) {
+        const found = await this.findPredicateWrapperInHook(
+          subHook,
+          warpRouteAddress,
+          provider,
+        );
+        if (found) return found;
+      }
+    }
+
+    return null;
+  }
+
   override async getBalance(address: Address): Promise<bigint> {
     const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
     return wrappedTokenAdapter.getBalance(address);
@@ -421,13 +491,19 @@ class BaseEvmHypCollateralAdapter
     return this.getWrappedTokenAdapter().then((t) => t.getMetadata(isNft));
   }
 
-  override isApproveRequired(
+  override async isApproveRequired(
     owner: Address,
     spender: Address,
     weiAmountOrId: Numberish,
   ): Promise<boolean> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.isApproveRequired(owner, spender, weiAmountOrId),
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    const predicateWrapper = await this.getPredicateWrapperAddress();
+    const effectiveSpender = predicateWrapper ?? spender;
+
+    return wrappedTokenAdapter.isApproveRequired(
+      owner,
+      effectiveSpender,
+      weiAmountOrId,
     );
   }
 
@@ -436,16 +512,83 @@ class BaseEvmHypCollateralAdapter
     spender: Address,
   ): Promise<boolean> {
     const collateral = await this.getWrappedTokenAdapter();
+    const predicateWrapper = await this.getPredicateWrapperAddress();
+    const effectiveSpender = predicateWrapper ?? spender;
 
-    return collateral.isRevokeApprovalRequired(owner, spender);
+    return collateral.isRevokeApprovalRequired(owner, effectiveSpender);
   }
 
-  override populateApproveTx(
+  override async populateApproveTx(
     params: TransferParams,
   ): Promise<PopulatedTransaction> {
-    return this.getWrappedTokenAdapter().then((t) =>
-      t.populateApproveTx(params),
-    );
+    const wrappedTokenAdapter = await this.getWrappedTokenAdapter();
+    const predicateWrapper = await this.getPredicateWrapperAddress();
+    const effectiveRecipient = predicateWrapper ?? params.recipient;
+
+    return wrappedTokenAdapter.populateApproveTx({
+      ...params,
+      recipient: effectiveRecipient,
+    });
+  }
+
+  override async populateTransferRemoteTx(
+    params: TransferRemoteParams,
+    nativeValue = 0n,
+  ): Promise<PopulatedTransaction> {
+    const { attestation } = params;
+
+    if (attestation) {
+      const predicateWrapperAddress = await this.getPredicateWrapperAddress();
+      if (!predicateWrapperAddress) {
+        throw new Error(
+          'Attestation provided but no PredicateRouterWrapper detected on warp route hook. ' +
+            'Attestations can only be used with routes that have a PredicateRouterWrapper configured.',
+        );
+      }
+
+      let { interchainGas } = params;
+      if (!interchainGas) {
+        interchainGas = await this.quoteTransferRemoteGas({
+          destination: params.destination,
+          recipient: params.recipient,
+          amount: BigInt(params.weiAmountOrId),
+        });
+      }
+
+      nativeValue += interchainGas.igpQuote.amount;
+      if (
+        !interchainGas.tokenFeeQuote?.addressOrDenom ||
+        isZeroishAddress(interchainGas.tokenFeeQuote?.addressOrDenom)
+      ) {
+        nativeValue += interchainGas.tokenFeeQuote?.amount ?? 0n;
+      }
+
+      const recipBytes32 = addressToBytes32(
+        addressToByteHexString(params.recipient),
+      );
+
+      const predicateWrapper = PredicateRouterWrapper__factory.connect(
+        predicateWrapperAddress,
+        this.getProvider(),
+      );
+
+      const contractAttestation = {
+        uuid: attestation.uuid,
+        expiration: attestation.expiration,
+        attester: attestation.attester,
+        signature: attestation.signature,
+      };
+
+      return predicateWrapper.populateTransaction.transferRemoteWithAttestation(
+        contractAttestation,
+        params.destination,
+        recipBytes32,
+        params.weiAmountOrId,
+        { value: nativeValue.toString() },
+      );
+    }
+
+    return super.populateTransferRemoteTx(params, nativeValue);
   }
 
   override populateTransferTx(
