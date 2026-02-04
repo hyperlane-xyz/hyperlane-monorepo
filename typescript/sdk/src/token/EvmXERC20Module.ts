@@ -21,7 +21,6 @@ import {
   EvmXERC20Reader,
   XERC20Limits,
   XERC20LimitsMap,
-  XERC20Type,
   limitsAreZero,
   limitsMatch,
 } from './EvmXERC20Reader.js';
@@ -30,7 +29,7 @@ import {
   EvmXERC20VSAdapter,
 } from './adapters/EvmTokenAdapter.js';
 import { TokenType } from './config.js';
-import { XERC20Type as XERC20TypeEnum } from './types.js';
+import { XERC20Type } from './types.js';
 
 /**
  * Configuration for XERC20 limits management
@@ -76,10 +75,20 @@ export class EvmXERC20Module extends HyperlaneModule<
 
   /**
    * Read current on-chain XERC20 limits configuration.
+   * For Velodrome, also enumerates on-chain bridges to detect extra bridges.
    */
   async read(): Promise<XERC20ModuleConfig> {
     const type = await this.reader.detectType(this.args.addresses.xERC20);
-    const bridges = this.getExpectedBridges();
+    let bridges = this.getExpectedBridges();
+
+    if (type === XERC20Type.Velo) {
+      const onChainBridges = await this.reader.readOnChainBridges(
+        this.args.addresses.xERC20,
+        type,
+      );
+      bridges = [...new Set([...bridges, ...onChainBridges])];
+    }
+
     const limits = await this.reader.readLimits(
       this.args.addresses.xERC20,
       bridges,
@@ -114,7 +123,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       transactions.push(...txs);
     }
 
-    if (expectedConfig.type === 'velodrome') {
+    if (expectedConfig.type === XERC20Type.Velo) {
       for (const bridge of extraBridges) {
         const txs = await this.generateRemoveBridgeTxs(bridge);
         transactions.push(...txs);
@@ -178,7 +187,7 @@ export class EvmXERC20Module extends HyperlaneModule<
     }
 
     let extraBridges: Address[] = [];
-    if (expected.type === 'velodrome') {
+    if (expected.type === XERC20Type.Velo) {
       extraBridges = Object.keys(actual.limits)
         .map((addr) => normalizeAddress(addr))
         .filter(
@@ -356,18 +365,18 @@ export class EvmXERC20Module extends HyperlaneModule<
     if (xERC20Config?.warpRouteLimits) {
       const warpRouteLimits = xERC20Config.warpRouteLimits;
 
-      if (warpRouteLimits.type === XERC20TypeEnum.Standard) {
+      if (warpRouteLimits.type === XERC20Type.Standard) {
         if (warpRouteLimits.mint && warpRouteLimits.burn) {
           limits[warpRouteAddress] = {
-            type: 'standard',
+            type: XERC20Type.Standard,
             mint: warpRouteLimits.mint,
             burn: warpRouteLimits.burn,
           };
         }
-      } else if (warpRouteLimits.type === XERC20TypeEnum.Velo) {
+      } else if (warpRouteLimits.type === XERC20Type.Velo) {
         if (warpRouteLimits.bufferCap && warpRouteLimits.rateLimitPerSecond) {
           limits[warpRouteAddress] = {
-            type: 'velodrome',
+            type: XERC20Type.Velo,
             bufferCap: warpRouteLimits.bufferCap,
             rateLimitPerSecond: warpRouteLimits.rateLimitPerSecond,
           };
@@ -378,18 +387,18 @@ export class EvmXERC20Module extends HyperlaneModule<
     if (xERC20Config?.extraBridges) {
       for (const extraBridge of xERC20Config.extraBridges) {
         const { lockbox, limits: bridgeLimits } = extraBridge;
-        if (bridgeLimits.type === XERC20TypeEnum.Standard) {
+        if (bridgeLimits.type === XERC20Type.Standard) {
           if (bridgeLimits.mint && bridgeLimits.burn) {
             limits[lockbox] = {
-              type: 'standard',
+              type: XERC20Type.Standard,
               mint: bridgeLimits.mint,
               burn: bridgeLimits.burn,
             };
           }
-        } else if (bridgeLimits.type === XERC20TypeEnum.Velo) {
+        } else if (bridgeLimits.type === XERC20Type.Velo) {
           if (bridgeLimits.bufferCap && bridgeLimits.rateLimitPerSecond) {
             limits[lockbox] = {
-              type: 'velodrome',
+              type: XERC20Type.Velo,
               bufferCap: bridgeLimits.bufferCap,
               rateLimitPerSecond: bridgeLimits.rateLimitPerSecond,
             };
@@ -399,9 +408,9 @@ export class EvmXERC20Module extends HyperlaneModule<
     }
 
     const type: XERC20Type =
-      xERC20Config?.warpRouteLimits?.type === XERC20TypeEnum.Velo
-        ? 'velodrome'
-        : 'standard';
+      xERC20Config?.warpRouteLimits?.type === XERC20Type.Velo
+        ? XERC20Type.Velo
+        : XERC20Type.Standard;
 
     const config: XERC20ModuleConfig = { type, limits };
     const module = new EvmXERC20Module(multiProvider, {

@@ -474,7 +474,7 @@ export async function deriveStandardBridgesConfig(
 export async function detectXERC20Type(
   provider: ethers.providers.Provider,
   address: Address,
-): Promise<'standard' | 'velodrome'> {
+): Promise<XERC20Type> {
   const code = await provider.getCode(address);
   if (!code || code === '0x') {
     throw new Error(
@@ -494,11 +494,11 @@ export async function detectXERC20Type(
 
   // Prefer Velodrome if both selectors are present.
   if (normalizedCode.includes(setBufferCapSelector)) {
-    return 'velodrome';
+    return XERC20Type.Velo;
   }
 
   if (normalizedCode.includes(setLimitsSelector)) {
-    return 'standard';
+    return XERC20Type.Standard;
   }
 
   // Neither type detected

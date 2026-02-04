@@ -716,7 +716,7 @@ export { EvmWarpRouteReader } from './token/EvmWarpRouteReader.js';
 export {
   EvmXERC20Reader,
   StandardXERC20Limits,
-  VelodromeXERC20Limits,
+  VeloXERC20Limits,
   XERC20Limits,
   XERC20LimitsMap,
   limitsAreZero,

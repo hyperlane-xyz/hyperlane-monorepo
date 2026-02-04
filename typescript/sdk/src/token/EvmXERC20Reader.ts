@@ -12,6 +12,7 @@ import {
   EvmXERC20VSAdapter,
 } from './adapters/EvmTokenAdapter.js';
 import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
+import { XERC20Type } from './types.js';
 import { detectXERC20Type } from './xerc20.js';
 
 /**
@@ -64,8 +65,8 @@ export interface StandardXERC20Limits {
 /**
  * Velodrome XERC20 limits (bufferCap/rateLimitPerSecond)
  */
-export interface VelodromeXERC20Limits {
-  type: 'velodrome';
+export interface VeloXERC20Limits {
+  type: 'velo';
   bufferCap: string;
   rateLimitPerSecond: string;
 }
@@ -73,17 +74,12 @@ export interface VelodromeXERC20Limits {
 /**
  * Unified XERC20 limits type
  */
-export type XERC20Limits = StandardXERC20Limits | VelodromeXERC20Limits;
+export type XERC20Limits = StandardXERC20Limits | VeloXERC20Limits;
 
 /**
  * Map of bridge addresses to their limits
  */
 export type XERC20LimitsMap = Record<Address, XERC20Limits>;
-
-/**
- * XERC20 type discriminator
- */
-export type XERC20Type = 'standard' | 'velodrome';
 
 /**
  * Reader for on-chain XERC20 state.
@@ -140,7 +136,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
 
       for (const bridge of bridges) {
         const rateLimits = await adapter.getRateLimits(bridge);
-        limitsMap[bridge] = this.toVelodromeLimits(rateLimits);
+        limitsMap[bridge] = this.toVeloLimits(rateLimits);
       }
     }
 
@@ -150,6 +146,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
   /**
    * Read all bridges configured on-chain for a Velodrome XERC20 by parsing ConfigurationChanged events.
    * Returns empty array for Standard XERC20 since it has no event-based bridge enumeration.
+   * Note: Queries from block 0 which may be slow on chains with long histories.
    */
   async readOnChainBridges(
     xERC20Address: Address,
@@ -224,13 +221,11 @@ export class EvmXERC20Reader extends HyperlaneReader {
   }
 
   /**
-   * Convert RateLimitMidPoint to VelodromeXERC20Limits
+   * Convert RateLimitMidPoint to VeloXERC20Limits
    */
-  protected toVelodromeLimits(
-    rateLimits: RateLimitMidPoint,
-  ): VelodromeXERC20Limits {
+  protected toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
     return {
-      type: 'velodrome',
+      type: 'velo',
       bufferCap: rateLimits.bufferCap.toString(),
       rateLimitPerSecond: rateLimits.rateLimitPerSecond.toString(),
     };
@@ -257,7 +252,7 @@ export function limitsMatch(a: XERC20Limits, b: XERC20Limits): boolean {
     return a.mint === b.mint && a.burn === b.burn;
   }
 
-  if (a.type === 'velodrome' && b.type === 'velodrome') {
+  if (a.type === 'velo' && b.type === 'velo') {
     return (
       a.bufferCap === b.bufferCap &&
       a.rateLimitPerSecond === b.rateLimitPerSecond

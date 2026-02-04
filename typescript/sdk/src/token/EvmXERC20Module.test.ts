@@ -8,7 +8,7 @@ import { EvmXERC20Module, XERC20ModuleConfig } from './EvmXERC20Module.js';
 import {
   EvmXERC20Reader,
   StandardXERC20Limits,
-  VelodromeXERC20Limits,
+  VeloXERC20Limits,
 } from './EvmXERC20Reader.js';
 import { TokenType } from './config.js';
 import { XERC20Type } from './types.js';
@@ -23,7 +23,7 @@ describe('EvmXERC20Module', () => {
   let sandbox: sinon.SinonSandbox;
 
   const createStandardConfig = (): XERC20ModuleConfig => ({
-    type: 'standard',
+    type: XERC20Type.Standard,
     limits: {
       [WARP_ROUTE_ADDRESS]: {
         type: 'standard',
@@ -38,19 +38,19 @@ describe('EvmXERC20Module', () => {
     },
   });
 
-  const createVelodromeConfig = (): XERC20ModuleConfig => ({
-    type: 'velodrome',
+  const createVeloConfig = (): XERC20ModuleConfig => ({
+    type: XERC20Type.Velo,
     limits: {
       [WARP_ROUTE_ADDRESS]: {
-        type: 'velodrome',
+        type: 'velo',
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
-      } as VelodromeXERC20Limits,
+      } as VeloXERC20Limits,
       [EXTRA_BRIDGE_ADDRESS]: {
-        type: 'velodrome',
+        type: 'velo',
         bufferCap: '2000000000000000000',
         rateLimitPerSecond: '200000000000000000',
-      } as VelodromeXERC20Limits,
+      } as VeloXERC20Limits,
     },
   });
 
@@ -84,7 +84,7 @@ describe('EvmXERC20Module', () => {
     });
 
     it('creates module with velodrome config', () => {
-      const config = createVelodromeConfig();
+      const config = createVeloConfig();
       const module = createModule(config);
 
       expect(module.chainName).to.equal(TestChainName.test1);
@@ -112,11 +112,11 @@ describe('EvmXERC20Module', () => {
     });
 
     it('generates bufferCap and rateLimitPerSecond txs for Velodrome XERC20', async () => {
-      const config = createVelodromeConfig();
+      const config = createVeloConfig();
       const module = createModule(config);
 
-      const limits: VelodromeXERC20Limits = {
-        type: 'velodrome',
+      const limits: VeloXERC20Limits = {
+        type: 'velo',
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
       };
@@ -146,11 +146,11 @@ describe('EvmXERC20Module', () => {
     });
 
     it('generates addBridge tx for Velodrome XERC20', async () => {
-      const config = createVelodromeConfig();
+      const config = createVeloConfig();
       const module = createModule(config);
 
-      const limits: VelodromeXERC20Limits = {
-        type: 'velodrome',
+      const limits: VeloXERC20Limits = {
+        type: 'velo',
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
       };
@@ -164,7 +164,7 @@ describe('EvmXERC20Module', () => {
 
   describe('generateRemoveBridgeTxs', () => {
     it('generates removeBridge tx for Velodrome XERC20', async () => {
-      const config = createVelodromeConfig();
+      const config = createVeloConfig();
       const module = createModule(config);
 
       const txs = await module.generateRemoveBridgeTxs(BRIDGE_ADDRESS_1);
@@ -179,7 +179,7 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox.stub(module.reader, 'detectType').resolves('standard');
+      sandbox.stub(module.reader, 'detectType').resolves(XERC20Type.Standard);
       sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
 
       const txs = await module.update(config);
@@ -191,7 +191,7 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox.stub(module.reader, 'detectType').resolves('standard');
+      sandbox.stub(module.reader, 'detectType').resolves(XERC20Type.Standard);
       sandbox.stub(module.reader, 'readLimits').resolves({
         [WARP_ROUTE_ADDRESS]: {
           type: 'standard',
@@ -209,7 +209,7 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox.stub(module.reader, 'detectType').resolves('standard');
+      sandbox.stub(module.reader, 'detectType').resolves(XERC20Type.Standard);
       sandbox.stub(module.reader, 'readLimits').resolves({
         [WARP_ROUTE_ADDRESS]: {
           type: 'standard',
@@ -280,9 +280,9 @@ describe('EvmXERC20Module', () => {
       );
 
       expect(module).to.be.instanceOf(EvmXERC20Module);
-      expect(config.type).to.equal('velodrome');
+      expect(config.type).to.equal('velo');
       expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
-        type: 'velodrome',
+        type: 'velo',
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
       });
