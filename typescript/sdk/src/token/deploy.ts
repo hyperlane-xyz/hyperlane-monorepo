@@ -33,6 +33,7 @@ import {
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { EvmTokenFeeModule } from '../fee/EvmTokenFeeModule.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
+import { PredicateWrapperDeployer } from '../predicate/PredicateDeployer.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
@@ -56,6 +57,7 @@ import {
   CctpTokenConfig,
   HypTokenConfig,
   HypTokenRouterConfig,
+  PredicateWrapperConfig,
   TokenMetadataSchema,
   WarpRouteDeployConfig,
   WarpRouteDeployConfigMailboxRequired,
@@ -644,6 +646,56 @@ abstract class TokenDeployer<
     );
   }
 
+  protected async deployPredicateWrappers(
+    configMap: ChainMap<
+      HypTokenConfig & { predicateWrapper?: PredicateWrapperConfig }
+    >,
+    deployedContractsMap: HyperlaneContractsMap<Factories>,
+  ): Promise<void> {
+    await promiseObjAll(
+      objMap(configMap, async (chain, config) => {
+        if (!config.predicateWrapper) {
+          return;
+        }
+
+        if (
+          !isCollateralTokenConfig(config) &&
+          !isSyntheticTokenConfig(config)
+        ) {
+          throw new Error(
+            `Predicate wrapper only supported for collateral and synthetic tokens, got ${config.type} on ${chain}. ` +
+              `Native tokens are not supported because PredicateRouterWrapper requires ERC20 transfers.`,
+          );
+        }
+
+        const router = this.router(deployedContractsMap[chain]);
+        const tokenAddress = isCollateralTokenConfig(config)
+          ? config.token
+          : router.address;
+
+        const factoryContracts = this.options.ismFactory?.getContracts(chain);
+        if (!factoryContracts?.staticAggregationHookFactory) {
+          throw new Error(
+            `staticAggregationHookFactory not found for ${chain}. Ensure proxy factories are deployed.`,
+          );
+        }
+
+        const predicateDeployer = new PredicateWrapperDeployer(
+          this.multiProvider,
+          factoryContracts.staticAggregationHookFactory,
+          this.logger,
+        );
+
+        await predicateDeployer.deployAndConfigure(
+          chain,
+          router.address,
+          tokenAddress,
+          config.predicateWrapper,
+        );
+      }),
+    );
+  }
+
   async deploy(configMap: WarpRouteDeployConfigMailboxRequired) {
     let tokenMetadataMap: TokenMetadataMap;
     try {
@@ -684,6 +736,8 @@ abstract class TokenDeployer<
     await this.setEverclearFeeParams(configMap, deployedContractsMap);
 
     await this.setEverclearOutputAssets(configMap, deployedContractsMap);
+
+    await this.deployPredicateWrappers(configMap, deployedContractsMap);
 
     await super.transferOwnership(deployedContractsMap, configMap);
 

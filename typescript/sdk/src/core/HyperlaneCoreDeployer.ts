@@ -16,7 +16,8 @@ import { HyperlaneContracts } from '../contracts/types.js';
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
 import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { HyperlaneHookDeployer } from '../hook/HyperlaneHookDeployer.js';
-import { HookConfig } from '../hook/types.js';
+import { HookFactories } from '../hook/contracts.js';
+import { HookConfig, HookType } from '../hook/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { IsmConfig } from '../ism/types.js';
 import { moduleMatchesConfig } from '../ism/utils.js';
@@ -220,7 +221,12 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
     if (typeof config === 'string') {
       return Object.values(hooks)[0];
     } else {
-      return hooks[config.type];
+      if (config.type === HookType.PREDICATE) {
+        throw new Error(
+          'Predicate hooks cannot be deployed via HyperlaneCoreDeployer, they must be pre-deployed',
+        );
+      }
+      return hooks[config.type as keyof HookFactories];
     }
   }
 

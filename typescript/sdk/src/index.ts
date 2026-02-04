@@ -781,8 +781,19 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PredicateWrapperConfig,
+  PredicateWrapperConfigSchema,
+  isPredicateWrapperConfig,
 } from './token/types.js';
 export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export {
+  PredicateApiClient,
+  PredicateAttestation,
+  PredicateAttestationRequest,
+  PredicateAttestationResponse,
+  PredicateWrapperDeployer,
+  PredicateWrapperDeploymentResult,
+} from './predicate/index.js';
 export {
   ChainMap,
   ChainName,

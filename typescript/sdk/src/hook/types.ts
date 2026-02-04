@@ -28,10 +28,11 @@ export enum OnchainHookType {
   OP_L2_TO_L1,
   MAILBOX_DEFAULT_HOOK,
   AMOUNT_ROUTING,
+  CCTP,
+  PREDICATE_ROUTER_WRAPPER,
 }
 
 export const HookType = {
-  CUSTOM: 'custom',
   MERKLE_TREE: 'merkleTreeHook',
   INTERCHAIN_GAS_PAYMASTER: 'interchainGasPaymaster',
   AGGREGATION: 'aggregationHook',
@@ -44,12 +45,13 @@ export const HookType = {
   ARB_L2_TO_L1: 'arbL2ToL1Hook',
   MAILBOX_DEFAULT: 'defaultHook',
   CCIP: 'ccipHook',
+  PREDICATE: 'predicateHook',
 } as const;
 
 export type HookType = (typeof HookType)[keyof typeof HookType];
 
 export const HookTypeToContractNameMap: Record<
-  Exclude<HookType, typeof HookType.CUSTOM>,
+  Exclude<HookType, typeof HookType.PREDICATE>,
   string
 > = {
   [HookType.MERKLE_TREE]: 'merkleTreeHook',
@@ -120,6 +122,11 @@ export const ProtocolFeeSchema = OwnableSchema.extend({
 export const MerkleTreeSchema = z.object({
   type: z.literal(HookType.MERKLE_TREE),
 });
+
+export const PredicateHookSchema = z.object({
+  type: z.literal(HookType.PREDICATE),
+});
+export type PredicateHookConfig = z.infer<typeof PredicateHookSchema>;
 
 export const PausableHookSchema = PausableSchema.extend({
   type: z.literal(HookType.PAUSABLE),
@@ -214,6 +221,7 @@ export const HookConfigSchema = z.union([
   ArbL2ToL1HookSchema,
   MailboxDefaultHookSchema,
   CCIPHookSchema,
+  PredicateHookSchema,
 ]);
 
 // TODO: deprecate in favor of CoreConfigSchema

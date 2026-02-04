@@ -197,12 +197,19 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         continue;
       }
 
+      if (hookConfig.type === HookType.PREDICATE) {
+        throw new Error(
+          'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+        );
+      }
       const subhooks = await this.deployContracts(
         chain,
         hookConfig,
         coreAddresses,
       );
-      aggregatedHooks.push(subhooks[hookConfig.type].address);
+      aggregatedHooks.push(
+        subhooks[hookConfig.type as keyof HookFactories].address,
+      );
       hooks = { ...hooks, ...subhooks };
     }
 
@@ -327,12 +334,18 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         if (typeof config.fallback === 'string') {
           fallbackAddress = config.fallback;
         } else {
+          if (config.fallback.type === HookType.PREDICATE) {
+            throw new Error(
+              'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+            );
+          }
           const fallbackHook = await this.deployContracts(
             chain,
             config.fallback,
             coreAddresses,
           );
-          fallbackAddress = fallbackHook[config.fallback.type].address;
+          fallbackAddress =
+            fallbackHook[config.fallback.type as keyof HookFactories].address;
         }
         routingHook = await this.deployContract(
           chain,
@@ -369,6 +382,11 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         prevHookConfig = hookConfig;
         prevHookAddress = hookConfig;
       } else {
+        if (hookConfig.type === HookType.PREDICATE) {
+          throw new Error(
+            'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+          );
+        }
         const hook = await this.deployContracts(
           chain,
           hookConfig,
@@ -376,10 +394,10 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         );
         routingConfigs.push({
           destination: destDomain,
-          hook: hook[hookConfig.type].address,
+          hook: hook[hookConfig.type as keyof HookFactories].address,
         });
         prevHookConfig = hookConfig;
-        prevHookAddress = hook[hookConfig.type].address;
+        prevHookAddress = hook[hookConfig.type as keyof HookFactories].address;
       }
     }
 
@@ -422,12 +440,18 @@ export class HyperlaneHookDeployer extends HyperlaneDeployer<
         continue;
       }
 
+      if (hookConfig.type === HookType.PREDICATE) {
+        throw new Error(
+          'Predicate hooks cannot be deployed via HyperlaneHookDeployer, they must be pre-deployed',
+        );
+      }
+
       const contracts = await this.deployContracts(
         chain,
         hookConfig.type,
         this.core[chain],
       );
-      hooks.push(contracts[hookConfig.type].address);
+      hooks.push(contracts[hookConfig.type as keyof HookFactories].address);
     }
 
     const [lowerHook, upperHook] = hooks;
