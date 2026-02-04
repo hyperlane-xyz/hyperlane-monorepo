@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { type IndexerChainConfig, buildPonderChains } from './chains.js';
+import {
+  type IndexerChainConfig,
+  buildPonderChains,
+} from '../../src/config/chains.js';
 
 describe('chains', () => {
   describe('buildPonderChains', () => {

@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { checkAndHandleReorg, pruneBlockHashCache } from './reorg.js';
+import {
+  checkAndHandleReorg,
+  pruneBlockHashCache,
+} from '../../src/db/reorg.js';
 
 describe('reorg', () => {
   // Use unique chain IDs per test to avoid cache pollution between tests

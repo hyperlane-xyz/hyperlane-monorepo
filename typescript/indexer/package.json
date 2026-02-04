@@ -14,7 +14,7 @@
     "build": "tsc",
     "lint": "eslint -c ./eslint.config.mjs",
     "prettier": "prettier --write ./src",
-    "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
+    "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
     "db:migrate": "tsx scripts/migrate.ts",
     "db:compare": "tsx scripts/compare.ts"
   },

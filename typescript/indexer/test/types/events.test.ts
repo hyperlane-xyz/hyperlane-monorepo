@@ -1,6 +1,10 @@
 import { expect } from 'chai';
 
-import { computeMessageId, extractAddress, parseMessage } from './events.js';
+import {
+  computeMessageId,
+  extractAddress,
+  parseMessage,
+} from '../../src/types/events.js';
 
 describe('events', () => {
   describe('parseMessage', () => {
