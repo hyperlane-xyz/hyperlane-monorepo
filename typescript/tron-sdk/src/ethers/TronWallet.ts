@@ -5,10 +5,12 @@ import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
 // Multiplier for energy estimation to add safety buffer (1.5x)
 const ENERGY_BUFFER_MULTIPLIER = 1.5;
-// Minimum fee limit for deployments (1000 TRX) - fallback if estimation fails
-const MIN_DEPLOY_FEE_LIMIT = 1_000_000_000;
-// Minimum fee limit for calls (100 TRX) - fallback if estimation fails
-const MIN_CALL_FEE_LIMIT = 100_000_000;
+// Maximum fee limit allowed by Tron (1000 TRX = 1,000,000,000 sun)
+const MAX_FEE_LIMIT = 1_000_000_000;
+// Minimum fee limit for deployments (100 TRX) - fallback if estimation fails
+const MIN_DEPLOY_FEE_LIMIT = 100_000_000;
+// Minimum fee limit for calls (10 TRX) - fallback if estimation fails
+const MIN_CALL_FEE_LIMIT = 10_000_000;
 
 /**
  * TronWallet extends ethers Wallet to handle Tron's transaction format.
@@ -34,18 +36,17 @@ export class TronWallet extends Wallet {
    *
    * @param privateKey - The private key (hex string with or without 0x prefix)
    * @param provider - The TronJsonRpcProvider to use for read operations
-   * @param rpcUrl - The Tron RPC URL (without /jsonrpc suffix) for TronWeb
+   * @param tronGridUrl - The TronGrid/HTTP API URL for TronWeb (e.g. https://api.trongrid.io)
    */
   constructor(
     privateKey: string,
     provider: providers.Provider,
-    rpcUrl: string,
+    tronGridUrl: string,
   ) {
     super(privateKey, provider);
 
-    // Initialize TronWeb with the same RPC
-    const tronRpcUrl = rpcUrl.replace(/\/jsonrpc$/, '');
-    this.tronWeb = new TronWeb({ fullHost: tronRpcUrl });
+    // Initialize TronWeb with the TronGrid HTTP API URL
+    this.tronWeb = new TronWeb({ fullHost: tronGridUrl });
 
     // Set the private key on TronWeb
     const cleanKey = strip0x(privateKey);
@@ -64,9 +65,9 @@ export class TronWallet extends Wallet {
   static fromPrivateKey(
     privateKey: string,
     provider: providers.Provider,
-    rpcUrl: string,
+    tronGridUrl: string,
   ): TronWallet {
-    return new TronWallet(privateKey, provider, rpcUrl);
+    return new TronWallet(privateKey, provider, tronGridUrl);
   }
 
   /**
@@ -145,8 +146,8 @@ export class TronWallet extends Wallet {
       const energyPrice = await this.getEnergyPrice();
       const feeLimit = energyWithBuffer * energyPrice;
 
-      // Ensure minimum fee limit
-      return Math.max(feeLimit, MIN_DEPLOY_FEE_LIMIT);
+      // Clamp to min/max limits
+      return Math.min(Math.max(feeLimit, MIN_DEPLOY_FEE_LIMIT), MAX_FEE_LIMIT);
     } catch {
       return MIN_DEPLOY_FEE_LIMIT;
     }
@@ -178,7 +179,8 @@ export class TronWallet extends Wallet {
           result.energy_required * ENERGY_BUFFER_MULTIPLIER,
         );
         const energyPrice = await this.getEnergyPrice();
-        return Math.max(energyWithBuffer * energyPrice, MIN_CALL_FEE_LIMIT);
+        const feeLimit = energyWithBuffer * energyPrice;
+        return Math.min(Math.max(feeLimit, MIN_CALL_FEE_LIMIT), MAX_FEE_LIMIT);
       }
     } catch {
       // Estimation failed, use data-based estimate
@@ -191,8 +193,9 @@ export class TronWallet extends Wallet {
       estimatedEnergy * ENERGY_BUFFER_MULTIPLIER,
     );
     const energyPrice = await this.getEnergyPrice();
+    const feeLimit = energyWithBuffer * energyPrice;
 
-    return Math.max(energyWithBuffer * energyPrice, MIN_CALL_FEE_LIMIT);
+    return Math.min(Math.max(feeLimit, MIN_CALL_FEE_LIMIT), MAX_FEE_LIMIT);
   }
 
   /**
@@ -240,9 +243,10 @@ export class TronWallet extends Wallet {
         const energyWithBuffer = Math.ceil(
           energyLimit * ENERGY_BUFFER_MULTIPLIER,
         );
-        feeLimit = Math.max(
-          energyWithBuffer * energyPrice,
-          MIN_DEPLOY_FEE_LIMIT,
+        const calculatedFee = energyWithBuffer * energyPrice;
+        feeLimit = Math.min(
+          Math.max(calculatedFee, MIN_DEPLOY_FEE_LIMIT),
+          MAX_FEE_LIMIT,
         );
       } else {
         feeLimit = await this.estimateDeployFeeLimit(bytecode);
@@ -284,9 +288,10 @@ export class TronWallet extends Wallet {
           const energyWithBuffer = Math.ceil(
             energyLimit * ENERGY_BUFFER_MULTIPLIER,
           );
-          feeLimit = Math.max(
-            energyWithBuffer * energyPrice,
-            MIN_CALL_FEE_LIMIT,
+          const calculatedFee = energyWithBuffer * energyPrice;
+          feeLimit = Math.min(
+            Math.max(calculatedFee, MIN_CALL_FEE_LIMIT),
+            MAX_FEE_LIMIT,
           );
         } else {
           feeLimit = await this.estimateCallFeeLimit(

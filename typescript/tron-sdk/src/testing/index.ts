@@ -1,8 +1,8 @@
 // Testing utilities for Tron SDK
 export {
   getLocalNodeDir,
-  runTronNodeWithShell,
-  stopTronNodeWithShell,
+  runTronNode,
+  stopTronNode,
   type TronTestChainMetadata,
 } from './node.js';
 

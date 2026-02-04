@@ -1,8 +1,13 @@
 /* eslint-disable import/no-nodejs-modules */
 import { dirname, join } from 'path';
+import {
+  DockerComposeEnvironment,
+  StartedDockerComposeEnvironment,
+  Wait,
+} from 'testcontainers';
 import { fileURLToPath } from 'url';
 
-import { rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { retryAsync, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -13,6 +18,7 @@ const __dirname = dirname(__filename);
 export interface TronTestChainMetadata {
   name: string;
   chainId: number;
+  domainId: number;
   rpcPort: number; // JSON-RPC port (8545)
   httpPort: number; // HTTP API port (8090)
 }
@@ -25,48 +31,46 @@ export function getLocalNodeDir(): string {
 }
 
 /**
- * Starts a local Tron node using shell commands (docker-compose)
+ * Starts a local Tron node using Docker Compose via testcontainers
  *
  * @param chainMetadata - Test chain metadata configuration
+ * @returns The DockerComposeEnvironment instance
  */
-export async function runTronNodeWithShell(
+export async function runTronNode(
   chainMetadata: TronTestChainMetadata,
-): Promise<void> {
-  const { execSync } = await import('child_process');
-  const localNodeDir = getLocalNodeDir();
+): Promise<StartedDockerComposeEnvironment> {
+  rootLogger.info(`Starting Tron node for ${chainMetadata.name}`);
 
-  rootLogger.info(`Starting Tron node from ${localNodeDir}`);
+  // Retry docker-compose up to handle transient Docker registry errors in CI
+  const environment = await retryAsync<StartedDockerComposeEnvironment>(
+    async () =>
+      new DockerComposeEnvironment(getLocalNodeDir(), 'docker-compose.yml')
+        .withEnvironment({
+          TRON_JSON_RPC_PORT: chainMetadata.rpcPort.toString(),
+          TRON_HTTP_PORT: chainMetadata.httpPort.toString(),
+        })
+        // Wait for JSON-RPC port to be listening
+        .withWaitStrategy('tron-local-1', Wait.forListeningPorts())
+        .up(),
+    3, // maxRetries
+    5000, // baseRetryMs
+  );
 
-  // Export environment variables and start docker-compose
-  const env = {
-    ...process.env,
-    TRON_JSON_RPC_PORT: chainMetadata.rpcPort.toString(),
-    TRON_HTTP_PORT: chainMetadata.httpPort.toString(),
-    TRON_CHAIN_ID: chainMetadata.chainId.toString(),
-  };
-
-  execSync('docker-compose up -d', {
-    cwd: localNodeDir,
-    env,
-    stdio: 'inherit',
-  });
-
-  // Wait for the node to start
-  rootLogger.info('Waiting for Tron node to initialize...');
+  // Wait for the node to fully initialize (blocks being produced)
+  rootLogger.info(
+    `Waiting for Tron node to initialize for ${chainMetadata.name}`,
+  );
   await sleep(30_000);
+
+  return environment;
 }
 
 /**
- * Stops a Tron node started with runTronNodeWithShell
+ * Stops a Tron node started with runTronNode
  */
-export async function stopTronNodeWithShell(): Promise<void> {
-  const { execSync } = await import('child_process');
-  const localNodeDir = getLocalNodeDir();
-
+export async function stopTronNode(
+  environment: StartedDockerComposeEnvironment,
+): Promise<void> {
   rootLogger.info('Stopping Tron node');
-
-  execSync('docker-compose down', {
-    cwd: localNodeDir,
-    stdio: 'inherit',
-  });
+  await environment.down();
 }

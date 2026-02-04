@@ -51,6 +51,7 @@
     "eslint-plugin-import": "catalog:",
     "mocha": "catalog:",
     "prettier": "catalog:",
+    "testcontainers": "catalog:",
     "ts-node": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:",

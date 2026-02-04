@@ -43,7 +43,11 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
       assert(rpcUrls.length > 0, `No RPC URLs for Tron chain ${config.chain}`);
       const rpcUrl = rpcUrls[0].http;
       const provider = new TronJsonRpcProvider(rpcUrl);
-      return new TronWallet(privateKey, provider, rpcUrl);
+      // TronWeb needs the HTTP API URL, not JSON-RPC
+      // Use second RPC URL if available, otherwise strip /jsonrpc from first URL
+      const tronGridUrl =
+        rpcUrls.length > 1 ? rpcUrls[1].http : rpcUrl.replace(/\/jsonrpc$/, '');
+      return new TronWallet(privateKey, provider, tronGridUrl);
     }
 
     return new Wallet(privateKey);

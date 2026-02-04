@@ -1,5 +1,0 @@
-# Warp route config for Tron test deployment
----
-tron1:
-  type: native
-  # TRX is native token on Tron

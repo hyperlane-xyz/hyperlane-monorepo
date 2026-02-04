@@ -17,15 +17,16 @@ export const E2E_TEST_BURN_ADDRESS =
 export const CHAIN_NAME_1 = 'tron1';
 export const CHAIN_NAME_2 = 'tron2';
 
+// Reuse ethereum example configs (same format works for TechnicalStack approach)
 export const EXAMPLES_PATH = './examples';
-export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/tron/core-config.yaml`;
+export const CORE_CONFIG_PATH = `${EXAMPLES_PATH}/core-config.yaml`;
 export const CORE_CONFIG_PATH_1 = `${TEMP_PATH}/${CHAIN_NAME_1}/core-config.yaml`;
 export const CORE_READ_CONFIG_PATH_1 = `${TEMP_PATH}/${CHAIN_NAME_1}/core-config-read.yaml`;
 export const CORE_READ_CONFIG_PATH_2 = `${TEMP_PATH}/${CHAIN_NAME_2}/core-config-read.yaml`;
 export const CHAIN_1_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_1}/metadata.yaml`;
 export const CHAIN_2_METADATA_PATH = `${REGISTRY_PATH}/chains/${CHAIN_NAME_2}/metadata.yaml`;
 
-export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/tron/warp-route-deployment.yaml`;
+export const WARP_CONFIG_PATH_EXAMPLE = `${EXAMPLES_PATH}/warp-route-deployment.yaml`;
 export const WARP_CONFIG_PATH_1 = `${TEMP_PATH}/${CHAIN_NAME_1}/warp-route-deployment-tron1.yaml`;
 export const WARP_DEPLOY_DEFAULT_FILE_NAME = `warp-route-deployment`;
 export const WARP_DEPLOY_OUTPUT_PATH = `${TEMP_PATH}/${WARP_DEPLOY_DEFAULT_FILE_NAME}.yaml`;
