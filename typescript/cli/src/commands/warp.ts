@@ -140,7 +140,7 @@ export const apply: CommandModuleWithWarpApplyContext<
       strategyUrl,
       receiptsDir,
       selfRelay: relay,
-      warpRouteId,
+      warpRouteId: context.resolvedWarpRouteId ?? warpRouteId,
     });
     process.exit(0);
   },
@@ -156,7 +156,7 @@ export const deploy: CommandModuleWithWarpDeployContext<WarpRouteOptions> = {
     await runWarpRouteDeploy({
       context,
       warpDeployConfig: context.warpDeployConfig,
-      warpRouteId,
+      warpRouteId: context.resolvedWarpRouteId ?? warpRouteId,
     });
 
     process.exit(0);
