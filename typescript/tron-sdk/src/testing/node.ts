@@ -7,7 +7,9 @@ import {
 } from 'testcontainers';
 import { fileURLToPath } from 'url';
 
-import { retryAsync, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import { pollAsync, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
+
+import { TronJsonRpcProvider } from '../ethers/TronJsonRpcProvider.js';
 
 const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
@@ -56,11 +58,11 @@ export async function runTronNode(
     5000, // baseRetryMs
   );
 
-  // Wait for the node to fully initialize (blocks being produced)
+  // Poll until the node is ready to process transactions
   rootLogger.info(
-    `Waiting for Tron node to initialize for ${chainMetadata.name}`,
+    `Waiting for Tron node to be ready for ${chainMetadata.name}`,
   );
-  await sleep(30_000);
+  await waitForTronNodeReady(chainMetadata.rpcPort);
 
   return environment;
 }
@@ -73,4 +75,25 @@ export async function stopTronNode(
 ): Promise<void> {
   rootLogger.info('Stopping Tron node');
   await environment.down();
+}
+
+/**
+ * Poll until the Tron node is ready to process transactions.
+ * Checks eth_blockNumber to verify the node is producing blocks.
+ */
+async function waitForTronNodeReady(rpcPort: number): Promise<void> {
+  const provider = new TronJsonRpcProvider(`http://127.0.0.1:${rpcPort}`);
+
+  await pollAsync(
+    async () => {
+      const blockNumber = await provider.getBlockNumber();
+      if (blockNumber === 0) {
+        throw new Error('Block number is 0, node not ready');
+      }
+      rootLogger.info(`Tron node ready at block ${blockNumber}`);
+      return blockNumber;
+    },
+    1000, // poll every 1 second
+    60, // max 60 attempts (60 seconds)
+  );
 }
