@@ -455,15 +455,20 @@ export async function getWarpRouteDeployConfig({
 }: {
   context: CommandContext;
   warpRouteId?: string;
-}): Promise<WarpRouteDeployConfigMailboxRequired> {
+}): Promise<{
+  config: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId: string;
+}> {
   const resolvedWarpRouteId = await resolveWarpRouteId({
     warpRouteId,
     context,
     promptByDeploymentConfigs: true,
   });
 
-  return readWarpRouteDeployConfig({
+  const config = await readWarpRouteDeployConfig({
     context,
     warpRouteId: resolvedWarpRouteId,
   });
+
+  return { config, resolvedWarpRouteId };
 }
