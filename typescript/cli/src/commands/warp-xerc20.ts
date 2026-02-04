@@ -434,7 +434,7 @@ function parseLimitsFromArgs(args: {
     '--rate-limit is required for Velodrome XERC20',
   );
   return {
-    type: 'velodrome',
+    type: 'velo',
     bufferCap: args.bufferCap,
     rateLimitPerSecond: args.rateLimit,
   };

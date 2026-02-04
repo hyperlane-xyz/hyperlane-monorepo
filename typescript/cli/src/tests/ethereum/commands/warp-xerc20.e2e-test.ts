@@ -326,7 +326,7 @@ describe('warp xerc20 e2e tests', function () {
         --verbosity debug`;
 
       const output = result.stdout;
-      expect(output).to.include('velodrome');
+      expect(output).to.include('velo');
     });
 
     it('displays current limits for Standard XERC20', async function () {
