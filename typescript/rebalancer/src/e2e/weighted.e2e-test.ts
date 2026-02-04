@@ -15,6 +15,7 @@ import { type MonitorEvent, MonitorEventType } from '../interfaces/IMonitor.js';
 import type { Monitor } from '../monitor/Monitor.js';
 
 import {
+  ANVIL_TEST_PRIVATE_KEY,
   DOMAIN_IDS,
   FORK_BLOCK_NUMBERS,
   TEST_CHAINS,
@@ -27,9 +28,6 @@ import { ForkManager } from './harness/ForkManager.js';
 import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
-
-const ANVIL_TEST_PRIVATE_KEY =
-  '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
 
 async function getFirstMonitorEvent(monitor: Monitor): Promise<MonitorEvent> {
   return new Promise((resolve, reject) => {
