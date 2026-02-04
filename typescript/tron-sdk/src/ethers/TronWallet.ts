@@ -94,19 +94,6 @@ export class TronWallet extends Wallet {
   }
 
   /**
-   * Derive the contract address from transaction ID and owner address.
-   * Tron calculates: contractAddress = '41' + keccak256(txID + ownerAddress)[12:]
-   */
-  private deriveContractAddress(txId: string): string {
-    const ownerHex = this.toTronHexAddress(this.address);
-    const input = ensure0x(strip0x(txId) + ownerHex);
-    const hash = utils.keccak256(input);
-    // Take last 20 bytes (40 hex chars) and add Tron's 41 prefix
-    const tronHexAddress = '41' + hash.slice(26);
-    return this.toEthersAddress(tronHexAddress);
-  }
-
-  /**
    * Get the current energy price from the network.
    * Returns sun per energy unit.
    */
@@ -265,10 +252,9 @@ export class TronWallet extends Wallet {
         this.tronAddress,
       );
 
-      // Derive the contract address from txID
-      // Tron uses: contractAddress = '41' + keccak256(txID + ownerAddress)[12:]
-      // This is different from Ethereum's CREATE formula
-      contractAddress = this.deriveContractAddress(tronTx.txID);
+      // Get the contract address directly from TronWeb's response
+      // TronWeb computes this during createSmartContract
+      contractAddress = this.toEthersAddress(tronTx.contract_address);
     } else {
       // Contract call or simple transfer
       assert(transaction.to, 'Transaction must have a to address for calls');
@@ -391,9 +377,9 @@ export class TronWallet extends Wallet {
         const receipt = await this.provider!.getTransactionReceipt(txHash);
         if (receipt) {
           // Override contract address if we have it from TronWeb
+          // contractAddress is already in EVM format (0x-prefixed)
           if (contractAddress && !receipt.contractAddress) {
-            (receipt as any).contractAddress =
-              this.toEthersAddress(contractAddress);
+            (receipt as any).contractAddress = contractAddress;
           }
           return receipt;
         }
