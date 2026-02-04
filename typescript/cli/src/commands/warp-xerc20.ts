@@ -1,3 +1,4 @@
+import { groupBy } from 'lodash-es';
 import { stringify as yamlStringify } from 'yaml';
 import { type CommandModule } from 'yargs';
 
@@ -9,22 +10,32 @@ import {
   type WarpRouteDeployConfigMailboxRequired,
   type XERC20Limits,
   type XERC20LimitsMap,
+  XERC20Type,
   isXERC20TokenConfig,
 } from '@hyperlane-xyz/sdk';
-import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  assert,
+  isNullish,
+  objFilter,
+} from '@hyperlane-xyz/utils';
 
+import { runSubmit } from '../config/submit.js';
 import {
   type CommandContext,
   type CommandModuleWithContext,
+  type CommandModuleWithWriteContext,
+  type WriteCommandContext,
 } from '../context/types.js';
 import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
-import { indentYamlOrJson, writeYamlOrJson } from '../utils/files.js';
+import { indentYamlOrJson, isFile, writeYamlOrJson } from '../utils/files.js';
 import { getWarpConfigs } from '../utils/warp.js';
 
 import {
   addressCommandOption,
-  chainCommandOption,
+  chainTargetsCommandOption,
   outputFileCommandOption,
+  strategyCommandOption,
   symbolCommandOption,
   warpCoreConfigCommandOption,
   warpDeploymentConfigCommandOption,
@@ -67,15 +78,17 @@ export const xerc20Command: CommandModule = {
   handler: () => log('Subcommand required'),
 };
 
-const setLimits: CommandModuleWithContext<
+const setLimits: CommandModuleWithWriteContext<
   XERC20WarpRouteBuilder & {
     bridge: string;
     mint?: string;
     burn?: string;
     bufferCap?: string;
     rateLimit?: string;
-    chain?: string;
+    chains?: string[];
     out: string;
+    strategy?: string;
+    receipts: string;
   }
 > = {
   command: 'set-limits',
@@ -99,15 +112,21 @@ const setLimits: CommandModuleWithContext<
       type: 'string',
       description: 'Rate limit per second (Velodrome XERC20)',
     },
-    chain: {
-      ...chainCommandOption,
+    chains: {
+      ...chainTargetsCommandOption,
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
+    strategy: strategyCommandOption,
+    receipts: outputFileCommandOption(
+      './generated/transactions/receipts',
+      false,
+      'Output directory for transaction receipts',
+    ),
     out: outputFileCommandOption(
       DEFAULT_OUTPUT_PATH,
       false,
-      'Output transaction file path',
+      'Output transaction file path (used when no strategy provided)',
     ),
   },
   handler: async ({
@@ -121,8 +140,10 @@ const setLimits: CommandModuleWithContext<
     burn,
     bufferCap,
     rateLimit,
-    chain,
+    chains,
     out,
+    strategy,
+    receipts,
   }) => {
     const limits = parseLimitsFromArgs({ mint, burn, bufferCap, rateLimit });
     await generateBridgeLimitTxs({
@@ -133,8 +154,10 @@ const setLimits: CommandModuleWithContext<
       configPath,
       bridge,
       limits,
-      chain,
+      chains,
       out,
+      strategy,
+      receipts,
       commandName: 'Set Limits',
       txGenerator: (module, bridgeAddr, lim) =>
         module.generateSetLimitsTxs(bridgeAddr, lim),
@@ -142,15 +165,17 @@ const setLimits: CommandModuleWithContext<
   },
 };
 
-const addBridge: CommandModuleWithContext<
+const addBridge: CommandModuleWithWriteContext<
   XERC20WarpRouteBuilder & {
     bridge: string;
     mint?: string;
     burn?: string;
     bufferCap?: string;
     rateLimit?: string;
-    chain?: string;
+    chains?: string[];
     out: string;
+    strategy?: string;
+    receipts: string;
   }
 > = {
   command: 'add-bridge',
@@ -174,15 +199,21 @@ const addBridge: CommandModuleWithContext<
       type: 'string',
       description: 'Rate limit per second (Velodrome XERC20)',
     },
-    chain: {
-      ...chainCommandOption,
+    chains: {
+      ...chainTargetsCommandOption,
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
+    strategy: strategyCommandOption,
+    receipts: outputFileCommandOption(
+      './generated/transactions/receipts',
+      false,
+      'Output directory for transaction receipts',
+    ),
     out: outputFileCommandOption(
       DEFAULT_OUTPUT_PATH,
       false,
-      'Output transaction file path',
+      'Output transaction file path (used when no strategy provided)',
     ),
   },
   handler: async ({
@@ -196,8 +227,10 @@ const addBridge: CommandModuleWithContext<
     burn,
     bufferCap,
     rateLimit,
-    chain,
+    chains,
     out,
+    strategy,
+    receipts,
   }) => {
     const limits = parseLimitsFromArgs({ mint, burn, bufferCap, rateLimit });
     await generateBridgeLimitTxs({
@@ -208,8 +241,10 @@ const addBridge: CommandModuleWithContext<
       configPath,
       bridge,
       limits,
-      chain,
+      chains,
       out,
+      strategy,
+      receipts,
       commandName: 'Add Bridge',
       txGenerator: (module, bridgeAddr, lim) =>
         module.generateAddBridgeTxs(bridgeAddr, lim),
@@ -217,11 +252,13 @@ const addBridge: CommandModuleWithContext<
   },
 };
 
-const removeBridge: CommandModuleWithContext<
+const removeBridge: CommandModuleWithWriteContext<
   XERC20WarpRouteBuilder & {
     bridge: string;
-    chain?: string;
+    chains?: string[];
     out: string;
+    strategy?: string;
+    receipts: string;
   }
 > = {
   command: 'remove-bridge',
@@ -229,15 +266,21 @@ const removeBridge: CommandModuleWithContext<
   builder: {
     ...XERC20_WARP_ROUTE_BUILDER,
     bridge: addressCommandOption('Bridge address to remove', true),
-    chain: {
-      ...chainCommandOption,
+    chains: {
+      ...chainTargetsCommandOption,
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
+    strategy: strategyCommandOption,
+    receipts: outputFileCommandOption(
+      './generated/transactions/receipts',
+      false,
+      'Output directory for transaction receipts',
+    ),
     out: outputFileCommandOption(
       DEFAULT_OUTPUT_PATH,
       false,
-      'Output transaction file path',
+      'Output transaction file path (used when no strategy provided)',
     ),
   },
   handler: async ({
@@ -247,8 +290,10 @@ const removeBridge: CommandModuleWithContext<
     warpRouteId,
     config: configPath,
     bridge,
-    chain,
+    chains,
     out,
+    strategy,
+    receipts,
   }) => {
     logCommandHeader('Hyperlane XERC20 Remove Bridge');
 
@@ -260,7 +305,7 @@ const removeBridge: CommandModuleWithContext<
       warpCoreConfigPath: warp,
     });
 
-    const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
+    const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
     const transactions: AnnotatedEV5Transaction[] = [];
 
     for (const chainName of Object.keys(filteredConfig)) {
@@ -294,11 +339,15 @@ const removeBridge: CommandModuleWithContext<
       process.exit(1);
     }
 
-    writeYamlOrJson(out, transactions, 'yaml');
-    logGreen(
-      `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
-    );
-    log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
+    if (strategy) {
+      await submitTransactions(context, transactions, strategy, receipts);
+    } else {
+      writeYamlOrJson(out, transactions, 'yaml');
+      logGreen(
+        `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
+      );
+      log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
+    }
 
     process.exit(0);
   },
@@ -306,15 +355,15 @@ const removeBridge: CommandModuleWithContext<
 
 const viewLimits: CommandModuleWithContext<
   XERC20WarpRouteBuilder & {
-    chain?: string;
+    chains?: string[];
   }
 > = {
   command: 'view-limits',
   describe: 'View current XERC20 limits for all bridges',
   builder: {
     ...XERC20_WARP_ROUTE_BUILDER,
-    chain: {
-      ...chainCommandOption,
+    chains: {
+      ...chainTargetsCommandOption,
       demandOption: false,
       description: 'Filter to specific chain(s)',
     },
@@ -325,7 +374,7 @@ const viewLimits: CommandModuleWithContext<
     warp,
     warpRouteId,
     config: configPath,
-    chain,
+    chains,
   }) => {
     logCommandHeader('Hyperlane XERC20 View Limits');
 
@@ -337,7 +386,7 @@ const viewLimits: CommandModuleWithContext<
       warpCoreConfigPath: warp,
     });
 
-    const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
+    const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
     const allLimits: Record<string, { type: string; limits: XERC20LimitsMap }> =
       {};
 
@@ -406,9 +455,9 @@ function parseLimitsFromArgs(args: {
   bufferCap?: string;
   rateLimit?: string;
 }): XERC20Limits {
-  const hasStandardLimits = args.mint !== undefined || args.burn !== undefined;
+  const hasStandardLimits = !isNullish(args.mint) || !isNullish(args.burn);
   const hasVelodromeLimits =
-    args.bufferCap !== undefined || args.rateLimit !== undefined;
+    !isNullish(args.bufferCap) || !isNullish(args.rateLimit);
 
   assert(
     hasStandardLimits !== hasVelodromeLimits,
@@ -416,28 +465,57 @@ function parseLimitsFromArgs(args: {
   );
 
   if (hasStandardLimits) {
-    assert(args.mint !== undefined, '--mint is required for Standard XERC20');
-    assert(args.burn !== undefined, '--burn is required for Standard XERC20');
+    assert(!isNullish(args.mint), '--mint is required for Standard XERC20');
+    assert(!isNullish(args.burn), '--burn is required for Standard XERC20');
     return {
-      type: 'standard',
+      type: XERC20Type.Standard,
       mint: args.mint,
       burn: args.burn,
     };
   }
 
   assert(
-    args.bufferCap !== undefined,
+    !isNullish(args.bufferCap),
     '--buffer-cap is required for Velodrome XERC20',
   );
   assert(
-    args.rateLimit !== undefined,
+    !isNullish(args.rateLimit),
     '--rate-limit is required for Velodrome XERC20',
   );
   return {
-    type: 'velo',
+    type: XERC20Type.Velo,
     bufferCap: args.bufferCap,
     rateLimitPerSecond: args.rateLimit,
   };
+}
+
+async function submitTransactions(
+  context: CommandContext,
+  transactions: AnnotatedEV5Transaction[],
+  strategy: string,
+  receipts: string,
+): Promise<void> {
+  if (isFile(receipts)) {
+    logRed(
+      `Error: receipts path '${receipts}' exists but is a file. Expected a directory.`,
+    );
+    process.exit(1);
+  }
+
+  const chainTransactions = groupBy(transactions, 'chainId');
+
+  for (const [chainId, txs] of Object.entries(chainTransactions)) {
+    const chain = context.multiProvider.getChainName(chainId);
+
+    await runSubmit({
+      context: context as WriteCommandContext,
+      chain,
+      transactions: txs,
+      strategyPath: strategy,
+      receiptsFilepath: receipts,
+    });
+    logBlue(`Submission complete for chain ${chain}`);
+  }
 }
 
 async function generateBridgeLimitTxs({
@@ -448,8 +526,10 @@ async function generateBridgeLimitTxs({
   configPath,
   bridge,
   limits,
-  chain,
+  chains,
   out,
+  strategy,
+  receipts,
   commandName,
   txGenerator,
 }: {
@@ -460,8 +540,10 @@ async function generateBridgeLimitTxs({
   configPath?: string;
   bridge: Address;
   limits: XERC20Limits;
-  chain?: string;
+  chains?: string[];
   out: string;
+  strategy?: string;
+  receipts: string;
   commandName: string;
   txGenerator: (
     module: EvmXERC20Module,
@@ -479,7 +561,7 @@ async function generateBridgeLimitTxs({
     warpCoreConfigPath: warp,
   });
 
-  const filteredConfig = filterConfigByChain(warpDeployConfig, chain);
+  const filteredConfig = filterConfigByChain(warpDeployConfig, chains);
   const transactions: AnnotatedEV5Transaction[] = [];
 
   for (const chainName of Object.keys(filteredConfig)) {
@@ -512,28 +594,31 @@ async function generateBridgeLimitTxs({
     process.exit(1);
   }
 
-  writeYamlOrJson(out, transactions, 'yaml');
-  logGreen(
-    `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
-  );
-  log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
+  if (strategy) {
+    await submitTransactions(context, transactions, strategy, receipts);
+  } else {
+    writeYamlOrJson(out, transactions, 'yaml');
+    logGreen(
+      `\n✅ Generated ${transactions.length} transaction(s) written to ${out}`,
+    );
+    log(indentYamlOrJson(yamlStringify(transactions, null, 2), 4));
+  }
 
   process.exit(0);
 }
 
 function filterConfigByChain(
   config: WarpRouteDeployConfigMailboxRequired,
-  chain?: string,
+  chains?: string[],
 ): WarpRouteDeployConfigMailboxRequired {
-  if (!chain) return config;
+  if (!chains || chains.length === 0) return config;
 
-  const chainNames = chain.split(',').map((c) => c.trim());
   return objFilter(
     config,
     (
       chainName,
       chainConfig,
     ): chainConfig is WarpRouteDeployConfigMailboxRequired[string] =>
-      chainNames.includes(chainName),
+      chains.includes(chainName),
   );
 }
