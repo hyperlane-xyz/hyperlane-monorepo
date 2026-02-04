@@ -124,7 +124,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     );
   }
 
-  describe('hyperlane warp deploy --config ...', function () {
+  describe('hyperlane warp deploy (invalid config)', () => {
     it(`should exit early when the provided deployment file does not exist`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -463,7 +463,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  describe('hyperlane warp deploy --config ... --yes', function () {
+  describe('hyperlane warp deploy --yes (invalid config)', () => {
     it(`should exit early when the provided deployment file does not exist and the skip flag is provided`, async function () {
       const nonExistingFilePath = 'non-existing-path';
       // Currently if the file provided in the config flag does not exist a prompt will still be shown to the
@@ -566,7 +566,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     });
   });
 
-  describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
+  describe(`hyperlane warp deploy --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let vaultChain2: ERC4626Test;
 
