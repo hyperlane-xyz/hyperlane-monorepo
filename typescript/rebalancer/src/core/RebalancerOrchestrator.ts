@@ -14,13 +14,6 @@ import {
 } from '../tracking/index.js';
 import { getRawBalances } from '../utils/balanceUtils.js';
 
-export interface CycleResult {
-  balances: Record<string, bigint>;
-  proposedRoutes: StrategyRoute[];
-  executedCount: number;
-  failedCount: number;
-}
-
 export interface RebalancerOrchestratorDeps {
   strategy: IStrategy;
   rebalancer: IRebalancer | undefined;
@@ -53,7 +46,7 @@ export class RebalancerOrchestrator {
     this.metrics = deps.metrics;
   }
 
-  async executeCycle(event: MonitorEvent): Promise<CycleResult> {
+  async executeCycle(event: MonitorEvent): Promise<void> {
     this.logger.info('Polling cycle started');
 
     if (this.metrics) {
@@ -88,9 +81,6 @@ export class RebalancerOrchestrator {
       inflightContext,
     );
 
-    let executedCount = 0;
-    let failedCount = 0;
-
     if (strategyRoutes.length > 0) {
       this.logger.info(
         {
@@ -104,22 +94,13 @@ export class RebalancerOrchestrator {
       );
 
       if (this.rebalancer) {
-        const results = await this.executeWithTracking(strategyRoutes);
-        executedCount = results.filter((r) => r.success).length;
-        failedCount = results.filter((r) => !r.success).length;
+        await this.executeWithTracking(strategyRoutes);
       }
     } else {
       this.logger.info('No rebalancing needed');
     }
 
     this.logger.info('Polling cycle completed');
-
-    return {
-      balances: rawBalances,
-      proposedRoutes: strategyRoutes,
-      executedCount,
-      failedCount,
-    };
   }
 
   private async syncActionTracker(
