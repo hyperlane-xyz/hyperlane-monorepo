@@ -66,7 +66,6 @@ import {
   warpRouteIdCommandOption,
 } from './options.js';
 import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
-import { xerc20Command } from './warp-xerc20.js';
 
 /**
  * Parent command
@@ -86,7 +85,6 @@ export const warpCommand: CommandModule = {
       .command(rebalancer)
       .command(send)
       .command(verify)
-      .command(xerc20Command)
       .version(false)
       .demandCommand(),
 
