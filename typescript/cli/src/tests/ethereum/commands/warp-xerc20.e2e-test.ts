@@ -312,7 +312,7 @@ describe('warp xerc20 e2e tests', function () {
         errorThrown = true;
       }
 
-      expect(errorThrown || !fs.existsSync(TX_OUTPUT_PATH)).to.be.true;
+      expect(errorThrown).to.be.true;
     });
   });
 
