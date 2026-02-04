@@ -25,7 +25,8 @@
     "types": "./dist/index.d.ts",
     "scripts": {
         "build": "tsc",
-        "bundle": "rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
+        "build:dist": "tsc -p tsconfig.build.json",
+        "bundle": "pnpm build:dist && rm -rf ./bundle && ncc build ./dist/service.js -o bundle -e @google-cloud/pino-logging-gcp-config && node ../../scripts/ncc.post-bundle.mjs",
         "clean": "rm -rf dist cache bundle",
         "dev": "tsc --watch",
         "lint": "eslint -c ./eslint.config.mjs ./src",
