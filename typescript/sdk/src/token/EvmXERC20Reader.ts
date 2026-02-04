@@ -1,4 +1,4 @@
-import { getAbiItem, parseEventLogs, toEventSelector } from 'viem';
+import { parseEventLogs } from 'viem';
 
 import { Address, normalizeAddress, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -13,60 +13,20 @@ import {
 } from './adapters/EvmTokenAdapter.js';
 import { RateLimitMidPoint, xERC20Limits } from './adapters/ITokenAdapter.js';
 import { XERC20Type } from './types.js';
-import { detectXERC20Type } from './xerc20.js';
+import {
+  CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_VS_ABI,
+} from './xerc20-abi.js';
+import { deriveXERC20TokenType } from './xerc20.js';
 
-/**
- * Minimal ABI for parsing ConfigurationChanged events from Velodrome XERC20
- */
-const minimalXERC20VSABI = [
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: 'address',
-        name: 'bridge',
-        type: 'address',
-      },
-      {
-        indexed: false,
-        internalType: 'uint112',
-        name: 'bufferCap',
-        type: 'uint112',
-      },
-      {
-        indexed: false,
-        internalType: 'uint128',
-        name: 'rateLimitPerSecond',
-        type: 'uint128',
-      },
-    ],
-    name: 'ConfigurationChanged',
-    type: 'event',
-  },
-] as const;
-
-const CONFIGURATION_CHANGED_EVENT_SELECTOR = toEventSelector(
-  getAbiItem({
-    abi: minimalXERC20VSABI,
-    name: 'ConfigurationChanged',
-  }),
-);
-
-/**
- * Standard XERC20 limits (mint/burn max limits)
- */
 export interface StandardXERC20Limits {
-  type: 'standard';
-  mint: string; // uint256 as string
-  burn: string; // uint256 as string
+  type: typeof XERC20Type.Standard;
+  mint: string;
+  burn: string;
 }
 
-/**
- * Velodrome XERC20 limits (bufferCap/rateLimitPerSecond)
- */
 export interface VeloXERC20Limits {
-  type: 'velo';
+  type: typeof XERC20Type.Velo;
   bufferCap: string;
   rateLimitPerSecond: string;
 }
@@ -98,11 +58,8 @@ export class EvmXERC20Reader extends HyperlaneReader {
       MultiProtocolProvider.fromMultiProvider(multiProvider);
   }
 
-  /**
-   * Detect the XERC20 type (standard or velodrome) by checking bytecode selectors.
-   */
-  async detectType(xERC20Address: Address): Promise<XERC20Type> {
-    return detectXERC20Type(this.provider, xERC20Address);
+  async deriveXERC20TokenType(xERC20Address: Address): Promise<XERC20Type> {
+    return deriveXERC20TokenType(this.multiProvider, this.chain, xERC20Address);
   }
 
   /**
@@ -116,7 +73,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
     const limitsMap: XERC20LimitsMap = {};
     const chainName = this.multiProvider.getChainName(this.chain);
 
-    if (type === 'standard') {
+    if (type === XERC20Type.Standard) {
       const adapter = new EvmXERC20Adapter(
         chainName,
         this.multiProtocolProvider,
@@ -152,7 +109,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
     xERC20Address: Address,
     type: XERC20Type,
   ): Promise<Address[]> {
-    if (type === 'standard') {
+    if (type === XERC20Type.Standard) {
       this.logger.debug(
         'Standard XERC20 does not support on-chain bridge enumeration',
       );
@@ -181,7 +138,7 @@ export class EvmXERC20Reader extends HyperlaneReader {
     }));
 
     const parsedLogs = parseEventLogs({
-      abi: minimalXERC20VSABI,
+      abi: XERC20_VS_ABI,
       eventName: 'ConfigurationChanged',
       logs,
     });
@@ -209,50 +166,38 @@ export class EvmXERC20Reader extends HyperlaneReader {
     return activeBridges;
   }
 
-  /**
-   * Convert xERC20Limits to StandardXERC20Limits
-   */
   protected toStandardLimits(limits: xERC20Limits): StandardXERC20Limits {
     return {
-      type: 'standard',
+      type: XERC20Type.Standard,
       mint: limits.mint.toString(),
       burn: limits.burn.toString(),
     };
   }
 
-  /**
-   * Convert RateLimitMidPoint to VeloXERC20Limits
-   */
   protected toVeloLimits(rateLimits: RateLimitMidPoint): VeloXERC20Limits {
     return {
-      type: 'velo',
+      type: XERC20Type.Velo,
       bufferCap: rateLimits.bufferCap.toString(),
       rateLimitPerSecond: rateLimits.rateLimitPerSecond.toString(),
     };
   }
 }
 
-/**
- * Check if limits are zero (bridge not configured)
- */
 export function limitsAreZero(limits: XERC20Limits): boolean {
-  if (limits.type === 'standard') {
+  if (limits.type === XERC20Type.Standard) {
     return limits.mint === '0' && limits.burn === '0';
   }
   return limits.bufferCap === '0' && limits.rateLimitPerSecond === '0';
 }
 
-/**
- * Check if two limits match
- */
 export function limitsMatch(a: XERC20Limits, b: XERC20Limits): boolean {
   if (a.type !== b.type) return false;
 
-  if (a.type === 'standard' && b.type === 'standard') {
+  if (a.type === XERC20Type.Standard && b.type === XERC20Type.Standard) {
     return a.mint === b.mint && a.burn === b.burn;
   }
 
-  if (a.type === 'velo' && b.type === 'velo') {
+  if (a.type === XERC20Type.Velo && b.type === XERC20Type.Velo) {
     return (
       a.bufferCap === b.bufferCap &&
       a.rateLimitPerSecond === b.rateLimitPerSecond

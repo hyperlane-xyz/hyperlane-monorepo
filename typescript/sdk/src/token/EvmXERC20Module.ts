@@ -73,12 +73,10 @@ export class EvmXERC20Module extends HyperlaneModule<
       MultiProtocolProvider.fromMultiProvider(multiProvider);
   }
 
-  /**
-   * Read current on-chain XERC20 limits configuration.
-   * For Velodrome, also enumerates on-chain bridges to detect extra bridges.
-   */
   async read(): Promise<XERC20ModuleConfig> {
-    const type = await this.reader.detectType(this.args.addresses.xERC20);
+    const type = await this.reader.deriveXERC20TokenType(
+      this.args.addresses.xERC20,
+    );
     let bridges = this.getExpectedBridges();
 
     if (type === XERC20Type.Velo) {

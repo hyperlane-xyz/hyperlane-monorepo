@@ -1,6 +1,6 @@
 import { ethers } from 'ethers';
 import { Logger } from 'pino';
-import { Log, getAbiItem, parseEventLogs, toEventSelector } from 'viem';
+import { Log, parseEventLogs } from 'viem';
 
 import {
   HypXERC20Lockbox__factory,
@@ -12,6 +12,7 @@ import {
   getContractDeploymentTransaction,
   getLogsFromEtherscanLikeExplorerAPI,
 } from '../block-explorer/etherscan.js';
+import { isContractAddress } from '../contracts/contracts.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { GetEventLogsResponse } from '../rpc/evm/types.js';
 import { viemLogFromGetEventLogsResponse } from '../rpc/evm/utils.js';
@@ -25,41 +26,10 @@ import {
   XERC20Type,
   isXERC20TokenConfig,
 } from './types.js';
-
-const minimalXERC20VSABI = [
-  {
-    anonymous: false,
-    inputs: [
-      {
-        indexed: true,
-        internalType: 'address',
-        name: 'bridge',
-        type: 'address',
-      },
-      {
-        indexed: false,
-        internalType: 'uint112',
-        name: 'bufferCap',
-        type: 'uint112',
-      },
-      {
-        indexed: false,
-        internalType: 'uint128',
-        name: 'rateLimitPerSecond',
-        type: 'uint128',
-      },
-    ],
-    name: 'ConfigurationChanged',
-    type: 'event',
-  },
-] as const;
-
-const CONFIGURATION_CHANGED_EVENT_SELECTOR = toEventSelector(
-  getAbiItem({
-    abi: minimalXERC20VSABI,
-    name: 'ConfigurationChanged',
-  }),
-);
+import {
+  CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_VS_ABI,
+} from './xerc20-abi.js';
 
 // Bridge config types for Velodrome (VS) and Standard (WL) XERC20
 type BridgeConfigBase = {
@@ -158,7 +128,7 @@ type ConfigurationChangedLog = Log<
   false,
   undefined,
   true,
-  typeof minimalXERC20VSABI,
+  typeof XERC20_VS_ABI,
   'ConfigurationChanged'
 >;
 
@@ -169,7 +139,7 @@ async function getLockboxesFromLogs(
   logger: Logger,
 ): Promise<XERC20TokenExtraBridgesLimits[]> {
   const parsedLogs = parseEventLogs({
-    abi: minimalXERC20VSABI,
+    abi: XERC20_VS_ABI,
     eventName: 'ConfigurationChanged',
     logs,
   });
@@ -464,24 +434,20 @@ export async function deriveStandardBridgesConfig(
   return bridgesConfig;
 }
 
-/**
- * Detects the XERC20 type (Standard or Velodrome) by checking for interface selectors in bytecode.
- * @param provider - Ethers provider
- * @param address - Contract address to check
- * @returns 'standard' if setLimits method exists, 'velodrome' if setBufferCap exists
- * @throws Error if neither Standard nor Velodrome interface is detected
- */
-export async function detectXERC20Type(
-  provider: ethers.providers.Provider,
+export async function deriveXERC20TokenType(
+  multiProvider: MultiProvider,
+  chain: ChainNameOrId,
   address: Address,
 ): Promise<XERC20Type> {
-  const code = await provider.getCode(address);
-  if (!code || code === '0x') {
+  const isContract = await isContractAddress(multiProvider, chain, address);
+  if (!isContract) {
     throw new Error(
       `Unable to detect XERC20 type for ${address}. Contract has no bytecode.`,
     );
   }
 
+  const provider = multiProvider.getProvider(chain);
+  const code = await provider.getCode(address);
   const normalizedCode = code.toLowerCase();
   const setBufferCapSelector = ethers.utils
     .id('setBufferCap(address,uint256)')

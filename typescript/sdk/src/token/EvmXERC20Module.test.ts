@@ -26,15 +26,15 @@ describe('EvmXERC20Module', () => {
     type: XERC20Type.Standard,
     limits: {
       [WARP_ROUTE_ADDRESS]: {
-        type: 'standard',
+        type: XERC20Type.Standard,
         mint: '1000000000000000000',
         burn: '500000000000000000',
-      } as StandardXERC20Limits,
+      },
       [EXTRA_BRIDGE_ADDRESS]: {
-        type: 'standard',
+        type: XERC20Type.Standard,
         mint: '2000000000000000000',
         burn: '1000000000000000000',
-      } as StandardXERC20Limits,
+      },
     },
   });
 
@@ -42,15 +42,15 @@ describe('EvmXERC20Module', () => {
     type: XERC20Type.Velo,
     limits: {
       [WARP_ROUTE_ADDRESS]: {
-        type: 'velo',
+        type: XERC20Type.Velo,
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
-      } as VeloXERC20Limits,
+      },
       [EXTRA_BRIDGE_ADDRESS]: {
-        type: 'velo',
+        type: XERC20Type.Velo,
         bufferCap: '2000000000000000000',
         rateLimitPerSecond: '200000000000000000',
-      } as VeloXERC20Limits,
+      },
     },
   });
 
@@ -97,7 +97,7 @@ describe('EvmXERC20Module', () => {
       const module = createModule(config);
 
       const limits: StandardXERC20Limits = {
-        type: 'standard',
+        type: XERC20Type.Standard,
         mint: '1000000000000000000',
         burn: '500000000000000000',
       };
@@ -116,7 +116,7 @@ describe('EvmXERC20Module', () => {
       const module = createModule(config);
 
       const limits: VeloXERC20Limits = {
-        type: 'velo',
+        type: XERC20Type.Velo,
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
       };
@@ -135,7 +135,7 @@ describe('EvmXERC20Module', () => {
       const module = createModule(config);
 
       const limits: StandardXERC20Limits = {
-        type: 'standard',
+        type: XERC20Type.Standard,
         mint: '1000000000000000000',
         burn: '500000000000000000',
       };
@@ -150,7 +150,7 @@ describe('EvmXERC20Module', () => {
       const module = createModule(config);
 
       const limits: VeloXERC20Limits = {
-        type: 'velo',
+        type: XERC20Type.Velo,
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
       };
@@ -179,7 +179,9 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox.stub(module.reader, 'detectType').resolves(XERC20Type.Standard);
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
       sandbox.stub(module.reader, 'readLimits').resolves(config.limits);
 
       const txs = await module.update(config);
@@ -191,10 +193,12 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox.stub(module.reader, 'detectType').resolves(XERC20Type.Standard);
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
       sandbox.stub(module.reader, 'readLimits').resolves({
         [WARP_ROUTE_ADDRESS]: {
-          type: 'standard',
+          type: XERC20Type.Standard,
           mint: '1000000000000000000',
           burn: '500000000000000000',
         },
@@ -209,15 +213,17 @@ describe('EvmXERC20Module', () => {
       const config = createStandardConfig();
       const module = createModule(config);
 
-      sandbox.stub(module.reader, 'detectType').resolves(XERC20Type.Standard);
+      sandbox
+        .stub(module.reader, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Standard);
       sandbox.stub(module.reader, 'readLimits').resolves({
         [WARP_ROUTE_ADDRESS]: {
-          type: 'standard',
+          type: XERC20Type.Standard,
           mint: '999999999999999999',
           burn: '500000000000000000',
         },
         [EXTRA_BRIDGE_ADDRESS]: {
-          type: 'standard',
+          type: XERC20Type.Standard,
           mint: '2000000000000000000',
           burn: '1000000000000000000',
         },
@@ -251,9 +257,9 @@ describe('EvmXERC20Module', () => {
       );
 
       expect(module).to.be.instanceOf(EvmXERC20Module);
-      expect(config.type).to.equal('standard');
+      expect(config.type).to.equal(XERC20Type.Standard);
       expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
-        type: 'standard',
+        type: XERC20Type.Standard,
         mint: '1000000000000000000',
         burn: '500000000000000000',
       });
@@ -280,9 +286,9 @@ describe('EvmXERC20Module', () => {
       );
 
       expect(module).to.be.instanceOf(EvmXERC20Module);
-      expect(config.type).to.equal('velo');
+      expect(config.type).to.equal(XERC20Type.Velo);
       expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
-        type: 'velo',
+        type: XERC20Type.Velo,
         bufferCap: '1000000000000000000',
         rateLimitPerSecond: '100000000000000000',
       });
@@ -320,7 +326,7 @@ describe('EvmXERC20Module', () => {
 
       expect(Object.keys(config.limits)).to.have.lengthOf(2);
       expect(config.limits[EXTRA_BRIDGE_ADDRESS]).to.deep.equal({
-        type: 'standard',
+        type: XERC20Type.Standard,
         mint: '2000000000000000000',
         burn: '1000000000000000000',
       });

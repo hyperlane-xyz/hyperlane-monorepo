@@ -808,7 +808,16 @@ export {
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
 } from './token/types.js';
-export { getExtraLockBoxConfigs } from './token/xerc20.js';
+export {
+  deriveBridgesConfig,
+  deriveStandardBridgesConfig,
+  deriveXERC20TokenType,
+  getExtraLockBoxConfigs,
+} from './token/xerc20.js';
+export {
+  CONFIGURATION_CHANGED_EVENT_SELECTOR,
+  XERC20_VS_ABI,
+} from './token/xerc20-abi.js';
 export {
   ChainMap,
   ChainName,
