@@ -2,7 +2,7 @@
   "extends": ["//"],
   "tasks": {
     "bundle": {
-      "dependsOn": [],
+      "dependsOn": ["^build"],
       "outputs": ["bundle/**"]
     }
   }
