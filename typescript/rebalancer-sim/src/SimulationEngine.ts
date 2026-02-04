@@ -98,10 +98,7 @@ export class SimulationEngine {
         this.kpiCollector!.recordTransferComplete(message.transferId);
 
         // Notify inflight context adapter
-        this.inflightCallbacks?.onTransferDelivered(
-          message.origin,
-          message.destination,
-        );
+        this.inflightCallbacks?.onTransferDelivered(message.transferId);
       });
 
       this.messageTracker.on('message_failed', ({ message }) => {
@@ -130,6 +127,7 @@ export class SimulationEngine {
 
         // Notify inflight context adapter
         this.inflightCallbacks?.onRebalanceInitiated(
+          event.transfer.id,
           event.transfer.origin,
           event.transfer.destination,
           event.transfer.amount,
@@ -140,20 +138,14 @@ export class SimulationEngine {
         this.kpiCollector!.recordRebalanceComplete(event.transfer.id);
 
         // Notify inflight context adapter
-        this.inflightCallbacks?.onRebalanceDelivered(
-          event.transfer.origin,
-          event.transfer.destination,
-        );
+        this.inflightCallbacks?.onRebalanceDelivered(event.transfer.id);
       });
 
       this.bridgeController.on('transfer_failed', (event) => {
         this.kpiCollector!.recordRebalanceFailed(event.transfer.id);
 
         // Notify inflight context adapter (treat failed as delivered for inflight tracking)
-        this.inflightCallbacks?.onRebalanceDelivered(
-          event.transfer.origin,
-          event.transfer.destination,
-        );
+        this.inflightCallbacks?.onRebalanceDelivered(event.transfer.id);
       });
 
       // Build warp config for rebalancer
@@ -329,6 +321,7 @@ export class SimulationEngine {
 
         // Notify inflight context adapter that a user transfer is pending
         this.inflightCallbacks?.onTransferInitiated(
+          transfer.id,
           transfer.origin,
           transfer.destination,
           transfer.amount,

@@ -22,16 +22,17 @@ const logger = rootLogger.child({ module: 'MockInflightContextAdapter' });
  * - The RebalancerService calls getInflightContext() during each poll cycle
  */
 export class MockInflightContextAdapter implements IInflightContextAdapter {
-  private pendingRebalances: Route[] = [];
-  private pendingTransfers: Route[] = [];
+  private pendingRebalances: Array<{ id: string; route: Route }> = [];
+  private pendingTransfers: Array<{ id: string; route: Route }> = [];
 
   /**
    * Add a pending rebalance (called when bridge transfer is initiated)
    */
-  addPendingRebalance(route: Route): void {
-    this.pendingRebalances.push(route);
+  addPendingRebalance(id: string, route: Route): void {
+    this.pendingRebalances.push({ id, route });
     logger.debug(
       {
+        id,
         origin: route.origin,
         destination: route.destination,
         amount: route.amount.toString(),
@@ -44,10 +45,11 @@ export class MockInflightContextAdapter implements IInflightContextAdapter {
   /**
    * Add a pending user transfer (called when user initiates warp transfer)
    */
-  addPendingTransfer(route: Route): void {
-    this.pendingTransfers.push(route);
+  addPendingTransfer(id: string, route: Route): void {
+    this.pendingTransfers.push({ id, route });
     logger.debug(
       {
+        id,
         origin: route.origin,
         destination: route.destination,
         amount: route.amount.toString(),
@@ -60,54 +62,46 @@ export class MockInflightContextAdapter implements IInflightContextAdapter {
   /**
    * Remove a pending rebalance (called when bridge transfer completes)
    */
-  removePendingRebalance(origin: string, destination: string): boolean {
-    const idx = this.pendingRebalances.findIndex(
-      (r) => r.origin === origin && r.destination === destination,
-    );
+  removePendingRebalance(id: string): boolean {
+    const idx = this.pendingRebalances.findIndex((r) => r.id === id);
     if (idx >= 0) {
       const removed = this.pendingRebalances.splice(idx, 1)[0];
       logger.debug(
         {
-          origin,
-          destination,
-          amount: removed.amount.toString(),
+          id,
+          origin: removed.route.origin,
+          destination: removed.route.destination,
+          amount: removed.route.amount.toString(),
           remainingPending: this.pendingRebalances.length,
         },
         'Removed pending rebalance',
       );
       return true;
     }
-    logger.warn(
-      { origin, destination },
-      'Attempted to remove non-existent pending rebalance',
-    );
+    logger.warn({ id }, 'Attempted to remove non-existent pending rebalance');
     return false;
   }
 
   /**
    * Remove a pending user transfer (called when warp transfer delivers)
    */
-  removePendingTransfer(origin: string, destination: string): boolean {
-    const idx = this.pendingTransfers.findIndex(
-      (r) => r.origin === origin && r.destination === destination,
-    );
+  removePendingTransfer(id: string): boolean {
+    const idx = this.pendingTransfers.findIndex((r) => r.id === id);
     if (idx >= 0) {
       const removed = this.pendingTransfers.splice(idx, 1)[0];
       logger.debug(
         {
-          origin,
-          destination,
-          amount: removed.amount.toString(),
+          id,
+          origin: removed.route.origin,
+          destination: removed.route.destination,
+          amount: removed.route.amount.toString(),
           remainingPending: this.pendingTransfers.length,
         },
         'Removed pending transfer',
       );
       return true;
     }
-    logger.warn(
-      { origin, destination },
-      'Attempted to remove non-existent pending transfer',
-    );
+    logger.warn({ id }, 'Attempted to remove non-existent pending transfer');
     return false;
   }
 
@@ -117,8 +111,8 @@ export class MockInflightContextAdapter implements IInflightContextAdapter {
    */
   async getInflightContext(): Promise<InflightContext> {
     return {
-      pendingRebalances: [...this.pendingRebalances],
-      pendingTransfers: [...this.pendingTransfers],
+      pendingRebalances: this.pendingRebalances.map((r) => r.route),
+      pendingTransfers: this.pendingTransfers.map((r) => r.route),
     };
   }
 

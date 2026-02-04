@@ -312,24 +312,34 @@ export class ProductionRebalancerRunner
 
     return {
       onTransferInitiated: (
+        id: string,
         origin: string,
         destination: string,
         amount: bigint,
       ) => {
-        this.mockAdapter!.addPendingTransfer({ origin, destination, amount });
+        this.mockAdapter!.addPendingTransfer(id, {
+          origin,
+          destination,
+          amount,
+        });
       },
-      onTransferDelivered: (origin: string, destination: string) => {
-        this.mockAdapter!.removePendingTransfer(origin, destination);
+      onTransferDelivered: (id: string) => {
+        this.mockAdapter!.removePendingTransfer(id);
       },
       onRebalanceInitiated: (
+        id: string,
         origin: string,
         destination: string,
         amount: bigint,
       ) => {
-        this.mockAdapter!.addPendingRebalance({ origin, destination, amount });
+        this.mockAdapter!.addPendingRebalance(id, {
+          origin,
+          destination,
+          amount,
+        });
       },
-      onRebalanceDelivered: (origin: string, destination: string) => {
-        this.mockAdapter!.removePendingRebalance(origin, destination);
+      onRebalanceDelivered: (id: string) => {
+        this.mockAdapter!.removePendingRebalance(id);
       },
     };
   }

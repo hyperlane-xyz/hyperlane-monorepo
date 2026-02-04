@@ -387,6 +387,7 @@ export interface InflightContextCallbacks {
    * Called when a user transfer is initiated (before delivery)
    */
   onTransferInitiated: (
+    id: string,
     origin: string,
     destination: string,
     amount: bigint,
@@ -395,12 +396,13 @@ export interface InflightContextCallbacks {
   /**
    * Called when a user transfer is delivered
    */
-  onTransferDelivered: (origin: string, destination: string) => void;
+  onTransferDelivered: (id: string) => void;
 
   /**
    * Called when a rebalance transfer is initiated via bridge
    */
   onRebalanceInitiated: (
+    id: string,
     origin: string,
     destination: string,
     amount: bigint,
@@ -409,7 +411,7 @@ export interface InflightContextCallbacks {
   /**
    * Called when a rebalance transfer completes via bridge
    */
-  onRebalanceDelivered: (origin: string, destination: string) => void;
+  onRebalanceDelivered: (id: string) => void;
 }
 
 /**
