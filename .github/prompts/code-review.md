@@ -46,6 +46,7 @@ Review this pull request. Focus on:
 - **Avoid type casts** - Fix underlying types rather than using `as` assertions
 - **No `any` types** - Use `unknown` with type guards if type is truly unknown
 - **No unnecessary assertions** - `!` (non-null) and `as` often mask bugs; prefer proper null checks
+- **Prefer enums over literals** - Use `Status.Pending` not `'pending'`; enables refactoring and IDE support
 
 ## Common TypeScript Anti-Patterns
 
@@ -57,6 +58,7 @@ Review this pull request. Focus on:
 - **Duplicate test names** - Two `it('does X')` in same file hides intent; make names distinct
 - **Stale test `describe()` strings** - Keep in sync with actual CLI flags/behavior
 - **Unused imports** - Remove imports that aren't used
+- **`||` for defaults** - `value || fallback` treats `0`/`''` as falsy; use `??` instead
 
 ## Solidity Patterns
 
