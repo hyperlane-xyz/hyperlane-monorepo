@@ -187,7 +187,8 @@ jobs:
 
       - name: Install gitleaks
         id: gitleaks-install
-        if: github.event_name != 'merge_group'
+        # Skip for merge_group and external PRs (forks don't have access to GITLEAKS_LICENSE secret)
+        if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

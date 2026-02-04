@@ -1,4 +1,5 @@
 export {
+  hexToBech32mPrefix,
   hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,
@@ -200,6 +201,7 @@ export {
   Domain,
   EvmChainId,
   HexString,
+  KnownProtocolType,
   MerkleProof,
   MessageStatus,
   Numberish,
