@@ -1,16 +1,16 @@
+# Common configuration for hyperlane-indexer
+# Environment-specific settings should go in values-testnet.yaml or values-mainnet.yaml
+
+# Hyperlane configuration (override in environment-specific values)
+hyperlane:
+  runEnv: ''
+  registryUri: ''
+  chains: ''
+
 image:
   repository: gcr.io/abacus-labs-dev/hyperlane-indexer
   tag: latest
   pullPolicy: IfNotPresent
-
-hyperlane:
-  # Environment: testnet4 or mainnet3
-  runEnv: testnet4
-  # Path to registry (can be local or S3/GCS)
-  registryUri: ''
-  # Chains to index (comma-separated). If empty, indexes all EVM chains in environment.
-  # Example: "ethereum,arbitrum,optimism,base"
-  chains: ''
 
 # Resource limits
 resources:
@@ -21,7 +21,7 @@ resources:
     cpu: '1'
     memory: 2Gi
 
-# Number of replicas (typically 1 for indexer)
+# Number of replicas (typically 1 for indexer - see docs for scaling limitations)
 replicaCount: 1
 
 # Pod disruption budget
@@ -43,8 +43,9 @@ metrics:
 
 # External secrets for sensitive data
 externalSecrets:
-  clusterSecretStore: ''
+  clusterSecretStore: external-secrets-gcp-cluster-secret-store
   # Database connection string (stored in secret manager)
+  # Override in environment-specific values file
   databaseUrlSecretKey: ''
   # Chain RPC URLs JSON (stored in secret manager)
   chainRpcUrlsSecretKey: ''

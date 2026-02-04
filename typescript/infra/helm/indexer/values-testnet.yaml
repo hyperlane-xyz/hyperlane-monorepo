@@ -1,0 +1,15 @@
+# Testnet4-specific configuration for hyperlane-indexer
+# Usage: helm install indexer ./indexer -f values.yaml -f values-testnet.yaml
+
+hyperlane:
+  # Environment: testnet4 or mainnet3
+  runEnv: testnet4
+  # Path to registry (can be local or S3/GCS)
+  registryUri: ''
+  # Chains to index (comma-separated). If empty, indexes all EVM chains in environment.
+  # Example: "sepolia,arbitrumsepolia,optimismsepolia"
+  chains: ''
+
+# External secrets - testnet4 specific
+externalSecrets:
+  databaseUrlSecretKey: hyperlane-testnet4-indexer-db
