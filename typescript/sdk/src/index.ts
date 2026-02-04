@@ -175,13 +175,20 @@ export {
 } from './gas/oracle/types.js';
 export { CoinGeckoTokenPriceGetter } from './gas/token-prices.js';
 export {
+  GasPolicyStatus,
   IgpBeneficiaryViolation,
   IgpConfig,
   IgpGasOraclesViolation,
   IgpOverheadViolation,
   IgpViolation,
   IgpViolationType,
+  InterchainGasPayment,
 } from './gas/types.js';
+export {
+  aggregateGasPayments,
+  getGasPaymentForMessage,
+  parseGasPaymentsFromReceipt,
+} from './gas/GasPaymentParser.js';
 export { EvmHookReader } from './hook/EvmHookReader.js';
 export { HyperlaneHookDeployer } from './hook/HyperlaneHookDeployer.js';
 export {
@@ -303,6 +310,7 @@ export {
   AgentSignerNode,
   buildAgentConfig,
   GasPaymentEnforcement,
+  GasPaymentEnforcementInput,
   GasPaymentEnforcementPolicyType,
   IsmCacheConfig,
   IsmCachePolicy,
@@ -347,6 +355,10 @@ export {
   HyperlaneDeploymentArtifactsSchema,
 } from './metadata/deploymentArtifacts.js';
 export { MatchingList } from './metadata/matchingList.js';
+export {
+  messageMatchesMatchingList,
+  MatchingListMessage,
+} from './metadata/matchingListUtils.js';
 export {
   WarpRouteConfig,
   WarpRouteConfigSchema,

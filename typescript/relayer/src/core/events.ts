@@ -30,7 +30,7 @@ export type RelayerEvent =
       originChain: string;
       destinationChain: string;
       messageId: string;
-      reason: 'whitelist' | 'already_delivered';
+      reason: 'whitelist' | 'already_delivered' | 'gas_payment';
       dispatchTx?: providers.TransactionReceipt;
     }
   | {

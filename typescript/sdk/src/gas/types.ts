@@ -41,3 +41,30 @@ export interface IgpOverheadViolation extends IgpViolation {
   actual: ChainMap<BigNumber>;
   expected: ChainMap<BigNumber>;
 }
+
+/**
+ * Represents a gas payment made for an interchain message.
+ * This is parsed from GasPayment events emitted by the InterchainGasPaymaster.
+ */
+export interface InterchainGasPayment {
+  /** The ID of the message this payment is for (bytes32 hex) */
+  messageId: string;
+  /** The destination domain ID */
+  destination: number;
+  /** Amount of destination gas paid for */
+  gasAmount: bigint;
+  /** Amount of native tokens paid */
+  payment: bigint;
+}
+
+/**
+ * Status of gas payment policy evaluation.
+ */
+export enum GasPolicyStatus {
+  /** Gas payment meets the policy requirements */
+  PolicyMet = 'PolicyMet',
+  /** Gas payment does not meet the policy requirements */
+  PolicyNotMet = 'PolicyNotMet',
+  /** No gas payment was found for the message */
+  NoPaymentFound = 'NoPaymentFound',
+}
