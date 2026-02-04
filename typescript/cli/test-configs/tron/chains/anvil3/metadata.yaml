@@ -2,7 +2,7 @@
 # Uses protocol: ethereum with technicalStack: tron since TVM is EVM-compatible
 # Same node as anvil2, different domainId for cross-chain testing
 ---
-chainId: 728126429
+chainId: 728126428
 domainId: 728126429
 name: anvil3
 protocol: ethereum

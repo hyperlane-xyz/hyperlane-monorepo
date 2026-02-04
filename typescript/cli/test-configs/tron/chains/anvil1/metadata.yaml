@@ -1,10 +1,10 @@
-# Tron test chain aliased as anvil4 for test compatibility
+# Tron test chain aliased as anvil1 for test compatibility
 # Uses protocol: ethereum with technicalStack: tron since TVM is EVM-compatible
-# Same node as anvil2/anvil3, different domainId for cross-chain testing
+# Placeholder chain to maintain parity with anvil registry structure
 ---
 chainId: 728126428
-domainId: 728126430
-name: anvil4
+domainId: 728126427
+name: anvil1
 protocol: ethereum
 technicalStack: tron
 rpcUrls:
