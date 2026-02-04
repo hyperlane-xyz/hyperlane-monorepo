@@ -9,8 +9,10 @@ use hyperlane_sealevel_connection_client::{
     router::{HyperlaneRouter, RemoteRouterConfig},
     HyperlaneConnectionClient,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use shank::ShankAccount;
+
+#[allow(unused_imports)]
+use crate::types::{InterchainGasPaymasterType, InterchainGasPaymasterTypeProxy};
 
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
@@ -27,6 +29,7 @@ pub struct HelloWorldStorage {
     /// The ISM.
     pub ism: Option<Pubkey>,
     /// The IGP.
+    #[idl_type("Option<(Pubkey, InterchainGasPaymasterTypeProxy)>")]
     pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The owner.
     pub owner: Option<Pubkey>,

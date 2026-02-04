@@ -236,11 +236,14 @@
                 "tuple": [
                   "publicKey",
                   {
-                    "defined": "InterchainGasPaymasterType"
+                    "defined": "InterchainGasPaymasterTypeProxy"
                   }
                 ]
               }
-            }
+            },
+            "attrs": [
+              "idl-type"
+            ]
           },
           {
             "name": "owner",
@@ -322,11 +325,14 @@
                 "tuple": [
                   "publicKey",
                   {
-                    "defined": "InterchainGasPaymasterType"
+                    "defined": "InterchainGasPaymasterTypeProxy"
                   }
                 ]
               }
-            }
+            },
+            "attrs": [
+              "idl-type"
+            ]
           },
           {
             "name": "owner",
@@ -374,6 +380,26 @@
             },
             "attrs": [
               "idl-type"
+            ]
+          }
+        ]
+      }
+    },
+    {
+      "name": "InterchainGasPaymasterTypeProxy",
+      "type": {
+        "kind": "enum",
+        "variants": [
+          {
+            "name": "Igp",
+            "fields": [
+              "publicKey"
+            ]
+          },
+          {
+            "name": "OverheadIgp",
+            "fields": [
+              "publicKey"
             ]
           }
         ]

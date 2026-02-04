@@ -13,5 +13,14 @@ use shank::ShankType;
 )]
 pub struct RemoteRouterConfigProxy;
 
-// Re-export the real type for use in the program logic
+/// Proxy struct for InterchainGasPaymasterType from hyperlane_sealevel_igp.
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize, ShankType)]
+#[shank(
+    import_from = "hyperlane_sealevel_igp",
+    rename = "InterchainGasPaymasterType"
+)]
+pub struct InterchainGasPaymasterTypeProxy;
+
+// Re-export the real types for use in the program logic
 pub use hyperlane_sealevel_connection_client::router::RemoteRouterConfig;
+pub use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;

@@ -3,8 +3,10 @@
 use borsh::{BorshDeserialize, BorshSerialize};
 
 #[allow(unused_imports)]
-use crate::types::{RemoteRouterConfig, RemoteRouterConfigProxy};
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use crate::types::{
+    InterchainGasPaymasterType, InterchainGasPaymasterTypeProxy, RemoteRouterConfig,
+    RemoteRouterConfigProxy,
+};
 use shank::{ShankInstruction, ShankType};
 use solana_program::{
     instruction::{AccountMeta, Instruction},
@@ -24,6 +26,7 @@ pub struct Init {
     /// The ISM.
     pub ism: Option<Pubkey>,
     /// The IGP.
+    #[idl_type("Option<(Pubkey, InterchainGasPaymasterTypeProxy)>")]
     pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The owner.
     pub owner: Option<Pubkey>,
