@@ -1049,10 +1049,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       destTknAddress,
       destSigner,
     );
-    await destCollateralToken.mintTo(
+    const mintTx = await destCollateralToken.mintTo(
       destContractAddress,
       sentTransferRemote.amount.toString(),
     );
+    await mintTx.wait();
 
     originBalance = await originTkn.balanceOf(originContractAddress);
     destBalance = await destTkn.balanceOf(destContractAddress);
@@ -1308,10 +1309,11 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         destTknAddress,
         destSigner,
       );
-      await destCollateralToken.mintTo(
+      const mintTx = await destCollateralToken.mintTo(
         destContractAddress,
         sentTransferRemote.amount.toString(),
       );
+      await mintTx.wait();
 
       originBalance = await originTkn.balanceOf(originContractAddress);
       destBalance = await destTkn.balanceOf(destContractAddress);
