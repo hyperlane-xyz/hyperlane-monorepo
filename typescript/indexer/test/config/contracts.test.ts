@@ -1,12 +1,12 @@
 import { expect } from 'chai';
 
-import type { IndexerChainConfig } from './chains.js';
+import type { IndexerChainConfig } from '../../src/config/chains.js';
 import {
   type ContractAddresses,
   buildIgpContractConfig,
   buildMailboxContractConfig,
   buildMerkleTreeHookContractConfig,
-} from './contracts.js';
+} from '../../src/config/contracts.js';
 
 describe('contracts', () => {
   const mockAbi = [{ name: 'test', type: 'function' }];
