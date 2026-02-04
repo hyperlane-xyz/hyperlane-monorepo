@@ -14,6 +14,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
+import type { PredicateAttestation } from '../predicate/PredicateApiClient.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   TransactionFeeEstimate,
@@ -364,6 +365,7 @@ export class WarpCore {
     recipient,
     interchainFee,
     tokenFeeQuote,
+    attestation,
   }: {
     originTokenAmount: TokenAmount;
     destination: ChainNameOrId;
@@ -371,6 +373,8 @@ export class WarpCore {
     recipient: Address;
     interchainFee?: TokenAmount;
     tokenFeeQuote?: TokenAmount;
+    /** Optional Predicate attestation for compliance-gated warp routes */
+    attestation?: PredicateAttestation;
   }): Promise<Array<WarpTypedTransaction>> {
     const transactions: Array<WarpTypedTransaction> = [];
 
@@ -495,6 +499,7 @@ export class WarpCore {
       recipient,
       interchainGas,
       customHook: token.igpTokenAddressOrDenom,
+      attestation,
     });
 
     this.logger.debug(`Remote transfer tx for ${token.symbol} populated`);
