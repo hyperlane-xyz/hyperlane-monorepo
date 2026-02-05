@@ -386,14 +386,36 @@ export class TronSigner
   async createInterchainGasPaymasterHook(
     req: Omit<AltVM.ReqCreateInterchainGasPaymasterHook, 'signer'>,
   ): Promise<AltVM.ResCreateInterchainGasPaymasterHook> {
-    const tx = await this.getCreateInterchainGasPaymasterHookTransaction({
+    let proxyAdminAddress = req.proxyAdminAddress;
+
+    // 1. Deploy Proxy Admin if no address available
+    if (!proxyAdminAddress) {
+      const { proxyAdminAddress: address } = await this.createProxyAdmin({});
+      proxyAdminAddress = address;
+    }
+
+    // 2. Deploy IGP implementation
+    const implTx = await this.getCreateInterchainGasPaymasterHookTransaction({
       ...req,
       signer: this.getSignerAddress(),
     });
+    const implReceipt = await this.sendAndConfirmTransaction(implTx);
+    const implementationAddress = this.tronweb.address.fromHex(
+      implReceipt.contract_address,
+    );
 
-    const receipt = await this.sendAndConfirmTransaction(tx);
-
-    const hookAddress = this.tronweb.address.fromHex(receipt.contract_address);
+    // 3. Deploy TransparentUpgradeableProxy
+    // Note: We pass empty bytes for _data and initialize separately below
+    const proxyTx = await createDeploymentTransaction(
+      this.tronweb,
+      TransparentUpgradeableProxyAbi,
+      this.getSignerAddress(),
+      [implementationAddress, proxyAdminAddress, '0x'],
+    );
+    const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
+    const hookAddress = this.tronweb.address.fromHex(
+      proxyReceipt.contract_address,
+    );
 
     const initTx = await getInitIgpTx(this.tronweb, this.getSignerAddress(), {
       igpAddress: hookAddress,

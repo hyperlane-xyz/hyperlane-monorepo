@@ -319,6 +319,7 @@ export type ReqCreateInterchainGasPaymasterHook = {
   signer: string;
   mailboxAddress: string;
   denom?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
   hookAddress: string;
