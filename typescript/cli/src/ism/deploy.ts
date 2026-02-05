@@ -17,7 +17,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { type Address, assert, mustGet } from '@hyperlane-xyz/utils';
 
-import { requestAndSaveApiKeys } from '../context/context.js';
+import { requestAndSaveApiKeys } from '../context/apiKeys.js';
 import { type WriteCommandContext } from '../context/types.js';
 import {
   completeDeploy,
