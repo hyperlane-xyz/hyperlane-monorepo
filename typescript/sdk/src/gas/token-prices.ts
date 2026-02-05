@@ -51,18 +51,14 @@ class TokenPriceCache {
   }
 
   fetch(id: string): number {
+    const price = this.tryFetch(id);
+    if (price !== undefined) return price;
     const entry = this.cache.get(id);
-    if (!entry) {
-      throw new Error(`no entry found for ${id} in token price cache`);
-    }
-    const evictionTime = new Date(
-      entry.timestamp.getTime() + 1000 * this.evictionSeconds,
+    throw new Error(
+      entry
+        ? `evicted entry found for ${id} in token price cache`
+        : `no entry found for ${id} in token price cache`,
     );
-    const now = new Date();
-    if (now > evictionTime) {
-      throw new Error(`evicted entry found for ${id} in token price cache`);
-    }
-    return entry.price;
   }
 
   tryFetch(id: string): number | undefined {
