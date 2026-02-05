@@ -16,7 +16,8 @@
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './test/**/*.test.ts' --exit",
     "db:migrate": "tsx scripts/migrate.ts",
-    "db:compare": "tsx scripts/compare.ts"
+    "db:compare": "tsx scripts/compare.ts",
+    "db:comparison": "tsx scripts/db-comparison.ts"
   },
   "dependencies": {
     "@google-cloud/pino-logging-gcp-config": "catalog:",
