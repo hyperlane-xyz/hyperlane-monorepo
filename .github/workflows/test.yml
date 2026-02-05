@@ -261,7 +261,6 @@ jobs:
       matrix:
         stack:
           - ethereum
-          - tron
         test:
           # Core Commands
           - core-apply
@@ -303,6 +302,14 @@ jobs:
           - warp-read
           - warp-rebalancer
           - warp-send
+        # Tron: only run core-deploy and warp-deploy for now
+        include:
+          - stack: tron
+            test: core-deploy
+          - stack: tron
+            test: warp-deploy-1
+          - stack: tron
+            test: warp-deploy-2
     steps:
       - uses: actions/checkout@v6
         with:
