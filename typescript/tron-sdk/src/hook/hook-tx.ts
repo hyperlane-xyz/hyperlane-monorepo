@@ -55,9 +55,7 @@ export async function getInitIgpTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
     'initialize(address,address)',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'address',
@@ -97,9 +95,7 @@ export async function getSetOracleTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
     'setGasOracle(address)',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'address',
@@ -136,9 +132,7 @@ export async function getSetRemoteGasTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     oracleAddress,
     'setRemoteGasDataConfigs((uint32,uint128,uint128)[])',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'tuple(uint32 remoteDomain, uint128 tokenExchangeRate, uint128 gasPrice)[]',
@@ -166,9 +160,7 @@ export async function getSetIgpOwnerTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
     'transferOwnership(address)',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'address',
@@ -208,9 +200,7 @@ export async function getSetIgpDestinationGasConfigTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
     'setDestinationGasConfigs((uint32,(address,uint96))[])',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'tuple(uint32 remoteDomain, tuple(address gasOracle, uint96 gasOverhead) config)[]',
@@ -240,9 +230,7 @@ export async function getRemoveIgpDestinationGasConfigTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.igpAddress,
     'removeDestinationGasConfigs(uint32[])',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'uint32[]',

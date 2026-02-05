@@ -2441,6 +2441,9 @@ importers:
 
   typescript/tron-sdk:
     dependencies:
+      '@hyperlane-xyz/eslint-config':
+        specifier: workspace:*
+        version: link:../eslint-config
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk

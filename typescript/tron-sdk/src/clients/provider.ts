@@ -526,9 +526,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
         'setDefaultIsm(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -548,9 +546,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
         'setDefaultHook(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -570,9 +566,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
         'setRequiredHook(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -592,9 +586,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.mailboxAddress,
         'transferOwnership(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -785,9 +777,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'transferOwnership(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -807,9 +797,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'setInterchainSecurityModule(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -829,9 +817,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'setHook(address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -851,9 +837,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'enrollRemoteRouter(uint32,bytes32)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'uint32',
@@ -877,9 +861,7 @@ export class TronProvider implements AltVM.IProvider {
       await this.tronweb.transactionBuilder.triggerSmartContract(
         req.tokenAddress,
         'unenrollRemoteRouter(uint32)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'uint32',
@@ -900,9 +882,7 @@ export class TronProvider implements AltVM.IProvider {
         await this.tronweb.transactionBuilder.triggerSmartContract(
           req.denom,
           'transfer(address,uint256)',
-          {
-            callValue: 0,
-          },
+          {},
           [
             {
               type: 'address',

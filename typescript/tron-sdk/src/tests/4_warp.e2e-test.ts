@@ -52,7 +52,6 @@ describe('4. tron sdk warp e2e tests', async function () {
 
     const options = {
       feeLimit: 1_000_000_000,
-      callValue: 0,
       userFeePercentage: 100,
       originEnergyLimit: 10_000_000,
       abi: ERC20TestAbi.abi,

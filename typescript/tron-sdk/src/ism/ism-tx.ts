@@ -147,9 +147,7 @@ export async function getInitRoutingIsmTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
     'initialize(address,uint32[],address[])',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'address',
@@ -181,9 +179,7 @@ export async function getSetRoutingIsmRouteTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
     'set(uint32,address)',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'uint32',
@@ -208,9 +204,7 @@ export async function getRemoveRoutingIsmRouteTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
     'remove(uint32)',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'uint32',
@@ -231,9 +225,7 @@ export async function getSetRoutingIsmOwnerTx(
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
     config.ismAddress,
     'transferOwnership(address)',
-    {
-      callValue: 0,
-    },
+    {},
     [
       {
         type: 'address',

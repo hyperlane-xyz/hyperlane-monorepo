@@ -127,9 +127,7 @@ export class TronSigner
       await this.tronweb.transactionBuilder.triggerSmartContract(
         mailboxAddress,
         'initialize(address,address,address,address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -546,9 +544,7 @@ export class TronSigner
         await this.tronweb.transactionBuilder.triggerSmartContract(
           proxyAdminAddress,
           'transferOwnership(address)',
-          {
-            callValue: 0,
-          },
+          {},
           [
             {
               type: 'address',
@@ -606,9 +602,7 @@ export class TronSigner
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
         'initialize(address,address,address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -671,9 +665,7 @@ export class TronSigner
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
         'initialize(address,address,address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'address',
@@ -736,9 +728,7 @@ export class TronSigner
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
         'initialize(uint256,string,string,address,address,address)',
-        {
-          callValue: 0,
-        },
+        {},
         [
           {
             type: 'uint256',
@@ -838,7 +828,6 @@ export class TronSigner
         req.remoteRouter.gas,
       )
       .send({
-        callValue: 0,
         shouldPollResponse: true,
       });
 

@@ -33,7 +33,6 @@ export async function createDeploymentTransaction(
   return tronweb.transactionBuilder.createSmartContract(
     {
       feeLimit: 1_000_000_000,
-      callValue: 0,
       abi: abi.abi,
       bytecode: abi.bytecode,
       parameters,
@@ -98,7 +97,6 @@ export async function createRawBytecodeDeploymentTransaction(
   return tronweb.transactionBuilder.createSmartContract(
     {
       feeLimit: 1_000_000_000,
-      callValue: 0,
       abi: [],
       bytecode,
       parameters: [],

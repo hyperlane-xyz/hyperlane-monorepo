@@ -56,6 +56,7 @@
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/utils": "workspace:*",
+    "@hyperlane-xyz/eslint-config": "workspace:*",
     "bignumber.js": "catalog:",
     "tronweb": "^6.1.1"
   }
