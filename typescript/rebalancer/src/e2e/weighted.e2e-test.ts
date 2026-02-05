@@ -238,8 +238,10 @@ describe('WeightedStrategy E2E', function () {
         destination: 'base',
       },
     );
-    expect(rebalanceRelayResult.success, 'Rebalance relay should succeed').to.be
-      .true;
+    expect(
+      rebalanceRelayResult.success,
+      `Rebalance relay should succeed: ${rebalanceRelayResult.error}`,
+    ).to.be.true;
 
     // Sync actions to detect delivery and mark complete
     const blockTags = await context.getConfirmedBlockTags();

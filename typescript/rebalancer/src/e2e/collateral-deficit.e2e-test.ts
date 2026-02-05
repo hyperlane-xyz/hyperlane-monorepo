@@ -421,16 +421,20 @@ describe('Collateral Deficit E2E', function () {
         destination: 'arbitrum',
       },
     );
-    expect(rebalanceRelayResult.success, 'Rebalance relay should succeed').to.be
-      .true;
+    expect(
+      rebalanceRelayResult.success,
+      `Rebalance relay should succeed: ${rebalanceRelayResult.error}`,
+    ).to.be.true;
 
     const userTransferRelay2 = await tryRelayMessage(
       context.multiProvider,
       hyperlaneCore,
       transferResult,
     );
-    expect(userTransferRelay2.success, 'User transfer relay should succeed').to
-      .be.true;
+    expect(
+      userTransferRelay2.success,
+      `User transfer relay should succeed: ${userTransferRelay2.error}`,
+    ).to.be.true;
 
     // Sync actions to detect delivery and mark complete
     const blockTags2 = await context.getConfirmedBlockTags();
