@@ -91,6 +91,51 @@ describe('TronWallet Integration Tests', function () {
 
     const INITIAL_VALUE = 100;
 
+    it('should get deploy transaction and estimate gas', async () => {
+      const factory = new TronContractFactory(
+        new TestStorage__factory(),
+        wallet,
+      );
+
+      // Get deploy transaction (pure ethers, no network call)
+      const deployTx = factory.getDeployTransaction(
+        INITIAL_VALUE,
+        wallet.address,
+      );
+      expect(deployTx.data).to.be.a('string');
+      expect(deployTx.data).to.match(/^0x/);
+
+      // Estimate gas via Tron JSON-RPC
+      const estimatedGas = await wallet.estimateGas(deployTx);
+      expect(estimatedGas.gt(0)).to.be.true;
+    });
+
+    it('should deploy with gas limit override (like handleDeploy)', async () => {
+      const factory = new TronContractFactory(
+        new TestStorage__factory(),
+        wallet,
+      );
+
+      // Simulate handleDeploy flow: estimate then deploy with buffered gas limit
+      const deployTx = factory.getDeployTransaction(
+        INITIAL_VALUE,
+        wallet.address,
+      );
+      const estimatedGas = await wallet.estimateGas(deployTx);
+      const bufferedGasLimit = estimatedGas.mul(120).div(100); // 20% buffer
+
+      const deployed = await factory.deploy(INITIAL_VALUE, wallet.address, {
+        gasLimit: bufferedGasLimit,
+      });
+
+      expect(deployed.address).to.be.a('string');
+      expect(deployed.address).to.match(/^0x[a-fA-F0-9]{40}$/);
+
+      // Verify we can interact with the deployed contract
+      const value = await deployed.get();
+      expect(value.toNumber()).to.equal(INITIAL_VALUE);
+    });
+
     it('should deploy a contract with constructor args', async () => {
       const factory = new TronContractFactory(
         new TestStorage__factory(),
