@@ -4,17 +4,11 @@ on:
   push:
     branches: [main]
     paths:
-      - 'typescript/rebalancer/**'
-      - 'typescript/sdk/**'
-      - 'typescript/utils/**'
-      - 'typescript/metrics/**'
+      - 'typescript/rebalancer/src/e2e/**'
       - '.github/workflows/rebalancer-e2e-test.yml'
   pull_request:
     paths:
-      - 'typescript/rebalancer/**'
-      - 'typescript/sdk/**'
-      - 'typescript/utils/**'
-      - 'typescript/metrics/**'
+      - 'typescript/rebalancer/src/e2e/**'
       - '.github/workflows/rebalancer-e2e-test.yml'
   workflow_dispatch:
 
@@ -34,7 +28,6 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      max-parallel: 4
       matrix:
         test:
           - weighted
@@ -47,12 +40,28 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
+      - name: Set Foundry RPC URLs for fork tests
+        env:
+          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
+        run: |
+          # Extract first URL from comma-separated list and set as env vars
+          echo "RPC_URL_ETHEREUM=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
+
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
       - name: Run rebalancer E2E test (${{ matrix.test }})
         working-directory: typescript/rebalancer
-        run: pnpm mocha --config .mocharc.e2e.json "src/e2e/*${{ matrix.test }}*.e2e-test.ts" --exit
+        env:
+          REBALANCER_E2E_TEST: ${{ matrix.test }}
+        run: pnpm test:e2e:ci
 
   rebalancer-e2e-test:
     runs-on: ubuntu-latest
