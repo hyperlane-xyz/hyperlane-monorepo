@@ -13,7 +13,7 @@ export abstract class ProxiedRouterChecker<
   getOwnableOverrides(chain: ChainName): AddressesMap | undefined {
     const config = this.configMap[chain];
     let ownableOverrides = config?.ownerOverrides;
-    // timelock and proxyAdmin are mutally exclusive
+    // timelock and proxyAdmin are mutually exclusive
     if (config?.timelock) {
       ownableOverrides = {
         ...ownableOverrides,
