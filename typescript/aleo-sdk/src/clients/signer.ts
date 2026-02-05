@@ -716,6 +716,12 @@ export class AleoSigner
     throw new Error('ProxyAdmin is not supported on Aleo');
   }
 
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(

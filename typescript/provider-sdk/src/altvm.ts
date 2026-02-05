@@ -389,6 +389,15 @@ export type ResCreateProxyAdmin = {
   proxyAdminAddress: string;
 };
 
+export type ReqSetProxyAdminOwner = {
+  signer: string;
+  proxyAdminAddress: string;
+  newOwner: string;
+};
+export type ResSetProxyAdminOwner = {
+  newOwner: string;
+};
+
 // ### POPULATE WARP ###
 
 export type ReqCreateNativeToken = {
@@ -617,6 +626,8 @@ export interface IProvider<T = any> {
 
   getCreateProxyAdminTransaction(req: ReqCreateProxyAdmin): Promise<T>;
 
+  getSetProxyAdminOwnerTransaction(req: ReqSetProxyAdminOwner): Promise<T>;
+
   // ### GET WARP TXS ###
 
   getCreateNativeTokenTransaction(req: ReqCreateNativeToken): Promise<T>;
@@ -734,6 +745,10 @@ export interface ISigner<T, R> extends IProvider<T> {
   createProxyAdmin(
     req: Omit<ReqCreateProxyAdmin, 'signer'>,
   ): Promise<ResCreateProxyAdmin>;
+
+  setProxyAdminOwner(
+    req: Omit<ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<ResSetProxyAdminOwner>;
 
   // ### TX WARP ###
 

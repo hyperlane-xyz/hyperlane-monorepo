@@ -504,6 +504,12 @@ export class RadixSigner
     throw new Error('ProxyAdmin is not supported on Radix');
   }
 
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(

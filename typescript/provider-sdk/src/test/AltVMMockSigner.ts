@@ -161,6 +161,12 @@ export class MockSigner
     throw new Error(`not implemented`);
   }
 
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error(`not implemented`);
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(

@@ -454,7 +454,13 @@ export class CosmosNativeSigner
   async createProxyAdmin(
     _req: Omit<AltVM.ReqCreateProxyAdmin, 'signer'>,
   ): Promise<AltVM.ResCreateProxyAdmin> {
-    throw new Error('ProxyAdmin is not supported on Cosmos');
+    throw new Error('ProxyAdmin is not supported on Cosmos Native');
+  }
+
+  async setProxyAdminOwner(
+    _req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    throw new Error('ProxyAdmin is not supported on Cosmos Native');
   }
 
   // ### TX WARP ###

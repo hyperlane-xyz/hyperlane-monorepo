@@ -738,6 +738,26 @@ export class TronProvider implements AltVM.IProvider {
     );
   }
 
+  async getSetProxyAdminOwnerTransaction(
+    req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<TronTransaction> {
+    const { transaction } =
+      await this.tronweb.transactionBuilder.triggerSmartContract(
+        req.proxyAdminAddress,
+        'transferOwnership(address)',
+        {},
+        [
+          {
+            type: 'address',
+            value: req.newOwner,
+          },
+        ],
+        this.tronweb.address.toHex(req.signer),
+      );
+
+    return transaction;
+  }
+
   // ### GET WARP TXS ###
 
   async getCreateNativeTokenTransaction(

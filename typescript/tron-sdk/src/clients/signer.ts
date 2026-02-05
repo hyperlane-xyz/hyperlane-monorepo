@@ -562,6 +562,21 @@ export class TronSigner
     };
   }
 
+  async setProxyAdminOwner(
+    req: Omit<AltVM.ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<AltVM.ResSetProxyAdminOwner> {
+    const tx = await this.getSetProxyAdminOwnerTransaction({
+      ...req,
+      signer: this.getSignerAddress(),
+    });
+
+    await this.sendAndConfirmTransaction(tx);
+
+    return {
+      newOwner: req.newOwner,
+    };
+  }
+
   // ### TX WARP ###
 
   async createNativeToken(
