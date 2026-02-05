@@ -2108,13 +2108,13 @@ importers:
         version: 8.0.2(chai@4.5.0)
       eslint:
         specifier: 'catalog:'
-        version: 9.31.0(jiti@2.6.1)
+        version: 9.39.2(jiti@2.6.1)
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
       prettier:
         specifier: 'catalog:'
-        version: 3.5.3
+        version: 3.8.1
       testcontainers:
         specifier: 'catalog:'
         version: 11.7.0
