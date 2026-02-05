@@ -53,7 +53,6 @@ Review this pull request. Focus on:
 - **`forEach` with assignment** - `arr.forEach(x => (obj[x] = val))` returns value; use `for-of` with block body
 - **`array.sort()` mutates** - Use `[...array].sort()` to avoid mutating input
 - **Double-cast `as unknown as X`** - Hides type mismatches; use single cast or fix types
-- **Non-null assertion `!`** - `value!` masks potential nulls; use `if (value)` or `??` instead
 - **Placeholder strings in typed maps** - Don't use `map['placeholder']` when type expects `Address`
 - **Duplicate test names** - Two `it('does X')` in same file hides intent; make names distinct
 - **Stale test `describe()` strings** - Keep in sync with actual CLI flags/behavior
