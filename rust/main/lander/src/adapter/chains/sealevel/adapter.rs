@@ -342,9 +342,7 @@ impl AdaptsChain for SealevelAdapter {
         // Simulate based on transaction type
         let result = match &svm_transaction {
             SealevelTxType::Legacy(t) => self.client.simulate_transaction(t).await,
-            SealevelTxType::Versioned(t) => {
-                self.client.simulate_sealevel_versioned_transaction(t).await
-            }
+            SealevelTxType::Versioned(t) => self.client.simulate_versioned_transaction(t).await,
         };
 
         result.map_err(|e| {

@@ -61,7 +61,7 @@ pub trait SubmitSealevelRpc: Send + Sync {
     ) -> ChainResult<RpcSimulateTransactionResult>;
 
     /// Simulates Sealevel versioned transaction
-    async fn simulate_sealevel_versioned_transaction(
+    async fn simulate_versioned_transaction(
         &self,
         transaction: &VersionedTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult>;
@@ -124,18 +124,15 @@ impl SubmitSealevelRpc for SealevelFallbackRpcClient {
     }
 
     /// simulate a versioned transaction
-    async fn simulate_sealevel_versioned_transaction(
+    async fn simulate_versioned_transaction(
         &self,
         transaction: &VersionedTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult> {
         self.fallback_provider
             .call(move |client| {
                 let transaction = transaction.clone();
-                let future = async move {
-                    client
-                        .simulate_sealevel_versioned_transaction(&transaction)
-                        .await
-                };
+                let future =
+                    async move { client.simulate_versioned_transaction(&transaction).await };
                 Box::pin(future)
             })
             .await
@@ -399,7 +396,7 @@ impl SealevelFallbackRpcClient {
     ) -> ChainResult<RpcSimulateTransactionResult> {
         match tx {
             SealevelTxType::Legacy(t) => self.simulate_transaction(t).await,
-            SealevelTxType::Versioned(t) => self.simulate_sealevel_versioned_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.simulate_versioned_transaction(t).await,
         }
     }
 

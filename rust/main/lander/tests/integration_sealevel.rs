@@ -18,7 +18,10 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Signature,
     signature::Signer,
-    transaction::{Transaction as SealevelLegacyTransaction, VersionedTransaction},
+    transaction::{
+        Transaction as SealevelLegacyTransaction,
+        VersionedTransaction as SealevelVersionedTransaction,
+    },
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
@@ -51,7 +54,7 @@ mock! {
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn get_transaction_with_commitment(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn simulate_transaction(&self, transaction: &SealevelLegacyTransaction) -> ChainResult<RpcSimulateTransactionResult>;
-        async fn simulate_sealevel_versioned_transaction(&self, transaction: &VersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+        async fn simulate_versioned_transaction(&self, transaction: &SealevelVersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
 
@@ -178,7 +181,7 @@ fn create_sealevel_provider_for_successful_versioned_tx() -> MockSvmProvider {
                 Hash::default(),
             )
             .unwrap();
-            let tx = VersionedTransaction {
+            let tx = SealevelVersionedTransaction {
                 signatures: vec![Signature::default()],
                 message: VersionedMessage::V0(message),
             };
@@ -219,7 +222,7 @@ fn create_sealevel_client() -> MockClient {
         .expect_simulate_transaction()
         .returning(move |_| Ok(result_clone.clone()));
     client
-        .expect_simulate_sealevel_versioned_transaction()
+        .expect_simulate_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
@@ -614,8 +617,19 @@ async fn test_sealevel_versioned_tx_estimation_failure_results_in_dropped() {
         .expect_get_estimated_costs_for_instruction()
         .returning(|_, _, _, _, _| Err(eyre::eyre!("Estimation failed").into()));
 
-    // create_transaction_for_instruction would return versioned tx, but won't be called
-    // since estimation fails first
+    // Mock still needed even though estimation fails - may be called during simulation
+    provider
+        .expect_create_transaction_for_instruction()
+        .returning(|_, _, instruction, payer, _, _, _| {
+            let message =
+                MessageV0::try_compile(&payer.pubkey(), &[instruction], &[], Hash::default())
+                    .unwrap();
+            let tx = SealevelVersionedTransaction {
+                signatures: vec![Signature::default()],
+                message: VersionedMessage::V0(message),
+            };
+            Ok(SealevelTxType::Versioned(tx))
+        });
 
     provider
         .expect_wait_for_transaction_confirmation()
