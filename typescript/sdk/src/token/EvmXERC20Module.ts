@@ -374,10 +374,9 @@ export class EvmXERC20Module extends HyperlaneModule<
 
     const limits: XERC20LimitsMap = {};
     const xERC20Config = warpRouteConfig.xERC20;
+    const warpRouteLimits = xERC20Config?.warpRouteLimits;
 
-    if (xERC20Config?.warpRouteLimits) {
-      const warpRouteLimits = xERC20Config.warpRouteLimits;
-
+    if (warpRouteLimits) {
       if (warpRouteLimits.type === XERC20Type.Standard) {
         if (warpRouteLimits.mint != null && warpRouteLimits.burn != null) {
           limits[warpRouteAddress] = {
@@ -426,10 +425,11 @@ export class EvmXERC20Module extends HyperlaneModule<
       }
     }
 
-    const type: XERC20Type =
-      xERC20Config?.warpRouteLimits?.type === XERC20Type.Velo
-        ? XERC20Type.Velo
-        : XERC20Type.Standard;
+    const type: XERC20Type = warpRouteLimits?.type
+      ? warpRouteLimits.type
+      : await new EvmXERC20Reader(multiProvider, chain).deriveXERC20TokenType(
+          xERC20Address,
+        );
 
     const config: XERC20ModuleConfig = { type, limits };
     const module = new EvmXERC20Module(multiProvider, {

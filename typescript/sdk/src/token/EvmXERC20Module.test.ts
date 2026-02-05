@@ -375,5 +375,26 @@ describe('EvmXERC20Module', () => {
         burn: '2',
       });
     });
+
+    it('derives type from chain when limits missing', async () => {
+      const typeStub = sandbox
+        .stub(EvmXERC20Reader.prototype, 'deriveXERC20TokenType')
+        .resolves(XERC20Type.Velo);
+
+      const warpRouteConfig = {
+        type: TokenType.XERC20,
+        token: XERC20_ADDRESS,
+      };
+
+      const { config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+
+      expect(typeStub.calledOnce).to.equal(true);
+      expect(config.type).to.equal(XERC20Type.Velo);
+    });
   });
 });
