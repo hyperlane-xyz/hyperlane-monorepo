@@ -97,6 +97,11 @@ describe('xerc20 e2e tests', function () {
     );
   });
 
+  const BRIDGE_LIMITS = {
+    bufferCap: '1000000000000000000000',
+    rateLimitPerSecond: '1000000000000000000',
+  };
+
   async function deployWarpRoutesAndSetupBridges(): Promise<void> {
     const xerc20LockboxConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
@@ -138,8 +143,7 @@ describe('xerc20 e2e tests', function () {
     if (vsWarpRouteAddress2) {
       const tx = await xERC20VS2.addBridge({
         bridge: vsWarpRouteAddress2,
-        bufferCap: '1000000000000000000000',
-        rateLimitPerSecond: '1000000000000000000',
+        ...BRIDGE_LIMITS,
       });
       await tx.wait();
     }
@@ -147,11 +151,38 @@ describe('xerc20 e2e tests', function () {
     if (vsWarpRouteAddress3) {
       const tx = await xERC20VS3.addBridge({
         bridge: vsWarpRouteAddress3,
-        bufferCap: '1000000000000000000000',
-        rateLimitPerSecond: '1000000000000000000',
+        ...BRIDGE_LIMITS,
       });
       await tx.wait();
     }
+
+    const xerc20VSConfigWithLimits: WarpRouteDeployConfig = {
+      [CHAIN_NAME_2]: {
+        type: TokenType.XERC20,
+        token: xERC20VS2.address,
+        mailbox: chain2Addresses.mailbox,
+        owner: ownerAddress,
+        xERC20: {
+          warpRouteLimits: {
+            type: XERC20Type.Velo,
+            ...BRIDGE_LIMITS,
+          },
+        },
+      },
+      [CHAIN_NAME_3]: {
+        type: TokenType.XERC20,
+        token: xERC20VS3.address,
+        mailbox: chain3Addresses.mailbox,
+        owner: ownerAddress,
+        xERC20: {
+          warpRouteLimits: {
+            type: XERC20Type.Velo,
+            ...BRIDGE_LIMITS,
+          },
+        },
+      },
+    };
+    writeYamlOrJson(XERC20_VS_DEPLOY_PATH, xerc20VSConfigWithLimits);
   }
 
   beforeEach(async function () {
