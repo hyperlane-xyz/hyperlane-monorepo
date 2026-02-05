@@ -50,6 +50,7 @@ describe('xerc20 e2e tests', function () {
   let xERC20VS3: XERC20VSTest;
 
   const XERC20_LOCKBOX_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20-lockbox-deploy.yaml`;
+  const XERC20_LOCKBOX_CORE_PATH = `${REGISTRY_PATH}/deployments/warp_routes/XERC20/anvil2-config.yaml`;
   const XERC20_VS_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20-vs-deploy.yaml`;
   const XERC20_VS_CORE_PATH = `${REGISTRY_PATH}/deployments/warp_routes/XERC20VS/anvil2-anvil3-config.yaml`;
 
@@ -150,7 +151,9 @@ describe('xerc20 e2e tests', function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
         --registry ${REGISTRY_PATH} \
         --config ${XERC20_VS_DEPLOY_PATH} \
+        --warp ${XERC20_VS_CORE_PATH} \
         --chains ${CHAIN_NAME_2} \
+        --key ${ANVIL_KEY} \
         --verbosity debug`;
 
       expect(result.stdout).to.include('No updates needed');
@@ -178,7 +181,9 @@ describe('xerc20 e2e tests', function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
         --registry ${REGISTRY_PATH} \
         --config ${configPath} \
+        --warp ${XERC20_VS_CORE_PATH} \
         --chains ${CHAIN_NAME_2} \
+        --key ${ANVIL_KEY} \
         --verbosity debug`;
 
       expect(result.stdout).to.include('Generated');
@@ -188,6 +193,8 @@ describe('xerc20 e2e tests', function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 apply \
         --registry ${REGISTRY_PATH} \
         --config ${XERC20_VS_DEPLOY_PATH} \
+        --warp ${XERC20_VS_CORE_PATH} \
+        --key ${ANVIL_KEY} \
         --verbosity debug`;
 
       expect(result.stdout).to.include(CHAIN_NAME_2);
@@ -200,6 +207,7 @@ describe('xerc20 e2e tests', function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
         --config ${XERC20_VS_DEPLOY_PATH} \
+        --warp ${XERC20_VS_CORE_PATH} \
         --chains ${CHAIN_NAME_2} \
         --verbosity debug`;
 
@@ -211,6 +219,7 @@ describe('xerc20 e2e tests', function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
         --config ${XERC20_LOCKBOX_DEPLOY_PATH} \
+        --warp ${XERC20_LOCKBOX_CORE_PATH} \
         --verbosity debug`;
 
       const output = result.stdout;
@@ -221,6 +230,7 @@ describe('xerc20 e2e tests', function () {
       const result = await $`${localTestRunCmdPrefix()} hyperlane xerc20 read \
         --registry ${REGISTRY_PATH} \
         --config ${XERC20_VS_DEPLOY_PATH} \
+        --warp ${XERC20_VS_CORE_PATH} \
         --chains ${CHAIN_NAME_2} \
         --verbosity debug`;
 
