@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
+import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
@@ -17,6 +19,8 @@ const XERC20_ADDRESS = '0x1111111111111111111111111111111111111111';
 const WARP_ROUTE_ADDRESS = '0x5555555555555555555555555555555555555555';
 const BRIDGE_ADDRESS_1 = '0x2222222222222222222222222222222222222222';
 const EXTRA_BRIDGE_ADDRESS = '0x4444444444444444444444444444444444444444';
+const LOCKBOX_ADDRESS = '0x3333333333333333333333333333333333333333';
+const XERC20_FROM_LOCKBOX = '0x7777777777777777777777777777777777777777';
 
 describe('EvmXERC20Module', () => {
   let multiProvider: MultiProvider;
@@ -329,6 +333,46 @@ describe('EvmXERC20Module', () => {
         type: XERC20Type.Standard,
         mint: '2000000000000000000',
         burn: '1000000000000000000',
+      });
+    });
+
+    it('resolves xERC20 address from lockbox config', async () => {
+      const xerc20Stub = sandbox.stub().resolves(XERC20_FROM_LOCKBOX);
+      const connectStub = sandbox
+        .stub(IXERC20Lockbox__factory, 'connect')
+        .returns({ callStatic: { XERC20: xerc20Stub } } as any);
+
+      const warpRouteConfig = {
+        type: TokenType.XERC20Lockbox,
+        token: LOCKBOX_ADDRESS,
+        xERC20: {
+          warpRouteLimits: {
+            type: XERC20Type.Standard,
+            mint: '1',
+            burn: '2',
+          },
+        },
+      };
+
+      const { module, config } = await EvmXERC20Module.fromWarpRouteConfig(
+        multiProvider,
+        TestChainName.test1,
+        warpRouteConfig,
+        WARP_ROUTE_ADDRESS,
+      );
+
+      expect(
+        connectStub.calledWith(
+          LOCKBOX_ADDRESS,
+          multiProvider.getProvider(TestChainName.test1),
+        ),
+      ).to.equal(true);
+      expect(xerc20Stub.calledOnce).to.equal(true);
+      expect(module.serialize().xERC20).to.equal(XERC20_FROM_LOCKBOX);
+      expect(config.limits[WARP_ROUTE_ADDRESS]).to.deep.equal({
+        type: XERC20Type.Standard,
+        mint: '1',
+        burn: '2',
       });
     });
   });

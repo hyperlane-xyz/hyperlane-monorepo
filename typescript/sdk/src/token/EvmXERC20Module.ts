@@ -1,6 +1,6 @@
 import { PopulatedTransaction } from 'ethers';
 
-import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -365,11 +365,11 @@ export class EvmXERC20Module extends HyperlaneModule<
     let xERC20Address = warpRouteConfig.token;
     if (warpRouteConfig.type === TokenType.XERC20Lockbox) {
       const provider = multiProvider.getProvider(chain);
-      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+      const lockbox = IXERC20Lockbox__factory.connect(
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await hypXERC20Lockbox.xERC20();
+      xERC20Address = await lockbox.callStatic.XERC20();
     }
 
     const limits: XERC20LimitsMap = {};
