@@ -37,6 +37,7 @@ COPY patches ./patches
 # Copy package.json files for indexer and its workspace dependencies
 COPY typescript/indexer/package.json ./typescript/indexer/
 COPY typescript/sdk/package.json ./typescript/sdk/
+COPY typescript/deploy-sdk/package.json ./typescript/deploy-sdk/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/utils/package.json ./typescript/utils/
 COPY typescript/cosmos-sdk/package.json ./typescript/cosmos-sdk/
@@ -56,6 +57,7 @@ RUN pnpm install --frozen-lockfile
 COPY turbo.json ./
 COPY typescript/indexer ./typescript/indexer
 COPY typescript/sdk ./typescript/sdk
+COPY typescript/deploy-sdk ./typescript/deploy-sdk
 COPY typescript/provider-sdk ./typescript/provider-sdk
 COPY typescript/utils ./typescript/utils
 COPY typescript/cosmos-sdk ./typescript/cosmos-sdk
@@ -107,6 +109,7 @@ COPY --from=builder /hyperlane-monorepo/patches ./patches
 COPY --from=builder /hyperlane-monorepo/node_modules ./node_modules
 COPY --from=builder /hyperlane-monorepo/typescript/indexer ./typescript/indexer
 COPY --from=builder /hyperlane-monorepo/typescript/sdk ./typescript/sdk
+COPY --from=builder /hyperlane-monorepo/typescript/deploy-sdk ./typescript/deploy-sdk
 COPY --from=builder /hyperlane-monorepo/typescript/provider-sdk ./typescript/provider-sdk
 COPY --from=builder /hyperlane-monorepo/typescript/utils ./typescript/utils
 COPY --from=builder /hyperlane-monorepo/typescript/cosmos-sdk ./typescript/cosmos-sdk
