@@ -165,20 +165,17 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
     );
   }
 
-  // Check if destination domain exists
-  const destDomainExists = await adapter.domainExists(parsed.destination);
-  if (!destDomainExists) {
+  // Store dispatch - skip only if destination exceeds INTEGER max
+  const MAX_INT32 = 2147483647;
+  if (parsed.destination > MAX_INT32) {
     getLogger().warn(
       {
         destination: parsed.destination,
         messageId,
         origin: chainName,
-        sender: extractAddress(parsed.sender),
-        nonce: parsed.nonce,
       },
-      'Unknown destination domain',
+      'Destination domain exceeds INTEGER max, skipping',
     );
-    // Still store raw dispatch but skip ponder_message
   } else {
     // Store the dispatch event (message)
     await adapter.storeDispatch(
@@ -196,11 +193,8 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
       },
       txId,
     );
-  }
 
-  // Store raw dispatch (lightweight record) - only if destination fits in INTEGER
-  const MAX_INT32 = 2147483647;
-  if (parsed.destination <= MAX_INT32) {
+    // Store raw dispatch (lightweight record)
     await adapter.storeRawDispatch(
       chainId,
       mailboxAddress,
