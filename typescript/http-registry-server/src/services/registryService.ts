@@ -24,8 +24,13 @@ export class RegistryService {
   ) {}
 
   async initialize() {
-    this.registry = await this.registryRefresh.get();
-    this.lastRefresh = Date.now();
+    try {
+      this.registry = await this.registryRefresh.get();
+      this.lastRefresh = Date.now();
+    } catch (err: unknown) {
+      this.logger.error({ err }, 'Registry initialization failed');
+      throw err;
+    }
     this.startWatching();
   }
 
@@ -98,9 +103,14 @@ export class RegistryService {
     if (shouldRefresh) {
       this.logger.info('Refreshing registry cache...');
       this.registryRefresh.reset();
-      this.registry = await this.registryRefresh.get();
-      this.isDirty = false;
-      this.lastRefresh = now;
+      try {
+        this.registry = await this.registryRefresh.get();
+        this.isDirty = false;
+        this.lastRefresh = now;
+      } catch (err: unknown) {
+        this.logger.error({ err }, 'Registry refresh failed');
+        throw err;
+      }
     }
 
     assert(this.registry, 'Could not fetch current registry');

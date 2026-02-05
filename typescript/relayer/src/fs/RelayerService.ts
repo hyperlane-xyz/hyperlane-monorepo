@@ -149,7 +149,7 @@ export class RelayerService {
   private buildWhitelistFromConfig(): ChainMap<Address[]> | undefined {
     const relayerConfig = this.config.relayerConfig;
     if (relayerConfig?.whitelist) {
-      return relayerConfig.whitelist as ChainMap<Address[]>;
+      return relayerConfig.whitelist;
     }
 
     if (relayerConfig?.chains) {
