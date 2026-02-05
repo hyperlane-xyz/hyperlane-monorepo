@@ -174,7 +174,7 @@ abstract class TokenDeployer<
     } else if (isOpL1TokenConfig(config)) {
       return [config.mailbox, config.portal];
     } else if (isSyntheticTokenConfig(config)) {
-      assert(config.decimals, 'decimals is undefined for config'); // decimals must be defined by this point
+      assert(config.decimals !== undefined, 'decimals is undefined for config'); // decimals must be defined by this point
       return [config.decimals, scale, config.mailbox];
     } else if (isSyntheticRebaseTokenConfig(config)) {
       const collateralDomain = this.multiProvider.getDomainId(
@@ -324,6 +324,7 @@ abstract class TokenDeployer<
             TokenMetadataSchema.parse({
               name,
               symbol,
+              decimals: 0,
             }),
           );
           continue;
@@ -814,6 +815,21 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
       ismFactory,
       contractVerifier,
     );
+  }
+
+  async constructorArgs(
+    _: ChainName,
+    config: HypTokenRouterConfig,
+  ): Promise<any> {
+    if (isCollateralTokenConfig(config) || isXERC20TokenConfig(config)) {
+      // NFT collateral contracts need: [tokenAddress, mailbox]
+      return [config.token, config.mailbox];
+    } else if (isSyntheticTokenConfig(config)) {
+      // NFT synthetic contracts need: [mailbox]
+      return [config.mailbox];
+    } else {
+      throw new Error('Unknown NFT token type when constructing arguments');
+    }
   }
 
   router(contracts: HyperlaneContracts<HypERC721Factories>): GasRouter {
