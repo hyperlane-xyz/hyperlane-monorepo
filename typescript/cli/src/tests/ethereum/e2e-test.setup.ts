@@ -6,19 +6,35 @@ import {
   TEST_CHAIN_METADATA_BY_PROTOCOL,
   TEST_CHAIN_NAMES_BY_PROTOCOL,
 } from '../constants.js';
-import { runEvmNode } from '../nodes.js';
+import { runEvmNode, runTronNode } from '../nodes.js';
 
-import { REGISTRY_PATH as OLD_REGISTRY_PATH } from './consts.js';
+import { IS_TRON_TEST, REGISTRY_PATH as OLD_REGISTRY_PATH } from './consts.js';
 
 before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  // Use longer timeout for Tron (node startup is slower)
+  this.timeout(
+    IS_TRON_TEST ? 3 * DEFAULT_E2E_TEST_TIMEOUT : DEFAULT_E2E_TEST_TIMEOUT,
+  );
 
-  await Promise.all([
-    runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
-    runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
-    runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4),
-  ]);
+  if (IS_TRON_TEST) {
+    // Single Tron node handles all 3 logical chains (anvil2/3/4 aliases)
+    await runTronNode({
+      name: 'tron-local',
+      chainId: 728126428,
+      domainId: 728126428,
+      rpcPort: 8545,
+      httpPort: 8090,
+    });
+  } else {
+    // Separate Anvil nodes for each chain
+    await Promise.all([
+      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2),
+      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3),
+      runEvmNode(TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_4),
+    ]);
+  }
 
+  // Clean up existing chain addresses
   for (const registryPath of [REGISTRY_PATH, OLD_REGISTRY_PATH]) {
     Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(
       ([_protocol, chainNames]) => {
@@ -31,6 +47,16 @@ before(async function () {
         });
       },
     );
+  }
+
+  // Also clean up Tron registry anvil aliases
+  if (IS_TRON_TEST) {
+    for (const chainName of ['anvil2', 'anvil3', 'anvil4']) {
+      const path = `${OLD_REGISTRY_PATH}/chains/${chainName}/addresses.yaml`;
+      if (fs.existsSync(path)) {
+        fs.rmSync(path, { recursive: true, force: true });
+      }
+    }
   }
 });
 

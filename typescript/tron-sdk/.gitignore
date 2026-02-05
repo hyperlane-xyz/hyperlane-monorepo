@@ -1,0 +1,5 @@
+.env
+dist
+cache
+local-node/data
+local-node/logs
