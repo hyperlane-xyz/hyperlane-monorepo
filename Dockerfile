@@ -34,6 +34,7 @@ COPY typescript/eslint-config/package.json ./typescript/eslint-config/
 COPY typescript/github-proxy/package.json ./typescript/github-proxy/
 COPY typescript/helloworld/package.json ./typescript/helloworld/
 COPY typescript/http-registry-server/package.json ./typescript/http-registry-server/
+COPY typescript/indexer/package.json ./typescript/indexer/
 COPY typescript/infra/package.json ./typescript/infra/
 COPY typescript/keyfunder/package.json ./typescript/keyfunder/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
