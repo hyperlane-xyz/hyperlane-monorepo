@@ -15,7 +15,9 @@ import {
   RawArtifact,
   isArtifactDeployed,
   isArtifactNew,
+  isArtifactUnderived,
 } from './artifact.js';
+import { ChainLookup } from './chain.js';
 
 export type IsmModuleType = {
   config: IsmConfig;
@@ -299,4 +301,151 @@ export function altVMIsmTypeToProviderSdkType(
   // After validation, we know altVMType is one of the supported types
   // which map directly to IsmType string literals
   return altVMType as IsmType;
+}
+
+export function ismArtifactToDerivedConfig(
+  artifact: DeployedIsmArtifact,
+  chainLookup: ChainLookup,
+): DerivedIsmConfig {
+  const config = artifact.config;
+  const address = artifact.deployed.address;
+
+  switch (config.type) {
+    case 'domainRoutingIsm': {
+      // For routing ISMs, convert domain IDs back to chain names
+      // and convert nested artifacts to IsmConfig or address strings
+      const domains: Record<string, IsmConfig | string> = {};
+
+      for (const [domainIdStr, domainArtifact] of Object.entries(
+        config.domains,
+      )) {
+        const domainId = parseInt(domainIdStr);
+        const chainName = chainLookup.getChainName(domainId);
+        if (!chainName) {
+          // Skip unknown domains
+          continue;
+        }
+
+        if (isArtifactDeployed(domainArtifact)) {
+          // Recursively convert nested ISM artifacts
+          domains[chainName] = ismArtifactToDerivedConfig(
+            domainArtifact,
+            chainLookup,
+          );
+        } else if (isArtifactUnderived(domainArtifact)) {
+          // Use the address string for underived artifacts
+          domains[chainName] = domainArtifact.deployed.address;
+        } else if (isArtifactNew(domainArtifact)) {
+          throw new Error(
+            `Cannot convert routing ISM to derived config: nested ISM for domain ${chainName} (${domainId}) is NEW and has no address`,
+          );
+        }
+      }
+
+      return {
+        type: 'domainRoutingIsm',
+        owner: config.owner,
+        domains,
+        address,
+      };
+    }
+
+    case 'merkleRootMultisigIsm':
+    case 'messageIdMultisigIsm':
+      // Multisig ISMs have identical structure between Artifact and Config APIs
+      return {
+        ...config,
+        address,
+      };
+
+    case 'testIsm':
+      // Test ISMs have identical structure between Artifact and Config APIs
+      return {
+        ...config,
+        address,
+      };
+
+    default: {
+      const invalidConfig: never = config;
+      throw new Error(`Unhandled ISM type: ${(invalidConfig as any).type}`);
+    }
+  }
+}
+
+/**
+ * Converts IsmConfig (Config API) to IsmArtifactConfig (Artifact API).
+ *
+ * Key transformations:
+ * - String chain names → numeric domain IDs (for routing ISM domains)
+ * - Address string references → ArtifactUnderived objects
+ * - Recursively handles nested routing ISM configurations
+ * - Other ISM types (multisig, testIsm) pass through unchanged
+ *
+ * @param config The ISM configuration using Config API format
+ * @param chainLookup Chain lookup interface for resolving chain names to domain IDs
+ * @returns Artifact wrapper around IsmArtifactConfig suitable for artifact writers
+ *
+ * @example
+ * ```typescript
+ * // Config API format
+ * const ismConfig: IsmConfig = {
+ *   type: 'domainRoutingIsm',
+ *   owner: '0x123...',
+ *   domains: {
+ *     ethereum: { type: 'merkleRootMultisigIsm', validators: [...], threshold: 2 },
+ *     polygon: '0xabc...' // address reference
+ *   }
+ * };
+ *
+ * // Convert to Artifact API format
+ * const artifact = ismConfigToArtifact(ismConfig, chainLookup);
+ * // artifact.config.domains is now Record<number, Artifact<IsmArtifactConfig>>
+ * // with numeric domain IDs and properly wrapped nested configs
+ * ```
+ */
+export function ismConfigToArtifact(
+  config: IsmConfig,
+  chainLookup: ChainLookup,
+): ArtifactNew<IsmArtifactConfig> {
+  // Handle routing ISMs - need to convert chain names to domain IDs
+  if (config.type === 'domainRoutingIsm') {
+    const domains: Record<
+      number,
+      Artifact<IsmArtifactConfig, DeployedIsmAddress>
+    > = {};
+
+    for (const [chainName, nestedConfig] of Object.entries(config.domains)) {
+      const domainId = chainLookup.getDomainId(chainName);
+      if (!domainId) {
+        // Skip unknown chains - they'll be warned about during deployment
+        continue;
+      }
+
+      if (typeof nestedConfig === 'string') {
+        // Address reference - create an UNDERIVED artifact
+        // This represents a predeployed ISM with unspecified type
+        // The routing ISM writer will pass it through without reading
+        // Only readers will fetch its config from chain if needed
+        domains[domainId] = {
+          artifactState: ArtifactState.UNDERIVED,
+          deployed: { address: nestedConfig },
+        };
+      } else {
+        // Nested ISM config - recursively convert
+        domains[domainId] = ismConfigToArtifact(nestedConfig, chainLookup);
+      }
+    }
+
+    return {
+      config: {
+        type: 'domainRoutingIsm',
+        owner: config.owner,
+        domains,
+      },
+    };
+  }
+
+  // Other ISM types (multisig, testIsm) have identical config structure
+  // between Config API and Artifact API - just wrap in artifact object
+  return { artifactState: ArtifactState.NEW, config };
 }
