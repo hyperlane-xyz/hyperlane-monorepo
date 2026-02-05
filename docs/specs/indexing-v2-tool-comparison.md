@@ -40,6 +40,7 @@ This document compares blockchain indexing frameworks for Hyperlane's Indexing V
 | ----------------- | ----------------- | --------------- | ---------------- | ------------- |
 | Event indexing    | ✅                | ✅              | ✅               | ✅            |
 | GraphQL API       | ✅ Auto-generated | ❌ Build own    | ✅ Built-in      | ✅ Built-in   |
+| Custom handlers   | ✅ TypeScript     | ❌ Binary-only  | ✅ TypeScript    | ✅ Rust/YAML  |
 | Multi-chain       | ✅ All EVM        | ✅ All EVM      | ✅ 70+ EVM       | ✅ All EVM    |
 | Factory contracts | ✅                | ✅ Filter-based | ✅ (1M+ dynamic) | ✅            |
 | Reorg handling    | ✅ Active         | ✅ Active       | ✅ Active        | ❌ Delay only |
