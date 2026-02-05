@@ -121,6 +121,9 @@ COPY --from=builder /hyperlane-monorepo/typescript/tsconfig ./typescript/tsconfi
 # Solidity ABIs needed by SDK
 COPY --from=builder /hyperlane-monorepo/solidity ./solidity
 
+# Starknet core (needed by SDK adapters)
+COPY --from=builder /hyperlane-monorepo/starknet ./starknet
+
 WORKDIR /app/typescript/indexer
 
 # Environment
