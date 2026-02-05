@@ -129,9 +129,7 @@ export const ponderMessage = pgTable(
     origin: integer('origin')
       .notNull()
       .references(() => domain.id),
-    destination: integer('destination')
-      .notNull()
-      .references(() => domain.id),
+    destination: integer('destination').notNull(), // No FK - destination may be unknown domain
     nonce: integer('nonce').notNull(),
     sender: bytea('sender').notNull(),
     recipient: bytea('recipient').notNull(),

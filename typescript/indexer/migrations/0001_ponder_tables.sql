@@ -54,7 +54,7 @@ CREATE TABLE IF NOT EXISTS ponder_message (
     msg_id BYTEA NOT NULL,
     version SMALLINT NOT NULL DEFAULT 3,  -- Hyperlane message version (for HyperlaneMessage)
     origin INTEGER NOT NULL REFERENCES domain(id),
-    destination INTEGER NOT NULL REFERENCES domain(id),
+    destination INTEGER NOT NULL,  -- No FK - destination may be unknown domain
     nonce INTEGER NOT NULL,
     sender BYTEA NOT NULL,
     recipient BYTEA NOT NULL,
