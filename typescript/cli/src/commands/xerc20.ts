@@ -15,12 +15,18 @@ import { type Address, assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { runSubmit } from '../config/submit.js';
 import {
-  type CommandContext,
   type CommandModuleWithContext,
   type CommandModuleWithWriteContext,
   type WriteCommandContext,
 } from '../context/types.js';
-import { log, logBlue, logCommandHeader, logGreen, logRed } from '../logger.js';
+import {
+  log,
+  logBlue,
+  logCommandHeader,
+  logGray,
+  logGreen,
+  logRed,
+} from '../logger.js';
 import { indentYamlOrJson, isFile } from '../utils/files.js';
 import { getWarpConfigs } from '../utils/warp.js';
 
@@ -112,7 +118,7 @@ const apply: CommandModuleWithWriteContext<
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
       if (!isXERC20TokenConfig(chainConfig)) {
-        logRed(`Skipping ${chainName}: not an XERC20 config`);
+        logGray(`Skipping ${chainName}: not an XERC20 config`);
         continue;
       }
 
@@ -194,7 +200,7 @@ const read: CommandModuleWithContext<
     for (const chainName of Object.keys(filteredConfig)) {
       const chainConfig = filteredConfig[chainName];
       if (!isXERC20TokenConfig(chainConfig)) {
-        logRed(`Skipping ${chainName}: not an XERC20 config`);
+        logGray(`Skipping ${chainName}: not an XERC20 config`);
         continue;
       }
 
@@ -251,7 +257,7 @@ function getWarpRouteAddress(
 }
 
 async function submitTransactions(
-  context: CommandContext,
+  context: WriteCommandContext,
   transactions: AnnotatedEV5Transaction[],
   strategy: string | undefined,
   receipts: string,
@@ -269,7 +275,7 @@ async function submitTransactions(
     const chain = context.multiProvider.getChainName(chainId);
 
     await runSubmit({
-      context: context as WriteCommandContext,
+      context,
       chain,
       transactions: txs,
       strategyPath: strategy ?? '',
