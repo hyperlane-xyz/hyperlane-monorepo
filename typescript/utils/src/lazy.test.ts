@@ -111,4 +111,48 @@ describe('LazyAsync', () => {
     expect(lazy.peek()).to.equal(4);
     expect(calls).to.equal(1);
   });
+
+  it('reset during in-flight init does not repopulate cache', async () => {
+    let calls = 0;
+    let resolve!: (value: number) => void;
+
+    const lazy = new LazyAsync(() => {
+      calls += 1;
+      return new Promise<number>((res) => {
+        resolve = res;
+      });
+    });
+
+    // Start first initialization
+    const p1 = lazy.get();
+    expect(calls).to.equal(1);
+
+    // Reset while first init is in-flight
+    lazy.reset();
+    expect(lazy.isInitialized()).to.equal(false);
+
+    // Start second initialization (should create new promise)
+    let resolve2!: (value: number) => void;
+    const originalResolve = resolve;
+    const p2 = lazy.get();
+    resolve2 = resolve;
+    expect(calls).to.equal(2);
+    expect(p1).to.not.equal(p2);
+
+    // Complete second init first
+    resolve2(200);
+    const v2 = await p2;
+    expect(v2).to.equal(200);
+    expect(lazy.isInitialized()).to.equal(true);
+    expect(lazy.peek()).to.equal(200);
+
+    // Complete first init (stale) - should NOT overwrite cache
+    originalResolve(100);
+    const v1 = await p1;
+    expect(v1).to.equal(100); // Promise still resolves with its value
+
+    // But cache should still have second value
+    expect(lazy.peek()).to.equal(200);
+    expect(lazy.isInitialized()).to.equal(true);
+  });
 });

@@ -17,16 +17,18 @@ export class LazyAsync<T> {
   private promise?: Promise<T>;
   private value?: T;
   private hasValue = false;
+  private generation = 0;
 
   constructor(private readonly initializer: () => Promise<T>) {}
 
   get(): Promise<T> {
     if (this.hasValue) return Promise.resolve(this.value as T);
-    this.promise ??= this.initialize();
+    this.promise ??= this.initialize(this.generation);
     return this.promise;
   }
 
   reset(): void {
+    this.generation++;
     this.promise = undefined;
     this.value = undefined;
     this.hasValue = false;
@@ -40,13 +42,20 @@ export class LazyAsync<T> {
     return this.hasValue ? (this.value as T) : undefined;
   }
 
-  private async initialize(): Promise<T> {
+  private async initialize(gen: number): Promise<T> {
     try {
-      this.value = await this.initializer();
-      this.hasValue = true;
-      return this.value;
+      const result = await this.initializer();
+      // Only store if generation hasn't changed (no reset during init)
+      if (gen === this.generation) {
+        this.value = result;
+        this.hasValue = true;
+      }
+      return result;
     } catch (error) {
-      this.promise = undefined;
+      // Only clear promise if generation hasn't changed
+      if (gen === this.generation) {
+        this.promise = undefined;
+      }
       throw error;
     }
   }
