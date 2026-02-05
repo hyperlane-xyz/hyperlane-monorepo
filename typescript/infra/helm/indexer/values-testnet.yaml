@@ -4,11 +4,8 @@
 hyperlane:
   # Environment: testnet4 or mainnet3
   runEnv: testnet4
-  # Path to registry (can be local or S3/GCS)
-  registryUri: ''
   # Chains to index (comma-separated). If empty, indexes all EVM chains in environment.
-  # Example: "sepolia,arbitrumsepolia,optimismsepolia"
-  chains: ''
+  chains: 'sepolia'
 
 # External secrets - testnet4 specific
 externalSecrets:
