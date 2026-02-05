@@ -57,7 +57,7 @@ jobs:
           app-id: ${{ secrets.HYPER_GONK_APP_ID }}
           private-key: ${{ secrets.HYPER_GONK_PRIVATE_KEY }}
 
-      - uses: actions/checkout@v5
+      - uses: actions/checkout@v6
         with:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
@@ -71,21 +71,11 @@ jobs:
           TAG_DATE=$(date +'%Y%m%d-%H%M%S')
           echo "TAG_SHA_DATE=${TAG_SHA}-${TAG_DATE}" >> $GITHUB_OUTPUT
 
-          # Determine primary tag based on event type
-          if [ "${{ github.ref_type }}" = "tag" ]; then
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          elif [ "${{ github.event_name }}" = "pull_request" ]; then
-            echo "TAG=pr-${{ github.event.pull_request.number }}" >> $GITHUB_OUTPUT
-          else
-            echo "TAG=${{ github.ref_name }}" >> $GITHUB_OUTPUT
-          fi
+           # Determine primary tag based on event type
+           echo "TAG=${{ case(github.ref_type == 'tag', github.ref_name, github.event_name == 'pull_request', format('pr-{0}', github.event.pull_request.number), github.ref_name) }}" >> $GITHUB_OUTPUT
 
-          # Determine platforms
-          if [ "${{ github.event.inputs.include_arm64 }}" == "true" ]; then
-            echo "PLATFORMS=linux/amd64,linux/arm64" >> $GITHUB_OUTPUT
-          else
-            echo "PLATFORMS=linux/amd64" >> $GITHUB_OUTPUT
-          fi
+           # Determine platforms
+           echo "PLATFORMS=${{ case(github.event.inputs.include_arm64 == 'true', 'linux/amd64,linux/arm64', 'linux/amd64') }}" >> $GITHUB_OUTPUT
 
           # Get Foundry version
           FOUNDRY_VERSION=$(cat solidity/.foundryrc)
