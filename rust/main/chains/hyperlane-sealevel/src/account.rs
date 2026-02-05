@@ -4,7 +4,8 @@ use solana_client::{
     rpc_config::{RpcAccountInfoConfig, RpcProgramAccountsConfig},
     rpc_filter::{Memcmp, MemcmpEncodedBytes, RpcFilterType},
 };
-use solana_sdk::{account::Account, commitment_config::CommitmentConfig, pubkey::Pubkey};
+use solana_commitment_config::CommitmentConfig;
+use solana_sdk::{account::Account, pubkey::Pubkey};
 
 use hyperlane_core::{ChainCommunicationError, ChainResult};
 
@@ -25,13 +26,11 @@ pub async fn search_accounts_by_discriminator(
     // To keep responses small in case there is ever more than 1
     // match, we don't request the full account data, and just request
     // the field which was used to generate account id
-    #[allow(deprecated)]
-    let memcmp = RpcFilterType::Memcmp(Memcmp {
+    let memcmp = RpcFilterType::Memcmp(Memcmp::new(
         // Ignore the first byte, which is the `initialized` bool flag.
-        offset: 1,
-        bytes: MemcmpEncodedBytes::Base64(target_message_account_bytes),
-        encoding: None,
-    });
+        1,
+        MemcmpEncodedBytes::Base64(target_message_account_bytes),
+    ));
     let config = RpcProgramAccountsConfig {
         filters: Some(vec![memcmp]),
         account_config: RpcAccountInfoConfig {
@@ -41,6 +40,7 @@ pub async fn search_accounts_by_discriminator(
             min_context_slot: None,
         },
         with_context: Some(false),
+        sort_results: None,
     };
     let accounts = provider
         .rpc_client()

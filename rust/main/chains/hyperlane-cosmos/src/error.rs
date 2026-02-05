@@ -52,7 +52,7 @@ pub enum HyperlaneCosmosError {
     Prost(#[from] prost::DecodeError),
     /// Protobuf error
     #[error("{0}")]
-    Protobuf(#[from] protobuf::ProtobufError),
+    Protobuf(#[from] protobuf2::ProtobufError),
     /// Fallback providers failed
     #[error("Fallback providers failed. (Errors: {0:?})")]
     FallbackProvidersFailed(Vec<HyperlaneCosmosError>),

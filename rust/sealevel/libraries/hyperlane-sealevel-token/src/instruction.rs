@@ -12,6 +12,7 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
 };
+use solana_system_interface::program as system_program;
 
 use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
 
@@ -95,7 +96,7 @@ pub fn init_instruction(
     // 3.   `[signer]` The payer and access control owner.
     // 4..N `[??..??]` Plugin-specific accounts.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(dispatch_authority_key, false),
         AccountMeta::new(payer, true),
@@ -127,7 +128,7 @@ pub fn enroll_remote_routers_instruction(
     // 1. `[writeable]` The token PDA account.
     // 2. `[signer]` The owner.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(owner_payer, true),
     ];
@@ -158,7 +159,7 @@ pub fn set_destination_gas_configs(
     // 1. `[writeable]` The token PDA account.
     // 2. `[signer]` The owner.
     let accounts = vec![
-        AccountMeta::new_readonly(solana_program::system_program::id(), false),
+        AccountMeta::new_readonly(system_program::ID, false),
         AccountMeta::new(token_key, false),
         AccountMeta::new(owner_payer, true),
     ];

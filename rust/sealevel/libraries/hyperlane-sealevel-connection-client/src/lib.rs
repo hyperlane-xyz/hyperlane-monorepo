@@ -1,5 +1,4 @@
 use access_control::AccessControl;
-use borsh::BorshSerialize;
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
 use solana_program::{
     account_info::AccountInfo, program::set_return_data, program_error::ProgramError,
@@ -20,8 +19,8 @@ pub trait HyperlaneConnectionClient {
     fn set_interchain_security_module_return_data(&self) {
         let ism: Option<Pubkey> = self.interchain_security_module().cloned();
         set_return_data(
-            &ism.try_to_vec()
-                .map_err(|err| ProgramError::BorshIoError(err.to_string()))
+            &borsh::to_vec(&ism)
+                .map_err(|_| ProgramError::BorshIoError)
                 .unwrap()[..],
         );
     }

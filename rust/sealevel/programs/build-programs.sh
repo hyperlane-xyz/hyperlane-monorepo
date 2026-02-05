@@ -9,7 +9,7 @@
 # The first argument is the type of program to build
 PROGRAM_TYPE="${1:-all}"
 
-SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS="1.14.20"
+SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS="3.0.14"
 
 # The paths to the programs
 CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "validator-announce" "hyperlane-sealevel-igp")
@@ -62,11 +62,8 @@ get_current_solana_cli_version () {
 set_solana_cli_version () {
     NEW_VERSION=$1
 
-    if [ $NEW_VERSION == $SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS ]; then
-        ./install-solana-1.14.20.sh
-    else
-        sh -c "$(curl -sSfL https://release.anza.xyz/v$NEW_VERSION/install)"
-    fi
+    # Use agave-install for v2+ (Agave CLI), fall back to anza release for older versions
+    sh -c "$(curl -sSfL https://release.anza.xyz/v$NEW_VERSION/install)"
 }
 
 log () {

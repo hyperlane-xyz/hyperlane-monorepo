@@ -18,6 +18,7 @@ account-utils = { path = "../../libraries/account-utils" }
 serializable-account-meta = { path = "../../libraries/serializable-account-meta" }
 borsh.workspace = true
 solana-program.workspace = true
+solana-system-interface.workspace = true
 num-derive.workspace = true
 num-traits.workspace = true
 thiserror.workspace = true

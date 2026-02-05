@@ -29,7 +29,10 @@ regex.workspace = true
 serde.workspace = true
 serde_json.workspace = true
 solana-client.workspace = true
+solana-commitment-config.workspace = true
+solana-compute-budget-interface.workspace = true
 solana-sdk.workspace = true
+solana-system-interface.workspace = true
 solana-transaction-status.workspace = true
 thiserror.workspace = true
 tokio = { workspace = true, features = ["rt", "macros", "parking_lot"] }

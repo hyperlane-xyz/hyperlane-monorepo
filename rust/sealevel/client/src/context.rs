@@ -7,8 +7,8 @@ use solana_client::{
     rpc_client::RpcClient,
     rpc_config::{RpcSendTransactionConfig, RpcTransactionConfig},
 };
+use solana_commitment_config::CommitmentConfig;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
     instruction::Instruction,
     message::Message,
     pubkey::Pubkey,
@@ -112,7 +112,9 @@ impl Context {
 
     pub(crate) fn payer_signer(&self) -> Option<Box<dyn Signer>> {
         if let Some(PayerKeypair { keypair, .. }) = &self.payer_keypair {
-            Some(Box::new(Keypair::from_bytes(&keypair.to_bytes()).unwrap()))
+            let bytes = keypair.to_bytes();
+            let secret_key: [u8; 32] = bytes[..32].try_into().unwrap();
+            Some(Box::new(Keypair::new_from_array(secret_key)))
         } else {
             None
         }
@@ -138,6 +140,7 @@ impl Context {
     }
 }
 
+#[allow(clippy::needless_lifetimes)]
 impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
     pub(crate) fn add(self, instruction: Instruction) -> Self {
         self.add_with_optional_description(instruction, None)
@@ -248,9 +251,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
             })
             .collect();
 
-        let is_solana = chain_name
-            .as_ref()
-            .map_or(false, |ch| ch == "solanamainnet");
+        let is_solana = chain_name.as_ref().is_some_and(|ch| ch == "solanamainnet");
 
         let new_entry = TransactionEntry {
             chain_name: chain_name.clone(),
@@ -380,7 +381,7 @@ impl<'ctx, 'rpc> TxnBuilder<'ctx, 'rpc> {
                 &signature,
                 RpcTransactionConfig {
                     encoding: Some(UiTransactionEncoding::Base64),
-                    commitment: Some(CommitmentConfig::single()),
+                    commitment: Some(CommitmentConfig::confirmed()),
                     ..RpcTransactionConfig::default()
                 },
             )

@@ -1,5 +1,5 @@
 use solana_program::program_error::ProgramError;
-use spl_type_length_value::discriminator::Discriminator;
+use spl_discriminator::ArrayDiscriminator as Discriminator;
 
 /// Instructions that a Hyperlane Multisig ISM is expected to process.
 /// The first 8 bytes of the encoded instruction is a discriminator that

@@ -8,13 +8,13 @@ use solana_program::{
     instruction::{AccountMeta, Instruction},
     pubkey,
     pubkey::Pubkey,
-    system_program,
 };
 use solana_program_test::*;
 use solana_sdk::{
     instruction::InstructionError, signature::Signer, signer::keypair::Keypair,
     transaction::TransactionError,
 };
+use solana_system_interface::program as system_program;
 
 use hyperlane_sealevel_validator_announce::{
     accounts::{
@@ -40,7 +40,8 @@ fn validator_announce_id() -> Pubkey {
 
 fn get_test_mailbox() -> Pubkey {
     let mailbox_bytes = hex::decode(TEST_MAILBOX).unwrap();
-    Pubkey::new(&mailbox_bytes[..])
+    let mailbox_array: [u8; 32] = mailbox_bytes.try_into().unwrap();
+    Pubkey::new_from_array(mailbox_array)
 }
 
 fn get_test_announcements() -> Vec<(Announcement, Vec<u8>)> {
@@ -248,8 +249,7 @@ async fn assert_successful_announcement(
     assert_eq!(
         validator_storage_locations_account.data.len(),
         // Plus 1 for the initialized byte
-        expected_validator_storage_locations
-            .try_to_vec()
+        borsh::to_vec(&expected_validator_storage_locations)
             .unwrap()
             .len()
             + 1,

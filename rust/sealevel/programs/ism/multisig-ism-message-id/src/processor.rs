@@ -13,6 +13,7 @@ use solana_program::{
     rent::Rent,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 
 use crate::{
     accounts::{AccessControlAccount, AccessControlData, DomainData, DomainDataAccount},
@@ -23,8 +24,6 @@ use crate::{
 
 use hyperlane_sealevel_interchain_security_module_interface::InterchainSecurityModuleInstruction;
 use multisig_ism::{interface::MultisigIsmInstruction, multisig::MultisigIsm};
-
-use borsh::BorshSerialize;
 
 const ISM_TYPE: ModuleType = ModuleType::MessageIdMultisig;
 
@@ -85,9 +84,8 @@ pub fn process_instruction(
         return match ism_instruction {
             InterchainSecurityModuleInstruction::Type => {
                 set_return_data(
-                    &SimulationReturnData::new(ISM_TYPE as u32)
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    &borsh::to_vec(&SimulationReturnData::new(ISM_TYPE as u32))
+                        .map_err(|_| ProgramError::BorshIoError)?[..],
                 );
                 return Ok(());
             }
@@ -108,9 +106,8 @@ pub fn process_instruction(
                 // may end with zero byte(s), which are incorrectly truncated as
                 // simulated transaction return data.
                 // See `SimulationReturnData` for details.
-                let bytes = SimulationReturnData::new(account_metas)
-                    .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+                    .map_err(|_| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
             }
@@ -143,9 +140,8 @@ pub fn process_instruction(
                 // may end with zero byte(s), which are incorrectly truncated as
                 // simulated transaction return data.
                 // See `SimulationReturnData` for details.
-                let bytes = SimulationReturnData::new(account_metas)
-                    .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+                let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+                    .map_err(|_| ProgramError::BorshIoError)?;
                 set_return_data(&bytes[..]);
                 Ok(())
             }
@@ -200,7 +196,7 @@ fn initialize(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     // Account 2: The system program account.
     let system_program_account = next_account_info(accounts_iter)?;
-    if !solana_program::system_program::check_id(system_program_account.key) {
+    if system_program_account.key != &system_program::ID {
         return Err(Error::AccountOutOfOrder.into());
     }
 
@@ -297,9 +293,8 @@ fn get_validators_and_threshold(
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(validators_and_threshold)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(validators_and_threshold))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -422,7 +417,7 @@ fn set_validators_and_threshold(
 
             // Account 3: The system program account.
             let system_program_account = next_account_info(accounts_iter)?;
-            if !solana_program::system_program::check_id(system_program_account.key) {
+            if system_program_account.key != &system_program::ID {
                 return Err(Error::AccountOutOfOrder.into());
             }
 
@@ -468,9 +463,8 @@ fn get_owner(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(access_control_data.owner)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(access_control_data.owner))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
     Ok(())
 }
@@ -542,7 +536,6 @@ pub mod test {
         InterchainSecurityModuleInstruction, VerifyInstruction,
     };
     use multisig_ism::test_data::{get_multisig_ism_test_data, MultisigIsmTestData};
-    use solana_program::stake_history::Epoch;
     use std::str::FromStr;
 
     const ORIGIN_DOMAIN: u32 = 1234u32;
@@ -575,7 +568,6 @@ pub mod test {
             &mut domain_account_data,
             &program_id,
             false,
-            Epoch::default(),
         );
         let init_domain_data = DomainData {
             bump_seed: domain_pda_bump_seed,
@@ -709,7 +701,7 @@ pub mod test {
         let owner_key = Pubkey::new_unique();
         let mut owner_account_lamports = 0;
         let mut owner_account_data = vec![];
-        let system_program_id = solana_program::system_program::id();
+        let system_program_id = system_program::ID;
         let owner_account = AccountInfo::new(
             &owner_key,
             true,
@@ -718,7 +710,6 @@ pub mod test {
             &mut owner_account_data,
             &system_program_id,
             false,
-            Epoch::default(),
         );
 
         let (access_control_pda_key, access_control_pda_bump_seed) =
@@ -734,7 +725,6 @@ pub mod test {
             &mut access_control_account_data,
             &program_id,
             false,
-            Epoch::default(),
         );
         let init_access_control_data = AccessControlData {
             bump_seed: access_control_pda_bump_seed,
@@ -820,7 +810,6 @@ pub mod test {
             &mut domain_account_data,
             &program_id,
             false,
-            Epoch::default(),
         );
         let init_domain_data = DomainData {
             bump_seed: domain_pda_bump_seed,
@@ -836,7 +825,7 @@ pub mod test {
         let owner_key = Pubkey::new_unique();
         let mut owner_account_lamports = 0;
         let mut owner_account_data = vec![];
-        let system_program_id = solana_program::system_program::id();
+        let system_program_id = system_program::ID;
         let owner_account = AccountInfo::new(
             &owner_key,
             true,
@@ -845,7 +834,6 @@ pub mod test {
             &mut owner_account_data,
             &system_program_id,
             false,
-            Epoch::default(),
         );
 
         let (access_control_pda_key, access_control_pda_bump_seed) =
@@ -861,7 +849,6 @@ pub mod test {
             &mut access_control_account_data,
             &program_id,
             false,
-            Epoch::default(),
         );
         let init_access_control_data = AccessControlData {
             bump_seed: access_control_pda_bump_seed,

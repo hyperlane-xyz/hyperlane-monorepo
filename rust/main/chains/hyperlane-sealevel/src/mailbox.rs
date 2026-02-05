@@ -19,10 +19,10 @@ use hyperlane_sealevel_message_recipient_interface::{
 };
 use lazy_static::lazy_static;
 use serializable_account_meta::SimulationReturnData;
+use solana_commitment_config::CommitmentConfig;
 use solana_program::pubkey;
-use solana_sdk::account::Account;
 use solana_sdk::{
-    commitment_config::CommitmentConfig,
+    account::Account,
     instruction::{AccountMeta, Instruction},
     pubkey::Pubkey,
     signer::Signer as _,

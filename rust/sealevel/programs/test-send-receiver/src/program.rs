@@ -20,9 +20,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_program,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 
 #[cfg(not(feature = "no-entrypoint"))]
 solana_program::entrypoint!(process_instruction);
@@ -406,10 +406,7 @@ fn get_interchain_security_module(_program_id: &Pubkey, accounts: &[AccountInfo]
     match storage.ism_return_data_mode {
         IsmReturnDataMode::EncodeOption => {
             set_return_data(
-                &storage
-                    .ism
-                    .try_to_vec()
-                    .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                &borsh::to_vec(&storage.ism).map_err(|_| ProgramError::BorshIoError)?[..],
             );
         }
         IsmReturnDataMode::ReturnNothing => {
@@ -457,9 +454,8 @@ fn set_account_meta_return_data(program_id: &Pubkey) -> ProgramResult {
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(account_metas)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
 
     Ok(())

@@ -12,9 +12,9 @@ use solana_program::{
     program_error::ProgramError,
     pubkey::Pubkey,
     rent::Rent,
-    system_program,
     sysvar::Sysvar,
 };
+use solana_system_interface::program as system_program;
 
 use hyperlane_core::ModuleType;
 
@@ -81,9 +81,8 @@ pub fn process_instruction(
             }
             InterchainSecurityModuleInstruction::Type => {
                 set_return_data(
-                    &SimulationReturnData::new(ISM_TYPE as u32)
-                        .try_to_vec()
-                        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?[..],
+                    &borsh::to_vec(&SimulationReturnData::new(ISM_TYPE as u32))
+                        .map_err(|_| ProgramError::BorshIoError)?[..],
                 );
                 Ok(())
             }
@@ -109,7 +108,7 @@ fn init(program_id: &Pubkey, accounts: &[AccountInfo]) -> ProgramResult {
 
     // Account 0: System program.
     let system_program_info = next_account_info(accounts_iter)?;
-    if system_program_info.key != &system_program::id() {
+    if system_program_info.key != &system_program::ID {
         return Err(ProgramError::InvalidArgument);
     }
 
@@ -186,9 +185,8 @@ fn verify_account_metas(program_id: &Pubkey, _accounts: &[AccountInfo]) -> Progr
     // may end with zero byte(s), which are incorrectly truncated as
     // simulated transaction return data.
     // See `SimulationReturnData` for details.
-    let bytes = SimulationReturnData::new(account_metas)
-        .try_to_vec()
-        .map_err(|err| ProgramError::BorshIoError(err.to_string()))?;
+    let bytes = borsh::to_vec(&SimulationReturnData::new(account_metas))
+        .map_err(|_| ProgramError::BorshIoError)?;
     set_return_data(&bytes[..]);
 
     Ok(())

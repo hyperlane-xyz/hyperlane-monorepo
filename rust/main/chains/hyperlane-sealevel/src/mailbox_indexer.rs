@@ -131,7 +131,9 @@ impl SealevelMailboxIndexer {
     }
 
     fn dispatched_message_account(&self, account: &Account) -> ChainResult<Pubkey> {
-        let unique_message_pubkey = Pubkey::new(&account.data);
+        let unique_message_pubkey = Pubkey::try_from(account.data.as_slice()).map_err(|e| {
+            ChainCommunicationError::from_other_str(&format!("Invalid pubkey: {e}"))
+        })?;
         let (expected_pubkey, _bump) = Pubkey::try_find_program_address(
             mailbox_dispatched_message_pda_seeds!(unique_message_pubkey),
             &self.mailbox.program_id,
