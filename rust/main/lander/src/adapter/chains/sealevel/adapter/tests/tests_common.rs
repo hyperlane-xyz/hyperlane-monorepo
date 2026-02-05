@@ -11,7 +11,10 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::Transaction as SealevelTransaction,
+    transaction::{
+        Transaction as SealevelLegacyTransaction,
+        VersionedTransaction as SealevelVersionedTransaction,
+    },
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
@@ -23,7 +26,7 @@ use hyperlane_base::settings::{ChainConf, RawChainConf};
 use hyperlane_core::{ChainResult, H512};
 use hyperlane_sealevel::{
     fallback::SubmitSealevelRpc, PriorityFeeOracle, SealevelKeypair, SealevelProviderForLander,
-    SealevelTxCostEstimate, TransactionSubmitter,
+    SealevelTxCostEstimate, SealevelTxType, TransactionSubmitter,
 };
 
 use crate::payload::FullPayload;
@@ -59,7 +62,12 @@ mock! {
 
         async fn simulate_transaction(
             &self,
-            transaction: &SealevelTransaction,
+            transaction: &SealevelLegacyTransaction,
+        ) -> ChainResult<RpcSimulateTransactionResult>;
+
+        async fn simulate_versioned_transaction(
+            &self,
+            transaction: &SealevelVersionedTransaction,
         ) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
@@ -69,7 +77,7 @@ mock! {
 
     #[async_trait]
     impl PriorityFeeOracle for Oracle {
-        async fn get_priority_fee(&self, transaction: &SealevelTransaction) -> ChainResult<u64>;
+        async fn get_priority_fee(&self, transaction: &SealevelTxType) -> ChainResult<u64>;
     }
 }
 
@@ -79,8 +87,8 @@ mock! {
     #[async_trait]
     impl TransactionSubmitter for Submitter {
         fn get_priority_fee_instruction(&self, compute_unit_price_micro_lamports: u64, compute_units: u64, payer: &Pubkey) -> SealevelInstruction;
-        async fn send_transaction(&self, transaction: &SealevelTransaction, skip_preflight: bool) -> ChainResult<Signature>;
-        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction) -> ChainResult<()>;
+        async fn send_transaction(&self, transaction: &SealevelTxType, skip_preflight: bool) -> ChainResult<Signature>;
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType) -> ChainResult<()>;
         async fn confirm_transaction(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<bool>;
     }
 }
@@ -98,7 +106,8 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             sign: bool,
-        ) -> ChainResult<SealevelTransaction>;
+            alt_address: Option<Pubkey>,
+        ) -> ChainResult<SealevelTxType>;
 
         async fn get_estimated_costs_for_instruction(
             &self,
@@ -106,9 +115,10 @@ mock! {
             payer: &SealevelKeypair,
             tx_submitter: Arc<dyn TransactionSubmitter>,
             priority_fee_oracle: Arc<dyn PriorityFeeOracle>,
+            alt_address: Option<Pubkey>,
         ) -> ChainResult<SealevelTxCostEstimate>;
 
-        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTransaction)
+        async fn wait_for_transaction_confirmation(&self, transaction: &SealevelTxType)
             -> ChainResult<()>;
 
         async fn confirm_transaction(
@@ -179,7 +189,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
     // Set up default expectations that existing tests expect
     provider
         .expect_get_estimated_costs_for_instruction()
-        .returning(|_, _, _, _| {
+        .returning(|_, _, _, _, _| {
             Ok(SealevelTxCostEstimate {
                 compute_units: GAS_LIMIT,
                 compute_unit_price_micro_lamports: 0,
@@ -188,12 +198,13 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
 
     provider
         .expect_create_transaction_for_instruction()
-        .returning(|_, _, instruction, payer, _, _| {
+        .returning(|_, _, instruction, payer, _, _, _| {
             let keypair = payer;
-            Ok(SealevelTransaction::new_unsigned(Message::new(
+            let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&keypair.pubkey()),
-            )))
+            ));
+            Ok(SealevelTxType::Legacy(tx))
         });
 
     provider
@@ -242,8 +253,12 @@ fn mock_client() -> MockClient {
     client
         .expect_get_transaction_with_commitment()
         .returning(move |_, _| Ok(encoded_svm_transaction()));
+    let result_clone = result.clone();
     client
         .expect_simulate_transaction()
+        .returning(move |_| Ok(result_clone.clone()));
+    client
+        .expect_simulate_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
@@ -292,7 +307,11 @@ pub fn instruction() -> SealevelInstruction {
 }
 
 pub fn payload() -> FullPayload {
-    let data = serde_json::to_vec(&instruction()).unwrap();
+    let process_payload = hyperlane_sealevel::SealevelProcessPayload {
+        instruction: instruction(),
+        alt_address: None,
+    };
+    let data = serde_json::to_vec(&process_payload).unwrap();
 
     FullPayload {
         data,
@@ -301,7 +320,7 @@ pub fn payload() -> FullPayload {
 }
 
 pub fn precursor() -> SealevelTxPrecursor {
-    SealevelTxPrecursor::new(instruction(), estimate())
+    SealevelTxPrecursor::new(instruction(), None, estimate())
 }
 
 pub fn transaction() -> Transaction {

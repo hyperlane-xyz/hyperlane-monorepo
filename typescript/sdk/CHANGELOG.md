@@ -1,5 +1,46 @@
 # @hyperlane-xyz/sdk
 
+## 24.0.0
+
+### Major Changes
+
+- d0b8c24: Renamed EvmERC20WarpModule to EvmWarpModule.
+  Renamed EvmERC20WarpRouteReader to EvmWarpRouteReader.
+- 4de5071: **BREAKING**: `MetadataBuilder.build()` now returns `MetadataBuildResult` instead of `string`. Access `.metadata` on the result to get the encoded bytes.
+
+  Added real-time validator signature status to MetadataBuilder. The builder now returns detailed information about which validators have signed a message, their checkpoint indices, and actual signatures. New exports: `ValidatorInfo`, `MetadataBuildResult`, `DerivedHookConfig`, and helper functions `isMetadataBuildable()`, `getSignedValidatorCount()`, `isQuorumMet()`.
+
+  Performance optimizations:
+
+  - EvmIsmReader routing ISM derivation reduced from ~5.7s to ~724ms via messageContext short-circuit
+  - EvmHookReader RPC calls parallelized across all derivation methods
+  - SmartProvider retry logic fixed to correctly identify permanent errors
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- 57461b2: The arrow wrapper in fetchWithTimeout was replaced with a bound method to prevent closure from capturing surrounding scope and keeping large objects alive for the lifetime of the AbortSignal timeout. Removed duplicate dead code from SDK.
+- 50868ce: Fixed HypNative token checker failing in CI environments by passing `from` address as the third parameter to `estimateGas` instead of inside the transaction object.
+- b05e9f8: Fixed Mailbox instruction Borsh schema to use u8 discriminator (matching Rust's Borsh enum serialization) instead of u32.
+- f44c2b4: Fixed warp check false positives for allowedRebalancingBridges when addresses are the same but in different order.
+- Updated dependencies [9c52a94]
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [b1b941e]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/deploy-sdk@1.3.0
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/radix-sdk@24.0.0
+  - @hyperlane-xyz/starknet-core@24.0.0
+
 ## 23.0.0
 
 ### Major Changes
