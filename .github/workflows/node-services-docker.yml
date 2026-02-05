@@ -3,8 +3,6 @@ name: Build and Push Node Services Images to GCR
 on:
   push:
     branches: [main]
-    tags:
-      - '**'
   pull_request:
     paths:
       - 'typescript/rebalancer/**'
