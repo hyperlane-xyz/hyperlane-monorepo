@@ -1,7 +1,8 @@
 import { http } from 'viem';
 
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
 import type { ChainMetadata } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getLogger } from '../utils/logger.js';
 
@@ -31,15 +32,19 @@ export async function loadChainConfigs(
   env: DeployEnv,
 ): Promise<IndexerChainConfig[]> {
   // Dynamic import to avoid issues with ESM/CJS
-  const { FileSystemRegistry } = await import('@hyperlane-xyz/registry/fs');
+  const { getRegistry } = await import('@hyperlane-xyz/registry/fs');
 
-  const registryUri = process.env.REGISTRY_URI;
-  if (!registryUri) {
-    throw new Error('REGISTRY_URI environment variable required');
-  }
+  // Use GitHub registry by default, can be overridden with REGISTRY_URI
+  // For GitHub registries, can include /tree/{commit} to pin version
+  const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
+  getLogger().info({ registryUri }, 'Loading chain configs from registry');
 
-  const registry = new FileSystemRegistry({ uri: registryUri });
-  const allMetadata = registry.getMetadata();
+  const registry = getRegistry({
+    registryUris: [registryUri],
+    enableProxy: true,
+    logger: rootLogger,
+  });
+  const allMetadata = await registry.getMetadata();
 
   // Get chains to index: explicit list or all chains from registry
   const chainsToIndex = parseIndexedChains();
