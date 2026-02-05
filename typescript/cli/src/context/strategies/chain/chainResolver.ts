@@ -309,7 +309,14 @@ async function resolveSubmitChains(
 ): Promise<ChainName[]> {
   try {
     const { multiProvider } = argv.context;
-    const transactions = getTransactions(argv.transactions);
+
+    const transactionFilePath: string | undefined = argv.transactions;
+    assert(
+      transactionFilePath,
+      'Expected transactions file path to be provided for submit command',
+    );
+
+    const transactions = getTransactions(transactionFilePath);
 
     const chainIds = new Set(transactions.map((tx) => tx.chainId));
     const chains = Array.from(chainIds).map((chainId) =>
@@ -319,6 +326,8 @@ async function resolveSubmitChains(
     assert(chains.length > 0, 'No transactions found in file');
     return chains;
   } catch (error) {
-    throw new Error(`Failed to resolve submit command chains: ${error}`);
+    throw new Error(`Failed to resolve submit command chains`, {
+      cause: error,
+    });
   }
 }
