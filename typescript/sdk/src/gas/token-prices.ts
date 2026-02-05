@@ -65,10 +65,6 @@ class TokenPriceCache {
     return entry.price;
   }
 
-  /**
-   * Non-throwing variant of fetch(). Returns the cached price if the entry
-   * exists and has not been evicted, otherwise returns undefined.
-   */
   tryFetch(id: string): number | undefined {
     const entry = this.cache.get(id);
     if (!entry) return undefined;
