@@ -92,10 +92,10 @@ describe('TronWallet Integration Tests', function () {
     const INITIAL_VALUE = 100;
 
     it('should deploy a contract with constructor args', async () => {
-      const factory = new TronContractFactory<
-        TestStorage__factory,
-        TestStorage
-      >(TestStorage__factory, wallet);
+      const factory = new TronContractFactory(
+        new TestStorage__factory(),
+        wallet,
+      );
       contract = await factory.deploy(INITIAL_VALUE, wallet.address);
 
       expect(contract.address).to.be.a('string');

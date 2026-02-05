@@ -16,6 +16,7 @@ import {
 } from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
+import { TronContractFactory, TronWallet } from '@hyperlane-xyz/tron-sdk';
 import {
   Address,
   addBufferToGasLimit,
@@ -377,30 +378,20 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {
-      const contractFactory = factory.connect(signer);
+      // For Tron, wrap with TronContractFactory to handle address extraction
+      const contractFactory =
+        technicalStack === ChainTechnicalStack.Tron
+          ? new TronContractFactory(factory, signer as TronWallet)
+          : factory.connect(signer);
+
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
       contract = await contractFactory.deploy(...params, {
         gasLimit: addBufferToGasLimit(estimatedGas),
         ...overrides,
       });
-      // manually wait for deploy tx to be confirmed for non-zksync chains
-      const receipt = await this.handleTx(
-        chainNameOrId,
-        contract.deployTransaction,
-      );
-
-      // For Tron, the contract address from ethers is wrong (it uses Ethereum's
-      // CREATE formula with nonce). Get the actual address from the receipt.
-      if (
-        technicalStack === ChainTechnicalStack.Tron &&
-        receipt.contractAddress
-      ) {
-        // Re-attach contract to correct address, preserving deployTransaction
-        const deployTransaction = contract.deployTransaction;
-        contract = contract.attach(receipt.contractAddress) as Contract;
-        (contract as any).deployTransaction = deployTransaction;
-      }
+      // manually wait for deploy tx to be confirmed
+      await this.handleTx(chainNameOrId, contract.deployTransaction);
     }
 
     this.logger.trace(

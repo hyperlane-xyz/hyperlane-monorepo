@@ -1,4 +1,4 @@
-import { Contract, ContractFactory, Signer } from 'ethers';
+import { ContractFactory, Signer } from 'ethers';
 import { Types } from 'tronweb';
 
 import { assert } from '@hyperlane-xyz/utils';
@@ -15,27 +15,27 @@ function isDeployTransaction(
 }
 
 /**
- * TronContractFactory wraps a standard ethers ContractFactory to handle
- * Tron's deployment flow where contract addresses come from TronWeb
- * rather than being predictable via nonce.
+ * TronContractFactory wraps a ContractFactory to handle Tron's deployment flow
+ * where contract addresses come from TronWeb rather than being predictable via nonce.
+ *
+ * This class overrides deploy() to extract the correct contract address from the
+ * Tron transaction response, since ethers computes the wrong address using
+ * Ethereum's CREATE formula.
  *
  * Usage:
  * ```ts
- * const factory = new TronContractFactory(Mailbox__factory, tronWallet);
+ * const factory = new TronContractFactory(new Mailbox__factory(), tronWallet);
  * const contract = await factory.deploy(localDomain);
  * ```
  */
 export class TronContractFactory<
-  F extends ContractFactory = ContractFactory,
-  C extends Contract = Contract,
-> {
-  private readonly factory: F;
-
+  F extends ContractFactory,
+> extends ContractFactory {
   constructor(
-    factoryClass: new (signer: Signer) => F,
-    private readonly signer: TronWallet,
+    private readonly factory: F,
+    signer?: TronWallet,
   ) {
-    this.factory = new factoryClass(signer);
+    super(factory.interface, factory.bytecode, signer);
   }
 
   /**
@@ -44,8 +44,10 @@ export class TronContractFactory<
    * Uses the typed CreateSmartContractTransaction from TronWeb to get
    * the contract address directly from the transaction response.
    */
-  async deploy(...args: Parameters<F['deploy']>): Promise<C> {
-    const contract = await this.factory.deploy(...args);
+  override async deploy(
+    ...args: Parameters<F['deploy']>
+  ): Promise<Awaited<ReturnType<F['deploy']>>> {
+    const contract = await super.deploy(...args);
     const { tronTransaction } =
       contract.deployTransaction as TronTransactionResponse;
 
@@ -54,43 +56,22 @@ export class TronContractFactory<
       'Expected CreateSmartContractTransaction for deployment',
     );
 
-    const evmAddress = this.signer.toEvmAddress(
+    const tronWallet = this.signer as TronWallet;
+    const evmAddress = tronWallet.toEvmAddress(
       tronTransaction.contract_address,
     );
-    return this.factory.attach(evmAddress) as C;
+
+    // Re-attach to correct address, preserving deployTransaction
+    const deployTransaction = contract.deployTransaction;
+    const correctedContract = this.attach(evmAddress);
+    (correctedContract as any).deployTransaction = deployTransaction;
+    return correctedContract as Awaited<ReturnType<F['deploy']>>;
   }
 
   /**
-   * Attach to an existing contract at the given address.
+   * Returns a new TronContractFactory connected to the given signer.
    */
-  attach(address: string): C {
-    return this.factory.attach(address) as C;
+  override connect(signer: Signer): TronContractFactory<F> {
+    return new TronContractFactory(this.factory, signer as TronWallet);
   }
-
-  /**
-   * Get the underlying factory instance.
-   */
-  getFactory(): F {
-    return this.factory;
-  }
-
-  /**
-   * Get the signer used by this factory.
-   */
-  getSigner(): TronWallet {
-    return this.signer;
-  }
-}
-
-/**
- * Helper to create a TronContractFactory from a factory class.
- */
-export function createTronFactory<
-  F extends ContractFactory,
-  C extends Contract = Contract,
->(
-  factoryClass: new (signer: Signer) => F,
-  signer: TronWallet,
-): TronContractFactory<F, C> {
-  return new TronContractFactory<F, C>(factoryClass, signer);
 }
