@@ -403,6 +403,34 @@ Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 - Gas efficiency for Solidity (avoid unnecessary storage writes)
 - Use `ChainMap` for per-chain configurations in TypeScript
 
+### TypeScript Review Checklist
+
+Common issues caught in code review:
+
+| Issue                       | Bad                          | Good                                      |
+| --------------------------- | ---------------------------- | ----------------------------------------- |
+| Unnecessary type assertions | `{} as SomeType`             | Let TypeScript infer or use proper typing |
+| String literals for enums   | `type: 'standard'`           | `type: XERC20Type.Standard`               |
+| Duplicated constants/ABIs   | Same ABI in multiple files   | Extract to shared module                  |
+| Hardcoded discriminants     | `if (x === 'velo')`          | `if (x === XERC20Type.Velo)`              |
+| Existing utilities ignored  | `code === '0x'` check inline | Use `isContractAddress()` from SDK        |
+| Inconsistent method naming  | `detectType()`               | Follow codebase pattern: `derive*()`      |
+
+**Enum usage**: When interfaces have discriminant fields (`type: 'foo'`), use enum values:
+
+```typescript
+// Define
+export enum MyType { Foo = 'foo', Bar = 'bar' }
+
+// In interfaces - use the enum member type directly
+export interface FooConfig { type: MyType.Foo; ... }
+
+// In comparisons
+if (config.type === MyType.Foo) { ... }
+```
+
+**Deduplication**: Extract shared constants (ABIs, selectors) to dedicated files when used in 2+ places.
+
 ### What NOT to Flag
 
 - Minor style issues handled by prettier/linters

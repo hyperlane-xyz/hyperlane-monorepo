@@ -13,6 +13,7 @@ import {
   type IsmType,
   type RawIsmArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/ism';
+import { LazyAsync } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupInterchainSecurityExtension } from '../hyperlane/interchain_security/query.js';
@@ -42,7 +43,7 @@ import { CosmosTestIsmReader, CosmosTestIsmWriter } from './test-ism.js';
  * deferring the async query client creation until actually needed.
  */
 export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
-  private queryPromise?: Promise<CosmosIsmQueryClient>;
+  private readonly query = new LazyAsync(() => this.createQuery());
 
   constructor(private readonly rpcUrls: string[]) {}
 
@@ -50,11 +51,8 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
    * Lazy initialization - creates query client on first use.
    * Subsequent calls return the cached promise.
    */
-  private async getQuery(): Promise<CosmosIsmQueryClient> {
-    if (!this.queryPromise) {
-      this.queryPromise = this.createQuery();
-    }
-    return this.queryPromise;
+  private getQuery(): Promise<CosmosIsmQueryClient> {
+    return this.query.get();
   }
 
   /**

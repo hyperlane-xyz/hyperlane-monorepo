@@ -81,6 +81,7 @@ export {
   AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  LazyAsync,
   mapAllSettled,
   pollAsync,
   raceWithContext,

@@ -34,6 +34,7 @@ import {
 import {
   Address,
   Domain,
+  LazyAsync,
   Numberish,
   ZERO_ADDRESS_HEX_32,
   addressToByteHexString,
@@ -386,7 +387,9 @@ class BaseEvmHypCollateralAdapter
   implements IHypTokenAdapter<PopulatedTransaction>
 {
   public readonly collateralContract: TokenRouter;
-  protected wrappedTokenAddress?: Address;
+  protected readonly wrappedTokenAddress = new LazyAsync(() =>
+    this.loadWrappedTokenAddress(),
+  );
 
   constructor(
     public readonly chainName: ChainName,
@@ -401,10 +404,11 @@ class BaseEvmHypCollateralAdapter
   }
 
   async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.token();
-    }
-    return this.wrappedTokenAddress!;
+    return this.wrappedTokenAddress.get();
+  }
+
+  protected async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.token();
   }
 
   protected async getWrappedTokenAdapter(): Promise<EvmTokenAdapter> {
@@ -493,11 +497,8 @@ export class EvmHypCollateralAdapter
     );
   }
 
-  override async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
-    }
-    return this.wrappedTokenAddress!;
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.wrappedToken();
   }
 }
 
@@ -661,11 +662,8 @@ export class EvmHypRebaseCollateralAdapter
     );
   }
 
-  override async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = await this.collateralContract.wrappedToken();
-    }
-    return this.wrappedTokenAddress!;
+  protected override async loadWrappedTokenAddress(): Promise<Address> {
+    return this.collateralContract.wrappedToken();
   }
 
   override async getBridgedSupply(options?: {

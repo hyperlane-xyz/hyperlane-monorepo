@@ -271,6 +271,7 @@ jobs:
           # Other commands
           - relay
           - status
+          - submit
           # ICA
           - ica-deploy
           # Warp Apply Commands

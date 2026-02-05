@@ -10,6 +10,7 @@ Review this pull request. Focus on:
 - **Prefer `??` over `||`** - Preserves zero/empty string as valid values
 - **Use `assert()` for preconditions** - Import from `@hyperlane-xyz/utils`
 - **Use `isNullish()` for null checks** - Type-safe null/undefined check from `@hyperlane-xyz/utils`
+- **Async lazy init** - Prefer `LazyAsync` from `@hyperlane-xyz/utils` for cached async initialization
 
 ## Architecture
 
