@@ -48,6 +48,65 @@ describe('TokenPriceGetter', () => {
         await tokenPriceGetter.getTokenPriceByIds(['ethereum', 'solana']),
       ).to.eql([priceA, priceB]);
     });
+
+    it('returns stale cached prices when API fails', async () => {
+      // First call succeeds and populates cache
+      expect(
+        await tokenPriceGetter.getTokenPriceByIds(['ethereum', 'solana']),
+      ).to.eql([priceA, priceB]);
+
+      // Subsequent call fails (simulate 429 rate limiting)
+      stub.restore();
+      stub = sinon
+        .stub(tokenPriceGetter, 'fetchPriceData')
+        .rejects(new Error('No price found for ethereum'));
+
+      // Cache entries are stale (past freshSeconds) but not evicted,
+      // so the fallback should return them.
+      // We use expirySeconds=10 in beforeEach so freshness window is 10s;
+      // eviction is 3h default, so cached values are still valid.
+      const result = await tokenPriceGetter.getTokenPriceByIds([
+        'ethereum',
+        'solana',
+      ]);
+      expect(result).to.eql([priceA, priceB]);
+    });
+
+    it('returns undefined when API fails with no cache', async () => {
+      // Make the very first call fail — nothing in cache
+      stub.restore();
+      stub = sinon
+        .stub(tokenPriceGetter, 'fetchPriceData')
+        .rejects(new Error('No price found for ethereum'));
+
+      const result = await tokenPriceGetter.getTokenPriceByIds([
+        'ethereum',
+        'solana',
+      ]);
+      expect(result).to.be.undefined;
+    });
+
+    it('returns undefined when API fails and cache is only partial', async () => {
+      // Populate cache for ethereum only
+      stub.restore();
+      stub = sinon
+        .stub(tokenPriceGetter, 'fetchPriceData')
+        .resolves([priceA]);
+      await tokenPriceGetter.getTokenPriceByIds(['ethereum']);
+
+      // Now fail when querying both
+      stub.restore();
+      stub = sinon
+        .stub(tokenPriceGetter, 'fetchPriceData')
+        .rejects(new Error('rate limited'));
+
+      const result = await tokenPriceGetter.getTokenPriceByIds([
+        'ethereum',
+        'solana',
+      ]);
+      // solana was never cached, so we cannot serve the full set
+      expect(result).to.be.undefined;
+    });
   });
 
   describe('getTokenPrice', () => {
