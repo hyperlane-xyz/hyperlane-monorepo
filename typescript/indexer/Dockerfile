@@ -68,6 +68,19 @@ COPY solidity ./solidity
 COPY solhint-plugin ./solhint-plugin
 COPY starknet ./starknet
 
+# Pre-download solc compiler to avoid flaky network issues during build.
+# Hardhat downloads this on-demand, but the network request can timeout in CI.
+ARG SOLC_VERSION=0.8.22
+ARG SOLC_COMMIT=4fc1097e
+RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
+    SOLC_LIST_URL="https://binaries.soliditylang.org/linux-amd64/list.json" && \
+    SOLC_BIN_URL="https://binaries.soliditylang.org/linux-amd64/${SOLC_BINARY}" && \
+    CACHE_DIR="/root/.cache/hardhat-nodejs/compilers-v2/linux-amd64" && \
+    mkdir -p "$CACHE_DIR" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_LIST_URL" -o "$CACHE_DIR/list.json" && \
+    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
+    chmod +x "$CACHE_DIR/${SOLC_BINARY}"
+
 # Build the indexer and its dependencies
 RUN pnpm turbo run build --filter=@hyperlane-xyz/indexer
 
