@@ -51,13 +51,36 @@ EOF
 - Can only comment on lines that appear in the diff (changed/added lines)
 - Comments on unchanged lines will fail with "Line could not be resolved"
 
+### Handling Non-Diff Findings
+
+When you discover issues in code NOT changed by the PR:
+
+1. **Include in summary body** - Always report in the `"body"` field
+2. **Format clearly** - Use a dedicated section "## Observations Outside This PR"
+3. **Be actionable** - Include file:line references so author can follow up
+4. **Don't block** - These are informational; don't use `REQUEST_CHANGES` for non-diff issues
+
+Example structure:
+
+```json
+{
+  "event": "COMMENT",
+  "body": "## Review Summary\n[inline feedback summary]\n\n## Observations Outside This PR\nWhile reviewing, I noticed:\n- `src/utils/foo.ts:142`: Pre-existing null check missing\n- `src/core/bar.ts:78-82`: Similar pattern to line 45 issue - consider deduping",
+  "comments": [
+    // Only lines IN the diff
+  ]
+}
+```
+
 ### Feedback Guidelines
 
-| Feedback Type                 | Where to Put It                                           |
-| ----------------------------- | --------------------------------------------------------- |
-| Specific code issue           | Inline comment on that line                               |
-| Pattern repeated across files | Inline on first occurrence + note "same issue in X, Y, Z" |
-| Overall architecture concern  | Summary body                                              |
-| Approval/changes requested    | Use `event: "APPROVE"` or `event: "REQUEST_CHANGES"`      |
+| Feedback Type                 | In Diff? | Where to Put It                                           |
+| ----------------------------- | -------- | --------------------------------------------------------- |
+| Specific code issue           | ✅ Yes   | Inline comment on that line                               |
+| Pattern repeated across files | ✅ Yes   | Inline on first occurrence + note "same issue in X, Y, Z" |
+| Related issue found           | ❌ No    | Summary body under "Observations Outside This PR"         |
+| Pre-existing bug discovered   | ❌ No    | Summary body (consider separate issue if critical)        |
+| Overall architecture concern  | N/A      | Summary body                                              |
+| Approval/changes requested    | N/A      | Use `event: "APPROVE"` or `event: "REQUEST_CHANGES"`      |
 
 Be concise. Group minor style issues together.

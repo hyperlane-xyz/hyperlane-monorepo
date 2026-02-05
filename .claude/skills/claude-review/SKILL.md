@@ -21,6 +21,16 @@ Read and apply the guidelines from `.github/prompts/code-review.md` to review th
 
 When reviewing a PR, deliver feedback using `/inline-pr-comments` to post inline comments on specific lines.
 
+**Delivery format:**
+
+1. **Inline comments** - For all issues on lines IN the diff
+2. **Summary body** - For:
+   - Overall assessment
+   - Architecture concerns
+   - Issues found OUTSIDE the diff (use "## Observations Outside This PR" section)
+
+GitHub API limitation: Can only post inline comments on changed lines. Issues in unchanged code go in the summary body.
+
 ### For Self-Review
 
 When reviewing your own changes before committing:
