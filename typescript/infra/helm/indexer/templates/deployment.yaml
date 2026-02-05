@@ -62,6 +62,10 @@ spec:
             - name: DATABASE_URL
               value: {{ .Values.database.connectionString }}
             {{- end }}
+            {{- if .Values.database.schema }}
+            - name: DATABASE_SCHEMA
+              value: {{ .Values.database.schema }}
+            {{- end }}
           {{- if .Values.externalSecrets.clusterSecretStore }}
           envFrom:
             - secretRef:

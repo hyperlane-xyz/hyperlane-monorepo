@@ -57,6 +57,8 @@ externalSecrets:
 database:
   # Direct connection string (if not using external secrets)
   connectionString: ''
+  # Schema name for Ponder tables (required)
+  schema: 'public'
   # Pool configuration
   poolMax: 30
 
