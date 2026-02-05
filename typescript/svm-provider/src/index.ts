@@ -1,10 +1,17 @@
 // SVM Provider - Hyperlane TypeScript SDK for Solana/SVM chains
-// Generated clients are exported from ./generated after running `pnpm codama`
 
-// Re-export generated clients (available after codama generation)
-// export * from './generated/index.js';
+// Core types and utilities
+export * from './types.js';
+export * from './pda.js';
+export * from './rpc.js';
+export * from './tx.js';
+export * from './signer.js';
 
-// Placeholder exports for future implementation
-// export { SvmProtocolProvider } from './clients/protocol.js';
-// export { SvmProvider } from './clients/provider.js';
-// export { SvmSigner } from './clients/signer.js';
+// ISM artifacts
+export * from './ism/index.js';
+
+// Hook artifacts
+export * from './hook/index.js';
+
+// Re-export generated clients
+export * from './generated/index.js';
