@@ -380,6 +380,34 @@ async function compareGasPayments(
 
     const missingCount = scraperCount - ponderCount;
 
+    // Find missing gas payment IDs
+    if (verbose && missingCount > 0) {
+      const missingResult = await pool.query(
+        `
+        SELECT gp.msg_id, b.height as block_height
+        FROM gas_payment gp
+        JOIN transaction t ON gp.tx_id = t.id
+        JOIN block b ON t.block_id = b.id
+        WHERE gp.domain = $1
+          AND b.height >= $2 AND b.height <= $3
+          AND gp.msg_id NOT IN (
+            SELECT pgp.msg_id FROM ponder_gas_payment pgp WHERE pgp.domain = $1
+          )
+        ORDER BY b.height
+        LIMIT 10
+        `,
+        [domainId, blockRange.minBlock, blockRange.maxBlock],
+      );
+      if (missingResult.rows.length > 0) {
+        console.log(`  Missing gas payment msg_ids (first 10):`);
+        for (const row of missingResult.rows) {
+          console.log(
+            `    - ${row.msg_id.toString('hex')} (block ${row.block_height})`,
+          );
+        }
+      }
+    }
+
     return {
       table,
       ponderCount,
@@ -528,7 +556,7 @@ function printSummary(results: ComparisonResult[]): void {
 
   // Table header
   console.log(
-    `${'Table'.padEnd(25)} ${'Ponder'.padStart(10)} ${'Scraper'.padStart(10)} ${'Diff'.padStart(10)} ${'Status'.padStart(15)}`,
+    `${'Table'.padEnd(25)} ${'Ponder'.padStart(10)} ${'Scraper'.padStart(10)} ${'Missing'.padStart(10)} ${'Status'.padStart(15)}`,
   );
   console.log('-'.repeat(70));
 
@@ -543,7 +571,7 @@ function printSummary(results: ComparisonResult[]): void {
             : '💥';
 
     console.log(
-      `${result.table.padEnd(25)} ${result.ponderCount.toString().padStart(10)} ${result.scraperCount.toString().padStart(10)} ${result.difference.toString().padStart(10)} ${statusIcon} ${result.status.padStart(12)}`,
+      `${result.table.padEnd(25)} ${result.ponderCount.toString().padStart(10)} ${result.scraperCount.toString().padStart(10)} ${result.missingInPonder.toString().padStart(10)} ${statusIcon} ${result.status.padStart(12)}`,
     );
 
     if (result.details) {
@@ -558,11 +586,22 @@ function printSummary(results: ComparisonResult[]): void {
   const hasMissing = results.some((r) => r.status === 'MISSING_EVENTS');
   const hasExtra = results.some((r) => r.status === 'EXTRA_EVENTS');
 
+  // Calculate totals
+  const totalMissing = results.reduce((sum, r) => sum + r.missingInPonder, 0);
+
   console.log('\nOverall Status:');
   if (hasErrors) {
     console.log('  💥 Some comparisons failed with errors');
   } else if (hasMissing) {
-    console.log('  ❌ FAIL - Missing events detected in Ponder tables');
+    console.log(
+      `  ❌ FAIL - Ponder MISSED ${totalMissing} events that Scraper captured`,
+    );
+    console.log('\n  Missed events by table:');
+    for (const result of results) {
+      if (result.missingInPonder > 0) {
+        console.log(`    - ${result.table}: ${result.missingInPonder} events`);
+      }
+    }
   } else if (hasExtra) {
     console.log(
       '  ⚠️  WARN - Ponder has extra events (may be expected if scraper lagged)',
