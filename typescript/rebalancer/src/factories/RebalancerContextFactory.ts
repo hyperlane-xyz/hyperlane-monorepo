@@ -22,6 +22,7 @@ import {
 } from '../config/types.js';
 import { InventoryRebalancer } from '../core/InventoryRebalancer.js';
 import { Rebalancer } from '../core/Rebalancer.js';
+import { RebalancerOrchestrator } from '../core/RebalancerOrchestrator.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
 import type { IRebalancer } from '../interfaces/IRebalancer.js';
 import type { IStrategy } from '../interfaces/IStrategy.js';
@@ -232,7 +233,7 @@ export class RebalancerContextFactory {
     );
   }
 
-  public createRebalancer(
+  private createMovableCollateralRebalancer(
     actionTracker: IActionTracker,
     metrics?: Metrics,
   ): IRebalancer {
@@ -350,7 +351,7 @@ export class RebalancerContextFactory {
    *
    * @param actionTracker - ActionTracker instance for tracking inventory actions
    */
-  public async createInventoryComponents(
+  private async createInventoryRebalancerAndConfig(
     actionTracker: IActionTracker,
   ): Promise<{
     inventoryRebalancer: IRebalancer;
@@ -449,6 +450,88 @@ export class RebalancerContextFactory {
     );
 
     return { inventoryRebalancer, externalBridgeRegistry, inventoryConfig };
+  }
+
+  /**
+   * Creates all rebalancers based on config execution types.
+   * Returns an array of rebalancers (movableCollateral and/or inventory)
+   * along with metadata needed for monitor and orchestrator.
+   */
+  public async createRebalancers(
+    actionTracker: IActionTracker,
+    metrics?: Metrics,
+  ): Promise<{
+    rebalancers: IRebalancer[];
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+    inventoryConfig?: InventoryMonitorConfig;
+  }> {
+    const rebalancers: IRebalancer[] = [];
+    let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+    let inventoryConfig: InventoryMonitorConfig | undefined;
+
+    // Check if any chains use movableCollateral execution type
+    const hasMovableCollateral = this.hasMovableCollateralChains();
+    if (hasMovableCollateral) {
+      const rebalancer = this.createMovableCollateralRebalancer(
+        actionTracker,
+        metrics,
+      );
+      rebalancers.push(rebalancer);
+    }
+
+    // Check if any chains use inventory execution type
+    const inventoryComponents =
+      await this.createInventoryRebalancerAndConfig(actionTracker);
+    if (inventoryComponents) {
+      rebalancers.push(inventoryComponents.inventoryRebalancer);
+      externalBridgeRegistry = inventoryComponents.externalBridgeRegistry;
+      inventoryConfig = inventoryComponents.inventoryConfig;
+    }
+
+    return { rebalancers, externalBridgeRegistry, inventoryConfig };
+  }
+
+  /**
+   * Creates a RebalancerOrchestrator with all required dependencies.
+   */
+  public createOrchestrator(options: {
+    strategy: IStrategy;
+    actionTracker: IActionTracker;
+    inflightContextAdapter: InflightContextAdapter;
+    rebalancers: IRebalancer[];
+    externalBridgeRegistry: Partial<ExternalBridgeRegistry>;
+    metrics?: Metrics;
+  }): RebalancerOrchestrator {
+    this.logger.debug(
+      { warpRouteId: this.config.warpRouteId },
+      'Creating RebalancerOrchestrator',
+    );
+
+    return new RebalancerOrchestrator({
+      strategy: options.strategy,
+      actionTracker: options.actionTracker,
+      inflightContextAdapter: options.inflightContextAdapter,
+      rebalancerConfig: this.config,
+      logger: this.logger,
+      rebalancers: options.rebalancers,
+      externalBridgeRegistry: options.externalBridgeRegistry,
+      metrics: options.metrics,
+    });
+  }
+
+  private hasMovableCollateralChains(): boolean {
+    return getStrategyChainNames(this.config.strategyConfig).some(
+      (chainName) => {
+        const chainConfig = getStrategyChainConfig(
+          this.config.strategyConfig,
+          chainName,
+        );
+        return (
+          chainConfig?.executionType === ExecutionType.MovableCollateral ||
+          chainConfig?.executionType === undefined
+        ); // Default is movableCollateral
+      },
+    );
   }
 
   private async getInitialTotalCollateral(): Promise<bigint> {

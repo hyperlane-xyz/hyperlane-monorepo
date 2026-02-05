@@ -12,7 +12,6 @@ import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import {
   getStrategyChainConfig,
   getStrategyChainNames,
-  hasInventoryChains,
 } from '../config/types.js';
 import { RebalancerContextFactory } from '../factories/RebalancerContextFactory.js';
 import type { ExternalBridgeRegistry } from '../interfaces/IExternalBridge.js';
@@ -34,7 +33,7 @@ import {
   InflightContextAdapter,
 } from '../tracking/index.js';
 
-import { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
+import type { RebalancerOrchestrator } from './RebalancerOrchestrator.js';
 
 export interface RebalancerServiceConfig {
   /** Execution mode: 'manual' for one-off execution, 'daemon' for continuous monitoring */
@@ -117,9 +116,6 @@ export class RebalancerService {
   private mode: 'manual' | 'daemon';
   private actionTracker?: IActionTracker;
   private inflightContextAdapter?: InflightContextAdapter;
-  private inventoryRebalancer?: IRebalancer;
-  private inventoryConfig?: InventoryMonitorConfig;
-  private externalBridgeRegistry?: Partial<ExternalBridgeRegistry>;
   private orchestrator?: RebalancerOrchestrator;
 
   constructor(
@@ -175,58 +171,49 @@ export class RebalancerService {
     await this.actionTracker.initialize();
     this.logger.info('ActionTracker initialized');
 
-    // Create rebalancer (unless in monitor-only mode)
+    // Create rebalancers (both movableCollateral and inventory if configured)
+    let rebalancers: IRebalancer[] = [];
+    let externalBridgeRegistry: Partial<ExternalBridgeRegistry> = {};
+    let inventoryConfig: InventoryMonitorConfig | undefined;
+
     if (!this.config.monitorOnly) {
-      this.rebalancer = this.contextFactory.createRebalancer(
+      const result = await this.contextFactory.createRebalancers(
         this.actionTracker,
         this.metrics,
       );
+      rebalancers = result.rebalancers;
+      externalBridgeRegistry = result.externalBridgeRegistry;
+      inventoryConfig = result.inventoryConfig;
+
+      if (rebalancers.length > 0) {
+        this.logger.info(`${rebalancers.length} rebalancer(s) created`);
+      }
     } else {
       this.logger.warn(
         'Running in monitorOnly mode: no transactions will be executed.',
       );
     }
 
-    // Create inventory components if any chains use inventory execution type
-    if (
-      hasInventoryChains(this.rebalancerConfig.strategyConfig) &&
-      !this.config.monitorOnly
-    ) {
-      const inventoryComponents =
-        await this.contextFactory.createInventoryComponents(this.actionTracker);
-      if (inventoryComponents) {
-        this.inventoryConfig = inventoryComponents.inventoryConfig;
-        this.inventoryRebalancer = inventoryComponents.inventoryRebalancer;
-        this.externalBridgeRegistry =
-          inventoryComponents.externalBridgeRegistry;
-        this.logger.info('Inventory rebalancing enabled');
-      }
+    // Set instance variable for backward compatibility with executeManual
+    // (Task 5 will remove this when refactoring executeManual)
+    if (rebalancers.length > 0) {
+      this.rebalancer = rebalancers[0];
     }
 
     if (this.mode === 'daemon') {
       const checkFrequency = this.config.checkFrequency ?? 60_000;
       this.monitor = this.contextFactory.createMonitor(
         checkFrequency,
-        this.inventoryConfig,
+        inventoryConfig,
       );
     }
 
-    const rebalancers: IRebalancer[] = [];
-    if (this.rebalancer) {
-      rebalancers.push(this.rebalancer);
-    }
-    if (this.inventoryRebalancer) {
-      rebalancers.push(this.inventoryRebalancer);
-    }
-
-    this.orchestrator = new RebalancerOrchestrator({
+    this.orchestrator = this.contextFactory.createOrchestrator({
       strategy: this.strategy,
       actionTracker: this.actionTracker,
       inflightContextAdapter: this.inflightContextAdapter,
-      rebalancerConfig: this.rebalancerConfig,
-      logger: this.logger,
       rebalancers,
-      externalBridgeRegistry: this.externalBridgeRegistry,
+      externalBridgeRegistry: externalBridgeRegistry,
       metrics: this.metrics,
     });
 
