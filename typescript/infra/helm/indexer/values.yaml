@@ -4,7 +4,7 @@
 # Hyperlane configuration (override in environment-specific values)
 hyperlane:
   runEnv: ''
-  registryUri: ''
+  registryUri: 'https://github.com/hyperlane-xyz/hyperlane-registry'
   chains: ''
 
 image:
