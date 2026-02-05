@@ -287,8 +287,10 @@ describe('CompositeStrategy E2E', function () {
             destination: destChain,
           },
         );
-        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
-          .true;
+        expect(
+          relayResult.success,
+          `SUPERSEED relay should succeed: ${relayResult.error}`,
+        ).to.be.true;
       }
     }
 
@@ -310,8 +312,10 @@ describe('CompositeStrategy E2E', function () {
       hyperlaneCore,
       transferResult,
     );
-    expect(userTransferRelay.success, 'User transfer relay should succeed').to
-      .be.true;
+    expect(
+      userTransferRelay.success,
+      `User transfer relay should succeed: ${userTransferRelay.error}`,
+    ).to.be.true;
 
     const blockTags3 = await context.getConfirmedBlockTags();
     await context.tracker.syncTransfers(blockTags3);
@@ -477,8 +481,10 @@ describe('CompositeStrategy E2E', function () {
             destination: destChain,
           },
         );
-        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
-          .true;
+        expect(
+          relayResult.success,
+          `SUPERSEED relay should succeed: ${relayResult.error}`,
+        ).to.be.true;
       }
     }
 
@@ -498,8 +504,10 @@ describe('CompositeStrategy E2E', function () {
       hyperlaneCore,
       transferResult,
     );
-    expect(userTransferRelay.success, 'User transfer relay should succeed').to
-      .be.true;
+    expect(
+      userTransferRelay.success,
+      `User transfer relay should succeed: ${userTransferRelay.error}`,
+    ).to.be.true;
 
     const blockTags6 = await context.getConfirmedBlockTags();
     await context.tracker.syncTransfers(blockTags6);
@@ -690,8 +698,10 @@ describe('CompositeStrategy E2E', function () {
             destination: destChain,
           },
         );
-        expect(relayResult.success, 'SUPERSEED relay should succeed').to.be
-          .true;
+        expect(
+          relayResult.success,
+          `SUPERSEED relay should succeed: ${relayResult.error}`,
+        ).to.be.true;
       }
     }
 
@@ -712,8 +722,10 @@ describe('CompositeStrategy E2E', function () {
       hyperlaneCore,
       transferResult,
     );
-    expect(userTransferRelay.success, 'User transfer relay should succeed').to
-      .be.true;
+    expect(
+      userTransferRelay.success,
+      `User transfer relay should succeed: ${userTransferRelay.error}`,
+    ).to.be.true;
   });
 
   it('should simulate end state accounting for inflight rebalances', async function () {
@@ -994,7 +1006,10 @@ describe('CompositeStrategy E2E', function () {
         origin: originChain,
         destination: destChain,
       });
-      expect(relayResult.success, 'SUPERSEED relay should succeed').to.be.true;
+      expect(
+        relayResult.success,
+        `SUPERSEED relay should succeed: ${relayResult.error}`,
+      ).to.be.true;
     }
 
     // Sync and verify SUPERSEED actions complete
@@ -1023,8 +1038,10 @@ describe('CompositeStrategy E2E', function () {
       hyperlaneCore,
       transferResult,
     );
-    expect(userTransferRelay.success, 'User transfer relay should succeed').to
-      .be.true;
+    expect(
+      userTransferRelay.success,
+      `User transfer relay should succeed: ${userTransferRelay.error}`,
+    ).to.be.true;
 
     const blockTags16 = await context.getConfirmedBlockTags();
     await context.tracker.syncTransfers(blockTags16);
