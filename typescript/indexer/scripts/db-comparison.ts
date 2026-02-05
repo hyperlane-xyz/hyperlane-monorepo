@@ -6,20 +6,30 @@
  * within the block range that Ponder has indexed.
  *
  * Usage:
- *   pnpm db:comparison --chain sepolia
- *   DATABASE_URL=... tsx scripts/db-comparison.ts --chain ethereum
+ *   pnpm db:comparison --chain sepolia --database-url postgres://...
+ *   DATABASE_URL=... pnpm db:comparison --chain ethereum
  */
 import { Pool } from 'pg';
 
+interface ParsedArgs {
+  chain: string;
+  verbose: boolean;
+  databaseUrl: string | undefined;
+}
+
 // Parse command line arguments
-function parseArgs(): { chain: string; verbose: boolean } {
+function parseArgs(): ParsedArgs {
   const args = process.argv.slice(2);
   let chain = '';
   let verbose = false;
+  let databaseUrl: string | undefined;
 
   for (let i = 0; i < args.length; i++) {
     if (args[i] === '--chain' && args[i + 1]) {
       chain = args[i + 1];
+      i++;
+    } else if (args[i] === '--database-url' && args[i + 1]) {
+      databaseUrl = args[i + 1];
       i++;
     } else if (args[i] === '--verbose' || args[i] === '-v') {
       verbose = true;
@@ -27,12 +37,17 @@ function parseArgs(): { chain: string; verbose: boolean } {
   }
 
   if (!chain) {
-    console.error('Usage: pnpm db:comparison --chain <chain_name> [--verbose]');
+    console.error(
+      'Usage: pnpm db:comparison --chain <chain_name> [--database-url <url>] [--verbose]',
+    );
     console.error('Example: pnpm db:comparison --chain sepolia');
+    console.error(
+      'Example: pnpm db:comparison --chain sepolia --database-url postgres://user:pass@host:5432/db',
+    );
     process.exit(1);
   }
 
-  return { chain, verbose };
+  return { chain, verbose, databaseUrl };
 }
 
 interface ComparisonResult {
@@ -52,11 +67,13 @@ interface BlockRange {
 }
 
 async function main(): Promise<void> {
-  const { chain, verbose } = parseArgs();
+  const { chain, verbose, databaseUrl } = parseArgs();
 
-  const connectionString = process.env.DATABASE_URL;
+  const connectionString = databaseUrl || process.env.DATABASE_URL;
   if (!connectionString) {
-    console.error('DATABASE_URL environment variable required');
+    console.error(
+      'Database URL required: use --database-url or set DATABASE_URL env var',
+    );
     process.exit(1);
   }
 
