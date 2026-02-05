@@ -124,6 +124,16 @@ COPY --from=builder /hyperlane-monorepo/solidity ./solidity
 # Starknet core (needed by SDK adapters)
 COPY --from=builder /hyperlane-monorepo/starknet ./starknet
 
+# Clone hyperlane-registry for chain metadata
+RUN apt-get update && apt-get install -y --no-install-recommends git \
+    && rm -rf /var/lib/apt/lists/*
+ARG REGISTRY_COMMIT="main"
+ENV REGISTRY_URI="/hyperlane-registry"
+RUN git clone --depth 1 https://github.com/hyperlane-xyz/hyperlane-registry.git "$REGISTRY_URI" \
+    && cd "$REGISTRY_URI" \
+    && git fetch origin "$REGISTRY_COMMIT" \
+    && git checkout "$REGISTRY_COMMIT"
+
 WORKDIR /app/typescript/indexer
 
 # Environment
