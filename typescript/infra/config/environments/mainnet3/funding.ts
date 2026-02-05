@@ -51,7 +51,7 @@ export const keyFunderConfig: KeyFunderConfig<
     [Contexts.Hyperlane]: [Role.Relayer, Role.Rebalancer],
     [Contexts.ReleaseCandidate]: [Role.Relayer],
   },
-  chainsToSkip: ['zeronetwork'],
+  chainsToSkip: [],
   // desired balance config, must be set for each chain
   desiredBalancePerChain: desiredRelayerBalancePerChain,
   // desired rebalancer balance config
