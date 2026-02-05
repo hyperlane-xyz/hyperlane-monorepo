@@ -2,6 +2,7 @@ use std::sync::Arc;
 
 use solana_client::{
     nonblocking::rpc_client::RpcClient,
+    rpc_client::SerializableTransaction,
     rpc_config::{
         RpcBlockConfig, RpcProgramAccountsConfig, RpcSendTransactionConfig,
         RpcSimulateTransactionConfig, RpcTransactionConfig,
@@ -300,27 +301,22 @@ impl SealevelRpcClient {
         &self,
         transaction: &Transaction,
     ) -> ChainResult<RpcSimulateTransactionResult> {
-        let result = self
-            .0
-            .simulate_transaction_with_config(
-                transaction,
-                RpcSimulateTransactionConfig {
-                    sig_verify: false,
-                    replace_recent_blockhash: true,
-                    ..Default::default()
-                },
-            )
-            .await
-            .map_err(ChainCommunicationError::from_other)?
-            .value;
-
-        Ok(result)
+        self.simulate_transaction_impl(transaction).await
     }
 
     /// simulate a versioned transaction
     pub async fn simulate_sealevel_versioned_transaction(
         &self,
         transaction: &VersionedTransaction,
+    ) -> ChainResult<RpcSimulateTransactionResult> {
+        self.simulate_transaction_impl(transaction).await
+    }
+
+    /// Internal helper for transaction simulation.
+    /// Accepts any type implementing SerializableTransaction (Transaction or VersionedTransaction).
+    async fn simulate_transaction_impl(
+        &self,
+        transaction: &impl SerializableTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult> {
         let result = self
             .0
