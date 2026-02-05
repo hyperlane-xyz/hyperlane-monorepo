@@ -155,6 +155,7 @@ sha2 = { version = "0.10.6", default-features = false }
 sha256 = "1.1.4"
 sha3 = "0.10"
 solana-account-decoder = "=1.14.13"
+solana-address-lookup-table-program = "=1.14.13"
 solana-client = "=1.14.13"
 solana-program = "=1.14.13"
 solana-sdk = "=1.14.13"
@@ -301,6 +302,11 @@ git = "https://github.com/hyperlane-xyz/parity-common.git"
 version = "=0.5.2"
 
 [patch.crates-io.solana-account-decoder]
+git = "https://github.com/hyperlane-xyz/solana.git"
+tag = "hyperlane-1.14.13-2025-05-21"
+version = "=1.14.13"
+
+[patch.crates-io.solana-address-lookup-table-program]
 git = "https://github.com/hyperlane-xyz/solana.git"
 tag = "hyperlane-1.14.13-2025-05-21"
 version = "=1.14.13"
