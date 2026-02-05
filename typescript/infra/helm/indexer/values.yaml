@@ -4,8 +4,8 @@
 # Hyperlane configuration (override in environment-specific values)
 hyperlane:
   runEnv: ''
-  # Registry is baked into the Docker image at /hyperlane-registry
-  # Only set this to override the baked-in registry
+  # Registry defaults to GitHub. Can override with local path or pinned version:
+  # e.g., "https://github.com/hyperlane-xyz/hyperlane-registry/tree/v1.0.0"
   registryUri: ''
   chains: ''
 
