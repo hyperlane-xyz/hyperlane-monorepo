@@ -622,7 +622,7 @@ fn mock_simulate_transaction(mock_provider: &mut MockClient) {
             })
         });
     mock_provider
-        .expect_simulate_versioned_transaction()
+        .expect_simulate_sealevel_versioned_transaction()
         .returning(|_tx| {
             Ok(RpcSimulateTransactionResult {
                 err: None,

@@ -11,7 +11,7 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::{Transaction as SolanaTransaction, VersionedTransaction},
+    transaction::{Transaction as SealevelLegacyTransaction, VersionedTransaction},
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
@@ -59,10 +59,10 @@ mock! {
 
         async fn simulate_transaction(
             &self,
-            transaction: &SolanaTransaction,
+            transaction: &SealevelLegacyTransaction,
         ) -> ChainResult<RpcSimulateTransactionResult>;
 
-        async fn simulate_versioned_transaction(
+        async fn simulate_sealevel_versioned_transaction(
             &self,
             transaction: &VersionedTransaction,
         ) -> ChainResult<RpcSimulateTransactionResult>;
@@ -197,7 +197,7 @@ fn create_default_mock_svm_provider() -> MockSvmProvider {
         .expect_create_transaction_for_instruction()
         .returning(|_, _, instruction, payer, _, _, _| {
             let keypair = payer;
-            let tx = SolanaTransaction::new_unsigned(Message::new(
+            let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&keypair.pubkey()),
             ));
@@ -255,7 +255,7 @@ fn mock_client() -> MockClient {
         .expect_simulate_transaction()
         .returning(move |_| Ok(result_clone.clone()));
     client
-        .expect_simulate_versioned_transaction()
+        .expect_simulate_sealevel_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }

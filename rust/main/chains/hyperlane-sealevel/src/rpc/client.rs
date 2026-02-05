@@ -318,7 +318,7 @@ impl SealevelRpcClient {
     }
 
     /// simulate a versioned transaction
-    pub async fn simulate_versioned_transaction(
+    pub async fn simulate_sealevel_versioned_transaction(
         &self,
         transaction: &VersionedTransaction,
     ) -> ChainResult<RpcSimulateTransactionResult> {
@@ -360,7 +360,7 @@ impl SealevelRpcClient {
     ) -> ChainResult<RpcSimulateTransactionResult> {
         match tx {
             SealevelTxType::Legacy(t) => self.simulate_transaction(t).await,
-            SealevelTxType::Versioned(t) => self.simulate_versioned_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.simulate_sealevel_versioned_transaction(t).await,
         }
     }
 }

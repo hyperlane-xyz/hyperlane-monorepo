@@ -15,7 +15,7 @@ use solana_sdk::{
     signature::{Signature, Signer},
 };
 
-use hyperlane_sealevel::SealevelTxType as SealevelTransaction;
+use hyperlane_sealevel::SealevelTxType;
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
@@ -214,14 +214,14 @@ impl SealevelAdapter {
     async fn create_unsigned_transaction(
         &self,
         precursor: &SealevelTxPrecursor,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         self.create_sealevel_transaction(precursor, false).await
     }
 
     async fn create_signed_transaction(
         &self,
         precursor: &SealevelTxPrecursor,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         self.create_sealevel_transaction(precursor, true).await
     }
 
@@ -229,7 +229,7 @@ impl SealevelAdapter {
         &self,
         precursor: &SealevelTxPrecursor,
         sign: bool,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         let SealevelTxPrecursor {
             instruction,
             alt_address,
@@ -341,9 +341,9 @@ impl AdaptsChain for SealevelAdapter {
 
         // Simulate based on transaction type
         let result = match &svm_transaction {
-            SealevelTransaction::Legacy(t) => self.client.simulate_transaction(t).await,
-            SealevelTransaction::Versioned(t) => {
-                self.client.simulate_versioned_transaction(t).await
+            SealevelTxType::Legacy(t) => self.client.simulate_transaction(t).await,
+            SealevelTxType::Versioned(t) => {
+                self.client.simulate_sealevel_versioned_transaction(t).await
             }
         };
 

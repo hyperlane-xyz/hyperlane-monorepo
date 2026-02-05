@@ -17,7 +17,7 @@ use solana_sdk::{
     pubkey::Pubkey,
     signature::Signature,
     signature::Signer,
-    transaction::{Transaction as SolanaTransaction, VersionedTransaction},
+    transaction::{Transaction as SealevelLegacyTransaction, VersionedTransaction},
 };
 use solana_transaction_status::{
     option_serializer::OptionSerializer, EncodedConfirmedTransactionWithStatusMeta,
@@ -49,8 +49,8 @@ mock! {
         async fn get_block_with_commitment(&self, slot: u64, commitment: CommitmentConfig) -> ChainResult<UiConfirmedBlock>;
         async fn get_transaction(&self, signature: Signature) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
         async fn get_transaction_with_commitment(&self, signature: Signature, commitment: CommitmentConfig) -> ChainResult<EncodedConfirmedTransactionWithStatusMeta>;
-        async fn simulate_transaction(&self, transaction: &SolanaTransaction) -> ChainResult<RpcSimulateTransactionResult>;
-        async fn simulate_versioned_transaction(&self, transaction: &VersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+        async fn simulate_transaction(&self, transaction: &SealevelLegacyTransaction) -> ChainResult<RpcSimulateTransactionResult>;
+        async fn simulate_sealevel_versioned_transaction(&self, transaction: &VersionedTransaction) -> ChainResult<RpcSimulateTransactionResult>;
     }
 }
 
@@ -134,7 +134,7 @@ fn create_sealevel_provider_for_successful_tx() -> MockSvmProvider {
     provider
         .expect_create_transaction_for_instruction()
         .returning(|_, _, instruction, payer, _, _, _| {
-            let tx = SolanaTransaction::new_unsigned(Message::new(
+            let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
             ));
@@ -175,7 +175,7 @@ fn create_sealevel_client() -> MockClient {
         .expect_simulate_transaction()
         .returning(move |_| Ok(result_clone.clone()));
     client
-        .expect_simulate_versioned_transaction()
+        .expect_simulate_sealevel_versioned_transaction()
         .returning(move |_| Ok(result.clone()));
     client
 }
@@ -357,7 +357,7 @@ async fn test_sealevel_payload_simulation_failure_results_in_dropped() {
         .expect_simulate_transaction()
         .returning(|_| Err(eyre::eyre!("Simulation failed").into()));
     client
-        .expect_simulate_versioned_transaction()
+        .expect_simulate_sealevel_versioned_transaction()
         .returning(|_| Err(eyre::eyre!("Simulation failed").into()));
 
     let provider = create_sealevel_provider_for_successful_tx();
@@ -427,7 +427,7 @@ async fn test_sealevel_payload_estimation_failure_results_in_dropped() {
     provider
         .expect_create_transaction_for_instruction()
         .returning(|_, _, instruction, payer, _, _, _| {
-            let tx = SolanaTransaction::new_unsigned(Message::new(
+            let tx = SealevelLegacyTransaction::new_unsigned(Message::new(
                 &[instruction],
                 Some(&payer.pubkey()),
             ));
