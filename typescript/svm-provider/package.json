@@ -67,6 +67,7 @@
     "@hyperlane-xyz/utils": "workspace:*",
     "@solana/kit": "^2.3.0",
     "@solana/spl-token": "catalog:",
-    "@solana/web3.js": "catalog:"
+    "@solana/web3.js": "catalog:",
+    "viem": "catalog:"
   }
 }
