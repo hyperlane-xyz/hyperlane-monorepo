@@ -36,7 +36,7 @@ import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TokenMetadataMap } from './TokenMetadataMap.js';
-import { DeployableTokenType, TokenType, gasOverhead } from './config.js';
+import { DeployableTokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
 import {
   HypERC20Factories,
