@@ -14,8 +14,6 @@ import {
   RebalancerMinAmountType,
   RebalancerStrategyOptions,
 } from '../config/types.js';
-import { type MonitorEvent, MonitorEventType } from '../interfaces/IMonitor.js';
-import type { Monitor } from '../monitor/Monitor.js';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -31,33 +29,12 @@ import {
 import { setTokenBalanceViaStorage } from './harness/BridgeSetup.js';
 import { ForkManager } from './harness/ForkManager.js';
 import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
+import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
   executeWarpTransfer,
   tryRelayMessage,
 } from './harness/TransferHelper.js';
-
-async function getFirstMonitorEvent(monitor: Monitor): Promise<MonitorEvent> {
-  return new Promise((resolve, reject) => {
-    const timeout = setTimeout(() => {
-      reject(new Error('Monitor event timeout'));
-    }, 60_000);
-
-    monitor.on(MonitorEventType.TokenInfo, (event: MonitorEvent) => {
-      clearTimeout(timeout);
-      void monitor.stop();
-      resolve(event);
-    });
-
-    monitor.on(MonitorEventType.Error, (error: Error) => {
-      clearTimeout(timeout);
-      void monitor.stop();
-      reject(error);
-    });
-
-    void monitor.start();
-  });
-}
 
 describe('CompositeStrategy E2E', function () {
   this.timeout(300_000);

@@ -29,6 +29,9 @@ export class ForkIndexer {
   async initialize(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
     for (const [chain] of this.providers) {
       const blockNumber = confirmedBlockTags[chain];
+      if (blockNumber === undefined) {
+        throw new Error(`Missing confirmed block tag for chain ${chain}`);
+      }
       this.lastScannedBlock.set(chain, blockNumber as number);
       this.logger.debug(
         { chain, blockNumber },
@@ -44,15 +47,24 @@ export class ForkIndexer {
     }
 
     for (const [chain] of this.providers) {
-      const currentBlock = confirmedBlockTags[chain] as number;
+      const currentBlock = confirmedBlockTags[chain];
+      if (currentBlock === undefined) {
+        throw new Error(`Missing confirmed block tag for chain ${chain}`);
+      }
       const lastBlock = this.lastScannedBlock.get(chain) ?? 0;
+      const currentBlockNumber = currentBlock as number;
 
       this.logger.debug(
-        { chain, lastBlock, currentBlock, skip: lastBlock >= currentBlock },
+        {
+          chain,
+          lastBlock,
+          currentBlock: currentBlockNumber,
+          skip: lastBlock >= currentBlockNumber,
+        },
         'ForkIndexer sync check',
       );
 
-      if (lastBlock >= currentBlock) {
+      if (lastBlock >= currentBlockNumber) {
         continue;
       }
 
@@ -60,7 +72,7 @@ export class ForkIndexer {
       const events = await mailbox.queryFilter(
         mailbox.filters.Dispatch(),
         lastBlock + 1,
-        currentBlock,
+        currentBlockNumber,
       );
 
       this.logger.debug(
@@ -68,7 +80,7 @@ export class ForkIndexer {
           chain,
           eventCount: events.length,
           fromBlock: lastBlock + 1,
-          toBlock: currentBlock,
+          toBlock: currentBlockNumber,
         },
         'Scanned Dispatch events',
       );
@@ -116,7 +128,7 @@ export class ForkIndexer {
         this.seenMessageIds.add(msgId);
       }
 
-      this.lastScannedBlock.set(chain, currentBlock);
+      this.lastScannedBlock.set(chain, currentBlockNumber);
     }
   }
 }
