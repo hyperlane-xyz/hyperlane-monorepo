@@ -38,6 +38,13 @@ export class RelayerService {
     this.metrics = new RelayerMetrics();
   }
 
+  /**
+   * Creates and initializes a RelayerService.
+   *
+   * Note: The whitelist is captured on first initialization. If subsequent calls
+   * to `getRelayer()` pass different whitelists, they will still receive the
+   * relayer created with the whitelist from the first call.
+   */
   static async create(
     multiProvider: MultiProvider,
     registry: IRegistry,

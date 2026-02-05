@@ -97,9 +97,7 @@ export class RegistryService {
 
     if (shouldRefresh) {
       this.logger.info('Refreshing registry cache...');
-      if (this.registryRefresh.isInitialized()) {
-        this.registryRefresh.reset();
-      }
+      this.registryRefresh.reset();
       this.registry = await this.registryRefresh.get();
       this.isDirty = false;
       this.lastRefresh = now;
