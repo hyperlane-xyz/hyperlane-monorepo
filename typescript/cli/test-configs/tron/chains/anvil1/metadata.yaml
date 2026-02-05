@@ -5,6 +5,7 @@
 chainId: 728126428
 domainId: 728126427
 name: anvil1
+displayName: Tron Local 1
 protocol: ethereum
 technicalStack: tron
 rpcUrls:
