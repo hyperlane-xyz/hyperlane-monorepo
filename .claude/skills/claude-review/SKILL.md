@@ -17,4 +17,16 @@ Use this skill to review code changes against Hyperlane monorepo standards.
 
 Read and apply the guidelines from `.github/prompts/code-review.md` to review the code changes.
 
+### For PR Reviews
+
+When reviewing a PR, deliver feedback using `/inline-pr-comments` to post inline comments on specific lines.
+
+### For Self-Review
+
+When reviewing your own changes before committing:
+
+1. Run `git diff` to see changes
+2. Apply the code review guidelines
+3. Fix issues directly rather than commenting
+
 Security issues should use `/claude-security-review` or `/claude-tob-review` instead.
