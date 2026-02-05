@@ -12,7 +12,7 @@ const __filename = fileURLToPath(import.meta.url);
 const __dirname = dirname(__filename);
 
 const IDL_BASE = join(__dirname, '../../rust/sealevel/programs/idl');
-const OUTPUT_DIR = join(__dirname, 'src/providers/sealevel/generated');
+const OUTPUT_DIR = join(__dirname, 'src/generated');
 
 const IDL_FILES = [
   // Tier 1: Core Infrastructure
