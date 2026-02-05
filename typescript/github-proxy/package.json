@@ -1,6 +1,6 @@
 {
   "name": "@hyperlane-xyz/github-proxy",
-  "version": "23.0.0",
+  "version": "24.0.0",
   "private": true,
   "description": "Github proxy that adds the API key to requests",
   "keywords": [
