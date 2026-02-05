@@ -1,3 +1,6 @@
+import { DEFAULT_GITHUB_REGISTRY } from '@hyperlane-xyz/registry';
+import { rootLogger } from '@hyperlane-xyz/utils';
+
 import { getLogger } from '../utils/logger.js';
 
 import type { IndexerChainConfig } from './chains.js';
@@ -14,15 +17,17 @@ export interface ContractAddresses {
 export async function loadContractAddresses(
   chains: IndexerChainConfig[],
 ): Promise<Record<string, ContractAddresses>> {
-  const { FileSystemRegistry } = await import('@hyperlane-xyz/registry/fs');
+  const { getRegistry } = await import('@hyperlane-xyz/registry/fs');
 
-  const registryUri = process.env.REGISTRY_URI;
-  if (!registryUri) {
-    throw new Error('REGISTRY_URI environment variable required');
-  }
+  // Use GitHub registry by default, can be overridden with REGISTRY_URI
+  const registryUri = process.env.REGISTRY_URI || DEFAULT_GITHUB_REGISTRY;
 
-  const registry = new FileSystemRegistry({ uri: registryUri });
-  const allAddresses = registry.getAddresses();
+  const registry = getRegistry({
+    registryUris: [registryUri],
+    enableProxy: true,
+    logger: rootLogger,
+  });
+  const allAddresses = await registry.getAddresses();
 
   const result: Record<string, ContractAddresses> = {};
 
