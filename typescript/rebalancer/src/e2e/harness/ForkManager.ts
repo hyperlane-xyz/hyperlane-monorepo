@@ -39,6 +39,26 @@ export interface ForkManagerConfig {
   blockNumbers?: Record<string, number>;
 }
 
+/**
+ * Get RPC URL for a chain, checking env var override first.
+ * Env var pattern: RPC_URL_${CHAIN_NAME_UPPERCASE} (e.g., RPC_URL_ETHEREUM)
+ */
+function getRpcUrl(chainMetadata: ChainMetadata, chainName: string): string {
+  const envVarName = `RPC_URL_${chainName.toUpperCase()}`;
+  const envRpcUrl = process.env[envVarName];
+
+  if (envRpcUrl) {
+    console.log(`[ForkManager] Using RPC override from ${envVarName}`);
+    return envRpcUrl;
+  }
+
+  const rpcUrl = chainMetadata.rpcUrls[0];
+  if (!rpcUrl) {
+    throw new Error(`No RPC found for chain ${chainName}`);
+  }
+  return rpcUrl.http;
+}
+
 async function forkChain(
   multiProvider: MultiProvider,
   chainName: string,
@@ -46,13 +66,10 @@ async function forkChain(
   blockNumber?: number,
 ): Promise<ForkResult> {
   const chainMetadata = multiProvider.getChainMetadata(chainName);
-  const rpcUrl = chainMetadata.rpcUrls[0];
-  if (!rpcUrl) {
-    throw new Error(`No rpc found for chain ${chainName}`);
-  }
+  const rpcUrl = getRpcUrl(chainMetadata, chainName);
 
   const fork = await forkChainBase({
-    rpcUrl: rpcUrl.http,
+    rpcUrl,
     chainId: Number(chainMetadata.chainId),
     port,
     blockNumber,

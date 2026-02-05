@@ -1,0 +1,76 @@
+name: Rebalancer E2E Tests
+
+on:
+  push:
+    branches: [main]
+    paths:
+      - 'typescript/rebalancer/src/e2e/**'
+      - '.github/workflows/rebalancer-e2e-test.yml'
+  pull_request:
+    paths:
+      - 'typescript/rebalancer/src/e2e/**'
+      - '.github/workflows/rebalancer-e2e-test.yml'
+  workflow_dispatch:
+
+concurrency:
+  group: rebalancer-e2e-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  TURBO_TELEMETRY_DISABLED: 1
+  TURBO_API: https://cache.depot.dev
+  TURBO_TOKEN: ${{ secrets.DEPOT_TURBO_TOKEN }}
+  TURBO_TEAM: ${{ secrets.DEPOT_ORG_ID }}
+
+jobs:
+  rebalancer-e2e-test-matrix:
+    runs-on: depot-ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          - weighted
+          - minAmount
+          - composite
+          - collateral-deficit
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: Set Foundry RPC URLs for fork tests
+        env:
+          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
+          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
+          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
+        run: |
+          # Extract first URL from comma-separated list and set as env vars
+          echo "RPC_URL_ETHEREUM=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
+          echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
+
+      - name: pnpm-build
+        uses: ./.github/actions/pnpm-build-with-cache
+
+      - name: Setup Foundry
+        uses: ./.github/actions/setup-foundry
+
+      - name: Run rebalancer E2E test (${{ matrix.test }})
+        working-directory: typescript/rebalancer
+        env:
+          REBALANCER_E2E_TEST: ${{ matrix.test }}
+        run: pnpm test:e2e:ci
+
+  rebalancer-e2e-test:
+    runs-on: ubuntu-latest
+    needs: [rebalancer-e2e-test-matrix]
+    if: always()
+    steps:
+      - uses: actions/checkout@v6
+      - name: Check rebalancer E2E test status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'Rebalancer E2E Test'
+          result: ${{ needs.rebalancer-e2e-test-matrix.result }}
