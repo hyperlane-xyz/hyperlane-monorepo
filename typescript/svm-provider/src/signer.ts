@@ -4,6 +4,7 @@ import {
   type Rpc,
   type SolanaRpcApi,
   createKeyPairSignerFromBytes,
+  createKeyPairSignerFromPrivateKeyBytes,
   getSignatureFromTransaction,
   signTransaction,
 } from '@solana/kit';
@@ -84,7 +85,7 @@ export async function createSigner(privateKey: string): Promise<SvmSigner> {
   // Detect if it's hex (0x prefix or 64 hex chars)
   const stripped = strip0x(privateKey);
   if (/^[0-9a-fA-F]{64}$/.test(stripped)) {
-    // 32-byte hex private key
+    // 32-byte hex private key (seed)
     keyBytes = new Uint8Array(Buffer.from(stripped, 'hex'));
   } else if (/^[0-9a-fA-F]{128}$/.test(stripped)) {
     // 64-byte hex keypair (full Ed25519 keypair)
@@ -100,7 +101,19 @@ export async function createSigner(privateKey: string): Promise<SvmSigner> {
   }
 
   // Create keypair signer from bytes
-  const keypair = await createKeyPairSignerFromBytes(keyBytes);
+  // Use appropriate function based on key length
+  let keypair: KeyPairSigner;
+  if (keyBytes.length === 32) {
+    // 32-byte private key
+    keypair = await createKeyPairSignerFromPrivateKeyBytes(keyBytes);
+  } else if (keyBytes.length === 64) {
+    // 64-byte full keypair
+    keypair = await createKeyPairSignerFromBytes(keyBytes);
+  } else {
+    throw new Error(
+      `Invalid key length: ${keyBytes.length}. Expected 32 (private key) or 64 (keypair).`,
+    );
+  }
 
   const signAndSendFn = async (
     rpc: Rpc<SolanaRpcApi>,
@@ -118,8 +131,14 @@ export async function createSigner(privateKey: string): Promise<SvmSigner> {
       computeUnits: tx.computeUnits ?? DEFAULT_COMPUTE_UNITS,
     });
 
-    // Sign transaction
-    const signedTx = await signTransaction([keypair.keyPair], compiledTx);
+    // Collect all signers (fee payer + additional signers)
+    const allSigners = [keypair.keyPair];
+    if (tx.additionalSigners) {
+      allSigners.push(...tx.additionalSigners);
+    }
+
+    // Sign transaction with all signers
+    const signedTx = await signTransaction(allSigners, compiledTx);
 
     // Get signature
     const signature = getSignatureFromTransaction(signedTx);
@@ -157,15 +176,20 @@ export async function createSigner(privateKey: string): Promise<SvmSigner> {
     // Base64 encode
     const base64Tx = Buffer.from(wireBytes).toString('base64');
 
-    // Send the transaction
-    await rpc.sendTransaction(base64Tx as any, { encoding: 'base64' }).send();
+    // Send the transaction (skip preflight for speed on local validator)
+    await rpc
+      .sendTransaction(base64Tx as any, {
+        encoding: 'base64',
+        skipPreflight: true,
+      })
+      .send();
 
-    // Poll for confirmation
+    // Poll for confirmation (faster polling for local validator)
     let confirmed = false;
     let slot: bigint = 0n;
-    const maxRetries = 60;
+    const maxRetries = 120;
     for (let i = 0; i < maxRetries && !confirmed; i++) {
-      await new Promise((resolve) => setTimeout(resolve, 1000));
+      await new Promise((resolve) => setTimeout(resolve, 500));
       const status = await rpc.getSignatureStatuses([signature]).send();
       const result = status.value[0];
       if (result && result.confirmationStatus) {

@@ -17,7 +17,7 @@ import type { SvmSigner } from '../signer.js';
 import type { AnnotatedSvmTransaction, SvmReceipt } from '../types.js';
 
 import { fetchTestIsmStorageAccount } from './ism-query.js';
-import { getSetTestIsmAcceptInstruction } from './ism-tx.js';
+import { getInitTestIsmInstruction } from './ism-tx.js';
 
 /**
  * Reader for SVM Test ISM.
@@ -84,10 +84,10 @@ export class SvmTestIsmWriter
   ): Promise<
     [ArtifactDeployed<TestIsmConfig, DeployedIsmAddress>, SvmReceipt[]]
   > {
-    // Initialize Test ISM by setting accept=true
-    const instruction = await getSetTestIsmAcceptInstruction({
+    // Initialize Test ISM storage PDA (sets accept=true by default)
+    const instruction = await getInitTestIsmInstruction({
+      payer: this.signer.keypair,
       programId: this['programId'],
-      accept: true,
     });
 
     const receipt = await this.signer.signAndSend(this['rpc'], {

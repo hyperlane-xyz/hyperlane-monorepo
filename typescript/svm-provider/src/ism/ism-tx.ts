@@ -1,10 +1,15 @@
-import type { Address, TransactionSigner } from '@solana/kit';
+import {
+  type AccountMeta,
+  AccountRole,
+  type AccountSignerMeta,
+  type Address,
+  type TransactionSigner,
+} from '@solana/kit';
 
 import { strip0x } from '@hyperlane-xyz/utils';
 
-import { getInitializeInstruction } from '../generated/instructions/initialize.js';
+import { getInitInstruction } from '../generated/instructions/init.js';
 import { getSetAcceptInstruction } from '../generated/instructions/setAccept.js';
-import { getSetValidatorsAndThresholdInstruction } from '../generated/instructions/setValidatorsAndThreshold.js';
 import {
   getMultisigIsmAccessControlPda,
   getMultisigIsmDomainDataPda,
@@ -12,17 +17,51 @@ import {
 } from '../pda.js';
 import type { SvmInstruction } from '../types.js';
 
+/**
+ * Program instruction discriminator prefix used by Hyperlane Sealevel programs.
+ * All instructions are prefixed with [1,1,1,1,1,1,1,1] before the Borsh enum discriminant.
+ */
+const PROGRAM_INSTRUCTION_DISCRIMINATOR = new Uint8Array([
+  1, 1, 1, 1, 1, 1, 1, 1,
+]);
+
+/**
+ * Multisig ISM instruction discriminants (Borsh enum indices).
+ */
+const MULTISIG_ISM_INSTRUCTION = {
+  Initialize: 0,
+  SetValidatorsAndThreshold: 1,
+  GetOwner: 2,
+  TransferOwnership: 3,
+} as const;
+
 // =============================================================================
 // Test ISM Instructions
 // =============================================================================
 
 /**
- * Creates an instruction to initialize the Test ISM.
- * The Test ISM has no special initialization - it just needs its storage PDA created.
- * This is a no-op since Test ISM doesn't have an init instruction, only setAccept.
- *
- * Note: Test ISM's storage PDA needs to be created, but there's no explicit init.
- * The setAccept instruction will create it if it doesn't exist.
+ * Creates an instruction to initialize the Test ISM storage PDA.
+ * This must be called before any other Test ISM instructions.
+ */
+export async function getInitTestIsmInstruction(params: {
+  payer: TransactionSigner;
+  programId: Address;
+}): Promise<SvmInstruction> {
+  const { payer, programId } = params;
+  const [storagePda] = await getTestIsmStoragePda(programId);
+
+  return getInitInstruction(
+    {
+      payer,
+      storagePda,
+    },
+    { programAddress: programId },
+  ) as unknown as SvmInstruction;
+}
+
+/**
+ * Creates an instruction to set whether the Test ISM accepts messages.
+ * The Test ISM must be initialized first via getInitTestIsmInstruction.
  */
 export async function getSetTestIsmAcceptInstruction(params: {
   programId: Address;
@@ -44,9 +83,15 @@ export async function getSetTestIsmAcceptInstruction(params: {
 // Multisig ISM Instructions
 // =============================================================================
 
+const SYSTEM_PROGRAM_ID = '11111111111111111111111111111111' as Address;
+
 /**
  * Creates an instruction to initialize the Multisig ISM access control.
  * This sets the owner of the ISM program.
+ *
+ * The instruction data format is:
+ * - 8 bytes: PROGRAM_INSTRUCTION_DISCRIMINATOR [1,1,1,1,1,1,1,1]
+ * - 1 byte: Borsh enum discriminant (0 for Initialize)
  */
 export async function getInitMultisigIsmInstruction(params: {
   payer: TransactionSigner;
@@ -55,17 +100,39 @@ export async function getInitMultisigIsmInstruction(params: {
   const { payer, programId } = params;
   const [accessControlPda] = await getMultisigIsmAccessControlPda(programId);
 
-  return getInitializeInstruction(
+  // Build instruction data: [discriminator prefix][enum variant]
+  const data = new Uint8Array(9);
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, 0);
+  data[8] = MULTISIG_ISM_INSTRUCTION.Initialize;
+
+  // Build accounts - payer is a writable signer (pays for PDA creation)
+  const accounts: (AccountMeta | AccountSignerMeta)[] = [
     {
-      payer,
-      accessControlPda,
+      address: payer.address,
+      role: AccountRole.WRITABLE_SIGNER,
+      signer: payer,
     },
-    { programAddress: programId },
-  ) as unknown as SvmInstruction;
+    { address: accessControlPda, role: AccountRole.WRITABLE },
+    { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+  ];
+
+  return {
+    programAddress: programId,
+    accounts,
+    data,
+  } as unknown as SvmInstruction;
 }
 
 /**
  * Creates an instruction to set validators and threshold for a domain.
+ *
+ * The instruction data format is:
+ * - 8 bytes: PROGRAM_INSTRUCTION_DISCRIMINATOR [1,1,1,1,1,1,1,1]
+ * - 1 byte: Borsh enum discriminant (1 for SetValidatorsAndThreshold)
+ * - 4 bytes: domain (u32 LE)
+ * - 4 bytes: validators.length (u32 LE)
+ * - N * 20 bytes: validators
+ * - 1 byte: threshold
  *
  * @param params.owner - Owner/payer of the ISM (must match access control owner)
  * @param params.programId - Multisig ISM program ID
@@ -94,17 +161,54 @@ export async function getSetValidatorsAndThresholdIx(params: {
     return new Uint8Array(Buffer.from(hex, 'hex'));
   });
 
-  return getSetValidatorsAndThresholdInstruction(
+  // Calculate data size:
+  // 8 (discriminator) + 1 (enum) + 4 (domain) + 4 (vec len) + N*20 (validators) + 1 (threshold)
+  const dataSize = 8 + 1 + 4 + 4 + validatorBytes.length * 20 + 1;
+  const data = new Uint8Array(dataSize);
+  const view = new DataView(data.buffer);
+
+  let offset = 0;
+
+  // Discriminator prefix
+  data.set(PROGRAM_INSTRUCTION_DISCRIMINATOR, offset);
+  offset += 8;
+
+  // Enum variant
+  data[offset] = MULTISIG_ISM_INSTRUCTION.SetValidatorsAndThreshold;
+  offset += 1;
+
+  // Domain (u32 LE)
+  view.setUint32(offset, domain, true);
+  offset += 4;
+
+  // Validators vec length (u32 LE)
+  view.setUint32(offset, validatorBytes.length, true);
+  offset += 4;
+
+  // Validators (each 20 bytes)
+  for (const validator of validatorBytes) {
+    data.set(validator, offset);
+    offset += 20;
+  }
+
+  // Threshold (u8)
+  data[offset] = threshold;
+
+  // Build accounts - owner is a writable signer (pays for domain PDA creation)
+  const accounts: (AccountMeta | AccountSignerMeta)[] = [
     {
-      ownerPayer: owner,
-      accessControlPda,
-      domainPda,
-      domain,
-      data: {
-        validators: validatorBytes,
-        threshold,
-      },
+      address: owner.address,
+      role: AccountRole.WRITABLE_SIGNER,
+      signer: owner,
     },
-    { programAddress: programId },
-  ) as unknown as SvmInstruction;
+    { address: accessControlPda, role: AccountRole.READONLY },
+    { address: domainPda, role: AccountRole.WRITABLE },
+    { address: SYSTEM_PROGRAM_ID, role: AccountRole.READONLY },
+  ];
+
+  return {
+    programAddress: programId,
+    accounts,
+    data,
+  } as unknown as SvmInstruction;
 }

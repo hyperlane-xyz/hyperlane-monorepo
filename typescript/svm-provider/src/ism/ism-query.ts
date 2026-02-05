@@ -1,24 +1,61 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+  fetchEncodedAccount,
+} from '@solana/kit';
 
 import { IsmType } from '@hyperlane-xyz/provider-sdk/altvm';
 
 import {
   type AccessControlData,
-  fetchMaybeAccessControlData,
+  getAccessControlDataDecoder,
 } from '../generated/accounts/accessControlData.js';
 import {
   type DomainData,
-  fetchMaybeDomainData,
+  getDomainDataDecoder,
 } from '../generated/accounts/domainData.js';
 import {
   type TestIsmStorage,
-  fetchMaybeTestIsmStorage,
+  getTestIsmStorageDecoder,
 } from '../generated/accounts/testIsmStorage.js';
 import {
   getMultisigIsmAccessControlPda,
   getMultisigIsmDomainDataPda,
   getTestIsmStoragePda,
 } from '../pda.js';
+
+/**
+ * Fetches raw account data and handles the AccountData<T> wrapper.
+ *
+ * Hyperlane Sealevel programs use an AccountData<T> wrapper that prepends
+ * a 1-byte `initialized` flag before the actual data. This function reads
+ * the account, checks the initialized flag, and returns the raw data bytes
+ * (without the flag) for decoding.
+ */
+async function fetchAccountDataWithInitFlag(
+  rpc: Rpc<SolanaRpcApi>,
+  address: Address,
+): Promise<Uint8Array | null> {
+  const maybeAccount = await fetchEncodedAccount(rpc, address);
+  if (!maybeAccount.exists) {
+    return null;
+  }
+
+  const data = maybeAccount.data;
+  if (data.length === 0) {
+    return null;
+  }
+
+  // First byte is the initialized flag
+  const initialized = data[0] !== 0;
+  if (!initialized) {
+    return null;
+  }
+
+  // Return data after the initialized flag
+  return data.slice(1);
+}
 
 /**
  * Fetches TestIsmStorage account data from chain.
@@ -32,8 +69,12 @@ export async function fetchTestIsmStorageAccount(
   programId: Address,
 ): Promise<TestIsmStorage | null> {
   const [storagePda] = await getTestIsmStoragePda(programId);
-  const account = await fetchMaybeTestIsmStorage(rpc, storagePda);
-  return account.exists ? account.data : null;
+  const rawData = await fetchAccountDataWithInitFlag(rpc, storagePda);
+  if (rawData === null) {
+    return null;
+  }
+  const decoder = getTestIsmStorageDecoder();
+  return decoder.decode(rawData);
 }
 
 /**
@@ -48,8 +89,12 @@ export async function fetchMultisigIsmAccessControl(
   programId: Address,
 ): Promise<AccessControlData | null> {
   const [accessControlPda] = await getMultisigIsmAccessControlPda(programId);
-  const account = await fetchMaybeAccessControlData(rpc, accessControlPda);
-  return account.exists ? account.data : null;
+  const rawData = await fetchAccountDataWithInitFlag(rpc, accessControlPda);
+  if (rawData === null) {
+    return null;
+  }
+  const decoder = getAccessControlDataDecoder();
+  return decoder.decode(rawData);
 }
 
 /**
@@ -66,8 +111,12 @@ export async function fetchMultisigIsmDomainData(
   domain: number,
 ): Promise<DomainData | null> {
   const [domainPda] = await getMultisigIsmDomainDataPda(programId, domain);
-  const account = await fetchMaybeDomainData(rpc, domainPda);
-  return account.exists ? account.data : null;
+  const rawData = await fetchAccountDataWithInitFlag(rpc, domainPda);
+  if (rawData === null) {
+    return null;
+  }
+  const decoder = getDomainDataDecoder();
+  return decoder.decode(rawData);
 }
 
 /**

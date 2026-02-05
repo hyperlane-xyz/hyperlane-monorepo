@@ -1,21 +1,81 @@
-import type { Address, Rpc, SolanaRpcApi } from '@solana/kit';
+import {
+  type Address,
+  type Rpc,
+  type SolanaRpcApi,
+  fetchEncodedAccount,
+} from '@solana/kit';
 
 import { HookType } from '@hyperlane-xyz/provider-sdk/altvm';
 
-import { type Igp, fetchMaybeIgp } from '../generated/accounts/igp.js';
+import { type Igp, getIgpDecoder } from '../generated/accounts/igp.js';
 import {
   type OverheadIgp,
-  fetchMaybeOverheadIgp,
+  getOverheadIgpDecoder,
 } from '../generated/accounts/overheadIgp.js';
 import {
   type ProgramData,
-  fetchMaybeProgramData,
+  getProgramDataDecoder,
 } from '../generated/accounts/programData.js';
 import {
   getIgpAccountPda,
   getIgpProgramDataPda,
   getOverheadIgpAccountPda,
 } from '../pda.js';
+
+/**
+ * IGP account discriminators (8 bytes each).
+ * Used to verify account types and skip prefix during decoding.
+ */
+const IGP_DISCRIMINATORS = {
+  PROGRAM_DATA: new Uint8Array([80, 82, 71, 77, 68, 65, 84, 65]), // "PRGMDATA"
+  IGP: new Uint8Array([73, 71, 80, 95, 95, 95, 95, 95]), // "IGP_____"
+  OVERHEAD_IGP: new Uint8Array([79, 86, 82, 72, 68, 73, 71, 80]), // "OVRHDIGP"
+};
+
+/**
+ * Fetches raw account data and handles the AccountData<DiscriminatorPrefixed<T>> wrapper.
+ *
+ * Hyperlane Sealevel IGP accounts use AccountData<DiscriminatorPrefixed<T>> which prepends:
+ * - 1 byte: initialized flag
+ * - 8 bytes: discriminator (e.g., "IGP_____", "PRGMDATA", "OVRHDIGP")
+ *
+ * This function reads the account, checks the initialized flag and discriminator,
+ * and returns the raw data bytes (without prefix) for decoding.
+ */
+async function fetchIgpAccountDataWithPrefix(
+  rpc: Rpc<SolanaRpcApi>,
+  address: Address,
+  expectedDiscriminator: Uint8Array,
+): Promise<Uint8Array | null> {
+  const maybeAccount = await fetchEncodedAccount(rpc, address);
+  if (!maybeAccount.exists) {
+    return null;
+  }
+
+  const data = maybeAccount.data;
+  // Minimum size: 1 byte init + 8 bytes discriminator
+  if (data.length < 9) {
+    return null;
+  }
+
+  // First byte is the initialized flag
+  const initialized = data[0] !== 0;
+  if (!initialized) {
+    return null;
+  }
+
+  // Next 8 bytes are the discriminator
+  const discriminator = data.slice(1, 9);
+  const matches = expectedDiscriminator.every(
+    (byte, i) => byte === discriminator[i],
+  );
+  if (!matches) {
+    return null;
+  }
+
+  // Return data after the initialized flag and discriminator
+  return data.slice(9);
+}
 
 /**
  * Fetches IGP program data (global state) from chain.
@@ -29,8 +89,16 @@ export async function fetchIgpProgramData(
   programId: Address,
 ): Promise<ProgramData | null> {
   const [programDataPda] = await getIgpProgramDataPda(programId);
-  const account = await fetchMaybeProgramData(rpc, programDataPda);
-  return account.exists ? account.data : null;
+  const rawData = await fetchIgpAccountDataWithPrefix(
+    rpc,
+    programDataPda,
+    IGP_DISCRIMINATORS.PROGRAM_DATA,
+  );
+  if (rawData === null) {
+    return null;
+  }
+  const decoder = getProgramDataDecoder();
+  return decoder.decode(rawData);
 }
 
 /**
@@ -47,8 +115,16 @@ export async function fetchIgpAccount(
   salt: Uint8Array,
 ): Promise<Igp | null> {
   const [igpPda] = await getIgpAccountPda(programId, salt);
-  const account = await fetchMaybeIgp(rpc, igpPda);
-  return account.exists ? account.data : null;
+  const rawData = await fetchIgpAccountDataWithPrefix(
+    rpc,
+    igpPda,
+    IGP_DISCRIMINATORS.IGP,
+  );
+  if (rawData === null) {
+    return null;
+  }
+  const decoder = getIgpDecoder();
+  return decoder.decode(rawData);
 }
 
 /**
@@ -65,8 +141,16 @@ export async function fetchOverheadIgpAccount(
   salt: Uint8Array,
 ): Promise<OverheadIgp | null> {
   const [overheadIgpPda] = await getOverheadIgpAccountPda(programId, salt);
-  const account = await fetchMaybeOverheadIgp(rpc, overheadIgpPda);
-  return account.exists ? account.data : null;
+  const rawData = await fetchIgpAccountDataWithPrefix(
+    rpc,
+    overheadIgpPda,
+    IGP_DISCRIMINATORS.OVERHEAD_IGP,
+  );
+  if (rawData === null) {
+    return null;
+  }
+  const decoder = getOverheadIgpDecoder();
+  return decoder.decode(rawData);
 }
 
 /**

@@ -13,6 +13,8 @@ export type SvmInstruction = Instruction;
 export interface SvmTransaction {
   instructions: SvmInstruction[];
   computeUnits?: number;
+  /** Additional keypairs that need to sign the transaction (besides the fee payer) */
+  additionalSigners?: CryptoKeyPair[];
 }
 
 /**

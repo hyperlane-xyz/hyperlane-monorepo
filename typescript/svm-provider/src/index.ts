@@ -7,6 +7,9 @@ export * from './rpc.js';
 export * from './tx.js';
 export * from './signer.js';
 
+// Program deployment
+export * from './deploy/index.js';
+
 // ISM artifacts
 export * from './ism/index.js';
 
