@@ -9,7 +9,10 @@ use hyperlane_sealevel_connection_client::{
     router::{HyperlaneRouter, RemoteRouterConfig},
     HyperlaneConnectionClient,
 };
-use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use shank::ShankAccount;
+
+#[allow(unused_imports)]
+use crate::types::{InterchainGasPaymasterType, InterchainGasPaymasterTypeProxy};
 
 use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 
@@ -17,7 +20,7 @@ use solana_program::{program_error::ProgramError, pubkey::Pubkey};
 pub type HelloWorldStorageAccount = AccountData<HelloWorldStorage>;
 
 /// The storage account's data.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, ShankAccount)]
 pub struct HelloWorldStorage {
     /// The local domain.
     pub local_domain: u32,
@@ -26,6 +29,7 @@ pub struct HelloWorldStorage {
     /// The ISM.
     pub ism: Option<Pubkey>,
     /// The IGP.
+    #[idl_type("Option<(Pubkey, InterchainGasPaymasterTypeProxy)>")]
     pub igp: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The owner.
     pub owner: Option<Pubkey>,
@@ -40,6 +44,7 @@ pub struct HelloWorldStorage {
     /// by this contract from the domain.
     pub received_from: HashMap<u32, u64>,
     /// Keyed by domain, the router for the remote domain.
+    #[idl_type("HashMap<u32, [u8; 32]>")]
     pub routers: HashMap<u32, H256>,
 }
 

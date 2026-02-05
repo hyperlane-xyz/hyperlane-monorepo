@@ -7,6 +7,7 @@ use hyperlane_sealevel_token_lib::{
 };
 use hyperlane_warp_route::TokenMessage;
 use serializable_account_meta::SerializableAccountMeta;
+use shank::ShankAccount;
 use solana_program::{
     account_info::{next_account_info, AccountInfo},
     instruction::AccountMeta,
@@ -51,7 +52,7 @@ macro_rules! hyperlane_token_ata_payer_pda_seeds {
 /// A plugin for the Hyperlane token program that escrows SPL
 /// tokens when transferring out to a remote chain, and pays them
 /// out when transferring in from a remote chain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Default, ShankAccount)]
 pub struct CollateralPlugin {
     /// The SPL token program, i.e. either SPL token program or the 2022 version.
     pub spl_token_program: Pubkey,

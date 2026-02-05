@@ -2,6 +2,7 @@
 
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::H256;
+use shank::{ShankInstruction, ShankType};
 
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
@@ -15,29 +16,83 @@ use crate::{
 };
 
 /// The program instructions.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankInstruction)]
 pub enum Instruction {
     /// Initializes the program.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, signer, name = "payer", desc = "Payer account")]
+    #[account(2, writable, name = "program_data", desc = "Program data PDA")]
     Init,
+
     /// Initializes an IGP.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, signer, name = "payer", desc = "Payer account")]
+    #[account(2, writable, name = "igp", desc = "IGP account to initialize")]
     InitIgp(InitIgp),
+
     /// Initializes an overhead IGP.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, signer, name = "payer", desc = "Payer account")]
+    #[account(
+        2,
+        writable,
+        name = "overhead_igp",
+        desc = "Overhead IGP account to initialize"
+    )]
     InitOverheadIgp(InitOverheadIgp),
+
     /// Pays for gas.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, writable, signer, name = "payer", desc = "Payer account")]
+    #[account(2, writable, name = "program_data", desc = "IGP program data")]
+    #[account(
+        3,
+        signer,
+        name = "unique_gas_payment_account",
+        desc = "Unique gas payment account"
+    )]
+    #[account(4, writable, name = "gas_payment_pda", desc = "Gas payment PDA")]
+    #[account(5, writable, name = "igp", desc = "IGP account")]
+    #[account(6, name = "overhead_igp", desc = "Overhead IGP account (optional)")]
     PayForGas(PayForGas),
+
     /// Quotes a gas payment.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, name = "igp", desc = "IGP account")]
+    #[account(2, name = "overhead_igp", desc = "Overhead IGP account (optional)")]
     QuoteGasPayment(QuoteGasPayment),
+
     /// Transfers ownership of an IGP.
+    #[account(0, writable, name = "igp", desc = "IGP account")]
+    #[account(1, signer, name = "owner", desc = "Current owner")]
     TransferIgpOwnership(Option<Pubkey>),
+
     /// Transfers ownership of an overhead IGP.
+    #[account(0, writable, name = "overhead_igp", desc = "Overhead IGP account")]
+    #[account(1, signer, name = "owner", desc = "Current owner")]
     TransferOverheadIgpOwnership(Option<Pubkey>),
+
     /// Sets the beneficiary of an IGP.
+    #[account(0, writable, name = "igp", desc = "IGP account")]
+    #[account(1, signer, name = "owner", desc = "IGP owner")]
     SetIgpBeneficiary(Pubkey),
+
     /// Sets destination gas overheads on an overhead IGP.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, writable, name = "overhead_igp", desc = "Overhead IGP account")]
+    #[account(2, signer, name = "owner", desc = "Overhead IGP owner")]
     SetDestinationGasOverheads(Vec<GasOverheadConfig>),
+
     /// Sets gas oracles on an IGP.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, writable, name = "igp", desc = "IGP account")]
+    #[account(2, signer, name = "owner", desc = "IGP owner")]
     SetGasOracleConfigs(Vec<GasOracleConfig>),
+
     /// Claims lamports from an IGP, sending them to the IGP's beneficiary.
+    #[account(0, name = "system_program", desc = "System program")]
+    #[account(1, writable, name = "igp", desc = "IGP account")]
+    #[account(2, writable, name = "beneficiary", desc = "IGP beneficiary")]
     Claim,
 }
 
@@ -55,9 +110,10 @@ impl Instruction {
 }
 
 /// Initializes an IGP.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct InitIgp {
     /// A salt used for deriving the IGP PDA.
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the IGP.
     pub owner: Option<Pubkey>,
@@ -66,9 +122,10 @@ pub struct InitIgp {
 }
 
 /// Initializes an overhead IGP.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct InitOverheadIgp {
     /// A salt used for deriving the overhead IGP PDA.
+    #[idl_type("[u8; 32]")]
     pub salt: H256,
     /// The owner of the overhead IGP.
     pub owner: Option<Pubkey>,
@@ -77,9 +134,10 @@ pub struct InitOverheadIgp {
 }
 
 /// Pays for gas.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct PayForGas {
     /// The message ID.
+    #[idl_type("[u8; 32]")]
     pub message_id: H256,
     /// The destination domain.
     pub destination_domain: u32,
@@ -88,7 +146,7 @@ pub struct PayForGas {
 }
 
 /// Quotes a gas payment.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct QuoteGasPayment {
     /// The destination domain.
     pub destination_domain: u32,
@@ -97,7 +155,7 @@ pub struct QuoteGasPayment {
 }
 
 /// A config for setting a destination gas overhead.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone, ShankType)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GasOverheadConfig {
@@ -108,7 +166,7 @@ pub struct GasOverheadConfig {
 }
 
 /// A config for setting remote gas data.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, Clone, ShankType)]
 #[cfg_attr(feature = "serde", derive(serde::Serialize, serde::Deserialize))]
 #[cfg_attr(feature = "serde", serde(rename_all = "camelCase"))]
 pub struct GasOracleConfig {

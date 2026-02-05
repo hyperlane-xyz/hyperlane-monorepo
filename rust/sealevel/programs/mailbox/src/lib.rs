@@ -10,5 +10,6 @@ pub mod instruction;
 pub mod pda_seeds;
 pub mod processor;
 pub mod protocol_fee;
+pub mod types;
 
 pub use spl_noop;

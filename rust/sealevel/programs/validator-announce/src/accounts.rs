@@ -2,6 +2,7 @@
 
 use account_utils::{AccountData, SizedData};
 use borsh::{BorshDeserialize, BorshSerialize};
+use shank::ShankAccount;
 use solana_program::{account_info::AccountInfo, program_error::ProgramError, pubkey::Pubkey};
 
 use crate::validator_announce_pda_seeds;
@@ -10,7 +11,7 @@ use crate::validator_announce_pda_seeds;
 pub type ValidatorAnnounceAccount = AccountData<ValidatorAnnounce>;
 
 /// Data used for verifying validator announcements.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq, ShankAccount)]
 pub struct ValidatorAnnounce {
     /// The bump seed used to derive the PDA for this account.
     pub bump_seed: u8,
@@ -50,7 +51,7 @@ impl ValidatorAnnounce {
 pub type ValidatorStorageLocationsAccount = AccountData<ValidatorStorageLocations>;
 
 /// Storage locations for a validator.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq, ShankAccount)]
 pub struct ValidatorStorageLocations {
     /// The bump seed used to derive the PDA for this account.
     pub bump_seed: u8,
@@ -106,7 +107,7 @@ pub type ReplayProtectionAccount = AccountData<ReplayProtection>;
 
 /// Empty account data used as a replay protection mechanism.
 #[derive(BorshSerialize, BorshDeserialize, Debug, Default, Clone, PartialEq, Eq)]
-pub struct ReplayProtection(pub ());
+pub struct ReplayProtection {}
 
 impl SizedData for ReplayProtection {
     fn size(&self) -> usize {

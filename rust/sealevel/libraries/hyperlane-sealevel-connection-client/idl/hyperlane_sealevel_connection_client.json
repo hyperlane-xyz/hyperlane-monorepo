@@ -1,0 +1,55 @@
+{
+  "version": "0.1.0",
+  "name": "hyperlane_sealevel_connection_client",
+  "instructions": [],
+  "types": [
+    {
+      "name": "GasRouterConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "gas",
+            "type": {
+              "option": "u64"
+            }
+          }
+        ]
+      }
+    },
+    {
+      "name": "RemoteRouterConfig",
+      "type": {
+        "kind": "struct",
+        "fields": [
+          {
+            "name": "domain",
+            "type": "u32"
+          },
+          {
+            "name": "router",
+            "type": {
+              "option": {
+                "array": [
+                  "u8",
+                  32
+                ]
+              }
+            },
+            "attrs": [
+              "idl-type"
+            ]
+          }
+        ]
+      }
+    }
+  ],
+  "metadata": {
+    "origin": "shank",
+    "address": "hyperlane-sealevel-connection-client"
+  }
+}

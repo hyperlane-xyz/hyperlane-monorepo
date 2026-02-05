@@ -1,4 +1,5 @@
 use borsh::{BorshDeserialize, BorshSerialize};
+use shank::ShankAccount;
 
 use access_control::AccessControl;
 use account_utils::{AccountData, SizedData};
@@ -8,7 +9,7 @@ use crate::instruction::ValidatorsAndThreshold;
 
 /// The data of a "domain data" PDA account.
 /// One of these exists for each domain that's been enrolled.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, ShankAccount)]
 pub struct DomainData {
     pub bump_seed: u8,
     pub validators_and_threshold: ValidatorsAndThreshold,
@@ -17,7 +18,7 @@ pub struct DomainData {
 pub type DomainDataAccount = AccountData<DomainData>;
 
 /// The data of the access control PDA account.
-#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq)]
+#[derive(BorshSerialize, BorshDeserialize, Debug, Default, PartialEq, ShankAccount)]
 pub struct AccessControlData {
     pub bump_seed: u8,
     pub owner: Option<Pubkey>,

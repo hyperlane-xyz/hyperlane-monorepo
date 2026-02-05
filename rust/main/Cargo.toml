@@ -154,6 +154,7 @@ serde_json = "1.0"
 sha2 = { version = "0.10.6", default-features = false }
 sha256 = "1.1.4"
 sha3 = "0.10"
+shank = { git = "https://github.com/hyperlane-xyz/shank", branch = "cursor/idl-imports-proxy-struct-5cdf"}
 solana-account-decoder = "=1.14.13"
 solana-address-lookup-table-program = "=1.14.13"
 solana-client = "=1.14.13"

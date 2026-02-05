@@ -7,6 +7,7 @@ use hyperlane_sealevel_igp::instruction::{
 use hyperlane_sealevel_mailbox::instruction::{
     Instruction as MailboxInstruction, OutboxDispatch as MailboxOutboxDispatch,
 };
+use shank::ShankType;
 use solana_program::{
     account_info::AccountInfo,
     instruction::{AccountMeta, Instruction},
@@ -20,11 +21,12 @@ use std::collections::HashMap;
 use crate::{HyperlaneConnectionClient, HyperlaneConnectionClientRecipient};
 
 /// Configuration for a remote router.
-#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize)]
+#[derive(Debug, Clone, PartialEq, BorshDeserialize, BorshSerialize, ShankType)]
 pub struct RemoteRouterConfig {
     /// The domain of the remote router.
     pub domain: u32,
     /// The remote router.
+    #[idl_type("Option<[u8; 32]>")]
     pub router: Option<H256>,
 }
 

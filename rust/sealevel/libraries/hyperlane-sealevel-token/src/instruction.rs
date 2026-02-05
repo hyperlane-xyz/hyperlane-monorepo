@@ -3,10 +3,12 @@
 use account_utils::{DiscriminatorData, DiscriminatorEncode, PROGRAM_INSTRUCTION_DISCRIMINATOR};
 use borsh::{BorshDeserialize, BorshSerialize};
 use hyperlane_core::{H256, U256};
-use hyperlane_sealevel_connection_client::{
+// Re-export types used in instruction enum for IDL generation
+pub use hyperlane_sealevel_connection_client::{
     gas_router::GasRouterConfig, router::RemoteRouterConfig,
 };
 use hyperlane_sealevel_igp::accounts::InterchainGasPaymasterType;
+use shank::{ShankInstruction, ShankType};
 use solana_program::{
     instruction::{AccountMeta, Instruction as SolanaInstruction},
     program_error::ProgramError,
@@ -17,22 +19,58 @@ use hyperlane_sealevel_mailbox::mailbox_message_dispatch_authority_pda_seeds;
 
 use crate::hyperlane_token_pda_seeds;
 
+// ============================================================================
+// Proxy types for IDL generation
+// ============================================================================
+
+/// Proxy for RemoteRouterConfig from hyperlane_sealevel_connection_client.
+#[derive(BorshDeserialize, BorshSerialize, ShankType)]
+#[shank(
+    import_from = "hyperlane_sealevel_connection_client",
+    rename = "RemoteRouterConfig"
+)]
+pub struct RemoteRouterConfigProxy;
+
+/// Proxy for GasRouterConfig from hyperlane_sealevel_connection_client.
+#[derive(BorshDeserialize, BorshSerialize, ShankType)]
+#[shank(
+    import_from = "hyperlane_sealevel_connection_client",
+    rename = "GasRouterConfig"
+)]
+pub struct GasRouterConfigProxy;
+
+/// Proxy for InterchainGasPaymasterType from hyperlane_sealevel_igp.
+#[derive(BorshDeserialize, BorshSerialize, ShankType)]
+#[shank(
+    import_from = "hyperlane_sealevel_igp",
+    rename = "InterchainGasPaymasterType"
+)]
+pub struct InterchainGasPaymasterTypeProxy;
+
+// ============================================================================
+// Instructions
+// ============================================================================
+
 /// Instructions shared by all Hyperlane Sealevel Token programs.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankInstruction)]
 pub enum Instruction {
     /// Initialize the program.
     Init(Init),
     /// Transfer tokens to a remote recipient.
     TransferRemote(TransferRemote),
     /// Enroll a remote router. Only owner.
+    #[idl_type("RemoteRouterConfigProxy")]
     EnrollRemoteRouter(RemoteRouterConfig),
     /// Enroll multiple remote routers. Only owner.
+    #[idl_type("Vec<RemoteRouterConfigProxy>")]
     EnrollRemoteRouters(Vec<RemoteRouterConfig>),
     /// Enroll multiple remote routers. Only owner.
+    #[idl_type("Vec<GasRouterConfigProxy>")]
     SetDestinationGasConfigs(Vec<GasRouterConfig>),
     /// Set the interchain security module. Only owner.
     SetInterchainSecurityModule(Option<Pubkey>),
     /// Set the interchain gas paymaster program and account. Only owner.
+    #[idl_type("Option<(Pubkey, InterchainGasPaymasterTypeProxy)>")]
     SetInterchainGasPaymaster(Option<(Pubkey, InterchainGasPaymasterType)>),
     /// Transfer ownership of the program. Only owner.
     TransferOwnership(Option<Pubkey>),
@@ -43,13 +81,14 @@ impl DiscriminatorData for Instruction {
 }
 
 /// Instruction data for initializing the program.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct Init {
     /// The address of the mailbox contract.
     pub mailbox: Pubkey,
     /// The interchain security module.
     pub interchain_security_module: Option<Pubkey>,
     /// The interchain gas paymaster program and account.
+    #[idl_type("Option<(Pubkey, InterchainGasPaymasterTypeProxy)>")]
     pub interchain_gas_paymaster: Option<(Pubkey, InterchainGasPaymasterType)>,
     /// The local decimals.
     pub decimals: u8,
@@ -58,13 +97,15 @@ pub struct Init {
 }
 
 /// Instruction data for transferring `amount_or_id` token to `recipient` on `destination` domain.
-#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq)]
+#[derive(BorshDeserialize, BorshSerialize, Debug, PartialEq, ShankType)]
 pub struct TransferRemote {
     /// The destination domain.
     pub destination_domain: u32,
     /// The remote recipient.
+    #[idl_type("[u8; 32]")]
     pub recipient: H256,
     /// The amount or ID of the token to transfer.
+    #[idl_type("[u64; 4]")]
     pub amount_or_id: U256,
 }
 
