@@ -91,6 +91,7 @@ export abstract class HyperlaneDeployer<
     protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
     protected readonly icaAddresses = {},
+    protected readonly tronFactories?: Factories,
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
@@ -532,6 +533,20 @@ export abstract class HyperlaneDeployer<
    * @param {boolean} shouldRecover - Flag indicating whether to attempt recovery if deployment fails.
    * @returns {Promise<HyperlaneContracts<Factories>[K]>} A promise that resolves to the deployed contract instance.
    */
+  /**
+   * Get the factory for a contract, selecting Tron factories when appropriate.
+   */
+  protected getFactory<K extends keyof Factories>(
+    chain: ChainName,
+    contractKey: K,
+  ): Factories[K] {
+    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
+    if (technicalStack === ChainTechnicalStack.Tron && this.tronFactories) {
+      return this.tronFactories[contractKey];
+    }
+    return this.factories[contractKey];
+  }
+
   async deployContractWithName<K extends keyof Factories>(
     chain: ChainName,
     contractKey: K,
@@ -544,7 +559,7 @@ export abstract class HyperlaneDeployer<
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const contract = await this.deployContractFromFactory(
       chain,
-      this.factories[contractKey],
+      this.getFactory(chain, contractKey),
       contractName,
       constructorArgs,
       initializeArgs,

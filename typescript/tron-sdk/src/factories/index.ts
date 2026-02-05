@@ -1,2 +1,2 @@
-// Re-export all typechain contract factories
-export * from '../typechain/factories/contracts/index.js';
+// Re-export all typechain types and factories (flattened)
+export * from '../typechain/index.js';
