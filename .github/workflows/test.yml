@@ -300,6 +300,8 @@ jobs:
           - warp-read
           - warp-rebalancer
           - warp-send
+          # xerc20
+          - xerc20
     steps:
       - uses: actions/checkout@v6
         with:
