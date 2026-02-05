@@ -251,6 +251,7 @@ describe('RebalancerOrchestrator', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
         },
       ]);
 
@@ -303,6 +304,7 @@ describe('RebalancerOrchestrator', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
         },
       ]);
 
@@ -374,7 +376,8 @@ describe('RebalancerOrchestrator', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
-          bridge: TEST_ADDRESSES.bridge,
+          externalBridge: 'lifi',
+          executionType: 'inventory',
         },
       ]);
 
@@ -448,12 +451,14 @@ describe('RebalancerOrchestrator', () => {
           destination: 'optimism',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
         },
         {
           origin: 'arbitrum',
           destination: 'ethereum',
           amount: 500n,
-          bridge: TEST_ADDRESSES.bridge,
+          externalBridge: 'lifi',
+          executionType: 'inventory',
         },
       ]);
 
@@ -590,7 +595,8 @@ describe('RebalancerOrchestrator', () => {
           origin: 'ethereum',
           destination: 'arbitrum',
           amount: 1000n,
-          bridge: TEST_ADDRESSES.bridge,
+          externalBridge: 'lifi',
+          executionType: 'inventory',
         },
       ]);
 
@@ -724,6 +730,7 @@ describe('RebalancerOrchestrator', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
         },
       ]);
 
@@ -776,6 +783,7 @@ describe('RebalancerOrchestrator', () => {
           destination: 'arbitrum',
           amount: 1000n,
           bridge: TEST_ADDRESSES.bridge,
+          executionType: 'movableCollateral',
         },
       ]);
 
