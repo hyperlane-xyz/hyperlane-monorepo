@@ -115,7 +115,7 @@ contract InterchainGasPaymaster is
      * @notice Transfers the entire native token balance to the beneficiary.
      * @dev The beneficiary must be able to receive native tokens.
      */
-    function claim() external {
+    function claim() external onlyOwner {
         // Transfer the entire balance to the beneficiary.
         (bool success, ) = beneficiary.call{value: address(this).balance}("");
         require(success, "IGP: claim failed");
