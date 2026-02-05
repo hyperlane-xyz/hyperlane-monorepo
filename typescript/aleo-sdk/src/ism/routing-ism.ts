@@ -117,6 +117,14 @@ export class AleoRoutingIsmRawWriter
       receipts.push(setRouteReceipt);
     }
 
+    if (!eqAddressAleo(config.owner, this.signer.getSignerAddress())) {
+      const ownerTransferTx = getSetRoutingIsmOwnerTx(ismAddress, config.owner);
+
+      const ownerReceipt =
+        await this.signer.sendAndConfirmTransaction(ownerTransferTx);
+      receipts.push(ownerReceipt);
+    }
+
     const deployedArtifact: ArtifactDeployed<
       RawRoutingIsmArtifactConfig,
       DeployedIsmAddress

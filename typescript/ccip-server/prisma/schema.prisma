@@ -2,14 +2,13 @@
 // learn more about it in the docs: https://pris.ly/d/prisma-schema
 
 generator client {
-  provider = "prisma-client-js"
+  provider = "prisma-client"
   output   = "../src/generated/prisma"
 }
 
-// DATABASE_URL is required for prisma generate but actual connection is handled in code
+// DATABASE_URL is now configured in prisma.config.ts (Prisma 7 requirement)
 datasource db {
   provider = "postgresql"
-  url      = env("DATABASE_URL")
 }
 
 model Commitment {

@@ -463,3 +463,40 @@ export function getHelmReleaseName(id: string, prefix: string): string {
   }
   return name;
 }
+
+/**
+ * Extract registry commit from helm values.
+ * Supports standalone image (registryUri with /tree/{commit}) and legacy monorepo (registryCommit).
+ */
+export function extractRegistryCommitFromHelmValues(
+  values: HelmValues | null,
+): string | undefined {
+  if (!values) return undefined;
+
+  const registryUri = values?.hyperlane?.registryUri;
+  if (registryUri) {
+    const match = registryUri.match(/\/tree\/(.+)$/);
+    if (match?.[1]) return match[1];
+  }
+
+  return values?.hyperlane?.registryCommit;
+}
+
+/**
+ * Get registry commit from a deployed helm release.
+ */
+export async function getDeployedRegistryCommit(
+  warpRouteId: string,
+  namespace: string,
+  helmReleasePrefix: string,
+): Promise<string | undefined> {
+  const helmReleaseName = getHelmReleaseName(warpRouteId, helmReleasePrefix);
+  try {
+    const values = await execCmdAndParseJson(
+      `helm get values ${helmReleaseName} --namespace ${namespace} -o json`,
+    );
+    return extractRegistryCommitFromHelmValues(values);
+  } catch {
+    return undefined;
+  }
+}

@@ -46,13 +46,42 @@ runs:
 
         # Prepare comment body based on job status
         if [ "$JOB_STATUS" == "success" ]; then
-          COMMENT_BODY="${COMMENT_IDENTIFIER}
-        ## ${EMOJI} ${IMAGE_NAME} Built Successfully
+          # Service emoji mapping
+          declare -A SERVICE_EMOJI=(
+            ["rebalancer"]="♻️"
+            ["warp-monitor"]="🕵️"
+            ["key-funder"]="🔑"
+            ["ts-relayer"]="🚀"
+            ["offchain-lookup-server"]="🔍"
+            ["monorepo"]="📦"
+          )
 
-        **Image Tags:**
-        \`\`\`
-        ${IMAGE_TAGS}
-        \`\`\`"
+          # Parse tags and format as table
+          declare -A SERVICE_TAGS
+          declare -A SERVICE_FULL
+          while IFS= read -r tag; do
+            [ -z "$tag" ] && continue
+            # Extract service name and tag value
+            service=$(echo "$tag" | sed -E 's|.*/hyperlane-([^:]+):.*|\1|')
+            tag_value=$(echo "$tag" | sed -E 's|.*:([^:]+)$|\1|')
+            SERVICE_TAGS[$service]="$tag_value"
+            SERVICE_FULL[$service]="$tag"
+          done <<< "$IMAGE_TAGS"
+
+          # Build table rows (sorted for consistent ordering)
+          TABLE_ROWS=""
+          FULL_LIST=""
+          for service in $(echo "${!SERVICE_TAGS[@]}" | tr ' ' '\n' | sort); do
+            emoji="${SERVICE_EMOJI[$service]:-}"
+            display_name="${emoji:+$emoji }${service}"
+            TABLE_ROWS="${TABLE_ROWS}| ${display_name} | \`${SERVICE_TAGS[$service]}\` |"$'\n'
+            FULL_LIST="${FULL_LIST}${SERVICE_FULL[$service]}"$'\n'
+          done
+
+          # Build comment body using printf to avoid YAML parsing issues
+          # Full image paths are collapsed in PR comments
+          COMMENT_BODY=$(printf '%s\n## %s %s Built Successfully\n\n| Service | Tag |\n|---------|-----|\n%s\n<details>\n<summary>Full image paths</summary>\n\n```\n%s```\n</details>' \
+            "${COMMENT_IDENTIFIER}" "${EMOJI}" "${IMAGE_NAME}" "${TABLE_ROWS}" "${FULL_LIST}")
         else
           # On failure, we'll delete the comment instead
           COMMENT_BODY=""

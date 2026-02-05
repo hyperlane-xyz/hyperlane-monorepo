@@ -10,7 +10,7 @@ spec:
   jobTemplate:
     spec:
       backoffLimit: 0
-      activeDeadlineSeconds: 14400 # 60 * 60 * 4 seconds = 4 hours
+      activeDeadlineSeconds: 14400
       template:
         metadata:
           labels:
@@ -21,52 +21,33 @@ spec:
           - name: key-funder
             image: {{ .Values.image.repository }}:{{ .Values.image.tag }}
             imagePullPolicy: IfNotPresent
-            command:
-            - pnpm
-            - exec
-            - tsx
-            - ./typescript/infra/scripts/funding/fund-keys-from-deployer.ts
-            - -e
-            - {{ .Values.hyperlane.runEnv }}
-            - --context
-            - {{ .Values.hyperlane.contextFundingFrom }}
-{{- range $context, $roles := .Values.hyperlane.contextsAndRolesToFund }}
-            - --contexts-and-roles
-            - {{ $context }}={{ join "," $roles }}
-{{- end }}
-{{- range $chain, $balance := .Values.hyperlane.desiredBalancePerChain }}
-            - --desired-balance-per-chain
-            - {{ $chain }}={{ $balance }}
-{{- end }}
-{{- range $chain, $balance := .Values.hyperlane.desiredKathyBalancePerChain }}
-            - --desired-kathy-balance-per-chain
-            - {{ $chain }}={{ $balance }}
-{{- end }}
-{{- range $chain, $balance := .Values.hyperlane.desiredRebalancerBalancePerChain }}
-            - --desired-rebalancer-balance-per-chain
-            - {{ $chain }}={{ $balance }}
-{{- end }}
-{{- range $chain, $balance := .Values.hyperlane.igpClaimThresholdPerChain }}
-            - --igp-claim-threshold-per-chain
-            - {{ $chain }}={{ $balance }}
-{{- end }}
-{{- if .Values.hyperlane.chainsToSkip }}
-            - --chain-skip-override
-{{- range $index, $chain := .Values.hyperlane.chainsToSkip }}
-            - {{ $chain }}
-{{- end }}
-{{- end }}
             env:
+            - name: LOG_FORMAT
+              value: json
+            - name: LOG_LEVEL
+              value: info
+            - name: KEYFUNDER_CONFIG_FILE
+              value: /config/keyfunder.yaml
+            {{- if .Values.hyperlane.registryUri }}
+            - name: REGISTRY_URI
+              value: {{ .Values.hyperlane.registryUri }}
+            {{- end }}
+            {{- if .Values.hyperlane.skipIgpClaim }}
+            - name: SKIP_IGP_CLAIM
+              value: "true"
+            {{- end }}
+            {{- if .Values.hyperlane.prometheusPushGateway }}
             - name: PROMETHEUS_PUSH_GATEWAY
-              value: {{ .Values.infra.prometheusPushGateway }}
+              value: {{ .Values.hyperlane.prometheusPushGateway }}
+            {{- end }}
             envFrom:
             - secretRef:
                 name: key-funder-env-var-secret
             volumeMounts:
-            - name: key-funder-addresses-secret
-              mountPath: /addresses-secret
+            - name: config
+              mountPath: /config
+              readOnly: true
           volumes:
-          - name: key-funder-addresses-secret
-            secret:
-              secretName: key-funder-addresses-secret
-              defaultMode: 0400
+          - name: config
+            configMap:
+              name: key-funder-config

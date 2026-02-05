@@ -61,7 +61,7 @@ describe('StrategyFactory', () => {
       };
 
       const strategy = StrategyFactory.createStrategy(
-        strategyConfig,
+        [strategyConfig],
         tokensByChainName,
         totalCollateral,
         testLogger,
@@ -97,7 +97,7 @@ describe('StrategyFactory', () => {
       };
 
       const strategy = StrategyFactory.createStrategy(
-        strategyConfig,
+        [strategyConfig],
         tokensByChainName,
         totalCollateral,
         testLogger,

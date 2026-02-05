@@ -586,6 +586,18 @@ export class RadixProvider implements AltVM.IProvider<RadixSDKTransaction> {
     };
   }
 
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<RadixSDKTransaction> {
+    throw new Error('ProxyAdmin is not supported on Radix');
+  }
+
   // ### GET WARP TXS ###
 
   async getCreateNativeTokenTransaction(

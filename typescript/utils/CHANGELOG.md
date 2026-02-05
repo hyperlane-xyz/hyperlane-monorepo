@@ -1,5 +1,40 @@
 # @hyperlane-xyz/utils
 
+## 24.0.0
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- 57461b2: The arrow wrapper in fetchWithTimeout was replaced with a bound method to prevent closure from capturing surrounding scope and keeping large objects alive for the lifetime of the AbortSignal timeout. Removed duplicate dead code from SDK.
+- d580bb6: fix: provide common bech32 method
+- bde05e9: Fixed GCP logging configuration not being applied to SDK components like SmartProvider. When createServiceLogger initializes a GCP logger, it now also updates rootLogger so child loggers inherit the GCP config.
+
+## 23.0.0
+
+### Minor Changes
+
+- 52fd0f8: Added StandardHookMetadata utilities: `formatStandardHookMetadata()` for building hook metadata, `parseStandardHookMetadata()` for parsing all fields, `extractRefundAddressFromMetadata()` and `hasValidRefundAddress()` for refund address helpers.
+
+### Patch Changes
+
+- a10cfc8: ISM update test coverage was improved by creating a shared test factory that works across AltVM protocols (Cosmos, Aleo, Radix). The factory supports explicit test skipping configuration through a `skipTests` parameter, making protocol-specific limitations clear in test configuration rather than hidden in implementation.
+
+  Aleo address handling was fixed to properly support ISM unsetting. The `isZeroishAddress` regex now matches Aleo null addresses both with and without program ID prefix. The `fromAleoAddress` helper was updated to handle addresses without the '/' separator. The `getSetTokenIsmTransaction` method now converts zero addresses to `ALEO_NULL_ADDRESS` before processing.
+
+## 22.0.0
+
+### Minor Changes
+
+- 66ef635: Added `mapAllSettled` helper to @hyperlane-xyz/utils for typed parallel operations with key-based error tracking. Migrated Promise.allSettled patterns across sdk, cli, infra, and rebalancer packages to use the new helper.
+- 3aec1c4: Added `timedAsync` utility for trace-level timing instrumentation of async operations.
+
+### Patch Changes
+
+- b892d63: Created new `@hyperlane-xyz/metrics` package to consolidate Prometheus metric utilities across the monorepo. Includes shared gauge definitions, metric update functions, balance utilities, metrics server, pushgateway utilities, and types. Added `tryFn` utility to `@hyperlane-xyz/utils`.
+
 ## 21.1.0
 
 ## 21.0.0

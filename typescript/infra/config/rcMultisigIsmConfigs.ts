@@ -115,15 +115,6 @@ export const rcMultisigIsmConfigs: ChainMap<MultisigConfig> = {
       },
     ],
   },
-  scrollsepolia: {
-    threshold: 1,
-    validators: [
-      {
-        address: '0x50d939d66f114350f322eb8b2e9f01fbc401d4c9',
-        alias: AW_VALIDATOR_ALIAS,
-      },
-    ],
-  },
   sepolia: {
     threshold: 1,
     validators: [

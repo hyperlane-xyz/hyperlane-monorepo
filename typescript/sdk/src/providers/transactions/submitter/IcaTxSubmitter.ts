@@ -1,4 +1,10 @@
-import { Address, ProtocolType, assert } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ProtocolType,
+  assert,
+  bytes32ToAddress,
+  formatStandardHookMetadata,
+} from '@hyperlane-xyz/utils';
 
 import {
   InterchainAccount,
@@ -128,6 +134,9 @@ export class EvmIcaTxSubmitter
       },
     );
 
+    const refundAddress = bytes32ToAddress(this.config.owner);
+    const hookMetadata = formatStandardHookMetadata({ refundAddress });
+
     const icaTx = await this.interchainAccountApp.getCallRemote({
       chain: this.config.chain,
       destination: this.config.destinationChain,
@@ -139,6 +148,7 @@ export class EvmIcaTxSubmitter
         routerOverride: this.config.destinationInterchainAccountRouter,
         localRouter: this.config.originInterchainAccountRouter,
       },
+      hookMetadata,
     });
 
     return this.submitter.submit({

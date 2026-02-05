@@ -1,4 +1,4 @@
-import { AltVM } from '@hyperlane-xyz/provider-sdk';
+import { AltVM, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import {
   ChainLookup,
   ChainMetadataForAltVM,
@@ -14,7 +14,12 @@ import {
   TokenRouterModuleType,
   TokenType,
 } from '@hyperlane-xyz/provider-sdk/warp';
-import { Address, ensure0x, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  ensure0x,
+  isZeroishAddress,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { HookReader, createHookReader } from './hook/hook-reader.js';
 import { IsmReader, createIsmReader } from './ism/generic-ism.js';
@@ -68,14 +73,24 @@ export class AltVMWarpRouteReader implements HypReader<TokenRouterModuleType> {
     const destinationGas = await this.fetchDestinationGas(warpRouteAddress);
 
     // Derive ISM config if present, otherwise use zero address
-    const interchainSecurityModule = token.ismAddress
-      ? await this.ismReader.deriveIsmConfig(token.ismAddress)
-      : // TODO: replace with protocol-specific zero address
-        '0x0000000000000000000000000000000000000000';
+    const interchainSecurityModule =
+      token.ismAddress && !isZeroishAddress(token.ismAddress)
+        ? await this.ismReader.deriveIsmConfig(token.ismAddress)
+        : // TODO: replace with protocol-specific zero address
+          '0x0000000000000000000000000000000000000000';
 
     // Hook address is not exposed by providers yet, use zero address as placeholder
     // TODO: replace with protocol-specific zero address
-    const hook = '0x0000000000000000000000000000000000000000';
+    let hook: DerivedWarpConfig['hook'];
+    if (this.chainMetadata.protocol !== ProtocolType.Aleo) {
+      hook = '0x0000000000000000000000000000000000000000';
+    } else {
+      hook =
+        // Not using isNullish because some protocol impl might return an empty string
+        token.hookAddress && !isZeroishAddress(token.hookAddress)
+          ? await this.hookReader.deriveHookConfig(token.hookAddress)
+          : '0x0000000000000000000000000000000000000000';
+    }
 
     const baseConfig = {
       owner: token.owner,

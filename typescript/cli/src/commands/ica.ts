@@ -4,7 +4,11 @@ import { type CommandModuleWithWriteContext } from '../context/types.js';
 import { runIcaDeploy } from '../deploy/ica.js';
 import { log, logCommandHeader } from '../logger.js';
 
-import { addressCommandOption, chainCommandOption } from './options.js';
+import {
+  addressCommandOption,
+  chainCommandOption,
+  stringArrayOptionConfig,
+} from './options.js';
 
 /**
  * Parent command
@@ -21,7 +25,7 @@ export const icaCommand: CommandModule = {
  */
 export const deploy: CommandModuleWithWriteContext<{
   origin: string;
-  destinations: string;
+  chains: string[];
   owner: string;
 }> = {
   command: 'deploy',
@@ -34,11 +38,11 @@ export const deploy: CommandModuleWithWriteContext<{
         'The origin chain where the owner address lives. Ethereum is used by default',
       default: 'ethereum',
     },
-    destinations: {
-      type: 'string',
-      description:
-        'Comma-separated list of destination chains for ICA deployment',
-      demandOption: true,
+    chains: {
+      ...stringArrayOptionConfig({
+        description: 'List of chains for ICA deployment',
+        demandOption: true,
+      }),
     },
     owner: {
       ...addressCommandOption(
@@ -47,15 +51,13 @@ export const deploy: CommandModuleWithWriteContext<{
       demandOption: true,
     },
   },
-  handler: async ({ context, origin, destinations, owner }) => {
+  handler: async ({ context, origin, chains, owner }) => {
     logCommandHeader('Hyperlane ICA Deploy');
-
-    const destinationChains = destinations.split(',').map((c) => c.trim());
 
     await runIcaDeploy({
       context,
       origin,
-      destinations: destinationChains,
+      chains,
       owner,
     });
 

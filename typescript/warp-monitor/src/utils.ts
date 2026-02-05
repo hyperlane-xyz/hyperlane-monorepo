@@ -24,14 +24,3 @@ export function getLogger(): Logger {
 export function setLoggerBindings(bindings: Record<string, string>): void {
   logger.setBindings(bindings);
 }
-
-export async function tryFn(
-  fn: () => Promise<void>,
-  context: string,
-): Promise<void> {
-  try {
-    await fn();
-  } catch (err) {
-    logger.error(err, `Error in ${context}`);
-  }
-}

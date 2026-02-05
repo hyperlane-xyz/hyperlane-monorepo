@@ -11,7 +11,7 @@ import {
   type ChainMap,
   type ChainName,
   type DerivedWarpRouteDeployConfig,
-  EvmERC20WarpRouteReader,
+  EvmWarpRouteReader,
   type HypTokenRouterConfig,
   type MultiProvider,
   TokenStandard,
@@ -126,7 +126,7 @@ async function deriveWarpRouteConfigs(
       const protocol = context.multiProvider.getProtocol(chain);
       switch (protocol) {
         case ProtocolType.Ethereum: {
-          return new EvmERC20WarpRouteReader(
+          return new EvmWarpRouteReader(
             multiProvider,
             chain,
           ).deriveWarpRouteConfig(address);

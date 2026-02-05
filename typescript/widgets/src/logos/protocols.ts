@@ -1,7 +1,8 @@
 import { FC, SVGProps } from 'react';
 
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { KnownProtocolType, ProtocolType } from '@hyperlane-xyz/utils';
 
+import { AleoLogo } from './Aleo.js';
 import { CosmosLogo } from './Cosmos.js';
 import { EthereumLogo } from './Ethereum.js';
 import { RadixLogo } from './Radix.js';
@@ -9,7 +10,7 @@ import { SolanaLogo } from './Solana.js';
 import { StarknetLogo } from './Starknet.js';
 
 export const PROTOCOL_TO_LOGO: Record<
-  ProtocolType,
+  KnownProtocolType,
   FC<Omit<SVGProps<SVGSVGElement>, 'ref'>>
 > = {
   [ProtocolType.Ethereum]: EthereumLogo,
@@ -18,5 +19,5 @@ export const PROTOCOL_TO_LOGO: Record<
   [ProtocolType.CosmosNative]: CosmosLogo,
   [ProtocolType.Starknet]: StarknetLogo,
   [ProtocolType.Radix]: RadixLogo,
-  [ProtocolType.Aleo]: EthereumLogo, // TODO: replace with actual logo once Aleo is implemented
+  [ProtocolType.Aleo]: AleoLogo,
 };

@@ -1,4 +1,7 @@
-import { RebalancerConfig } from '@hyperlane-xyz/rebalancer';
+import {
+  RebalancerConfig,
+  getStrategyChainNames,
+} from '@hyperlane-xyz/rebalancer';
 import {
   type ChainName,
   type DeployedCoreAddresses,
@@ -9,6 +12,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
+import { getTransactions } from '../../../config/submit.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
   filterOutDisabledChains,
@@ -42,19 +46,24 @@ export async function resolveChains(
     case CommandType.WARP_READ:
       return resolveWarpReadChains(argv);
     case CommandType.WARP_APPLY:
-      return resolveWarpApplyChains(argv);
+    case CommandType.WARP_CHECK:
+      return resolveWarpConfigChains(argv);
     case CommandType.WARP_REBALANCER:
       return resolveWarpRebalancerChains(argv);
 
     case CommandType.SUBMIT:
-      return resolveWarpRouteConfigChains(argv); // Same as WARP_DEPLOY
+      return resolveSubmitChains(argv);
     case CommandType.CORE_APPLY:
       return resolveCoreApplyChains(argv);
     case CommandType.CORE_DEPLOY:
       return resolveCoreDeployChains(argv);
     case CommandType.CORE_READ:
     case CommandType.CORE_CHECK:
+    case CommandType.ISM_DEPLOY:
+    case CommandType.ISM_READ:
       return resolveChain(argv);
+    case CommandType.ICA_DEPLOY:
+      return resolveIcaDeployChains(argv);
     default:
       return resolveRelayerChains(argv);
   }
@@ -108,7 +117,7 @@ async function resolveChain(argv: Record<string, any>): Promise<ChainName[]> {
   return chains;
 }
 
-async function resolveWarpApplyChains(
+async function resolveWarpConfigChains(
   argv: Record<string, any>,
 ): Promise<ChainName[]> {
   const { warpCoreConfig, warpDeployConfig } = await getWarpConfigs({
@@ -135,9 +144,9 @@ async function resolveWarpRebalancerChains(
   // Load rebalancer config to get the configured chains
   const rebalancerConfig = RebalancerConfig.load(argv.config);
 
-  // Extract chain names from the rebalancer config's strategy.chains
+  // Extract chain names from all strategies in the rebalancer config
   // This ensures we only create signers for chains we can actually rebalance
-  const chains = Object.keys(rebalancerConfig.strategyConfig.chains);
+  const chains = getStrategyChainNames(rebalancerConfig.strategyConfig);
 
   assert(chains.length !== 0, 'No chains configured in rebalancer config');
 
@@ -191,11 +200,8 @@ async function resolveRelayerChains(
     chains.add(argv.chain);
   }
 
-  if (argv.chains) {
-    const additionalChains = argv.chains
-      .split(',')
-      .map((item: string) => item.trim());
-    return Array.from(new Set([...chains, ...additionalChains]));
+  if (argv.chains?.length) {
+    return Array.from(new Set([...chains, ...argv.chains]));
   }
 
   // If no destination is specified, return all EVM chains only
@@ -283,6 +289,44 @@ async function resolveCoreDeployChains(
     return [chain];
   } catch (error) {
     throw new Error(`Failed to resolve core deploy chains`, {
+      cause: error,
+    });
+  }
+}
+
+async function resolveIcaDeployChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  const chains = new Set<ChainName>();
+  if (argv.origin) chains.add(argv.origin);
+  if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
+  assert(chains.size > 0, 'No chains provided for ICA deploy');
+  return Array.from(chains);
+}
+
+async function resolveSubmitChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  try {
+    const { multiProvider } = argv.context;
+
+    const transactionFilePath: string | undefined = argv.transactions;
+    assert(
+      transactionFilePath,
+      'Expected transactions file path to be provided for submit command',
+    );
+
+    const transactions = getTransactions(transactionFilePath);
+
+    const chainIds = new Set(transactions.map((tx) => tx.chainId));
+    const chains = Array.from(chainIds).map((chainId) =>
+      multiProvider.getChainName(chainId),
+    );
+
+    assert(chains.length > 0, 'No transactions found in file');
+    return chains;
+  } catch (error) {
+    throw new Error(`Failed to resolve submit command chains`, {
       cause: error,
     });
   }

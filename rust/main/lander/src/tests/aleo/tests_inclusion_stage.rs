@@ -380,7 +380,7 @@ async fn test_aleo_tx_ready_for_resubmission_block_time() {
     );
 
     // Simulate sufficient time passing
-    tokio::time::sleep(block_time * 2).await;
+    tokio::time::sleep(block_time * 21).await;
 
     // Ensure the transaction is now ready for resubmission
     assert!(

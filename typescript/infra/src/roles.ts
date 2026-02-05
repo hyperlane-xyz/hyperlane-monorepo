@@ -3,17 +3,15 @@ export enum Role {
   Relayer = 'relayer',
   Scraper = 'scraper',
   Deployer = 'deployer',
-  Kathy = 'kathy',
   Rebalancer = 'rebalancer',
 }
 
-export type FundableRole = Role.Relayer | Role.Kathy | Role.Rebalancer;
+export type FundableRole = Role.Relayer | Role.Rebalancer;
 
 export const ALL_KEY_ROLES = [
   Role.Validator,
   Role.Relayer,
   Role.Deployer,
-  Role.Kathy,
   Role.Rebalancer,
 ];
 

@@ -67,4 +67,6 @@ jobs:
 
       # Compare outputs
       - name: Compare outputs
-        run: .github/scripts/check-diff-changeset.sh storage solidity/base-storage solidity/HEAD-storage
+        env:
+          BASE_REF: ${{ github.event.inputs.base || github.event.pull_request.base.sha }}
+        run: .github/scripts/check-diff-changeset.sh storage solidity/base-storage solidity/HEAD-storage "$BASE_REF"

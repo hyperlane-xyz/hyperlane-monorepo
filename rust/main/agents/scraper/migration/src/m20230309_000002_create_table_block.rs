@@ -25,7 +25,7 @@ impl MigrationTrait for Migration {
                         ColumnDef::new(Block::TimeCreated)
                             .timestamp()
                             .not_null()
-                            .default("NOW()"),
+                            .default(SimpleExpr::Custom("NOW()".to_owned())),
                     )
                     .col(ColumnDef::new(Block::Domain).unsigned().not_null())
                     .col(

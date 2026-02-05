@@ -187,7 +187,8 @@ jobs:
 
       - name: Install gitleaks
         id: gitleaks-install
-        if: github.event_name != 'merge_group'
+        # Skip for merge_group and external PRs (forks don't have access to GITLEAKS_LICENSE secret)
+        if: github.event_name != 'merge_group' && (github.event_name != 'pull_request' || github.event.pull_request.head.repo.full_name == github.repository)
         uses: gitleaks/gitleaks-action@v2
         env:
           GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
@@ -265,9 +266,12 @@ jobs:
           - core-deploy
           - core-init
           - core-read
+          # ISM Commands
+          - ism
           # Other commands
           - relay
           - status
+          - submit
           # ICA
           - ica-deploy
           # Warp Apply Commands
@@ -291,6 +295,7 @@ jobs:
           - warp-check-3
           - warp-check-4
           - warp-check-5
+          - warp-check-ica
           # other
           - warp-init
           - warp-read
@@ -330,7 +335,10 @@ jobs:
           - core-check
           - core-deploy
           - core-read
+          # ISM Commands
+          - ism
           # Warp Commands
+          - warp-apply-ism-updates
           - warp-deploy
           - warp-read
     steps:
@@ -365,8 +373,11 @@ jobs:
           # Core Commands
           - core-deploy
           - core-apply
+          # ISM Commands
+          - ism
           # Warp Commands
           - warp-deploy
+          - warp-apply-ism-updates
           - warp-apply-ownership-updates
           - warp-apply-route-extension
     steps:
@@ -421,6 +432,50 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
+  cli-aleo-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [rust-only]
+    if: needs.rust-only.outputs.only_rust == 'false'
+    timeout-minutes: 10
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-apply-hooks
+          - core-apply-ism
+          - core-apply-mailbox
+          - core-deploy
+          - core-read
+          # ISM Commands
+          - ism
+          # Warp Commands
+          - warp-apply-hook-updates
+          - warp-apply-ism-updates
+          - warp-apply-ownership-updates
+          - warp-apply-route-extension
+          - warp-deploy
+          - warp-read
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI aleo e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:aleo:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
   cli-e2e:
     runs-on: ubuntu-latest
     needs:
@@ -429,6 +484,7 @@ jobs:
         cli-cosmos-e2e-matrix,
         cli-cross-chain-e2e-matrix,
         cli-radix-e2e-matrix,
+        cli-aleo-e2e-matrix,
       ]
     if: always()
     steps:
@@ -453,6 +509,11 @@ jobs:
         with:
           job_name: 'CLI Radix E2E'
           result: ${{ needs.cli-radix-e2e-matrix.result }}
+      - name: Check CLI Aleo E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Aleo E2E'
+          result: ${{ needs.cli-aleo-e2e-matrix.result }}
 
   cosmos-sdk-e2e-run:
     runs-on: depot-ubuntu-latest

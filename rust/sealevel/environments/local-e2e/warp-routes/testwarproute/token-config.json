@@ -8,5 +8,11 @@
     "decimals": 9,
     "name": "Solana",
     "symbol": "SOL"
+  },
+  "sealeveltest3": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "Solana",
+    "symbol": "SOL"
   }
 }

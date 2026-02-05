@@ -47,8 +47,12 @@ const COSMOS_ZEROISH_ADDRESS_REGEX = /^[a-z]{1,10}?1[0]+$/;
 const COSMOS_NATIVE_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const STARKNET_ZEROISH_ADDRESS_REGEX = /^(0x)?0*$/;
 const RADIX_ZEROISH_ADDRESS_REGEX = /^0*$/;
+
+// It matches both addresses with and without the program id prefix
+// - token.aleo/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc
+// - aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc
 const ALEO_ZEROISH_ADDRESS_REGEX =
-  /^[a-z0-9_]+\.aleo\/aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
+  /^(?:[a-z0-9_]+\.aleo\/)?aleo1qqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqqq3ljyzc$/;
 
 export const ZERO_ADDRESS_HEX_32 =
   '0x0000000000000000000000000000000000000000000000000000000000000000';
@@ -636,15 +640,19 @@ export function isPrivateKeyEvm(privateKey: string): boolean {
   }
 }
 
+export function hexToBech32mPrefix(hex: string, prefix: string, length = 32) {
+  let bytes = addressToBytes(hex);
+  bytes = bytes.slice(bytes.length - length);
+  return bech32m.encode(prefix, bech32m.toWords(bytes));
+}
+
 export function hexToRadixCustomPrefix(
   hex: string,
   module: string,
   prefix?: string,
   length = 32,
 ) {
-  let bytes = addressToBytes(hex);
-  bytes = bytes.slice(bytes.length - length);
   prefix = prefix || 'account_rdx';
   prefix = prefix.replace('account', module);
-  return bech32m.encode(prefix, bech32m.toWords(bytes));
+  return hexToBech32mPrefix(hex, prefix, length);
 }

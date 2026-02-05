@@ -1,0 +1,7 @@
+.env*
+/dist
+/bundle
+/cache
+
+# allow check-in of .env.example
+!.env.example

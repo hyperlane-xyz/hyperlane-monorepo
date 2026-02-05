@@ -92,3 +92,80 @@ export function parseWarpRouteMessage(
     amount,
   };
 }
+
+// Match IGP's DEFAULT_GAS_USAGE so quote and execution use same gas
+const DEFAULT_GAS_LIMIT = 50000n;
+
+export type StandardHookMetadataParams = {
+  refundAddress?: Address;
+  msgValue?: bigint;
+  gasLimit?: bigint;
+};
+
+/**
+ * JS Implementation of solidity/contracts/hooks/libs/StandardHookMetadata.sol#formatMetadata
+ * @returns Hex string of the packed hook metadata
+ */
+export function formatStandardHookMetadata({
+  refundAddress = ethers.constants.AddressZero,
+  msgValue = 0n,
+  gasLimit = DEFAULT_GAS_LIMIT,
+}: StandardHookMetadataParams): HexString {
+  return ethers.utils.solidityPack(
+    ['uint16', 'uint256', 'uint256', 'address'],
+    [1, msgValue, gasLimit, refundAddress],
+  );
+}
+
+// Offsets for StandardHookMetadata parsing
+// Format: uint16 variant (2 bytes) + uint256 msgValue (32 bytes) + uint256 gasLimit (32 bytes) + address refundAddress (20 bytes)
+const HEX_PREFIX_LEN = 2;
+const VARIANT_HEX_LEN = 4;
+const UINT256_HEX_LEN = 64;
+const ADDRESS_HEX_LEN = 40;
+const MSG_VALUE_START = HEX_PREFIX_LEN + VARIANT_HEX_LEN;
+const GAS_LIMIT_START = MSG_VALUE_START + UINT256_HEX_LEN;
+const REFUND_START = GAS_LIMIT_START + UINT256_HEX_LEN;
+const REFUND_END = REFUND_START + ADDRESS_HEX_LEN;
+
+/**
+ * Parse StandardHookMetadata bytes into its components.
+ * @returns Parsed metadata or null if invalid
+ */
+export function parseStandardHookMetadata(
+  metadata?: HexString,
+): Required<StandardHookMetadataParams> | null {
+  if (!metadata || metadata === '0x') return null;
+  if (!/^0x[0-9a-fA-F]*$/.test(metadata)) return null;
+  if (!metadata.startsWith('0x0001')) return null;
+  if (metadata.length < REFUND_END) return null;
+
+  try {
+    const msgValue = BigInt(
+      '0x' + metadata.slice(MSG_VALUE_START, GAS_LIMIT_START),
+    );
+    const gasLimit = BigInt(
+      '0x' + metadata.slice(GAS_LIMIT_START, REFUND_START),
+    );
+    const refundAddress = ethers.utils.getAddress(
+      '0x' + metadata.slice(REFUND_START, REFUND_END),
+    );
+    return { msgValue, gasLimit, refundAddress };
+  } catch {
+    return null;
+  }
+}
+
+export function extractRefundAddressFromMetadata(
+  metadata?: HexString,
+): Address | null {
+  return parseStandardHookMetadata(metadata)?.refundAddress ?? null;
+}
+
+export function hasValidRefundAddress(metadata?: HexString): boolean {
+  const refundAddress = extractRefundAddressFromMetadata(metadata);
+  return (
+    refundAddress !== null &&
+    refundAddress.toLowerCase() !== ethers.constants.AddressZero
+  );
+}

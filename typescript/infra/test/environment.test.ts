@@ -36,9 +36,8 @@ describe('Environment', () => {
         );
 
         for (const chain of Object.keys(ethereumCoreConfigs)) {
-          // Skip testing rometestnet2 because its non-standard gas metering
-          // requires custom configuration
-          if (chain === 'rometestnet2') {
+          // Skip eden as it has limited connectivity (only connected to celestia)
+          if (chain === 'eden') {
             continue;
           }
 
@@ -86,9 +85,11 @@ describe('Environment', () => {
           const routingIsmDomains = routingIsm.domains;
 
           // Check that domains includes all chains except the local one
+          // forma and eden are excluded as they have special connectivity
           const expectedChains = supportedChainNames
             .filter((c) => c !== chain)
-            .filter((c) => c !== 'forma');
+            .filter((c) => c !== 'forma')
+            .filter((c) => c !== 'eden');
 
           // Verify no unexpected chains in domains
           expect(Object.keys(routingIsmDomains)).to.have.lengthOf(
@@ -96,6 +97,7 @@ describe('Environment', () => {
           );
           expect(Object.keys(routingIsmDomains)).to.not.include(chain);
           expect(Object.keys(routingIsmDomains)).to.not.include('forma');
+          expect(Object.keys(routingIsmDomains)).to.not.include('eden');
 
           // Verify each expected chain has an entry in the domains
           for (const expectedChain of expectedChains) {

@@ -8,7 +8,6 @@ import {
   ERC20,
   ERC20__factory,
   ERC4626__factory,
-  GasRouter__factory,
   HypERC20,
   HypERC20Collateral,
   HypERC20Collateral__factory,
@@ -49,6 +48,7 @@ import {
 
 import { BaseEvmAdapter } from '../../app/MultiProtocolApp.js';
 import { UIN256_MAX_VALUE } from '../../consts/numbers.js';
+import { EthJsonRpcBlockParameterTag } from '../../metadata/chainMetadataTypes.js';
 import { MultiProtocolProvider } from '../../providers/MultiProtocolProvider.js';
 import { ChainName } from '../../types.js';
 import { isValidContractVersion } from '../../utils/contract.js';
@@ -71,6 +71,7 @@ import {
   TransferRemoteParams,
   xERC20Limits,
 } from './ITokenAdapter.js';
+import { buildBlockTagOverrides } from './utils.js';
 
 // An estimate of the gas amount for a typical EVM token router transferRemote transaction
 // Computed by estimating on a few different chains, taking the max, and then adding ~50% padding
@@ -273,8 +274,12 @@ export class EvmHypSyntheticAdapter
     return domains.map((d, i) => ({ domain: d, address: routers[i] }));
   }
 
-  getBridgedSupply(): Promise<bigint | undefined> {
-    return this.getTotalSupply();
+  async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalSupply = await this.contract.totalSupply(overrides);
+    return totalSupply.toBigInt();
   }
 
   async getContractPackageVersion() {
@@ -413,8 +418,20 @@ class BaseEvmHypCollateralAdapter
     return wrappedTokenAdapter.getBalance(address);
   }
 
-  override getBridgedSupply(): Promise<bigint | undefined> {
-    return this.getBalance(this.addresses.token);
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const wrappedContract = ERC20__factory.connect(
+      wrappedTokenAddress,
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const balance = await wrappedContract.balanceOf(
+      this.addresses.token,
+      overrides,
+    );
+    return BigInt(balance.toString());
   }
 
   override getMetadata(isNft?: boolean): Promise<TokenMetadata> {
@@ -530,22 +547,7 @@ export class EvmMovableCollateralAdapter
     domain: Domain,
     recipient: Address,
     amount: Numberish,
-    isWarp: boolean,
   ): Promise<InterchainGasQuote[]> {
-    // TODO: In the future, all bridges should get quotes from the quoteTransferRemote function.
-    // Given that currently warp routes used as bridges do not, quotes need to be obtained differently.
-    // This can probably be removed in the future.
-    if (isWarp) {
-      const gasRouter = GasRouter__factory.connect(bridge, this.getProvider());
-      const gasPayment = await gasRouter.quoteGasPayment(domain);
-
-      return [
-        {
-          igpQuote: { amount: BigInt(gasPayment.toString()) },
-        },
-      ];
-    }
-
     const bridgeContract = ITokenBridge__factory.connect(
       bridge,
       this.getProvider(),
@@ -602,9 +604,17 @@ export class EvmHypCollateralFiatAdapter
    * of the fiat token, which may be used by other bridges.
    * However this is the best we can do with a simple view call.
    */
-  override async getBridgedSupply(): Promise<bigint> {
-    const wrapped = await this.getWrappedTokenAdapter();
-    return wrapped.getTotalSupply();
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const wrappedContract = ERC20__factory.connect(
+      wrappedTokenAddress,
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalSupply = await wrappedContract.totalSupply(overrides);
+    return BigInt(totalSupply.toString());
   }
 
   async getMintLimit(): Promise<bigint> {
@@ -658,12 +668,15 @@ export class EvmHypRebaseCollateralAdapter
     return this.wrappedTokenAddress!;
   }
 
-  override async getBridgedSupply(): Promise<bigint> {
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
     const vault = ERC4626__factory.connect(
       await this.collateralContract.vault(),
       this.getProvider(),
     );
-    const balance = await vault.balanceOf(this.addresses.token);
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const balance = await vault.balanceOf(this.addresses.token, overrides);
     return balance.toBigInt();
   }
 }
@@ -682,8 +695,11 @@ export class EvmHypSyntheticRebaseAdapter
     super(chainName, multiProvider, addresses, HypERC4626__factory);
   }
 
-  override async getBridgedSupply(): Promise<bigint> {
-    const totalShares = await this.contract.totalShares();
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalShares = await this.contract.totalShares(overrides);
     return totalShares.toBigInt();
   }
 }
@@ -713,10 +729,13 @@ abstract class BaseEvmHypXERC20Adapter<X extends IXERC20 | IXERC20VS>
     return this.connectXERC20(xerc20Addr);
   }
 
-  override async getBridgedSupply(): Promise<bigint> {
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
     const xerc20 = await this.getXERC20();
     // Both IXERC20 and IXERC20VS have totalSupply, name, etc. if they extend ERC20
-    const totalSupply = await xerc20.totalSupply();
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const totalSupply = await xerc20.totalSupply(overrides);
     return totalSupply.toBigInt();
   }
 
@@ -769,9 +788,18 @@ abstract class BaseEvmHypXERC20LockboxAdapter<X extends IXERC20 | IXERC20VS>
    * of the lockbox contract, which may be used by other bridges.
    * However this is the best we can do with a simple view call.
    */
-  override async getBridgedSupply(): Promise<bigint> {
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint> {
     const lockboxAddress = await this.hypXERC20Lockbox.lockbox();
-    return this.getBalance(lockboxAddress);
+    const wrappedTokenAddress = await this.getWrappedTokenAddress();
+    const wrappedContract = ERC20__factory.connect(
+      wrappedTokenAddress,
+      this.getProvider(),
+    );
+    const overrides = buildBlockTagOverrides(options?.blockTag);
+    const balance = await wrappedContract.balanceOf(lockboxAddress, overrides);
+    return BigInt(balance.toString());
   }
 
   async getXERC20(): Promise<X> {
@@ -996,8 +1024,13 @@ export class EvmHypNativeAdapter
     );
   }
 
-  override async getBridgedSupply(): Promise<bigint | undefined> {
-    const balance = await this.getProvider().getBalance(this.addresses.token);
+  override async getBridgedSupply(options?: {
+    blockTag?: number | EthJsonRpcBlockParameterTag;
+  }): Promise<bigint | undefined> {
+    const balance = await this.getProvider().getBalance(
+      this.addresses.token,
+      options?.blockTag,
+    );
     return BigInt(balance.toString());
   }
 }

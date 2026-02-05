@@ -2,6 +2,22 @@
 
 This guide shows how to use Claude with Grafana and GCP logging integration to debug Hyperlane operational incidents.
 
+## Skills for Common Debugging Tasks
+
+Claude Code has specialized skills for common debugging scenarios. Use these first:
+
+| Skill                                       | Trigger                    | Description                                        |
+| ------------------------------------------- | -------------------------- | -------------------------------------------------- |
+| `/debug-message`                            | Message ID or explorer URL | Debug why a specific message isn't being processed |
+| `/gcp-logs`                                 | Need to query agent logs   | Efficient GCP log queries with noise filtering     |
+| `/debug-validator-checkpoint-inconsistency` | Validator alerts or delays | Debug validator checkpoint signing issues          |
+
+**Example usage:**
+
+- "Debug this message: https://explorer.hyperlane.xyz/message/0xa454..."
+- "Why isn't message 0xa454... being processed?"
+- "Check validator status for hyperevm"
+
 ## Overview
 
 Claude can automatically query Grafana alerts/dashboards and GCP logs to help diagnose common operational issues. This enables faster incident response and reduces the need for manual investigation.
@@ -9,7 +25,7 @@ Claude can automatically query Grafana alerts/dashboards and GCP logs to help di
 **IMPORTANT DEBUGGING STRATEGY:**
 
 1. **ALWAYS start with Grafana alerts and dashboards first** - Get immediate context about the incident
-2. **Then query GCP logs for detailed analysis** - Dive into specifics only after understanding the high-level issue
+2. **Then query GCP logs for detailed analysis** - Use `gcloud` CLI (see `/gcp-logs` skill)
 3. **All Hyperlane logs are in GCP Logging**, NOT in Grafana Loki - Grafana is for metrics/alerts only
 
 ## Configuration References
@@ -260,19 +276,25 @@ Investigate the [INCIDENT_NAME] incident
 
 ### 2. Check if a message was processed
 
-**Ask Claude:**
+**Use the `/debug-message` skill** - this is the recommended approach:
 
 ```
-Was message ID 0x[MESSAGE_ID] processed? Check the relayer logs.
+Debug message 0x[MESSAGE_ID]
+```
+
+Or provide an explorer URL:
+
+```
+Why isn't this message being processed? https://explorer.hyperlane.xyz/message/0x[MESSAGE_ID]
 ```
 
 **What Claude will do:**
 
-- First check Grafana dashboards for queue metrics related to the message
-- Query GCP logs for the specific message ID
-- Check both prepare and confirm queue logs
-- Analyze the message status and retry counts
-- Report if the message completed successfully or got stuck
+- Fetch message details from Hyperlane Explorer (origin, destination, status)
+- Query relayer logs for the specific message ID using `gcloud` CLI
+- Identify the message status (e.g., `ErrorEstimatingGas`, `GasPaymentRequirementNotMet`)
+- Extract and decode any revert errors
+- Report the root cause and recommended action
 
 ### 3. Debug stuck messages with metadata issues
 
@@ -606,164 +628,37 @@ timestamp>="2025-08-09T20:00:00Z"
 
 ## GCP Log Queries Reference
 
-Claude uses optimized, progressive queries to minimize tokens and maximize relevance:
+**See the `/gcp-logs` skill for complete query templates and best practices.**
 
-### Base Agent Query Templates (with noise filtering)
+Claude uses `gcloud` CLI for GCP log queries (not the GCP MCP server). Key principles:
 
-**Relayer Query (Optimized with Enhanced Noise Filtering):**
+### Quick Reference
 
-```
-resource.type="k8s_container"
-resource.labels.project_id="abacus-labs-dev"
-resource.labels.location="us-east1-c"
-resource.labels.cluster_name="hyperlane-mainnet"
-resource.labels.namespace_name="mainnet3"
-labels."k8s-pod/app_kubernetes_io/component"="relayer"
-labels."k8s-pod/app_kubernetes_io/instance"="omniscient-relayer"
-labels."k8s-pod/app_kubernetes_io/name"="hyperlane-agent"
--jsonPayload.fields.message="No message found in DB for leaf index"
--jsonPayload.fields.message="Found log(s) in index range"
--jsonPayload.fields.message="Dispatching get_public_key"
-NOT "Instantiated AWS signer"
--jsonPayload.fields.message="Ingesting leaf"
--jsonPayload.fields.message="Message already marked as processed in DB"
--jsonPayload.fields.message="Message destined for self, skipping"
--jsonPayload.fields.message="Message has already been delivered, marking as submitted."
--jsonPayload.fields.message="Processor working on message"
--jsonPayload.fields.message="Message destined for unknown domain, skipping"
--jsonPayload.fields.message="Popped OpQueue operations"
--jsonPayload.fields.message="Validator returned latest index"
--jsonPayload.fields.message="Found signed checkpoint"
--jsonPayload.fields.return="Ok(None)"
--jsonPayload.fields.message="Fast forwarded current sequence"
--jsonPayload.fields.message="Cursor can't make progress, sleeping"
--jsonPayload.fields.message="fallback_request"
+**Search for a specific message:**
+
+```bash
+gcloud logging read '[BASE_RELAYER_QUERY] AND "[MESSAGE_ID]"' --project=abacus-labs-dev --limit=50 --format=json --freshness=1d
 ```
 
-**Scraper Query:**
+**Search for errors:**
 
-```
-resource.type="k8s_container"
-resource.labels.project_id="abacus-labs-dev"
-resource.labels.location="us-east1-c"
-resource.labels.cluster_name="hyperlane-mainnet"
-resource.labels.namespace_name="mainnet3"
-labels.k8s-pod/app_kubernetes_io/component="scraper3"
-labels.k8s-pod/app_kubernetes_io/instance="omniscient-scraper"
-labels.k8s-pod/app_kubernetes_io/name="hyperlane-agent"
+```bash
+gcloud logging read '[BASE_RELAYER_QUERY] AND severity>="WARNING"' --project=abacus-labs-dev --limit=30 --format=json --freshness=1d
 ```
 
-**Validator Query:**
+**Reduce context - fetch message field only first:**
 
-```
-resource.type="k8s_container"
-resource.labels.project_id="abacus-labs-dev"
-resource.labels.location="us-east1-c"
-resource.labels.cluster_name="hyperlane-mainnet"
-resource.labels.namespace_name="mainnet3"
-labels.k8s-pod/app_kubernetes_io/component="validator"
-labels.k8s-pod/app_kubernetes_io/name="hyperlane-agent"
-```
-
-### Progressive Query Strategy
-
-Use this token-efficient approach for all debugging scenarios:
-
-**1. Start specific and minimal:**
-
-```
-[BASE_QUERY] AND "0x[MESSAGE_ID]"
-[BASE_QUERY] AND "EZETH/renzo-prod" AND jsonPayload.fields.num_retries>=5
-[BASE_QUERY] AND severity>="WARNING" AND timestamp>="-1h"
-```
-
-_Get targeted results first - only what's directly relevant_
-
-**2. Add error context if needed:**
-
-```
-[BASE_QUERY] AND "0x[MESSAGE_ID]" AND severity>="WARNING"
-[BASE_QUERY] AND "CouldNotFetchMetadata" AND jsonPayload.spans.domain:"ethereum"
-```
-
-_Layer in additional filters to understand problems_
-
-**3. Get full context only when necessary:**
-
-```
-[BASE_QUERY] AND "0x[MESSAGE_ID]"
-```
-
-_Remove noise filters to see complete lifecycle - use sparingly due to token costs_
-
-**4. Extract specific fields to reduce tokens:**
-When requesting logs, focus on essential fields like `jsonPayload.fields.message`, `jsonPayload.fields.error`, `jsonPayload.spans.domain` rather than full log entries.
-
-### Targeted Query Patterns
-
-**Message status tracking:**
-
-```
-[BASE_QUERY] AND "0x[MESSAGE_ID]" AND (
-  jsonPayload.fields.message:"confirmed" OR
-  jsonPayload.fields.message:"delivered" OR
-  jsonPayload.spans.name:"delivered"
-)
-```
-
-**Error investigation:**
-
-```
-[BASE_QUERY] AND severity>="WARNING" AND (
-  jsonPayload.fields.message:"CouldNotFetchMetadata" OR
-  jsonPayload.fields.message:"SerdeJson error" OR
-  jsonPayload.fields.error:"503 Service Temporarily Unavailable"
-)
-```
-
-**Stuck message analysis:**
-
-```
-[BASE_QUERY] AND jsonPayload.fields.num_retries>=5
-```
-
-**Chain-specific issues:**
-
-```
-[BASE_QUERY] AND jsonPayload.spans.domain:"[CHAIN]" AND severity>="WARNING"
-```
-
-**Time-bounded queries:**
-
-```
-[BASE_QUERY] AND timestamp>="2025-08-09T00:30:00Z" AND [SPECIFIC_FILTER]
-```
-
-**Lander transaction submitter:**
-
-```
-[BASE_QUERY] AND jsonPayload.target:"lander"
-```
-
-**Rebalancer logs:**
-
-```
-resource.type="k8s_container"
-resource.labels.project_id="abacus-labs-dev"
-resource.labels.location="us-east1-c"
-resource.labels.cluster_name="hyperlane-mainnet"
-resource.labels.namespace_name="mainnet3"
-labels."k8s-pod/app_kubernetes_io/name"="rebalancer"
+```bash
+gcloud logging read '[QUERY]' --format='json(jsonPayload.fields.message,timestamp)' --limit=30
 ```
 
 ### Query Efficiency Tips
 
-- **Start specific**: Always begin with the most targeted query first
-- **Use time bounds**: Add timestamp filters to limit results (`timestamp>=`)
-- **Filter by severity**: Use `severity>="WARNING"` when looking for problems
-- **Target specific fields**: Search `jsonPayload.fields.message:"exact_text"` rather than broad searches
-- **Progressive detail**: Only request full log context when basic queries indicate issues
-- **Avoid noise**: The base query already filters out common noisy log patterns
+- **Start specific**: Always begin with message ID or exact error pattern
+- **Use noise filters**: Filter out common noisy log messages (see `/gcp-logs` skill)
+- **Fetch message field first**: Use `--format='json(jsonPayload.fields.message)'` to reduce context
+- **Progressive detail**: Only fetch full logs after identifying relevant entries
+- **Time bound queries**: Use `--freshness=1d` or explicit timestamps
 
 ## Key Log Fields
 

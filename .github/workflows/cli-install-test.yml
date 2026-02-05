@@ -1,0 +1,42 @@
+name: CLI Install Test
+
+on:
+  workflow_call:
+    inputs:
+      include-windows:
+        description: 'Include Windows in the test matrix'
+        type: boolean
+        default: false
+  workflow_dispatch:
+    inputs:
+      include-windows:
+        description: 'Include Windows in the test matrix'
+        type: boolean
+        default: true
+  schedule:
+    # Run nightly at 6am UTC with full matrix (including Windows)
+    - cron: '0 6 * * *'
+
+jobs:
+  cli-install-test:
+    strategy:
+      matrix:
+        os: ${{ (github.event_name == 'schedule' || inputs.include-windows) && fromJson('["depot-ubuntu-latest", "depot-macos-latest", "depot-windows-2025-8"]') || fromJson('["depot-ubuntu-latest", "depot-macos-latest"]') }}
+        node-version: [24, 25]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-node@v6
+        with:
+          node-version: ${{ matrix.node-version }}
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.sha }}
+          no-cache: true
+
+      - name: Test run the CLI
+        run: hyperlane --version

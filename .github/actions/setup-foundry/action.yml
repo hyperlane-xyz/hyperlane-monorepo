@@ -9,10 +9,22 @@ runs:
       shell: bash
       run: echo "version=$(cat solidity/.foundryrc)" >> $GITHUB_OUTPUT
 
+    - name: Cache Foundry
+      uses: actions/cache@v5
+      with:
+        path: ~/.foundry
+        key: foundry-${{ runner.os }}-${{ steps.foundry-version.outputs.version }}
+
     - name: Install Foundry
       uses: foundry-rs/foundry-toolchain@v1
       with:
         version: ${{ steps.foundry-version.outputs.version }}
+
+    - name: Cache Soldeer dependencies
+      uses: actions/cache@v5
+      with:
+        path: solidity/dependencies
+        key: soldeer-${{ hashFiles('solidity/soldeer.lock') }}
 
     - name: Install Soldeer dependencies
       shell: bash
