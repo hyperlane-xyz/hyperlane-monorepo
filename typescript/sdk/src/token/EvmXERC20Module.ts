@@ -1,6 +1,6 @@
 import { PopulatedTransaction } from 'ethers';
 
-import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -336,7 +336,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       token: Address;
       xERC20?: {
         warpRouteLimits: {
-          type: XERC20Type;
+          type: string;
           mint?: string;
           burn?: string;
           bufferCap?: string;
@@ -345,7 +345,7 @@ export class EvmXERC20Module extends HyperlaneModule<
         extraBridges?: Array<{
           lockbox: Address;
           limits: {
-            type: XERC20Type;
+            type: string;
             mint?: string;
             burn?: string;
             bufferCap?: string;
@@ -365,11 +365,11 @@ export class EvmXERC20Module extends HyperlaneModule<
     let xERC20Address = warpRouteConfig.token;
     if (warpRouteConfig.type === TokenType.XERC20Lockbox) {
       const provider = multiProvider.getProvider(chain);
-      const lockbox = IXERC20Lockbox__factory.connect(
+      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await lockbox.callStatic.XERC20();
+      xERC20Address = await hypXERC20Lockbox.xERC20();
     }
 
     const limits: XERC20LimitsMap = {};
@@ -426,7 +426,9 @@ export class EvmXERC20Module extends HyperlaneModule<
     }
 
     const type: XERC20Type = warpRouteLimits?.type
-      ? warpRouteLimits.type
+      ? warpRouteLimits.type === XERC20Type.Velo
+        ? XERC20Type.Velo
+        : XERC20Type.Standard
       : await new EvmXERC20Reader(multiProvider, chain).deriveXERC20TokenType(
           xERC20Address,
         );

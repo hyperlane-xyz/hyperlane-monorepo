@@ -12,6 +12,7 @@ import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import { CommandType } from '../../../commands/signCommands.js';
 import { readCoreDeployConfigs } from '../../../config/core.js';
+import { getTransactions } from '../../../config/submit.js';
 import { getWarpRouteDeployConfig } from '../../../config/warp.js';
 import {
   filterOutDisabledChains,
@@ -51,7 +52,7 @@ export async function resolveChains(
       return resolveWarpRebalancerChains(argv);
 
     case CommandType.SUBMIT:
-      return resolveWarpRouteConfigChains(argv); // Same as WARP_DEPLOY
+      return resolveSubmitChains(argv);
     case CommandType.CORE_APPLY:
       return resolveCoreApplyChains(argv);
     case CommandType.CORE_DEPLOY:
@@ -301,4 +302,32 @@ async function resolveIcaDeployChains(
   if (argv.chains?.length) argv.chains.forEach((c: ChainName) => chains.add(c));
   assert(chains.size > 0, 'No chains provided for ICA deploy');
   return Array.from(chains);
+}
+
+async function resolveSubmitChains(
+  argv: Record<string, any>,
+): Promise<ChainName[]> {
+  try {
+    const { multiProvider } = argv.context;
+
+    const transactionFilePath: string | undefined = argv.transactions;
+    assert(
+      transactionFilePath,
+      'Expected transactions file path to be provided for submit command',
+    );
+
+    const transactions = getTransactions(transactionFilePath);
+
+    const chainIds = new Set(transactions.map((tx) => tx.chainId));
+    const chains = Array.from(chainIds).map((chainId) =>
+      multiProvider.getChainName(chainId),
+    );
+
+    assert(chains.length > 0, 'No transactions found in file');
+    return chains;
+  } catch (error) {
+    throw new Error(`Failed to resolve submit command chains`, {
+      cause: error,
+    });
+  }
 }

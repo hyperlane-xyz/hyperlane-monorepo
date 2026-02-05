@@ -283,7 +283,8 @@ export class BridgeMockController extends EventEmitter {
   }
 
   /**
-   * Simulate bridge delivery by minting tokens at destination.
+   * Simulate bridge delivery by burning from origin bridge and minting to destination.
+   * This maintains token conservation across the simulation.
    * Uses transaction queue to prevent nonce collisions.
    */
   private async simulateBridgeDelivery(
@@ -291,9 +292,21 @@ export class BridgeMockController extends EventEmitter {
   ): Promise<void> {
     await this.queueTransaction(async () => {
       const deployer = new ethers.Wallet(this.deployerKey, this.provider);
+      const originDomain = this.domains[transfer.origin];
       const destDomain = this.domains[transfer.destination];
 
-      // Mint tokens to destination warp token to simulate tokens arriving
+      // Burn from origin bridge (tokens are guaranteed to be there since SentTransferRemote fired)
+      const originCollateralToken = ERC20Test__factory.connect(
+        originDomain.collateralToken,
+        deployer,
+      );
+      const burnTx = await originCollateralToken.burnFrom(
+        originDomain.bridge,
+        transfer.amount.toString(),
+      );
+      await burnTx.wait();
+
+      // Mint same amount to destination warp token
       const destCollateralToken = ERC20Test__factory.connect(
         destDomain.collateralToken,
         deployer,

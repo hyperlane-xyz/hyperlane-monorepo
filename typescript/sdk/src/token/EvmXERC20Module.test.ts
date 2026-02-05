@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 
 import { TestChainName } from '../consts/testChains.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
@@ -339,8 +339,8 @@ describe('EvmXERC20Module', () => {
     it('resolves xERC20 address from lockbox config', async () => {
       const xerc20Stub = sandbox.stub().resolves(XERC20_FROM_LOCKBOX);
       const connectStub = sandbox
-        .stub(IXERC20Lockbox__factory, 'connect')
-        .returns({ callStatic: { XERC20: xerc20Stub } } as any);
+        .stub(HypXERC20Lockbox__factory, 'connect')
+        .returns({ xERC20: xerc20Stub } as any);
 
       const warpRouteConfig = {
         type: TokenType.XERC20Lockbox,
