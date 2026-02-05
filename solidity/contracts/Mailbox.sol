@@ -31,6 +31,7 @@ contract Mailbox is
 
     // ============ Constants ============
 
+    // Test comment for bytecode check CI test - DELETE ME
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
 
