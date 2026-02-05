@@ -336,7 +336,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       token: Address;
       xERC20?: {
         warpRouteLimits: {
-          type: string;
+          type: XERC20Type;
           mint?: string;
           burn?: string;
           bufferCap?: string;
@@ -345,7 +345,7 @@ export class EvmXERC20Module extends HyperlaneModule<
         extraBridges?: Array<{
           lockbox: Address;
           limits: {
-            type: string;
+            type: XERC20Type;
             mint?: string;
             burn?: string;
             bufferCap?: string;
