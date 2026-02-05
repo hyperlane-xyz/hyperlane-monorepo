@@ -132,10 +132,9 @@ describe('LazyAsync', () => {
     expect(lazy.isInitialized()).to.equal(false);
 
     // Start second initialization (should create new promise)
-    let resolve2!: (value: number) => void;
     const originalResolve = resolve;
     const p2 = lazy.get();
-    resolve2 = resolve;
+    const resolve2 = resolve;
     expect(calls).to.equal(2);
     expect(p1).to.not.equal(p2);
 
