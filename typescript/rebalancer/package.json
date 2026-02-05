@@ -22,7 +22,7 @@
     "prettier": "prettier --write ./src",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts' --exit",
     "test:e2e": "mocha --config .mocharc.e2e.json",
-    "test:e2e:ci": "mocha --config .mocharc.e2e.json \"src/e2e/**/*${REBALANCER_E2E_TEST}*.e2e-test.ts\" --exit",
+    "test:e2e:ci": "sh -c 'mocha --config .mocharc.e2e.json \"src/e2e/**/*${REBALANCER_E2E_TEST}*.e2e-test.ts\" --exit'",
     "test:ci": "pnpm test",
     "start": "node dist/service.js",
     "start:dev": "tsx src/service.ts"
