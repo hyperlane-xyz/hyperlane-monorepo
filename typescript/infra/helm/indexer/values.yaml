@@ -40,6 +40,9 @@ metrics:
   enabled: true
   port: 42069
   path: /metrics
+  serviceMonitor:
+    # Requires Prometheus Operator CRDs to be installed
+    enabled: false
 
 # External secrets for sensitive data
 externalSecrets:
