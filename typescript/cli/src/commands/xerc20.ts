@@ -278,7 +278,7 @@ async function submitTransactions(
       context,
       chain,
       transactions: txs,
-      strategyPath: strategy ?? '',
+      strategyPath: strategy,
       receiptsFilepath: receipts,
     });
     logBlue(`Submission complete for chain ${chain}`);
