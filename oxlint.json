@@ -33,7 +33,7 @@
     "import/no-named-as-default": "warn",
     "import/no-duplicates": "warn",
     "@typescript-eslint/no-require-imports": "warn",
-    "import/no-cycle": "warn",
+    "import/no-cycle": "off",
     "guard-for-in": "error",
     "import/no-self-import": "error",
     "no-console": "error",

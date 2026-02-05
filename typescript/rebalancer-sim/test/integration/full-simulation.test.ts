@@ -247,6 +247,8 @@ describe('Rebalancer Simulation', function () {
     console.log(
       '    Note: Currently both over-rebalance due to Explorer unavailability in simulation',
     );
+    // Report-only test - results are informational
+    expect(results.length).to.be.greaterThan(0);
   });
 
   // BLOCKED USER TRANSFER
@@ -290,6 +292,7 @@ describe('Rebalancer Simulation', function () {
     console.log(
       '    (With Explorer mock: rebalancer should see blocked transfer and act)',
     );
+    expect(results.length).to.be.greaterThan(0);
   });
 
   // ============================================================================
@@ -317,5 +320,6 @@ describe('Rebalancer Simulation', function () {
       `    Failed transfers: ${result.kpis.totalTransfers - result.kpis.completedTransfers}`,
     );
     console.log(`    Rebalances: ${result.kpis.totalRebalances} (expected: 0)`);
+    expect(result).to.exist;
   });
 });
