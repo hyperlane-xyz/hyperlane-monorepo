@@ -2,6 +2,7 @@ import type { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
 import type { ExternalBridgeType } from '../config/types.js';
+import type { StrategyRoute } from '../interfaces/IStrategy.js';
 
 type BaseBridgeConfig = {
   bridgeMinAcceptedAmount?: string | number;
@@ -57,4 +58,44 @@ export function getBridgeConfig(
 
   // Return a new object with the base config and any overrides
   return { ...baseConfig, ...routeSpecificOverrides } as BridgeConfig;
+}
+
+/**
+ * Creates a StrategyRoute from a BridgeConfig with exhaustive type checking
+ * @param bridgeConfig The bridge configuration
+ * @param origin The origin chain
+ * @param destination The destination chain
+ * @param amount The amount to transfer
+ * @returns A StrategyRoute with the appropriate execution type
+ */
+export function createStrategyRoute(
+  bridgeConfig: BridgeConfig,
+  origin: ChainName,
+  destination: ChainName,
+  amount: bigint,
+): StrategyRoute {
+  switch (bridgeConfig.executionType) {
+    case 'inventory':
+      return {
+        origin,
+        destination,
+        amount,
+        executionType: 'inventory',
+        externalBridge: bridgeConfig.externalBridge,
+      };
+    case 'movableCollateral':
+      return {
+        origin,
+        destination,
+        amount,
+        executionType: 'movableCollateral',
+        bridge: bridgeConfig.bridge,
+      };
+    default: {
+      const _exhaustive: never = bridgeConfig;
+      throw new Error(
+        `Unknown execution type: ${(_exhaustive as BridgeConfig).executionType}`,
+      );
+    }
+  }
 }

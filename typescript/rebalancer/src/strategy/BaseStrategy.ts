@@ -15,8 +15,8 @@ import { type Metrics } from '../metrics/Metrics.js';
 import {
   type BridgeConfig,
   type BridgeConfigWithOverride,
+  createStrategyRoute,
   getBridgeConfig,
-  isInventoryConfig,
 } from '../utils/bridgeUtils.js';
 
 export type Delta = { chain: ChainName; amount: bigint };
@@ -196,23 +196,14 @@ export abstract class BaseStrategy implements IStrategy {
         );
 
         // Create appropriate route type based on execution type
-        if (isInventoryConfig(bridgeConfig)) {
-          routes.push({
-            origin: surplus.chain,
-            destination: deficit.chain,
-            amount: transferAmount,
-            executionType: 'inventory',
-            externalBridge: bridgeConfig.externalBridge,
-          });
-        } else {
-          routes.push({
-            origin: surplus.chain,
-            destination: deficit.chain,
-            amount: transferAmount,
-            executionType: 'movableCollateral',
-            bridge: bridgeConfig.bridge,
-          });
-        }
+        routes.push(
+          createStrategyRoute(
+            bridgeConfig,
+            surplus.chain,
+            deficit.chain,
+            transferAmount,
+          ),
+        );
       }
 
       // Decreases the amounts for the following iterations
