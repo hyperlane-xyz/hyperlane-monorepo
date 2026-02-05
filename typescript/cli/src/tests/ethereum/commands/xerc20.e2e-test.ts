@@ -24,6 +24,7 @@ import {
   DEFAULT_E2E_TEST_TIMEOUT,
   REGISTRY_PATH,
   TEMP_PATH,
+  getCombinedWarpRoutePath,
 } from '../consts.js';
 
 import { deployOrUseExistingCore } from './core.js';
@@ -50,9 +51,14 @@ describe('xerc20 e2e tests', function () {
   let xERC20VS3: XERC20VSTest;
 
   const XERC20_LOCKBOX_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20-lockbox-deploy.yaml`;
-  const XERC20_LOCKBOX_CORE_PATH = `${REGISTRY_PATH}/deployments/warp_routes/XERC20/anvil2-config.yaml`;
+  const XERC20_LOCKBOX_CORE_PATH = getCombinedWarpRoutePath('XERC20', [
+    CHAIN_NAME_2,
+  ]);
   const XERC20_VS_DEPLOY_PATH = `${TEMP_PATH}/warp-xerc20-vs-deploy.yaml`;
-  const XERC20_VS_CORE_PATH = `${REGISTRY_PATH}/deployments/warp_routes/XERC20VS/anvil2-anvil3-config.yaml`;
+  const XERC20_VS_CORE_PATH = getCombinedWarpRoutePath('XERC20VS', [
+    CHAIN_NAME_2,
+    CHAIN_NAME_3,
+  ]);
 
   before(async function () {
     [chain2Addresses, chain3Addresses] = await Promise.all([
@@ -89,7 +95,9 @@ describe('xerc20 e2e tests', function () {
       18,
       'XERC20VS',
     );
+  });
 
+  async function deployWarpRoutesAndSetupBridges(): Promise<void> {
     const xerc20LockboxConfig: WarpRouteDeployConfig = {
       [CHAIN_NAME_2]: {
         type: TokenType.XERC20Lockbox,
@@ -144,6 +152,10 @@ describe('xerc20 e2e tests', function () {
       });
       await tx.wait();
     }
+  }
+
+  beforeEach(async function () {
+    await deployWarpRoutesAndSetupBridges();
   });
 
   describe('apply', function () {
