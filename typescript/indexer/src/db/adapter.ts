@@ -115,8 +115,15 @@ export class PonderDbAdapter {
 
   /**
    * Check if a domain exists by its Hyperlane domain ID.
+   * Returns false for domain IDs > INTEGER max (can't exist in scraper's domain table).
    */
   async domainExists(domainId: number): Promise<boolean> {
+    // Domain IDs > 2^31-1 can't exist in domain table (INTEGER type)
+    const MAX_INT32 = 2147483647;
+    if (domainId > MAX_INT32) {
+      return false;
+    }
+
     const result = await this.db
       .select({ id: schema.domain.id })
       .from(schema.domain)

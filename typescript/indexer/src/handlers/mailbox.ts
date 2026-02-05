@@ -198,27 +198,30 @@ ponder.on('Mailbox:Dispatch', async ({ event, context }: any) => {
     );
   }
 
-  // Store raw dispatch (lightweight record)
-  await adapter.storeRawDispatch(
-    chainId,
-    mailboxAddress,
-    {
-      messageId,
-      sender: extractAddress(parsed.sender),
-      destination: parsed.destination,
-      recipient: parsed.recipient,
-      message: parsed.body,
-      nonce: parsed.nonce,
-      version: parsed.version,
-      logIndex: event.log.logIndex,
-    },
-    {
-      hash: event.block.hash,
-      number: event.block.number,
-      timestamp: event.block.timestamp,
-    },
-    event.transaction.hash,
-  );
+  // Store raw dispatch (lightweight record) - only if destination fits in INTEGER
+  const MAX_INT32 = 2147483647;
+  if (parsed.destination <= MAX_INT32) {
+    await adapter.storeRawDispatch(
+      chainId,
+      mailboxAddress,
+      {
+        messageId,
+        sender: extractAddress(parsed.sender),
+        destination: parsed.destination,
+        recipient: parsed.recipient,
+        message: parsed.body,
+        nonce: parsed.nonce,
+        version: parsed.version,
+        logIndex: event.log.logIndex,
+      },
+      {
+        hash: event.block.hash,
+        number: event.block.number,
+        timestamp: event.block.timestamp,
+      },
+      event.transaction.hash,
+    );
+  }
 
   // Track in Ponder's minimal schema for monitoring
   await context.db.insert(ponderSchema.indexedEvent).values({
