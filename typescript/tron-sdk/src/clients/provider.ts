@@ -20,7 +20,7 @@ import {
 } from '../hook/hook-query.js';
 import {
   getCreateIgpTx,
-  getRemoveIgpOwnerTx,
+  getRemoveIgpDestinationGasConfigTx,
   getSetIgpDestinationGasConfigTx,
   getSetIgpOwnerTx,
 } from '../hook/hook-tx.js';
@@ -49,6 +49,7 @@ import {
 import {
   TronHookTypes,
   TronIsmTypes,
+  TronReceipt,
   TronTransaction,
 } from '../utils/types.js';
 
@@ -84,7 +85,7 @@ export class TronProvider implements AltVM.IProvider {
   protected async waitForTransaction(
     txid: string,
     timeout = 30000,
-  ): Promise<any> {
+  ): Promise<TronReceipt> {
     const start = Date.now();
 
     while (Date.now() - start < timeout) {
@@ -157,7 +158,7 @@ export class TronProvider implements AltVM.IProvider {
           await proxyAdminContract.owner().call(),
         ),
       };
-    } catch (error) {
+    } catch {
       // If query fails, leave proxyAdmin empty
     }
 
@@ -394,7 +395,7 @@ export class TronProvider implements AltVM.IProvider {
       tokenType = AltVM.TokenType.collateral;
     }
 
-    let token: AltVM.ResGetToken = {
+    const token: AltVM.ResGetToken = {
       address: req.tokenAddress,
       owner: this.tronweb.address.fromHex(await contract.owner().call()),
       tokenType,
@@ -706,9 +707,9 @@ export class TronProvider implements AltVM.IProvider {
   async getRemoveDestinationGasConfigTransaction(
     req: AltVM.ReqRemoveDestinationGasConfig,
   ): Promise<TronTransaction> {
-    return getRemoveIgpOwnerTx(this.tronweb, req.signer, {
+    return getRemoveIgpDestinationGasConfigTx(this.tronweb, req.signer, {
       igpAddress: req.hookAddress,
-      remoteDomainId: req.remoteDomainId,
+      remoteDomainIds: [req.remoteDomainId],
     });
   }
 

@@ -49,15 +49,15 @@ export class TronProtocolProvider implements ProtocolProvider {
   }
 
   createIsmArtifactManager(
-    chainMetadata: ChainMetadataForAltVM,
+    _chainMetadata: ChainMetadataForAltVM,
   ): IRawIsmArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');
   }
 
   createHookArtifactManager(
-    chainMetadata: ChainMetadataForAltVM,
-    context?: { mailbox?: string; proxyAdmin?: string },
+    _chainMetadata: ChainMetadataForAltVM,
+    _context?: { mailbox?: string; proxyAdmin?: string },
   ): IRawHookArtifactManager {
     // @TODO Implement in a follow up PR
     throw Error('Not implemented');

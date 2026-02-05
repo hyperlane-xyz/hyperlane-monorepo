@@ -517,7 +517,7 @@ export class RadixSigner
   ): Promise<AltVM.ResCreateCollateralToken> {
     if (req.proxyAdminAddress) {
       throw new Error(
-        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+        'ProxyAdmin is not supported on Radix. Remove proxyAdmin from config.',
       );
     }
 
@@ -534,7 +534,7 @@ export class RadixSigner
   ): Promise<AltVM.ResCreateSyntheticToken> {
     if (req.proxyAdminAddress) {
       throw new Error(
-        'ProxyAdmin is not supported on Aleo. Remove proxyAdmin from config.',
+        'ProxyAdmin is not supported on Radix. Remove proxyAdmin from config.',
       );
     }
 

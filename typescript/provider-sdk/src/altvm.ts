@@ -18,6 +18,11 @@ export type ResEstimateTransactionFee = {
   fee: bigint;
 };
 
+export type ProxyAdmin = {
+  owner: string;
+  address: string;
+};
+
 // ### QUERY CORE ###
 
 export type ReqGetMailbox = { mailboxAddress: string };
@@ -169,10 +174,7 @@ export type ResGetToken = {
   name: string;
   symbol: string;
   decimals: number;
-  proxyAdmin?: {
-    owner: string;
-    address: string;
-  };
+  proxyAdmin?: ProxyAdmin;
 };
 
 export type ReqGetRemoteRouters = { tokenAddress: string };

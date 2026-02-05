@@ -68,6 +68,13 @@ export class TronSigner
   ): Promise<TronReceipt> {
     const signedTx = await this.tronweb.trx.sign(transaction);
     const result = await this.tronweb.trx.sendRawTransaction(signedTx);
+
+    if (!result?.result || !result.txid) {
+      throw new Error(
+        `Failed to broadcast transaction: ${result.code ?? result.message ?? 'unknown error'}`,
+      );
+    }
+
     const receipt = await this.waitForTransaction(result.txid);
 
     return receipt;
@@ -84,14 +91,15 @@ export class TronSigner
   async createMailbox(
     req: Omit<AltVM.ReqCreateMailbox, 'signer'>,
   ): Promise<AltVM.ResCreateMailbox> {
-    // Tron always uses proxy deployment - proxyAdminAddress must be provided
-    if (!req.proxyAdminAddress) {
-      throw new Error(
-        'proxyAdminAddress is required for Tron mailbox deployment',
-      );
+    let proxyAdminAddress = req.proxyAdminAddress;
+
+    // 1. Deploy Proxy Admin if no address available
+    if (!proxyAdminAddress) {
+      const { proxyAdminAddress: address } = await this.createProxyAdmin({});
+      proxyAdminAddress = address;
     }
 
-    // 1. Deploy Mailbox implementation
+    // 2. Deploy Mailbox implementation
     const implTx = await this.getCreateMailboxTransaction({
       ...req,
       signer: this.getSignerAddress(),
@@ -101,20 +109,20 @@ export class TronSigner
       implReceipt.contract_address,
     );
 
-    // 2. Deploy TransparentUpgradeableProxy
+    // 3. Deploy TransparentUpgradeableProxy
     // Note: We pass empty bytes for _data and initialize separately below
     const proxyTx = await createDeploymentTransaction(
       this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
-      [implementationAddress, req.proxyAdminAddress, '0x'],
+      [implementationAddress, proxyAdminAddress, '0x'],
     );
     const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
     const mailboxAddress = this.tronweb.address.fromHex(
       proxyReceipt.contract_address,
     );
 
-    // 3. Initialize the Mailbox through the proxy
+    // 4. Initialize the Mailbox through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         mailboxAddress,
@@ -563,14 +571,15 @@ export class TronSigner
   async createNativeToken(
     req: Omit<AltVM.ReqCreateNativeToken, 'signer'>,
   ): Promise<AltVM.ResCreateNativeToken> {
-    // Tron always uses proxy deployment - proxyAdminAddress must be provided
-    if (!req.proxyAdminAddress) {
-      throw new Error(
-        'proxyAdminAddress is required for Tron native token deployment',
-      );
+    let proxyAdminAddress = req.proxyAdminAddress;
+
+    // 1. Deploy Proxy Admin if no address available
+    if (!proxyAdminAddress) {
+      const { proxyAdminAddress: address } = await this.createProxyAdmin({});
+      proxyAdminAddress = address;
     }
 
-    // 1. Deploy token implementation
+    // 2. Deploy token implementation
     const implTx = await this.getCreateNativeTokenTransaction({
       ...req,
       signer: this.getSignerAddress(),
@@ -580,19 +589,19 @@ export class TronSigner
       implReceipt.contract_address,
     );
 
-    // 2. Deploy TransparentUpgradeableProxy
+    // 3. Deploy TransparentUpgradeableProxy
     const proxyTx = await createDeploymentTransaction(
       this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
-      [implementationAddress, req.proxyAdminAddress, '0x'],
+      [implementationAddress, proxyAdminAddress, '0x'],
     );
     const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
     const tokenAddress = this.tronweb.address.fromHex(
       proxyReceipt.contract_address,
     );
 
-    // 3. Initialize the token through the proxy
+    // 4. Initialize the token through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
@@ -627,14 +636,15 @@ export class TronSigner
   async createCollateralToken(
     req: Omit<AltVM.ReqCreateCollateralToken, 'signer'>,
   ): Promise<AltVM.ResCreateCollateralToken> {
-    // Tron always uses proxy deployment - proxyAdminAddress must be provided
-    if (!req.proxyAdminAddress) {
-      throw new Error(
-        'proxyAdminAddress is required for Tron collateral token deployment',
-      );
+    let proxyAdminAddress = req.proxyAdminAddress;
+
+    // 1. Deploy Proxy Admin if no address available
+    if (!proxyAdminAddress) {
+      const { proxyAdminAddress: address } = await this.createProxyAdmin({});
+      proxyAdminAddress = address;
     }
 
-    // 1. Deploy token implementation
+    // 2. Deploy token implementation
     const implTx = await this.getCreateCollateralTokenTransaction({
       ...req,
       signer: this.getSignerAddress(),
@@ -644,19 +654,19 @@ export class TronSigner
       implReceipt.contract_address,
     );
 
-    // 2. Deploy TransparentUpgradeableProxy
+    // 3. Deploy TransparentUpgradeableProxy
     const proxyTx = await createDeploymentTransaction(
       this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
-      [implementationAddress, req.proxyAdminAddress, '0x'],
+      [implementationAddress, proxyAdminAddress, '0x'],
     );
     const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
     const tokenAddress = this.tronweb.address.fromHex(
       proxyReceipt.contract_address,
     );
 
-    // 3. Initialize the token through the proxy
+    // 4. Initialize the token through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,
@@ -691,14 +701,15 @@ export class TronSigner
   async createSyntheticToken(
     req: Omit<AltVM.ReqCreateSyntheticToken, 'signer'>,
   ): Promise<AltVM.ResCreateSyntheticToken> {
-    // Tron always uses proxy deployment - proxyAdminAddress must be provided
-    if (!req.proxyAdminAddress) {
-      throw new Error(
-        'proxyAdminAddress is required for Tron synthetic token deployment',
-      );
+    let proxyAdminAddress = req.proxyAdminAddress;
+
+    // 1. Deploy Proxy Admin if no address available
+    if (!proxyAdminAddress) {
+      const { proxyAdminAddress: address } = await this.createProxyAdmin({});
+      proxyAdminAddress = address;
     }
 
-    // 1. Deploy token implementation
+    // 2. Deploy token implementation
     const implTx = await this.getCreateSyntheticTokenTransaction({
       ...req,
       signer: this.getSignerAddress(),
@@ -708,19 +719,19 @@ export class TronSigner
       implReceipt.contract_address,
     );
 
-    // 2. Deploy TransparentUpgradeableProxy
+    // 3. Deploy TransparentUpgradeableProxy
     const proxyTx = await createDeploymentTransaction(
       this.tronweb,
       TransparentUpgradeableProxyAbi,
       this.getSignerAddress(),
-      [implementationAddress, req.proxyAdminAddress, '0x'],
+      [implementationAddress, proxyAdminAddress, '0x'],
     );
     const proxyReceipt = await this.sendAndConfirmTransaction(proxyTx);
     const tokenAddress = this.tronweb.address.fromHex(
       proxyReceipt.contract_address,
     );
 
-    // 3. Initialize the token through the proxy
+    // 4. Initialize the token through the proxy
     const { transaction } =
       await this.tronweb.transactionBuilder.triggerSmartContract(
         tokenAddress,

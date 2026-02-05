@@ -67,7 +67,7 @@ export async function getIgpHookConfig(
 
     const domainIds = await igp.domains().call();
 
-    let destinationGasConfigs = {} as {
+    const destinationGasConfigs = {} as {
       [domainId: string]: {
         gasOracle: {
           tokenExchangeRate: string;

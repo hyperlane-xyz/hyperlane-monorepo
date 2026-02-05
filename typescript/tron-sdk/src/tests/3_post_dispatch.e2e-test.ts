@@ -7,7 +7,7 @@ import { AltVM } from '@hyperlane-xyz/provider-sdk';
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
-describe('3. aleo sdk post dispatch e2e tests', async function () {
+describe('3. tron sdk post dispatch e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';

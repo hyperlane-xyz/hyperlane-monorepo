@@ -8,7 +8,7 @@ import ERC20TestAbi from '../abi/ERC20Test.json' with { type: 'json' };
 import { TronSigner } from '../clients/signer.js';
 import { TronReceipt, TronTransaction } from '../utils/types.js';
 
-describe('4. aleo sdk warp e2e tests', async function () {
+describe('4. tron sdk warp e2e tests', async function () {
   this.timeout(100_000);
 
   const localnetRpc = 'http://127.0.0.1:9090';

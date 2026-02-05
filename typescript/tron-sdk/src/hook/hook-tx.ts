@@ -217,7 +217,7 @@ export async function getSetIgpDestinationGasConfigTx(
         value: config.destinationGasConfigs.map((c) => ({
           remoteDomain: c.remoteDomainId,
           config: {
-            gasOracle: gasOracle.replace('41', '0x'),
+            gasOracle: gasOracle.replace('41', '0x'), // tron address format requires 0x prefix here
             gasOverhead: c.gasOverhead,
           },
         })),
@@ -229,12 +229,12 @@ export async function getSetIgpDestinationGasConfigTx(
   return transaction;
 }
 
-export async function getRemoveIgpOwnerTx(
+export async function getRemoveIgpDestinationGasConfigTx(
   tronweb: Readonly<TronWeb>,
   fromAddress: string,
   config: {
     igpAddress: string;
-    remoteDomainId: number;
+    remoteDomainIds: number[];
   },
 ): Promise<TronTransaction> {
   const { transaction } = await tronweb.transactionBuilder.triggerSmartContract(
@@ -246,7 +246,7 @@ export async function getRemoveIgpOwnerTx(
     [
       {
         type: 'uint32[]',
-        value: [config.remoteDomainId],
+        value: config.remoteDomainIds,
       },
     ],
     tronweb.address.toHex(fromAddress),
