@@ -1,2 +1,10 @@
+export {
+  TronContractFactory,
+  createTronFactory,
+} from './TronContractFactory.js';
 export { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
-export { TronWallet } from './TronWallet.js';
+export {
+  TronTransaction,
+  TronTransactionResponse,
+  TronWallet,
+} from './TronWallet.js';

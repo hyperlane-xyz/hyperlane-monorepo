@@ -1,3 +1,5 @@
 // Ethers-compatible adapters (primary interface)
-export { TronJsonRpcProvider } from './ethers/TronJsonRpcProvider.js';
-export { TronWallet } from './ethers/TronWallet.js';
+export * from './ethers/index.js';
+
+// Contract factories (typechain re-exports)
+export * from './factories/index.js';

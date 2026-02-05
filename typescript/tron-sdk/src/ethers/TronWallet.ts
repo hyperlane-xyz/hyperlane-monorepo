@@ -1,7 +1,21 @@
 import { BigNumber, Wallet, providers } from 'ethers';
-import { TronWeb } from 'tronweb';
+import { TronWeb, Types } from 'tronweb';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
+
+/** Union of possible TronWeb transaction types */
+export type TronTransaction =
+  | Types.CreateSmartContractTransaction
+  | Types.Transaction
+  | Types.SignedTransaction;
+
+/**
+ * Extended transaction response that includes Tron-specific fields.
+ */
+export interface TronTransactionResponse extends providers.TransactionResponse {
+  /** Raw TronWeb transaction object */
+  tronTransaction: TronTransaction;
+}
 
 /**
  * TronWallet extends ethers Wallet to handle Tron's transaction format.
@@ -38,8 +52,8 @@ export class TronWallet extends Wallet {
     return '41' + strip0x(address).toLowerCase();
   }
 
-  /** Convert Tron address to ethers 0x address */
-  private toEvmAddress(tronAddress: string): string {
+  /** Convert Tron address (base58 or 41-hex) to ethers 0x address */
+  toEvmAddress(tronAddress: string): string {
     const hex = this.tronWeb.address.toHex(tronAddress);
     return ensure0x(hex.slice(2));
   }
@@ -51,7 +65,7 @@ export class TronWallet extends Wallet {
 
   async sendTransaction(
     transaction: providers.TransactionRequest,
-  ): Promise<providers.TransactionResponse> {
+  ): Promise<TronTransactionResponse> {
     // Populate transaction (estimates gas and gas price if not set)
     const tx = await this.populateTransaction(transaction);
     assert(tx.gasLimit, 'gasLimit is required');
@@ -63,8 +77,7 @@ export class TronWallet extends Wallet {
     const feeLimit = gasLimit.mul(gasPrice).toNumber();
     const callValue = tx.value ? BigNumber.from(tx.value).toNumber() : 0;
 
-    let tronTx: any;
-    let contractAddress: string | undefined;
+    let tronTx: TronTransaction;
 
     if (!tx.to) {
       // Contract deployment
@@ -79,12 +92,11 @@ export class TronWallet extends Wallet {
         },
         this.tronAddress,
       );
-
-      contractAddress = this.toEvmAddress(tronTx.contract_address);
     } else if (tx.data && tx.data !== '0x') {
       // Contract call - use 'input' option for raw ABI-encoded calldata
+      const tronHexTo = this.toTronHex(tx.to);
       const result = await this.tronWeb.transactionBuilder.triggerSmartContract(
-        this.toTronHex(tx.to),
+        tronHexTo,
         '', // Empty functionSelector since we pass raw encoded data via input
         { feeLimit, callValue, input: strip0x(tx.data.toString()) },
         [],
@@ -106,37 +118,29 @@ export class TronWallet extends Wallet {
 
     // Sign and broadcast
     const signedTx = await this.tronWeb.trx.sign(tronTx);
-    const result = await this.tronWeb.trx.sendRawTransaction(signedTx);
-    assert(result.result, `Broadcast failed: ${result.message}`);
+    const broadcastResult = await this.tronWeb.trx.sendRawTransaction(signedTx);
+    assert(
+      broadcastResult.result,
+      `Broadcast failed: ${broadcastResult.message}`,
+    );
 
     const txHash = ensure0x(tronTx.txID);
 
-    // Build the transaction response
-    const response: providers.TransactionResponse = {
+    // Build the transaction response with Tron-specific fields
+    const response: TronTransactionResponse = {
       hash: txHash,
       confirmations: 0,
       from: this.address,
       to: tx.to ?? undefined,
       nonce: 0,
-      gasLimit: BigNumber.from(feeLimit),
+      gasLimit,
       gasPrice,
-      data: tx.data?.toString() || '0x',
-      value: BigNumber.from(tx.value || 0),
-      chainId: (await this.provider!.getNetwork()).chainId,
-      wait: async (_confirmations?: number) => {
-        const receipt = await this.provider!.waitForTransaction(txHash);
-        // Always use the contract address from TronWeb for deployments
-        if (contractAddress) {
-          (receipt as any).contractAddress = contractAddress;
-        }
-        // Check if transaction reverted
-        if (receipt.status === 0) {
-          throw new Error(
-            `Transaction ${txHash} reverted on Tron (status=0). Receipt: ${JSON.stringify(receipt)}`,
-          );
-        }
-        return receipt;
-      },
+      data: tx.data?.toString() ?? '0x',
+      value: BigNumber.from(tx.value ?? 0),
+      chainId: tx.chainId!,
+      tronTransaction: tronTx,
+      wait: (confirmations?: number) =>
+        this.provider!.waitForTransaction(txHash, confirmations),
     };
 
     return response;

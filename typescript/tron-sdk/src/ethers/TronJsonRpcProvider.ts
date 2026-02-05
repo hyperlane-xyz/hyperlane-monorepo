@@ -7,7 +7,6 @@ import { providers } from 'ethers';
  * but with a few notable exceptions:
  * - eth_sendRawTransaction: Not supported (must use TronWeb for transactions)
  * - eth_getTransactionCount: Not supported (Tron doesn't use nonces)
- * - eth_feeHistory: Not supported (no EIP-1559)
  *
  * This provider handles these gaps by returning appropriate defaults.
  */
@@ -19,28 +18,17 @@ export class TronJsonRpcProvider extends providers.JsonRpcProvider {
   }
 
   /**
-   * Override perform to handle Tron-specific JSON-RPC differences.
+   * Tron doesn't use nonces - always return 0.
    */
-  async perform(
-    method: string,
-    params: Record<string, unknown>,
-  ): Promise<unknown> {
-    // Tron doesn't have nonces - return 0
-    if (method === 'getTransactionCount') {
-      return 0;
-    }
-
-    // Tron doesn't support EIP-1559 fee history
-    if (method === 'getFeeHistory') {
-      return null;
-    }
-
-    return super.perform(method, params);
+  async getTransactionCount(
+    _addressOrName: string,
+    _blockTag?: providers.BlockTag,
+  ): Promise<number> {
+    return 0;
   }
 
   /**
-   * Override getFeeData to return legacy gas pricing only.
-   * Tron uses energy pricing, but eth_gasPrice returns a usable value.
+   * Return legacy gas pricing only - Tron doesn't support EIP-1559.
    */
   async getFeeData(): Promise<providers.FeeData> {
     const gasPrice = await this.getGasPrice();
