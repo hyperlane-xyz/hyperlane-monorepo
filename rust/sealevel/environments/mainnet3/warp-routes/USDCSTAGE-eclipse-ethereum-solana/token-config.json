@@ -11,7 +11,7 @@
     "decimals": 6,
     "name": "USD Coin STAGE",
     "symbol": "USDCSTAGE",
-    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/03b8562eb54afc52c0be0529a3d454aebed31a7d/deployments/warp_routes/USDCSTAGE/metadata.json",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/USDCSTAGE/metadata.json",
     "interchainGasPaymaster": "3Wp4qKkgf4tjXz1soGyTSndCgBPLZFSrZkiDZ8Qp9EEj",
     "owner": "9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf"
   },
@@ -32,5 +32,59 @@
     "decimals": 6,
     "token": "0x833589fCD6eDb6E08f4c7C32D4f71b54bdA02913",
     "foreignDeployment": "0x5A0E13290ec57F5e9031D01D03C6A40029Cc24ea"
+  },
+  "avalanche": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xB97EF9Ef8734C71904D8002F8b6Bc66Dd9c48a6E",
+    "foreignDeployment": "0x43295D726C09a1578960549f2513E186C3B62e57"
+  },
+  "hyperevm": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0xb88339CB7199b77E23DB6E890353E22632Ba630f",
+    "foreignDeployment": "0xfF806E766f9dD784b370c5A2a4BaaF21Ea62D877"
+  },
+  "ink": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x2D270e6886d130D724215A266106e6832161EAEd",
+    "foreignDeployment": "0x416714e092F2b6e3296039ca2adF7eb6e06806F7"
+  },
+  "linea": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x176211869cA2b568f2A7D4EE941E073a821EE1ff",
+    "foreignDeployment": "0xaA3C7A670f0AFd18c2eC8B998aA56Bb371E0df5D"
+  },
+  "monad": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x754704Bc059F8C67012fEd69BC8A327a5aafb603",
+    "foreignDeployment": "0x1b681aaccc77B5aeE34675eac5cE3dDeAbc0b4c9"
+  },
+  "optimism": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85",
+    "foreignDeployment": "0x36D930c7782BafE74Ff52CAb54648a1b2ecC48bE"
+  },
+  "polygon": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x3c499c542cEF5E3811e1192ce70d8cC03d5c3359",
+    "foreignDeployment": "0xfc78F4Dace2Ee0057281D0267DB3491181510593"
+  },
+  "unichain": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x078D782b760474a361dDA0AF3839290b0EF57AD6",
+    "foreignDeployment": "0x33e6681548a0E5A07bf2Ffa33e7Ef274F08a34E1"
+  },
+  "worldchain": {
+    "type": "collateral",
+    "decimals": 6,
+    "token": "0x79A02482A880bCE3F13e09Da970dC34db4CD24d1",
+    "foreignDeployment": "0x414B67F62b143d6db6E9b633168Dd6fd4DA20642"
   }
 }
