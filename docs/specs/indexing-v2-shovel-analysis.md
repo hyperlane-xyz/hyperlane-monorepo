@@ -18,8 +18,9 @@ This document analyzes [Shovel](https://github.com/indexsupply/shovel) by Index 
 - RPC reliability is **good** - round-robin load balancing, automatic retry, batch verification
 - Uses `eth_getLogs` as primary method, with fallback to receipts/traces
 - **Production ready** - stable since v1.0 (March 2024), MIT licensed, written in Go
+- **No custom handlers** - binary-only, declarative config; custom logic requires separate service
 
-**Recommendation:** Strong candidate. Worth evaluating alongside Ponder.
+**Recommendation:** Strong operationally, but lack of custom handlers is a significant limitation for Hyperlane's use case. Ponder preferred unless concurrent live+backfill is critical.
 
 ---
 
@@ -530,9 +531,81 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 
 ---
 
-## 7. Reliability Assessment
+## 7. Extensibility Limitations
 
-### 7.1 Strengths
+### 7.1 Binary-Only Distribution
+
+Shovel is distributed as a **pre-compiled binary** with no SDK or library for embedding custom logic:
+
+- **No Go SDK** - Cannot import Shovel as a library
+- **No plugin system** - Cannot inject custom handlers
+- **No event hooks** - Cannot trigger callbacks on indexing events
+- **Declarative only** - All logic must be expressible in JSON config
+
+### 7.2 What Custom Logic Can Do
+
+| Approach                | Description                       | Feasibility |
+| ----------------------- | --------------------------------- | ----------- |
+| JSON config expressions | Basic field transformations       | ✅ Limited  |
+| PostgreSQL triggers     | Post-insert processing            | ✅ Possible |
+| Separate service        | Poll/subscribe to Shovel's tables | ✅ Possible |
+| Fork and modify Shovel  | Modify Go source code             | ⚠️ Complex  |
+| Contribute to Shovel    | Add features upstream             | ⚠️ Slow     |
+
+### 7.3 Implications for Hyperlane
+
+Hyperlane Indexing V2 requires custom logic for:
+
+1. **Recording reorg history** - Shovel deletes orphaned data; preserving history requires external service
+2. **Computing message status** - Joining Dispatch/Process events needs post-processing
+3. **Aggregating cross-chain data** - Multi-chain queries need API layer
+
+**Architecture with Shovel:**
+
+```
+┌─────────────────────────────────────────────────────────────────┐
+│                   Shovel + Custom Service Architecture            │
+│                                                                  │
+│  ┌─────────────────┐    ┌─────────────────┐    ┌──────────────┐ │
+│  │ Shovel          │───►│ PostgreSQL      │───►│ Custom       │ │
+│  │ (binary)        │    │ (raw events)    │    │ Service      │ │
+│  │                 │    │                 │    │ (TS/Go/Rust) │ │
+│  └─────────────────┘    └─────────────────┘    └──────────────┘ │
+│                                │                      │         │
+│                                │                      ▼         │
+│                                │              ┌──────────────┐  │
+│                                │              │ GraphQL API  │  │
+│                                │              │ (Hasura/     │  │
+│                                └─────────────►│ PostGraphile)│  │
+│                                               └──────────────┘  │
+└─────────────────────────────────────────────────────────────────┘
+```
+
+### 7.4 Comparison with Ponder
+
+| Aspect             | Shovel                    | Ponder                       |
+| ------------------ | ------------------------- | ---------------------------- |
+| Custom handlers    | ❌ Not supported          | ✅ TypeScript functions      |
+| Custom logic       | External service required | Inline in indexing functions |
+| Reorg history      | External service required | Can implement in handler     |
+| Learning curve     | Config: low; Custom: high | Moderate (TypeScript)        |
+| Operational burden | Two services to manage    | Single service               |
+
+### 7.5 Verdict
+
+**Shovel's lack of custom handlers is a significant limitation** for Hyperlane's use case. While the raw event indexing is excellent, any business logic requires:
+
+1. A separate service (TypeScript, Go, or Rust)
+2. Database polling or LISTEN/NOTIFY subscription
+3. Additional operational complexity
+
+**Ponder is preferred** for Hyperlane Indexing V2 unless concurrent live+backfill is critical enough to justify the added complexity.
+
+---
+
+## 8. Reliability Assessment
+
+### 8.1 Strengths
 
 | Feature             | Assessment                     |
 | ------------------- | ------------------------------ |
@@ -545,7 +618,7 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 | Simplicity          | ✅ Declarative JSON config     |
 | Performance         | ✅ Go-based, efficient         |
 
-### 7.2 Weaknesses
+### 8.2 Weaknesses
 
 | Gap                    | Severity  | Impact              |
 | ---------------------- | --------- | ------------------- |
@@ -554,7 +627,7 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 | Retry not configurable | 🟢 Low    | Fixed 1s sleep      |
 | No TypeScript handlers | 🟡 Medium | Go for custom logic |
 
-### 7.3 Risk Matrix
+### 8.3 Risk Matrix
 
 | Failure Mode     | Detection       | Recovery             | Data Impact |
 | ---------------- | --------------- | -------------------- | ----------- |
@@ -567,9 +640,9 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 
 ---
 
-## 8. Comparison Summary
+## 9. Comparison Summary
 
-### 8.1 Shovel vs Ponder vs Envio vs rindexer
+### 9.1 Shovel vs Ponder vs Envio vs rindexer
 
 | Requirement         | Shovel                 | Ponder              | Envio                | rindexer          |
 | ------------------- | ---------------------- | ------------------- | -------------------- | ----------------- |
@@ -582,7 +655,7 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 | Production ready    | ✅ Yes                 | ✅ Yes              | ⚠️ Partial           | ❌ No             |
 | Documentation       | ✅ Good                | ✅ Excellent        | ⚠️ HyperSync-focused | ⚠️ Incomplete     |
 
-### 8.2 Unique Advantages
+### 9.2 Unique Advantages
 
 1. **Concurrent live + backfill** - Live indexing starts immediately
 2. **Native multi-instance** - Advisory locks, no schema complexity
@@ -590,7 +663,7 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 4. **Batch verification** - Detects unsynchronized nodes
 5. **Go performance** - Efficient resource usage
 
-### 8.3 Recommendation
+### 9.3 Recommendation
 
 **Shovel is a strong candidate** for Hyperlane Indexing V2:
 
@@ -622,7 +695,7 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 
 ---
 
-## 9. Open Questions
+## 10. Open Questions
 
 1. **GraphQL layer:** Would we build a separate GraphQL API or use Hasura/PostGraphile?
 
@@ -634,7 +707,7 @@ ETH_WS_URL=wss://your-ws-provider.com/v2/YOUR_API_KEY
 
 ---
 
-## 10. References
+## 11. References
 
 - [Shovel GitHub Repository](https://github.com/indexsupply/shovel)
 - [Shovel Documentation](https://indexsupply.com/shovel/docs/)
