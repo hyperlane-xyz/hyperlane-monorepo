@@ -22,7 +22,10 @@ import { Decimal } from 'decimal.js';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import { READ_ACCOUNT_HEX_PUBLIC_KEY } from './constants.js';
+import {
+  EPOCH_VALIDITY_RANGE,
+  READ_ACCOUNT_HEX_PUBLIC_KEY,
+} from './constants.js';
 import { EntityDetails, INSTRUCTIONS, RadixSDKReceipt } from './types.js';
 import { stringToTransactionManifest } from './utils.js';
 
@@ -134,7 +137,8 @@ export class RadixBase {
             assume_all_signature_proofs: true,
           },
           start_epoch_inclusive: constructionMetadata.ledger_state.epoch,
-          end_epoch_exclusive: constructionMetadata.ledger_state.epoch + 2,
+          end_epoch_exclusive:
+            constructionMetadata.ledger_state.epoch + EPOCH_VALIDITY_RANGE,
         },
       });
 
