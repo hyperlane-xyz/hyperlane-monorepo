@@ -1,0 +1,71 @@
+{
+  "chains": {
+    "sovstarter": {
+      "name": "sovstarter",
+      "displayName": "Sov Starter",
+      "isTestnet": true,
+      "chainId": "4321",
+      "domainId": "5555",
+      "protocol": "sovereign",
+      "nativeToken": {
+        "decimals": 9,
+        "name": "SovStarter Token",
+        "symbol": "SOV"
+      },
+      "rpcUrls": [
+        {
+          "http": "http://3.27.160.15:12346"
+        }
+      ],
+      "mailbox": "0x0000000000000000000000000000000000000000",
+      "merkleTreeHook": "0x0000000000000000000000000000000000000000",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "validatorAnnounce": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 0,
+        "chunk": 1999
+      },
+      "finalityBlocks": 1,
+      "signer": {
+        "type": "sovereignKey",
+        "account_type": "ethereum"
+      }
+    },
+    "ethtest": {
+      "name": "ethtest",
+      "displayName": "EthTest",
+      "isTestnet": true,
+      "chainId": 31337,
+      "domainId": 3133790210,
+      "protocol": "ethereum",
+      "rpcUrls": [
+        {
+          "http": "http://3.27.160.15:8545"
+        }
+      ],
+      "nativeToken": {
+        "decimals": 18,
+        "name": "Ether",
+        "symbol": "ETH"
+      },
+      "defaultRpcConsensusType": "fallback",
+      "staticMerkleRootMultisigIsmFactory": "0x5FbDB2315678afecb367f032d93F642f64180aa3",
+      "staticMessageIdMultisigIsmFactory": "0xe7f1725E7734CE288F8367e1Bb143E90bb3F0512",
+      "staticAggregationIsmFactory": "0x9fE46736679d2D9a65F0992F2272dE9f3c7fa6e0",
+      "staticAggregationHookFactory": "0xCf7Ed3AccA5a467e9e704C703E8D87F634fB0Fc9",
+      "domainRoutingIsmFactory": "0xDc64a140Aa3E981100a9becA4E685f962f0cF6C9",
+      "staticMerkleRootWeightedMultisigIsmFactory": "0x5FC8d32690cc91D4c39d9d3abcBD16989F875707",
+      "staticMessageIdWeightedMultisigIsmFactory": "0x0165878A594ca255338adfa4d48449f69242Eb8F",
+      "proxyAdmin": "0xa513E6E4b8f2a923D98304ec87F64353C4D5C853",
+      "mailbox": "0x8A791620dd6260079BF849Dc5567aDC3F2FdC318",
+      "interchainAccountRouter": "0x9A676e781A523b5d0C0e43731313A708CB607508",
+      "validatorAnnounce": "0x0B306BF915C4d645ff596e518fAf3F9669b97016",
+      "testRecipient": "0x959922bE3CAee4b8Cd9a407cc3ac1C251C2007B1",
+      "merkleTreeHook": "0xB7f8BC63BbcaD18155201308C8f3540b07f84F5e",
+      "interchainGasPaymaster": "0x0000000000000000000000000000000000000000",
+      "index": {
+        "from": 9
+      }
+    }
+  }
+}

@@ -5,6 +5,7 @@ use ethers::core::k256::sha2::{Digest, Sha256};
 use ethers::prelude::{AwsSigner, LocalWallet};
 use ethers::utils::hex::ToHex;
 use eyre::{bail, Context, Report};
+use hyperlane_sovereign::Crypto as _;
 use rusoto_core::Region;
 use rusoto_kms::KmsClient;
 use tracing::instrument;
@@ -56,6 +57,17 @@ pub enum SignerConf {
         address: H256,
         /// Whether the Starknet signer is legacy
         is_legacy: bool,
+    },
+    /// Sovereign Specific key
+    SovereignKey {
+        /// Private key value
+        key: H256,
+        /// The flavour of account used by the Sovereign rollup
+        /// Valid values: "solana" | "ethereum" | "sovereign"
+        /// This is a temp setting, we can retrieve this value from the rollup itself.
+        account_type: String,
+        /// If the address encoding is bech then this should be the HRP to use.
+        hrp: Option<String>,
     },
     /// Assume node will sign on RPC calls
     #[default]
@@ -110,6 +122,9 @@ impl BuildableWithSignerConf for hyperlane_ethereum::Signers {
             }
             SignerConf::StarkKey { .. } => {
                 bail!("starkKey signer is not supported by Ethereum")
+            }
+            SignerConf::SovereignKey { .. } => {
+                bail!("sovereignKey signer is not supported by Ethereum")
             }
             SignerConf::Node => bail!("Node signer"),
             SignerConf::RadixKey { .. } => {
@@ -305,6 +320,35 @@ impl ChainSigner for hyperlane_aleo::AleoSigner {
 
     fn address_h256(&self) -> H256 {
         self.address_h256()
+    }
+}
+
+#[async_trait]
+impl BuildableWithSignerConf for hyperlane_sovereign::Signer {
+    async fn build(conf: &SignerConf) -> Result<Self, Report> {
+        if let SignerConf::SovereignKey {
+            key,
+            account_type,
+            hrp,
+        } = conf
+        {
+            Ok(hyperlane_sovereign::Signer::new(
+                key,
+                account_type,
+                hrp.clone(),
+            )?)
+        } else {
+            bail!("{conf:?} key is not supported by Sovereign");
+        }
+    }
+}
+
+impl ChainSigner for hyperlane_sovereign::Signer {
+    fn address_string(&self) -> String {
+        self.address().expect("address calculation cannot fail")
+    }
+    fn address_h256(&self) -> H256 {
+        self.h256_address()
     }
 }
 

@@ -16,7 +16,13 @@ pub const METRICS_SCRAPE_INTERVAL: Duration = Duration::from_secs(60);
 #[cfg(feature = "float")]
 pub fn u256_as_scaled_f64(value: U256, domain: HyperlaneDomainProtocol) -> f64 {
     let decimals = decimals_by_protocol(domain);
-    value.to_f64_lossy() / (10u64.pow(decimals as u32) as f64)
+    u256_as_scaled_f64_with_decimals(value, decimals as u32)
+}
+
+/// Convert a u256 scaled integer value into the corresponding f64 value using explicit decimals.
+#[cfg(feature = "float")]
+pub fn u256_as_scaled_f64_with_decimals(value: U256, decimals: u32) -> f64 {
+    value.to_f64_lossy() / (10u64.pow(decimals) as f64)
 }
 
 /// Get the decimals each protocol typically uses for its lowest denomination
@@ -25,6 +31,10 @@ pub fn decimals_by_protocol(protocol: HyperlaneDomainProtocol) -> u8 {
     match protocol {
         HyperlaneDomainProtocol::Cosmos | HyperlaneDomainProtocol::CosmosNative => COSMOS_DECIMALS,
         HyperlaneDomainProtocol::Sealevel => SOLANA_DECIMALS,
+        #[allow(clippy::panic)]
+        HyperlaneDomainProtocol::Sovereign => {
+            panic!("Sovereign protocol does not have a default decimal value - use explicit chain configuration")
+        }
         _ => ETHEREUM_DECIMALS,
     }
 }

@@ -15,6 +15,7 @@ hyperlane-aleo = { path = "../chains/hyperlane-aleo", optional = true }
 hyperlane-ethereum = { path = "../chains/hyperlane-ethereum" }
 hyperlane-radix = { path = "../chains/hyperlane-radix" }
 hyperlane-sealevel = { path = "../chains/hyperlane-sealevel" }
+hyperlane-sovereign = { path = "../chains/hyperlane-sovereign" }
 
 async-trait.workspace = true
 chrono.workspace = true
