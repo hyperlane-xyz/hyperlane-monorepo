@@ -39,3 +39,30 @@ export const AleoNetworkId = {
 } as const;
 
 export type AleoNetworkId = (typeof AleoNetworkId)[keyof typeof AleoNetworkId];
+
+/**
+ * Aleo mailbox config structure matching on-chain data
+ */
+export interface AleoMailboxData {
+  local_domain: number;
+  nonce: number;
+  process_count: number;
+  default_ism: string;
+  default_hook: string;
+  required_hook: string;
+  dispatch_proxy: string;
+  mailbox_owner: string;
+}
+
+/**
+ * Parsed mailbox configuration
+ */
+export interface AleoMailboxConfig {
+  address: string;
+  owner: string;
+  localDomain: number;
+  nonce: number;
+  defaultIsm: string;
+  defaultHook: string;
+  requiredHook: string;
+}
