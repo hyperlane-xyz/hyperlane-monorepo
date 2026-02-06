@@ -33,6 +33,7 @@ use hyperlane_radix::{self as h_radix, RadixProvider};
 use hyperlane_sealevel::{
     self as h_sealevel, fallback::SealevelFallbackRpcClient, SealevelProvider, TransactionSubmitter,
 };
+use hyperlane_sovereign::{self as h_sovereign};
 use hyperlane_starknet::{self as h_starknet, StarknetProvider};
 use hyperlane_tron::{self as h_tron, TronProvider};
 
@@ -183,6 +184,8 @@ pub enum ChainConnectionConf {
     /// Aleo configuration
     #[cfg(feature = "aleo")]
     Aleo(h_aleo::ConnectionConf),
+    /// Sovereign configuration
+    Sovereign(h_sovereign::ConnectionConf),
     /// Tron configuration
     Tron(h_tron::ConnectionConf),
 }
@@ -201,6 +204,7 @@ impl ChainConnectionConf {
             Self::Tron(_) => HyperlaneDomainProtocol::Tron,
             #[cfg(feature = "aleo")]
             Self::Aleo(_) => HyperlaneDomainProtocol::Aleo,
+            Self::Sovereign(_) => HyperlaneDomainProtocol::Sovereign,
         }
     }
 
@@ -211,7 +215,22 @@ impl ChainConnectionConf {
             Self::Cosmos(conf) => Some(&conf.op_submission_config),
             Self::Sealevel(conf) => Some(&conf.op_submission_config),
             Self::Starknet(config) => Some(&config.op_submission_config),
+            Self::Sovereign(config) => Some(&config.op_submission_config),
             _ => None,
+        }
+    }
+
+    /// Get the native token decimals for this chain.
+    /// For chains with explicit native token config (Sovereign, Sealevel, Cosmos), returns the configured value.
+    /// For other chains, returns the protocol default.
+    pub fn native_token_decimals(&self) -> u32 {
+        use hyperlane_core::metrics::agent::decimals_by_protocol;
+        match self {
+            Self::Sovereign(conf) => conf.native_token.decimals,
+            Self::Sealevel(conf) => conf.native_token.decimals,
+            Self::Cosmos(conf) => conf.get_native_token().decimals,
+            Self::CosmosNative(conf) => conf.get_native_token().decimals,
+            _ => decimals_by_protocol(self.protocol()) as u32,
         }
     }
 }
@@ -292,6 +311,10 @@ impl ChainConf {
                 h_aleo::application::AleoApplicationOperationVerifier::new(),
             )
                 as Box<dyn ApplicationOperationVerifier>),
+            ChainConnectionConf::Sovereign(_) => Ok(Box::new(
+                h_sovereign::application::SovereignApplicationOperationVerifier::new(),
+            )
+                as Box<dyn ApplicationOperationVerifier>),
         };
 
         result.context(ctx)
@@ -333,6 +356,13 @@ impl ChainConf {
             }
             ChainConnectionConf::CosmosNative(conf) => {
                 let provider = build_cosmos_native_provider(self, conf, metrics, &locator, None)?;
+                Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await?;
+                let provider =
+                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, signer)
+                        .await?;
                 Ok(Box::new(provider) as Box<dyn HyperlaneProvider>)
             }
             ChainConnectionConf::Radix(conf) => {
@@ -429,6 +459,13 @@ impl ChainConf {
                 let mailbox = h_aleo::AleoMailbox::new(provider, &locator, conf);
                 Ok(Box::new(mailbox) as Box<dyn Mailbox>)
             }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                h_sovereign::SovereignMailbox::new(conf, locator, signer)
+                    .await
+                    .map(|m| Box::new(m) as Box<dyn Mailbox>)
+                    .map_err(Into::into)
+            }
         }
         .context(ctx)
     }
@@ -495,6 +532,16 @@ impl ChainConf {
                 let provider = build_aleo_provider(self, conf, metrics, &locator, None)?;
                 let hook = h_aleo::AleoMerkleTreeHook::new(provider, &locator, conf)?;
 
+                Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let hook = h_sovereign::SovereignMerkleTreeHook::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )
+                .await?;
                 Ok(Box::new(hook) as Box<dyn MerkleTreeHook>)
             }
         }
@@ -564,6 +611,14 @@ impl ChainConf {
                 let indexer = Box::new(h_cosmos::native::CosmosNativeDispatchIndexer::new(
                     provider, locator,
                 )?);
+                Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let indexer = Box::new(
+                    h_sovereign::SovereignMailboxIndexer::new(conf.clone(), locator, signer)
+                        .await?,
+                );
                 Ok(indexer as Box<dyn SequenceAwareIndexer<HyperlaneMessage>>)
             }
             ChainConnectionConf::Radix(conf) => {
@@ -671,6 +726,15 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
             }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let provider =
+                    h_sovereign::SovereignProvider::new(locator.domain.clone(), conf, signer)
+                        .await?;
+                let indexer = h_sovereign::SovereignDeliveryIndexer::new(provider)?;
+
+                Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<H256>>)
+            }
         }
         .context(ctx)
     }
@@ -747,6 +811,16 @@ impl ChainConf {
                 let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn InterchainGasPaymaster>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let igp = h_sovereign::SovereignInterchainGasPaymaster::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )
+                .await?;
+                Ok(Box::new(igp) as Box<dyn InterchainGasPaymaster>)
             }
         }
         .context(ctx)
@@ -827,6 +901,18 @@ impl ChainConf {
                 let indexer = h_aleo::AleoInterchainGasIndexer::new(provider, &locator, conf)?;
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await?;
+                let indexer = Box::new(
+                    h_sovereign::SovereignInterchainGasPaymasterIndexer::new(
+                        conf.clone(),
+                        locator,
+                        signer,
+                    )
+                    .await?,
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<InterchainGasPayment>>)
             }
         }
         .context(ctx)
@@ -916,6 +1002,14 @@ impl ChainConf {
 
                 Ok(Box::new(indexer) as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
             }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let indexer = Box::new(
+                    h_sovereign::SovereignMerkleTreeHookIndexer::new(conf.clone(), locator, signer)
+                        .await?,
+                );
+                Ok(indexer as Box<dyn SequenceAwareIndexer<MerkleTreeInsertion>>)
+            }
         }
         .context(ctx)
     }
@@ -981,6 +1075,13 @@ impl ChainConf {
                     locator.clone(),
                 )?);
 
+                Ok(va as Box<dyn ValidatorAnnounce>)
+            }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let va = Box::new(
+                    h_sovereign::SovereignValidatorAnnounce::new(conf, locator, signer).await?,
+                );
                 Ok(va as Box<dyn ValidatorAnnounce>)
             }
             ChainConnectionConf::Radix(conf) => {
@@ -1077,6 +1178,16 @@ impl ChainConf {
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
             }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let ism = h_sovereign::SovereignInterchainSecurityModule::new(
+                    &conf.clone(),
+                    locator.clone(),
+                    signer,
+                )
+                .await?;
+                Ok(Box::new(ism) as Box<dyn InterchainSecurityModule>)
+            }
         }
         .context(ctx)
     }
@@ -1142,6 +1253,13 @@ impl ChainConf {
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn MultisigIsm>)
             }
+            ChainConnectionConf::Sovereign(conf) => {
+                let signer = self.sovereign_signer().await.context(ctx)?;
+                let multisign_ism =
+                    h_sovereign::SovereignMultisigIsm::new(&conf.clone(), locator.clone(), signer)
+                        .await?;
+                Ok(Box::new(multisign_ism) as Box<dyn MultisigIsm>)
+            }
         }
         .context(ctx)
     }
@@ -1202,6 +1320,9 @@ impl ChainConf {
                 let ism = h_aleo::AleoIsm::new(provider, &locator, conf)?;
                 Ok(Box::new(ism) as Box<dyn RoutingIsm>)
             }
+            ChainConnectionConf::Sovereign(_) => {
+                Err(eyre!("Sovereign does not support routing ISM")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1258,6 +1379,9 @@ impl ChainConf {
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(_conf) => {
+                Err(eyre!("Sovereign does not support aggregation ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1300,6 +1424,9 @@ impl ChainConf {
             }
             #[cfg(feature = "aleo")]
             ChainConnectionConf::Aleo(_) => Err(eyre!("Aleo support missing")).context(ctx),
+            ChainConnectionConf::Sovereign(_conf) => {
+                Err(eyre!("Sovereign does not support CCIP read ISM yet")).context(ctx)
+            }
         }
         .context(ctx)
     }
@@ -1336,6 +1463,9 @@ impl ChainConf {
                 ChainConnectionConf::Tron(_) => Box::new(conf.build::<h_tron::TronSigner>().await?),
                 #[cfg(feature = "aleo")]
                 ChainConnectionConf::Aleo(_) => Box::new(conf.build::<h_aleo::AleoSigner>().await?),
+                ChainConnectionConf::Sovereign(_) => {
+                    Box::new(conf.build::<h_sovereign::Signer>().await?)
+                }
             };
             Ok(Some(chain_signer))
         } else {
@@ -1366,6 +1496,10 @@ impl ChainConf {
         self.signer().await
     }
 
+    async fn sovereign_signer(&self) -> Result<Option<h_sovereign::Signer>> {
+        self.signer().await
+    }
+
     async fn radix_signer(&self) -> Result<Option<hyperlane_radix::RadixSigner>> {
         self.signer().await
     }
@@ -1386,6 +1520,7 @@ impl ChainConf {
             address: chain_signer_address,
             domain: self.domain.clone(),
             name: agent_name,
+            native_token_decimals: self.connection.native_token_decimals(),
         })
     }
 
