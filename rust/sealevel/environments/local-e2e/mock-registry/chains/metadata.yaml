@@ -10,3 +10,9 @@ sealeveltest2:
   name: sealeveltest2
   rpcUrls:
   - http: http://127.0.0.1:8899
+sealeveltest3:
+  domainId: 13377
+  isTestnet: true
+  name: sealeveltest3
+  rpcUrls:
+  - http: http://127.0.0.1:8899

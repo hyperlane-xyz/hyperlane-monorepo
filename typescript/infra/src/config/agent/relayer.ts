@@ -19,6 +19,7 @@ import {
   addressToBytes32,
   isValidAddressEvm,
   objMap,
+  retryAsync,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -230,8 +231,14 @@ export class RelayerConfigHelper extends AgentConfigHelper<RelayerConfig> {
           },
           'Fetching sanctioned addresses',
         );
-        const json = await fetch(rawUrl);
-        const sanctionedAddresses = schema.parse(await json.json());
+        const sanctionedAddresses = await retryAsync(
+          async () => {
+            const json = await fetch(rawUrl);
+            return schema.parse(await json.json());
+          },
+          3, // attempts
+          1000, // 1s base delay
+        );
         return sanctionedAddresses;
       }),
     );

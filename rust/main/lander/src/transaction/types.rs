@@ -11,7 +11,9 @@ use hyperlane_core::{identifiers::UniqueIdentifier, H256, H512};
 #[cfg(feature = "aleo")]
 use crate::adapter::chains::AleoTxPrecursor;
 use crate::{
-    adapter::chains::{EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor},
+    adapter::chains::{
+        tron::TronTxPrecursor, EthereumTxPrecursor, RadixTxPrecursor, SealevelTxPrecursor,
+    },
     payload::PayloadDetails,
     LanderError,
 };
@@ -172,6 +174,7 @@ pub enum VmSpecificTxData {
     Evm(Box<EthereumTxPrecursor>),
     Radix(Box<RadixTxPrecursor>),
     Svm(Box<SealevelTxPrecursor>),
+    Tron(Box<TronTxPrecursor>),
 }
 
 #[cfg(test)]

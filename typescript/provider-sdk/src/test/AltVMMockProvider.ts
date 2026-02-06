@@ -229,6 +229,18 @@ export class MockProvider implements AltVM.IProvider {
     throw new Error(`not implemented`);
   }
 
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<MockTransaction> {
+    throw new Error(`not implemented`);
+  }
+
   // ### GET WARP TXS ###
 
   async getCreateNativeTokenTransaction(

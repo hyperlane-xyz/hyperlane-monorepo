@@ -215,6 +215,17 @@ export const validatorChainConfig = (
       ),
     },
 
+    modetestnet: {
+      interval: 5,
+      reorgPeriod: getReorgPeriod('modetestnet'),
+      validators: validatorsConfig(
+        {
+          [Contexts.Hyperlane]: ['0x9a9de3e406ab3e4ff12aa03ca9b868b48dc40402'],
+        },
+        'modetestnet',
+      ),
+    },
+
     celestiatestnet: {
       interval: 5,
       reorgPeriod: getReorgPeriod('celestiatestnet'),
