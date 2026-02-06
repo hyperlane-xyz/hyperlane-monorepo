@@ -31,7 +31,7 @@ export const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 export type RebalancerType = 'simple' | 'production' | 'noop';
 
 export function getEnabledRebalancers(): RebalancerType[] {
-  const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production,noop';
+  const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
   const enabled = REBALANCER_ENV.split(',')
     .map((r) => r.trim().toLowerCase())
     .filter(
