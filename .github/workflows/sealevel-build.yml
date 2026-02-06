@@ -1,0 +1,208 @@
+name: Sealevel Program Build
+
+on:
+  push:
+    tags:
+      - 'sealevel-v*'
+  release:
+    types: [created]
+  workflow_dispatch:
+    inputs:
+      program_type:
+        description: 'Program type to build (all, core, token)'
+        required: false
+        default: 'all'
+        type: choice
+        options:
+          - all
+          - core
+          - token
+
+concurrency:
+  group: sealevel-build-${{ github.ref }}
+  cancel-in-progress: true
+
+jobs:
+  build:
+    runs-on: buildjet-8vcpu-ubuntu-2204
+    outputs:
+      version: ${{ steps.version.outputs.version }}
+      program_type: ${{ steps.version.outputs.program_type }}
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Extract version from tag
+        id: version
+        run: |
+          if [[ "${GITHUB_REF}" == refs/tags/* ]]; then
+            VERSION=${GITHUB_REF#refs/tags/sealevel-}
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "program_type=all" >> $GITHUB_OUTPUT
+          else
+            VERSION="dev-$(echo ${GITHUB_SHA} | cut -c1-7)"
+            echo "version=${VERSION}" >> $GITHUB_OUTPUT
+            echo "program_type=${{ github.event.inputs.program_type || 'all' }}" >> $GITHUB_OUTPUT
+          fi
+
+      - name: Build Solana programs
+        uses: docker/build-push-action@v5
+        with:
+          context: .
+          file: rust/sealevel/docker/Dockerfile
+          platforms: linux/amd64
+          build-args: |
+            PROGRAM_TYPE=${{ steps.version.outputs.program_type }}
+          target: builder
+          load: true
+          tags: sealevel-build:local
+
+      - name: Extract built programs
+        run: |
+          set -euo pipefail
+          mkdir -p ./artifacts
+          CONTAINER_ID=$(docker create sealevel-build:local)
+
+          if ! docker cp "${CONTAINER_ID}:/build/rust/sealevel/target/deploy/." ./artifacts/; then
+            echo "ERROR: Failed to copy from /build/rust/sealevel/target/deploy/"
+            echo "The deploy directory may not exist or there may be a permission problem."
+            docker rm "${CONTAINER_ID}"
+            exit 1
+          fi
+          docker rm "${CONTAINER_ID}"
+
+          echo "Built programs:"
+          ls -la ./artifacts/*.so
+
+          # Validate at least one .so file was copied
+          if ! ls ./artifacts/*.so 1>/dev/null 2>&1; then
+            echo "ERROR: No .so files found in artifacts directory after docker cp"
+            echo "Build may have failed silently or deploy directory was empty."
+            exit 1
+          fi
+
+      - name: Compute program hashes
+        run: |
+          cd ./artifacts
+          echo "## Program Hashes" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Program | SHA256 Hash |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|-------------|" >> $GITHUB_STEP_SUMMARY
+
+          for so_file in *.so; do
+            if [ -f "$so_file" ]; then
+              hash=$(sha256sum "$so_file" | cut -d' ' -f1)
+              echo "| ${so_file} | \`${hash}\` |" >> $GITHUB_STEP_SUMMARY
+            fi
+          done
+
+          # Create checksums file (only if .so files exist)
+          if ls *.so 1> /dev/null 2>&1; then
+            sha256sum *.so > checksums.sha256
+            cat checksums.sha256
+          else
+            echo "No .so files found, skipping checksums"
+          fi
+
+      - name: Upload program artifacts
+        uses: actions/upload-artifact@v4
+        with:
+          name: sealevel-programs-${{ steps.version.outputs.version }}
+          path: ./artifacts/*.so
+          if-no-files-found: error
+          retention-days: 90
+
+      - name: Upload checksums
+        uses: actions/upload-artifact@v4
+        with:
+          name: sealevel-checksums-${{ steps.version.outputs.version }}
+          path: ./artifacts/checksums.sha256
+          if-no-files-found: warn
+
+      - name: Upload to GitHub Release
+        if: github.event_name == 'release'
+        uses: softprops/action-gh-release@v1
+        with:
+          files: |
+            ./artifacts/*.so
+            ./artifacts/checksums.sha256
+
+  verify-reproducibility:
+    needs: build
+    runs-on: buildjet-8vcpu-ubuntu-2204
+
+    steps:
+      - name: Checkout repository
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Download first build artifacts
+        uses: actions/download-artifact@v4
+        with:
+          name: sealevel-programs-${{ needs.build.outputs.version }}
+          path: ./first-build
+
+      - name: Rebuild to verify reproducibility
+        run: |
+          # Use --no-cache to ensure we're not using cached layers that could mask nondeterminism
+          docker build \
+            --platform linux/amd64 \
+            --build-arg PROGRAM_TYPE=${{ needs.build.outputs.program_type }} \
+            -f rust/sealevel/docker/Dockerfile \
+            -t sealevel-verify:local \
+            --target builder \
+            --no-cache \
+            .
+
+          mkdir -p ./second-build
+          CONTAINER_ID=$(docker create sealevel-verify:local)
+          docker cp "${CONTAINER_ID}:/build/rust/sealevel/target/deploy/." ./second-build/ || true
+          docker rm "${CONTAINER_ID}"
+
+      - name: Compare hashes
+        run: |
+          echo "## Reproducibility Verification" >> $GITHUB_STEP_SUMMARY
+          echo "" >> $GITHUB_STEP_SUMMARY
+          echo "| Program | Result |" >> $GITHUB_STEP_SUMMARY
+          echo "|---------|--------|" >> $GITHUB_STEP_SUMMARY
+
+          FAILED=0
+          for so_file in ./first-build/*.so; do
+            filename=$(basename "$so_file")
+
+            if [ ! -f "./second-build/${filename}" ]; then
+              echo "ERROR: ${filename} not found in second build"
+              echo "| ${filename} | MISSING |" >> $GITHUB_STEP_SUMMARY
+              FAILED=1
+              continue
+            fi
+
+            hash1=$(sha256sum "./first-build/${filename}" | cut -d' ' -f1)
+            hash2=$(sha256sum "./second-build/${filename}" | cut -d' ' -f1)
+
+            if [ "${hash1}" = "${hash2}" ]; then
+              echo "PASS: ${filename} - ${hash1}"
+              echo "| ${filename} | PASS |" >> $GITHUB_STEP_SUMMARY
+            else
+              echo "FAIL: ${filename}"
+              echo "  First build:  ${hash1}"
+              echo "  Second build: ${hash2}"
+              echo "| ${filename} | FAIL (hash mismatch) |" >> $GITHUB_STEP_SUMMARY
+              FAILED=1
+            fi
+          done
+
+          if [ "${FAILED}" -eq 1 ]; then
+            echo ""
+            echo "Reproducibility verification FAILED!"
+            exit 1
+          else
+            echo ""
+            echo "Reproducibility verification PASSED!"
+          fi
