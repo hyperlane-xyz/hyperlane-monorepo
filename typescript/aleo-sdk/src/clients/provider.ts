@@ -147,7 +147,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return 0n;
     }
 
-    return result['max_supply'];
+    return result['supply'];
   }
 
   async estimateTransactionFee(
@@ -483,7 +483,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.tokenAddress);
 
     const metadata = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );
@@ -818,6 +818,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       privateFee: false,
       inputs: [address, `${localDomain}u32`],
     };
+  }
+
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
   }
 
   // ### GET WARP TXS ###

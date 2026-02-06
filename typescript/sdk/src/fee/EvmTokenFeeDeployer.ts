@@ -1,11 +1,12 @@
 import { BaseFee, RoutingFee } from '@hyperlane-xyz/core';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
+import type { HyperlaneContracts } from '../contracts/types.js';
 import {
   DeployerOptions,
   HyperlaneDeployer,
 } from '../deploy/HyperlaneDeployer.js';
-import { HyperlaneContracts, MultiProvider } from '../index.js';
+import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
 import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';

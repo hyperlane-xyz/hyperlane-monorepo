@@ -73,7 +73,7 @@ describe('sort-yaml-arrays rule', () => {
           start: { line: 1, column: 0 },
           end: { line: lineCount, column: 0 },
         },
-      });
+      } as any);
     }
 
     return lintResult;

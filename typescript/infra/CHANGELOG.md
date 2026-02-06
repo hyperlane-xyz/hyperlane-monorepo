@@ -1,5 +1,22 @@
 # @hyperlane-xyz/infra
 
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/http-registry-server@25.0.0
+  - @hyperlane-xyz/relayer@1.0.1
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/deploy-sdk@1.3.1
+  - @hyperlane-xyz/keyfunder@0.0.3
+  - @hyperlane-xyz/metrics@0.1.3
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/rebalancer@1.0.2
+
 ## 24.0.0
 
 ### Patch Changes

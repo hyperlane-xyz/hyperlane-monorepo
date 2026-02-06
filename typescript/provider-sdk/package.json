@@ -1,53 +1,53 @@
 {
-  "name": "@hyperlane-xyz/provider-sdk",
-  "version": "1.3.0",
-  "description": "Protocol Provider SDK for the Hyperlane Protocol",
-  "license": "Apache-2.0",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "files": [
-    "dist"
-  ],
-  "type": "module",
-  "exports": {
-    ".": "./dist/index.js",
-    "./altvm": "./dist/altvm.js",
-    "./module": "./dist/module.js",
-    "./protocol": "./dist/protocol.js",
-    "./chain": "./dist/chain.js",
-    "./hook": "./dist/hook.js",
-    "./ism": "./dist/ism.js",
-    "./core": "./dist/core.js",
-    "./warp": "./dist/warp.js",
-    "./factory": "./dist/factory.js",
-    "./submitter": "./dist/submitter.js",
-    "./registry": "./dist/registry.js",
-    "./artifact": "./dist/artifact.js"
-  },
-  "scripts": {
-    "build": "tsc",
-    "check": "tsc --noEmit",
-    "dev": "tsc --watch",
-    "lint": "eslint",
-    "clean": "rm -rf ./dist",
-    "format": "oxfmt --write .",
-    "test": "mocha --config .mocharc.json",
-    "test:ci": "mocha --config .mocharc.json"
-  },
-  "dependencies": {
-    "@hyperlane-xyz/utils": "workspace:*",
-    "pino": "catalog:",
-    "zod": "catalog:"
-  },
-  "devDependencies": {
-    "@hyperlane-xyz/eslint-config": "workspace:^",
-    "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/chai": "catalog:",
-    "@types/mocha": "catalog:",
-    "@types/node": "catalog:",
-    "chai": "catalog:",
-    "eslint": "catalog:",
-    "mocha": "catalog:",
-    "tsx": "catalog:",
-    "typescript": "catalog:"
-  }
+    "name": "@hyperlane-xyz/provider-sdk",
+    "version": "1.3.1",
+    "description": "Protocol Provider SDK for the Hyperlane Protocol",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+    "files": [
+        "dist"
+    ],
+    "type": "module",
+    "exports": {
+        ".": "./dist/index.js",
+        "./altvm": "./dist/altvm.js",
+        "./module": "./dist/module.js",
+        "./protocol": "./dist/protocol.js",
+        "./chain": "./dist/chain.js",
+        "./hook": "./dist/hook.js",
+        "./ism": "./dist/ism.js",
+        "./core": "./dist/core.js",
+        "./warp": "./dist/warp.js",
+        "./factory": "./dist/factory.js",
+        "./submitter": "./dist/submitter.js",
+        "./registry": "./dist/registry.js",
+        "./artifact": "./dist/artifact.js"
+    },
+    "scripts": {
+        "build": "tsc",
+        "check": "tsc --noEmit",
+        "dev": "tsc --watch",
+        "lint": "eslint",
+        "clean": "rm -rf ./dist",
+        "format": "oxfmt --write .",
+        "test": "mocha --config .mocharc.json",
+        "test:ci": "mocha --config .mocharc.json"
+    },
+    "dependencies": {
+        "@hyperlane-xyz/utils": "workspace:*",
+        "pino": "catalog:",
+        "zod": "catalog:"
+    },
+    "devDependencies": {
+        "@hyperlane-xyz/eslint-config": "workspace:^",
+        "@hyperlane-xyz/tsconfig": "workspace:^",
+        "@types/chai": "catalog:",
+        "@types/mocha": "catalog:",
+        "@types/node": "catalog:",
+        "chai": "catalog:",
+        "eslint": "catalog:",
+        "mocha": "catalog:",
+        "tsx": "catalog:",
+        "typescript": "catalog:"
+    }
 }

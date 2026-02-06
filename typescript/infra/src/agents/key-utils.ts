@@ -16,8 +16,11 @@ import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import localRelayerAddresses from '../../config/relayer.json' with { type: 'json' };
 import { getAWValidatorsPath } from '../../scripts/agent-utils.js';
-import { AgentContextConfig, RootAgentConfig } from '../config/agent/agent.js';
-import { DeployEnvironment } from '../config/environment.js';
+import type {
+  AgentContextConfig,
+  RootAgentConfig,
+} from '../config/agent/agent.js';
+import type { DeployEnvironment } from '../config/environment.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
 import {
@@ -471,7 +474,7 @@ async function persistAddressesInGcp(
       );
       return;
     }
-  } catch (e) {
+  } catch {
     // If the secret doesn't exist, we'll create it below.
     logger.debug(
       `No existing secret found for ${context} context in ${environment} environment`,

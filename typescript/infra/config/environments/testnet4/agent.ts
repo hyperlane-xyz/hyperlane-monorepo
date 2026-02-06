@@ -17,7 +17,6 @@ import {
 import {
   BaseRelayerConfig,
   MetricAppContext,
-  routerMatchingList,
 } from '../../../src/config/agent/relayer.js';
 import { ALL_KEY_ROLES, Role } from '../../../src/roles.js';
 import { Contexts } from '../../contexts.js';
@@ -53,6 +52,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: true,
     incentivtestnet: false,
     kyvetestnet: false,
+    modetestnet: true,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
@@ -76,6 +76,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: true,
     incentivtestnet: false,
     kyvetestnet: false,
+    modetestnet: true,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,
@@ -99,6 +100,7 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     hyperliquidevmtestnet: true,
     incentivtestnet: false,
     kyvetestnet: false,
+    modetestnet: true,
     optimismsepolia: true,
     paradexsepolia: true,
     polygonamoy: true,

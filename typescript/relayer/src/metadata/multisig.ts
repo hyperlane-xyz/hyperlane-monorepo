@@ -8,8 +8,8 @@ import {
   MerkleTreeHookConfig,
   MultisigIsmConfig,
   S3Validator,
+  defaultMultisigConfigs,
 } from '@hyperlane-xyz/sdk';
-import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import {
   Address,
   Checkpoint,

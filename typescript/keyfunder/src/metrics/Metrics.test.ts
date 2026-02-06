@@ -96,6 +96,7 @@ describe('KeyFunderMetrics', () => {
   });
 
   describe('push', () => {
+    // eslint-disable-next-line jest/expect-expect -- testing no-throw behavior
     it('should not throw when no push gateway configured', async () => {
       const metrics = new KeyFunderMetrics(undefined);
       await metrics.push();

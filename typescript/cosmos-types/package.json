@@ -1,49 +1,49 @@
 {
-  "name": "@hyperlane-xyz/cosmos-types",
-  "version": "24.0.0",
-  "description": "Hyperlane TypeScript SDK types for the Cosmos Hyperlane SDK module",
-  "keywords": [
-    "blockchain",
-    "cosmos",
-    "hyperlane",
-    "sdk",
-    "types"
-  ],
-  "homepage": "https://www.hyperlane.xyz",
-  "license": "Apache-2.0",
-  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-  "files": [
-    "/dist"
-  ],
-  "type": "module",
-  "types": "dist/index.d.ts",
-  "exports": {
-    ".": "./dist/index.js"
-  },
-  "scripts": {
-    "build": "rm -rf ./dist && tsc",
-    "format": "oxfmt --write ./src",
-    "lint": "eslint -c ./eslint.config.mjs",
-    "clean": "rm -rf ./dist ./cache",
-    "test": "echo \"no tests in cosmos-types\"",
-    "test:ci": "echo \"no tests in cosmos-types\""
-  },
-  "dependencies": {
-    "long": "^5.2.4",
-    "protobufjs": "^7.4.0"
-  },
-  "devDependencies": {
-    "@eslint/js": "catalog:",
-    "@hyperlane-xyz/tsconfig": "workspace:^",
-    "@types/node": "catalog:",
-    "@typescript-eslint/eslint-plugin": "catalog:",
-    "@typescript-eslint/parser": "catalog:",
-    "eslint": "catalog:",
-    "eslint-config-prettier": "catalog:",
-    "eslint-import-resolver-typescript": "catalog:",
-    "eslint-plugin-import": "catalog:",
-    "oxfmt": "catalog:",
-    "typescript": "catalog:",
-    "typescript-eslint": "catalog:"
-  }
+    "name": "@hyperlane-xyz/cosmos-types",
+    "version": "25.0.0",
+    "description": "Hyperlane TypeScript SDK types for the Cosmos Hyperlane SDK module",
+    "keywords": [
+        "blockchain",
+        "cosmos",
+        "hyperlane",
+        "sdk",
+        "types"
+    ],
+    "homepage": "https://www.hyperlane.xyz",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+    "files": [
+        "/dist"
+    ],
+    "type": "module",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": "./dist/index.js"
+    },
+    "scripts": {
+        "build": "rm -rf ./dist && tsc",
+        "format": "oxfmt --write ./src",
+        "lint": "eslint -c ./eslint.config.mjs",
+        "clean": "rm -rf ./dist ./cache",
+        "test": "echo \"no tests in cosmos-types\"",
+        "test:ci": "echo \"no tests in cosmos-types\""
+    },
+    "dependencies": {
+        "long": "^5.2.4",
+        "protobufjs": "^7.4.0"
+    },
+    "devDependencies": {
+        "@eslint/js": "catalog:",
+        "@hyperlane-xyz/tsconfig": "workspace:^",
+        "@types/node": "catalog:",
+        "@typescript-eslint/eslint-plugin": "catalog:",
+        "@typescript-eslint/parser": "catalog:",
+        "eslint": "catalog:",
+        "eslint-config-prettier": "catalog:",
+        "eslint-import-resolver-typescript": "catalog:",
+        "eslint-plugin-import": "catalog:",
+        "oxfmt": "catalog:",
+        "typescript": "catalog:",
+        "typescript-eslint": "catalog:"
+    }
 }

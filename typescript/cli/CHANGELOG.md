@@ -1,5 +1,11 @@
 # @hyperlane-xyz/cli
 
+## 25.0.0
+
+### Patch Changes
+
+- 04b877e: Fixed submit command failing with "warp id not provided" error by creating dedicated chain resolver that reads transaction file to determine required chains.
+
 ## 24.0.0
 
 ### Minor Changes

@@ -11,7 +11,7 @@ import {
   ProxyAdmin__factory,
   TokenRouter,
 } from '@hyperlane-xyz/core';
-import { eqAddress, objMap } from '@hyperlane-xyz/utils';
+import { LazyAsync, eqAddress, objMap } from '@hyperlane-xyz/utils';
 
 import { filterOwnableContracts } from '../contracts/contracts.js';
 import { isProxy, proxyAdmin } from '../deploy/proxy.js';
@@ -39,6 +39,10 @@ export class HypERC20Checker extends ProxiedRouterChecker<
   HypERC20App,
   HypTokenRouterConfig
 > {
+  private readonly allActualDecimals = new LazyAsync(() =>
+    this.loadAllActualDecimals(),
+  );
+
   async checkChain(chain: ChainName): Promise<void> {
     let expectedChains: string[];
     expectedChains = Object.keys(this.configMap);
@@ -210,23 +214,18 @@ export class HypERC20Checker extends ProxiedRouterChecker<
     );
   }
 
-  private cachedAllActualDecimals: Record<ChainName, number> | undefined =
-    undefined;
-
   async getEvmActualDecimals(): Promise<Record<ChainName, number>> {
-    if (this.cachedAllActualDecimals) {
-      return this.cachedAllActualDecimals;
-    }
+    return this.allActualDecimals.get();
+  }
+
+  private async loadAllActualDecimals(): Promise<Record<ChainName, number>> {
     const entries = await Promise.all(
       this.getEvmChains().map(async (chain) => {
         const token = this.app.router(this.app.getContracts(chain));
         return [chain, await this.getActualDecimals(chain, token)];
       }),
     );
-
-    this.cachedAllActualDecimals = Object.fromEntries(entries);
-
-    return this.cachedAllActualDecimals!;
+    return Object.fromEntries(entries);
   }
 
   async getActualDecimals(

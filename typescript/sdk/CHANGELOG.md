@@ -1,5 +1,26 @@
 # @hyperlane-xyz/sdk
 
+## 25.0.0
+
+### Major Changes
+
+- aaabbad: Added EvmXERC20Reader and EvmXERC20Module for XERC20 limit and bridge management following HyperlaneModule pattern. Supported both Standard and Velodrome XERC20 types with on-chain bridge enumeration and drift detection.
+
+  BREAKING CHANGE: `deriveXERC20TokenType` signature changed from `(provider, address)` to `(multiProvider, chain, address)` to use SDK's `isContractAddress` utility.
+
+### Patch Changes
+
+- 52ce778: A `LazyAsync` helper was added to `@hyperlane-xyz/utils` for safe, deduplicated async initialization. It replaces the scattered pattern of `if (!cached) { cached = await init(); } return cached` with an approach that deduplicates concurrent callers, clears state on errors to allow retries, and supports reset capability. Consumer packages were migrated to use this utility.
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/cosmos-sdk@25.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/aleo-sdk@25.0.0
+  - @hyperlane-xyz/deploy-sdk@1.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/radix-sdk@25.0.0
+  - @hyperlane-xyz/starknet-core@25.0.0
+
 ## 24.0.0
 
 ### Major Changes

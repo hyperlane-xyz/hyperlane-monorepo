@@ -1,7 +1,7 @@
 import { assert } from '@hyperlane-xyz/utils';
 
 import { IProvider, ISigner } from './altvm.js';
-import { ChainMetadataForAltVM } from './chain.js';
+import type { ChainMetadataForAltVM } from './chain.js';
 import { IRawHookArtifactManager } from './hook.js';
 import { IRawIsmArtifactManager } from './ism.js';
 import { MinimumRequiredGasByAction } from './mingas.js';
