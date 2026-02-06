@@ -22,7 +22,7 @@ use crate::{
     program::Program,
     sealevel::{sealevel_termination_invariants::*, solana::*},
     utils::{
-        concat_path, find_free_port, get_sealevel_path, get_ts_infra_path, get_workspace_path,
+        concat_path, find_free_ports, get_sealevel_path, get_ts_infra_path, get_workspace_path,
         make_static, TaskHandle,
     },
     wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
@@ -74,10 +74,14 @@ fn run_locally() {
         ts_infra_path
     );
 
-    // Allocate a free port for the Solana RPC to allow parallel test runs
-    let rpc_port = find_free_port();
+    // Allocate free ports for the Solana RPC and faucet to allow parallel test runs
+    let [rpc_port, faucet_port] = find_free_ports::<2>();
     let rpc_url = format!("http://127.0.0.1:{}", rpc_port);
-    log!("Using Solana RPC port: {}", rpc_port);
+    log!(
+        "Using Solana RPC port: {}, faucet port: {}",
+        rpc_port,
+        faucet_port
+    );
 
     // Single validator on sealeveltest1 only
     let validator_origin_chains = ["sealeveltest1"].to_vec();
@@ -263,6 +267,7 @@ fn run_locally() {
             hyperlane_solana_programs_path.clone(),
             solana_ledger_dir.as_ref().to_path_buf(),
             rpc_port,
+            faucet_port,
         );
 
         let result = start_solana_validator.join();

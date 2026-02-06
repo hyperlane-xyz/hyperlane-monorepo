@@ -252,6 +252,7 @@ pub fn start_solana_test_validator(
     solana_programs_path: PathBuf,
     ledger_dir: PathBuf,
     rpc_port: u16,
+    faucet_port: u16,
 ) -> SolanaTestValidatorResult {
     let workspace_path = get_workspace_path();
     let sealevel_path = get_sealevel_path(&workspace_path);
@@ -296,7 +297,7 @@ pub fn start_solana_test_validator(
         .arg("ledger", ledger_dir.to_str().unwrap())
         .arg("rpc-port", rpc_port.to_string())
         .arg("bind-address", "127.0.0.1")
-        .arg("faucet-port", (rpc_port + 1).to_string())
+        .arg("faucet-port", faucet_port.to_string())
         .arg3(
             "account",
             "E9VrvAdGRvCguN2XgXsgu9PNmMM3vZsU8LSUrM68j8ty",
