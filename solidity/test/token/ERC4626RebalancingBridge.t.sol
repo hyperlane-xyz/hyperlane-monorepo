@@ -98,6 +98,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         HypERC20Collateral implementation = new HypERC20Collateral(
             address(token),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy proxy = new TransparentUpgradeableProxy(
@@ -115,6 +116,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         // Deploy remote token for warp route completeness
         HypERC20 remoteImplementation = new HypERC20(
             DECIMALS,
+            SCALE,
             SCALE,
             address(remoteMailbox)
         );
@@ -695,6 +697,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         HypERC20Collateral newImplementation = new HypERC20Collateral(
             address(token),
             SCALE,
+            SCALE,
             address(localMailbox)
         );
         TransparentUpgradeableProxy newProxy = new TransparentUpgradeableProxy(
@@ -730,6 +733,7 @@ contract ERC4626RebalancingBridgeTest is Test {
         // Deploy a new warp route WITH self-enrollment
         HypERC20Collateral newImplementation = new HypERC20Collateral(
             address(token),
+            SCALE,
             SCALE,
             address(localMailbox)
         );
