@@ -156,7 +156,7 @@ function parseRpcOverrides(): Record<string, string> {
  */
 const DEFAULT_START_BLOCKS: Record<string, number> = {
   // Testnets - use recent blocks for faster initial sync
-  sepolia: 7000000, // More recent block
+  sepolia: 10203013, // More recent block
   arbitrumsepolia: 1000000,
   basesepolia: 1000000,
   optimismsepolia: 1000000,
