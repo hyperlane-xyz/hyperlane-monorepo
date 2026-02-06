@@ -14,6 +14,11 @@ import { DEFAULT_BRIDGE_ROUTE_CONFIG } from './types.js';
 
 const logger = rootLogger.child({ module: 'MockInfrastructureController' });
 
+/** Hyperlane message body starts at byte offset 77 (version:1 + nonce:4 + origin:4 + sender:32 + dest:4 + recipient:32) */
+const MESSAGE_BODY_OFFSET = 77;
+/** Warp tokens scale amounts by 10^decimals; simulation uses 18 decimals */
+const WARP_TOKEN_SCALE = BigInt(1e18);
+
 /** Pending message awaiting delayed delivery */
 interface PendingMessage {
   /** keccak256(message) — real Hyperlane messageId */
@@ -145,12 +150,7 @@ export class MockInfrastructureController {
     // Compute real messageId
     const messageId = ethers.utils.keccak256(message);
 
-    // Decode amount from body (offset 77 bytes into message)
-    // TokenRouter encodes: TokenMessage.format(recipient, _outboundAmount(amount))
-    // where _outboundAmount = amount * scale. Scale = 10^decimals for warp tokens.
-    // We divide by scale to recover the original wei amount.
-    const bodyOffset = 77;
-    const body = '0x' + message.slice(2 + bodyOffset * 2);
+    const body = '0x' + message.slice(2 + MESSAGE_BODY_OFFSET * 2);
     let amount = 0n;
     try {
       const decoded = ethers.utils.defaultAbiCoder.decode(
@@ -158,9 +158,11 @@ export class MockInfrastructureController {
         body,
       );
       const scaledAmount = decoded[1].toBigInt();
-      // Warp tokens use scale = 10^18, bridge Router uses scale = 1 (no scaling)
+      // Warp tokens use scale = 10^decimals, bridge Router uses scale = 1 (no scaling)
       amount =
-        type === 'user-transfer' ? scaledAmount / BigInt(1e18) : scaledAmount;
+        type === 'user-transfer'
+          ? scaledAmount / WARP_TOKEN_SCALE
+          : scaledAmount;
     } catch (error) {
       logger.warn(
         { messageId, origin: originChain, dest: destChain, error },

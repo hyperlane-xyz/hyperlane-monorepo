@@ -9,7 +9,7 @@ import {ERC20Test} from "../test/ERC20Test.sol";
 
 contract MockValueTransferBridge is Router, ITokenBridge {
     using SafeERC20 for IERC20;
-    address public collateral;
+    address public immutable collateral;
 
     event SentTransferRemote(
         uint32 indexed origin,

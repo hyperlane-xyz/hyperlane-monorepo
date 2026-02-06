@@ -5,6 +5,7 @@ import {
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
 import {
+  type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
   TokenStandard,
@@ -136,15 +137,15 @@ export class SimulationEngine {
 
       try {
         await rebalancer.stop();
-      } catch {
-        // Ignore stop errors
+      } catch (error: unknown) {
+        logger.debug({ error }, 'Rebalancer stop failed during cleanup');
       }
 
       if (controller) {
         try {
           await controller.stop();
-        } catch {
-          // Ignore stop errors
+        } catch (error: unknown) {
+          logger.debug({ error }, 'Controller stop failed during cleanup');
         }
       }
 
@@ -276,7 +277,7 @@ export class SimulationEngine {
    * mailbox processor signer set on all chains.
    */
   private buildHyperlaneCore(): HyperlaneCore {
-    const chainMetadata: Record<string, any> = {};
+    const chainMetadata: Record<string, ChainMetadata> = {};
     const addressesMap: Record<string, { mailbox: string }> = {};
     for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
       chainMetadata[chainName] = {
