@@ -19,7 +19,12 @@ import {
   PROTOCOL_TO_DEFAULT_PROVIDER_TYPE,
   type TypedProvider,
 } from '@hyperlane-xyz/sdk';
-import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  type Address,
+  type KnownProtocolType,
+  ProtocolType,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
@@ -102,7 +107,7 @@ export async function signerMiddleware(argv: Record<string, any>) {
 
         // Also set on multiProtocolProvider so SDK validation can use it
         const providerType =
-          PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol as ProtocolType];
+          PROTOCOL_TO_DEFAULT_PROVIDER_TYPE[protocol as KnownProtocolType];
         if (providerType) {
           multiProtocolProvider.setProvider(chain, {
             type: providerType,
