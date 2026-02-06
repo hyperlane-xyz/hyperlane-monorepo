@@ -24,6 +24,19 @@ import { getEnvironmentConfig } from '../core-utils.js';
 // Designed to work with Standard variant of xERC20: https://github.com/hyperlane-xyz/xERC20
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
+  rootLogger.warn(
+    chalk.yellow(
+      '\n' +
+        '='.repeat(80) +
+        '\n' +
+        'DEPRECATED: Use `hyperlane warp xerc20` commands instead. ' +
+        'This script will be removed in a future release.\n' +
+        '='.repeat(80) +
+        '\n',
+    ),
+  );
+
   const { environment, warpRouteId, chains, dryRun } = await withChains(
     withWarpRouteIdRequired(withDryRun(getArgs())),
   ).argv;
