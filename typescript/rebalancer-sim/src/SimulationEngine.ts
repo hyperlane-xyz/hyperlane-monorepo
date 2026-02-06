@@ -3,9 +3,9 @@ import { ethers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
-  Mailbox__factory,
 } from '@hyperlane-xyz/core';
 import {
+  HyperlaneCore,
   MultiProvider,
   TokenStandard,
   type WarpCoreConfig,
@@ -77,27 +77,12 @@ export class SimulationEngine {
       // Get action tracker from rebalancer if supported
       const actionTracker = rebalancer.getActionTracker?.();
 
-      // Build MultiProvider for the controller
-      const controllerMultiProvider = this.buildControllerMultiProvider();
-
-      // Create typed mailbox instances
-      const mailboxes: Record<
-        string,
-        ReturnType<typeof Mailbox__factory.connect>
-      > = {};
-      for (const [chainName, domain] of Object.entries(
-        this.deployment.domains,
-      )) {
-        mailboxes[chainName] = Mailbox__factory.connect(
-          domain.mailbox,
-          controllerMultiProvider.getSigner(chainName),
-        );
-      }
+      // Build HyperlaneCore for the controller (manages MultiProvider + Mailboxes)
+      const core = this.buildHyperlaneCore();
 
       // Create unified controller
       controller = new MockInfrastructureController(
-        controllerMultiProvider,
-        mailboxes,
+        core,
         this.deployment.domains,
         bridgeConfig,
         timing.userTransferDeliveryDelay,
@@ -287,11 +272,12 @@ export class SimulationEngine {
   }
 
   /**
-   * Build a MultiProvider for the infrastructure controller with the
+   * Build a HyperlaneCore for the infrastructure controller with the
    * mailbox processor signer set on all chains.
    */
-  private buildControllerMultiProvider(): MultiProvider {
+  private buildHyperlaneCore(): HyperlaneCore {
     const chainMetadata: Record<string, any> = {};
+    const addressesMap: Record<string, { mailbox: string }> = {};
     for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
       chainMetadata[chainName] = {
         name: chainName,
@@ -301,6 +287,7 @@ export class SimulationEngine {
         rpcUrls: [{ http: this.deployment.anvilRpc }],
         nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
       };
+      addressesMap[chainName] = { mailbox: domain.mailbox };
     }
 
     const multiProvider = new MultiProvider(chainMetadata);
@@ -318,7 +305,7 @@ export class SimulationEngine {
       }
     }
 
-    return multiProvider;
+    return HyperlaneCore.fromAddressesMap(addressesMap, multiProvider);
   }
 
   /**

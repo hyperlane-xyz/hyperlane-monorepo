@@ -1,7 +1,6 @@
 import { ethers } from 'ethers';
 
-import { Mailbox__factory } from '@hyperlane-xyz/core';
-import type { MultiProvider } from '@hyperlane-xyz/sdk';
+import type { HyperlaneCore } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
@@ -14,8 +13,6 @@ import type {
 import { DEFAULT_BRIDGE_ROUTE_CONFIG } from './types.js';
 
 const logger = rootLogger.child({ module: 'MockInfrastructureController' });
-
-type Mailbox = ReturnType<typeof Mailbox__factory.connect>;
 
 /** Pending message awaiting delayed delivery */
 interface PendingMessage {
@@ -52,8 +49,7 @@ export class MockInfrastructureController {
   private nonceInitialized = false;
 
   constructor(
-    private readonly multiProvider: MultiProvider,
-    private readonly mailboxes: Record<string, Mailbox>,
+    private readonly core: HyperlaneCore,
     private readonly domains: Record<string, DeployedDomain>,
     private readonly bridgeDelayConfig: BridgeMockConfig,
     private readonly userTransferDelay: number,
@@ -84,15 +80,14 @@ export class MockInfrastructureController {
     this.isRunning = true;
 
     // Get signer from MultiProvider for nonce management
-    const firstChain = Object.keys(this.mailboxes)[0];
-    this.signer = this.multiProvider.getSigner(firstChain);
+    const firstChain = this.core.multiProvider.getKnownChainNames()[0];
+    this.signer = this.core.multiProvider.getSigner(firstChain);
     this.currentNonce = await this.signer.getTransactionCount();
     this.nonceInitialized = true;
 
     // Listen for Dispatch events on all mailboxes
-    for (const [chainName, mailbox] of Object.entries(this.mailboxes)) {
-      // Dispatch(address indexed sender, uint32 indexed destination, bytes32 indexed recipient, bytes message)
-      // ethers v5 typechain: callback args are (sender, destination, recipient, message, event)
+    for (const chainName of this.core.multiProvider.getKnownChainNames()) {
+      const mailbox = this.core.getContracts(chainName).mailbox;
       mailbox.on(
         mailbox.filters.Dispatch(),
         (
@@ -121,7 +116,8 @@ export class MockInfrastructureController {
     destinationDomainId: number,
     message: string,
   ): Promise<void> {
-    const destChain = this.multiProvider.tryGetChainName(destinationDomainId);
+    const destChain =
+      this.core.multiProvider.tryGetChainName(destinationDomainId);
     if (!destChain) {
       logger.error({ destinationDomainId }, 'Unknown destination domain');
       return;
@@ -210,8 +206,8 @@ export class MockInfrastructureController {
 
       this.actionTracker?.addTransfer(
         messageId,
-        this.multiProvider.getDomainId(originChain),
-        this.multiProvider.getDomainId(destChain),
+        this.core.multiProvider.getDomainId(originChain),
+        this.core.multiProvider.getDomainId(destChain),
         amount,
       );
     }
@@ -244,7 +240,7 @@ export class MockInfrastructureController {
     }
 
     for (const msg of ready) {
-      const mailbox = this.mailboxes[msg.destination];
+      const mailbox = this.core.getContracts(msg.destination).mailbox;
 
       // Static call pre-check
       try {
@@ -273,8 +269,8 @@ export class MockInfrastructureController {
           this.kpiCollector.recordRebalanceComplete(msg.messageId);
           if (this.actionTracker && msg.amount) {
             this.actionTracker.completeRebalanceByRoute(
-              this.multiProvider.getDomainId(msg.origin),
-              this.multiProvider.getDomainId(msg.destination),
+              this.core.multiProvider.getDomainId(msg.origin),
+              this.core.multiProvider.getDomainId(msg.destination),
               msg.amount,
             );
           }
@@ -303,8 +299,8 @@ export class MockInfrastructureController {
       this.processLoopTimer = undefined;
     }
 
-    for (const mailbox of Object.values(this.mailboxes)) {
-      mailbox.removeAllListeners();
+    for (const chainName of this.core.multiProvider.getKnownChainNames()) {
+      this.core.getContracts(chainName).mailbox.removeAllListeners();
     }
   }
 
@@ -334,8 +330,8 @@ export class MockInfrastructureController {
             this.kpiCollector.recordRebalanceFailed(msg.messageId);
             if (this.actionTracker && msg.amount) {
               this.actionTracker.completeRebalanceByRoute(
-                this.multiProvider.getDomainId(msg.origin),
-                this.multiProvider.getDomainId(msg.destination),
+                this.core.multiProvider.getDomainId(msg.origin),
+                this.core.multiProvider.getDomainId(msg.destination),
                 msg.amount,
               );
             }
