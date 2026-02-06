@@ -41,12 +41,8 @@ interface PendingMessage {
  */
 export class MockInfrastructureController {
   private pendingMessages: PendingMessage[] = [];
-  private signer!: ethers.Signer;
   private isRunning = false;
-  private processing = false;
-  private processLoopTimer?: NodeJS.Timeout;
-  private currentNonce: number = 0;
-  private nonceInitialized = false;
+  private processLoopPromise?: Promise<void>;
 
   constructor(
     private readonly core: HyperlaneCore,
@@ -79,12 +75,6 @@ export class MockInfrastructureController {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Get signer from MultiProvider for nonce management
-    const firstChain = this.core.multiProvider.getKnownChainNames()[0];
-    this.signer = this.core.multiProvider.getSigner(firstChain);
-    this.currentNonce = await this.signer.getTransactionCount();
-    this.nonceInitialized = true;
-
     // Listen for Dispatch events on all mailboxes
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
       const mailbox = this.core.getContracts(chainName).mailbox;
@@ -102,9 +92,7 @@ export class MockInfrastructureController {
     }
 
     // Start processing loop
-    this.processLoopTimer = setInterval(() => {
-      void this.processReadyMessages();
-    }, 50);
+    this.processLoopPromise = this.processLoop();
   }
 
   /**
@@ -216,84 +204,70 @@ export class MockInfrastructureController {
   }
 
   /**
-   * Process messages that are past their delivery time.
-   * Retries indefinitely — waitForAllDeliveries handles the timeout.
+   * Async processing loop — delivers ready messages, sleeps between iterations.
+   * Retries indefinitely; waitForAllDeliveries handles the timeout.
    */
-  private async processReadyMessages(): Promise<void> {
-    if (this.processing) return;
-    this.processing = true;
-    try {
-      await this.doProcessReadyMessages();
-    } finally {
-      this.processing = false;
-    }
-  }
+  private async processLoop(): Promise<void> {
+    while (this.isRunning) {
+      const now = Date.now();
+      const ready = this.pendingMessages.filter((m) => m.deliveryTime <= now);
 
-  private async doProcessReadyMessages(): Promise<void> {
-    const now = Date.now();
-    const ready = this.pendingMessages.filter((m) => m.deliveryTime <= now);
-    if (ready.length === 0) return;
+      for (const msg of ready) {
+        if (!this.isRunning) break;
 
-    if (!this.nonceInitialized) {
-      this.currentNonce = await this.signer.getTransactionCount();
-      this.nonceInitialized = true;
-    }
+        const mailbox = this.core.getContracts(msg.destination).mailbox;
 
-    for (const msg of ready) {
-      const mailbox = this.core.getContracts(msg.destination).mailbox;
-
-      // Static call pre-check
-      try {
-        await mailbox.callStatic.process('0x', msg.message);
-      } catch (error) {
-        logger.debug(
-          {
-            messageId: msg.messageId,
-            dest: msg.destination,
-            attempts: msg.attempts,
-            error,
-          },
-          'Static pre-check failed, will retry',
-        );
-        msg.attempts++;
-        msg.deliveryTime = now + 200;
-        continue;
-      }
-
-      try {
-        const tx = await mailbox.process('0x', msg.message, {
-          nonce: this.currentNonce++,
-        });
-        await tx.wait();
-
-        // Remove from pending
-        const idx = this.pendingMessages.indexOf(msg);
-        if (idx >= 0) this.pendingMessages.splice(idx, 1);
-
-        // Record completion
-        if (msg.type === 'user-transfer') {
-          this.kpiCollector.recordTransferComplete(msg.messageId);
-          this.actionTracker?.removeTransfer(msg.messageId);
-        } else if (msg.type === 'bridge-transfer') {
-          this.kpiCollector.recordRebalanceComplete(msg.messageId);
-          if (this.actionTracker && msg.amount > 0n) {
-            this.actionTracker.completeRebalanceByRoute(
-              this.core.multiProvider.getDomainId(msg.origin),
-              this.core.multiProvider.getDomainId(msg.destination),
-              msg.amount,
-            );
-          }
+        // Static call pre-check
+        try {
+          await mailbox.callStatic.process('0x', msg.message);
+        } catch (error) {
+          logger.debug(
+            {
+              messageId: msg.messageId,
+              dest: msg.destination,
+              attempts: msg.attempts,
+              error,
+            },
+            'Static pre-check failed, will retry',
+          );
+          msg.attempts++;
+          msg.deliveryTime = now + 200;
+          continue;
         }
-      } catch (error) {
-        msg.attempts++;
-        msg.deliveryTime = now + 200;
-        // Re-sync nonce on tx failure
-        this.currentNonce = await this.signer.getTransactionCount();
-        logger.debug(
-          { messageId: msg.messageId, dest: msg.destination, error },
-          'Delivery tx failed, will retry',
-        );
+
+        try {
+          const tx = await mailbox.process('0x', msg.message);
+          await tx.wait();
+
+          // Remove from pending
+          const idx = this.pendingMessages.indexOf(msg);
+          if (idx >= 0) this.pendingMessages.splice(idx, 1);
+
+          // Record completion
+          if (msg.type === 'user-transfer') {
+            this.kpiCollector.recordTransferComplete(msg.messageId);
+            this.actionTracker?.removeTransfer(msg.messageId);
+          } else if (msg.type === 'bridge-transfer') {
+            this.kpiCollector.recordRebalanceComplete(msg.messageId);
+            if (this.actionTracker && msg.amount > 0n) {
+              this.actionTracker.completeRebalanceByRoute(
+                this.core.multiProvider.getDomainId(msg.origin),
+                this.core.multiProvider.getDomainId(msg.destination),
+                msg.amount,
+              );
+            }
+          }
+        } catch (error) {
+          msg.attempts++;
+          msg.deliveryTime = now + 200;
+          logger.debug(
+            { messageId: msg.messageId, dest: msg.destination, error },
+            'Delivery tx failed, will retry',
+          );
+        }
       }
+
+      await new Promise((resolve) => setTimeout(resolve, 50));
     }
   }
 
@@ -303,9 +277,10 @@ export class MockInfrastructureController {
   async stop(): Promise<void> {
     this.isRunning = false;
 
-    if (this.processLoopTimer) {
-      clearInterval(this.processLoopTimer);
-      this.processLoopTimer = undefined;
+    // Wait for the processing loop to exit
+    if (this.processLoopPromise) {
+      await this.processLoopPromise;
+      this.processLoopPromise = undefined;
     }
 
     for (const chainName of this.core.multiProvider.getKnownChainNames()) {
