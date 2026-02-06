@@ -5,7 +5,7 @@ hyperlane:
   # Environment: testnet4 or mainnet3
   runEnv: testnet4
   # Chains to index (comma-separated). If empty, indexes all EVM chains in environment.
-  chains: 'sepolia'
+  chains: 'basesepolia'
 
 # External secrets - testnet4 specific
 externalSecrets:
