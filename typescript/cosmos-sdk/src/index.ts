@@ -4,6 +4,18 @@ export * from './clients/signer.js';
 
 export * from './registry.js';
 
+export * from './hyperlane/core/messages.js';
+export * from './hyperlane/core/query.js';
+
+export * from './hyperlane/interchain_security/messages.js';
+export * from './hyperlane/interchain_security/query.js';
+
+export * from './hyperlane/post_dispatch/messages.js';
+export * from './hyperlane/post_dispatch/query.js';
+
+export * from './hyperlane/warp/messages.js';
+export * from './hyperlane/warp/query.js';
+
 // ISM Artifact Management
 export { CosmosIsmArtifactManager } from './ism/ism-artifact-manager.js';
 export {
@@ -55,14 +67,6 @@ export {
   CosmosSyntheticTokenWriter,
 } from './warp/synthetic-token.js';
 
-export * from './hyperlane/core/messages.js';
-export * from './hyperlane/core/query.js';
-
-export * from './hyperlane/interchain_security/messages.js';
-export * from './hyperlane/interchain_security/query.js';
-
-export * from './hyperlane/post_dispatch/messages.js';
-export * from './hyperlane/post_dispatch/query.js';
-
-export * from './hyperlane/warp/messages.js';
-export * from './hyperlane/warp/query.js';
+// Mailbox Artifact Management
+export { CosmosMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
+export { CosmosMailboxReader, CosmosMailboxWriter } from './mailbox/mailbox.js';
