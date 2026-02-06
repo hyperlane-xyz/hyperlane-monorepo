@@ -520,9 +520,6 @@ importers:
       globby:
         specifier: ^14.1.0
         version: 14.1.0
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
@@ -729,9 +726,6 @@ importers:
       pino-pretty:
         specifier: 'catalog:'
         version: 13.1.2
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       ts-jest:
         specifier: ^29.1.2
         version: 29.4.5(@babel/core@7.28.5)(@jest/transform@29.7.0)(@jest/types@29.6.3)(babel-jest@29.7.0(@babel/core@7.28.5))(jest-util@29.7.0)(jest@29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3)))(typescript@5.8.3)
@@ -1188,9 +1182,6 @@ importers:
       chai:
         specifier: 'catalog:'
         version: 4.5.0
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       typescript:
         specifier: 'catalog:'
         version: 5.8.3
@@ -1653,9 +1644,6 @@ importers:
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
@@ -2124,9 +2112,6 @@ importers:
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       testcontainers:
         specifier: 'catalog:'
         version: 11.7.0
@@ -2429,9 +2414,6 @@ importers:
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
@@ -2523,9 +2505,6 @@ importers:
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2(patch_hash=9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9)
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       ts-node:
         specifier: 'catalog:'
         version: 10.9.2(@types/node@24.10.9)(typescript@5.8.3)
@@ -2625,9 +2604,6 @@ importers:
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
@@ -2909,9 +2885,6 @@ importers:
       postcss:
         specifier: ^8.4.21
         version: 8.5.6
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       react:
         specifier: ^18.2.0
         version: 18.3.1

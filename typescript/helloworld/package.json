@@ -26,7 +26,7 @@
     "lint:sol": "solhint contracts/**/*.sol",
     "lint:ts": "eslint -c ./eslint.config.mjs",
     "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
-    "prettier": "prettier --write ./contracts ./src",
+    "format": "oxfmt --write ./src && prettier --write ./contracts",
     "test": "pnpm hardhat-esm test $(find ./src/test -name '*.test.ts')",
     "test:ci": "pnpm test"
   },

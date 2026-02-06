@@ -20,7 +20,7 @@
     "dev": "wrangler dev",
     "start": "wrangler dev",
     "test": "vitest",
-    "prettier": "prettier --write ./src ./test",
+    "format": "oxfmt --write ./src ./test",
     "cf-typegen": "wrangler types"
   },
   "devDependencies": {
@@ -29,7 +29,6 @@
     "@faker-js/faker": "^8.4.1",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "chai": "catalog:",
-    "prettier": "catalog:",
     "typescript": "catalog:",
     "vitest": "1.4.0",
     "wrangler": "^3.74.0"

@@ -27,7 +27,7 @@
     "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
     "clean": "rm -rf ./dist ./release",
     "lint": "eslint -c ./eslint.config.mjs .",
-    "prettier": "prettier --write ./src ./package.json"
+    "format": "oxfmt --write ./src"
   },
   "dependencies": {
     "starknet": "catalog:"
@@ -42,7 +42,6 @@
     "eslint-import-resolver-typescript": "catalog:",
     "eslint-plugin-import": "catalog:",
     "globby": "^14.1.0",
-    "prettier": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   }

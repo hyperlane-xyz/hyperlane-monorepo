@@ -21,9 +21,8 @@
   },
   "scripts": {
     "build": "rm -rf ./dist && tsc",
-    "format": "prettier --write .",
+    "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
-    "prettier": "prettier --write ./src",
     "clean": "rm -rf ./dist ./cache",
     "test": "echo \"no tests in tron-sdk\"",
     "test:ci": "echo \"no tests in tron-sdk\"",
@@ -55,7 +54,6 @@
     "mocha": "catalog:",
     "mocha-steps": "catalog:",
     "node-fetch": "^3.3.2",
-    "prettier": "catalog:",
     "ts-node": "catalog:",
     "typescript": "catalog:",
     "typescript-eslint": "catalog:"
