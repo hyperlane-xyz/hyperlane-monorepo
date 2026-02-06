@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 import { BigNumber, ethers, providers } from 'ethers';
 
-import { GithubRegistry } from '@hyperlane-xyz/registry';
+import { ERC20__factory } from '@hyperlane-xyz/core';
 import {
-  type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
   revertToSnapshot,
@@ -17,18 +16,16 @@ import {
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
+  ANVIL_USER_PRIVATE_KEY,
   DOMAIN_IDS,
-  FORK_BLOCK_NUMBERS,
+  type DeployedAddresses,
   TEST_CHAINS,
   type TestChain,
-  USDC_ADDRESSES,
-  USDC_INCENTIV_WARP_ROUTE,
-  USDC_SUBTENSOR_WARP_ROUTE,
-  USDC_SUPERSEED_WARP_ROUTE,
 } from './fixtures/routes.js';
-import { setTokenBalanceViaStorage } from './harness/BridgeSetup.js';
-import { ForkManager } from './harness/ForkManager.js';
-import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
+import {
+  type LocalDeploymentContext,
+  LocalDeploymentManager,
+} from './harness/LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
@@ -39,144 +36,95 @@ import {
 describe('CompositeStrategy E2E', function () {
   this.timeout(300_000);
 
-  let forkManager: ForkManager;
+  let deploymentManager: LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let forkedProviders: Map<string, providers.JsonRpcProvider>;
-  let registry: GithubRegistry;
+  let localProviders: Map<string, providers.JsonRpcProvider>;
   let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
+  let deployedAddresses: DeployedAddresses;
 
   before(async function () {
-    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
-    registry = new GithubRegistry();
-    const chainMetadata = await registry.getMetadata();
-    const testChainMetadata: Record<string, ChainMetadata> = {};
+    deploymentManager = new LocalDeploymentManager();
+    const ctx: LocalDeploymentContext = await deploymentManager.start();
+    multiProvider = ctx.multiProvider;
+    localProviders = ctx.providers;
+    deployedAddresses = ctx.deployedAddresses;
 
+    const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
-      if (chainMetadata[chain]) {
-        testChainMetadata[chain] = chainMetadata[chain];
-      }
+      coreAddresses[chain] = {
+        mailbox: deployedAddresses.chains[chain].mailbox,
+        interchainSecurityModule: deployedAddresses.chains[chain].ism,
+      };
     }
-
-    const baseMultiProvider = new MultiProvider(testChainMetadata);
-    for (const chain of TEST_CHAINS) {
-      baseMultiProvider.setSigner(chain, wallet);
-    }
-
-    forkManager = new ForkManager({
-      chains: TEST_CHAINS,
-      registry,
-      multiProvider: baseMultiProvider,
-      blockNumbers: FORK_BLOCK_NUMBERS,
-    });
-
-    const forkContext = await forkManager.start();
-    multiProvider = forkContext.multiProvider;
-    forkedProviders = forkContext.providers;
-
-    const allCoreAddresses = await registry.getAddresses();
-    const knownChains = new Set(multiProvider.getKnownChainNames());
-    const coreAddresses = Object.fromEntries(
-      Object.entries(allCoreAddresses).filter(([chain]) =>
-        knownChains.has(chain),
-      ),
-    );
     hyperlaneCore = HyperlaneCore.fromAddressesMap(
       coreAddresses,
       multiProvider,
     );
 
-    // Set up TrustedRelayerIsm on routers so we can relay without validator signatures
-    const mailboxesByChain: Record<string, string> = {};
-    for (const chain of TEST_CHAINS) {
-      const addr = allCoreAddresses[chain]?.mailbox;
-      if (addr) mailboxesByChain[chain] = addr;
-    }
-    // Set up ISM on monitored route (for user transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
-    // Set up ISM on SUPERSEED bridge route (for rebalance transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_SUPERSEED_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
-    // Set up ISM on SUBTENSOR bridge route (for rebalance transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_SUBTENSOR_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
-
     snapshotIds = new Map();
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
-      // Fresh snapshot required: Anvil invalidates the snapshot after revert
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   after(async function () {
-    if (forkManager) {
-      await forkManager.stop();
+    if (deploymentManager) {
+      await deploymentManager.stop();
     }
   });
 
   it('collateralDeficit + weighted: routes use different bridges', async function () {
     const transferAmount = BigNumber.from('600000000'); // 600 USDC
 
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            ethereum: {
+            anvil1: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute1.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute1.anvil2,
             },
-            base: {
+            anvil3: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute1.anvil3,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            ethereum: {
+            anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute2.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute2.anvil2,
             },
-            base: {
+            anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute2.anvil3,
             },
           },
         },
@@ -186,21 +134,21 @@ describe('CompositeStrategy E2E', function () {
       .build();
 
     // Fund user and execute actual warp transfer
-    const ethProvider = forkedProviders.get('ethereum')!;
-    await setTokenBalanceViaStorage(
-      ethProvider,
-      USDC_ADDRESSES.ethereum,
-      userAddress,
-      transferAmount.mul(2),
+    const ethProvider = localProviders.get('anvil1')!;
+    const deployer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const token = ERC20__factory.connect(
+      deployedAddresses.tokens.anvil1,
+      deployer,
     );
+    await token.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'ethereum',
-        destinationChain: 'arbitrum',
-        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-        tokenAddress: USDC_ADDRESSES.ethereum,
+        originChain: 'anvil1',
+        destinationChain: 'anvil2',
+        routerAddress: deployedAddresses.monitoredRoute.anvil1,
+        tokenAddress: deployedAddresses.tokens.anvil1,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -244,7 +192,7 @@ describe('CompositeStrategy E2E', function () {
         )?.[0] as TestChain | undefined;
         if (
           originChain &&
-          intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
+          intent.bridge === deployedAddresses.bridgeRoute1[originChain]
         ) {
           superseedActions.push(action);
         }
@@ -257,7 +205,7 @@ describe('CompositeStrategy E2E', function () {
 
     // Verify SUPERSEED route goes to arbitrum (has deficit from pending transfer)
     const actionToArbitrum = superseedActions.find(
-      (a) => a.destination === DOMAIN_IDS.arbitrum,
+      (a) => a.destination === DOMAIN_IDS.anvil2,
     );
     expect(actionToArbitrum, 'Should have SUPERSEED action to arbitrum').to
       .exist;
@@ -265,23 +213,28 @@ describe('CompositeStrategy E2E', function () {
     // Relay SUPERSEED actions and verify completion
     for (const action of superseedActions) {
       if (!action.txHash) continue;
-
-      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
-        action.txHash,
-      );
       const originChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.origin,
-      )?.[0];
+      )?.[0] as TestChain | undefined;
       const destChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.destination,
-      )?.[0];
+      )?.[0] as TestChain | undefined;
 
       if (originChain && destChain) {
+        const originProvider = localProviders.get(originChain);
+        expect(originProvider, `Provider should exist for ${originChain}`).to
+          .exist;
+        const rebalanceTxReceipt = await originProvider!.getTransactionReceipt(
+          action.txHash,
+        );
+        expect(rebalanceTxReceipt, `Receipt should exist for ${action.id}`).to
+          .exist;
+
         const relayResult = await tryRelayMessage(
           multiProvider,
           hyperlaneCore,
           {
-            dispatchTx: rebalanceTxReceipt,
+            dispatchTx: rebalanceTxReceipt!,
             messageId: action.messageId,
             origin: originChain,
             destination: destChain,
@@ -328,56 +281,59 @@ describe('CompositeStrategy E2E', function () {
   it('collateralDeficit + minAmount: routes use different bridges', async function () {
     const transferAmount = BigNumber.from('600000000'); // 600 USDC
     const customBalances = {
-      ethereum: BigNumber.from('8000000000'),
-      arbitrum: BigNumber.from('500000000'),
-      base: BigNumber.from('50000000'), // below minAmount threshold (100 USDC)
+      anvil1: BigNumber.from('8000000000'),
+      anvil2: BigNumber.from('500000000'),
+      anvil3: BigNumber.from('50000000'), // below minAmount threshold (100 USDC)
     };
 
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            ethereum: {
+            anvil1: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute1.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute1.anvil2,
             },
-            base: {
+            anvil3: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute1.anvil3,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.MinAmount,
           chains: {
-            ethereum: {
+            anvil1: {
               minAmount: {
                 min: '100',
                 target: '120',
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute2.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               minAmount: {
                 min: '100',
                 target: '120',
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute2.anvil2,
             },
-            base: {
+            anvil3: {
               minAmount: {
                 min: '100',
                 target: '120',
                 type: RebalancerMinAmountType.Absolute,
               },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute2.anvil3,
             },
           },
         },
@@ -386,21 +342,21 @@ describe('CompositeStrategy E2E', function () {
       .withExecutionMode('execute')
       .build();
 
-    const ethProvider = forkedProviders.get('ethereum')!;
-    await setTokenBalanceViaStorage(
-      ethProvider,
-      USDC_ADDRESSES.ethereum,
-      userAddress,
-      transferAmount.mul(2),
+    const ethProvider = localProviders.get('anvil1')!;
+    const deployer2 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const token2 = ERC20__factory.connect(
+      deployedAddresses.tokens.anvil1,
+      deployer2,
     );
+    await token2.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'ethereum',
-        destinationChain: 'arbitrum',
-        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-        tokenAddress: USDC_ADDRESSES.ethereum,
+        originChain: 'anvil1',
+        destinationChain: 'anvil2',
+        routerAddress: deployedAddresses.monitoredRoute.anvil1,
+        tokenAddress: deployedAddresses.tokens.anvil1,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -440,7 +396,7 @@ describe('CompositeStrategy E2E', function () {
         )?.[0] as TestChain | undefined;
         if (
           originChain &&
-          intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
+          intent.bridge === deployedAddresses.bridgeRoute1[originChain]
         ) {
           superseedActions.push(action);
         }
@@ -452,30 +408,35 @@ describe('CompositeStrategy E2E', function () {
     ).to.be.greaterThan(0);
 
     const actionToArbitrum = superseedActions.find(
-      (a) => a.destination === DOMAIN_IDS.arbitrum,
+      (a) => a.destination === DOMAIN_IDS.anvil2,
     );
     expect(actionToArbitrum, 'Should have SUPERSEED action to arbitrum').to
       .exist;
 
     for (const action of superseedActions) {
       if (!action.txHash) continue;
-
-      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
-        action.txHash,
-      );
       const originChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.origin,
-      )?.[0];
+      )?.[0] as TestChain | undefined;
       const destChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.destination,
-      )?.[0];
+      )?.[0] as TestChain | undefined;
 
       if (originChain && destChain) {
+        const originProvider = localProviders.get(originChain);
+        expect(originProvider, `Provider should exist for ${originChain}`).to
+          .exist;
+        const rebalanceTxReceipt = await originProvider!.getTransactionReceipt(
+          action.txHash,
+        );
+        expect(rebalanceTxReceipt, `Receipt should exist for ${action.id}`).to
+          .exist;
+
         const relayResult = await tryRelayMessage(
           multiProvider,
           hyperlaneCore,
           {
-            dispatchTx: rebalanceTxReceipt,
+            dispatchTx: rebalanceTxReceipt!,
             messageId: action.messageId,
             origin: originChain,
             destination: destChain,
@@ -518,46 +479,49 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('should propose collateralDeficit rebalance even when slow rebalance is inflight', async function () {
-    const ethProvider = forkedProviders.get('ethereum')!;
+    const ethProvider = localProviders.get('anvil1')!;
     const transferAmount = BigNumber.from('600000000');
 
     // Build context with Composite strategy from the start
     // COMPOSITE_DEFICIT_IMBALANCE: eth=8000, arb=500, base=1500
     // Weighted sees: eth surplus (target=6000), base deficit (target=2000)
     // Cycle 1: Weighted creates SUBTENSOR rebalance eth→base
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            ethereum: {
+            anvil1: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute1.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute1.anvil2,
             },
-            base: {
+            anvil3: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute1.anvil3,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            ethereum: {
+            anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute2.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute2.anvil2,
             },
-            base: {
+            anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute2.anvil3,
             },
           },
         },
@@ -592,7 +556,7 @@ describe('CompositeStrategy E2E', function () {
       )?.[0] as TestChain | undefined;
       return (
         originChain &&
-        intent.bridge === USDC_SUBTENSOR_WARP_ROUTE.routers[originChain]
+        intent.bridge === deployedAddresses.bridgeRoute2[originChain]
       );
     });
     expect(
@@ -602,20 +566,20 @@ describe('CompositeStrategy E2E', function () {
 
     // ===== CYCLE 2: Add pending transfer to create deficit, then execute =====
     // Fund user and execute a warp transfer eth→arbitrum to create deficit on arbitrum
-    await setTokenBalanceViaStorage(
-      ethProvider,
-      USDC_ADDRESSES.ethereum,
-      userAddress,
-      transferAmount.mul(2),
+    const deployer3 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const token3 = ERC20__factory.connect(
+      deployedAddresses.tokens.anvil1,
+      deployer3,
     );
+    await token3.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'ethereum',
-        destinationChain: 'arbitrum',
-        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-        tokenAddress: USDC_ADDRESSES.ethereum,
+        originChain: 'anvil1',
+        destinationChain: 'anvil2',
+        routerAddress: deployedAddresses.monitoredRoute.anvil1,
+        tokenAddress: deployedAddresses.tokens.anvil1,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -656,7 +620,7 @@ describe('CompositeStrategy E2E', function () {
       )?.[0] as TestChain | undefined;
       return (
         originChain &&
-        intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
+        intent.bridge === deployedAddresses.bridgeRoute1[originChain]
       );
     });
 
@@ -666,7 +630,7 @@ describe('CompositeStrategy E2E', function () {
     ).to.be.greaterThan(0);
 
     const superseedToArbitrum = superseedActions.find(
-      (a) => a.destination === DOMAIN_IDS.arbitrum,
+      (a) => a.destination === DOMAIN_IDS.anvil2,
     );
     expect(
       superseedToArbitrum,
@@ -676,23 +640,28 @@ describe('CompositeStrategy E2E', function () {
     // Relay SUPERSEED actions and verify completion
     for (const action of superseedActions) {
       if (!action.txHash) continue;
-
-      const rebalanceTxReceipt = await ethProvider.getTransactionReceipt(
-        action.txHash,
-      );
       const originChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.origin,
-      )?.[0];
+      )?.[0] as TestChain | undefined;
       const destChain = Object.entries(DOMAIN_IDS).find(
         ([, id]) => id === action.destination,
-      )?.[0];
+      )?.[0] as TestChain | undefined;
 
       if (originChain && destChain) {
+        const originProvider = localProviders.get(originChain);
+        expect(originProvider, `Provider should exist for ${originChain}`).to
+          .exist;
+        const rebalanceTxReceipt = await originProvider!.getTransactionReceipt(
+          action.txHash,
+        );
+        expect(rebalanceTxReceipt, `Receipt should exist for ${action.id}`).to
+          .exist;
+
         const relayResult = await tryRelayMessage(
           multiProvider,
           hyperlaneCore,
           {
-            dispatchTx: rebalanceTxReceipt,
+            dispatchTx: rebalanceTxReceipt!,
             messageId: action.messageId,
             origin: originChain,
             destination: destChain,
@@ -729,36 +698,39 @@ describe('CompositeStrategy E2E', function () {
   });
 
   it('should simulate end state accounting for inflight rebalances', async function () {
-    const ethProvider = forkedProviders.get('ethereum')!;
+    const ethProvider = localProviders.get('anvil1')!;
 
     // Build context with Weighted strategy
     // Initial: eth=7000, arb=2000, base=1000 (total=10000)
     // Target: eth=60% (6000), arb=20% (2000), base=20% (2000)
     // Cycle 1 will create inflight eth→base for ~1000 USDC
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            ethereum: {
+            anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute2.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute2.anvil2,
             },
-            base: {
+            anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute2.anvil3,
             },
           },
         },
       ])
       .withBalances({
-        ethereum: BigNumber.from('7000000000'),
-        arbitrum: BigNumber.from('2000000000'),
-        base: BigNumber.from('1000000000'),
+        anvil1: BigNumber.from('7000000000'),
+        anvil2: BigNumber.from('2000000000'),
+        anvil3: BigNumber.from('1000000000'),
       })
       .withExecutionMode('execute')
       .build();
@@ -780,7 +752,7 @@ describe('CompositeStrategy E2E', function () {
 
     const inflightToBase = inflightAfterCycle1.find(
       (a) =>
-        a.destination === DOMAIN_IDS.base && a.origin === DOMAIN_IDS.ethereum,
+        a.destination === DOMAIN_IDS.anvil3 && a.origin === DOMAIN_IDS.anvil1,
     );
     expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
 
@@ -803,7 +775,7 @@ describe('CompositeStrategy E2E', function () {
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const newActionsToBase = inProgressAfterCycle2.filter(
       (a) =>
-        a.destination === DOMAIN_IDS.base &&
+        a.destination === DOMAIN_IDS.anvil3 &&
         a.id !== inflightToBase!.id &&
         a.status === 'in_progress',
     );
@@ -837,8 +809,8 @@ describe('CompositeStrategy E2E', function () {
       const relayResult = await tryRelayMessage(multiProvider, hyperlaneCore, {
         dispatchTx: rebalanceTxReceipt,
         messageId: inflightToBase.messageId,
-        origin: 'ethereum',
-        destination: 'base',
+        origin: 'anvil1',
+        destination: 'anvil3',
       });
 
       if (relayResult.success) {
@@ -861,39 +833,42 @@ describe('CompositeStrategy E2E', function () {
     // Use balances that trigger both strategies
     // - Weighted: ethereum has too much (needs rebalance to base)
     // - CollateralDeficit: pending transfer will create deficit on arbitrum
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
       .withStrategy([
         {
           rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
           chains: {
-            ethereum: {
+            anvil1: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute1.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute1.anvil2,
             },
-            base: {
+            anvil3: {
               buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute1.anvil3,
             },
           },
         },
         {
           rebalanceStrategy: RebalancerStrategyOptions.Weighted,
           chains: {
-            ethereum: {
+            anvil1: {
               weighted: { weight: 60n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
+              bridge: deployedAddresses.bridgeRoute2.anvil1,
             },
-            arbitrum: {
+            anvil2: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.arbitrum,
+              bridge: deployedAddresses.bridgeRoute2.anvil2,
             },
-            base: {
+            anvil3: {
               weighted: { weight: 20n, tolerance: 5n },
-              bridge: USDC_SUBTENSOR_WARP_ROUTE.routers.base,
+              bridge: deployedAddresses.bridgeRoute2.anvil3,
             },
           },
         },
@@ -903,21 +878,21 @@ describe('CompositeStrategy E2E', function () {
       .build();
 
     // Fund user and execute warp transfer to create deficit
-    const ethProvider = forkedProviders.get('ethereum')!;
-    await setTokenBalanceViaStorage(
-      ethProvider,
-      USDC_ADDRESSES.ethereum,
-      userAddress,
-      transferAmount.mul(2),
+    const ethProvider = localProviders.get('anvil1')!;
+    const deployer4 = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const token4 = ERC20__factory.connect(
+      deployedAddresses.tokens.anvil1,
+      deployer4,
     );
+    await token4.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'ethereum',
-        destinationChain: 'arbitrum',
-        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-        tokenAddress: USDC_ADDRESSES.ethereum,
+        originChain: 'anvil1',
+        destinationChain: 'anvil2',
+        routerAddress: deployedAddresses.monitoredRoute.anvil1,
+        tokenAddress: deployedAddresses.tokens.anvil1,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -965,12 +940,10 @@ describe('CompositeStrategy E2E', function () {
       if (intent?.bridge) {
         const originChain = getChainFromDomain(action.origin);
         if (originChain) {
-          if (
-            intent.bridge === USDC_SUPERSEED_WARP_ROUTE.routers[originChain]
-          ) {
+          if (intent.bridge === deployedAddresses.bridgeRoute1[originChain]) {
             superseedActions.push(action);
           } else if (
-            intent.bridge === USDC_SUBTENSOR_WARP_ROUTE.routers[originChain]
+            intent.bridge === deployedAddresses.bridgeRoute2[originChain]
           ) {
             subtensorActions.push(action);
           }
@@ -995,7 +968,7 @@ describe('CompositeStrategy E2E', function () {
       const destChain = getChainFromDomain(action.destination);
       if (!originChain || !destChain) continue;
 
-      const provider = forkedProviders.get(originChain)!;
+      const provider = localProviders.get(originChain)!;
       const rebalanceTxReceipt = await provider.getTransactionReceipt(
         action.txHash,
       );

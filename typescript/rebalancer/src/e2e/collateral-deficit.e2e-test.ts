@@ -1,9 +1,7 @@
 import { expect } from 'chai';
 import { BigNumber, ethers, providers } from 'ethers';
 
-import { GithubRegistry } from '@hyperlane-xyz/registry';
 import {
-  type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
   revertToSnapshot,
@@ -11,23 +9,23 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { toWei } from '@hyperlane-xyz/utils';
 
-import { RebalancerStrategyOptions } from '../config/types.js';
+import {
+  RebalancerStrategyOptions,
+  type StrategyConfig,
+} from '../config/types.js';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
+  ANVIL_USER_PRIVATE_KEY,
   DOMAIN_IDS,
-  FORK_BLOCK_NUMBERS,
+  type DeployedAddresses,
   TEST_CHAINS,
-  USDC_ADDRESSES,
-  USDC_INCENTIV_WARP_ROUTE,
-  USDC_SUPERSEED_WARP_ROUTE,
 } from './fixtures/routes.js';
+import { getAllCollateralBalances } from './harness/BridgeSetup.js';
 import {
-  getAllCollateralBalances,
-  setTokenBalanceViaStorage,
-} from './harness/BridgeSetup.js';
-import { ForkManager } from './harness/ForkManager.js';
-import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
+  type LocalDeploymentContext,
+  LocalDeploymentManager,
+} from './harness/LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import {
@@ -40,127 +38,89 @@ const USDC_DECIMALS = 6;
 describe('Collateral Deficit E2E', function () {
   this.timeout(300_000);
 
-  let forkManager: ForkManager;
+  let deploymentManager: LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let forkedProviders: Map<string, providers.JsonRpcProvider>;
-  let registry: GithubRegistry;
+  let localProviders: Map<string, providers.JsonRpcProvider>;
   let userAddress: string;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
+  let deployedAddresses: DeployedAddresses;
+  let collateralDeficitStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const wallet = new ethers.Wallet(ANVIL_USER_PRIVATE_KEY);
     userAddress = wallet.address;
 
-    registry = new GithubRegistry();
-    const chainMetadata = await registry.getMetadata();
-    const testChainMetadata: Record<string, ChainMetadata> = {};
+    deploymentManager = new LocalDeploymentManager();
+    const ctx: LocalDeploymentContext = await deploymentManager.start();
+    multiProvider = ctx.multiProvider;
+    localProviders = ctx.providers;
+    deployedAddresses = ctx.deployedAddresses;
 
+    const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
-      if (chainMetadata[chain]) {
-        testChainMetadata[chain] = chainMetadata[chain];
-      }
+      coreAddresses[chain] = {
+        mailbox: deployedAddresses.chains[chain].mailbox,
+        interchainSecurityModule: deployedAddresses.chains[chain].ism,
+      };
     }
-
-    const baseMultiProvider = new MultiProvider(testChainMetadata);
-    for (const chain of TEST_CHAINS) {
-      baseMultiProvider.setSigner(chain, wallet);
-    }
-
-    forkManager = new ForkManager({
-      chains: TEST_CHAINS,
-      registry,
-      multiProvider: baseMultiProvider,
-      blockNumbers: FORK_BLOCK_NUMBERS,
-    });
-
-    const forkContext = await forkManager.start();
-    multiProvider = forkContext.multiProvider;
-    forkedProviders = forkContext.providers;
-
-    const allCoreAddresses = await registry.getAddresses();
-    const knownChains = new Set(multiProvider.getKnownChainNames());
-    const coreAddresses = Object.fromEntries(
-      Object.entries(allCoreAddresses).filter(([chain]) =>
-        knownChains.has(chain),
-      ),
-    );
     hyperlaneCore = HyperlaneCore.fromAddressesMap(
       coreAddresses,
       multiProvider,
     );
 
-    // Set up TrustedRelayerIsm on routers so we can relay without validator signatures
-    const mailboxesByChain: Record<string, string> = {};
-    for (const chain of TEST_CHAINS) {
-      const addr = allCoreAddresses[chain]?.mailbox;
-      if (addr) mailboxesByChain[chain] = addr;
-    }
-    // Set up ISM on monitored route (for user transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
-    // Set up ISM on bridge route (for rebalance transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_SUPERSEED_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
+    collateralDeficitStrategyConfig = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
+        chains: {
+          anvil1: {
+            buffer: '0',
+            bridge: deployedAddresses.bridgeRoute1.anvil1,
+          },
+          anvil2: {
+            buffer: '0',
+            bridge: deployedAddresses.bridgeRoute1.anvil2,
+          },
+          anvil3: {
+            buffer: '0',
+            bridge: deployedAddresses.bridgeRoute1.anvil3,
+          },
+        },
+      },
+    ];
 
     snapshotIds = new Map();
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
-      // Fresh snapshot required: Anvil invalidates the snapshot after revert
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   after(async function () {
-    if (forkManager) {
-      await forkManager.stop();
+    if (deploymentManager) {
+      await deploymentManager.stop();
     }
   });
 
   it('should propose rebalance route when pending transfer creates collateral deficit', async function () {
     const transferAmount = BigNumber.from(toWei('500', USDC_DECIMALS));
 
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
-      .withStrategy([
-        {
-          rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
-          chains: {
-            ethereum: {
-              buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-            },
-            arbitrum: {
-              buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
-            },
-            base: {
-              buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
-            },
-          },
-        },
-      ])
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(collateralDeficitStrategyConfig)
       .withBalances('DEFICIT_ARB')
       .withPendingTransfer({
-        from: 'ethereum',
-        to: 'arbitrum',
+        from: 'anvil1',
+        to: 'anvil2',
         amount: transferAmount,
         warpRecipient: userAddress,
       })
@@ -177,63 +137,48 @@ describe('Collateral Deficit E2E', function () {
     expect(activeIntents.length).to.be.greaterThan(0);
 
     const intentToArbitrum = activeIntents.find(
-      (i) => i.destination === DOMAIN_IDS.arbitrum,
+      (i) => i.destination === DOMAIN_IDS.anvil2,
     );
     expect(intentToArbitrum, 'Should have intent destined for arbitrum').to
       .exist;
     expect(intentToArbitrum!.amount).to.equal(400000000n);
-    expect(intentToArbitrum!.origin).to.equal(DOMAIN_IDS.ethereum);
+    expect(intentToArbitrum!.origin).to.equal(DOMAIN_IDS.anvil1);
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
     const transferAmount = BigNumber.from(toWei('500', USDC_DECIMALS));
 
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
-      .withStrategy([
-        {
-          rebalanceStrategy: RebalancerStrategyOptions.CollateralDeficit,
-          chains: {
-            ethereum: {
-              buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-            },
-            arbitrum: {
-              buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
-            },
-            base: {
-              buffer: '0',
-              bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
-            },
-          },
-        },
-      ])
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(collateralDeficitStrategyConfig)
       .withBalances('DEFICIT_ARB')
       .withExecutionMode('execute')
       .build();
 
     const initialCollateralBalances = await getAllCollateralBalances(
-      forkedProviders,
+      localProviders,
       TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      USDC_ADDRESSES,
+      deployedAddresses.monitoredRoute,
+      deployedAddresses.tokens,
     );
 
-    const ethProvider = forkedProviders.get('ethereum')!;
-    await setTokenBalanceViaStorage(
-      ethProvider,
-      USDC_ADDRESSES.ethereum,
-      userAddress,
-      transferAmount.mul(2),
+    const ethProvider = localProviders.get('anvil1')!;
+    const deployer = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY, ethProvider);
+    const token = (await import('@hyperlane-xyz/core')).ERC20__factory.connect(
+      deployedAddresses.tokens.anvil1,
+      deployer,
     );
+    await token.transfer(userAddress, transferAmount.mul(2));
 
     const transferResult = await executeWarpTransfer(
       context.multiProvider,
       {
-        originChain: 'ethereum',
-        destinationChain: 'arbitrum',
-        routerAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-        tokenAddress: USDC_ADDRESSES.ethereum,
+        originChain: 'anvil1',
+        destinationChain: 'anvil2',
+        routerAddress: deployedAddresses.monitoredRoute.anvil1,
+        tokenAddress: deployedAddresses.tokens.anvil1,
         amount: transferAmount,
         recipient: userAddress,
         senderAddress: userAddress,
@@ -243,19 +188,19 @@ describe('Collateral Deficit E2E', function () {
 
     // Get collateral balances after user transfer dispatch
     const balancesAfterUserTransfer = await getAllCollateralBalances(
-      forkedProviders,
+      localProviders,
       TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      USDC_ADDRESSES,
+      deployedAddresses.monitoredRoute,
+      deployedAddresses.tokens,
     );
 
     // Assert: Origin collateral INCREASED by exactly the transfer amount (user deposited tokens into router)
     const expectedCollateralAfterDeposit =
-      initialCollateralBalances.ethereum.add(transferAmount);
+      initialCollateralBalances.anvil1.add(transferAmount);
     expect(
-      balancesAfterUserTransfer.ethereum.eq(expectedCollateralAfterDeposit),
-      `Origin (ethereum) collateral should increase by transfer amount. ` +
-        `Expected: ${expectedCollateralAfterDeposit.toString()}, Actual: ${balancesAfterUserTransfer.ethereum.toString()}`,
+      balancesAfterUserTransfer.anvil1.eq(expectedCollateralAfterDeposit),
+      `Origin (anvil1) collateral should increase by transfer amount. ` +
+        `Expected: ${expectedCollateralAfterDeposit.toString()}, Actual: ${balancesAfterUserTransfer.anvil1.toString()}`,
     ).to.be.true;
 
     const userTransferRelay1 = await tryRelayMessage(
@@ -269,9 +214,9 @@ describe('Collateral Deficit E2E', function () {
 
     // Assert: Destination collateral UNCHANGED (transfer not delivered)
     expect(
-      balancesAfterUserTransfer.arbitrum.eq(initialCollateralBalances.arbitrum),
-      `Destination (arbitrum) collateral should be unchanged before delivery. ` +
-        `Before: ${initialCollateralBalances.arbitrum.toString()}, After: ${balancesAfterUserTransfer.arbitrum.toString()}`,
+      balancesAfterUserTransfer.anvil2.eq(initialCollateralBalances.anvil2),
+      `Destination (anvil2) collateral should be unchanged before delivery. ` +
+        `Before: ${initialCollateralBalances.anvil2.toString()}, After: ${balancesAfterUserTransfer.anvil2.toString()}`,
     ).to.be.true;
 
     // Index the dispatched message using ForkIndexer
@@ -293,11 +238,11 @@ describe('Collateral Deficit E2E', function () {
     // Assert all Transfer fields (except createdAt, updatedAt, messageId, txHash)
     expect(trackedTransfer.id).to.be.a('string').and.not.be.empty;
     expect(trackedTransfer.origin).to.equal(
-      DOMAIN_IDS.ethereum,
+      DOMAIN_IDS.anvil1,
       'Transfer origin should be ethereum',
     );
     expect(trackedTransfer.destination).to.equal(
-      DOMAIN_IDS.arbitrum,
+      DOMAIN_IDS.anvil2,
       'Transfer destination should be arbitrum',
     );
     expect(trackedTransfer.amount.toString()).to.equal(
@@ -313,11 +258,11 @@ describe('Collateral Deficit E2E', function () {
       'Transfer messageId should match dispatched message',
     );
     expect(trackedTransfer.sender.toLowerCase()).to.equal(
-      USDC_INCENTIV_WARP_ROUTE.routers.ethereum.toLowerCase(),
+      deployedAddresses.monitoredRoute.anvil1.toLowerCase(),
       'Transfer sender should be the warp route router',
     );
     expect(trackedTransfer.recipient.toLowerCase()).to.equal(
-      USDC_INCENTIV_WARP_ROUTE.routers.arbitrum.toLowerCase(),
+      deployedAddresses.monitoredRoute.anvil2.toLowerCase(),
       'Transfer recipient should be the destination warp route router',
     );
 
@@ -333,15 +278,15 @@ describe('Collateral Deficit E2E', function () {
     ).to.equal(1);
 
     const intentToArbitrum = activeIntents.find(
-      (i) => i.destination === DOMAIN_IDS.arbitrum,
+      (i) => i.destination === DOMAIN_IDS.anvil2,
     );
     expect(intentToArbitrum, 'Should have intent destined for arbitrum').to
       .exist;
 
     // Assert all RebalanceIntent fields (except createdAt, updatedAt)
     expect(intentToArbitrum!.id).to.be.a('string').and.not.be.empty;
-    expect(intentToArbitrum!.origin).to.equal(DOMAIN_IDS.ethereum);
-    expect(intentToArbitrum!.destination).to.equal(DOMAIN_IDS.arbitrum);
+    expect(intentToArbitrum!.origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(intentToArbitrum!.destination).to.equal(DOMAIN_IDS.anvil2);
     expect(intentToArbitrum!.amount).to.equal(400000000n);
     expect(intentToArbitrum!.status).to.equal('in_progress');
     expect(intentToArbitrum!.fulfilledAmount).to.equal(0n);
@@ -357,7 +302,7 @@ describe('Collateral Deficit E2E', function () {
     ).to.be.greaterThan(0);
 
     const actionToArbitrum = inProgressActions.find(
-      (a) => a.destination === DOMAIN_IDS.arbitrum,
+      (a) => a.destination === DOMAIN_IDS.anvil2,
     );
     expect(actionToArbitrum, 'Should have action destined for arbitrum').to
       .exist;
@@ -365,24 +310,24 @@ describe('Collateral Deficit E2E', function () {
     // Assert all RebalanceAction fields (except createdAt, updatedAt, messageId, txHash)
     expect(actionToArbitrum!.id).to.be.a('string').and.not.be.empty;
     expect(actionToArbitrum!.intentId).to.equal(rebalanceIntentId);
-    expect(actionToArbitrum!.origin).to.equal(DOMAIN_IDS.ethereum);
-    expect(actionToArbitrum!.destination).to.equal(DOMAIN_IDS.arbitrum);
+    expect(actionToArbitrum!.origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(actionToArbitrum!.destination).to.equal(DOMAIN_IDS.anvil2);
     expect(actionToArbitrum!.amount).to.equal(400000000n);
     expect(actionToArbitrum!.status).to.equal('in_progress');
     expect(actionToArbitrum!.messageId).to.be.a('string').and.not.be.empty;
 
     // Assert: Monitored route collateral on origin DECREASED (sent to bridge)
     const balancesAfterRebalance = await getAllCollateralBalances(
-      forkedProviders,
+      localProviders,
       TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      USDC_ADDRESSES,
+      deployedAddresses.monitoredRoute,
+      deployedAddresses.tokens,
     );
 
     // Assert exact balance: initial 10000 + user deposit 500 - rebalance 400 = 10100 USDC
     expect(
-      balancesAfterRebalance.ethereum.toString(),
-      'INCENTIV ethereum collateral should be 10100 USDC after rebalance',
+      balancesAfterRebalance.anvil1.toString(),
+      'INCENTIV anvil1 collateral should be 10100 USDC after rebalance',
     ).to.equal('10100000000');
 
     // Verify entities can be retrieved by ID and have correct status
@@ -417,8 +362,8 @@ describe('Collateral Deficit E2E', function () {
       {
         dispatchTx: rebalanceTxReceipt,
         messageId: actionToArbitrum!.messageId,
-        origin: 'ethereum',
-        destination: 'arbitrum',
+        origin: 'anvil1',
+        destination: 'anvil2',
       },
     );
     expect(
