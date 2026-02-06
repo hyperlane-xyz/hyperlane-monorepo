@@ -160,6 +160,9 @@ export class MockInfrastructureController {
     const messageId = ethers.utils.keccak256(message);
 
     // Decode amount from body (offset 77 bytes into message)
+    // TokenRouter encodes: TokenMessage.format(recipient, _outboundAmount(amount))
+    // where _outboundAmount = amount * scale. Scale = 10^decimals for warp tokens.
+    // We divide by scale to recover the original wei amount.
     const bodyOffset = 77;
     const body = '0x' + message.slice(2 + bodyOffset * 2);
     let amount = 0n;
@@ -168,7 +171,10 @@ export class MockInfrastructureController {
         ['bytes32', 'uint256'],
         body,
       );
-      amount = decoded[1].toBigInt();
+      const scaledAmount = decoded[1].toBigInt();
+      // Warp tokens use scale = 10^18, bridge Router uses scale = 1 (no scaling)
+      amount =
+        type === 'user-transfer' ? scaledAmount / BigInt(1e18) : scaledAmount;
     } catch (error) {
       logger.warn(
         { messageId, origin: originChain, dest: destChain, error },
