@@ -167,7 +167,11 @@ export class AleoProtocolProvider implements ProtocolProvider {
       'domain ID required for mailbox artifact manager',
     );
 
-    return new AleoMailboxArtifactManager(aleoClient, chainMetadata.domainId);
+    return new AleoMailboxArtifactManager(
+      aleoClient,
+      chainMetadata.domainId,
+      chainId,
+    );
   }
 
   getMinGas(): MinimumRequiredGasByAction {
