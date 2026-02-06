@@ -150,14 +150,41 @@ export async function deployMultiDomainSimulation(
     await warpToken.enrollRemoteRouters(remoteDomains, remoteRouters);
   }
 
-  // Step 6: Deploy MockValueTransferBridge for each domain and add to allowed bridges
+  // Step 6: Deploy MockValueTransferBridge for each domain (now extends Router)
   const bridges: Record<number, ethers.Contract> = {};
   for (const chain of chains) {
     const bridge = await new MockValueTransferBridge__factory(deployer).deploy(
       collateralTokens[chain.domainId].address,
+      mailboxes[chain.domainId].address,
     );
     await bridge.deployed();
+
+    // Initialize the bridge (Router requires initialization)
+    await bridge.initialize(
+      ethers.constants.AddressZero, // hook
+      ethers.constants.AddressZero, // ISM
+      deployerAddress, // owner
+    );
+
     bridges[chain.domainId] = bridge;
+  }
+
+  // Step 6b: Enroll remote routers on bridges (so _Router_dispatch works)
+  for (const chain of chains) {
+    const bridge = bridges[chain.domainId];
+    const remoteDomains: number[] = [];
+    const remoteRouters: string[] = [];
+
+    for (const otherChain of chains) {
+      if (chain.domainId !== otherChain.domainId) {
+        remoteDomains.push(otherChain.domainId);
+        remoteRouters.push(
+          ethers.utils.hexZeroPad(bridges[otherChain.domainId].address, 32),
+        );
+      }
+    }
+
+    await bridge.enrollRemoteRouters(remoteDomains, remoteRouters);
   }
 
   // Step 7: Add bridges to warp tokens for all destination domains

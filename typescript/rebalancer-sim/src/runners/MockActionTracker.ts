@@ -209,19 +209,9 @@ export class MockActionTracker implements IActionTracker {
   async failRebalanceIntent(id: string): Promise<void> {
     const intent = this.intents.get(id);
     if (intent) {
-      // In simulation, RebalancerService calls failRebalanceIntent when no Dispatch event
-      // is found (MockValueTransferBridge doesn't emit Dispatch). But the bridge transfer
-      // DID succeed - we'll see the SentTransferRemote event. So we keep the intent as
-      // in_progress to allow createActionForPendingIntent to work when the event fires.
-      //
-      // Note: This is a simulation-specific behavior. In production, no Dispatch event
-      // means the transfer actually failed.
-      intent.status = 'in_progress';
+      intent.status = 'failed';
       intent.updatedAt = Date.now();
-      logger.debug(
-        { id, originalIntentAmount: intent.amount.toString() },
-        'Rebalance intent "failed" - keeping as in_progress for simulation (bridge transfer succeeded)',
-      );
+      logger.debug({ id }, 'Rebalance intent failed');
     }
   }
 
