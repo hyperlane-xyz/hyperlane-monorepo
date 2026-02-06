@@ -72,6 +72,8 @@ export function ensureResultsDir(): void {
 export interface ScenarioRunOptions {
   anvilRpc: string;
   rebalancerTypes?: RebalancerType[];
+  /** Suffix appended to filename when saving results (e.g. '-noop') */
+  saveSuffix?: string;
 }
 
 export interface ScenarioRunResult {
@@ -210,7 +212,8 @@ export async function runScenarioWithRebalancers(
   }
 
   // Save results
-  saveResults(scenarioName, file, results, comparison);
+  const saveKey = scenarioName + (options.saveSuffix ?? '');
+  saveResults(saveKey, file, results, comparison);
 
   return { results, file, comparison };
 }

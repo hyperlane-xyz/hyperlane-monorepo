@@ -364,6 +364,7 @@ describe('Rebalancer Simulation', function () {
       {
         anvilRpc: anvil.rpc,
         rebalancerTypes: ['noop'],
+        saveSuffix: '-noop',
       },
     );
 
