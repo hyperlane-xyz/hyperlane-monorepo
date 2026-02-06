@@ -1,6 +1,6 @@
 import { PopulatedTransaction } from 'ethers';
 
-import { HypXERC20Lockbox__factory } from '@hyperlane-xyz/core';
+import { IXERC20Lockbox__factory } from '@hyperlane-xyz/core';
 import {
   Address,
   ProtocolType,
@@ -336,7 +336,7 @@ export class EvmXERC20Module extends HyperlaneModule<
       token: Address;
       xERC20?: {
         warpRouteLimits: {
-          type: string;
+          type: XERC20Type;
           mint?: string;
           burn?: string;
           bufferCap?: string;
@@ -345,7 +345,7 @@ export class EvmXERC20Module extends HyperlaneModule<
         extraBridges?: Array<{
           lockbox: Address;
           limits: {
-            type: string;
+            type: XERC20Type;
             mint?: string;
             burn?: string;
             bufferCap?: string;
@@ -365,19 +365,18 @@ export class EvmXERC20Module extends HyperlaneModule<
     let xERC20Address = warpRouteConfig.token;
     if (warpRouteConfig.type === TokenType.XERC20Lockbox) {
       const provider = multiProvider.getProvider(chain);
-      const hypXERC20Lockbox = HypXERC20Lockbox__factory.connect(
+      const lockbox = IXERC20Lockbox__factory.connect(
         warpRouteConfig.token,
         provider,
       );
-      xERC20Address = await hypXERC20Lockbox.xERC20();
+      xERC20Address = await lockbox.callStatic.XERC20();
     }
 
     const limits: XERC20LimitsMap = {};
     const xERC20Config = warpRouteConfig.xERC20;
+    const warpRouteLimits = xERC20Config?.warpRouteLimits;
 
-    if (xERC20Config?.warpRouteLimits) {
-      const warpRouteLimits = xERC20Config.warpRouteLimits;
-
+    if (warpRouteLimits) {
       if (warpRouteLimits.type === XERC20Type.Standard) {
         if (warpRouteLimits.mint != null && warpRouteLimits.burn != null) {
           limits[warpRouteAddress] = {
@@ -426,10 +425,11 @@ export class EvmXERC20Module extends HyperlaneModule<
       }
     }
 
-    const type: XERC20Type =
-      xERC20Config?.warpRouteLimits?.type === XERC20Type.Velo
-        ? XERC20Type.Velo
-        : XERC20Type.Standard;
+    const type: XERC20Type = warpRouteLimits?.type
+      ? warpRouteLimits.type
+      : await new EvmXERC20Reader(multiProvider, chain).deriveXERC20TokenType(
+          xERC20Address,
+        );
 
     const config: XERC20ModuleConfig = { type, limits };
     const module = new EvmXERC20Module(multiProvider, {
