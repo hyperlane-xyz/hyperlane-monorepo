@@ -11,6 +11,13 @@ contract MockValueTransferBridge is Router, ITokenBridge {
     using SafeERC20 for IERC20;
     address public collateral;
 
+    event SentTransferRemote(
+        uint32 indexed origin,
+        uint32 indexed destination,
+        bytes32 indexed recipient,
+        uint256 amount
+    );
+
     constructor(address _collateral, address _mailbox) Router(_mailbox) {
         collateral = _collateral;
     }
@@ -43,6 +50,13 @@ contract MockValueTransferBridge is Router, ITokenBridge {
         IERC20(collateral).safeTransferFrom(
             msg.sender,
             address(this),
+            _amountOut
+        );
+
+        emit SentTransferRemote(
+            uint32(block.chainid),
+            _destinationDomain,
+            _recipient,
             _amountOut
         );
 
