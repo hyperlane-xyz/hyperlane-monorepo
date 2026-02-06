@@ -24,6 +24,24 @@ spec:
       {{- end }}
       {{- if .Values.migrations.enabled }}
       initContainers:
+        - name: reset-ponder-state
+          image: postgres:15-alpine
+          command:
+            - /bin/sh
+            - -c
+            - |
+              psql "$DATABASE_URL" -c "DROP TABLE IF EXISTS _ponder_meta CASCADE; DROP TABLE IF EXISTS _ponder_reorg CASCADE;"
+              echo "Ponder internal tables dropped"
+          env:
+            {{- if .Values.database.connectionString }}
+            - name: DATABASE_URL
+              value: {{ .Values.database.connectionString }}
+            {{- end }}
+          {{- if .Values.externalSecrets.clusterSecretStore }}
+          envFrom:
+            - secretRef:
+                name: {{ include "indexer.fullname" . }}-env-var-secret
+          {{- end }}
         - name: migrate
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
