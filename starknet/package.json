@@ -1,49 +1,49 @@
 {
-    "name": "@hyperlane-xyz/starknet-core",
-    "version": "25.0.0",
-    "description": "Core cairo contracts for Hyperlane",
-    "keywords": [
-        "Cairo",
-        "Hyperlane",
-        "Starknet"
-    ],
-    "homepage": "https://www.hyperlane.xyz",
-    "license": "Apache-2.0",
-    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-    "files": [
-        "dist"
-    ],
-    "type": "module",
-    "types": "./dist/index.d.ts",
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "default": "./dist/index.js"
-        }
-    },
-    "scripts": {
-        "fetch-contracts": "./scripts/fetch-contracts-release.sh",
-        "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
-        "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
-        "clean": "rm -rf ./dist ./release",
-        "lint": "eslint -c ./eslint.config.mjs .",
-        "prettier": "prettier --write ./src ./package.json"
-    },
-    "dependencies": {
-        "starknet": "catalog:"
-    },
-    "devDependencies": {
-        "@eslint/js": "catalog:",
-        "@hyperlane-xyz/tsconfig": "workspace:^",
-        "@typescript-eslint/eslint-plugin": "catalog:",
-        "@typescript-eslint/parser": "catalog:",
-        "eslint": "catalog:",
-        "eslint-config-prettier": "catalog:",
-        "eslint-import-resolver-typescript": "catalog:",
-        "eslint-plugin-import": "catalog:",
-        "globby": "^14.1.0",
-        "prettier": "catalog:",
-        "tsx": "catalog:",
-        "typescript": "catalog:"
+  "name": "@hyperlane-xyz/starknet-core",
+  "version": "25.0.0",
+  "description": "Core cairo contracts for Hyperlane",
+  "keywords": [
+    "Cairo",
+    "Hyperlane",
+    "Starknet"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "dist"
+  ],
+  "type": "module",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "types": "./dist/index.d.ts",
+      "default": "./dist/index.js"
     }
+  },
+  "scripts": {
+    "fetch-contracts": "./scripts/fetch-contracts-release.sh",
+    "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
+    "build": "tsc && pnpm fetch-contracts && pnpm generate-artifacts",
+    "clean": "rm -rf ./dist ./release",
+    "lint": "eslint -c ./eslint.config.mjs .",
+    "prettier": "prettier --write ./src ./package.json"
+  },
+  "dependencies": {
+    "starknet": "catalog:"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "globby": "^14.1.0",
+    "prettier": "catalog:",
+    "tsx": "catalog:",
+    "typescript": "catalog:"
+  }
 }

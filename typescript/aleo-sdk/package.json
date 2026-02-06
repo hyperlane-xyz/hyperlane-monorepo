@@ -1,72 +1,72 @@
 {
-    "name": "@hyperlane-xyz/aleo-sdk",
-    "version": "25.0.0",
-    "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
-    "keywords": [
-        "aleo",
-        "blockchain",
-        "hyperlane",
-        "sdk"
-    ],
-    "homepage": "https://www.hyperlane.xyz",
-    "license": "Apache-2.0",
-    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-    "files": [
-        "/dist"
-    ],
-    "type": "module",
-    "types": "dist/index.d.ts",
-    "exports": {
-        ".": "./dist/index.js",
-        "./testing": "./dist/testing/index.js"
-    },
-    "scripts": {
-        "prebuild": "node scripts/generate-artifacts.js",
-        "build": "pnpm prebuild && rm -rf ./dist && tsc",
-        "format": "oxfmt --write ./src",
-        "lint": "eslint -c ./eslint.config.mjs",
-        "clean": "rm -rf ./dist ./cache",
-        "test": "echo \"no tests in aleo-sdk\"",
-        "test:ci": "echo \"no tests in aleo-sdk\"",
-        "test:e2e": "./scripts/run-e2e-test.sh"
-    },
-    "dependencies": {
-        "@hyperlane-xyz/provider-sdk": "workspace:*",
-        "@hyperlane-xyz/utils": "workspace:*",
-        "@provablehq/sdk": "0.9.15",
-        "bignumber.js": "catalog:",
-        "unzipper": "^0.12.3"
-    },
-    "devDependencies": {
-        "@eslint/js": "catalog:",
-        "@hyperlane-xyz/tsconfig": "workspace:^",
-        "@types/chai": "catalog:",
-        "@types/chai-as-promised": "catalog:",
-        "@types/mocha": "catalog:",
-        "@types/unzipper": "^0",
-        "@typescript-eslint/eslint-plugin": "catalog:",
-        "@typescript-eslint/parser": "catalog:",
-        "chai": "catalog:",
-        "chai-as-promised": "catalog:",
-        "eslint": "catalog:",
-        "eslint-config-prettier": "catalog:",
-        "eslint-import-resolver-typescript": "catalog:",
-        "eslint-plugin-import": "catalog:",
-        "mocha": "catalog:",
-        "mocha-steps": "catalog:",
-        "node-fetch": "^3.3.2",
-        "oxfmt": "catalog:",
-        "testcontainers": "catalog:",
-        "ts-node": "catalog:",
-        "typescript": "catalog:",
-        "typescript-eslint": "catalog:"
-    },
-    "peerDependencies": {
-        "testcontainers": "catalog:"
-    },
-    "peerDependenciesMeta": {
-        "testcontainers": {
-            "optional": true
-        }
+  "name": "@hyperlane-xyz/aleo-sdk",
+  "version": "25.0.0",
+  "description": "Hyperlane TypeScript SDK for the Aleo Hyperlane SDK module",
+  "keywords": [
+    "aleo",
+    "blockchain",
+    "hyperlane",
+    "sdk"
+  ],
+  "homepage": "https://www.hyperlane.xyz",
+  "license": "Apache-2.0",
+  "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+  "files": [
+    "/dist"
+  ],
+  "type": "module",
+  "types": "dist/index.d.ts",
+  "exports": {
+    ".": "./dist/index.js",
+    "./testing": "./dist/testing/index.js"
+  },
+  "scripts": {
+    "prebuild": "node scripts/generate-artifacts.js",
+    "build": "pnpm prebuild && rm -rf ./dist && tsc",
+    "format": "oxfmt --write ./src",
+    "lint": "eslint -c ./eslint.config.mjs",
+    "clean": "rm -rf ./dist ./cache",
+    "test": "echo \"no tests in aleo-sdk\"",
+    "test:ci": "echo \"no tests in aleo-sdk\"",
+    "test:e2e": "./scripts/run-e2e-test.sh"
+  },
+  "dependencies": {
+    "@hyperlane-xyz/provider-sdk": "workspace:*",
+    "@hyperlane-xyz/utils": "workspace:*",
+    "@provablehq/sdk": "0.9.15",
+    "bignumber.js": "catalog:",
+    "unzipper": "^0.12.3"
+  },
+  "devDependencies": {
+    "@eslint/js": "catalog:",
+    "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
+    "@types/chai-as-promised": "catalog:",
+    "@types/mocha": "catalog:",
+    "@types/unzipper": "^0",
+    "@typescript-eslint/eslint-plugin": "catalog:",
+    "@typescript-eslint/parser": "catalog:",
+    "chai": "catalog:",
+    "chai-as-promised": "catalog:",
+    "eslint": "catalog:",
+    "eslint-config-prettier": "catalog:",
+    "eslint-import-resolver-typescript": "catalog:",
+    "eslint-plugin-import": "catalog:",
+    "mocha": "catalog:",
+    "mocha-steps": "catalog:",
+    "node-fetch": "^3.3.2",
+    "oxfmt": "catalog:",
+    "testcontainers": "catalog:",
+    "ts-node": "catalog:",
+    "typescript": "catalog:",
+    "typescript-eslint": "catalog:"
+  },
+  "peerDependencies": {
+    "testcontainers": "catalog:"
+  },
+  "peerDependenciesMeta": {
+    "testcontainers": {
+      "optional": true
     }
+  }
 }

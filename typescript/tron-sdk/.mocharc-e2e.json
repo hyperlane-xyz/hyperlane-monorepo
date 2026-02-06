@@ -1,5 +1,5 @@
 {
-    "extensions": ["ts"],
-    "spec": ["src/tests/index.e2e-test.ts"],
-    "node-option": ["import=tsx/esm"]
+  "extensions": ["ts"],
+  "spec": ["src/tests/index.e2e-test.ts"],
+  "node-option": ["import=tsx/esm"]
 }
