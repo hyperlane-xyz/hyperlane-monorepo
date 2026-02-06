@@ -21,6 +21,7 @@ import type {
   ValueOf,
   WithAddress,
 } from '@hyperlane-xyz/utils';
+import { isNullish } from '@hyperlane-xyz/utils';
 
 import { ZHash } from '../metadata/customZodTypes.js';
 import {
@@ -70,9 +71,15 @@ export const IsmType = {
   WEIGHTED_MESSAGE_ID_MULTISIG: 'weightedMessageIdMultisigIsm',
   CCIP: 'ccipIsm',
   OFFCHAIN_LOOKUP: 'offchainLookupIsm',
+  UNKNOWN: 'unknownIsm',
 } as const;
 
 export type IsmType = (typeof IsmType)[keyof typeof IsmType];
+
+export type DeployableIsmType = Exclude<
+  IsmType,
+  typeof IsmType.CUSTOM | typeof IsmType.UNKNOWN
+>;
 
 // ISM types that can be updated in-place
 export const MUTABLE_ISM_TYPE: IsmType[] = [
@@ -138,6 +145,8 @@ export function ismTypeToModuleType(ismType: IsmType): ModuleType {
       return ModuleType.WEIGHTED_MESSAGE_ID_MULTISIG;
     case IsmType.OFFCHAIN_LOOKUP:
       return ModuleType.CCIP_READ;
+    case IsmType.UNKNOWN:
+      return ModuleType.UNUSED;
   }
 }
 
@@ -242,6 +251,7 @@ export type DeployedIsmType = {
   [IsmType.WEIGHTED_MESSAGE_ID_MULTISIG]: IStaticWeightedMultisigIsm;
   [IsmType.OFFCHAIN_LOOKUP]: AbstractCcipReadIsm;
   [IsmType.INTERCHAIN_ACCOUNT_ROUTING]: InterchainAccountRouter;
+  [IsmType.UNKNOWN]: IInterchainSecurityModule;
 };
 
 export type DeployedIsm = ValueOf<DeployedIsmType>;
@@ -365,6 +375,52 @@ export const AggregationIsmConfigSchema: z.ZodSchema<AggregationIsmConfig> = z
     message: 'Threshold must be less than or equal to the number of modules',
   });
 
+export const UnknownIsmConfigSchema = z
+  .object({
+    type: z.literal(IsmType.UNKNOWN),
+  })
+  .passthrough();
+export type UnknownIsmConfig = z.infer<typeof UnknownIsmConfigSchema>;
+
+const KnownIsmTypes: string[] = Object.values(IsmType).filter(
+  (t) => t !== IsmType.UNKNOWN,
+);
+
+/**
+ * Recursively normalizes unknown ISM type values to IsmType.UNKNOWN.
+ * Use this before parsing with IsmConfigSchema when configs may contain
+ * ISM types not yet known to this SDK version.
+ *
+ * Note: String address configs (e.g., "0x...") are passed through unchanged
+ * since they represent deployed ISM addresses, not ISM type configs.
+ */
+export function normalizeUnknownIsmTypes<T>(config: T): T {
+  // Handle nullish values and primitives (including string addresses)
+  if (isNullish(config) || typeof config !== 'object') {
+    return config;
+  }
+
+  if (Array.isArray(config)) {
+    return config.map(normalizeUnknownIsmTypes) as T;
+  }
+
+  // At this point, config must be a non-null object (not array, not primitive)
+  const obj = config as Record<string, unknown>;
+  const normalized: Record<string, unknown> = {};
+
+  for (const [key, value] of Object.entries(obj)) {
+    if (key === 'type' && typeof value === 'string') {
+      normalized[key] = KnownIsmTypes.includes(value) ? value : IsmType.UNKNOWN;
+    } else if (typeof value === 'object' && !isNullish(value)) {
+      normalized[key] = normalizeUnknownIsmTypes(value);
+    } else {
+      normalized[key] = value;
+    }
+  }
+
+  return normalized as T;
+}
+
 export const IsmConfigSchema = z.union([
   ZHash,
   TestIsmConfigSchema,
@@ -379,4 +435,15 @@ export const IsmConfigSchema = z.union([
   ArbL2ToL1IsmConfigSchema,
   OffchainLookupIsmConfigSchema,
   InterchainAccountRouterIsmSchema,
+  UnknownIsmConfigSchema,
 ]);
+
+/**
+ * Forward-compatible ISM config schema that normalizes unknown ISM types.
+ * Use this instead of IsmConfigSchema when parsing configs that may contain
+ * ISM types added in newer registry versions.
+ */
+export const SafeParseIsmConfigSchema = z.preprocess(
+  normalizeUnknownIsmTypes,
+  IsmConfigSchema,
+);

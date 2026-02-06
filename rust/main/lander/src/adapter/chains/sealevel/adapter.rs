@@ -13,8 +13,9 @@ use solana_sdk::{
     message::Message,
     pubkey::Pubkey,
     signature::{Signature, Signer},
-    transaction::Transaction as SealevelTransaction,
 };
+
+use hyperlane_sealevel::SealevelTxType;
 use tokio::sync::Mutex;
 use tracing::{error, info, instrument, warn};
 use uuid::Uuid;
@@ -200,10 +201,12 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 self.oracle.clone(),
+                precursor.alt_address,
             )
             .await?;
         Ok(SealevelTxPrecursor::new(
             precursor.instruction.clone(),
+            precursor.alt_address,
             estimate,
         ))
     }
@@ -211,14 +214,14 @@ impl SealevelAdapter {
     async fn create_unsigned_transaction(
         &self,
         precursor: &SealevelTxPrecursor,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         self.create_sealevel_transaction(precursor, false).await
     }
 
     async fn create_signed_transaction(
         &self,
         precursor: &SealevelTxPrecursor,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         self.create_sealevel_transaction(precursor, true).await
     }
 
@@ -226,9 +229,10 @@ impl SealevelAdapter {
         &self,
         precursor: &SealevelTxPrecursor,
         sign: bool,
-    ) -> ChainResult<SealevelTransaction> {
+    ) -> ChainResult<SealevelTxType> {
         let SealevelTxPrecursor {
             instruction,
+            alt_address,
             estimate,
         } = precursor;
 
@@ -240,6 +244,7 @@ impl SealevelAdapter {
                 &self.keypair,
                 self.submitter.clone(),
                 sign,
+                *alt_address,
             )
             .await
     }
@@ -333,13 +338,17 @@ impl AdaptsChain for SealevelAdapter {
         info!(?tx, "simulating transaction");
         let precursor = tx.precursor();
         let svm_transaction = self.create_unsigned_transaction(precursor).await?;
-        self.client
-            .simulate_transaction(&svm_transaction)
-            .await
-            .map_err(|e| {
-                error!(?tx, ?e, "failed to simulate transaction");
-                LanderError::SimulationFailed(vec![e.to_string()])
-            })?;
+
+        // Simulate based on transaction type
+        let result = match &svm_transaction {
+            SealevelTxType::Legacy(t) => self.client.simulate_transaction(t).await,
+            SealevelTxType::Versioned(t) => self.client.simulate_versioned_transaction(t).await,
+        };
+
+        result.map_err(|e| {
+            error!(?tx, ?e, "failed to simulate transaction");
+            LanderError::SimulationFailed(vec![e.to_string()])
+        })?;
         info!(?tx, "simulated transaction successfully");
         Ok(vec![])
     }

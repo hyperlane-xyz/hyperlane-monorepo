@@ -1,5 +1,26 @@
 # @hyperlane-xyz/provider-sdk
 
+## 1.3.1
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+
+## 1.3.0
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+
 ## 1.2.1
 
 ### Patch Changes

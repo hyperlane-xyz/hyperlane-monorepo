@@ -1,5 +1,27 @@
 # @hyperlane-xyz/cosmos-sdk
 
+## 25.0.0
+
+### Patch Changes
+
+- 52ce778: A `LazyAsync` helper was added to `@hyperlane-xyz/utils` for safe, deduplicated async initialization. It replaces the scattered pattern of `if (!cached) { cached = await init(); } return cached` with an approach that deduplicates concurrent callers, clears state on errors to allow retries, and supports reset capability. Consumer packages were migrated to use this utility.
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/cosmos-types@25.0.0
+
+## 24.0.0
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/cosmos-types@24.0.0
+
 ## 23.0.0
 
 ### Patch Changes

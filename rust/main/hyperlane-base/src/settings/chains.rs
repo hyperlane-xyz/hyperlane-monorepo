@@ -1474,7 +1474,7 @@ impl ChainConf {
 /// Helper to build a sealevel provider
 fn build_sealevel_provider(
     chain_conf: &ChainConf,
-    locator: &ContractLocator,
+    locator: &ContractLocator<'_>,
     contract_addresses: &[H256],
     conf: &h_sealevel::ConnectionConf,
     metrics: &CoreMetrics,

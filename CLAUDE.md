@@ -403,6 +403,34 @@ Based on [Solcurity Standard](https://github.com/transmissions11/solcurity):
 - Gas efficiency for Solidity (avoid unnecessary storage writes)
 - Use `ChainMap` for per-chain configurations in TypeScript
 
+### TypeScript Review Checklist
+
+Common issues caught in code review:
+
+| Issue                       | Bad                          | Good                                      |
+| --------------------------- | ---------------------------- | ----------------------------------------- |
+| Unnecessary type assertions | `{} as SomeType`             | Let TypeScript infer or use proper typing |
+| String literals for enums   | `type: 'standard'`           | `type: XERC20Type.Standard`               |
+| Duplicated constants/ABIs   | Same ABI in multiple files   | Extract to shared module                  |
+| Hardcoded discriminants     | `if (x === 'velo')`          | `if (x === XERC20Type.Velo)`              |
+| Existing utilities ignored  | `code === '0x'` check inline | Use `isContractAddress()` from SDK        |
+| Inconsistent method naming  | `detectType()`               | Follow codebase pattern: `derive*()`      |
+
+**Enum usage**: When interfaces have discriminant fields (`type: 'foo'`), use enum values:
+
+```typescript
+// Define
+export enum MyType { Foo = 'foo', Bar = 'bar' }
+
+// In interfaces - use the enum member type directly
+export interface FooConfig { type: MyType.Foo; ... }
+
+// In comparisons
+if (config.type === MyType.Foo) { ... }
+```
+
+**Deduplication**: Extract shared constants (ABIs, selectors) to dedicated files when used in 2+ places.
+
 ### What NOT to Flag
 
 - Minor style issues handled by prettier/linters
@@ -522,6 +550,7 @@ Available MCP servers:
 8. **Use `assert()` liberally** - For preconditions, invariants, and unexpected states
 9. **Check error patterns first** - Review existing error handling before adding new try/catch
 10. **Question fallbacks** - Undefined values often signal bugs; don't mask with defaults
+11. **Rebuild shared packages** - After changing `typescript/sdk` or `typescript/utils`, run `pnpm build` from repo root; Turbo handles deps/caching
 
 ## Verify Before Acting
 

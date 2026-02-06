@@ -617,6 +617,9 @@ async function sendTransactions(
   );
 }
 
+/**
+ * @deprecated Use `deriveBridgesConfig` from `@hyperlane-xyz/sdk` instead.
+ */
 export async function deriveBridgesConfig(
   warpDeployConfig: WarpRouteDeployConfig,
   warpCoreConfig: WarpCoreConfig,
@@ -727,6 +730,9 @@ export async function deriveBridgesConfig(
   return bridgesConfig;
 }
 
+/**
+ * @deprecated Use `deriveStandardBridgesConfig` from `@hyperlane-xyz/sdk` instead.
+ */
 export async function deriveStandardBridgesConfig(
   chains: ChainName[] = [],
   warpDeployConfig: WarpRouteDeployConfig,

@@ -89,7 +89,10 @@ export abstract class BaseContractVerifier {
       return false;
     }
 
-    if (explorerApi.family === ExplorerFamily.Other) {
+    if (
+      explorerApi.family === ExplorerFamily.Other ||
+      explorerApi.family === ExplorerFamily.Unknown
+    ) {
       verificationLogger.debug(`Unsupported explorer family, skipping`);
       return false;
     }

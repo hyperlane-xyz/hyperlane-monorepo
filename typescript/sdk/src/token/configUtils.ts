@@ -32,7 +32,7 @@ import { DestinationGas, RemoteRouters } from '../router/types.js';
 import { ChainMap } from '../types.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { gasOverhead } from './config.js';
 import { HypERC20Deployer } from './deploy.js';
@@ -380,7 +380,7 @@ export async function expandVirtualWarpDeployConfig(params: {
   const { multiProvider, onChainWarpConfig, deployedRoutersAddresses } = params;
   return promiseObjAll(
     objMap(onChainWarpConfig, async (chain, config) => {
-      const warpReader = new EvmERC20WarpRouteReader(multiProvider, chain);
+      const warpReader = new EvmWarpRouteReader(multiProvider, chain);
       const warpVirtualConfig = await warpReader.deriveWarpRouteVirtualConfig(
         chain,
         deployedRoutersAddresses[chain],
@@ -422,6 +422,13 @@ const sortArraysInConfigToCheck = (a: any, b: any): number => {
   if (a.type && b.type) {
     if (a.type < b.type) return -1;
     if (a.type > b.type) return 1;
+    return 0;
+  }
+
+  // Sort allowedRebalancingBridges by bridge address
+  if (a.bridge && b.bridge) {
+    if (a.bridge < b.bridge) return -1;
+    if (a.bridge > b.bridge) return 1;
     return 0;
   }
 

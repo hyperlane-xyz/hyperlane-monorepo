@@ -61,7 +61,7 @@ import { randomAddress } from '../test/testUtils.js';
 import { ChainMap } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
-import { EvmERC20WarpModule } from './EvmERC20WarpModule.js';
+import { EvmWarpModule } from './EvmWarpModule.js';
 import {
   EverclearTokenBridgeTokenType,
   MovableTokenType,
@@ -89,7 +89,7 @@ const randomRemoteRouters = (n: number) => {
   return routers;
 };
 
-describe('EvmERC20WarpHyperlaneModule', async () => {
+describe('EvmWarpModule', async () => {
   const TOKEN_NAME = 'fake';
   const TOKEN_SUPPLY = '100000000000000000000';
   const TOKEN_DECIMALS = 18;
@@ -175,7 +175,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
   ] as EverclearTokenBridgeTokenType[];
 
   const assertAllowedRebalancers = async (
-    evmERC20WarpModule: EvmERC20WarpModule,
+    evmERC20WarpModule: EvmWarpModule,
     expectedRebalancers: string[],
   ) => {
     const currentConfig = await evmERC20WarpModule.read();
@@ -267,7 +267,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     };
 
     // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+    const evmERC20WarpModule = await EvmWarpModule.create({
       chain,
       config,
       multiProvider,
@@ -289,7 +289,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     };
 
     // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+    const evmERC20WarpModule = await EvmWarpModule.create({
       chain,
       config,
       multiProvider,
@@ -325,7 +325,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     };
 
     // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+    const evmERC20WarpModule = await EvmWarpModule.create({
       chain,
       config,
       multiProvider,
@@ -357,7 +357,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     } as HypTokenRouterConfig;
 
     // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+    const evmERC20WarpModule = await EvmWarpModule.create({
       chain,
       config,
       multiProvider,
@@ -387,7 +387,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     } as HypTokenRouterConfig;
 
     // Deploy using WarpModule
-    const evmERC20WarpModule = await EvmERC20WarpModule.create({
+    const evmERC20WarpModule = await EvmWarpModule.create({
       chain,
       config,
       multiProvider,
@@ -405,7 +405,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         getMovableTokenConfig(expectedRebalancers)[tokenType],
       );
 
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -421,7 +421,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -476,7 +476,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: updatedConfig,
         multiProvider,
@@ -501,7 +501,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
     });
   }
 
-  describe(EvmERC20WarpModule.prototype.update.name, async () => {
+  describe(EvmWarpModule.prototype.update.name, async () => {
     const owner = randomAddress();
     const ismConfigToUpdate: IsmConfig[] = [
       {
@@ -551,7 +551,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         } as HypTokenRouterConfig;
 
         // Deploy using WarpModule
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -580,7 +580,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -620,7 +620,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -647,7 +647,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -678,7 +678,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -727,7 +727,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         interchainSecurityModule: deployedIsm,
       } as HypTokenRouterConfig;
 
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -764,7 +764,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -795,7 +795,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -832,7 +832,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -890,7 +890,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       } as HypTokenRouterConfig;
 
       const owner = signer.address.toLowerCase();
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -929,7 +929,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
 
       const owner = signer.address.toLowerCase();
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -977,7 +977,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -1005,7 +1005,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const config = deepCopy(
           getMovableTokenConfig([initialRebalancer])[tokenType],
         );
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1032,7 +1032,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const config = deepCopy(
           getMovableTokenConfig(Array.from(rebalancers))[tokenType],
         );
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1056,7 +1056,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           getMovableTokenConfig([rebalancerToKeep.toLowerCase()])[tokenType],
         );
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1084,7 +1084,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         };
 
         const allowedBridgeToAdd = normalizeAddressEvm(randomAddress());
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1143,7 +1143,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           },
         });
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1194,7 +1194,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           },
         });
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1223,7 +1223,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         const remoteRouter = randomAddress();
 
         const config = deepCopy(getMovableTokenConfig()[tokenType]);
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config: {
             ...config,
@@ -1269,7 +1269,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should add destination outputAssets if the token is of type ${tokenType}`, async () => {
         const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1301,7 +1301,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should overwrite a destination outputAssets if the token is of type ${tokenType} and a destination token already exists for the given destination`, async () => {
         const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config: {
             ...config,
@@ -1338,7 +1338,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should remove destination outputAssets if the token is of type ${tokenType} and a config is set`, async () => {
         const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config: {
             ...config,
@@ -1391,7 +1391,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           [domainId]: randomAddress(),
           ...outputAssetsToKeep,
         };
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config: {
             ...config,
@@ -1423,7 +1423,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should update the fee params if the token is of type ${tokenType}`, async () => {
         const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1461,7 +1461,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
 
         const expectedEverclearFeeParams = config.everclearFeeParams;
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1485,7 +1485,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       it(`should remove everclear fee params if the token is of type ${tokenType}`, async () => {
         const config = getEverclearTokenBridgeTokenConfig()[tokenType];
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config,
           multiProvider,
@@ -1537,7 +1537,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           ...feeParamsToKeep,
         };
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config: {
             ...config,
@@ -1603,7 +1603,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
           },
         };
 
-        const evmERC20WarpModule = await EvmERC20WarpModule.create({
+        const evmERC20WarpModule = await EvmWarpModule.create({
           chain,
           config: {
             ...config,
@@ -1654,7 +1654,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -1710,7 +1710,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config: {
           ...config,
@@ -1749,7 +1749,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
       };
 
       // Deploy using WarpModule
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -1779,7 +1779,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         type: TokenType.native,
       };
 
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,
@@ -1823,7 +1823,7 @@ describe('EvmERC20WarpHyperlaneModule', async () => {
         type: TokenType.native,
       };
 
-      const evmERC20WarpModule = await EvmERC20WarpModule.create({
+      const evmERC20WarpModule = await EvmWarpModule.create({
         chain,
         config,
         multiProvider,

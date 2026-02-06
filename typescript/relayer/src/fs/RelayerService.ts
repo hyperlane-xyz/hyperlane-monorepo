@@ -5,7 +5,7 @@ import { Logger } from 'pino';
 import { startMetricsServer } from '@hyperlane-xyz/metrics';
 import { IRegistry } from '@hyperlane-xyz/registry';
 import { ChainMap, HyperlaneCore, MultiProvider } from '@hyperlane-xyz/sdk';
-import { Address, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, LazyAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { RelayerConfigInput } from '../config/schema.js';
 import { HyperlaneRelayer } from '../core/HyperlaneRelayer.js';
@@ -23,6 +23,7 @@ export interface RelayerServiceConfig {
 
 export class RelayerService {
   private relayer?: HyperlaneRelayer;
+  private relayerLazy?: LazyAsync<HyperlaneRelayer>;
   private metricsServer?: http.Server;
   private readonly logger: Logger;
   readonly metrics: RelayerMetrics;
@@ -37,6 +38,13 @@ export class RelayerService {
     this.metrics = new RelayerMetrics();
   }
 
+  /**
+   * Creates and initializes a RelayerService.
+   *
+   * Note: The whitelist is captured on first initialization. If subsequent calls
+   * to `getRelayer()` pass different whitelists, they will still receive the
+   * relayer created with the whitelist from the first call.
+   */
   static async create(
     multiProvider: MultiProvider,
     registry: IRegistry,
@@ -100,6 +108,17 @@ export class RelayerService {
       return this.relayer;
     }
 
+    if (!this.relayerLazy) {
+      this.relayerLazy = new LazyAsync(() => this.createRelayer(whitelist));
+    }
+
+    this.relayer = await this.relayerLazy.get();
+    return this.relayer;
+  }
+
+  private async createRelayer(
+    whitelist?: ChainMap<Address[]>,
+  ): Promise<HyperlaneRelayer> {
     const chainAddresses = await this.registry.getAddresses();
     const core = HyperlaneCore.fromAddressesMap(
       chainAddresses,
@@ -130,7 +149,7 @@ export class RelayerService {
   private buildWhitelistFromConfig(): ChainMap<Address[]> | undefined {
     const relayerConfig = this.config.relayerConfig;
     if (relayerConfig?.whitelist) {
-      return relayerConfig.whitelist as ChainMap<Address[]>;
+      return relayerConfig.whitelist;
     }
 
     if (relayerConfig?.chains) {
