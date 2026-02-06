@@ -66,3 +66,15 @@ export interface AleoMailboxConfig {
   defaultHook: string;
   requiredHook: string;
 }
+
+/**
+ * On-chain artifact manager addresses for address formatting
+ *
+ * @note hookManagerAddress may be overridden when reading mailboxes, as it
+ * appears to be derived from the mailbox's suffix. This needs further
+ * investigation to confirm if this is always the case.
+ */
+export interface OnChainArtifactManagers {
+  ismManagerAddress: string;
+  hookManagerAddress: string;
+}
