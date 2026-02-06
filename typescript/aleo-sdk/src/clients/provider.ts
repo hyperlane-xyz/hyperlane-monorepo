@@ -147,7 +147,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return 0n;
     }
 
-    return result['max_supply'];
+    return result['supply'];
   }
 
   async estimateTransactionFee(
