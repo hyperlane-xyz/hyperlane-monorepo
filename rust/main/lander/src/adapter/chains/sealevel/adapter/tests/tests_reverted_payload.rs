@@ -49,6 +49,7 @@ fn create_transaction_with_payload_details_and_status(
         tx_hashes: vec![],
         vm_specific_data: VmSpecificTxData::Svm(Box::new(SealevelTxPrecursor::new(
             instruction(),
+            None,
             estimate(),
         ))),
         payload_details,

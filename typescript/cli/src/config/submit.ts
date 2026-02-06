@@ -26,7 +26,7 @@ export async function runSubmit({
   chain: ChainName;
   transactions: AnnotatedEV5Transaction[];
   receiptsFilepath: string;
-  strategyPath: string;
+  strategyPath?: string;
 }) {
   const { submitter } = await getSubmitterByStrategy<ProtocolType>({
     chain,

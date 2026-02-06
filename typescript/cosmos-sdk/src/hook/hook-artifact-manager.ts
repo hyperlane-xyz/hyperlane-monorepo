@@ -14,7 +14,7 @@ import {
   type IRawHookArtifactManager,
   type RawHookArtifactConfigs,
 } from '@hyperlane-xyz/provider-sdk/hook';
-import { assert } from '@hyperlane-xyz/utils';
+import { LazyAsync, assert } from '@hyperlane-xyz/utils';
 
 import { type CosmosNativeSigner } from '../clients/signer.js';
 import { setupPostDispatchExtension } from '../hyperlane/post_dispatch/query.js';
@@ -38,7 +38,7 @@ import {
  * deferring the async query client creation until actually needed.
  */
 export class CosmosHookArtifactManager implements IRawHookArtifactManager {
-  private queryPromise?: Promise<CosmosHookQueryClient>;
+  private readonly query = new LazyAsync(() => this.createQuery());
 
   constructor(
     private readonly config: {
@@ -53,11 +53,8 @@ export class CosmosHookArtifactManager implements IRawHookArtifactManager {
    * Lazy initialization - creates query client on first use.
    * Subsequent calls return the cached promise.
    */
-  private async getQuery(): Promise<CosmosHookQueryClient> {
-    if (!this.queryPromise) {
-      this.queryPromise = this.createQuery();
-    }
-    return this.queryPromise;
+  private getQuery(): Promise<CosmosHookQueryClient> {
+    return this.query.get();
   }
 
   /**

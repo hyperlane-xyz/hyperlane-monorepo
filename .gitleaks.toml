@@ -2,7 +2,8 @@
 [allowlist]
 paths = [
     '''node_modules''',
-    '''.git'''
+    '''.git''',
+    '''rust/sealevel/environments/local-e2e/.*/keys/.*-keypair\.json'''
 ]
 
 # Custom rules
