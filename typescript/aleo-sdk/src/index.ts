@@ -14,3 +14,5 @@ export {
 } from './hook/merkle-tree-hook.js';
 export { AleoIgpHookReader, AleoIgpHookWriter } from './hook/igp-hook.js';
 export { AleoWarpArtifactManager } from './warp/warp-artifact-manager.js';
+export { AleoMailboxArtifactManager } from './mailbox/mailbox-artifact-manager.js';
+export { AleoMailboxReader, AleoMailboxWriter } from './mailbox/mailbox.js';
