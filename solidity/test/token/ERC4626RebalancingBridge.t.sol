@@ -386,6 +386,64 @@ contract ERC4626RebalancingBridgeTest is Test {
         );
     }
 
+    function test_withdrawPrincipal_autoClaimsYield() public {
+        uint256 depositAmount = 1000e18;
+        uint256 yieldAmount = 100e18;
+
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
+
+        // Simulate yield
+        token.mintTo(address(vault), yieldAmount);
+
+        uint256 feeRecipientBefore = token.balanceOf(FEE_RECIPIENT);
+        uint256 calculatedYield = bridge.calculateYield();
+        assertGt(calculatedYield, 0);
+
+        // withdrawPrincipal should auto-claim yield first
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(500e18);
+
+        // Yield was sent to fee recipient
+        assertGt(token.balanceOf(FEE_RECIPIENT), feeRecipientBefore);
+        // No yield left to claim
+        assertEq(bridge.calculateYield(), 0);
+    }
+
+    function test_withdrawPrincipal_autoClaimSkipsWhenNoYield() public {
+        uint256 depositAmount = 1000e18;
+
+        // Setup: deposit via rebalance flow, no yield accrued
+        _depositViaRebalance(depositAmount);
+
+        uint256 feeRecipientBefore = token.balanceOf(FEE_RECIPIENT);
+
+        // withdrawPrincipal should not revert even with no yield
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(500e18);
+
+        // Fee recipient balance unchanged (no yield to claim)
+        assertEq(token.balanceOf(FEE_RECIPIENT), feeRecipientBefore);
+    }
+
+    function test_withdrawPrincipal_autoClaimSkipsWhenNoFeeRecipient() public {
+        uint256 depositAmount = 1000e18;
+        uint256 yieldAmount = 100e18;
+
+        // Setup: deposit via rebalance flow
+        _depositViaRebalance(depositAmount);
+        token.mintTo(address(vault), yieldAmount);
+
+        // Remove fee recipient
+        warpRoute.setFeeRecipient(address(0));
+
+        // withdrawPrincipal should not revert — auto-claim silently skips
+        vm.prank(REBALANCER);
+        bridge.withdrawPrincipal(500e18);
+
+        assertEq(bridge.principalDeposited(), 500e18);
+    }
+
     function test_withdrawPrincipal_multipleRebalancersAllowed() public {
         uint256 depositAmount = 1000e18;
 

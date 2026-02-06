@@ -114,6 +114,7 @@ contract ERC4626RebalancingBridge is ITokenBridge, PackageVersioned {
     /**
      * @notice Withdraws principal from vault back to warp route
      * @dev Only allowed rebalancers can call. Withdraws to warp route, not caller.
+     *      Auto-claims any accrued yield before withdrawing principal.
      */
     function withdrawPrincipal(
         uint256 _amount
@@ -125,6 +126,8 @@ contract ERC4626RebalancingBridge is ITokenBridge, PackageVersioned {
         if (_amount > principalDeposited) {
             revert InsufficientPrincipal(_amount, principalDeposited);
         }
+
+        _claimYield();
 
         principalDeposited -= _amount;
         uint256 shares = vault.previewWithdraw(_amount);
@@ -166,12 +169,29 @@ contract ERC4626RebalancingBridge is ITokenBridge, PackageVersioned {
         emit YieldClaimed(recipient, yieldAmount, sharesToBurn);
     }
 
+    // ============ Internal Functions ============
+
+    /**
+     * @notice Internal yield claim — silently skips if no yield or no feeRecipient
+     * @dev Used by withdrawPrincipal to auto-claim without reverting
+     */
+    function _claimYield() internal {
+        address recipient = warpRoute.feeRecipient();
+        if (recipient == address(0)) return;
+
+        uint256 yieldAmount = _calculateYield();
+        if (yieldAmount == 0) return;
+
+        uint256 sharesToBurn = vault.previewWithdraw(yieldAmount);
+        vault.withdraw(yieldAmount, recipient, address(this));
+
+        emit YieldClaimed(recipient, yieldAmount, sharesToBurn);
+    }
+
     /// @notice Returns current claimable yield
     function calculateYield() external view returns (uint256) {
         return _calculateYield();
     }
-
-    // ============ Internal Functions ============
 
     function _calculateYield() internal view returns (uint256) {
         uint256 currentAssets = vault.convertToAssets(
