@@ -31,7 +31,7 @@ import { TokenFeeType } from '../fee/types.js';
 import { HyperlaneIsmFactory } from '../ism/HyperlaneIsmFactory.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 
-import { EvmERC20WarpRouteReader } from './EvmERC20WarpRouteReader.js';
+import { EvmWarpRouteReader } from './EvmWarpRouteReader.js';
 import { HypERC20App } from './app.js';
 import { HypERC20Checker } from './checker.js';
 import { TokenType } from './config.js';
@@ -143,10 +143,10 @@ describe('TokenDeployer', async () => {
       let checker: HypERC20Checker;
       let app: HypERC20App;
       beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
-          // @ts-ignore
           token: token(),
         };
 
@@ -229,21 +229,18 @@ describe('TokenDeployer', async () => {
     });
 
     describe('ERC20WarpRouterReader', async () => {
-      let reader: EvmERC20WarpRouteReader;
+      let reader: EvmWarpRouteReader;
       let routerAddress: Address;
 
       before(() => {
-        reader = new EvmERC20WarpRouteReader(
-          multiProvider,
-          TestChainName.test1,
-        );
+        reader = new EvmWarpRouteReader(multiProvider, TestChainName.test1);
       });
 
       beforeEach(async () => {
+        // @ts-expect-error - Test assigns varying token types to config
         config[chain] = {
           ...config[chain],
           type,
-          // @ts-ignore
           token: token(),
         };
         const warpRoute = await deployer.deploy(config);

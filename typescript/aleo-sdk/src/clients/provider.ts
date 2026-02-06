@@ -147,7 +147,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return 0n;
     }
 
-    return result['max_supply'];
+    return result['supply'];
   }
 
   async estimateTransactionFee(
@@ -483,7 +483,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.tokenAddress);
 
     const metadata = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );
@@ -820,6 +820,18 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     };
   }
 
+  async getCreateProxyAdminTransaction(
+    _req: AltVM.ReqCreateProxyAdmin,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
+  async getSetProxyAdminOwnerTransaction(
+    _req: AltVM.ReqSetProxyAdminOwner,
+  ): Promise<AleoTransaction> {
+    throw new Error('ProxyAdmin is not supported on Aleo');
+  }
+
   // ### GET WARP TXS ###
 
   async getCreateNativeTokenTransaction(
@@ -898,12 +910,17 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
   async getSetTokenHookTransaction(
     req: AltVM.ReqSetTokenHook,
   ): Promise<AleoTransaction> {
+    const hook =
+      !isNullish(req.hookAddress) && !isZeroishAddress(req.hookAddress)
+        ? fromAleoAddress(req.hookAddress).address
+        : ALEO_NULL_ADDRESS;
+
     return {
       programName: fromAleoAddress(req.tokenAddress).programId,
       functionName: 'set_custom_hook',
       priorityFee: 0,
       privateFee: false,
-      inputs: [fromAleoAddress(req.hookAddress).address],
+      inputs: [hook],
     };
   }
 

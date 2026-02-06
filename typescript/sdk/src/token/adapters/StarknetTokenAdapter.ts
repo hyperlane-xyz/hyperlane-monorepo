@@ -13,6 +13,7 @@ import {
 import {
   Address,
   Domain,
+  LazyAsync,
   Numberish,
   ProtocolType,
   addressToBytes32,
@@ -48,7 +49,9 @@ export class StarknetTokenAdapter
   extends BaseStarknetAdapter
   implements ITokenAdapter<Call>
 {
-  private tokenContract?: Contract;
+  private readonly tokenContract = new LazyAsync(() =>
+    this.createContractInstance(),
+  );
 
   constructor(
     public readonly chainName: ChainName,
@@ -61,11 +64,11 @@ export class StarknetTokenAdapter
   // This function returns the Contract instance for the given token
   // If the contract is a Proxy: retrieves the implementation contract ABI and returns that Contract
   // If the contract is not a Proxy: returns the contract with the token address ABI
-  async getContractInstance(): Promise<Contract> {
-    if (this.tokenContract) {
-      return this.tokenContract;
-    }
+  getContractInstance(): Promise<Contract> {
+    return this.tokenContract.get();
+  }
 
+  private async createContractInstance(): Promise<Contract> {
     const provider = this.getProvider();
     const { abi } = await provider.getClassAt(this.addresses.tokenAddress);
     const contractInstance = new Contract(
@@ -82,10 +85,9 @@ export class StarknetTokenAdapter
         this.addresses.tokenAddress,
         provider,
       );
-      return (this.tokenContract = implementationContract);
+      return implementationContract;
     }
 
-    this.tokenContract = contractInstance;
     return contractInstance;
   }
 
@@ -319,7 +321,9 @@ export class StarknetHypSyntheticAdapter
 
 export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
   public readonly collateralContract: Contract;
-  protected wrappedTokenAddress?: Address;
+  protected readonly wrappedTokenAddress = new LazyAsync(() =>
+    this.loadWrappedTokenAddress(),
+  );
 
   constructor(
     chainName: ChainName,
@@ -334,12 +338,11 @@ export class StarknetHypCollateralAdapter extends StarknetHypSyntheticAdapter {
   }
 
   protected async getWrappedTokenAddress(): Promise<Address> {
-    if (!this.wrappedTokenAddress) {
-      this.wrappedTokenAddress = num.toHex64(
-        await this.collateralContract.get_wrapped_token(),
-      );
-    }
-    return this.wrappedTokenAddress!;
+    return this.wrappedTokenAddress.get();
+  }
+
+  protected async loadWrappedTokenAddress(): Promise<Address> {
+    return num.toHex64(await this.collateralContract.get_wrapped_token());
   }
 
   protected async getWrappedTokenAdapter(): Promise<StarknetTokenAdapter> {

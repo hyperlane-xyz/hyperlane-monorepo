@@ -11,7 +11,7 @@ import {
   type ChainMap,
   type ChainName,
   type DerivedWarpRouteDeployConfig,
-  EvmERC20WarpRouteReader,
+  EvmWarpRouteReader,
   type HypTokenRouterConfig,
   type MultiProvider,
   TokenStandard,
@@ -117,7 +117,7 @@ async function deriveWarpRouteConfigs(
 
   // Get XERC20 limits if warpCoreConfig is available
   if (warpCoreConfig) {
-    await logXerc20Limits(warpCoreConfig, multiProvider);
+    await logXERC20Limits(warpCoreConfig, multiProvider);
   }
 
   // Derive and return warp route config
@@ -126,7 +126,7 @@ async function deriveWarpRouteConfigs(
       const protocol = context.multiProvider.getProtocol(chain);
       switch (protocol) {
         case ProtocolType.Ethereum: {
-          return new EvmERC20WarpRouteReader(
+          return new EvmWarpRouteReader(
             multiProvider,
             chain,
           ).deriveWarpRouteConfig(address);
@@ -174,7 +174,7 @@ function validateCompatibility(
 /**
  * Logs XERC20 token limits for the given warp core config
  */
-export async function logXerc20Limits(
+export async function logXERC20Limits(
   warpCoreConfig: WarpCoreConfig,
   multiProvider: MultiProvider,
 ): Promise<void> {

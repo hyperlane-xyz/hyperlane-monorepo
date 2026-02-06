@@ -213,7 +213,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     config: AccountConfig;
   }): Promise<BigNumber> {
     const originDomain = this.multiProvider.getDomainId(origin);
-    const destinationRouter = this.router(this.contractsMap[destination]);
+    const destinationRouter = config.routerOverride
+      ? InterchainAccountRouter__factory.connect(
+          config.routerOverride,
+          this.multiProvider.getProvider(destination),
+        )
+      : this.router(this.contractsMap[destination]);
 
     const localRouterAddress = config.localRouter
       ? bytes32ToAddress(config.localRouter)
@@ -307,9 +312,15 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       config.routerOverride ?? this.routerAddress(destination),
     );
     // ISMs are indexed by origin domain (where messages come FROM)
+    // For legacy routers, we need to use routerOverride to get the ISM
+    const destinationRouterForIsm = config.routerOverride
+      ? InterchainAccountRouter__factory.connect(
+          config.routerOverride,
+          this.multiProvider.getProvider(destination),
+        )
+      : this.router(this.contractsMap[destination]);
     const remoteIsm = addressToBytes32(
-      config.ismOverride ??
-        (await this.router(this.contractsMap[destination]).isms(originDomain)),
+      config.ismOverride ?? (await destinationRouterForIsm.isms(originDomain)),
     );
 
     // Handle both string and object hookMetadata formats
@@ -336,6 +347,12 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
             IGP_DEFAULT_GAS)
           : IGP_DEFAULT_GAS;
 
+    const formattedCalls = innerCalls.map((call) => ({
+      to: addressToBytes32(call.to),
+      value: BigNumber.from(call.value ?? '0'),
+      data: call.data,
+    }));
+
     let quote: BigNumber;
     try {
       quote = await localRouter['quoteGasPayment(uint32,uint256)'](
@@ -343,8 +360,32 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         gasLimitForQuote,
       );
     } catch {
-      // Legacy ICA routers only support quoteGasPayment(uint32).
-      quote = await localRouter['quoteGasPayment(uint32)'](remoteDomain);
+      // Legacy ICA routers have broken quoteGasPayment that doesn't use hookMetadata.
+      // Query the mailbox directly to get accurate quote with our metadata.
+      const mailboxAddress = await localRouter.mailbox();
+      const mailbox = new ethers.Contract(
+        mailboxAddress,
+        [
+          'function quoteDispatch(uint32,bytes32,bytes,bytes,address) view returns (uint256)',
+          'function defaultHook() view returns (address)',
+        ],
+        this.multiProvider.getProvider(chain),
+      );
+      const defaultHook = await mailbox.defaultHook();
+      const messageBody = this.encodeIcaMessageBody(
+        addressToBytes32(config.owner),
+        remoteIsm,
+        formattedCalls,
+      );
+      quote = await mailbox[
+        'quoteDispatch(uint32,bytes32,bytes,bytes,address)'
+      ](
+        remoteDomain,
+        remoteRouter,
+        messageBody,
+        resolvedHookMetadata,
+        defaultHook,
+      );
     }
 
     const callEncoded = await localRouter.populateTransaction[
@@ -353,11 +394,7 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
       remoteDomain,
       remoteRouter,
       remoteIsm,
-      innerCalls.map((call) => ({
-        to: addressToBytes32(call.to),
-        value: call.value ?? BigNumber.from('0'),
-        data: call.data,
-      })),
+      formattedCalls,
       resolvedHookMetadata,
       { value: quote },
     );

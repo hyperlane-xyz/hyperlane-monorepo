@@ -19,7 +19,7 @@ import {
   type ChainMap,
   type ChainName,
   ContractVerifier,
-  EvmERC20WarpModule,
+  EvmWarpModule,
   ExplorerLicenseType,
   HypERC20Deployer,
   IsmType,
@@ -724,7 +724,7 @@ async function updateExistingWarpRoute(
 
         switch (protocolType) {
           case ProtocolType.Ethereum: {
-            const evmERC20WarpModule = new EvmERC20WarpModule(
+            const evmERC20WarpModule = new EvmWarpModule(
               multiProvider,
               {
                 config: configWithMailbox,

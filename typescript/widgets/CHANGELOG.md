@@ -1,5 +1,69 @@
 # @hyperlane-xyz/widgets
 
+## 25.0.0
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/cosmos-sdk@25.0.0
+  - @hyperlane-xyz/aleo-sdk@25.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/radix-sdk@25.0.0
+
+## 24.0.0
+
+### Patch Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [b1b941e]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/radix-sdk@24.0.0
+
+## 23.0.0
+
+### Major Changes
+
+- 80f3635: feat: aleo nexus ui support
+
+### Patch Changes
+
+- Updated dependencies [d1d90d2]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [c8f6f6c]
+- Updated dependencies [7c22cff]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [6ddef74]
+- Updated dependencies [80f3635]
+- Updated dependencies [576cd95]
+- Updated dependencies [9aa93f4]
+- Updated dependencies [42b72c3]
+- Updated dependencies [a5d6cae]
+  - @hyperlane-xyz/sdk@23.0.0
+  - @hyperlane-xyz/aleo-sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@23.0.0
+  - @hyperlane-xyz/radix-sdk@23.0.0
+
 ## 22.0.0
 
 ### Patch Changes

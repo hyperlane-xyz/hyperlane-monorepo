@@ -1,4 +1,5 @@
 export {
+  hexToBech32mPrefix,
   hexToRadixCustomPrefix,
   addressToByteHexString,
   addressToBytes,
@@ -80,6 +81,7 @@ export {
   AllSettledResult,
   concurrentMap,
   fetchWithTimeout,
+  LazyAsync,
   mapAllSettled,
   pollAsync,
   raceWithContext,
@@ -200,6 +202,7 @@ export {
   Domain,
   EvmChainId,
   HexString,
+  KnownProtocolType,
   MerkleProof,
   MessageStatus,
   Numberish,

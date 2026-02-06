@@ -1,4 +1,10 @@
-import { Logger, WithAddress, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  Logger,
+  WithAddress,
+  deepEquals,
+  normalizeConfig,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import * as AltVM from './altvm.js';
 import {
@@ -270,9 +276,9 @@ export function hookConfigToArtifact(
  * Determines if a new hook should be deployed instead of updating the existing one.
  * Deploy new hook if:
  * - Hook type changed
- * - Hook is immutable (MerkleTree)
+ * - Hook config changed (for immutable hooks like MerkleTree)
  *
- * Only IGP hooks are mutable and support updates.
+ * For mutable hooks (IGP), they can be updated in-place.
  *
  * @param actual The current deployed hook configuration
  * @param expected The desired hook configuration
@@ -285,11 +291,15 @@ export function shouldDeployNewHook(
   // Type changed - must deploy new
   if (actual.type !== expected.type) return true;
 
+  // Normalize and compare configs
+  const normalizedActual = normalizeConfig(actual);
+  const normalizedExpected = normalizeConfig(expected);
+
   // Check mutability based on hook type
   switch (expected.type) {
     case AltVM.HookType.MERKLE_TREE:
-      // MerkleTree hooks are immutable - must deploy new
-      return true;
+      // MerkleTree hooks are immutable - must deploy new if config changed
+      return !deepEquals(normalizedActual, normalizedExpected);
 
     case AltVM.HookType.INTERCHAIN_GAS_PAYMASTER:
       // IGP hooks are mutable - can be updated

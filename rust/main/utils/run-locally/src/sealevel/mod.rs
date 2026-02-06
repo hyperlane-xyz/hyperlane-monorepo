@@ -28,9 +28,11 @@ use crate::{
     wait_for_condition, State, AGENT_LOGGING_DIR, RELAYER_METRICS_PORT, SCRAPER_METRICS_PORT,
 };
 
-// This number should be even, so the messages can be split into two equal halves
-// sent before and after the relayer spins up, to avoid rounding errors.
-pub const SOL_MESSAGES_EXPECTED: u32 = 10;
+// Message counts per destination (must be even for before/after agent split)
+pub const SOL_MESSAGES_EXPECTED_SEALEVELTEST2: u32 = 6;
+pub const SOL_MESSAGES_EXPECTED_SEALEVELTEST3: u32 = 6;
+pub const SOL_MESSAGES_EXPECTED: u32 =
+    SOL_MESSAGES_EXPECTED_SEALEVELTEST2 + SOL_MESSAGES_EXPECTED_SEALEVELTEST3;
 pub const SOL_MESSAGES_WITH_NON_MATCHING_IGP: u32 = 1;
 pub const SUBMITTER_TYPE: SubmitterType = SubmitterType::Lander;
 
@@ -40,12 +42,13 @@ const RELAYER_KEYS: &[&str] = &[
     "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
     // sealeveltest2
     "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
+    // sealeveltest3
+    "0x892bf6949af4233e62f854cb3618bc1a3ee3341dc71ada08c4d5deca239acf4f",
 ];
 
-const SEALEVEL_VALIDATOR_KEYS: &[&str] = &[
-    // sealevel
-    "0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d",
-];
+// Single validator on sealeveltest1 only - signs checkpoints for messages to both destinations
+const SEALEVEL_VALIDATOR_KEYS: &[&str] =
+    &["0x59c6995e998f97a5a0044966f0945389dc9e86dae88c7a8412f4603b6b78690d"];
 
 type DynPath = Box<dyn AsRef<Path>>;
 
@@ -76,6 +79,7 @@ fn run_locally() {
     let rpc_url = format!("http://127.0.0.1:{}", rpc_port);
     log!("Using Solana RPC port: {}", rpc_port);
 
+    // Single validator on sealeveltest1 only
     let validator_origin_chains = ["sealeveltest1"].to_vec();
     let validator_keys = SEALEVEL_VALIDATOR_KEYS.to_vec();
     let validator_count: usize = validator_keys.len();
@@ -97,7 +101,8 @@ fn run_locally() {
         .hyp_env("LOG_FORMAT", "compact")
         .hyp_env("LOG_LEVEL", "debug");
 
-    let relayer_env = common_agent_env
+    // Base relayer env - ALT will be added after solana validator starts
+    let base_relayer_env = common_agent_env
         .clone()
         .bin(concat_path(&workspace_path, "target/debug/relayer"))
         .working_dir(&workspace_path)
@@ -105,8 +110,10 @@ fn run_locally() {
         .hyp_env("DB", relayer_db.to_str().unwrap())
         .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[0])
         .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[1])
+        .hyp_env("CHAINS_SEALEVELTEST3_SIGNER_KEY", RELAYER_KEYS[2])
         .hyp_env("CHAINS_SEALEVELTEST1_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("CHAINS_SEALEVELTEST2_SUBMITTER", SUBMITTER_TYPE.to_string())
+        .hyp_env("CHAINS_SEALEVELTEST3_SUBMITTER", SUBMITTER_TYPE.to_string())
         .hyp_env("RELAYCHAINS", "invalidchain,otherinvalid")
         .hyp_env("ALLOWLOCALCHECKPOINTSYNCERS", "true")
         .hyp_env(
@@ -120,8 +127,9 @@ fn run_locally() {
         // Override static config RPC URLs with dynamically allocated port
         .hyp_env("CHAINS_SEALEVELTEST1_RPCURLS_0_HTTP", &rpc_url)
         .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url)
+        .hyp_env("CHAINS_SEALEVELTEST3_RPCURLS_0_HTTP", &rpc_url)
         .arg("defaultSigner.key", RELAYER_KEYS[0])
-        .arg("relayChains", "sealeveltest1,sealeveltest2");
+        .arg("relayChains", "sealeveltest1,sealeveltest2,sealeveltest3");
 
     let base_validator_env = common_agent_env
         .clone()
@@ -131,7 +139,8 @@ fn run_locally() {
         .hyp_env("CHECKPOINTSYNCER_TYPE", "localStorage")
         // Override static config RPC URLs with dynamically allocated port
         .hyp_env("CHAINS_SEALEVELTEST1_RPCURLS_0_HTTP", &rpc_url)
-        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url);
+        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url)
+        .hyp_env("CHAINS_SEALEVELTEST3_RPCURLS_0_HTTP", &rpc_url);
 
     let validator_envs = (0..validator_count)
         .map(|i| {
@@ -142,6 +151,7 @@ fn run_locally() {
                 .hyp_env("ORIGINCHAINNAME", validator_origin_chains[i])
                 .hyp_env("CHAINS_SEALEVELTEST1_SIGNER_KEY", RELAYER_KEYS[0])
                 .hyp_env("CHAINS_SEALEVELTEST2_SIGNER_KEY", RELAYER_KEYS[1])
+                .hyp_env("CHAINS_SEALEVELTEST3_SIGNER_KEY", RELAYER_KEYS[2])
                 .hyp_env("VALIDATOR_KEY", validator_keys[i])
                 .hyp_env(
                     "CHECKPOINTSYNCER_PATH",
@@ -163,10 +173,14 @@ fn run_locally() {
             "DB",
             "postgresql://postgres:47221c18c610@localhost:5432/postgres",
         )
-        .hyp_env("CHAINSTOSCRAPE", "sealeveltest1,sealeveltest2")
+        .hyp_env(
+            "CHAINSTOSCRAPE",
+            "sealeveltest1,sealeveltest2,sealeveltest3",
+        )
         // Override static config RPC URLs with dynamically allocated port
         .hyp_env("CHAINS_SEALEVELTEST1_RPCURLS_0_HTTP", &rpc_url)
-        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url);
+        .hyp_env("CHAINS_SEALEVELTEST2_RPCURLS_0_HTTP", &rpc_url)
+        .hyp_env("CHAINS_SEALEVELTEST3_RPCURLS_0_HTTP", &rpc_url);
 
     let mut state = State::default();
 
@@ -233,7 +247,7 @@ fn run_locally() {
         .join();
 
     let solana_ledger_dir = tempdir().expect("Failed to create solana ledger dir");
-    let (solana_cli_tools_path, solana_config_path) = {
+    let (solana_cli_tools_path, solana_config_path, sealeveltest2_alt) = {
         // use the agave 2.x validator version to ensure mainnet compatibility
         let solana_tools_dir = tempdir().expect("Failed to create solana tools dir");
         let solana_bin_path = install_solana_cli_tools(
@@ -251,12 +265,15 @@ fn run_locally() {
             rpc_port,
         );
 
-        let (solana_config_path, mock_registry_dir, solana_validator) =
-            start_solana_validator.join();
-        state.push_agent(solana_validator);
+        let result = start_solana_validator.join();
+        state.push_agent(result.validator);
         // Keep mock registry dir alive for the duration of the test
-        state.data.push(Box::new(mock_registry_dir));
-        (solana_bin_path, solana_config_path)
+        state.data.push(Box::new(result.mock_registry_dir));
+        (
+            solana_bin_path,
+            result.config_path,
+            result.sealeveltest2_alt,
+        )
     };
 
     sleep(Duration::from_secs(5));
@@ -271,16 +288,25 @@ fn run_locally() {
     // sleep some more to avoid flakes when sending transfers below
     sleep(Duration::from_secs(10));
 
-    // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-        initiate_solana_hyperlane_transfer(
+    // Send messages BEFORE agents start (test backward indexing cursor)
+    // Half to sealeveltest2 (will use versioned tx with ALT)
+    for _i in 0..(SOL_MESSAGES_EXPECTED_SEALEVELTEST2 / 2) {
+        initiate_hyperlane_transfer_to_sealeveltest2(
+            solana_cli_tools_path.clone(),
+            solana_config_path.clone(),
+        )
+        .join();
+    }
+    // Half to sealeveltest3 (will use legacy tx, NO ALT)
+    for _i in 0..(SOL_MESSAGES_EXPECTED_SEALEVELTEST3 / 2) {
+        initiate_hyperlane_transfer_to_sealeveltest3(
             solana_cli_tools_path.clone(),
             solana_config_path.clone(),
         )
         .join();
     }
 
-    // spawn validators
+    // spawn validators (single validator on sealeveltest1 only)
     for (i, validator_env) in validator_envs.into_iter().enumerate() {
         let validator = validator_env.spawn(
             make_static(format!("VL{}", 1 + i)),
@@ -289,19 +315,32 @@ fn run_locally() {
         state.push_agent(validator);
     }
 
-    // spawn relayer
+    // spawn relayer with ALT configured for sealeveltest2 (destination) to test versioned txs
+    // Messages to sealeveltest2 use versioned tx with ALT
+    // Messages to sealeveltest3 use legacy tx (NO ALT configured)
+    let relayer_env =
+        base_relayer_env.hyp_env("CHAINS_SEALEVELTEST2_MAILBOXPROCESSALT", &sealeveltest2_alt);
     state.push_agent(relayer_env.spawn("RLY", Some(&AGENT_LOGGING_DIR)));
 
-    // Send some sealevel messages before spinning up the agents, to test the backward indexing cursor
-    for _i in 0..(SOL_MESSAGES_EXPECTED / 2) {
-        initiate_solana_hyperlane_transfer(
+    // Send messages AFTER agents start
+    // Half to sealeveltest2 (versioned tx with ALT)
+    for _i in 0..(SOL_MESSAGES_EXPECTED_SEALEVELTEST2 / 2) {
+        initiate_hyperlane_transfer_to_sealeveltest2(
+            solana_cli_tools_path.clone(),
+            solana_config_path.clone(),
+        )
+        .join();
+    }
+    // Half to sealeveltest3 (legacy tx, NO ALT)
+    for _i in 0..(SOL_MESSAGES_EXPECTED_SEALEVELTEST3 / 2) {
+        initiate_hyperlane_transfer_to_sealeveltest3(
             solana_cli_tools_path.clone(),
             solana_config_path.clone(),
         )
         .join();
     }
 
-    initiate_solana_non_matching_igp_paying_transfer(
+    initiate_non_matching_igp_paying_transfer(
         solana_cli_tools_path.clone(),
         solana_config_path.clone(),
     )

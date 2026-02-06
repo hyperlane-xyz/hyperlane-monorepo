@@ -134,6 +134,7 @@ export const hookTypesToFilter: HookType[] = [
   HookType.ARB_L2_TO_L1,
   HookType.CUSTOM,
   HookType.CCIP,
+  HookType.UNKNOWN,
 ];
 export const DEFAULT_TOKEN_DECIMALS = 18;
 

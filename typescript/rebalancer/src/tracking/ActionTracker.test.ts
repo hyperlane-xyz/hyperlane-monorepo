@@ -5,7 +5,6 @@ import Sinon from 'sinon';
 
 import { EthJsonRpcBlockParameterTag } from '@hyperlane-xyz/sdk';
 
-import type { ConfirmedBlockTags } from '../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../utils/ExplorerClient.js';
 
 import { ActionTracker, type ActionTrackerConfig } from './ActionTracker.js';
@@ -46,19 +45,19 @@ describe('ActionTracker', () => {
       getInflightRebalanceActions: explorerGetInflightRebalanceActions,
     } as any;
 
-    // Create stub for mailbox
+    // Create stub for adapter (used by MultiProtocolCore)
     mailboxStub = {
-      delivered: Sinon.stub().resolves(false),
+      isDelivered: Sinon.stub().resolves(false),
     };
 
-    // Create stub for HyperlaneCore
-    const coreGetContracts = Sinon.stub().returns({ mailbox: mailboxStub });
+    // Create stub for MultiProtocolCore
     const multiProviderGetChainName = Sinon.stub().callsFake(
       (domain: number) => `chain${domain}`,
     );
+    const adapterStub = Sinon.stub().returns(mailboxStub);
 
     core = {
-      getContracts: coreGetContracts,
+      adapter: adapterStub,
       multiProvider: {
         getChainName: multiProviderGetChainName,
       },
@@ -107,7 +106,7 @@ describe('ActionTracker', () => {
       explorerClient.getInflightUserTransfers.resolves([]);
 
       // Ensure mailbox returns false so action stays in_progress
-      mailboxStub.delivered.resolves(false);
+      mailboxStub.isDelivered.resolves(false);
 
       await tracker.initialize();
 
@@ -259,7 +258,7 @@ describe('ActionTracker', () => {
       });
 
       explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.delivered.resolves(true);
+      mailboxStub.isDelivered.resolves(true);
 
       await tracker.syncTransfers();
 
@@ -338,7 +337,7 @@ describe('ActionTracker', () => {
       await rebalanceIntentStore.save(intent);
       await rebalanceActionStore.save(action);
 
-      mailboxStub.delivered.resolves(true);
+      mailboxStub.isDelivered.resolves(true);
 
       await tracker.syncRebalanceActions();
 
@@ -367,7 +366,7 @@ describe('ActionTracker', () => {
 
       await rebalanceActionStore.save(action);
 
-      mailboxStub.delivered.resolves(false);
+      mailboxStub.isDelivered.resolves(false);
 
       await tracker.syncRebalanceActions();
 
@@ -658,8 +657,8 @@ describe('ActionTracker', () => {
     });
   });
 
-  describe('confirmedBlockTags synchronization', () => {
-    it('should use provided blockTag in syncTransfers delivery check', async () => {
+  describe('delivery check synchronization', () => {
+    it('should check delivery status in syncTransfers using adapter', async () => {
       await transferStore.save({
         id: '0xmsg1',
         status: 'in_progress',
@@ -674,21 +673,19 @@ describe('ActionTracker', () => {
       });
 
       explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.delivered.resolves(true);
+      mailboxStub.isDelivered.resolves(true);
 
-      const confirmedBlockTags = { chain2: 12345 };
-      await tracker.syncTransfers(confirmedBlockTags);
+      await tracker.syncTransfers();
 
-      expect(mailboxStub.delivered.calledOnce).to.be.true;
-      const call = mailboxStub.delivered.firstCall;
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const call = mailboxStub.isDelivered.firstCall;
       expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.deep.equal({ blockTag: 12345 });
 
       const transfer = await transferStore.get('0xmsg1');
       expect(transfer?.status).to.equal('complete');
     });
 
-    it('should use provided blockTag in syncRebalanceActions delivery check', async () => {
+    it('should check delivery status in syncRebalanceActions using adapter', async () => {
       const intent: RebalanceIntent = {
         id: 'intent-1',
         status: 'in_progress',
@@ -716,21 +713,19 @@ describe('ActionTracker', () => {
       await rebalanceActionStore.save(action);
 
       explorerClient.getInflightRebalanceActions.resolves([]);
-      mailboxStub.delivered.resolves(true);
+      mailboxStub.isDelivered.resolves(true);
 
-      const confirmedBlockTags = { chain2: 99999 };
-      await tracker.syncRebalanceActions(confirmedBlockTags);
+      await tracker.syncRebalanceActions();
 
-      expect(mailboxStub.delivered.calledOnce).to.be.true;
-      const call = mailboxStub.delivered.firstCall;
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const call = mailboxStub.isDelivered.firstCall;
       expect(call.args[0]).to.equal('0xmsg1');
-      expect(call.args[1]).to.deep.equal({ blockTag: 99999 });
 
       const updatedAction = await rebalanceActionStore.get('action-1');
       expect(updatedAction?.status).to.equal('complete');
     });
 
-    it('should handle string blockTags (like "safe" or "finalized")', async () => {
+    it('should keep transfer in_progress when not delivered', async () => {
       await transferStore.save({
         id: '0xmsg1',
         status: 'in_progress',
@@ -745,19 +740,16 @@ describe('ActionTracker', () => {
       });
 
       explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.delivered.resolves(false);
+      mailboxStub.isDelivered.resolves(false);
 
-      const confirmedBlockTags: ConfirmedBlockTags = {
-        chain2: EthJsonRpcBlockParameterTag.Finalized,
-      };
-      await tracker.syncTransfers(confirmedBlockTags);
+      await tracker.syncTransfers();
 
-      expect(mailboxStub.delivered.calledOnce).to.be.true;
-      const call = mailboxStub.delivered.firstCall;
-      expect(call.args[1]).to.deep.equal({ blockTag: 'finalized' });
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const transfer = await transferStore.get('0xmsg1');
+      expect(transfer?.status).to.equal('in_progress');
     });
 
-    it('should handle undefined blockTag for chain not in confirmedBlockTags', async () => {
+    it('should check delivery for multiple destinations', async () => {
       await transferStore.save({
         id: '0xmsg1',
         status: 'in_progress',
@@ -772,12 +764,103 @@ describe('ActionTracker', () => {
       });
 
       explorerClient.getInflightUserTransfers.resolves([]);
-      mailboxStub.delivered.resolves(false);
+      mailboxStub.isDelivered.resolves(false);
 
-      const confirmedBlockTags = { chain2: 12345 };
+      await tracker.syncTransfers();
+
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+    });
+
+    it('should pass blockTag when checking delivery in syncTransfers', async () => {
+      await transferStore.save({
+        id: '0xmsg1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(true);
+
+      const confirmedBlockTags = {
+        chain2: EthJsonRpcBlockParameterTag.Finalized,
+      };
       await tracker.syncTransfers(confirmedBlockTags);
 
-      expect(mailboxStub.delivered.calledOnce).to.be.true;
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const call = mailboxStub.isDelivered.firstCall;
+      expect(call.args[0]).to.equal('0xmsg1');
+      expect(call.args[1]).to.equal(EthJsonRpcBlockParameterTag.Finalized);
+    });
+
+    it('should pass blockTag when checking delivery in syncRebalanceActions', async () => {
+      const intent: RebalanceIntent = {
+        id: 'intent-1',
+        status: 'in_progress',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        fulfilledAmount: 0n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      const action: RebalanceAction = {
+        id: 'action-1',
+        status: 'in_progress',
+        intentId: 'intent-1',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      };
+
+      await rebalanceIntentStore.save(intent);
+      await rebalanceActionStore.save(action);
+
+      explorerClient.getInflightRebalanceActions.resolves([]);
+      mailboxStub.isDelivered.resolves(true);
+
+      const confirmedBlockTags = { chain2: 12345 };
+      await tracker.syncRebalanceActions(confirmedBlockTags);
+
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const call = mailboxStub.isDelivered.firstCall;
+      expect(call.args[0]).to.equal('0xmsg1');
+      expect(call.args[1]).to.equal(12345);
+    });
+
+    it('should pass undefined blockTag when confirmedBlockTags not provided', async () => {
+      await transferStore.save({
+        id: '0xmsg1',
+        status: 'in_progress',
+        messageId: '0xmsg1',
+        origin: 1,
+        destination: 2,
+        amount: 100n,
+        sender: '0xuser1',
+        recipient: '0xuser2',
+        createdAt: Date.now(),
+        updatedAt: Date.now(),
+      });
+
+      explorerClient.getInflightUserTransfers.resolves([]);
+      mailboxStub.isDelivered.resolves(false);
+
+      await tracker.syncTransfers(); // No confirmedBlockTags
+
+      expect(mailboxStub.isDelivered.calledOnce).to.be.true;
+      const call = mailboxStub.isDelivered.firstCall;
+      expect(call.args[0]).to.equal('0xmsg1');
+      expect(call.args[1]).to.be.undefined;
     });
   });
 });

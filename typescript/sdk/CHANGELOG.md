@@ -1,5 +1,113 @@
 # @hyperlane-xyz/sdk
 
+## 25.0.0
+
+### Major Changes
+
+- aaabbad: Added EvmXERC20Reader and EvmXERC20Module for XERC20 limit and bridge management following HyperlaneModule pattern. Supported both Standard and Velodrome XERC20 types with on-chain bridge enumeration and drift detection.
+
+  BREAKING CHANGE: `deriveXERC20TokenType` signature changed from `(provider, address)` to `(multiProvider, chain, address)` to use SDK's `isContractAddress` utility.
+
+### Patch Changes
+
+- 52ce778: A `LazyAsync` helper was added to `@hyperlane-xyz/utils` for safe, deduplicated async initialization. It replaces the scattered pattern of `if (!cached) { cached = await init(); } return cached` with an approach that deduplicates concurrent callers, clears state on errors to allow retries, and supports reset capability. Consumer packages were migrated to use this utility.
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/cosmos-sdk@25.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/aleo-sdk@25.0.0
+  - @hyperlane-xyz/deploy-sdk@1.3.1
+  - @hyperlane-xyz/provider-sdk@1.3.1
+  - @hyperlane-xyz/radix-sdk@25.0.0
+  - @hyperlane-xyz/starknet-core@25.0.0
+
+## 24.0.0
+
+### Major Changes
+
+- d0b8c24: Renamed EvmERC20WarpModule to EvmWarpModule.
+  Renamed EvmERC20WarpRouteReader to EvmWarpRouteReader.
+- 4de5071: **BREAKING**: `MetadataBuilder.build()` now returns `MetadataBuildResult` instead of `string`. Access `.metadata` on the result to get the encoded bytes.
+
+  Added real-time validator signature status to MetadataBuilder. The builder now returns detailed information about which validators have signed a message, their checkpoint indices, and actual signatures. New exports: `ValidatorInfo`, `MetadataBuildResult`, `DerivedHookConfig`, and helper functions `isMetadataBuildable()`, `getSignedValidatorCount()`, `isQuorumMet()`.
+
+  Performance optimizations:
+
+  - EvmIsmReader routing ISM derivation reduced from ~5.7s to ~724ms via messageContext short-circuit
+  - EvmHookReader RPC calls parallelized across all derivation methods
+  - SmartProvider retry logic fixed to correctly identify permanent errors
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- 57461b2: The arrow wrapper in fetchWithTimeout was replaced with a bound method to prevent closure from capturing surrounding scope and keeping large objects alive for the lifetime of the AbortSignal timeout. Removed duplicate dead code from SDK.
+- 50868ce: Fixed HypNative token checker failing in CI environments by passing `from` address as the third parameter to `estimateGas` instead of inside the transaction object.
+- b05e9f8: Fixed Mailbox instruction Borsh schema to use u8 discriminator (matching Rust's Borsh enum serialization) instead of u32.
+- f44c2b4: Fixed warp check false positives for allowedRebalancingBridges when addresses are the same but in different order.
+- Updated dependencies [9c52a94]
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [b1b941e]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/deploy-sdk@1.3.0
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/aleo-sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/cosmos-sdk@24.0.0
+  - @hyperlane-xyz/radix-sdk@24.0.0
+  - @hyperlane-xyz/starknet-core@24.0.0
+
+## 23.0.0
+
+### Major Changes
+
+- 80f3635: feat: aleo nexus ui support
+
+### Minor Changes
+
+- d1d90d2: Extracted shared gas estimation utilities: `estimateHandleGasForRecipient()` for `handle()` calls and `estimateCallGas()` for individual contract calls. Added `HyperlaneCore.estimateHandleGas()` accepting minimal params. Refactored `InterchainAccount.estimateIcaHandleGas()` to use shared utilities.
+- 7c22cff: Added optional `blockTag` parameter to `getBridgedSupply()` method in `IHypTokenAdapter` interface and all EVM adapter implementations. This allows querying bridged supply at a specific block height or using block parameter tags (finalized, safe, latest, etc.).
+- 52fd0f8: Added `estimateIcaHandleGas()` public method to estimate destination gas for ICA calls. `getCallRemote()` now extracts gasLimit from hookMetadata for accurate IGP quoting with the `quoteGasPayment(uint32,uint256)` overload. Fixed `hookMetadata` type from `BigNumber` to `string` in `GetCallRemoteSettings`.
+- 6ddef74: Fix warp check for Aleo.
+- 9aa93f4: Added optional `waitConfirmations` parameter to `sendTransaction()` and `handleTx()` methods in MultiProvider, which allowed callers to specify a custom number of confirmations or a block tag like "finalized" or "safe" to wait for before returning. Added `waitForBlockTag()` helper method that polled until the tagged block number reached the transaction's block number. Exported new `SendTransactionOptions` interface from SDK.
+- 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
+
+  - Moved `HyperlaneRelayer` class from SDK to new package
+  - Moved ISM metadata builders from SDK to relayer package
+  - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
+  - Added Prometheus metrics support with `/metrics` endpoint (enabled by default on port 9090)
+  - CLI and infra now import from new package
+  - **Breaking**: The following exports were removed from `@hyperlane-xyz/sdk` and are now available from `@hyperlane-xyz/relayer`:
+    - `HyperlaneRelayer`, `RelayerCacheSchema`, `messageMatchesWhitelist`
+    - `BaseMetadataBuilder`, `decodeIsmMetadata`
+    - All metadata builder classes (`AggregationMetadataBuilder`, `MultisigMetadataBuilder`, etc.)
+  - `offchainLookupRequestMessageHash` remains exported from SDK for ccip-server compatibility
+  - Added `randomDeployableIsmConfig` test utility to SDK for generating deployable ISM configs with custom validators
+
+### Patch Changes
+
+- 52fd0f8: Fixed `getCallRemote` in InterchainAccount to query ISM using origin domain instead of destination domain. The `isms` mapping is indexed by origin (where messages come FROM), not destination.
+- 576cd95: Updated `proxyAdminUpdateTxs()` to respect `ownerOverrides.proxyAdmin` when determining the expected proxyAdmin owner. The priority is now: `ownerOverrides.proxyAdmin` > `proxyAdmin.owner` > `owner`.
+- a5d6cae: Fixed legacy ICA router support in InterchainAccount: use routerOverride for gas estimation and ISM lookup, and query mailbox directly for accurate quotes on legacy routers that don't support hookMetadata.
+- Updated dependencies [c8f6f6c]
+- Updated dependencies [0b8c4ea]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [80f3635]
+  - @hyperlane-xyz/aleo-sdk@23.0.0
+  - @hyperlane-xyz/provider-sdk@1.2.1
+  - @hyperlane-xyz/deploy-sdk@1.2.1
+  - @hyperlane-xyz/utils@23.0.0
+  - @hyperlane-xyz/cosmos-sdk@23.0.0
+  - @hyperlane-xyz/radix-sdk@23.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/starknet-core@23.0.0
+
 ## 22.0.0
 
 ### Minor Changes

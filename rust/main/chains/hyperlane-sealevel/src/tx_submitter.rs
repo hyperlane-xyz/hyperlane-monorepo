@@ -7,11 +7,12 @@ use async_trait::async_trait;
 use derive_new::new;
 use solana_sdk::{
     commitment_config::CommitmentConfig, compute_budget::ComputeBudgetInstruction,
-    instruction::Instruction, pubkey::Pubkey, signature::Signature, transaction::Transaction,
+    instruction::Instruction, pubkey::Pubkey, signature::Signature,
 };
 
 use hyperlane_core::ChainResult;
 
+use crate::tx_type::SealevelTxType;
 use crate::{SealevelProvider, SealevelProviderForLander};
 
 /// A trait for submitting transactions to the chain.
@@ -25,16 +26,18 @@ pub trait TransactionSubmitter: Send + Sync {
         payer: &Pubkey,
     ) -> Instruction;
 
-    /// Send a transaction to the chain.
+    /// Send a transaction to the chain (legacy or versioned).
     async fn send_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &SealevelTxType,
         skip_preflight: bool,
     ) -> ChainResult<Signature>;
 
     /// Waits for Sealevel transaction confirmation with processed commitment level
-    async fn wait_for_transaction_confirmation(&self, transaction: &Transaction)
-        -> ChainResult<()>;
+    async fn wait_for_transaction_confirmation(
+        &self,
+        transaction: &SealevelTxType,
+    ) -> ChainResult<()>;
 
     /// Confirm transaction
     async fn confirm_transaction(
@@ -63,18 +66,18 @@ impl TransactionSubmitter for RpcTransactionSubmitter {
 
     async fn send_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &SealevelTxType,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.provider
             .rpc_client()
-            .send_transaction(transaction, skip_preflight)
+            .send_sealevel_tx(transaction, skip_preflight)
             .await
     }
 
     async fn wait_for_transaction_confirmation(
         &self,
-        transaction: &Transaction,
+        transaction: &SealevelTxType,
     ) -> ChainResult<()> {
         self.provider
             .wait_for_transaction_confirmation(transaction)
@@ -134,18 +137,18 @@ impl TransactionSubmitter for JitoTransactionSubmitter {
 
     async fn send_transaction(
         &self,
-        transaction: &Transaction,
+        transaction: &SealevelTxType,
         skip_preflight: bool,
     ) -> ChainResult<Signature> {
         self.submit_provider
             .rpc_client()
-            .send_transaction(transaction, skip_preflight)
+            .send_sealevel_tx(transaction, skip_preflight)
             .await
     }
 
     async fn wait_for_transaction_confirmation(
         &self,
-        transaction: &Transaction,
+        transaction: &SealevelTxType,
     ) -> ChainResult<()> {
         self.default_provider
             .wait_for_transaction_confirmation(transaction)

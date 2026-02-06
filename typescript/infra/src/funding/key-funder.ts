@@ -135,23 +135,26 @@ export class KeyFunderHelmManager extends HelmManager {
         };
       }
 
-      if (!CHAINS_TO_SWEEP.has(chain)) {
-        continue;
-      }
+      // Add sweep config only for chains in CHAINS_TO_SWEEP with valid thresholds
+      if (CHAINS_TO_SWEEP.has(chain)) {
+        const sweepThreshold = this.config.lowUrgencyKeyFunderBalances?.[chain];
+        if (!sweepThreshold) {
+          throw new Error(`Sweep threshold is missing for chain ${chain}`);
+        }
+        const thresholdNum = Number(sweepThreshold);
+        if (!Number.isFinite(thresholdNum) || thresholdNum <= 0) {
+          throw new Error(`Sweep threshold is invalid for chain ${chain}`);
+        }
 
-      const sweepThreshold = this.config.lowUrgencyKeyFunderBalances?.[chain];
-      if (!sweepThreshold || parseFloat(sweepThreshold) <= 0) {
-        throw new Error(`Sweep threshold is invalid for chain ${chain}`);
+        const override = this.config.sweepOverrides?.[chain];
+        chainConfig.sweep = {
+          enabled: true,
+          address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
+          threshold: sweepThreshold,
+          targetMultiplier: override?.targetMultiplier ?? 1.5,
+          triggerMultiplier: override?.triggerMultiplier ?? 2.0,
+        };
       }
-
-      const override = this.config.sweepOverrides?.[chain];
-      chainConfig.sweep = {
-        enabled: true,
-        address: override?.sweepAddress ?? DEFAULT_SWEEP_ADDRESS,
-        threshold: sweepThreshold,
-        targetMultiplier: override?.targetMultiplier ?? 1.5,
-        triggerMultiplier: override?.triggerMultiplier ?? 2.0,
-      };
 
       if (Object.keys(chainConfig).length > 0) {
         chains[chain] = chainConfig;

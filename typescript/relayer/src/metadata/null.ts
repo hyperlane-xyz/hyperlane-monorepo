@@ -1,7 +1,11 @@
 import { IsmType, MultiProvider, NullIsmConfig } from '@hyperlane-xyz/sdk';
 import { WithAddress, assert, eqAddress } from '@hyperlane-xyz/utils';
 
-import type { MetadataBuilder, MetadataContext } from './types.js';
+import type {
+  MetadataBuilder,
+  MetadataContext,
+  NullMetadataBuildResult,
+} from './types.js';
 
 export const NULL_METADATA = '0x';
 
@@ -14,7 +18,7 @@ export class NullMetadataBuilder implements MetadataBuilder {
 
   async build(
     context: MetadataContext<WithAddress<NullIsmConfig>>,
-  ): Promise<string> {
+  ): Promise<NullMetadataBuildResult> {
     if (context.ism.type === IsmType.TRUSTED_RELAYER) {
       const destinationSigner = await this.multiProvider.getSignerAddress(
         context.message.parsed.destination,
@@ -24,7 +28,12 @@ export class NullMetadataBuilder implements MetadataBuilder {
         `Destination signer ${destinationSigner} does not match trusted relayer ${context.ism.relayer}`,
       );
     }
-    return NULL_METADATA;
+
+    return {
+      type: context.ism.type,
+      ismAddress: context.ism.address,
+      metadata: NULL_METADATA,
+    };
   }
 
   static decode(ism: NullIsmConfig): NullMetadata {

@@ -18,6 +18,11 @@ export type ResEstimateTransactionFee = {
   fee: bigint;
 };
 
+export type ProxyAdmin = {
+  owner: string;
+  address: string;
+};
+
 // ### QUERY CORE ###
 
 export type ReqGetMailbox = { mailboxAddress: string };
@@ -29,6 +34,10 @@ export type ResGetMailbox = {
   defaultHook: string;
   requiredHook: string;
   nonce: number;
+  proxyAdmin?: {
+    owner: string;
+    address: string;
+  };
 };
 
 export type ReqIsMessageDelivered = {
@@ -165,6 +174,7 @@ export type ResGetToken = {
   name: string;
   symbol: string;
   decimals: number;
+  proxyAdmin?: ProxyAdmin;
 };
 
 export type ReqGetRemoteRouters = { tokenAddress: string };
@@ -182,6 +192,8 @@ export type ReqGetBridgedSupply = { tokenAddress: string };
 export type ReqQuoteRemoteTransfer = {
   tokenAddress: string;
   destinationDomainId: number;
+  recipient?: string;
+  amount?: string;
   customHookAddress?: string;
   customHookMetadata?: string;
 };
@@ -193,8 +205,11 @@ export type ReqCreateMailbox = {
   signer: string;
   domainId: number;
   defaultIsmAddress?: string;
+  proxyAdminAddress?: string;
 };
-export type ResCreateMailbox = { mailboxAddress: string };
+export type ResCreateMailbox = {
+  mailboxAddress: string;
+};
 
 export type ReqSetDefaultIsm = {
   signer: string;
@@ -304,6 +319,7 @@ export type ReqCreateInterchainGasPaymasterHook = {
   signer: string;
   mailboxAddress: string;
   denom?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateInterchainGasPaymasterHook = {
   hookAddress: string;
@@ -366,12 +382,30 @@ export type ResCreateValidatorAnnounce = {
   validatorAnnounceId: string;
 };
 
+export type ReqCreateProxyAdmin = {
+  signer: string;
+  owner?: string;
+};
+export type ResCreateProxyAdmin = {
+  proxyAdminAddress: string;
+};
+
+export type ReqSetProxyAdminOwner = {
+  signer: string;
+  proxyAdminAddress: string;
+  newOwner: string;
+};
+export type ResSetProxyAdminOwner = {
+  newOwner: string;
+};
+
 // ### POPULATE WARP ###
 
 export type ReqCreateNativeToken = {
   signer: string;
   mailboxAddress: string;
   warpSuffix?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateNativeToken = {
   tokenAddress: string;
@@ -382,6 +416,7 @@ export type ReqCreateCollateralToken = {
   mailboxAddress: string;
   collateralDenom: string;
   warpSuffix?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateCollateralToken = {
   tokenAddress: string;
@@ -394,6 +429,7 @@ export type ReqCreateSyntheticToken = {
   denom: string;
   decimals: number;
   warpSuffix?: string;
+  proxyAdminAddress?: string;
 };
 export type ResCreateSyntheticToken = {
   tokenAddress: string;
@@ -421,7 +457,7 @@ export type ResSetTokenIsm = {
 export type ReqSetTokenHook = {
   signer: string;
   tokenAddress: string;
-  hookAddress: string;
+  hookAddress?: string;
 };
 export type ResSetTokenHook = {
   hookAddress: string;
@@ -589,6 +625,10 @@ export interface IProvider<T = any> {
     req: ReqCreateValidatorAnnounce,
   ): Promise<T>;
 
+  getCreateProxyAdminTransaction(req: ReqCreateProxyAdmin): Promise<T>;
+
+  getSetProxyAdminOwnerTransaction(req: ReqSetProxyAdminOwner): Promise<T>;
+
   // ### GET WARP TXS ###
 
   getCreateNativeTokenTransaction(req: ReqCreateNativeToken): Promise<T>;
@@ -702,6 +742,14 @@ export interface ISigner<T, R> extends IProvider<T> {
   createValidatorAnnounce(
     req: Omit<ReqCreateValidatorAnnounce, 'signer'>,
   ): Promise<ResCreateValidatorAnnounce>;
+
+  createProxyAdmin(
+    req: Omit<ReqCreateProxyAdmin, 'signer'>,
+  ): Promise<ResCreateProxyAdmin>;
+
+  setProxyAdminOwner(
+    req: Omit<ReqSetProxyAdminOwner, 'signer'>,
+  ): Promise<ResSetProxyAdminOwner>;
 
   // ### TX WARP ###
 

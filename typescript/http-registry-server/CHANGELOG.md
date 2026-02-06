@@ -1,5 +1,54 @@
 # @hyperlane-xyz/http-registry-server
 
+## 25.0.0
+
+### Patch Changes
+
+- 52ce778: A `LazyAsync` helper was added to `@hyperlane-xyz/utils` for safe, deduplicated async initialization. It replaces the scattered pattern of `if (!cached) { cached = await init(); } return cached` with an approach that deduplicates concurrent callers, clears state on errors to allow retries, and supports reset capability. Consumer packages were migrated to use this utility.
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+
+## 24.0.0
+
+### Minor Changes
+
+- 4e159b0: Added file watching for local filesystem registries. When the HTTP registry server is started with a local filesystem registry (or a MergedRegistry containing one), it now watches for changes to YAML/JSON files and automatically refreshes the registry cache when changes are detected.
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+
+## 23.0.0
+
+### Patch Changes
+
+- Updated dependencies [d1d90d2]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [7c22cff]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+- Updated dependencies [6ddef74]
+- Updated dependencies [80f3635]
+- Updated dependencies [576cd95]
+- Updated dependencies [9aa93f4]
+- Updated dependencies [42b72c3]
+- Updated dependencies [a5d6cae]
+  - @hyperlane-xyz/sdk@23.0.0
+  - @hyperlane-xyz/utils@23.0.0
+
 ## 22.0.0
 
 ### Patch Changes

@@ -1,5 +1,35 @@
 # @hyperlane-xyz/provider-sdk
 
+## 1.3.1
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+  - @hyperlane-xyz/utils@25.0.0
+
+## 1.3.0
+
+### Minor Changes
+
+- 9dc71fe: Added forward-compatible enum validation to prevent SDK failures when the registry contains new enum values. Added `Unknown` variants to `ProtocolType`, `TokenType`, `IsmType`, `HookType`, `ExplorerFamily`, and `ChainTechnicalStack` enums. Exported `KnownProtocolType` and `DeployableTokenType` for type-safe mappings.
+
+### Patch Changes
+
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+  - @hyperlane-xyz/utils@24.0.0
+
+## 1.2.1
+
+### Patch Changes
+
+- 0b8c4ea: Fixed hook update logic for warp routes. The warp route reader now properly reads hook addresses from deployed contracts instead of hardcoding zero address. Hook update idempotency check fixed to use deepEquals with config normalization instead of reference equality, preventing unnecessary redeployments when applying identical configs. Aleo provider updated to handle null/zero hook addresses correctly. Protocol capability check added to restrict hook updates to Aleo only. Comprehensive test suite added covering hook type transitions (none→MerkleTree, MerkleTree→IGP, MerkleTree→none), IGP config updates (gas configs, beneficiary), and idempotency validation.
+- Updated dependencies [52fd0f8]
+- Updated dependencies [a10cfc8]
+  - @hyperlane-xyz/utils@23.0.0
+
 ## 1.2.0
 
 ### Minor Changes
