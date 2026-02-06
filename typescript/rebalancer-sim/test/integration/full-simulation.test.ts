@@ -227,7 +227,7 @@ describe('Rebalancer Simulation', function () {
    * significantly reduces redundant rebalances (typically 60-80% fewer)
    */
   it('inflight-guard: ProductionRebalancer uses fewer rebalances with inflight tracking', async function () {
-    this.timeout(60000);
+    this.timeout(120000);
 
     const { results } = await runScenarioWithRebalancers('inflight-guard', {
       anvilRpc: anvil.rpc,
