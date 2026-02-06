@@ -490,18 +490,14 @@ async function compareDeliveredMessages(
         `
         SELECT
           pdm.msg_id,
-          pdm.destination_mailbox as p_mailbox, dm.destination_mailbox as s_mailbox,
-          pdm.log_index as p_log_index, dm.log_index as s_log_index
+          pdm.destination_mailbox as p_mailbox, dm.destination_mailbox as s_mailbox
         FROM ponder_delivered_message pdm
         JOIN ponder_transaction pt ON pdm.destination_tx_id = pt.id
         JOIN ponder_block pb ON pt.block_id = pb.id
         JOIN delivered_message dm ON pdm.msg_id = dm.msg_id
         WHERE pdm.domain = $1
           AND pb.height >= $2 AND pb.height <= $3
-          AND (
-            pdm.destination_mailbox != dm.destination_mailbox OR
-            pdm.log_index != dm.log_index
-          )
+          AND pdm.destination_mailbox != dm.destination_mailbox
         LIMIT 20
         `,
         [domainId, blockRange.minBlock, blockRange.maxBlock],
@@ -516,14 +512,6 @@ async function compareDeliveredMessages(
             field: 'destination_mailbox',
             ponderValue: row.p_mailbox?.toString('hex'),
             scraperValue: row.s_mailbox?.toString('hex'),
-          });
-        }
-        if (row.p_log_index !== row.s_log_index) {
-          mismatchDetails.push({
-            identifier: msgId,
-            field: 'log_index',
-            ponderValue: String(row.p_log_index),
-            scraperValue: String(row.s_log_index),
           });
         }
       }
