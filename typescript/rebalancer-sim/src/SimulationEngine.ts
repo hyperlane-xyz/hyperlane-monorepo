@@ -3,9 +3,14 @@ import { ethers } from 'ethers';
 import {
   ERC20__factory,
   HypERC20Collateral__factory,
+  Mailbox__factory,
 } from '@hyperlane-xyz/core';
-import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import {
+  MultiProvider,
+  TokenStandard,
+  type WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
 import { MockInfrastructureController } from './MockInfrastructureController.js';
@@ -72,11 +77,28 @@ export class SimulationEngine {
       // Get action tracker from rebalancer if supported
       const actionTracker = rebalancer.getActionTracker?.();
 
+      // Build MultiProvider for the controller
+      const controllerMultiProvider = this.buildControllerMultiProvider();
+
+      // Create typed mailbox instances
+      const mailboxes: Record<
+        string,
+        ReturnType<typeof Mailbox__factory.connect>
+      > = {};
+      for (const [chainName, domain] of Object.entries(
+        this.deployment.domains,
+      )) {
+        mailboxes[chainName] = Mailbox__factory.connect(
+          domain.mailbox,
+          controllerMultiProvider.getSigner(chainName),
+        );
+      }
+
       // Create unified controller
       controller = new MockInfrastructureController(
-        this.provider,
+        controllerMultiProvider,
+        mailboxes,
         this.deployment.domains,
-        this.deployment.mailboxProcessorKey,
         bridgeConfig,
         timing.userTransferDeliveryDelay,
         kpiCollector,
@@ -262,6 +284,41 @@ export class SimulationEngine {
     );
 
     return { tokens };
+  }
+
+  /**
+   * Build a MultiProvider for the infrastructure controller with the
+   * mailbox processor signer set on all chains.
+   */
+  private buildControllerMultiProvider(): MultiProvider {
+    const chainMetadata: Record<string, any> = {};
+    for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
+      chainMetadata[chainName] = {
+        name: chainName,
+        chainId: 31337,
+        domainId: domain.domainId,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [{ http: this.deployment.anvilRpc }],
+        nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+      };
+    }
+
+    const multiProvider = new MultiProvider(chainMetadata);
+    const processorWallet = new ethers.Wallet(
+      this.deployment.mailboxProcessorKey,
+      this.provider,
+    );
+    multiProvider.setSharedSigner(processorWallet);
+
+    // Set fast polling on internal providers
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      const p = multiProvider.tryGetProvider(chainName);
+      if (p && 'pollingInterval' in p) {
+        (p as ethers.providers.JsonRpcProvider).pollingInterval = 100;
+      }
+    }
+
+    return multiProvider;
   }
 
   /**

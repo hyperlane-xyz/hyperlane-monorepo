@@ -1,6 +1,7 @@
 import { ethers } from 'ethers';
 
-import { MockMailbox__factory } from '@hyperlane-xyz/core';
+import { Mailbox__factory } from '@hyperlane-xyz/core';
+import type { MultiProvider } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { KPICollector } from './KPICollector.js';
@@ -13,6 +14,8 @@ import type {
 import { DEFAULT_BRIDGE_ROUTE_CONFIG } from './types.js';
 
 const logger = rootLogger.child({ module: 'MockInfrastructureController' });
+
+type Mailbox = ReturnType<typeof Mailbox__factory.connect>;
 
 /** Pending message awaiting delayed delivery */
 interface PendingMessage {
@@ -32,7 +35,7 @@ interface PendingMessage {
 }
 
 /**
- * MockInfrastructureController listens for Dispatch events on all MockMailboxes,
+ * MockInfrastructureController listens for Dispatch events on all Mailboxes,
  * classifies messages by sender (warp vs bridge), and delivers them with
  * configurable delays by calling process('0x', message) on the destination mailbox.
  *
@@ -41,25 +44,22 @@ interface PendingMessage {
  */
 export class MockInfrastructureController {
   private pendingMessages: PendingMessage[] = [];
-  private signer: ethers.Wallet;
+  private signer!: ethers.Signer;
   private isRunning = false;
   private processing = false;
   private processLoopTimer?: NodeJS.Timeout;
-  private eventListeners: Map<string, ethers.Contract> = new Map();
   private currentNonce: number = 0;
   private nonceInitialized = false;
 
   constructor(
-    provider: ethers.providers.JsonRpcProvider,
+    private readonly multiProvider: MultiProvider,
+    private readonly mailboxes: Record<string, Mailbox>,
     private readonly domains: Record<string, DeployedDomain>,
-    mailboxProcessorKey: string,
     private readonly bridgeDelayConfig: BridgeMockConfig,
     private readonly userTransferDelay: number,
     private readonly kpiCollector: KPICollector,
     private readonly actionTracker?: MockActionTracker,
-  ) {
-    this.signer = new ethers.Wallet(mailboxProcessorKey, provider);
-  }
+  ) {}
 
   private getRouteConfig(
     origin: string,
@@ -76,16 +76,6 @@ export class MockInfrastructureController {
     return Math.max(0, config.deliveryDelay + jitter);
   }
 
-  private getDomainId(chainName: string): number {
-    return this.domains[chainName].domainId;
-  }
-
-  private getChainByDomainId(domainId: number): string | undefined {
-    return Object.entries(this.domains).find(
-      ([_, d]) => d.domainId === domainId,
-    )?.[0];
-  }
-
   /**
    * Start listening for Dispatch events and processing messages
    */
@@ -93,14 +83,14 @@ export class MockInfrastructureController {
     if (this.isRunning) return;
     this.isRunning = true;
 
-    // Initialize signer nonce
+    // Get signer from MultiProvider for nonce management
+    const firstChain = Object.keys(this.mailboxes)[0];
+    this.signer = this.multiProvider.getSigner(firstChain);
     this.currentNonce = await this.signer.getTransactionCount();
     this.nonceInitialized = true;
 
     // Listen for Dispatch events on all mailboxes
-    for (const [chainName, domain] of Object.entries(this.domains)) {
-      const mailbox = MockMailbox__factory.connect(domain.mailbox, this.signer);
-
+    for (const [chainName, mailbox] of Object.entries(this.mailboxes)) {
       // Dispatch(address indexed sender, uint32 indexed destination, bytes32 indexed recipient, bytes message)
       // ethers v5 typechain: callback args are (sender, destination, recipient, message, event)
       mailbox.on(
@@ -114,8 +104,6 @@ export class MockInfrastructureController {
           void this.onDispatch(chainName, sender, destination, message);
         },
       );
-
-      this.eventListeners.set(chainName, mailbox);
     }
 
     // Start processing loop
@@ -133,7 +121,7 @@ export class MockInfrastructureController {
     destinationDomainId: number,
     message: string,
   ): Promise<void> {
-    const destChain = this.getChainByDomainId(destinationDomainId);
+    const destChain = this.multiProvider.tryGetChainName(destinationDomainId);
     if (!destChain) {
       logger.error({ destinationDomainId }, 'Unknown destination domain');
       return;
@@ -222,8 +210,8 @@ export class MockInfrastructureController {
 
       this.actionTracker?.addTransfer(
         messageId,
-        this.getDomainId(originChain),
-        this.getDomainId(destChain),
+        this.multiProvider.getDomainId(originChain),
+        this.multiProvider.getDomainId(destChain),
         amount,
       );
     }
@@ -256,11 +244,7 @@ export class MockInfrastructureController {
     }
 
     for (const msg of ready) {
-      const destDomain = this.domains[msg.destination];
-      const mailbox = MockMailbox__factory.connect(
-        destDomain.mailbox,
-        this.signer,
-      );
+      const mailbox = this.mailboxes[msg.destination];
 
       // Static call pre-check
       try {
@@ -289,8 +273,8 @@ export class MockInfrastructureController {
           this.kpiCollector.recordRebalanceComplete(msg.messageId);
           if (this.actionTracker && msg.amount) {
             this.actionTracker.completeRebalanceByRoute(
-              this.getDomainId(msg.origin),
-              this.getDomainId(msg.destination),
+              this.multiProvider.getDomainId(msg.origin),
+              this.multiProvider.getDomainId(msg.destination),
               msg.amount,
             );
           }
@@ -319,10 +303,9 @@ export class MockInfrastructureController {
       this.processLoopTimer = undefined;
     }
 
-    for (const contract of this.eventListeners.values()) {
-      contract.removeAllListeners();
+    for (const mailbox of Object.values(this.mailboxes)) {
+      mailbox.removeAllListeners();
     }
-    this.eventListeners.clear();
   }
 
   hasPendingMessages(): boolean {
@@ -351,8 +334,8 @@ export class MockInfrastructureController {
             this.kpiCollector.recordRebalanceFailed(msg.messageId);
             if (this.actionTracker && msg.amount) {
               this.actionTracker.completeRebalanceByRoute(
-                this.getDomainId(msg.origin),
-                this.getDomainId(msg.destination),
+                this.multiProvider.getDomainId(msg.origin),
+                this.multiProvider.getDomainId(msg.destination),
                 msg.amount,
               );
             }
