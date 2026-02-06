@@ -41,28 +41,6 @@ jobs:
           ref: ${{ github.event.pull_request.head.sha || github.sha }}
           submodules: recursive
 
-      - name: Set Foundry RPC URLs for fork tests
-        env:
-          MAINNET3_ETHEREUM_RPC_URLS: ${{ secrets.MAINNET3_ETHEREUM_RPC_URLS }}
-          MAINNET3_ARBITRUM_RPC_URLS: ${{ secrets.MAINNET3_ARBITRUM_RPC_URLS }}
-          MAINNET3_BASE_RPC_URLS: ${{ secrets.MAINNET3_BASE_RPC_URLS }}
-        run: |
-          # Extract first URL from comma-separated list and set as env vars
-          echo "RPC_URL_ETHEREUM=${MAINNET3_ETHEREUM_RPC_URLS%%,*}" >> $GITHUB_ENV
-          echo "RPC_URL_ARBITRUM=${MAINNET3_ARBITRUM_RPC_URLS%%,*}" >> $GITHUB_ENV
-          echo "RPC_URL_BASE=${MAINNET3_BASE_RPC_URLS%%,*}" >> $GITHUB_ENV
-
-      - name: Validate RPC URLs are set
-        run: |
-          if [ -z "$RPC_URL_ETHEREUM" ] || [ -z "$RPC_URL_ARBITRUM" ] || [ -z "$RPC_URL_BASE" ]; then
-            echo "::error::Required RPC URL secrets are not set. This workflow requires MAINNET3_ETHEREUM_RPC_URLS, MAINNET3_ARBITRUM_RPC_URLS, and MAINNET3_BASE_RPC_URLS secrets."
-            echo "RPC_URL_ETHEREUM: ${RPC_URL_ETHEREUM:+set}"
-            echo "RPC_URL_ARBITRUM: ${RPC_URL_ARBITRUM:+set}"
-            echo "RPC_URL_BASE: ${RPC_URL_BASE:+set}"
-            exit 1
-          fi
-          echo "All required RPC URLs are set"
-
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
 

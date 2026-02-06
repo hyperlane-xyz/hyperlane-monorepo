@@ -1,153 +1,108 @@
 import { expect } from 'chai';
-import { BigNumber, ethers, providers } from 'ethers';
+import { BigNumber, providers } from 'ethers';
 
-import { GithubRegistry } from '@hyperlane-xyz/registry';
 import {
-  type ChainMetadata,
   HyperlaneCore,
   MultiProvider,
   revertToSnapshot,
   snapshot,
 } from '@hyperlane-xyz/sdk';
 
-import { RebalancerStrategyOptions } from '../config/types.js';
+import {
+  RebalancerStrategyOptions,
+  type StrategyConfig,
+} from '../config/types.js';
 
 import {
-  ANVIL_TEST_PRIVATE_KEY,
   DOMAIN_IDS,
-  FORK_BLOCK_NUMBERS,
+  type DeployedAddresses,
   TEST_CHAINS,
-  USDC_ADDRESSES,
-  USDC_INCENTIV_WARP_ROUTE,
-  USDC_SUPERSEED_WARP_ROUTE,
 } from './fixtures/routes.js';
 import { getAllCollateralBalances } from './harness/BridgeSetup.js';
-import { ForkManager } from './harness/ForkManager.js';
-import { setupTrustedRelayerIsmForRoute } from './harness/IsmUpdater.js';
+import {
+  type LocalDeploymentContext,
+  LocalDeploymentManager,
+} from './harness/LocalDeploymentManager.js';
 import { getFirstMonitorEvent } from './harness/TestHelpers.js';
 import { TestRebalancer } from './harness/TestRebalancer.js';
 import { tryRelayMessage } from './harness/TransferHelper.js';
 
-const WEIGHTED_STRATEGY_CONFIG = [
-  {
-    rebalanceStrategy: RebalancerStrategyOptions.Weighted as const,
-    chains: {
-      ethereum: {
-        weighted: { weight: 60n, tolerance: 5n },
-        bridge: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-      },
-      arbitrum: {
-        weighted: { weight: 20n, tolerance: 5n },
-        bridge: USDC_SUPERSEED_WARP_ROUTE.routers.arbitrum,
-      },
-      base: {
-        weighted: { weight: 20n, tolerance: 5n },
-        bridge: USDC_SUPERSEED_WARP_ROUTE.routers.base,
-      },
-    },
-  },
-];
-
 describe('WeightedStrategy E2E', function () {
   this.timeout(300_000);
 
-  let forkManager: ForkManager;
+  let deploymentManager: LocalDeploymentManager;
   let multiProvider: MultiProvider;
-  let forkedProviders: Map<string, providers.JsonRpcProvider>;
-  let registry: GithubRegistry;
-  let userAddress: string;
+  let localProviders: Map<string, providers.JsonRpcProvider>;
   let snapshotIds: Map<string, string>;
   let hyperlaneCore: HyperlaneCore;
+  let deployedAddresses: DeployedAddresses;
+  let weightedStrategyConfig: StrategyConfig[];
 
   before(async function () {
-    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
-    userAddress = wallet.address;
+    deploymentManager = new LocalDeploymentManager();
+    const ctx: LocalDeploymentContext = await deploymentManager.start();
+    multiProvider = ctx.multiProvider;
+    localProviders = ctx.providers;
+    deployedAddresses = ctx.deployedAddresses;
 
-    registry = new GithubRegistry();
-    const chainMetadata = await registry.getMetadata();
-    const testChainMetadata: Record<string, ChainMetadata> = {};
-
+    const coreAddresses: Record<string, Record<string, string>> = {};
     for (const chain of TEST_CHAINS) {
-      if (chainMetadata[chain]) {
-        testChainMetadata[chain] = chainMetadata[chain];
-      }
+      coreAddresses[chain] = {
+        mailbox: deployedAddresses.chains[chain].mailbox,
+        interchainSecurityModule: deployedAddresses.chains[chain].ism,
+      };
     }
-
-    const baseMultiProvider = new MultiProvider(testChainMetadata);
-    for (const chain of TEST_CHAINS) {
-      baseMultiProvider.setSigner(chain, wallet);
-    }
-
-    forkManager = new ForkManager({
-      chains: TEST_CHAINS,
-      registry,
-      multiProvider: baseMultiProvider,
-      blockNumbers: FORK_BLOCK_NUMBERS,
-    });
-
-    const forkContext = await forkManager.start();
-    multiProvider = forkContext.multiProvider;
-    forkedProviders = forkContext.providers;
-
-    const allCoreAddresses = await registry.getAddresses();
-    const knownChains = new Set(multiProvider.getKnownChainNames());
-    const coreAddresses = Object.fromEntries(
-      Object.entries(allCoreAddresses).filter(([chain]) =>
-        knownChains.has(chain),
-      ),
-    );
     hyperlaneCore = HyperlaneCore.fromAddressesMap(
       coreAddresses,
       multiProvider,
     );
 
-    // Set up TrustedRelayerIsm on routers so we can relay without validator signatures
-    const mailboxesByChain: Record<string, string> = {};
-    for (const chain of TEST_CHAINS) {
-      const addr = allCoreAddresses[chain]?.mailbox;
-      if (addr) mailboxesByChain[chain] = addr;
-    }
-    // Set up ISM on monitored route (for user transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
-    // Set up ISM on bridge route (for rebalance transfers)
-    await setupTrustedRelayerIsmForRoute(
-      multiProvider,
-      TEST_CHAINS,
-      USDC_SUPERSEED_WARP_ROUTE.routers,
-      mailboxesByChain,
-      userAddress,
-    );
+    weightedStrategyConfig = [
+      {
+        rebalanceStrategy: RebalancerStrategyOptions.Weighted,
+        chains: {
+          anvil1: {
+            weighted: { weight: 60n, tolerance: 5n },
+            bridge: deployedAddresses.bridgeRoute1.anvil1,
+          },
+          anvil2: {
+            weighted: { weight: 20n, tolerance: 5n },
+            bridge: deployedAddresses.bridgeRoute1.anvil2,
+          },
+          anvil3: {
+            weighted: { weight: 20n, tolerance: 5n },
+            bridge: deployedAddresses.bridgeRoute1.anvil3,
+          },
+        },
+      },
+    ];
 
     snapshotIds = new Map();
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   afterEach(async function () {
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       const id = snapshotIds.get(chain)!;
       await revertToSnapshot(provider, id);
-      // Fresh snapshot required: Anvil invalidates the snapshot after revert
       snapshotIds.set(chain, await snapshot(provider));
     }
   });
 
   after(async function () {
-    if (forkManager) {
-      await forkManager.stop();
+    if (deploymentManager) {
+      await deploymentManager.stop();
     }
   });
 
   it('should propose rebalance routes when weights are unbalanced', async function () {
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
-      .withStrategy(WEIGHTED_STRATEGY_CONFIG)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(weightedStrategyConfig)
       .withBalances('WEIGHTED_IMBALANCED')
       .withExecutionMode('execute')
       .build();
@@ -160,14 +115,17 @@ describe('WeightedStrategy E2E', function () {
     // Assert: Strategy created rebalance intent for the imbalanced chain
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
-    expect(activeIntents[0].origin).to.equal(DOMAIN_IDS.ethereum);
-    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.base);
+    expect(activeIntents[0].origin).to.equal(DOMAIN_IDS.anvil1);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(activeIntents[0].amount).to.equal(1000000000n);
   });
 
   it('should not propose routes when within tolerance', async function () {
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
-      .withStrategy(WEIGHTED_STRATEGY_CONFIG)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(weightedStrategyConfig)
       .withBalances('WEIGHTED_WITHIN_TOLERANCE')
       .withExecutionMode('execute')
       .build();
@@ -183,8 +141,11 @@ describe('WeightedStrategy E2E', function () {
   });
 
   it('should execute full rebalance cycle with actual transfers', async function () {
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
-      .withStrategy(WEIGHTED_STRATEGY_CONFIG)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(weightedStrategyConfig)
       .withBalances('WEIGHTED_IMBALANCED')
       .withExecutionMode('execute')
       .build();
@@ -196,7 +157,7 @@ describe('WeightedStrategy E2E', function () {
     // Assert: Rebalance intent was created with correct fields
     const activeIntents = await context.tracker.getActiveRebalanceIntents();
     expect(activeIntents.length).to.equal(1);
-    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.base);
+    expect(activeIntents[0].destination).to.equal(DOMAIN_IDS.anvil3);
     expect(activeIntents[0].amount).to.equal(1000000000n);
     expect(activeIntents[0].status).to.equal('in_progress');
 
@@ -207,21 +168,21 @@ describe('WeightedStrategy E2E', function () {
 
     // Assert: Ethereum balance decreased by 1000 USDC (rebalance amount)
     const balancesAfterRebalance = await getAllCollateralBalances(
-      forkedProviders,
+      localProviders,
       TEST_CHAINS,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      USDC_ADDRESSES,
+      deployedAddresses.monitoredRoute,
+      deployedAddresses.tokens,
     );
 
     // Initial: 7000 USDC - Rebalance: 1000 USDC = 6000 USDC
     expect(
-      balancesAfterRebalance.ethereum.toString(),
-      'INCENTIV ethereum collateral should be 6000 USDC after rebalance',
+      balancesAfterRebalance.anvil1.toString(),
+      'INCENTIV anvil1 collateral should be 6000 USDC after rebalance',
     ).to.equal('6000000000');
 
     // Capture action details for relay
     const actionToBase = inProgressActions[0];
-    const ethProvider = forkedProviders.get('ethereum')!;
+    const ethProvider = localProviders.get('anvil1')!;
 
     // Relay the rebalance message to destination
     expect(actionToBase.txHash, 'Action should have txHash').to.exist;
@@ -234,8 +195,8 @@ describe('WeightedStrategy E2E', function () {
       {
         dispatchTx: rebalanceTxReceipt,
         messageId: actionToBase.messageId,
-        origin: 'ethereum',
-        destination: 'base',
+        origin: 'anvil1',
+        destination: 'anvil3',
       },
     );
     expect(
@@ -271,8 +232,11 @@ describe('WeightedStrategy E2E', function () {
     // Initial: eth=7000, arb=2000, base=1000 (total=10000)
     // Target: eth=60% (6000), arb=20% (2000), base=20% (2000)
     // Cycle 1 will create inflight eth→base for ~1000 USDC
-    const context = await TestRebalancer.builder(forkManager, multiProvider)
-      .withStrategy(WEIGHTED_STRATEGY_CONFIG)
+    const context = await TestRebalancer.builder(
+      deploymentManager,
+      multiProvider,
+    )
+      .withStrategy(weightedStrategyConfig)
       .withBalances('WEIGHTED_IMBALANCED')
       .withExecutionMode('execute')
       .build();
@@ -294,7 +258,7 @@ describe('WeightedStrategy E2E', function () {
 
     const inflightToBase = inflightAfterCycle1.find(
       (a) =>
-        a.destination === DOMAIN_IDS.base && a.origin === DOMAIN_IDS.ethereum,
+        a.destination === DOMAIN_IDS.anvil3 && a.origin === DOMAIN_IDS.anvil1,
     );
     expect(inflightToBase, 'Should have inflight action eth→base').to.exist;
 
@@ -317,7 +281,7 @@ describe('WeightedStrategy E2E', function () {
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
     const newActionsToBase = inProgressAfterCycle2.filter(
       (a) =>
-        a.destination === DOMAIN_IDS.base &&
+        a.destination === DOMAIN_IDS.anvil3 &&
         a.id !== inflightToBase!.id &&
         a.status === 'in_progress',
     );
