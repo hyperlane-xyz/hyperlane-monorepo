@@ -1,3 +1,8 @@
+## [2.1.0] - 2026-02-06
+
+* feat(sealevel): Address Lookup Table support for reduced transaction size (#7985)
+* feat(sealevel): log base58 transaction on simulation failure (#7900)
+
 ## [2.0.0] - 2026-01-06
 
 * feat: always log metadata bytes as hex (#7566)
