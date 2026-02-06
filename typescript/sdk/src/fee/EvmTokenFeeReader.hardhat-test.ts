@@ -15,8 +15,11 @@ import { EvmTokenFeeReader } from './EvmTokenFeeReader.js';
 import { TokenFeeConfig, TokenFeeConfigSchema, TokenFeeType } from './types.js';
 import { ASSUMED_MAX_AMOUNT_FOR_ZERO_SUPPLY, convertToBps } from './utils.js';
 
+// eslint-disable-next-line jest/no-export -- test fixtures shared across test files
 export const MAX_FEE = 115792089237316195423570985008687907853269n;
+// eslint-disable-next-line jest/no-export -- test fixtures shared across test files
 export const HALF_AMOUNT = 578960446186580977117854925043439539266340n;
+// eslint-disable-next-line jest/no-export -- test fixtures shared across test files
 export const BPS = convertToBps(MAX_FEE, HALF_AMOUNT);
 
 describe('EvmTokenFeeReader', () => {

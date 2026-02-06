@@ -4,7 +4,6 @@ import { getGnosisSafeBuilderStrategyConfigGenerator } from '../../../utils.js';
 
 import { ezEthStagingSafes } from './getRenzoEZETHSTAGEWarpConfig.js';
 import {
-  ezEthValidators,
   getRenzoWarpConfigGenerator,
   renzoTokenPrices,
 } from './getRenzoEZETHWarpConfig.js';

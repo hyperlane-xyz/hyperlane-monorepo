@@ -707,7 +707,7 @@ export class GovernTransactionReader {
         value: tx.value,
       });
     } catch (error) {
-      throw new Error('Failed to decode Managed Lockbox transaction');
+      throw new Error(`Failed to decode Managed Lockbox transaction: ${error}`);
     }
 
     const roleMap: Record<string, string> = {
@@ -1088,8 +1088,11 @@ export class GovernTransactionReader {
       });
 
       return this.formatFeeConfig(feeConfig);
-    } catch (e) {
+    } catch (error) {
       // Not a fee contract or failed to read - return basic insight
+      this.logger.debug(
+        `Could not read fee contract details for ${feeRecipientAddress}: ${error}`,
+      );
       return { insight: `Set fee recipient to ${feeRecipientAddress}` };
     }
   }
@@ -1373,7 +1376,7 @@ export class GovernTransactionReader {
       case proxyAdminInterface.functions[
         'upgradeAndCall(address,address,bytes)'
       ].name: {
-        const [proxy, implementation, data] = decoded.args;
+        const [proxy, implementation, _data] = decoded.args;
         insight = `Upgrade proxy ${proxy} to implementation ${implementation} with initialization data`;
         break;
       }

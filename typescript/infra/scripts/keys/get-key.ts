@@ -1,10 +1,5 @@
 import { getCloudAgentKey } from '../../src/agents/key-utils.js';
-import {
-  getArgs,
-  withAgentRole,
-  withContext,
-  withProtocol,
-} from '../agent-utils.js';
+import { getArgs, withAgentRole, withContext } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 async function main() {

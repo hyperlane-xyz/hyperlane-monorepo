@@ -332,7 +332,6 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    actualConfig.type;
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)
@@ -374,7 +373,6 @@ export class EvmWarpModule extends HyperlaneModule<
     actualConfig: DerivedTokenRouterConfig,
     expectedConfig: HypTokenRouterConfig,
   ): AnnotatedEV5Transaction[] {
-    actualConfig.type;
     if (
       !isMovableCollateralTokenConfig(expectedConfig) ||
       !isMovableCollateralTokenConfig(actualConfig)

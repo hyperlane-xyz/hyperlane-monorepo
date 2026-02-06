@@ -64,9 +64,7 @@ import {
   multisigIsmConfigPath,
 } from '../utils/sealevel.js';
 import {
-  SQUADS_ACCOUNT_DISCRIMINATORS,
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  SquadsAccountType,
   SquadsInstructionName,
   SquadsInstructionType,
   decodePermissions,
@@ -1414,6 +1412,7 @@ export class SquadsTransactionReader {
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
       ]:
+      // falls through
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
       ]: {
