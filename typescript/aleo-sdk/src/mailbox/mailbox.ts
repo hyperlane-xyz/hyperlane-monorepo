@@ -17,6 +17,7 @@ import { ALEO_NULL_ADDRESS, toAleoAddress } from '../utils/helper.js';
 import {
   type AleoReceipt,
   type AnnotatedAleoTransaction,
+  type OnChainArtifactManagers,
 } from '../utils/types.js';
 
 import { getMailboxConfig } from './mailbox-query.js';
@@ -35,12 +36,19 @@ import {
 export class AleoMailboxReader
   implements ArtifactReader<MailboxOnChain, DeployedMailboxAddress>
 {
-  constructor(protected readonly aleoClient: AnyAleoNetworkClient) {}
+  constructor(
+    protected readonly aleoClient: AnyAleoNetworkClient,
+    protected readonly onChainArtifactManagers: OnChainArtifactManagers,
+  ) {}
 
   async read(
     address: string,
   ): Promise<ArtifactDeployed<MailboxOnChain, DeployedMailboxAddress>> {
-    const mailboxConfig = await getMailboxConfig(this.aleoClient, address);
+    const mailboxConfig = await getMailboxConfig(
+      this.aleoClient,
+      address,
+      this.onChainArtifactManagers,
+    );
 
     return {
       artifactState: ArtifactState.DEPLOYED,
@@ -85,8 +93,9 @@ export class AleoMailboxWriter
     aleoClient: AnyAleoNetworkClient,
     private readonly signer: AleoSigner,
     private readonly domainId: number,
+    onChainArtifactManagers: OnChainArtifactManagers,
   ) {
-    super(aleoClient);
+    super(aleoClient, onChainArtifactManagers);
   }
 
   async create(
