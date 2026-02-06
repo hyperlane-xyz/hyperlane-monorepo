@@ -102,12 +102,10 @@ export async function setProxyAdminConfig(
   context: CommandContext,
   chain: ChainName,
 ): Promise<DeployedOwnableConfig | undefined> {
-  let defaultAdminConfig: DeployedOwnableConfig | undefined;
-
   // default to deploying a new ProxyAdmin with `warpRouteOwner` as the owner
   // if the user supplied the --yes flag
   if (context.skipConfirmation) {
-    return defaultAdminConfig;
+    return undefined;
   }
 
   const useExistingProxy = await confirm({
@@ -115,7 +113,7 @@ export async function setProxyAdminConfig(
   });
 
   if (!useExistingProxy) {
-    return defaultAdminConfig;
+    return undefined;
   }
 
   const proxyAdminAddress = await input({

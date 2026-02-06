@@ -21,7 +21,7 @@ async function main() {
     const cache = RelayerCacheSchema.parse(data);
     relayer.hydrate(cache);
     console.log(`Relayer cache loaded from ${CACHE_PATH}`);
-  } catch (e) {
+  } catch {
     console.error(`Failed to load cache from ${CACHE_PATH}`);
   }
 
