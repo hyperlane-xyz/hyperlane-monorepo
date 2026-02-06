@@ -76,7 +76,7 @@ export class AleoSigner
     }
   }
 
-  private async deployProgram(
+  async deployProgram(
     programName: AleoProgram,
     coreSuffix: string,
     warpSuffix?: string,

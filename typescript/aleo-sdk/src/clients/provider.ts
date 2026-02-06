@@ -80,7 +80,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     super(rpcUrls, chainId);
   }
 
-  protected generateSuffix(n: number): string {
+  generateSuffix(n: number): string {
     const characters = '0123456789abcdefghijklmnopqrstuvwxyz';
     let result = '';
 
