@@ -21,6 +21,7 @@ import { assert } from '@hyperlane-xyz/utils';
 
 import { AleoHookArtifactManager } from '../hook/hook-artifact-manager.js';
 import { AleoIsmArtifactManager } from '../ism/ism-artifact-manager.js';
+import { AleoMailboxArtifactManager } from '../mailbox/mailbox-artifact-manager.js';
 import { AleoNetworkId } from '../utils/types.js';
 
 import { AleoProvider } from './provider.js';
@@ -94,6 +95,29 @@ export class AleoProtocolProvider implements ProtocolProvider {
         : new AleoTestnetNetworkClient(rpcUrl);
 
     return new AleoHookArtifactManager(aleoClient, context?.mailbox);
+  }
+
+  createMailboxArtifactManager(chainMetadata: ChainMetadataForAltVM) {
+    const chainId = parseInt(chainMetadata.chainId.toString());
+    assert(
+      chainId === AleoNetworkId.MAINNET || chainId === AleoNetworkId.TESTNET,
+      `Unknown chain id ${chainId} for Aleo, only ${AleoNetworkId.MAINNET} or ${AleoNetworkId.TESTNET} allowed`,
+    );
+
+    const [rpcUrl] = chainMetadata.rpcUrls?.map(({ http }) => http) ?? [];
+    assert(rpcUrl, 'got no rpcUrls');
+
+    const aleoClient =
+      chainId === AleoNetworkId.MAINNET
+        ? new AleoMainnetNetworkClient(rpcUrl)
+        : new AleoTestnetNetworkClient(rpcUrl);
+
+    assert(
+      chainMetadata.domainId,
+      'domain ID required for mailbox artifact manager',
+    );
+
+    return new AleoMailboxArtifactManager(aleoClient, chainMetadata.domainId);
   }
 
   getMinGas(): MinimumRequiredGasByAction {
