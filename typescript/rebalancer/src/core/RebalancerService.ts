@@ -194,6 +194,7 @@ export class RebalancerService {
         this.actionTracker,
         this.multiProvider,
       );
+      await this.actionTracker.initialize();
       this.logger.info('Using externally provided ActionTracker');
     } else {
       const { tracker, adapter } =
