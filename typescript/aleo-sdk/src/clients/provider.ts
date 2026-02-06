@@ -147,7 +147,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
       return 0n;
     }
 
-    return result['max_supply'];
+    return result['supply'];
   }
 
   async estimateTransactionFee(
@@ -483,7 +483,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     const { programId } = fromAleoAddress(req.tokenAddress);
 
     const metadata = await this.queryMappingValue(
-      req.tokenAddress,
+      programId,
       'app_metadata',
       'true',
     );

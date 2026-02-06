@@ -487,6 +487,11 @@ describe('4. aleo sdk warp e2e tests', async function () {
       mailboxAddress,
     });
     expect(mailbox.nonce).to.equal(1);
+
+    const supply = await signer.getBridgedSupply({
+      tokenAddress: nativeTokenAddress,
+    });
+    expect(supply).to.equal(1000000n);
   });
 
   step('remote transfer with custom hook', async () => {
@@ -556,6 +561,11 @@ describe('4. aleo sdk warp e2e tests', async function () {
       mailboxAddress,
     });
     expect(mailbox.nonce).to.equal(2);
+
+    const supply = await signer.getBridgedSupply({
+      tokenAddress: nativeTokenAddress,
+    });
+    expect(supply).to.equal(2000000n);
   });
 
   step('remote transfer with custom hook and metadata', async () => {
@@ -628,6 +638,11 @@ describe('4. aleo sdk warp e2e tests', async function () {
       mailboxAddress,
     });
     expect(mailbox.nonce).to.equal(3);
+
+    const supply = await signer.getBridgedSupply({
+      tokenAddress: nativeTokenAddress,
+    });
+    expect(supply).to.equal(3000000n);
   });
 
   step('unenroll remote router', async () => {
