@@ -43,7 +43,7 @@ spec:
         - name: indexer
           image: "{{ .Values.image.repository }}:{{ .Values.image.tag }}"
           imagePullPolicy: {{ .Values.image.pullPolicy }}
-          command: ["/bin/sh", "-c", "exec pnpm start"]
+          command: ["node", "/app/typescript/indexer/node_modules/ponder/dist/esm/bin/ponder.js", "start", "--log-level", "error"]
           env:
             - name: LOG_FORMAT
               value: json
