@@ -15,7 +15,7 @@ import {
 /**
  * Default Solana test validator Docker image.
  * Using anzaxyz/agave for Solana 2.x compatibility.
- * Note: This image is amd64 only and may not work on Apple Silicon.
+ * This image is amd64 only; on Apple Silicon it runs via Rosetta 2 emulation.
  */
 export const SOLANA_VALIDATOR_IMAGE = 'anzaxyz/agave:v2.0.20';
 
@@ -178,6 +178,8 @@ export interface SolanaValidatorConfig {
   rpcPort?: number;
   /** Programs to preload via --bpf-program (bypasses slow deployment) */
   preloadedPrograms?: PreloadedProgram[];
+  /** Docker platform override (e.g. 'linux/amd64' for Rosetta on Apple Silicon) */
+  platform?: string;
 }
 
 /**
@@ -313,11 +315,36 @@ async function startDockerValidator(
     keepRunning = false,
     validatorArgs = [],
     rpcPort = SOLANA_RPC_PORT,
+    preloadedPrograms = [],
+    platform,
   } = config;
 
-  // Build the command to start solana-test-validator
+  // Build --bpf-program args and collect directories to mount
+  const bpfProgramArgs: string[] = [];
+  // Map host directories to unique container mount paths
+  const hostDirToContainerDir = new Map<string, string>();
+  let mountIndex = 0;
+
+  for (const program of preloadedPrograms) {
+    const hostDir = path.dirname(program.soPath);
+    const fileName = path.basename(program.soPath);
+    if (!hostDirToContainerDir.has(hostDir)) {
+      hostDirToContainerDir.set(hostDir, `/programs/${mountIndex++}`);
+    }
+    const containerDir = hostDirToContainerDir.get(hostDir)!;
+    bpfProgramArgs.push(
+      '--bpf-program',
+      program.programId,
+      `${containerDir}/${fileName}`,
+    );
+  }
+
+  // Build args for solana-test-validator.
+  // Override the entrypoint to bypass the image's solana-run.sh script,
+  // which runs solana-genesis (crashes under Rosetta due to AVX requirement).
+  // Use --log to write logs to stderr so testcontainers can see them.
+  const entrypoint = ['solana-test-validator'];
   const command = [
-    'solana-test-validator',
     '--rpc-port',
     String(rpcPort),
     '--bind-address',
@@ -325,16 +352,34 @@ async function startDockerValidator(
     '--ledger',
     '/tmp/solana-ledger',
     '--reset',
+    '--log',
+    ...bpfProgramArgs,
     ...validatorArgs,
   ];
 
-  // Create and start the container
-  const container = await new GenericContainer(image)
+  // Create the container
+  let builder = new GenericContainer(image)
+    .withEntrypoint(entrypoint)
     .withExposedPorts(rpcPort)
     .withCommand(command)
     .withWaitStrategy(Wait.forLogMessage(/Processed Slot:/, 1))
-    .withStartupTimeout(120_000)
-    .start();
+    .withStartupTimeout(120_000);
+
+  // Set platform (e.g. linux/amd64 for Rosetta on Apple Silicon)
+  const effectivePlatform =
+    platform ?? (isAppleSilicon() ? 'linux/amd64' : undefined);
+  if (effectivePlatform) {
+    builder = builder.withPlatform(effectivePlatform);
+  }
+
+  // Mount host directories containing .so files
+  for (const [hostDir, containerDir] of hostDirToContainerDir) {
+    builder = builder.withBindMounts([
+      { source: hostDir, target: containerDir, mode: 'ro' },
+    ]);
+  }
+
+  const container = await builder.start();
 
   const mappedPort = container.getMappedPort(rpcPort);
   const host = container.getHost();
@@ -373,7 +418,7 @@ export async function startSolanaTestValidator(
 ): Promise<SolanaTestValidator> {
   const { forceDocker = false } = config;
 
-  // If not forcing Docker, try local binary first on Apple Silicon
+  // If not forcing Docker, try local binary first
   if (!forceDocker) {
     const localBinary = config.binaryPath ?? findSolanaTestValidator();
 
@@ -382,20 +427,22 @@ export async function startSolanaTestValidator(
       console.log(`Using local solana-test-validator: ${localBinary}`);
       return startLocalValidator({ ...config, binaryPath: localBinary });
     }
-
-    if (isAppleSilicon()) {
-      throw new Error(
-        'No local solana-test-validator found on Apple Silicon. ' +
-          'Docker images are amd64-only and will crash. ' +
-          'Install from: https://docs.anza.xyz/cli/install\n' +
-          'Or download directly:\n' +
-          '  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/v2.0.20/solana-release-aarch64-apple-darwin.tar.bz2\n' +
-          '  tar jxf /tmp/solana.tar.bz2 -C /tmp',
-      );
-    }
   }
 
-  // Fall back to Docker
+  // On Apple Silicon without a local binary, Docker won't work reliably
+  // because Solana binaries require AVX which Rosetta 2 doesn't emulate.
+  if (isAppleSilicon()) {
+    throw new Error(
+      'No local solana-test-validator found on Apple Silicon.\n' +
+        'Docker is not supported: Solana requires AVX instructions that Rosetta 2 cannot emulate.\n' +
+        'Install natively from: https://docs.anza.xyz/cli/install\n' +
+        'Or download directly:\n' +
+        '  curl -L -o /tmp/solana.tar.bz2 https://github.com/anza-xyz/agave/releases/download/v2.0.20/solana-release-aarch64-apple-darwin.tar.bz2\n' +
+        '  tar jxf /tmp/solana.tar.bz2 -C /tmp',
+    );
+  }
+
+  // Fall back to Docker on non-ARM platforms (e.g. CI)
   // eslint-disable-next-line no-console
   console.log('Using Docker for solana-test-validator');
   return startDockerValidator(config);
@@ -438,8 +485,8 @@ export async function waitForRpcReady(
 }
 
 /**
- * Skip message for users without local binary.
+ * Skip message for users without local binary or Docker.
  */
 export const APPLE_SILICON_SKIP_MESSAGE =
-  'Skipping: No local solana-test-validator found. ' +
+  'Skipping: No local solana-test-validator found and Docker unavailable. ' +
   'Install from https://docs.anza.xyz/cli/install';
