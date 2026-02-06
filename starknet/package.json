@@ -1,11 +1,26 @@
 {
     "name": "@hyperlane-xyz/starknet-core",
-    "description": "Core cairo contracts for Hyperlane",
     "version": "25.0.0",
-    "type": "module",
+    "description": "Core cairo contracts for Hyperlane",
+    "keywords": [
+        "Cairo",
+        "Hyperlane",
+        "Starknet"
+    ],
     "homepage": "https://www.hyperlane.xyz",
     "license": "Apache-2.0",
     "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
+    "files": [
+        "dist"
+    ],
+    "type": "module",
+    "types": "./dist/index.d.ts",
+    "exports": {
+        ".": {
+            "types": "./dist/index.d.ts",
+            "default": "./dist/index.js"
+        }
+    },
     "scripts": {
         "fetch-contracts": "./scripts/fetch-contracts-release.sh",
         "generate-artifacts": "tsx ./scripts/generate-artifacts.ts",
@@ -14,21 +29,6 @@
         "lint": "eslint -c ./eslint.config.mjs .",
         "prettier": "prettier --write ./src ./package.json"
     },
-    "exports": {
-        ".": {
-            "types": "./dist/index.d.ts",
-            "default": "./dist/index.js"
-        }
-    },
-    "types": "./dist/index.d.ts",
-    "files": [
-        "dist"
-    ],
-    "keywords": [
-        "Hyperlane",
-        "Cairo",
-        "Starknet"
-    ],
     "dependencies": {
         "starknet": "catalog:"
     },

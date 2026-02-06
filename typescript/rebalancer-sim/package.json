@@ -2,13 +2,23 @@
     "name": "@hyperlane-xyz/rebalancer-sim",
     "version": "0.1.2",
     "description": "Fast real-time simulation framework for testing Hyperlane warp route rebalancers",
-    "type": "module",
-    "main": "./dist/index.js",
-    "types": "./dist/index.d.ts",
+    "keywords": [
+        "hyperlane",
+        "rebalancer",
+        "simulation",
+        "testing",
+        "warp-route"
+    ],
+    "license": "Apache-2.0",
+    "author": "Abacus Works, Inc.",
+    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
     "files": [
         "dist",
         "src"
     ],
+    "type": "module",
+    "main": "./dist/index.js",
+    "types": "./dist/index.d.ts",
     "scripts": {
         "build": "tsc",
         "clean": "rm -rf dist cache",
@@ -22,8 +32,8 @@
     "dependencies": {
         "@hyperlane-xyz/core": "workspace:*",
         "@hyperlane-xyz/provider-sdk": "workspace:*",
-        "@hyperlane-xyz/registry": "catalog:",
         "@hyperlane-xyz/rebalancer": "workspace:*",
+        "@hyperlane-xyz/registry": "catalog:",
         "@hyperlane-xyz/sdk": "workspace:*",
         "@hyperlane-xyz/utils": "workspace:*",
         "ethers": "catalog:",
@@ -48,15 +58,5 @@
     },
     "engines": {
         "node": ">=18"
-    },
-    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-    "keywords": [
-        "hyperlane",
-        "rebalancer",
-        "simulation",
-        "testing",
-        "warp-route"
-    ],
-    "author": "Abacus Works, Inc.",
-    "license": "Apache-2.0"
+    }
 }

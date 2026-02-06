@@ -2,23 +2,23 @@
     "name": "@hyperlane-xyz/tron-sdk",
     "version": "21.0.0",
     "description": "Hyperlane TypeScript SDK for the TRON Hyperlane SDK module",
-    "type": "module",
-    "exports": {
-        ".": "./dist/index.js"
-    },
-    "types": "dist/index.d.ts",
+    "keywords": [
+        "blockchain",
+        "hyperlane",
+        "sdk",
+        "tron"
+    ],
+    "homepage": "https://www.hyperlane.xyz",
+    "license": "Apache-2.0",
+    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
     "files": [
         "/dist"
     ],
-    "homepage": "https://www.hyperlane.xyz",
-    "repository": "https://github.com/hyperlane-xyz/hyperlane-monorepo",
-    "keywords": [
-        "hyperlane",
-        "tron",
-        "blockchain",
-        "sdk"
-    ],
-    "license": "Apache-2.0",
+    "type": "module",
+    "types": "dist/index.d.ts",
+    "exports": {
+        ".": "./dist/index.js"
+    },
     "scripts": {
         "build": "rm -rf ./dist && tsc",
         "format": "prettier --write .",
@@ -28,6 +28,14 @@
         "test": "echo \"no tests in tron-sdk\"",
         "test:ci": "echo \"no tests in tron-sdk\"",
         "test:e2e": "./scripts/run-e2e-test.sh"
+    },
+    "dependencies": {
+        "@hyperlane-xyz/eslint-config": "workspace:*",
+        "@hyperlane-xyz/provider-sdk": "workspace:*",
+        "@hyperlane-xyz/registry": "catalog:",
+        "@hyperlane-xyz/utils": "workspace:*",
+        "bignumber.js": "catalog:",
+        "tronweb": "^6.1.1"
     },
     "devDependencies": {
         "@eslint/js": "catalog:",
@@ -51,13 +59,5 @@
         "ts-node": "catalog:",
         "typescript": "catalog:",
         "typescript-eslint": "catalog:"
-    },
-    "dependencies": {
-        "@hyperlane-xyz/provider-sdk": "workspace:*",
-        "@hyperlane-xyz/registry": "catalog:",
-        "@hyperlane-xyz/utils": "workspace:*",
-        "@hyperlane-xyz/eslint-config": "workspace:*",
-        "bignumber.js": "catalog:",
-        "tronweb": "^6.1.1"
     }
 }
