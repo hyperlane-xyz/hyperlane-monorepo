@@ -29,8 +29,7 @@ import {
 } from '../utils/simulation-helpers.js';
 
 describe('Rebalancer Simulation', function () {
-  const anvilPort = 8545;
-  const anvil = setupAnvilTestSuite(this, anvilPort);
+  const anvil = setupAnvilTestSuite(this);
 
   before(async function () {
     ensureResultsDir();
@@ -223,32 +222,68 @@ describe('Rebalancer Simulation', function () {
    * and polling at 1000ms, a rebalancer without inflight awareness will
    * over-rebalance because it doesn't account for pending transfers.
    *
-   * CURRENT LIMITATION: ProductionRebalancerService tracks self-created rebalance
-   * intents via ActionTracker's in-memory store, but user transfer tracking relies
-   * on ExplorerClient which has no indexed data in simulation (Anvil).
-   * Until a mock ExplorerClient is implemented, this test runs as report-only.
+   * SimpleRebalancer: No inflight tracking, over-rebalances significantly
+   * ProductionRebalancer: Tracks pending rebalances via MockActionTracker,
+   * significantly reduces redundant rebalances (typically 60-80% fewer)
    */
-  it('inflight-guard: demonstrates over-rebalancing with slow bridge (report only)', async function () {
-    // This test takes longer due to 3s bridge delays and runs multiple rebalancers
+  it('inflight-guard: ProductionRebalancer uses fewer rebalances with inflight tracking', async function () {
     this.timeout(120000);
 
     const { results } = await runScenarioWithRebalancers('inflight-guard', {
       anvilRpc: anvil.rpc,
     });
 
-    // Report results - demonstrates over-rebalancing behavior
+    // Report results
     console.log('\n  INFLIGHT GUARD REPORT:');
     for (const result of results) {
       console.log(
         `    ${result.rebalancerName}: ${result.kpis.totalRebalances} rebalances`,
       );
     }
-    console.log('    (Expected with proper inflight tracking: ≤2 rebalances)');
-    console.log(
-      '    Note: Currently both over-rebalance due to Explorer unavailability in simulation',
+
+    // Find results by rebalancer type
+    const productionResult = results.find(
+      (r) => r.rebalancerName === 'ProductionRebalancerService',
     );
-    // Report-only test - results are informational
-    expect(results.length).to.be.greaterThan(0);
+    const simpleResult = results.find(
+      (r) => r.rebalancerName === 'SimpleRebalancer',
+    );
+
+    // Both should complete all transfers
+    if (productionResult) {
+      expect(productionResult.kpis.completionRate).to.equal(
+        1,
+        'ProductionRebalancer should complete all transfers',
+      );
+    }
+    if (simpleResult) {
+      expect(simpleResult.kpis.completionRate).to.equal(
+        1,
+        'SimpleRebalancer should complete all transfers',
+      );
+    }
+
+    // ProductionRebalancer with inflight tracking should use significantly fewer rebalances
+    if (productionResult && simpleResult) {
+      expect(productionResult.kpis.totalRebalances).to.be.lessThan(
+        simpleResult.kpis.totalRebalances,
+        'ProductionRebalancer should use fewer rebalances than SimpleRebalancer',
+      );
+
+      // ProductionRebalancer should use at most 50% of SimpleRebalancer's rebalances
+      // (typically achieves 60-80% reduction)
+      expect(simpleResult.kpis.totalRebalances).to.be.greaterThan(
+        0,
+        'SimpleRebalancer should have rebalanced at least once for ratio comparison',
+      );
+      const reductionRatio =
+        productionResult.kpis.totalRebalances /
+        simpleResult.kpis.totalRebalances;
+      expect(reductionRatio).to.be.lessThan(
+        0.5,
+        `ProductionRebalancer should achieve >50% reduction in rebalances (got ${((1 - reductionRatio) * 100).toFixed(0)}% reduction)`,
+      );
+    }
   });
 
   // BLOCKED USER TRANSFER
@@ -257,17 +292,20 @@ describe('Rebalancer Simulation', function () {
   /**
    * Blocked User Transfer Test
    *
-   * Tests the gap when user transfers are BLOCKED at destination due to
-   * insufficient collateral. With 50/50 weights and 50% tolerance, state
-   * appears within tolerance after user initiates transfer (69%/31% is
-   * within 25-75% range). But destination chain2 can't pay out (40 tokens
-   * < 50 needed), so transfer stays stuck.
+   * Tests that the ProductionRebalancer proactively adds collateral when
+   * user transfers are pending but blocked due to insufficient collateral.
    *
-   * Neither rebalancer acts because weights are within tolerance.
-   * With future mock Explorer, rebalancer should see blocked transfer
-   * and proactively add collateral to chain2.
+   * Scenario: 130 total tokens split 90/40 between chain1/chain2.
+   * User initiates 50 token transfer from chain1 → chain2.
+   * chain2 only has 40 tokens but needs 50 to pay out.
+   *
+   * SimpleRebalancer: Only sees on-chain balances, doesn't know about pending
+   * transfer, weights appear within tolerance → no action → transfer stuck
+   *
+   * ProductionRebalancer: MockActionTracker tracks pending transfer, strategy
+   * reserves collateral for it, detects deficit → rebalances → transfer succeeds
    */
-  it('blocked-user-transfer: demonstrates blocked transfer without Explorer (report only)', async function () {
+  it('blocked-user-transfer: ProductionRebalancer proactively adds collateral for pending transfers', async function () {
     this.timeout(120000);
 
     const { results } = await runScenarioWithRebalancers(
@@ -283,43 +321,37 @@ describe('Rebalancer Simulation', function () {
         `    ${result.rebalancerName}: completion=${(result.kpis.completionRate * 100).toFixed(0)}%, rebalances=${result.kpis.totalRebalances}`,
       );
     }
-    console.log(
-      '    (Expected: 0% completion for both - weights within tolerance, no rebalancing)',
-    );
-    console.log(
-      '    (Transfer blocked: chain2 has 40 tokens but needs 50 to pay out)',
-    );
-    console.log(
-      '    (With Explorer mock: rebalancer should see blocked transfer and act)',
-    );
-    expect(results.length).to.be.greaterThan(0);
-  });
 
-  // ============================================================================
-  // BASELINE (NO REBALANCER)
-  // ============================================================================
-
-  it('no-rebalancer baseline: shows transfer failures without rebalancing (report only)', async function () {
-    // Run with NoOpRebalancer to demonstrate what happens without active rebalancing
-    // This is report-only - no assertions, just generates visualization
-    const { results } = await runScenarioWithRebalancers(
-      'extreme-drain-chain1',
-      {
-        anvilRpc: anvil.rpc,
-        rebalancerTypes: ['noop'],
-      },
+    // Find results by rebalancer type
+    const productionResult = results.find(
+      (r) => r.rebalancerName === 'ProductionRebalancerService',
+    );
+    const simpleResult = results.find(
+      (r) => r.rebalancerName === 'SimpleRebalancer',
     );
 
-    // Report only - log results but don't assert
-    const result = results[0];
-    console.log(`\n  NO-REBALANCER BASELINE (report only):`);
-    console.log(
-      `    Without rebalancing, completion rate: ${(result.kpis.completionRate * 100).toFixed(1)}%`,
-    );
-    console.log(
-      `    Failed transfers: ${result.kpis.totalTransfers - result.kpis.completedTransfers}`,
-    );
-    console.log(`    Rebalances: ${result.kpis.totalRebalances} (expected: 0)`);
-    expect(result).to.exist;
+    // SimpleRebalancer without inflight tracking should fail to complete
+    if (simpleResult) {
+      expect(simpleResult.kpis.completionRate).to.equal(
+        0,
+        'SimpleRebalancer should have 0% completion (blocked transfer)',
+      );
+      expect(simpleResult.kpis.totalRebalances).to.equal(
+        0,
+        'SimpleRebalancer should not rebalance (weights within tolerance)',
+      );
+    }
+
+    // ProductionRebalancer with inflight tracking should complete
+    if (productionResult) {
+      expect(productionResult.kpis.completionRate).to.equal(
+        1.0,
+        'ProductionRebalancer should have 100% completion (proactive collateral)',
+      );
+      expect(productionResult.kpis.totalRebalances).to.be.greaterThan(
+        0,
+        'ProductionRebalancer should rebalance (sees pending transfer deficit)',
+      );
+    }
   });
 });

@@ -93,6 +93,16 @@ export { ExplorerClient } from './utils/ExplorerClient.js';
 
 // Tracking
 export { InflightContextAdapter } from './tracking/InflightContextAdapter.js';
+export type {
+  IActionTracker,
+  CreateRebalanceIntentParams,
+  CreateRebalanceActionParams,
+} from './tracking/IActionTracker.js';
+export type {
+  Transfer,
+  RebalanceIntent,
+  RebalanceAction,
+} from './tracking/types.js';
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';
