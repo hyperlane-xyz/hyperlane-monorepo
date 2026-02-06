@@ -212,7 +212,8 @@ export class PonderDbAdapter {
         gasLimit: tx.gas.toString(),
         maxPriorityFeePerGas: tx.maxPriorityFeePerGas?.toString(),
         maxFeePerGas: tx.maxFeePerGas?.toString(),
-        gasPrice: tx.gasPrice?.toString(),
+        gasPrice:
+          tx.gasPrice?.toString() ?? receipt.effectiveGasPrice.toString(),
         effectiveGasPrice: receipt.effectiveGasPrice.toString(),
         nonce: tx.nonce,
         sender: hexToBuffer(tx.from),
