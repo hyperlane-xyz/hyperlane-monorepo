@@ -89,6 +89,7 @@ export const usdcTokenAddresses = {
   ink: '0x2D270e6886d130D724215A266106e6832161EAEd',
   linea: '0x176211869cA2b568f2A7D4EE941E073a821EE1ff',
   near: '17208628f84f5d6ad33f0da3bbbeb27ffcb398eac501a31bd6ad2011e36133a1',
+  monad: '0x754704Bc059F8C67012fEd69BC8A327a5aafb603',
   noble: 'uusdc',
   optimism: '0x0b2C639c533813f4Aa9D7837CAf62653d097Ff85',
   polkadotassethub: '1337',
