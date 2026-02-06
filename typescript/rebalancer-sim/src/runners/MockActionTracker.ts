@@ -2,60 +2,14 @@ import type {
   CreateRebalanceActionParams,
   CreateRebalanceIntentParams,
   IActionTracker,
+  RebalanceAction,
+  RebalanceIntent,
+  Transfer,
 } from '@hyperlane-xyz/rebalancer';
-import type { Address, Domain } from '@hyperlane-xyz/utils';
+import type { Domain } from '@hyperlane-xyz/utils';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 const logger = rootLogger.child({ module: 'MockActionTracker' });
-
-/**
- * Transfer record matching the real Transfer type.
- */
-interface Transfer {
-  id: string;
-  origin: Domain;
-  destination: Domain;
-  amount: bigint;
-  status: 'in_progress' | 'complete';
-  messageId: string;
-  sender: Address;
-  recipient: Address;
-  createdAt: number;
-  updatedAt: number;
-}
-
-/**
- * RebalanceIntent record matching the real type.
- */
-interface RebalanceIntent {
-  id: string;
-  origin: Domain;
-  destination: Domain;
-  amount: bigint;
-  bridge?: Address;
-  status: 'not_started' | 'in_progress' | 'complete' | 'cancelled' | 'failed';
-  fulfilledAmount: bigint;
-  priority?: number;
-  strategyType?: string;
-  createdAt: number;
-  updatedAt: number;
-}
-
-/**
- * RebalanceAction record matching the real type.
- */
-interface RebalanceAction {
-  id: string;
-  intentId: string;
-  origin: Domain;
-  destination: Domain;
-  amount: bigint;
-  messageId: string;
-  txHash?: string;
-  status: 'in_progress' | 'complete' | 'failed';
-  createdAt: number;
-  updatedAt: number;
-}
 
 /**
  * Mock implementation of IActionTracker for simulation testing.

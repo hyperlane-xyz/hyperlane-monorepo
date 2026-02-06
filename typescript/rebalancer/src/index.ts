@@ -98,6 +98,11 @@ export type {
   CreateRebalanceIntentParams,
   CreateRebalanceActionParams,
 } from './tracking/IActionTracker.js';
+export type {
+  Transfer,
+  RebalanceIntent,
+  RebalanceAction,
+} from './tracking/types.js';
 
 // Factory
 export { RebalancerContextFactory } from './factories/RebalancerContextFactory.js';

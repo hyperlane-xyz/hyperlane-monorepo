@@ -86,7 +86,14 @@ export class MockInfrastructureController {
           _recipient: string,
           message: string,
         ) => {
-          void this.onDispatch(chainName, sender, destination, message);
+          this.onDispatch(chainName, sender, destination, message).catch(
+            (error: unknown) => {
+              logger.error(
+                { origin: chainName, error },
+                'Unhandled error in onDispatch',
+              );
+            },
+          );
         },
       );
     }
@@ -112,6 +119,13 @@ export class MockInfrastructureController {
     }
 
     const originDomain = this.domains[originChain];
+    if (!originDomain) {
+      logger.warn(
+        { originChain },
+        'No domain config for origin chain, skipping',
+      );
+      return;
+    }
     const senderLower = sender.toLowerCase();
 
     // Classify by sender
