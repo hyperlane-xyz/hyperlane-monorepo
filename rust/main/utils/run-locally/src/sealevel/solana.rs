@@ -220,15 +220,20 @@ fn create_mock_registry(rpc_port: u16) -> tempfile::TempDir {
   isTestnet: true
   name: sealeveltest1
   rpcUrls:
-  - http: {}
+  - http: {rpc_url}
 sealeveltest2:
   domainId: 13376
   isTestnet: true
   name: sealeveltest2
   rpcUrls:
-  - http: {}
-"#,
-        rpc_url, rpc_url
+  - http: {rpc_url}
+sealeveltest3:
+  domainId: 13377
+  isTestnet: true
+  name: sealeveltest3
+  rpcUrls:
+  - http: {rpc_url}
+"#
     );
 
     fs::write(chains_dir.join("metadata.yaml"), metadata)
