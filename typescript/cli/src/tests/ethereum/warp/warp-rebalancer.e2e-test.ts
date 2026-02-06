@@ -977,6 +977,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
       ethers.constants.AddressZero,
       ANVIL_DEPLOYER_ADDRESS,
     );
+    await bridgeContract.enrollRemoteRouter(
+      destDomain,
+      addressToBytes32(destContractAddress),
+    );
 
     // Allow bridge
     // This allow the bridge to be used to send the rebalance transaction
@@ -1228,6 +1232,10 @@ describe('hyperlane warp rebalancer e2e tests', async function () {
         ethers.constants.AddressZero,
         ethers.constants.AddressZero,
         ANVIL_DEPLOYER_ADDRESS,
+      );
+      await bridgeContract.enrollRemoteRouter(
+        destDomain,
+        addressToBytes32(destContractAddress),
       );
 
       // Allow bridge
