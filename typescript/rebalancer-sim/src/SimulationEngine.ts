@@ -4,16 +4,19 @@ import {
   ERC20__factory,
   HypERC20Collateral__factory,
 } from '@hyperlane-xyz/core';
-import { TokenStandard, type WarpCoreConfig } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import {
+  HyperlaneCore,
+  MultiProvider,
+  TokenStandard,
+  type WarpCoreConfig,
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { BridgeMockController } from './BridgeMockController.js';
 import { KPICollector } from './KPICollector.js';
-import { MessageTracker } from './MessageTracker.js';
+import { MockInfrastructureController } from './MockInfrastructureController.js';
 import type {
   BridgeMockConfig,
   IRebalancerRunner,
-  InflightContextCallbacks,
   MultiDomainDeploymentResult,
   RebalancerSimConfig,
   SimulationResult,
@@ -38,13 +41,7 @@ export const DEFAULT_TIMING: SimulationTiming = {
  */
 export class SimulationEngine {
   private provider: ethers.providers.JsonRpcProvider;
-  private bridgeController?: BridgeMockController;
-  private kpiCollector?: KPICollector;
-  private messageTracker?: MessageTracker;
   private isRunning = false;
-  private mailboxProcessingInterval?: NodeJS.Timeout;
-  private mailboxProcessingInFlight = false;
-  private inflightCallbacks?: InflightContextCallbacks;
 
   constructor(private readonly deployment: MultiDomainDeploymentResult) {
     this.provider = new ethers.providers.JsonRpcProvider(deployment.anvilRpc);
@@ -67,86 +64,32 @@ export class SimulationEngine {
     const startTime = Date.now();
     this.isRunning = true;
 
+    let controller: MockInfrastructureController | undefined;
+
     try {
-      // Initialize components
-      // Use bridgeControllerKey for bridge operations to avoid nonce conflicts
-      this.bridgeController = new BridgeMockController(
+      // Initialize KPI collector
+      const kpiCollector = new KPICollector(
         this.provider,
         this.deployment.domains,
-        this.deployment.bridgeControllerKey,
+      );
+      await kpiCollector.initialize();
+
+      // Get action tracker from rebalancer if supported
+      const actionTracker = rebalancer.getActionTracker?.();
+
+      // Build HyperlaneCore for the controller (manages MultiProvider + Mailboxes)
+      const core = this.buildHyperlaneCore();
+
+      // Create unified controller
+      controller = new MockInfrastructureController(
+        core,
+        this.deployment.domains,
         bridgeConfig,
+        timing.userTransferDeliveryDelay,
+        kpiCollector,
+        actionTracker,
       );
-
-      this.kpiCollector = new KPICollector(
-        this.provider,
-        this.deployment.domains,
-      );
-
-      // Initialize MessageTracker for off-chain message tracking
-      this.messageTracker = new MessageTracker(
-        this.provider,
-        this.deployment.domains,
-        this.deployment.mailboxProcessorKey,
-      );
-
-      await this.kpiCollector.initialize();
-      await this.messageTracker.initialize();
-      await this.bridgeController.start();
-
-      // Wire up MessageTracker events for KPI tracking
-      this.messageTracker.on('message_delivered', (message) => {
-        this.kpiCollector!.recordTransferComplete(message.transferId);
-
-        // Notify inflight context adapter
-        this.inflightCallbacks?.onTransferDelivered(message.transferId);
-      });
-
-      this.messageTracker.on('message_failed', ({ message }) => {
-        // Don't record as failed yet - it will retry
-        logger.debug(
-          {
-            messageId: message.id,
-            attempts: message.attempts,
-            error: message.lastError,
-          },
-          'Message failed, will retry',
-        );
-      });
-
-      // Set up bridge event handlers for rebalance KPI tracking
-      // Bridge transfers are rebalancer operations (user transfers go through warp token)
-      this.bridgeController.on('transfer_initiated', (event) => {
-        const rebalanceId = this.kpiCollector!.recordRebalanceStart(
-          event.transfer.origin,
-          event.transfer.destination,
-          event.transfer.amount,
-          BigInt(0), // Gas cost not tracked yet
-        );
-        // Link bridge transfer ID to rebalance ID for completion tracking
-        this.kpiCollector!.linkBridgeTransfer(event.transfer.id, rebalanceId);
-
-        // Notify inflight context adapter
-        this.inflightCallbacks?.onRebalanceInitiated(
-          event.transfer.id,
-          event.transfer.origin,
-          event.transfer.destination,
-          event.transfer.amount,
-        );
-      });
-
-      this.bridgeController.on('transfer_delivered', (event) => {
-        this.kpiCollector!.recordRebalanceComplete(event.transfer.id);
-
-        // Notify inflight context adapter
-        this.inflightCallbacks?.onRebalanceDelivered(event.transfer.id);
-      });
-
-      this.bridgeController.on('transfer_failed', (event) => {
-        this.kpiCollector!.recordRebalanceFailed(event.transfer.id);
-
-        // Notify inflight context adapter (treat failed as delivered for inflight tracking)
-        this.inflightCallbacks?.onRebalanceDelivered(event.transfer.id);
-      });
+      await controller.start();
 
       // Build warp config for rebalancer
       const warpConfig = this.buildWarpConfig();
@@ -160,34 +103,22 @@ export class SimulationEngine {
       };
 
       await rebalancer.initialize(rebalancerConfig);
-
-      // Get inflight callbacks if the rebalancer supports them
-      this.inflightCallbacks = rebalancer.getInflightCallbacks?.();
-
-      // Start rebalancer daemon
       await rebalancer.start();
 
-      // Start periodic mailbox processing for delayed user transfer delivery
-      this.startMailboxProcessing();
-
       // Execute transfers according to scenario
-      await this.executeTransfers(scenario, timing);
+      await this.executeTransfers(scenario, timing, kpiCollector);
 
-      // Wait for all user transfer deliveries (respecting delay)
-      // Use a timeout to prevent indefinite hanging
-      await Promise.race([
-        this.waitForUserTransferDeliveries(),
-        new Promise<void>((resolve) => setTimeout(resolve, 60000)), // 60s max
-      ]);
+      // Wait for ethers event polling to catch up
+      await new Promise((r) => setTimeout(r, 200));
 
-      // Wait for bridge deliveries to complete (rebalancer transfers)
-      await this.bridgeController.waitForAllDeliveries(30000);
+      // Wait for all deliveries (user transfers + bridge transfers)
+      await controller.waitForAllDeliveries(60000);
 
       // Wait for rebalancer to become idle
       await rebalancer.waitForIdle(5000);
 
       // Generate final KPIs
-      const kpis = await this.kpiCollector.generateKPIs();
+      const kpis = await kpiCollector.generateKPIs();
       const endTime = Date.now();
 
       return {
@@ -197,13 +128,11 @@ export class SimulationEngine {
         endTime,
         duration: endTime - startTime,
         kpis,
-        transferRecords: this.kpiCollector.getTransferRecords(),
-        rebalanceRecords: this.kpiCollector.getRebalanceRecords(),
+        transferRecords: kpiCollector.getTransferRecords(),
+        rebalanceRecords: kpiCollector.getRebalanceRecords(),
       };
     } finally {
-      // Always cleanup, even if we timeout or error
       this.isRunning = false;
-      this.stopMailboxProcessing();
 
       try {
         await rebalancer.stop();
@@ -211,24 +140,17 @@ export class SimulationEngine {
         // Ignore stop errors
       }
 
-      if (this.bridgeController) {
+      if (controller) {
         try {
-          await this.bridgeController.stop();
+          await controller.stop();
         } catch {
           // Ignore stop errors
         }
       }
 
-      if (this.messageTracker) {
-        this.messageTracker.removeAllListeners();
-      }
-
       // Clean up provider to release connections
       this.provider.removeAllListeners();
-      // Force polling to stop
       this.provider.polling = false;
-      // Clear inflight callbacks
-      this.inflightCallbacks = undefined;
     }
   }
 
@@ -238,6 +160,7 @@ export class SimulationEngine {
   private async executeTransfers(
     scenario: TransferScenario,
     timing: SimulationTiming,
+    kpiCollector: KPICollector,
   ): Promise<void> {
     const deployer = new ethers.Wallet(
       this.deployment.deployerKey,
@@ -254,14 +177,6 @@ export class SimulationEngine {
       if (waitTime > 0) {
         await new Promise((resolve) => setTimeout(resolve, waitTime));
       }
-
-      // Record transfer start
-      this.kpiCollector!.recordTransferStart(
-        transfer.id,
-        transfer.origin,
-        transfer.destination,
-        transfer.amount,
-      );
 
       // Execute the transfer via warp token
       const originDomain = this.deployment.domains[transfer.origin];
@@ -311,21 +226,7 @@ export class SimulationEngine {
           );
         }
 
-        // Track message for delayed delivery via MessageTracker
-        await this.messageTracker!.trackMessage(
-          transfer.id,
-          transfer.origin,
-          transfer.destination,
-          timing.userTransferDeliveryDelay,
-        );
-
-        // Notify inflight context adapter that a user transfer is pending
-        this.inflightCallbacks?.onTransferInitiated(
-          transfer.id,
-          transfer.origin,
-          transfer.destination,
-          transfer.amount,
-        );
+        // Controller auto-tracks from Dispatch events — no registration needed
       } catch (error) {
         logger.error(
           {
@@ -334,91 +235,16 @@ export class SimulationEngine {
           },
           'Transfer failed',
         );
-        this.kpiCollector!.recordTransferFailed(transfer.id);
+        kpiCollector.recordTransferStart(
+          transfer.id,
+          transfer.origin,
+          transfer.destination,
+          transfer.amount,
+        );
+        kpiCollector.recordTransferFailed(transfer.id);
       }
     }
     logger.info('All transfers executed');
-  }
-
-  /**
-   * Start periodic processing of mailbox messages (simulates relayer with delay)
-   */
-  private startMailboxProcessing(): void {
-    // Process mailbox every 100ms to check for deliveries due
-    const PROCESS_INTERVAL = 100;
-
-    this.mailboxProcessingInterval = setInterval(async () => {
-      // Guard against overlapping ticks to prevent nonce collisions
-      if (this.mailboxProcessingInFlight) return;
-      this.mailboxProcessingInFlight = true;
-      try {
-        await this.processReadyMailboxDeliveries();
-      } finally {
-        this.mailboxProcessingInFlight = false;
-      }
-    }, PROCESS_INTERVAL);
-  }
-
-  /**
-   * Stop mailbox processing
-   */
-  private stopMailboxProcessing(): void {
-    if (this.mailboxProcessingInterval) {
-      clearInterval(this.mailboxProcessingInterval);
-      this.mailboxProcessingInterval = undefined;
-    }
-  }
-
-  /**
-   * Process mailbox deliveries that are ready (past their delivery time)
-   * Uses MessageTracker for off-chain tracking with per-message control
-   */
-  private async processReadyMailboxDeliveries(): Promise<void> {
-    if (!this.messageTracker) return;
-    await this.messageTracker.processReadyMessages();
-  }
-
-  /**
-   * Wait for all pending user transfer deliveries to complete
-   */
-  private async waitForUserTransferDeliveries(
-    timeout: number = 30000,
-  ): Promise<void> {
-    if (!this.messageTracker) return;
-
-    const startTime = Date.now();
-
-    while (this.messageTracker.hasPendingMessages()) {
-      if (Date.now() - startTime > timeout) {
-        const pending = this.messageTracker.getPendingMessages();
-        logger.warn(
-          { pendingCount: pending.length },
-          'Timeout waiting for user transfer deliveries - marking as failed',
-        );
-        // Mark pending messages as failed so KPIs reflect reality
-        for (const msg of pending) {
-          logger.warn(
-            {
-              messageId: msg.id,
-              origin: msg.origin,
-              destination: msg.destination,
-              status: msg.status,
-              attempts: msg.attempts,
-              error: msg.lastError || 'timeout',
-            },
-            'Marking pending message as failed',
-          );
-          // Record as failed in KPI collector
-          this.kpiCollector?.recordTransferFailed(msg.transferId);
-        }
-        // Clear pending messages so they don't block
-        this.messageTracker.clear();
-        break;
-      }
-
-      // Interval handles processing; just wait
-      await new Promise((resolve) => setTimeout(resolve, 100));
-    }
   }
 
   /**
@@ -446,13 +272,40 @@ export class SimulationEngine {
   }
 
   /**
-   * Reset internal tracking state (does not reset blockchain state)
+   * Build a HyperlaneCore for the infrastructure controller with the
+   * mailbox processor signer set on all chains.
    */
-  reset(): void {
-    // Clear message tracker state
-    if (this.messageTracker) {
-      this.messageTracker.clear();
+  private buildHyperlaneCore(): HyperlaneCore {
+    const chainMetadata: Record<string, any> = {};
+    const addressesMap: Record<string, { mailbox: string }> = {};
+    for (const [chainName, domain] of Object.entries(this.deployment.domains)) {
+      chainMetadata[chainName] = {
+        name: chainName,
+        chainId: 31337,
+        domainId: domain.domainId,
+        protocol: ProtocolType.Ethereum,
+        rpcUrls: [{ http: this.deployment.anvilRpc }],
+        nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
+      };
+      addressesMap[chainName] = { mailbox: domain.mailbox };
     }
+
+    const multiProvider = new MultiProvider(chainMetadata);
+    const processorWallet = new ethers.Wallet(
+      this.deployment.mailboxProcessorKey,
+      this.provider,
+    );
+    multiProvider.setSharedSigner(processorWallet);
+
+    // Set fast polling on internal providers
+    for (const chainName of multiProvider.getKnownChainNames()) {
+      const p = multiProvider.tryGetProvider(chainName);
+      if (p && 'pollingInterval' in p) {
+        (p as ethers.providers.JsonRpcProvider).pollingInterval = 100;
+      }
+    }
+
+    return HyperlaneCore.fromAddressesMap(addressesMap, multiProvider);
   }
 
   /**

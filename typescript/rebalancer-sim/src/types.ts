@@ -7,6 +7,8 @@
 import type { WarpCoreConfig } from '@hyperlane-xyz/sdk';
 import type { Address } from '@hyperlane-xyz/utils';
 
+import type { MockActionTracker } from './runners/MockActionTracker.js';
+
 // =============================================================================
 // BRIDGE TYPES
 // =============================================================================
@@ -378,43 +380,6 @@ export interface ChainStrategyConfig {
 }
 
 /**
- * Callbacks for wiring inflight context updates in simulation.
- * The simulation engine uses these to notify the rebalancer about
- * pending transfers and rebalances.
- */
-export interface InflightContextCallbacks {
-  /**
-   * Called when a user transfer is initiated (before delivery)
-   */
-  onTransferInitiated: (
-    id: string,
-    origin: string,
-    destination: string,
-    amount: bigint,
-  ) => void;
-
-  /**
-   * Called when a user transfer is delivered
-   */
-  onTransferDelivered: (id: string) => void;
-
-  /**
-   * Called when a rebalance transfer is initiated via bridge
-   */
-  onRebalanceInitiated: (
-    id: string,
-    origin: string,
-    destination: string,
-    amount: bigint,
-  ) => void;
-
-  /**
-   * Called when a rebalance transfer completes via bridge
-   */
-  onRebalanceDelivered: (id: string) => void;
-}
-
-/**
  * Interface for rebalancer runners in simulation
  */
 export interface IRebalancerRunner {
@@ -452,11 +417,11 @@ export interface IRebalancerRunner {
   on(event: 'rebalance', listener: (e: RebalancerEvent) => void): this;
 
   /**
-   * Get callbacks for inflight context updates (optional).
-   * If supported, SimulationEngine wires these to bridge/message events.
-   * Returns undefined if the runner doesn't support inflight tracking.
+   * Get the mock action tracker (optional).
+   * If supported, SimulationEngine passes it to the infrastructure controller
+   * for direct inflight tracking updates.
    */
-  getInflightCallbacks?(): InflightContextCallbacks | undefined;
+  getActionTracker?(): MockActionTracker | undefined;
 }
 
 /**

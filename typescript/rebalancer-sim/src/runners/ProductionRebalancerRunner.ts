@@ -11,11 +11,7 @@ import type { StrategyConfig } from '@hyperlane-xyz/rebalancer';
 import { MultiProtocolProvider, MultiProvider } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import type {
-  IRebalancerRunner,
-  InflightContextCallbacks,
-  RebalancerSimConfig,
-} from '../types.js';
+import type { IRebalancerRunner, RebalancerSimConfig } from '../types.js';
 
 import { MockActionTracker } from './MockActionTracker.js';
 import { SimulationRegistry } from './SimulationRegistry.js';
@@ -108,15 +104,6 @@ function buildStrategyConfig(config: RebalancerSimConfig): StrategyConfig {
  * ProductionRebalancerRunner runs the actual RebalancerService in-process.
  * This wraps the real CLI rebalancer for simulation testing.
  */
-/**
- * Tracks pending rebalance info for correlating bridge callbacks with tracker actions.
- */
-interface PendingRebalanceInfo {
-  origin: number; // domain ID
-  destination: number; // domain ID
-  amount: bigint;
-}
-
 export class ProductionRebalancerRunner
   extends EventEmitter
   implements IRebalancerRunner
@@ -126,9 +113,7 @@ export class ProductionRebalancerRunner
   private config?: RebalancerSimConfig;
   private service?: RebalancerService;
   private running = false;
-  private mockTracker?: MockActionTracker;
-  // Maps bridge transfer ID to rebalance info for delivery correlation
-  private pendingRebalances = new Map<string, PendingRebalanceInfo>();
+  private mockTracker = new MockActionTracker();
 
   async initialize(config: RebalancerSimConfig): Promise<void> {
     // Cleanup any previously running instance
@@ -136,8 +121,8 @@ export class ProductionRebalancerRunner
 
     this.config = config;
 
-    // Create mock action tracker for simulation
-    this.mockTracker = new MockActionTracker();
+    // Reset tracker state for fresh simulation
+    this.mockTracker.clear();
   }
 
   async start(): Promise<void> {
@@ -295,11 +280,7 @@ export class ProductionRebalancerRunner
     }
 
     this.config = undefined;
-    if (this.mockTracker) {
-      this.mockTracker.clear();
-      this.mockTracker = undefined;
-    }
-    this.pendingRebalances.clear();
+    this.mockTracker.clear();
     this.removeAllListeners();
   }
 
@@ -314,78 +295,9 @@ export class ProductionRebalancerRunner
   }
 
   /**
-   * Get callbacks for wiring inflight context updates.
-   * SimulationEngine uses these to notify about pending transfers and rebalances.
+   * Get the mock action tracker for direct inflight tracking updates.
    */
-  getInflightCallbacks(): InflightContextCallbacks | undefined {
-    if (!this.mockTracker || !this.config) {
-      return undefined;
-    }
-
-    // Helper to convert chain name to domain ID
-    const getDomainId = (chainName: string): number => {
-      const domain = this.config!.deployment.domains[chainName];
-      if (!domain) {
-        throw new Error(`Unknown chain: ${chainName}`);
-      }
-      return domain.domainId;
-    };
-
-    return {
-      onTransferInitiated: (
-        id: string,
-        origin: string,
-        destination: string,
-        amount: bigint,
-      ) => {
-        this.mockTracker!.addTransfer(
-          id,
-          getDomainId(origin),
-          getDomainId(destination),
-          amount,
-        );
-      },
-      onTransferDelivered: (id: string) => {
-        this.mockTracker!.removeTransfer(id);
-      },
-      onRebalanceInitiated: (
-        id: string,
-        origin: string,
-        destination: string,
-        amount: bigint,
-      ) => {
-        const originDomain = getDomainId(origin);
-        const destDomain = getDomainId(destination);
-
-        // Store mapping from bridge transfer ID to route info for delivery correlation
-        this.pendingRebalances.set(id, {
-          origin: originDomain,
-          destination: destDomain,
-          amount,
-        });
-
-        // Create action for the pending intent.
-        // RebalancerService can't extract messageId from MockValueTransferBridge
-        // (no Dispatch event), so we create the action ourselves.
-        this.mockTracker!.createActionForPendingIntent(
-          originDomain,
-          destDomain,
-          amount,
-          id,
-        );
-      },
-      onRebalanceDelivered: (id: string) => {
-        // Look up the route info and complete the matching action in tracker
-        const info = this.pendingRebalances.get(id);
-        if (info) {
-          this.pendingRebalances.delete(id);
-          this.mockTracker!.completeRebalanceByRoute(
-            info.origin,
-            info.destination,
-            info.amount,
-          );
-        }
-      },
-    };
+  getActionTracker(): MockActionTracker {
+    return this.mockTracker;
   }
 }
