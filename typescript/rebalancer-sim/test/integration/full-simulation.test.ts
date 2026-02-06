@@ -272,6 +272,10 @@ describe('Rebalancer Simulation', function () {
 
       // ProductionRebalancer should use at most 50% of SimpleRebalancer's rebalances
       // (typically achieves 60-80% reduction)
+      expect(simpleResult.kpis.totalRebalances).to.be.greaterThan(
+        0,
+        'SimpleRebalancer should have rebalanced at least once for ratio comparison',
+      );
       const reductionRatio =
         productionResult.kpis.totalRebalances /
         simpleResult.kpis.totalRebalances;

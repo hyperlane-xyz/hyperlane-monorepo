@@ -268,6 +268,10 @@ export class MockActionTracker implements IActionTracker {
       if (intent) {
         intent.fulfilledAmount += action.amount;
         intent.updatedAt = Date.now();
+
+        if (intent.fulfilledAmount >= intent.amount) {
+          intent.status = 'complete';
+        }
       }
 
       logger.debug({ id }, 'Rebalance action completed');
@@ -436,6 +440,49 @@ export class MockActionTracker implements IActionTracker {
     logger.debug(
       { actionId: action.id, intentId: action.intentId, origin, destination },
       'Completed rebalance action by route',
+    );
+    return true;
+  }
+
+  /**
+   * Fail a rebalance action by route match (origin, destination, amount).
+   * Marks the action as failed and the parent intent as failed.
+   * Does NOT increment fulfilledAmount.
+   */
+  failRebalanceByRoute(
+    origin: Domain,
+    destination: Domain,
+    amount: bigint,
+  ): boolean {
+    const allActions = Array.from(this.actions.values());
+    const matchingActions = allActions
+      .filter(
+        (a) =>
+          a.origin === origin &&
+          a.destination === destination &&
+          a.amount === amount &&
+          a.status === 'in_progress',
+      )
+      .sort((a, b) => a.createdAt - b.createdAt);
+
+    if (matchingActions.length === 0) {
+      return false;
+    }
+
+    const action = matchingActions[0];
+    action.status = 'failed';
+    action.updatedAt = Date.now();
+
+    // Mark parent intent as failed
+    const intent = this.intents.get(action.intentId);
+    if (intent) {
+      intent.status = 'failed';
+      intent.updatedAt = Date.now();
+    }
+
+    logger.debug(
+      { actionId: action.id, intentId: action.intentId, origin, destination },
+      'Failed rebalance action by route',
     );
     return true;
   }

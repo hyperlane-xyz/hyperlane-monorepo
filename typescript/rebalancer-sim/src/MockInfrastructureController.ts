@@ -245,7 +245,16 @@ export class MockInfrastructureController {
       // Static call pre-check
       try {
         await mailbox.callStatic.process('0x', msg.message);
-      } catch {
+      } catch (error) {
+        logger.debug(
+          {
+            messageId: msg.messageId,
+            dest: msg.destination,
+            attempts: msg.attempts,
+            error,
+          },
+          'Static pre-check failed, will retry',
+        );
         msg.attempts++;
         msg.deliveryTime = now + 200;
         continue;
@@ -267,7 +276,7 @@ export class MockInfrastructureController {
           this.actionTracker?.removeTransfer(msg.messageId);
         } else if (msg.type === 'bridge-transfer') {
           this.kpiCollector.recordRebalanceComplete(msg.messageId);
-          if (this.actionTracker && msg.amount) {
+          if (this.actionTracker && msg.amount > 0n) {
             this.actionTracker.completeRebalanceByRoute(
               this.core.multiProvider.getDomainId(msg.origin),
               this.core.multiProvider.getDomainId(msg.destination),
@@ -328,8 +337,8 @@ export class MockInfrastructureController {
             this.actionTracker?.removeTransfer(msg.messageId);
           } else if (msg.type === 'bridge-transfer') {
             this.kpiCollector.recordRebalanceFailed(msg.messageId);
-            if (this.actionTracker && msg.amount) {
-              this.actionTracker.completeRebalanceByRoute(
+            if (this.actionTracker && msg.amount > 0n) {
+              this.actionTracker.failRebalanceByRoute(
                 this.core.multiProvider.getDomainId(msg.origin),
                 this.core.multiProvider.getDomainId(msg.destination),
                 msg.amount,
