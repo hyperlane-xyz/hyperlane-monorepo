@@ -31,7 +31,7 @@ export const RESULTS_DIR = path.join(__dirname, '..', '..', 'results');
 export type RebalancerType = 'simple' | 'production' | 'noop';
 
 export function getEnabledRebalancers(): RebalancerType[] {
-  const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production';
+  const REBALANCER_ENV = process.env.REBALANCERS || 'simple,production,noop';
   const enabled = REBALANCER_ENV.split(',')
     .map((r) => r.trim().toLowerCase())
     .filter(
@@ -72,8 +72,6 @@ export function ensureResultsDir(): void {
 export interface ScenarioRunOptions {
   anvilRpc: string;
   rebalancerTypes?: RebalancerType[];
-  /** Suffix appended to filename when saving results (e.g. '-noop') */
-  saveSuffix?: string;
 }
 
 export interface ScenarioRunResult {
@@ -212,8 +210,7 @@ export async function runScenarioWithRebalancers(
   }
 
   // Save results
-  const saveKey = scenarioName + (options.saveSuffix ?? '');
-  saveResults(saveKey, file, results, comparison);
+  saveResults(scenarioName, file, results, comparison);
 
   return { results, file, comparison };
 }

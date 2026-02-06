@@ -351,32 +351,4 @@ describe('Rebalancer Simulation', function () {
       );
     }
   });
-
-  // ============================================================================
-  // BASELINE (NO REBALANCER)
-  // ============================================================================
-
-  it('no-rebalancer baseline: shows transfer failures without rebalancing (report only)', async function () {
-    // Run with NoOpRebalancer to demonstrate what happens without active rebalancing
-    // This is report-only - no assertions, just generates visualization
-    const { results } = await runScenarioWithRebalancers(
-      'extreme-drain-chain1',
-      {
-        anvilRpc: anvil.rpc,
-        rebalancerTypes: ['noop'],
-        saveSuffix: '-noop',
-      },
-    );
-
-    // Report only - log results but don't assert
-    const result = results[0];
-    console.log(`\n  NO-REBALANCER BASELINE (report only):`);
-    console.log(
-      `    Without rebalancing, completion rate: ${(result.kpis.completionRate * 100).toFixed(1)}%`,
-    );
-    console.log(
-      `    Failed transfers: ${result.kpis.totalTransfers - result.kpis.completedTransfers}`,
-    );
-    console.log(`    Rebalances: ${result.kpis.totalRebalances} (expected: 0)`);
-  });
 });
