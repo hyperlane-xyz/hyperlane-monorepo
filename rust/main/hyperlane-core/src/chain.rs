@@ -271,6 +271,7 @@ pub enum KnownHyperlaneDomain {
     HyperLiquidEvmTestnet = 998,
     IncentivTestnet = 28802,
     KyveTestnet = 1262571342,
+    ModeTestnet = 919,
     OptimismSepolia = 11155420,
     ParadexSepolia = 12263410,
     Polygonamoy = 80002,
@@ -426,6 +427,7 @@ impl KnownHyperlaneDomain {
             | HyperLiquidEvmTestnet
             | IncentivTestnet
             | KyveTestnet
+            | ModeTestnet
             | OptimismSepolia
             | ParadexSepolia
             | Polygonamoy
@@ -489,9 +491,11 @@ impl KnownHyperlaneDomain {
                 HyperlaneDomainTechnicalStack::ArbitrumNitro
             }
             Ancient8 | Base | Blast | Bob | Boba | B3 | Celo | Cyber | Fraxtal | Guru | Ink
-            | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mode | OpBnb | Optimism
-            | Orderly | PolynomialFi | Redstone | Soneium | Superseed | Swell | Unichain
-            | Worldchain | Zircuit | ZoraMainnet => HyperlaneDomainTechnicalStack::OpStack,
+            | Lisk | MantaPacific | Mantle | Matchain | Metal | Metis | Mode | ModeTestnet
+            | OpBnb | Optimism | Orderly | PolynomialFi | Redstone | Soneium | Superseed
+            | Swell | Unichain | Worldchain | Zircuit | ZoraMainnet => {
+                HyperlaneDomainTechnicalStack::OpStack
+            }
             DogeChain | LumiaPrism | Katana | Merlin | PolygonZkEvm | Prom | Xlayer => {
                 HyperlaneDomainTechnicalStack::PolygonCDK
             }

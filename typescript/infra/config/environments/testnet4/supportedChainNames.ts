@@ -13,6 +13,7 @@ export const testnet4SupportedChainNames = [
   'hyperliquidevmtestnet',
   'incentivtestnet',
   'kyvetestnet',
+  'modetestnet',
   'optimismsepolia',
   'paradexsepolia',
   'polygonamoy',
