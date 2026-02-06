@@ -158,7 +158,7 @@ const DEFAULT_START_BLOCKS: Record<string, number> = {
   // Testnets - use recent blocks for faster initial sync
   sepolia: 10203013, // More recent block
   arbitrumsepolia: 1000000,
-  basesepolia: 1000000,
+  basesepolia: 37304760,
   optimismsepolia: 1000000,
   // Add more as needed
 };
