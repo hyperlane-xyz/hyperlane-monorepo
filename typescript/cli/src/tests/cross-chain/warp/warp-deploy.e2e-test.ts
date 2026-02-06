@@ -29,8 +29,8 @@ import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { HyperlaneE2EWarpTestCommands } from '../../commands/warp.js';
 import {
   CORE_ADDRESSES_PATH_BY_PROTOCOL,
-  CORE_CONFIG_PATH_BY_PROTOCOL,
   CORE_READ_CONFIG_PATH_BY_PROTOCOL,
+  CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL,
   DEFAULT_E2E_TEST_TIMEOUT,
   HYP_KEY_BY_PROTOCOL,
   REGISTRY_PATH,
@@ -59,7 +59,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     ProtocolType.CosmosNative,
     TEST_CHAIN_NAMES_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH_BY_PROTOCOL.cosmosnative,
+    CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL.cosmosnative,
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.cosmosnative.CHAIN_NAME_1,
   );
 
@@ -69,7 +69,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     ProtocolType.Ethereum,
     TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     REGISTRY_PATH,
-    CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
+    CROSS_CHAIN_CORE_CONFIG_PATH_BY_PROTOCOL.ethereum,
     CORE_READ_CONFIG_PATH_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
   );
 
