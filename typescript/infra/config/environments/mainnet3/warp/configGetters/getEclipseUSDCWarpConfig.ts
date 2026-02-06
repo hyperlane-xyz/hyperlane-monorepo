@@ -80,6 +80,45 @@ export const rebalanceableCollateralChains = [
   // No monad yet
 ] as const satisfies DeploymentChain[];
 
+// On-chain LinearFee parameters for already-deployed chains.
+// These were deployed with the original bps logic of using the totalSupply()
+// Without these, warp apply will redeploy the fees
+const deployedChainFeeParams: Record<
+  string,
+  { maxFee: string; halfAmount: string }
+> = {
+  arbitrum: {
+    maxFee: '18459382986016399860015592127403368310046070992504417749897631',
+    halfAmount:
+      '18459382986016399860015592127403368310046070992504417749897630000',
+  },
+  base: {
+    maxFee: '27099327091626495140416592859206796555048937074435830815167597',
+    halfAmount:
+      '27099327091626495140416592859206796555048937074435830815167596000',
+  },
+  ethereum: {
+    maxFee: '2207817649756434359838725503051961931875524909323049373661705',
+    halfAmount:
+      '2207817649756434359838725503051961931875524909323049373661704000',
+  },
+  optimism: {
+    maxFee: '557857035769277571442107158893568717753786146662512570068048277',
+    halfAmount:
+      '557857035769277571442107158893568717753786146662512570068048276000',
+  },
+  polygon: {
+    maxFee: '189444232384281426231109839818586514265950429404753541975752862',
+    halfAmount:
+      '189444232384281426231109839818586514265950429404753541975752862000',
+  },
+  unichain: {
+    maxFee: '2675917496765118465156267568419760491445101099689821059982086779',
+    halfAmount:
+      '2675917496765118465156267568419760491445101099689821059982086778000',
+  },
+};
+
 const productionOwnersByChain: Record<DeploymentChain, string> = {
   ethereum: awSafes.ethereum,
   arbitrum: awIcas.arbitrum,
@@ -137,13 +176,21 @@ export const buildEclipseUSDCWarpConfig = async (
         ownersByChain,
         rebalancingConfigByChain,
       );
+      const destinations = rebalanceableCollateralChains.filter(
+        (c) => c !== chain,
+      );
+      const originFeeParams = deployedChainFeeParams[chain];
+      const feeParams = originFeeParams
+        ? Object.fromEntries(destinations.map((d) => [d, originFeeParams]))
+        : undefined;
       chainConfig = {
         ...baseConfig,
         ...tokenMetadata,
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(chain),
-          rebalanceableCollateralChains.filter((c) => c !== chain),
+          destinations,
           5n,
+          feeParams,
         ),
       };
     } else {
@@ -221,6 +268,7 @@ export const getUSDCEclipseFileSubmitterStrategyConfig = () =>
   );
 
 export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
+  // TODO: Remove this after transferring ownership
   const safeChains = ['ethereum', 'arbitrum', 'base', 'optimism'] as const;
   const originSafeChain = 'ethereum';
   const originSafeAddress = awSafes[originSafeChain];

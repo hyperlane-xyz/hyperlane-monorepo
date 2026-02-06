@@ -197,15 +197,21 @@ export function getFixedRoutingFeeConfig(
   owner: Address,
   feeDestinations: readonly ChainName[],
   bps: bigint,
+  feeParams?: Record<string, { maxFee: string; halfAmount: string }>,
 ): TokenFeeConfigInput {
   const feeContracts: Record<ChainName, TokenFeeConfigInput> = {};
 
   for (const chain of feeDestinations) {
-    feeContracts[chain] = {
-      type: TokenFeeType.LinearFee,
-      owner,
-      bps,
-    };
+    const params = feeParams?.[chain];
+    feeContracts[chain] = params
+      ? {
+          type: TokenFeeType.LinearFee,
+          owner,
+          bps,
+          maxFee: BigInt(params.maxFee),
+          halfAmount: BigInt(params.halfAmount),
+        }
+      : { type: TokenFeeType.LinearFee, owner, bps };
   }
 
   return {
