@@ -24,28 +24,23 @@ import type { Monitor } from '../../monitor/Monitor.js';
 import type { IActionTracker } from '../../tracking/index.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 import {
+  ANVIL_TEST_PRIVATE_KEY,
   BALANCE_PRESETS,
   DOMAIN_IDS,
+  type DeployedAddresses,
+  MONITORED_ROUTE_ID,
   TEST_CHAINS,
-  TEST_WARP_ROUTE_CONFIG,
   type TestChain,
-  USDC_ADDRESSES,
-  USDC_INCENTIV_WARP_ROUTE,
-  USDC_SUBTENSOR_WARP_ROUTE,
-  USDC_SUPERSEED_WARP_ROUTE,
+  buildWarpRouteConfig,
 } from '../fixtures/routes.js';
 
-import {
-  configureAllowedBridges,
-  setupCollateralBalances,
-} from './BridgeSetup.js';
+import { setupCollateralBalances } from './BridgeSetup.js';
 import { ForkIndexer } from './ForkIndexer.js';
-import type { ForkManager } from './ForkManager.js';
-import { MockExplorerClient } from './MockExplorerClient.js';
 import {
-  getRebalancerAddress,
-  impersonateRebalancer,
-} from './TransferHelper.js';
+  type LocalDeploymentContext,
+  LocalDeploymentManager,
+} from './LocalDeploymentManager.js';
+import { MockExplorerClient } from './MockExplorerClient.js';
 
 function encodeWarpRouteMessageBody(
   recipient: string,
@@ -89,7 +84,7 @@ export class TestRebalancerBuilder {
   private readonly logger: Logger;
 
   constructor(
-    private readonly forkManager: ForkManager,
+    private readonly deploymentManager: LocalDeploymentManager,
     private readonly multiProvider: MultiProvider,
   ) {
     this.logger = pino({ level: 'debug' }).child({ module: 'TestRebalancer' });
@@ -122,9 +117,9 @@ export class TestRebalancerBuilder {
 
   private async computeConfirmedBlockTags(): Promise<ConfirmedBlockTags> {
     const blockTags: ConfirmedBlockTags = {};
-    const forkedProviders = this.forkManager.getContext().providers;
+    const localProviders = this.deploymentManager.getContext().providers;
 
-    for (const [chain, provider] of forkedProviders) {
+    for (const [chain, provider] of localProviders) {
       try {
         const blockNumber = await provider.send('eth_blockNumber', []);
         blockTags[chain] = parseInt(blockNumber, 16);
@@ -165,72 +160,56 @@ export class TestRebalancerBuilder {
 
     await this.setupBalances();
 
-    const forkedProviders = this.forkManager.getContext().providers;
+    const ctx = this.deploymentManager.getContext();
+    const { providers: localProviders }: LocalDeploymentContext = ctx;
+    const deployedAddresses: DeployedAddresses = ctx.deployedAddresses;
 
-    // Create HyperlaneCore from registry addresses
-    const coreAddresses = await this.forkManager.getRegistry().getAddresses();
-    const knownChains = new Set(this.multiProvider.getKnownChainNames());
-    const filteredAddresses = Object.fromEntries(
-      Object.entries(coreAddresses).filter(([chain]) => knownChains.has(chain)),
-    );
+    const coreAddresses: Record<string, Record<string, string>> = {};
+    for (const chain of TEST_CHAINS) {
+      coreAddresses[chain] = {
+        mailbox: deployedAddresses.chains[chain].mailbox,
+        interchainSecurityModule: deployedAddresses.chains[chain].ism,
+      };
+    }
     const hyperlaneCore = HyperlaneCore.fromAddressesMap(
-      filteredAddresses,
+      coreAddresses,
       this.multiProvider,
     );
 
     const mockExplorer = this.buildMockExplorer();
 
-    const tryGetRebalancerAddress = async (
-      routerAddress: string,
-    ): Promise<string | null> => {
-      try {
-        return await getRebalancerAddress(
-          forkedProviders.get('ethereum')!,
-          routerAddress,
-        );
-      } catch {
-        return null;
-      }
-    };
-
-    const rebalancerAddresses = (
-      await Promise.all([
-        tryGetRebalancerAddress(USDC_SUPERSEED_WARP_ROUTE.routers.ethereum),
-        tryGetRebalancerAddress(USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum),
-      ])
-    ).filter((addr): addr is string => addr !== null);
+    const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
+    const rebalancerAddresses = [deployerWallet.address];
 
     const workingMultiProvider = await this.getWorkingMultiProvider();
 
-    // Initialize ForkIndexer AFTER getWorkingMultiProvider() to capture correct block numbers
-    // (getWorkingMultiProvider calls configureAllowedBridges which advances blocks)
     const forkIndexer = new ForkIndexer(
-      forkedProviders,
+      localProviders,
       hyperlaneCore,
       mockExplorer,
       rebalancerAddresses,
       this.logger,
     );
 
-    // Compute confirmed block tags and initialize ForkIndexer
     const confirmedBlockTags = await this.computeConfirmedBlockTags();
     await forkIndexer.initialize(confirmedBlockTags);
 
     const rebalancerConfig = new RebalancerConfig(
-      USDC_INCENTIV_WARP_ROUTE.id,
+      MONITORED_ROUTE_ID,
       this.strategyConfig,
     );
 
-    const forkedRegistry = this.forkManager.getRegistry();
+    const registry = this.deploymentManager.getRegistry();
     const mpp = MultiProtocolProvider.fromMultiProvider(workingMultiProvider);
 
+    const warpCoreConfig = buildWarpRouteConfig(deployedAddresses);
     const contextFactory = await RebalancerContextFactory.create(
       rebalancerConfig,
       workingMultiProvider,
       mpp,
-      forkedRegistry,
+      registry,
       this.logger,
-      TEST_WARP_ROUTE_CONFIG,
+      warpCoreConfig,
     );
 
     const strategy = await contextFactory.createStrategy();
@@ -294,13 +273,16 @@ export class TestRebalancerBuilder {
 
   private async setupBalances(): Promise<void> {
     const balances = this.getBalances();
-    const forkedProviders = this.forkManager.getContext().providers;
+    const ctx = this.deploymentManager.getContext();
+    const { providers: localProviders } = ctx;
+    const deployedAddresses: DeployedAddresses = ctx.deployedAddresses;
 
     await setupCollateralBalances(
-      forkedProviders,
+      localProviders,
       balances,
-      USDC_INCENTIV_WARP_ROUTE.routers,
-      USDC_ADDRESSES,
+      deployedAddresses.monitoredRoute,
+      deployedAddresses.tokens,
+      ANVIL_TEST_PRIVATE_KEY,
     );
 
     this.logger.info(
@@ -317,22 +299,24 @@ export class TestRebalancerBuilder {
   }
 
   private buildMockExplorer(): MockExplorerClient {
+    const { deployedAddresses }: LocalDeploymentContext =
+      this.deploymentManager.getContext();
     const userTransfers: ExplorerMessage[] = [...this.mockTransfers];
 
     for (let i = 0; i < this.pendingTransfers.length; i++) {
       const params = this.pendingTransfers[i];
       const warpRecipient =
-        params.warpRecipient ?? USDC_INCENTIV_WARP_ROUTE.routers[params.to];
+        params.warpRecipient ?? deployedAddresses.monitoredRoute[params.to];
 
       const mockTransfer: ExplorerMessage = {
         msg_id: `0x${(1000 + i).toString(16).padStart(64, '0')}`,
         origin_domain_id: DOMAIN_IDS[params.from],
         destination_domain_id: DOMAIN_IDS[params.to],
-        sender: USDC_INCENTIV_WARP_ROUTE.routers[params.from],
-        recipient: USDC_INCENTIV_WARP_ROUTE.routers[params.to],
+        sender: deployedAddresses.monitoredRoute[params.from],
+        recipient: deployedAddresses.monitoredRoute[params.to],
         origin_tx_hash: `0x${(2000 + i).toString(16).padStart(64, '0')}`,
         origin_tx_sender: `0x${(3000 + i).toString(16).padStart(40, '0')}`,
-        origin_tx_recipient: USDC_INCENTIV_WARP_ROUTE.routers[params.from],
+        origin_tx_recipient: deployedAddresses.monitoredRoute[params.from],
         is_delivered: false,
         message_body: encodeWarpRouteMessageBody(warpRecipient, params.amount),
       };
@@ -364,79 +348,30 @@ export class TestRebalancerBuilder {
       return this.multiProvider;
     }
 
-    const forkedProviders = this.forkManager.getContext().providers;
-    const ethProvider = forkedProviders.get('ethereum');
-    if (!ethProvider) {
-      throw new Error('Ethereum provider not found for execute mode');
-    }
-
-    const rebalancerAddress = await getRebalancerAddress(
-      ethProvider,
-      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-    );
-
-    this.logger.info(
-      { rebalancerAddress },
-      'Found rebalancer address from bridge',
-    );
-
-    await this.configureAllowedBridgesForExecuteMode(ethProvider);
-
-    const { signer: rebalancerSigner } = await impersonateRebalancer(
-      ethProvider,
-      USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-    );
-
+    const ctx = this.deploymentManager.getContext();
     const rebalancerMultiProvider = this.multiProvider.extendChainMetadata({});
+
+    const wallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
     for (const chain of TEST_CHAINS) {
-      const provider = forkedProviders.get(chain);
-      if (provider && chain === 'ethereum') {
-        rebalancerMultiProvider.setSigner(chain, rebalancerSigner);
+      const provider = ctx.providers.get(chain);
+      if (provider) {
+        rebalancerMultiProvider.setSigner(chain, wallet.connect(provider));
       }
     }
 
     this.logger.info(
-      'Impersonated rebalancer and created MultiProvider for execute mode',
+      'Created MultiProvider with deployer as rebalancer for execute mode',
     );
 
     return rebalancerMultiProvider;
-  }
-
-  private async configureAllowedBridgesForExecuteMode(
-    ethProvider: ethers.providers.JsonRpcProvider,
-  ): Promise<void> {
-    const superseedConfigs = TEST_CHAINS.filter(
-      (chain) => chain !== 'ethereum',
-    ).map((chain) => ({
-      monitoredRouterAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-      bridgeAddress: USDC_SUPERSEED_WARP_ROUTE.routers.ethereum,
-      destinationDomain: DOMAIN_IDS[chain],
-    }));
-
-    const subtensorConfigs = TEST_CHAINS.filter(
-      (chain) => chain !== 'ethereum',
-    ).map((chain) => ({
-      monitoredRouterAddress: USDC_INCENTIV_WARP_ROUTE.routers.ethereum,
-      bridgeAddress: USDC_SUBTENSOR_WARP_ROUTE.routers.ethereum,
-      destinationDomain: DOMAIN_IDS[chain],
-    }));
-
-    await configureAllowedBridges(ethProvider, [
-      ...superseedConfigs,
-      ...subtensorConfigs,
-    ]);
-
-    this.logger.info(
-      'Configured allowed bridges on monitored router for execute mode',
-    );
   }
 }
 
 export class TestRebalancer {
   static builder(
-    forkManager: ForkManager,
+    deploymentManager: LocalDeploymentManager,
     multiProvider: MultiProvider,
   ): TestRebalancerBuilder {
-    return new TestRebalancerBuilder(forkManager, multiProvider);
+    return new TestRebalancerBuilder(deploymentManager, multiProvider);
   }
 }

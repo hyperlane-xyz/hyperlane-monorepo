@@ -6,6 +6,7 @@ import {
   bytes32ToAddress,
   messageId,
   parseMessage,
+  parseWarpRouteMessage,
 } from '@hyperlane-xyz/utils';
 
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
@@ -25,6 +26,23 @@ export class ForkIndexer {
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
   ) {}
+
+  private normalizeUserTransferMessageBody(messageBody: string): string {
+    const LOCAL_TOKEN_SCALE = 10n ** 12n;
+    try {
+      const { recipient, amount } = parseWarpRouteMessage(messageBody);
+      if (amount % LOCAL_TOKEN_SCALE !== 0n) {
+        return messageBody;
+      }
+
+      const descaledAmountHex = (amount / LOCAL_TOKEN_SCALE)
+        .toString(16)
+        .padStart(64, '0');
+      return `${recipient}${descaledAmountHex}`;
+    } catch {
+      return messageBody;
+    }
+  }
 
   async initialize(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
     for (const [chain] of this.providers) {
@@ -102,6 +120,12 @@ export class ForkIndexer {
           continue;
         }
 
+        const messageBody = this.rebalancerAddresses.some(
+          (addr) => receipt.from.toLowerCase() === addr.toLowerCase(),
+        )
+          ? parsed.body
+          : this.normalizeUserTransferMessageBody(parsed.body);
+
         const msg: ExplorerMessage = {
           msg_id: msgId,
           origin_domain_id: parsed.origin,
@@ -112,7 +136,7 @@ export class ForkIndexer {
           origin_tx_sender: receipt.from,
           origin_tx_recipient: event.args.sender,
           is_delivered: false,
-          message_body: parsed.body,
+          message_body: messageBody,
         };
 
         if (
