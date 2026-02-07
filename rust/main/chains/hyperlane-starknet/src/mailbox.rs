@@ -16,7 +16,7 @@ use starknet::accounts::{Account, ExecutionV3, SingleOwnerAccount};
 use starknet::core::types::Felt;
 
 use starknet::signers::LocalWallet;
-use tracing::instrument;
+use tracing::{debug, instrument};
 
 use crate::contracts::mailbox::Mailbox as StarknetMailboxInternal;
 use crate::error::HyperlaneStarknetError;
@@ -146,6 +146,10 @@ impl Mailbox for StarknetMailbox {
         _tx_gas_limit: Option<U256>,
     ) -> ChainResult<TxOutcome> {
         let contract_call = self.process_contract_call(message, metadata).await?;
+        let contract_call = contract_call
+            .l1_gas(300)
+            .l1_data_gas(800u64.saturating_mul(1 as u64))
+            .l2_gas(82041280u64.saturating_mul(1 as u64));
         send_and_confirm(self.provider.rpc_client(), contract_call).await
     }
 
@@ -156,17 +160,18 @@ impl Mailbox for StarknetMailbox {
         metadata: &Metadata,
     ) -> ChainResult<TxCostEstimate> {
         let contract_call = self.process_contract_call(message, metadata).await?;
+        debug!("Estimating gas for contract call: {:?}", contract_call);
 
-        // Get fee estimate from the provider
-        let fee_estimate = contract_call
-            .estimate_fee()
-            .await
-            .map_err(HyperlaneStarknetError::from)?;
+        // // Get fee estimate from the provider
+        // let fee_estimate = contract_call
+        //     .estimate_fee()
+        //     .await
+        //     .map_err(HyperlaneStarknetError::from)?;
 
         Ok(TxCostEstimate {
-            gas_limit: fee_estimate.l2_gas_consumed.into(), // use l2 gas as an approximation, as its the most relevant
+            gas_limit: 1.into(), // use l2 gas as an approximation, as its the most relevant
             gas_price: FixedPointNumber::zero(),
-            l2_gas_limit: Some(fee_estimate.l2_gas_consumed.into()),
+            l2_gas_limit: Some(1.into()),
         })
     }
 
@@ -207,8 +212,13 @@ impl Mailbox for StarknetMailbox {
                     .process_getcall(&metadata.as_ref().into(), &message.into())
             })
             .collect();
+        let length = calls.len();
 
         let tx = self.contract.account.execute_v3(calls);
+        let tx = tx
+            .l1_gas(300)
+            .l1_data_gas(800u64.saturating_mul(length as u64))
+            .l2_gas(82041280u64.saturating_mul(length as u64));
         let outcome = send_and_confirm(self.provider.rpc_client(), tx).await?;
         let failed_indexes = if outcome.executed {
             Vec::new()
