@@ -32,7 +32,7 @@ import { RETRY_ATTEMPTS, RETRY_DELAY_MS } from './helper.js';
  * ```
  */
 export async function getNewContractExpectedNonce(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   ismManagerProgramId: string,
 ): Promise<string> {
   let nonce = await retryAsync(
@@ -60,7 +60,7 @@ export async function getNewContractExpectedNonce(
  * @returns The parsed mapping value, or undefined if not found
  */
 export async function tryQueryMappingValue<T>(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   programId: string,
   mappingName: string,
   key: string,
@@ -94,7 +94,7 @@ export async function tryQueryMappingValue<T>(
  * @returns The parsed mapping value
  */
 export async function queryMappingValue<T>(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   programId: string,
   mappingName: string,
   key: string,

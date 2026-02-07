@@ -36,7 +36,7 @@ function isAleoIsmType(maybeIsmType: number): maybeIsmType is AleoIsmType {
  * @returns The ISM type
  */
 export async function getIsmType(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   ismAddress: string,
 ): Promise<AleoIsmType> {
   const { address, programId } = fromAleoAddress(ismAddress);
@@ -72,7 +72,7 @@ export async function getIsmType(
  * @returns The Test ISM configuration
  */
 export async function getTestIsmConfig(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   ismAddress: string,
 ): Promise<{
   type: AleoIsmType.TEST_ISM;
@@ -139,7 +139,7 @@ function formatIsmMultisigInfo(raw: unknown): {
  * @returns The Multisig ISM configuration
  */
 export async function getMessageIdMultisigIsmConfig(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   ismAddress: string,
 ): Promise<{
   address: string;
@@ -211,7 +211,7 @@ function formatRouteIsmAddress(raw: unknown): string {
  * @returns The Routing ISM configuration
  */
 export async function getRoutingIsmConfig(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   ismAddress: string,
 ): Promise<{
   type: AleoIsmType.ROUTING;

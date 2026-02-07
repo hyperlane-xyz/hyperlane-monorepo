@@ -26,8 +26,8 @@ import {
   CosmosMessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
 import {
-  CosmosRoutingIsmRawReader,
-  CosmosRoutingIsmRawWriter,
+  CosmosRoutingIsmReader,
+  CosmosRoutingIsmWriter,
 } from './routing-ism.js';
 import { CosmosTestIsmReader, CosmosTestIsmWriter } from './test-ism.js';
 
@@ -137,9 +137,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new CosmosRoutingIsmRawReader(
-          query,
-        ) as unknown as ArtifactReader<
+        return new CosmosRoutingIsmReader(query) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
           DeployedIsmAddress
         >;
@@ -218,7 +216,7 @@ export class CosmosIsmArtifactManager implements IRawIsmArtifactManager {
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new CosmosRoutingIsmRawWriter(
+        return new CosmosRoutingIsmWriter(
           query,
           signer,
         ) as unknown as ArtifactWriter<

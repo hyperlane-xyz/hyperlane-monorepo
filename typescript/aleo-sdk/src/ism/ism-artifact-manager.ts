@@ -21,10 +21,7 @@ import {
   AleoMessageIdMultisigIsmReader,
   AleoMessageIdMultisigIsmWriter,
 } from './multisig-ism.js';
-import {
-  AleoRoutingIsmRawReader,
-  AleoRoutingIsmRawWriter,
-} from './routing-ism.js';
+import { AleoRoutingIsmReader, AleoRoutingIsmWriter } from './routing-ism.js';
 import { AleoTestIsmReader, AleoTestIsmWriter } from './test-ism.js';
 
 /**
@@ -77,7 +74,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new AleoRoutingIsmRawReader(
+        return new AleoRoutingIsmReader(
           this.aleoClient,
         ) as unknown as ArtifactReader<
           RawIsmArtifactConfigs[T],
@@ -110,7 +107,7 @@ export class AleoIsmArtifactManager implements IRawIsmArtifactManager {
           DeployedIsmAddress
         >;
       case AltVM.IsmType.ROUTING:
-        return new AleoRoutingIsmRawWriter(
+        return new AleoRoutingIsmWriter(
           this.aleoClient,
           signer,
         ) as unknown as ArtifactWriter<

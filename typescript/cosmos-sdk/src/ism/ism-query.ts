@@ -160,7 +160,7 @@ export async function getMerkleRootMultisigIsmConfig(
  * @throws Error if routing ISM not found
  */
 export async function getRoutingIsmConfig(
-  query: CosmosIsmQueryClient,
+  query: Readonly<CosmosIsmQueryClient>,
   ismAddress: string,
 ): Promise<{
   address: string;

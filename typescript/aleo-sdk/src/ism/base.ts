@@ -16,7 +16,7 @@ import { RETRY_ATTEMPTS, RETRY_DELAY_MS } from '../utils/helper.js';
  * @throws Error if the ISM address cannot be read from the ISM manager
  */
 export async function getNewIsmAddress(
-  aleoClient: AnyAleoNetworkClient,
+  aleoClient: Readonly<AnyAleoNetworkClient>,
   ismManagerProgramId: string,
   nonce: string,
 ): Promise<string> {
