@@ -6,6 +6,8 @@ use sea_orm::ConnectOptions;
 
 const LOCAL_DATABASE_URL: &str = "postgresql://postgres:47221c18c610@localhost:5432/postgres";
 const CONNECT_TIMEOUT: u64 = 20;
+const MAX_RETRIES: u32 = 10;
+const RETRY_DELAY_SECS: u64 = 3;
 
 pub fn url() -> String {
     env::var("DATABASE_URL").unwrap_or_else(|_| LOCAL_DATABASE_URL.into())
@@ -18,8 +20,22 @@ pub async fn init() -> Result<DatabaseConnection, DbErr> {
         .init();
 
     let url = url();
-    let mut options: ConnectOptions = url.clone().into();
-    options.connect_timeout(Duration::from_secs(CONNECT_TIMEOUT));
     println!("Connecting to {url}");
-    Database::connect(options).await
+
+    let mut last_err = None;
+    for attempt in 1..=MAX_RETRIES {
+        let mut options: ConnectOptions = url.clone().into();
+        options.connect_timeout(Duration::from_secs(CONNECT_TIMEOUT));
+        match Database::connect(options).await {
+            Ok(db) => return Ok(db),
+            Err(e) => {
+                println!(
+                    "Connection attempt {attempt}/{MAX_RETRIES} failed: {e}, retrying in {RETRY_DELAY_SECS}s..."
+                );
+                last_err = Some(e);
+                tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
+            }
+        }
+    }
+    Err(last_err.unwrap())
 }
