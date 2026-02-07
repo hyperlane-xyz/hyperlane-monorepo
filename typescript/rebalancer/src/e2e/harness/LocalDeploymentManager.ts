@@ -38,7 +38,7 @@ export interface LocalDeploymentContext {
 const ANVIL_DEPLOYER_BALANCE_HEX = '0x56BC75E2D63100000';
 const USDC_INITIAL_SUPPLY = '100000000000000';
 const USDC_DECIMALS = 6;
-const TOKEN_SCALE = ethers.BigNumber.from(10).pow(12);
+const TOKEN_SCALE = ethers.BigNumber.from(1);
 
 export class LocalDeploymentManager {
   private context?: LocalDeploymentContext;
