@@ -13,6 +13,7 @@ export enum ANVIL_RPC_METHODS {
   IMPERSONATE_ACCOUNT = 'anvil_impersonateAccount',
   STOP_IMPERSONATING_ACCOUNT = 'anvil_stopImpersonatingAccount',
   NODE_INFO = 'anvil_nodeInfo',
+  SET_BALANCE = 'anvil_setBalance',
 }
 
 /**
@@ -136,4 +137,20 @@ export const getLocalProvider = ({
   const url = urlOverride ?? envUrl ?? DEFAULT_ANVIL_ENDPOINT;
 
   return new providers.JsonRpcProvider(url);
+};
+
+export const setBalance = async (
+  address: Address,
+  balance: string,
+  anvilEndPoint?: string,
+) => {
+  rootLogger.info(`Setting balance for address (${address}) to ${balance}...`);
+  if (!isValidAddressEvm(address))
+    throw new Error(`Cannot set balance: invalid address format: ${address}`);
+
+  const provider = getLocalProvider({ urlOverride: anvilEndPoint });
+  await provider.send(ANVIL_RPC_METHODS.SET_BALANCE, [address, balance]);
+  rootLogger.info(
+    `✅ Successfully set balance for address (${address}) to ${balance}`,
+  );
 };
