@@ -1,11 +1,6 @@
 import { ethers } from 'ethers';
 
-import {
-  ChainMap,
-  HypTokenRouterConfig,
-  OwnableConfig,
-  TokenType,
-} from '@hyperlane-xyz/sdk';
+import { ChainMap, HypTokenRouterConfig, TokenType } from '@hyperlane-xyz/sdk';
 
 import {
   RouterConfigWithoutOwner,

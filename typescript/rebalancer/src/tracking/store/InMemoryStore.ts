@@ -11,9 +11,10 @@ import type { IStore } from './IStore.js';
  * @template T - The entity type extending TrackedActionBase
  * @template Status - The status enum type for this entity
  */
-export class InMemoryStore<T extends TrackedActionBase, Status extends string>
-  implements IStore<T, Status>
-{
+export class InMemoryStore<
+  T extends TrackedActionBase,
+  Status extends string,
+> implements IStore<T, Status> {
   protected data: Map<string, T> = new Map();
 
   async save(entity: T): Promise<void> {

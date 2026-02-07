@@ -34,7 +34,8 @@ async function getConfigsForBranch(branch: string) {
   }).getWarpDeployConfigs();
 }
 
-describe.skip('Warp Configs', async function () {
+// eslint-disable-next-line jest/no-disabled-tests -- intentionally skipped, needs stable warp ids
+describe.skip('Warp Configs', function () {
   this.timeout(DEFAULT_TIMEOUT);
   const ENV = 'mainnet3';
   const warpIdsToCheck = Object.keys(warpConfigGetterMap).filter(
@@ -86,6 +87,7 @@ describe.skip('Warp Configs', async function () {
     });
   }
 
+  // eslint-disable-next-line jest/expect-expect -- uses chai-as-promised .should.eventually assertion
   it('should throw if warpRouteId is not found in either Getter nor Registry', async () => {
     const invalidWarpIds = '1111bla-bla-bla111';
     await getWarpConfig(
