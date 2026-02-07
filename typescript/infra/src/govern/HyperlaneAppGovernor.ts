@@ -40,9 +40,11 @@ import {
   SafeMultiSend,
   SignerMultiSend,
 } from './multisend.js';
-import { AnnotatedCallData, InferredCall, SubmissionType } from './types.js';
+import type { AnnotatedCallData, InferredCall } from './types.js';
+import { SubmissionType } from './types.js';
 
-export { AnnotatedCallData, InferredCall, SubmissionType };
+export type { AnnotatedCallData, InferredCall };
+export { SubmissionType };
 
 export abstract class HyperlaneAppGovernor<
   App extends HyperlaneApp<any>,
