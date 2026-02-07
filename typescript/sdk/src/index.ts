@@ -699,9 +699,12 @@ export { DeployableTokenType, TokenType } from './token/config.js';
 export {
   expandVirtualWarpDeployConfig,
   expandWarpDeployConfig,
+  filterWarpCoreConfigMapByChains,
+  getChainsFromWarpCoreConfig,
   getRouterAddressesFromWarpCoreConfig,
   splitWarpCoreAndExtendedConfigs,
   transformConfigToCheck,
+  warpCoreConfigMatchesChains,
 } from './token/configUtils.js';
 export {
   hypERC20contracts,

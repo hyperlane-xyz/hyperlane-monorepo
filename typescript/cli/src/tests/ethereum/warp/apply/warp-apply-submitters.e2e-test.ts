@@ -135,7 +135,6 @@ describe('hyperlane warp apply with submitters', async function () {
     // should remove this once the deploy config is written to the registry
     writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
     await evmWarpCommands.deploy(
-      DEFAULT_EVM_WARP_DEPLOY_PATH,
       HYP_KEY_BY_PROTOCOL.ethereum,
       DEFAULT_EVM_WARP_ID,
     );

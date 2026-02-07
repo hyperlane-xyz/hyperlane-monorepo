@@ -114,7 +114,7 @@ describe('hyperlane warp deploy e2e tests', async function () {
     ]);
   });
 
-  describe(`hyperlane warp deploy --config ... --yes --key ...`, () => {
+  describe(`hyperlane warp deploy --yes --key ...`, () => {
     let tokenChain2: ERC20Test;
     let everclearBridgeAdapterMock: MockEverclearAdapter;
 

@@ -69,10 +69,12 @@ export interface WriteCommandContext extends Omit<CommandContext, 'key'> {
 
 export interface WarpDeployCommandContext extends WriteCommandContext {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
+  resolvedWarpRouteId?: string;
 }
 export interface WarpApplyCommandContext extends WriteCommandContext {
   warpDeployConfig: WarpRouteDeployConfigMailboxRequired;
   warpCoreConfig: WarpCoreConfig;
+  resolvedWarpRouteId?: string;
 }
 
 export type CommandModuleWithContext<Args> = CommandModule<
