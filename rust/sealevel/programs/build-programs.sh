@@ -1,4 +1,5 @@
 #!/bin/bash
+set -euo pipefail
 
 # The script:
 # - uses the desired version of the solana cli for building programs
@@ -15,11 +16,19 @@ SOLANA_CLI_VERSION_FOR_BUILDING_PROGRAMS="1.14.20"
 CORE_PROGRAM_PATHS=("mailbox" "ism/multisig-ism-message-id" "validator-announce" "hyperlane-sealevel-igp")
 TOKEN_PROGRAM_PATHS=("hyperlane-sealevel-token" "hyperlane-sealevel-token-collateral" "hyperlane-sealevel-token-native")
 
+# Support for locked builds (reproducible builds in Docker)
+# Set CARGO_BUILD_SBF_LOCKED=1 to enable --locked flag
+# Note: cargo build-sbf requires "-- --locked" syntax to pass args to cargo
+LOCKED_FLAG=""
+if [ "${CARGO_BUILD_SBF_LOCKED:-0}" = "1" ]; then
+    LOCKED_FLAG="-- --locked"
+fi
+
 build_program () {
     PROGRAM_PATH=$1
     log "Building $PROGRAM_PATH"
     pushd $PROGRAM_PATH
-    cargo build-sbf
+    cargo build-sbf ${LOCKED_FLAG}
     popd
 }
 
