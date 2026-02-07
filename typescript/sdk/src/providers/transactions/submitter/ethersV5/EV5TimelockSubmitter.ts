@@ -25,9 +25,7 @@ type EvmTimelockControllerSubmitterConstructorConfig = Required<
   >
 >;
 
-export class EV5TimelockSubmitter
-  implements TxSubmitterInterface<ProtocolType.Ethereum>
-{
+export class EV5TimelockSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.TIMELOCK_CONTROLLER;
 

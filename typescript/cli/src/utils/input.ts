@@ -361,11 +361,10 @@ interface BuildViewOptions<Value> {
   instructions?: string;
 }
 
-interface GetErrorMessageOptions
-  extends Pick<
-    BuildViewOptions<any>,
-    'theme' | 'errorMsg' | 'status' | 'searchTerm'
-  > {
+interface GetErrorMessageOptions extends Pick<
+  BuildViewOptions<any>,
+  'theme' | 'errorMsg' | 'status' | 'searchTerm'
+> {
   currentItemCount: number;
 }
 
@@ -385,11 +384,10 @@ function getErrorMessage({
   return '';
 }
 
-interface GetHelpTipsOptions
-  extends Pick<
-    BuildViewOptions<any>,
-    'theme' | 'pageSize' | 'firstRender' | 'instructions'
-  > {
+interface GetHelpTipsOptions extends Pick<
+  BuildViewOptions<any>,
+  'theme' | 'pageSize' | 'firstRender' | 'instructions'
+> {
   currentItemCount: number;
 }
 

@@ -24,9 +24,10 @@ import {
   getCreateMessageIdMultisigIsmTx,
 } from './ism-tx.js';
 
-export class RadixMessageIdMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
-{
+export class RadixMessageIdMultisigIsmReader implements ArtifactReader<
+  MultisigIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
@@ -102,9 +103,10 @@ export class RadixMessageIdMultisigIsmWriter
   }
 }
 
-export class RadixMerkleRootMultisigIsmReader
-  implements ArtifactReader<MultisigIsmConfig, DeployedIsmAddress>
-{
+export class RadixMerkleRootMultisigIsmReader implements ArtifactReader<
+  MultisigIsmConfig,
+  DeployedIsmAddress
+> {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(
