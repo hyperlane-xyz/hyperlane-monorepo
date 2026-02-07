@@ -310,7 +310,8 @@ const send: CommandModuleWithWriteContext<
     },
     recipient: {
       type: 'string',
-      description: 'Token recipient address (defaults to sender)',
+      description:
+        'Token recipient address. Required for non-EVM destinations. Defaults to sender for EVM destinations.',
     },
     chains: stringArrayOptionConfig({
       description: 'List of chains to send messages to',
@@ -332,6 +333,7 @@ const send: CommandModuleWithWriteContext<
     relay,
     symbol,
     warp,
+    warpRouteId,
     amount,
     recipient,
     roundTrip,
@@ -341,6 +343,7 @@ const send: CommandModuleWithWriteContext<
     const warpCoreConfig = await getWarpCoreConfigOrExit({
       symbol,
       warp,
+      warpRouteId,
       context,
     });
     let chains = chainsArg?.length ? chainsArg : [];
