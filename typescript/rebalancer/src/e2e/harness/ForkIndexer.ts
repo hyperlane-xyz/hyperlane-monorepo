@@ -12,20 +12,27 @@ import {
 import type { ConfirmedBlockTags } from '../../interfaces/IMonitor.js';
 import type { ExplorerMessage } from '../../utils/ExplorerClient.js';
 
-import type { MockExplorerClient } from './MockExplorerClient.js';
-
 export class ForkIndexer {
   private lastScannedBlock: Map<string, number> = new Map();
   private seenMessageIds: Set<string> = new Set();
   private initialized: boolean = false;
+  private userTransfers: ExplorerMessage[] = [];
+  private rebalanceActions: ExplorerMessage[] = [];
 
   constructor(
     private readonly providers: Map<string, providers.JsonRpcProvider>,
     private readonly core: HyperlaneCore,
-    private readonly mockExplorer: MockExplorerClient,
     private readonly rebalancerAddresses: string[],
     private readonly logger: Logger,
   ) {}
+
+  getUserTransfers(): ExplorerMessage[] {
+    return this.userTransfers;
+  }
+
+  getRebalanceActions(): ExplorerMessage[] {
+    return this.rebalanceActions;
+  }
 
   private normalizeUserTransferMessageBody(messageBody: string): string {
     const LOCAL_TOKEN_SCALE = 10n ** 12n;
@@ -61,7 +68,7 @@ export class ForkIndexer {
 
   async sync(confirmedBlockTags: ConfirmedBlockTags): Promise<void> {
     if (!this.initialized) {
-      throw new Error('ForkIndexer not initialized. Call initialize() first.');
+      return; // No-op: nothing to scan yet
     }
 
     for (const [chain] of this.providers) {
@@ -144,9 +151,9 @@ export class ForkIndexer {
             (addr) => receipt.from.toLowerCase() === addr.toLowerCase(),
           )
         ) {
-          this.mockExplorer.addRebalanceAction(msg);
+          this.rebalanceActions.push(msg);
         } else {
-          this.mockExplorer.addUserTransfer(msg);
+          this.userTransfers.push(msg);
         }
 
         this.seenMessageIds.add(msgId);

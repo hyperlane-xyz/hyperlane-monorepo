@@ -156,9 +156,7 @@ describe('CompositeStrategy E2E', function () {
       ethProvider,
     );
 
-    // Sync tracker to pick up the new transfer
     const blockTags = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags);
     await context.tracker.syncTransfers(blockTags);
 
     // Verify transfer was tracked
@@ -247,9 +245,7 @@ describe('CompositeStrategy E2E', function () {
       }
     }
 
-    // Sync and verify actions completed
     const blockTags2 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags2);
     await context.tracker.syncRebalanceActions(blockTags2);
 
     for (const action of superseedActions) {
@@ -365,7 +361,6 @@ describe('CompositeStrategy E2E', function () {
     );
 
     const blockTags4 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags4);
     await context.tracker.syncTransfers(blockTags4);
 
     const transfersBeforeRebalance =
@@ -450,7 +445,6 @@ describe('CompositeStrategy E2E', function () {
     }
 
     const blockTags5 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags5);
     await context.tracker.syncRebalanceActions(blockTags5);
 
     for (const action of superseedActions) {
@@ -537,9 +531,7 @@ describe('CompositeStrategy E2E', function () {
     const event1 = await getFirstMonitorEvent(monitor1);
     await context.orchestrator.executeCycle(event1);
 
-    // Sync and verify SUBTENSOR inflight created (from Weighted strategy)
     const blockTags7 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags7);
     await context.tracker.syncRebalanceActions(blockTags7);
     const inflightAfterCycle1 = await context.tracker.getInProgressActions();
     expect(
@@ -588,7 +580,6 @@ describe('CompositeStrategy E2E', function () {
     );
 
     const blockTags8 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags8);
     await context.tracker.syncTransfers(blockTags8);
 
     // Verify transfer tracked
@@ -604,9 +595,7 @@ describe('CompositeStrategy E2E', function () {
     const event2 = await getFirstMonitorEvent(monitor2);
     await context.orchestrator.executeCycle(event2);
 
-    // Sync and verify SUPERSEED action created (from CollateralDeficit)
     const blockTags9 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags9);
     await context.tracker.syncRebalanceActions(blockTags9);
 
     const inProgressAfterCycle2 = await context.tracker.getInProgressActions();
@@ -675,7 +664,6 @@ describe('CompositeStrategy E2E', function () {
     }
 
     const blockTags10 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags10);
     await context.tracker.syncRebalanceActions(blockTags10);
 
     for (const action of superseedActions) {
@@ -741,7 +729,6 @@ describe('CompositeStrategy E2E', function () {
     await context.orchestrator.executeCycle(event1);
 
     const blockTags11 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags11);
     await context.tracker.syncRebalanceActions(blockTags11);
 
     const inflightAfterCycle1 = await context.tracker.getInProgressActions();
@@ -768,7 +755,6 @@ describe('CompositeStrategy E2E', function () {
     await context.orchestrator.executeCycle(event2);
 
     const blockTags12 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags12);
     await context.tracker.syncRebalanceActions(blockTags12);
 
     // Check if new routes to base were proposed
@@ -815,7 +801,6 @@ describe('CompositeStrategy E2E', function () {
 
       if (relayResult.success) {
         const blockTags13 = await context.getConfirmedBlockTags();
-        await context.forkIndexer.sync(blockTags13);
         await context.tracker.syncRebalanceActions(blockTags13);
 
         const completedAction = await context.tracker.getRebalanceAction(
@@ -901,7 +886,6 @@ describe('CompositeStrategy E2E', function () {
     );
 
     const blockTags14 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags14);
     await context.tracker.syncTransfers(blockTags14);
 
     // Verify transfer was tracked
@@ -985,9 +969,7 @@ describe('CompositeStrategy E2E', function () {
       ).to.be.true;
     }
 
-    // Sync and verify SUPERSEED actions complete
     const blockTags15 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags15);
     await context.tracker.syncRebalanceActions(blockTags15);
 
     for (const action of superseedActions) {
