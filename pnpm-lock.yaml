@@ -188,7 +188,7 @@ catalogs:
       version: 2.32.0
     eslint-plugin-oxlint:
       specifier: ^1.42.0
-      version: 1.43.0
+      version: 1.42.0
     ethereum-waffle:
       specifier: ^4.0.10
       version: 4.0.10
@@ -215,7 +215,7 @@ catalogs:
       version: 0.27.0
     oxlint:
       specifier: ^1.42.0
-      version: 1.43.0
+      version: 1.42.0
     pino:
       specifier: ^8.19.0
       version: 8.21.0
@@ -350,7 +350,7 @@ importers:
         version: 28.2.0(@typescript-eslint/eslint-plugin@8.54.0(@typescript-eslint/parser@8.54.0(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(typescript@5.8.3))(eslint@9.39.2(jiti@2.6.1))(jest@29.7.0(@types/node@24.10.9)(babel-plugin-macros@3.1.0)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3)))(typescript@5.8.3)
       eslint-plugin-oxlint:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.42.0
       globals:
         specifier: ^16.3.0
         version: 16.5.0
@@ -365,7 +365,7 @@ importers:
         version: 0.27.0
       oxlint:
         specifier: 'catalog:'
-        version: 1.43.0
+        version: 1.42.0
       prettier:
         specifier: 'catalog:'
         version: 3.8.1
@@ -2461,7 +2461,7 @@ importers:
         version: 9.3.1
       tronweb:
         specifier: ^6.1.1
-        version: 6.2.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
+        version: 6.1.1(bufferutil@4.0.9)(utf-8-validate@5.0.10)
     devDependencies:
       '@eslint/js':
         specifier: 'catalog:'
@@ -4747,10 +4747,6 @@ packages:
     peerDependencies:
       eslint: ^6.0.0 || ^7.0.0 || >=8.0.0
 
-  '@eslint-community/regexpp@4.12.1':
-    resolution: {integrity: sha512-CCZCDJuduB9OUkFkY2IgppNZMi2lBQgD2qzwXkEia16cge2pijY/aXi96CJMquDMn3nJdlPV1A5KrJEXwfLNzQ==}
-    engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
-
   '@eslint-community/regexpp@4.12.2':
     resolution: {integrity: sha512-EriSTlt5OC9/7SXkRSCAhfSxxoSUgBm33OH+IkwbdpgoqsSsUg7y3uh+IICI/Qg4BBWr3U2i39RpmycbxMq4ew==}
     engines: {node: ^12.0.0 || ^14.0.0 || >=16.0.0}
@@ -5933,43 +5929,43 @@ packages:
     cpu: [x64]
     os: [win32]
 
-  '@oxlint/darwin-arm64@1.43.0':
-    resolution: {integrity: sha512-C/GhObv/pQZg34NOzB6Mk8x0wc9AKj8fXzJF8ZRKTsBPyHusC6AZ6bba0QG0TUufw1KWuD0j++oebQfWeiFXNw==}
+  '@oxlint/darwin-arm64@1.42.0':
+    resolution: {integrity: sha512-ui5CdAcDsXPQwZQEXOOSWsilJWhgj9jqHCvYBm2tDE8zfwZZuF9q58+hGKH1x5y0SV4sRlyobB2Quq6uU6EgeA==}
     cpu: [arm64]
     os: [darwin]
 
-  '@oxlint/darwin-x64@1.43.0':
-    resolution: {integrity: sha512-4NjfUtEEH8ewRQ2KlZGmm6DyrvypMdHwBnQT92vD0dLScNOQzr0V9O8Ua4IWXdeCNl/XMVhAV3h4/3YEYern5A==}
+  '@oxlint/darwin-x64@1.42.0':
+    resolution: {integrity: sha512-wo0M/hcpHRv7vFje99zHHqheOhVEwUOKjOgBKyi0M99xcLizv04kcSm1rTd6HSCeZgOtiJYZRVAlKhQOQw2byQ==}
     cpu: [x64]
     os: [darwin]
 
-  '@oxlint/linux-arm64-gnu@1.43.0':
-    resolution: {integrity: sha512-75tf1HvwdZ3ebk83yMbSB+moAEWK98mYqpXiaFAi6Zshie7r+Cx5PLXZFUEqkscenoZ+fcNXakHxfn94V6nf1g==}
+  '@oxlint/linux-arm64-gnu@1.42.0':
+    resolution: {integrity: sha512-j4QzfCM8ks+OyM+KKYWDiBEQsm5RCW50H1Wz16wUyoFsobJ+X5qqcJxq6HvkE07m8euYmZelyB0WqsiDoz1v8g==}
     cpu: [arm64]
     os: [linux]
 
-  '@oxlint/linux-arm64-musl@1.43.0':
-    resolution: {integrity: sha512-BHV4fb36T2p/7bpA9fiJ5ayt7oJbiYX10nklW5arYp4l9/9yG/FQC5J4G1evzbJ/YbipF9UH0vYBAm5xbqGrvw==}
+  '@oxlint/linux-arm64-musl@1.42.0':
+    resolution: {integrity: sha512-g5b1Uw7zo6yw4Ymzyd1etKzAY7xAaGA3scwB8tAp3QzuY7CYdfTwlhiLKSAKbd7T/JBgxOXAGNcLDorJyVTXcg==}
     cpu: [arm64]
     os: [linux]
 
-  '@oxlint/linux-x64-gnu@1.43.0':
-    resolution: {integrity: sha512-1l3nvnzWWse1YHibzZ4HQXdF/ibfbKZhp9IguElni3bBqEyPEyurzZ0ikWynDxKGXqZa+UNXTFuU1NRVX1RJ3g==}
+  '@oxlint/linux-x64-gnu@1.42.0':
+    resolution: {integrity: sha512-HnD99GD9qAbpV4q9iQil7mXZUJFpoBdDavfcC2CgGLPlawfcV5COzQPNwOgvPVkr7C0cBx6uNCq3S6r9IIiEIg==}
     cpu: [x64]
     os: [linux]
 
-  '@oxlint/linux-x64-musl@1.43.0':
-    resolution: {integrity: sha512-+jNYgLGRFTJxJuaSOZJBwlYo5M0TWRw0+3y5MHOL4ArrIdHyCthg6r4RbVWrsR1qUfUE1VSSHQ2bfbC99RXqMg==}
+  '@oxlint/linux-x64-musl@1.42.0':
+    resolution: {integrity: sha512-8NTe8A78HHFn+nBi+8qMwIjgv9oIBh+9zqCPNLH56ah4vKOPvbePLI6NIv9qSkmzrBuu8SB+FJ2TH/G05UzbNA==}
     cpu: [x64]
     os: [linux]
 
-  '@oxlint/win32-arm64@1.43.0':
-    resolution: {integrity: sha512-dvs1C/HCjCyGTURMagiHprsOvVTT3omDiSzi5Qw0D4QFJ1pEaNlfBhVnOUYgUfS6O7Mcmj4+G+sidRsQcWQ/kA==}
+  '@oxlint/win32-arm64@1.42.0':
+    resolution: {integrity: sha512-lAPS2YAuu+qFqoTNPFcNsxXjwSV0M+dOgAzzVTAN7Yo2ifj+oLOx0GsntWoM78PvQWI7Q827ZxqtU2ImBmDapA==}
     cpu: [arm64]
     os: [win32]
 
-  '@oxlint/win32-x64@1.43.0':
-    resolution: {integrity: sha512-bSuItSU8mTSDsvmmLTepTdCL2FkJI6dwt9tot/k0EmiYF+ArRzmsl4lXVLssJNRV5lJEc5IViyTrh7oiwrjUqA==}
+  '@oxlint/win32-x64@1.42.0':
+    resolution: {integrity: sha512-3/KmyUOHNriL6rLpaFfm9RJxdhpXY2/Ehx9UuorJr2pUA+lrZL15FAEx/DOszYm5r10hfzj40+efAHcCilNvSQ==}
     cpu: [x64]
     os: [win32]
 
@@ -8996,10 +8992,6 @@ packages:
     resolution: {integrity: sha512-ax0nv7PUF9NOVPs+lmQ7yIE7IQmAf8LGcXbMvHX5Gm+YJUYNAl340XkGnrimxZ0elXyoQJuN5sbg6C4evKA4SQ==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
 
-  '@typescript-eslint/types@8.47.0':
-    resolution: {integrity: sha512-nHAE6bMKsizhA2uuYZbEbmp5z2UpffNrPEqiKIeN7VsV6UY/roxanWfoRrf6x/k9+Obf+GQdkm0nPU+vnMXo9A==}
-    engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
-
   '@typescript-eslint/types@8.54.0':
     resolution: {integrity: sha512-PDUI9R1BVjqu7AUDsRBbKMtwmjWcn4J3le+5LpcFgWULN3LvHC5rkc9gCVxbrsrGmO1jfPybN5s6h4Jy+OnkAA==}
     engines: {node: ^18.18.0 || ^20.9.0 || >=21.1.0}
@@ -11474,8 +11466,8 @@ packages:
       jest:
         optional: true
 
-  eslint-plugin-oxlint@1.43.0:
-    resolution: {integrity: sha512-SUP8AFLe1D6/jcGenpDu3DrPkDfqbBzoDZqSN0SHAo7CygqAHaltIhBay6y9Lt2Iib7TW7sNPHC22MXmE2XlGw==}
+  eslint-plugin-oxlint@1.42.0:
+    resolution: {integrity: sha512-3hB/TDbS0f+8ZnPffl0Z/wZ7Yc5NeY5slrxG60kEWInAA9047pdqRcv+Ckk/5KiL3HS2vWtHvmkavPKSFZVKxA==}
 
   eslint-plugin-react-hooks@5.2.0:
     resolution: {integrity: sha512-+f15FfK64YQwZdJNELETdn5ibXEUQmW1DZL6KXhNnc2heoy/sg9VJJeT7n8TlMWouzWqSWavFkIhHyIbIAEapg==}
@@ -14248,8 +14240,8 @@ packages:
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
 
-  oxlint@1.43.0:
-    resolution: {integrity: sha512-xiqTCsKZch+R61DPCjyqUVP2MhkQlRRYxLRBeBDi+dtQJ90MOgdcjIktvDCgXz0bgtx94EQzHEndsizZjMX2OA==}
+  oxlint@1.42.0:
+    resolution: {integrity: sha512-qnspC/lrp8FgKNaONLLn14dm+W5t0SSlus6V5NJpgI2YNT1tkFYZt4fBf14ESxf9AAh98WBASnW5f0gtw462Lg==}
     engines: {node: ^20.19.0 || >=22.12.0}
     hasBin: true
     peerDependencies:
@@ -16390,8 +16382,8 @@ packages:
     resolution: {integrity: sha512-1m4RA7xVAJrSGrrXGs0L3YTwyvBs2S8PbRHaLZAkFw7JR8oIFwYtysxlBZhYIa7xSyiYJKZ3iGrrk55cGA3i9A==}
     engines: {node: '>=0.6'}
 
-  tronweb@6.2.0:
-    resolution: {integrity: sha512-09kyW6mqiFuSYXkR35ndxCeNF5rW1O18hKAClCLtVHP2xBFPYSGx3lDYC2hRKcuLiq6iLPxOVCrhzoKNGlFuQQ==}
+  tronweb@6.1.1:
+    resolution: {integrity: sha512-9i2N+cTkRY7Y1B/V0+ZVwCYZFhdFDalh8sbI8Tpj5O65hMURvjFnaP1u/dTwVnVw07d9M143/19KarxeAzK6pg==}
 
   trpc-browser@1.4.4:
     resolution: {integrity: sha512-5ZH/LqSoF008W8KU+4tfQ+g3F4Yl6BywDUnSlx5jT6fKa87mm8PkIXfhjGN1k6LoxjpMjy82bxvQzNLkJ3vUvw==}
@@ -16404,12 +16396,6 @@ packages:
     engines: {node: '>=16'}
     peerDependencies:
       typescript: '>=4.2.0'
-
-  ts-api-utils@2.1.0:
-    resolution: {integrity: sha512-CUgTZL1irw8u29bzrOD/nH85jqyc74D6SshFgujOIA7osm2Rz7dYH77agkx7H4FBNxDq7Cjf+IjaX/8zwFW+ZQ==}
-    engines: {node: '>=18.12'}
-    peerDependencies:
-      typescript: '>=4.8.4'
 
   ts-api-utils@2.4.0:
     resolution: {integrity: sha512-3TaVTaAv2gTiMB35i3FiGJaRfwb3Pyn/j3m/bfAvGe8FB7CF6u+LMYqYlDh7reQf7UNvoTvdfAqHGmPGOSsPmA==}
@@ -20081,11 +20067,6 @@ snapshots:
   '@esbuild/win32-x64@0.23.1':
     optional: true
 
-  '@eslint-community/eslint-utils@4.7.0(eslint@9.39.2(jiti@1.21.7))':
-    dependencies:
-      eslint: 9.39.2(jiti@1.21.7)
-      eslint-visitor-keys: 3.4.3
-
   '@eslint-community/eslint-utils@4.7.0(eslint@9.39.2(jiti@2.6.1))':
     dependencies:
       eslint: 9.39.2(jiti@2.6.1)
@@ -20100,8 +20081,6 @@ snapshots:
     dependencies:
       eslint: 9.39.2(jiti@2.6.1)
       eslint-visitor-keys: 3.4.3
-
-  '@eslint-community/regexpp@4.12.1': {}
 
   '@eslint-community/regexpp@4.12.2': {}
 
@@ -22039,28 +22018,28 @@ snapshots:
   '@oxfmt/win32-x64@0.27.0':
     optional: true
 
-  '@oxlint/darwin-arm64@1.43.0':
+  '@oxlint/darwin-arm64@1.42.0':
     optional: true
 
-  '@oxlint/darwin-x64@1.43.0':
+  '@oxlint/darwin-x64@1.42.0':
     optional: true
 
-  '@oxlint/linux-arm64-gnu@1.43.0':
+  '@oxlint/linux-arm64-gnu@1.42.0':
     optional: true
 
-  '@oxlint/linux-arm64-musl@1.43.0':
+  '@oxlint/linux-arm64-musl@1.42.0':
     optional: true
 
-  '@oxlint/linux-x64-gnu@1.43.0':
+  '@oxlint/linux-x64-gnu@1.42.0':
     optional: true
 
-  '@oxlint/linux-x64-musl@1.43.0':
+  '@oxlint/linux-x64-musl@1.42.0':
     optional: true
 
-  '@oxlint/win32-arm64@1.43.0':
+  '@oxlint/win32-arm64@1.42.0':
     optional: true
 
-  '@oxlint/win32-x64@1.43.0':
+  '@oxlint/win32-x64@1.42.0':
     optional: true
 
   '@paralleldrive/cuid2@2.3.1':
@@ -26921,7 +26900,7 @@ snapshots:
   '@typescript-eslint/project-service@8.37.0(typescript@5.8.3)':
     dependencies:
       '@typescript-eslint/tsconfig-utils': 8.47.0(typescript@5.8.3)
-      '@typescript-eslint/types': 8.47.0
+      '@typescript-eslint/types': 8.54.0
       debug: 4.4.3(supports-color@5.5.0)
       typescript: 5.8.3
     transitivePeerDependencies:
@@ -26991,8 +26970,6 @@ snapshots:
 
   '@typescript-eslint/types@8.37.0': {}
 
-  '@typescript-eslint/types@8.47.0': {}
-
   '@typescript-eslint/types@8.54.0': {}
 
   '@typescript-eslint/typescript-estree@6.21.0(typescript@5.8.3)':
@@ -27021,7 +26998,7 @@ snapshots:
       is-glob: 4.0.3
       minimatch: 9.0.5
       semver: 7.7.3
-      ts-api-utils: 2.1.0(typescript@5.8.3)
+      ts-api-utils: 2.4.0(typescript@5.8.3)
       typescript: 5.8.3
     transitivePeerDependencies:
       - supports-color
@@ -27057,7 +27034,7 @@ snapshots:
 
   '@typescript-eslint/utils@8.37.0(eslint@9.39.2(jiti@1.21.7))(typescript@5.8.3)':
     dependencies:
-      '@eslint-community/eslint-utils': 4.7.0(eslint@9.39.2(jiti@1.21.7))
+      '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@1.21.7))
       '@typescript-eslint/scope-manager': 8.37.0
       '@typescript-eslint/types': 8.37.0
       '@typescript-eslint/typescript-estree': 8.37.0(typescript@5.8.3)
@@ -30734,7 +30711,7 @@ snapshots:
       - supports-color
       - typescript
 
-  eslint-plugin-oxlint@1.43.0:
+  eslint-plugin-oxlint@1.42.0:
     dependencies:
       jsonc-parser: 3.3.1
 
@@ -30803,7 +30780,7 @@ snapshots:
   eslint@9.39.2(jiti@1.21.7):
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@1.21.7))
-      '@eslint-community/regexpp': 4.12.1
+      '@eslint-community/regexpp': 4.12.2
       '@eslint/config-array': 0.21.1
       '@eslint/config-helpers': 0.4.2
       '@eslint/core': 0.17.0
@@ -30844,7 +30821,7 @@ snapshots:
   eslint@9.39.2(jiti@2.6.1):
     dependencies:
       '@eslint-community/eslint-utils': 4.9.1(eslint@9.39.2(jiti@2.6.1))
-      '@eslint-community/regexpp': 4.12.1
+      '@eslint-community/regexpp': 4.12.2
       '@eslint/config-array': 0.21.1
       '@eslint/config-helpers': 0.4.2
       '@eslint/core': 0.17.0
@@ -33644,7 +33621,7 @@ snapshots:
 
   metro-runtime@0.83.3:
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.10
       flow-enums-runtime: 0.0.6
 
   metro-source-map@0.83.3:
@@ -34483,16 +34460,16 @@ snapshots:
       '@oxfmt/win32-arm64': 0.27.0
       '@oxfmt/win32-x64': 0.27.0
 
-  oxlint@1.43.0:
+  oxlint@1.42.0:
     optionalDependencies:
-      '@oxlint/darwin-arm64': 1.43.0
-      '@oxlint/darwin-x64': 1.43.0
-      '@oxlint/linux-arm64-gnu': 1.43.0
-      '@oxlint/linux-arm64-musl': 1.43.0
-      '@oxlint/linux-x64-gnu': 1.43.0
-      '@oxlint/linux-x64-musl': 1.43.0
-      '@oxlint/win32-arm64': 1.43.0
-      '@oxlint/win32-x64': 1.43.0
+      '@oxlint/darwin-arm64': 1.42.0
+      '@oxlint/darwin-x64': 1.42.0
+      '@oxlint/linux-arm64-gnu': 1.42.0
+      '@oxlint/linux-arm64-musl': 1.42.0
+      '@oxlint/linux-x64-gnu': 1.42.0
+      '@oxlint/linux-x64-musl': 1.42.0
+      '@oxlint/win32-arm64': 1.42.0
+      '@oxlint/win32-x64': 1.42.0
 
   p-cancelable@3.0.0: {}
 
@@ -37212,7 +37189,7 @@ snapshots:
 
   treeify@1.1.0: {}
 
-  tronweb@6.2.0(bufferutil@4.0.9)(utf-8-validate@5.0.10):
+  tronweb@6.1.1(bufferutil@4.0.9)(utf-8-validate@5.0.10):
     dependencies:
       '@babel/runtime': 7.26.10
       axios: 1.12.2
@@ -37234,10 +37211,6 @@ snapshots:
       '@trpc/server': 10.45.2
 
   ts-api-utils@1.4.1(typescript@5.8.3):
-    dependencies:
-      typescript: 5.8.3
-
-  ts-api-utils@2.1.0(typescript@5.8.3):
     dependencies:
       typescript: 5.8.3
 
