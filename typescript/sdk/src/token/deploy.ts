@@ -22,6 +22,7 @@ import {
   promiseObjAll,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { createChainLogger } from '@hyperlane-xyz/utils/fs';
 
 import {
   HyperlaneContracts,
@@ -293,6 +294,7 @@ abstract class TokenDeployer<
 
     await promiseObjAll(
       objMap(cctpConfigs, async (chain, _config) => {
+        const chainLogger = createChainLogger(chain, 'WarpRouteDeployer');
         const router = this.router(deployedContractsMap[chain]).address;
         const tokenBridge = TokenBridgeCctpBase__factory.connect(
           router,
@@ -302,7 +304,7 @@ abstract class TokenDeployer<
           (domain) =>
             domain.hyperlane !== this.multiProvider.getDomainId(chain),
         );
-        this.logger.info(`Mapping Circle domains on ${chain}`, {
+        chainLogger.info(`Mapping Circle domains on ${chain}`, {
           remoteDomains,
         });
         await this.multiProvider.handleTx(
@@ -659,12 +661,13 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
   ): Promise<void> {
     await Promise.all(
       Object.keys(deployedContractsMap).map(async (chain) => {
+        const chainLogger = createChainLogger(chain, 'WarpRouteDeployer');
         const config = configMap[chain];
         const tokenFeeInput = config?.tokenFee;
         if (!tokenFeeInput) return;
 
         if (this.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
-          this.logger.debug(`Skipping token fee on non-EVM chain ${chain}`);
+          chainLogger.debug(`Skipping token fee on non-EVM chain ${chain}`);
           return;
         }
 
@@ -675,7 +678,7 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
           config,
         );
 
-        this.logger.debug(`Deploying token fee on ${chain}...`);
+        chainLogger.debug(`Deploying token fee on ${chain}...`);
         const processedTokenFee = await EvmTokenFeeModule.expandConfig({
           config: resolvedFeeInput,
           multiProvider: this.multiProvider,

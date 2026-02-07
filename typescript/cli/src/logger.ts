@@ -9,13 +9,23 @@ import {
   rootLogger,
   safelyAccessEnvVar,
 } from '@hyperlane-xyz/utils';
+import { resolvePath, setLogDir } from '@hyperlane-xyz/utils/fs';
 
 let logger = rootLogger;
 
-export function configureLogger(logFormat: LogFormat, logLevel: LogLevel) {
+export function configureLogger(
+  logFormat: LogFormat,
+  logLevel: LogLevel,
+  logDir?: string,
+) {
   logFormat =
     logFormat || safelyAccessEnvVar('LOG_FORMAT', true) || LogFormat.Pretty;
   logLevel = logLevel || safelyAccessEnvVar('LOG_LEVEL', true) || LogLevel.Info;
+
+  if (logDir) {
+    setLogDir(resolvePath(logDir));
+  }
+
   logger = configureRootLogger(logFormat, logLevel).child({ module: 'cli' });
 }
 

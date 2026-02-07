@@ -9,6 +9,7 @@ const envScheme = z.object({
   AWS_REGION: z.string().optional(),
   GH_AUTH_TOKEN: z.string().optional(),
   COINGECKO_API_KEY: z.string().optional(),
+  LOG_DIR: z.string().optional(),
 });
 
 const parsedEnv = envScheme.safeParse(process.env);

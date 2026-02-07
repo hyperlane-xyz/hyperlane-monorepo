@@ -15,6 +15,7 @@ import {
   disableProxyCommandOption,
   githubAuthTokenOption,
   keyCommandOption,
+  logDirCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
   overrideRegistryUriCommandOption,
@@ -45,6 +46,7 @@ try {
     .scriptName('hyperlane')
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
+    .option('logDir', logDirCommandOption)
     .option('registry', registryUrisCommandOption)
     .option('authToken', githubAuthTokenOption)
     .option('overrides', overrideRegistryUriCommandOption)
@@ -52,10 +54,14 @@ try {
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .option('strategy', strategyCommandOption)
-    .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
+    .global(['log', 'verbosity', 'logDir', 'registry', 'overrides', 'yes'])
     .middleware([
       (argv) => {
-        configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
+        configureLogger(
+          argv.log as LogFormat,
+          argv.verbosity as LogLevel,
+          argv.logDir as string | undefined,
+        );
       },
       contextMiddleware,
       signerMiddleware,
