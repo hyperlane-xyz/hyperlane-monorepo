@@ -6,7 +6,7 @@ import type { DeployEnvironment } from './config/environment.js';
 import { getInfraPath } from './utils/utils.js';
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
-  return join('./config/environments/', environment);
+  return join('config', 'environments', environment);
 }
 
 export function getAWValidatorsPath(
