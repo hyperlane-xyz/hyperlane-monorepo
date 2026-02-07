@@ -61,7 +61,6 @@
     },
     "devDependencies": {
         "@ethersproject/constants": "*",
-        "execa": "^9.5.3",
         "@hyperlane-xyz/relayer": "workspace:*",
         "@hyperlane-xyz/tsconfig": "workspace:^",
         "@types/chai-as-promised": "catalog:",
