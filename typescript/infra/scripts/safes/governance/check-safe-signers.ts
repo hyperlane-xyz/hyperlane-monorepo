@@ -8,7 +8,8 @@ import {
   getGovernanceSafes,
   getGovernanceSigners,
 } from '../../../config/environments/mainnet3/governance/utils.js';
-import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
+import { withGovernanceType } from '../../../src/governance.js';
+import { GovernanceType } from '../../../src/governanceTypes.js';
 import { Role } from '../../../src/roles.js';
 import { getOwnerChanges, getSafeAndService } from '../../../src/utils/safe.js';
 import { getEnvironmentConfig } from '../../core-utils.js';

@@ -1,4 +1,3 @@
-import { confirm } from '@inquirer/prompts';
 import { type ethers } from 'ethers';
 
 import { loadProtocolProviders } from '@hyperlane-xyz/deploy-sdk';
@@ -11,9 +10,7 @@ import { type IRegistry } from '@hyperlane-xyz/registry';
 import { getRegistry } from '@hyperlane-xyz/registry/fs';
 import {
   type ChainMap,
-  type ChainMetadata,
   type ChainName,
-  ExplorerFamily,
   MultiProtocolProvider,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
@@ -21,7 +18,6 @@ import { type Address, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { isSignCommand } from '../commands/signCommands.js';
 import { readChainSubmissionStrategyConfig } from '../config/strategy.js';
-import { detectAndConfirmOrPrompt } from '../utils/input.js';
 import { getSigner } from '../utils/keys.js';
 
 import { createAltVMSigners } from './altvm.js';
@@ -240,60 +236,6 @@ async function getMultiProvider(registry: IRegistry, signer?: ethers.Signer) {
 async function getMultiProtocolProvider(registry: IRegistry) {
   const chainMetadata = await registry.getMetadata();
   return new MultiProtocolProvider(chainMetadata);
-}
-
-/**
- * Requests and saves Block Explorer API keys for the specified chains, prompting the user if necessary.
- *
- * @param chains - The list of chain names to request API keys for.
- * @param chainMetadata - The chain metadata, used to determine if an API key is already configured.
- * @param registry - The registry used to update the chain metadata with the new API key.
- * @returns A mapping of chain names to their API keys.
- */
-export async function requestAndSaveApiKeys(
-  chains: ChainName[],
-  chainMetadata: ChainMap<ChainMetadata>,
-  registry: IRegistry,
-): Promise<ChainMap<string>> {
-  const apiKeys: ChainMap<string> = {};
-
-  for (const chain of chains) {
-    const blockExplorer = chainMetadata[chain]?.blockExplorers?.[0];
-    if (blockExplorer?.family !== ExplorerFamily.Etherscan) {
-      continue;
-    }
-    if (blockExplorer?.apiKey) {
-      apiKeys[chain] = blockExplorer.apiKey;
-      continue;
-    }
-    const wantApiKey = await confirm({
-      default: false,
-      message: `Do you want to use an API key to verify on this (${chain}) chain's block explorer`,
-    });
-    if (wantApiKey) {
-      apiKeys[chain] = await detectAndConfirmOrPrompt(
-        async () => {
-          const blockExplorers = chainMetadata[chain].blockExplorers;
-          if (!(blockExplorers && blockExplorers.length > 0)) return;
-          for (const blockExplorer of blockExplorers) {
-            /* The current apiKeys mapping only accepts one key, even if there are multiple explorer options present. */
-            if (blockExplorer.apiKey) return blockExplorer.apiKey;
-          }
-          return undefined;
-        },
-        `Enter an API key for the ${chain} explorer`,
-        `${chain} api key`,
-        `${chain} metadata blockExplorers config`,
-      );
-      chainMetadata[chain].blockExplorers![0].apiKey = apiKeys[chain];
-      await registry.updateChain({
-        chainName: chain,
-        metadata: chainMetadata[chain],
-      });
-    }
-  }
-
-  return apiKeys;
 }
 
 /**
