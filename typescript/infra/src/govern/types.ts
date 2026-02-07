@@ -9,17 +9,17 @@ export enum SubmissionType {
   SIGNER = 2,
 }
 
-export type AnnotatedCallData = CallData & {
+export interface AnnotatedCallData extends CallData {
   submissionType?: SubmissionType;
   description: string;
   expandedDescription?: string;
   callRemoteArgs?: GetCallRemoteSettings;
   governanceType?: GovernanceType;
-};
+}
 
-export type InferredCall = {
+export interface InferredCall {
   type: SubmissionType;
   chain: ChainName;
   call: AnnotatedCallData;
   callRemoteArgs?: GetCallRemoteSettings;
-};
+}
