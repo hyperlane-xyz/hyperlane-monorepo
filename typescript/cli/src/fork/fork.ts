@@ -1,5 +1,6 @@
-import { type Log } from '@ethersproject/providers';
+import { JsonRpcProvider, type Log } from '@ethersproject/providers';
 import { ethers } from 'ethers';
+import { execa } from 'execa';
 
 import { HttpServer } from '@hyperlane-xyz/http-registry-server';
 import { MergedRegistry, PartialRegistry } from '@hyperlane-xyz/registry';
@@ -16,21 +17,20 @@ import {
   type RevertAssertion,
   TransactionDataType,
   forkedChainConfigByChainFromRaw,
-  impersonateAccounts,
-  increaseTime,
-  setBalance,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
   ProtocolType,
   assert,
   deepEquals,
+  retryAsync,
 } from '@hyperlane-xyz/utils';
-import { forkChain as forkChainBase } from '@hyperlane-xyz/utils/anvil';
 
 import { type CommandContext } from '../context/types.js';
 import { logGray, logRed } from '../logger.js';
 import { readYamlOrJson } from '../utils/files.js';
+
+const LOCAL_HOST = 'http://127.0.0.1';
 
 type EndPoint = string;
 
@@ -103,7 +103,7 @@ async function forkChain(
   kill: boolean,
   forkConfig?: ForkedChainConfig,
 ): Promise<EndPoint> {
-  let killAnvilProcess: ((isPanicking: boolean) => void) | undefined;
+  let killAnvilProcess: ((isPanicking: boolean) => Promise<void>) | undefined;
   try {
     const chainMetadata = await multiProvider.getChainMetadata(chainName);
 
@@ -113,43 +113,44 @@ async function forkChain(
       process.exit(1);
     }
 
+    const endpoint = `${LOCAL_HOST}:${forkPort}`;
     logGray(`Starting Anvil node for chain ${chainName} at port ${forkPort}`);
+    const anvilProcess = execa`anvil --port ${forkPort} --chain-id ${chainMetadata.chainId} --fork-url ${rpcUrl.http} --disable-block-gas-limit`;
 
-    const fork = await forkChainBase({
-      rpcUrl: rpcUrl.http,
-      chainId: Number(chainMetadata.chainId),
-      port: forkPort,
-    });
+    const provider = new JsonRpcProvider(endpoint);
+    await retryAsync(() => provider.getNetwork(), 10, 500);
 
     logGray(
-      `Successfully started Anvil node for chain ${chainName} at ${fork.endpoint}`,
+      `Successfully started Anvil node for chain ${chainName} at ${endpoint}`,
     );
 
-    killAnvilProcess = (isPanicking: boolean) => {
-      fork.kill(isPanicking);
+    killAnvilProcess = async (isPanicking: boolean) => {
+      anvilProcess.kill(isPanicking ? 'SIGTERM' : 'SIGINT');
     };
     process.once('exit', () => killAnvilProcess && killAnvilProcess(false));
 
     if (!forkConfig) {
-      return fork.endpoint;
+      return endpoint;
     }
 
     await handleImpersonations(
-      fork.provider,
+      provider,
       chainName,
       forkConfig.impersonateAccounts,
     );
 
-    await handleTransactions(fork.provider, chainName, forkConfig.transactions);
+    await handleTransactions(provider, chainName, forkConfig.transactions);
 
     if (kill) {
-      killAnvilProcess(false);
+      await killAnvilProcess(false);
     }
 
-    return fork.endpoint;
+    return endpoint;
   } catch (error) {
+    // Kill any running anvil process otherwise the process will keep running
+    // in the background.
     if (killAnvilProcess) {
-      killAnvilProcess(true);
+      await killAnvilProcess(true);
     }
 
     throw error;
@@ -157,7 +158,7 @@ async function forkChain(
 }
 
 async function handleImpersonations(
-  provider: ethers.providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   chainName: ChainName,
   accountsToImpersonate: Address[],
 ): Promise<void> {
@@ -168,11 +169,15 @@ async function handleImpersonations(
   logGray(
     `Impersonating accounts ${accountsToImpersonate} on chain ${chainName}`,
   );
-  await impersonateAccounts(provider, accountsToImpersonate);
+  await Promise.all(
+    accountsToImpersonate.map((address) =>
+      provider.send('anvil_impersonateAccount', [address]),
+    ),
+  );
 }
 
 async function handleTransactions(
-  provider: ethers.providers.JsonRpcProvider,
+  provider: JsonRpcProvider,
   chainName: ChainName,
   transactions: ReadonlyArray<ForkedChainTransactionConfig>,
 ): Promise<void> {
@@ -185,7 +190,10 @@ async function handleTransactions(
   for (const transaction of transactions) {
     const signer = provider.getSigner(transaction.from);
 
-    await setBalance(provider, transaction.from, '0x8AC7230489E80000');
+    await provider.send('anvil_setBalance', [
+      transaction.from,
+      '10000000000000000000',
+    ]);
 
     let calldata: string | undefined;
     if (transaction.data?.type === TransactionDataType.RAW_CALLDATA) {
@@ -244,7 +252,7 @@ async function handleTransactions(
       logGray(
         `Forwarding time by "${transaction.timeSkip}" seconds on chain ${chainName}`,
       );
-      await increaseTime(provider, transaction.timeSkip);
+      await provider.send('evm_increaseTime', [transaction.timeSkip]);
     }
 
     txCounter++;
