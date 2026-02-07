@@ -147,8 +147,10 @@ export const outputFileCommandOption = (
   demandOption,
 });
 
-interface InputFileCommandOptionConfig
-  extends Pick<Options, 'demandOption' | 'alias' | 'description'> {
+interface InputFileCommandOptionConfig extends Pick<
+  Options,
+  'demandOption' | 'alias' | 'description'
+> {
   defaultPath?: string;
 }
 

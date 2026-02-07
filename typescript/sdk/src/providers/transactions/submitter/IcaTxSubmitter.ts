@@ -30,9 +30,7 @@ type EvmIcaTxSubmitterConstructorConfig = Omit<
   originInterchainAccountRouter: Address;
 };
 
-export class EvmIcaTxSubmitter
-  implements TxSubmitterInterface<ProtocolType.Ethereum>
-{
+export class EvmIcaTxSubmitter implements TxSubmitterInterface<ProtocolType.Ethereum> {
   readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.INTERCHAIN_ACCOUNT;
 

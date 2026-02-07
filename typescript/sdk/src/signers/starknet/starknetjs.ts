@@ -8,9 +8,7 @@ import { StarknetJsTransaction } from '../../providers/ProviderType.js';
 import { ChainName } from '../../types.js';
 import { IMultiProtocolSigner } from '../types.js';
 
-export class StarknetMultiProtocolSignerAdapter
-  implements IMultiProtocolSigner<ProtocolType.Starknet>
-{
+export class StarknetMultiProtocolSignerAdapter implements IMultiProtocolSigner<ProtocolType.Starknet> {
   private readonly signer: StarknetAccount;
 
   constructor(

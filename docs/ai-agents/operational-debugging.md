@@ -72,7 +72,6 @@ After identifying the alert, immediately check the corresponding dashboards for 
 ### Key Dashboards for Debugging
 
 1. **Easy Dashboard** (`uid: fdf6ada6uzvgga`)
-
    - **Primary panels for incidents:**
      - "Prepare queues per Hyperlane App" - Filter by `app_context` to see specific application issues
      - "Critical Reprepare Reasons" - Shows operation_status breakdown for stuck messages
@@ -80,18 +79,15 @@ After identifying the alert, immediately check the corresponding dashboards for 
    - **Variables:** Set `chain` and `RelayerContext` filters to narrow down issues
 
 2. **Relayers v2 & v3** (`uid: k4aYDtK4k`)
-
    - "Prepare Queues by Remote" - Overall queue health by destination chain
    - "Queue Lengths" - Detailed view with queue_name breakdown
    - "Messages Processed" - Verify if messages are flowing
 
 3. **RPC Usage & Errors** (`uid: bdbwtrzoms5c0c`)
-
    - Check RPC error rates when suspecting infrastructure issues
    - Monitor specific chain RPC health
 
 4. **Lander Dashboard** (`uid: 197feea9-f831-48ce-b936-eaaa3294a3f6`)
-
    - **Transaction submission metrics:**
      - "Building Queue Length" - Messages waiting to be built into transactions
      - "Inclusion Queue Length" - Transactions waiting for inclusion on-chain
@@ -106,7 +102,6 @@ After identifying the alert, immediately check the corresponding dashboards for 
    - **Key for debugging:** High inclusion queue length indicates transaction submission issues
 
 5. **Validator Dashboard - In-house** (`uid: xrNCvpK4k`)
-
    - **Critical validator health metrics:**
      - "Unsigned Messages" - Messages observed but not yet signed by validators
      - "Messages Signed" - Rate of checkpoint signing activity
@@ -175,7 +170,6 @@ rate(hyperlane_lander_finalized_transactions[5m])
    - Filter by `app_context` to isolate the problematic application
    - Look at `operation_status` labels to understand error type
 2. **Identify error patterns:**
-
    - `Retry(Error estimating costs for process call)` → Gas estimation failure, check for contract reverts
    - `Retry(Could not fetch metadata)` → Usually temporary, only investigate if persistent
    - `Retry(ApplicationReport(...))` → Application-specific errors

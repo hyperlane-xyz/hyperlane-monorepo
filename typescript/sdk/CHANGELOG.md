@@ -32,7 +32,6 @@
   Added real-time validator signature status to MetadataBuilder. The builder now returns detailed information about which validators have signed a message, their checkpoint indices, and actual signatures. New exports: `ValidatorInfo`, `MetadataBuildResult`, `DerivedHookConfig`, and helper functions `isMetadataBuildable()`, `getSignedValidatorCount()`, `isQuorumMet()`.
 
   Performance optimizations:
-
   - EvmIsmReader routing ISM derivation reduced from ~5.7s to ~724ms via messageContext short-circuit
   - EvmHookReader RPC calls parallelized across all derivation methods
   - SmartProvider retry logic fixed to correctly identify permanent errors
@@ -76,7 +75,6 @@
 - 6ddef74: Fix warp check for Aleo.
 - 9aa93f4: Added optional `waitConfirmations` parameter to `sendTransaction()` and `handleTx()` methods in MultiProvider, which allowed callers to specify a custom number of confirmations or a block tag like "finalized" or "safe" to wait for before returning. Added `waitForBlockTag()` helper method that polled until the tagged block number reached the transaction's block number. Exported new `SendTransactionOptions` interface from SDK.
 - 42b72c3: Extracted relayer into dedicated `@hyperlane-xyz/relayer` package
-
   - Moved `HyperlaneRelayer` class from SDK to new package
   - Moved ISM metadata builders from SDK to relayer package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
@@ -194,7 +192,6 @@
 ### Minor Changes
 
 - 11fa887: Upgrade TypeScript from 5.3.3 to 5.8.3 and compilation target to ES2023
-
   - Upgraded TypeScript from 5.3.3 to 5.8.3 across all packages
   - Updated compilation target from ES2022 to ES2023 (Node 16+ fully supported)
   - Converted internal const enums to 'as const' pattern for better compatibility
@@ -504,7 +501,6 @@
 ### Minor Changes
 
 - 554ff1a66: Add M0 PortalLite token adapter support for bridging M tokens
-
   - Add new TokenStandard.EvmM0PortalLite for M0 Portal integration
   - Implement M0PortalLiteTokenAdapter for handling M0 token transfers
   - Support for M0's transferMLikeToken function to bridge wrapped M tokens (e.g., mUSD)
@@ -1863,7 +1859,6 @@
   **Breaking change**: Token Adapter `quoteGasPayment` method renamed to `quoteTransferRemoteGas` for clarity.
 - 9681df08d: Remove support for goerli networks (including optimismgoerli, arbitrumgoerli, lineagoerli and polygonzkevmtestnet)
 - 9681df08d: Enabled verification of contracts as part of the deployment flow.
-
   - Solidity build artifact is now included as part of the `@hyperlane-xyz/core` package.
   - Updated the `HyperlaneDeployer` to perform contract verification immediately after deploying a contract. A default verifier is instantiated using the core build artifact.
   - Updated the `HyperlaneIsmFactory` to re-use the `HyperlaneDeployer` for deployment where possible.
