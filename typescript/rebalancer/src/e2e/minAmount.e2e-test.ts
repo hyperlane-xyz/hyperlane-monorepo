@@ -257,7 +257,6 @@ describe('MinAmountStrategy E2E', function () {
     await context.orchestrator.executeCycle(event1);
 
     const blockTags1 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags1);
     await context.tracker.syncRebalanceActions(blockTags1);
 
     const inProgress = await context.tracker.getInProgressActions();
@@ -280,7 +279,6 @@ describe('MinAmountStrategy E2E', function () {
     await context.orchestrator.executeCycle(event2);
 
     const blockTags = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags);
     await context.tracker.syncRebalanceActions(blockTags);
 
     // Check if new routes to arb were proposed
