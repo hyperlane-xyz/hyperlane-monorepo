@@ -2039,15 +2039,12 @@ importers:
       eslint:
         specifier: 'catalog:'
         version: 9.39.2(jiti@2.6.1)
-      execa:
-        specifier: ^9.5.3
-        version: 9.6.0
       mocha:
         specifier: 'catalog:'
         version: 11.7.5
-      prettier:
+      oxfmt:
         specifier: 'catalog:'
-        version: 3.8.1
+        version: 0.27.0
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
