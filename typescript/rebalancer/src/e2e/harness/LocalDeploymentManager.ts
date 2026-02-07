@@ -1,5 +1,10 @@
 import { ethers, providers } from 'ethers';
 import { type Logger, pino } from 'pino';
+import {
+  GenericContainer,
+  type StartedTestContainer,
+  Wait,
+} from 'testcontainers';
 
 import {
   ERC20Test__factory,
@@ -14,8 +19,7 @@ import {
   type ChainName,
   MultiProvider,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
-import { type AnvilForkResult, spawnAnvil } from '@hyperlane-xyz/utils/anvil';
+import { ProtocolType, retryAsync } from '@hyperlane-xyz/utils';
 
 import {
   ANVIL_TEST_PRIVATE_KEY,
@@ -25,13 +29,10 @@ import {
   type TestChain,
 } from '../fixtures/routes.js';
 
-import { allocatePorts, releasePorts } from './PortAllocator.js';
-
 export interface LocalDeploymentContext {
   providers: Map<string, providers.JsonRpcProvider>;
   registry: IRegistry;
   multiProvider: MultiProvider;
-  ports: number[];
   deployedAddresses: DeployedAddresses;
 }
 
@@ -42,7 +43,7 @@ const TOKEN_SCALE = ethers.BigNumber.from(1);
 
 export class LocalDeploymentManager {
   private context?: LocalDeploymentContext;
-  private anvils: Map<string, AnvilForkResult> = new Map();
+  private containers: Map<string, StartedTestContainer> = new Map();
   private readonly logger: Logger;
 
   constructor() {
@@ -56,7 +57,6 @@ export class LocalDeploymentManager {
       throw new Error('LocalDeploymentManager already started');
     }
 
-    const ports = allocatePorts(TEST_CHAIN_CONFIGS.length);
     const providersByChain = new Map<string, providers.JsonRpcProvider>();
     const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
     const deployerAddress = deployerWallet.address;
@@ -70,19 +70,36 @@ export class LocalDeploymentManager {
     try {
       for (let i = 0; i < TEST_CHAIN_CONFIGS.length; i++) {
         const config = TEST_CHAIN_CONFIGS[i];
-        const port = ports[i];
 
-        const anvil = await spawnAnvil({ port, chainId: config.chainId });
-        this.anvils.set(config.name, anvil);
-        providersByChain.set(config.name, anvil.provider);
-        process.once('exit', () => anvil.kill(false));
+        const container = await retryAsync(
+          () =>
+            new GenericContainer('ghcr.io/foundry-rs/foundry:latest')
+              .withEntrypoint([
+                'anvil',
+                '--host',
+                '0.0.0.0',
+                '-p',
+                '8545',
+                '--chain-id',
+                config.chainId.toString(),
+              ])
+              .withExposedPorts(8545)
+              .withWaitStrategy(Wait.forLogMessage(/Listening on/))
+              .start(),
+          3,
+          5000,
+        );
+        this.containers.set(config.name, container);
+        const endpoint = `http://${container.getHost()}:${container.getMappedPort(8545)}`;
+        const provider = new providers.JsonRpcProvider(endpoint);
+        providersByChain.set(config.name, provider);
 
-        await anvil.provider.send('anvil_setBalance', [
+        await provider.send('anvil_setBalance', [
           deployerAddress,
           ANVIL_DEPLOYER_BALANCE_HEX,
         ]);
 
-        const deployer = deployerWallet.connect(anvil.provider);
+        const deployer = deployerWallet.connect(provider);
 
         const mailbox = await new Mailbox__factory(deployer).deploy(
           config.domainId,
@@ -198,7 +215,7 @@ export class LocalDeploymentManager {
       const bridgeSeedAmount =
         ethers.BigNumber.from(USDC_INITIAL_SUPPLY).div(10);
       for (const chain of TEST_CHAIN_CONFIGS) {
-        const provider = this.anvils.get(chain.name)!.provider;
+        const provider = providersByChain.get(chain.name)!;
         const deployer = deployerWallet.connect(provider);
         const token = ERC20Test__factory.connect(
           tokens[chain.name].address,
@@ -247,7 +264,13 @@ export class LocalDeploymentManager {
           chainId: config.chainId,
           domainId: config.domainId,
           protocol: ProtocolType.Ethereum,
-          rpcUrls: [{ http: this.anvils.get(config.name)!.endpoint }],
+          rpcUrls: [
+            {
+              http: `http://${this.containers.get(config.name)!.getHost()}:${this.containers
+                .get(config.name)!
+                .getMappedPort(8545)}`,
+            },
+          ],
           blocks: { confirmations: 0, reorgPeriod: 0 },
           nativeToken: { name: 'Ether', symbol: 'ETH', decimals: 18 },
           isTestnet: true,
@@ -266,7 +289,7 @@ export class LocalDeploymentManager {
 
       const signerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
       for (const config of TEST_CHAIN_CONFIGS) {
-        const provider = this.anvils.get(config.name)!.provider;
+        const provider = providersByChain.get(config.name)!;
         multiProvider.setProvider(config.name, provider);
         multiProvider.setSigner(config.name, signerWallet.connect(provider));
       }
@@ -275,31 +298,25 @@ export class LocalDeploymentManager {
         providers: providersByChain,
         registry,
         multiProvider,
-        ports,
         deployedAddresses,
       };
 
       return this.context;
     } catch (error) {
-      await this.killAnvils(this.anvils);
-      this.anvils.clear();
-      releasePorts(ports);
+      await this.stopContainers();
+      this.containers.clear();
       throw error;
     }
   }
 
   async stop(): Promise<void> {
-    if (!this.context && this.anvils.size === 0) {
+    if (!this.context && this.containers.size === 0) {
       return;
     }
 
-    await this.killAnvils(this.anvils);
-    this.anvils.clear();
-
-    if (this.context) {
-      releasePorts(this.context.ports);
-      this.context = undefined;
-    }
+    await this.stopContainers();
+    this.containers.clear();
+    this.context = undefined;
   }
 
   getContext(): LocalDeploymentContext {
@@ -321,21 +338,17 @@ export class LocalDeploymentManager {
     return this.getContext().registry;
   }
 
-  private async killAnvils(
-    anvils: Map<string, AnvilForkResult>,
-  ): Promise<void> {
-    const killPromises = Array.from(anvils.entries()).map(([chain, anvil]) =>
-      Promise.resolve()
-        .then(() => anvil.kill())
-        .catch((err: unknown) => {
+  private async stopContainers(): Promise<void> {
+    const stopPromises = Array.from(this.containers.entries()).map(
+      ([chain, container]) =>
+        container.stop().catch((err: unknown) => {
           const message = err instanceof Error ? err.message : String(err);
           this.logger.debug(
             { chain, error: message },
-            'Anvil kill failed (may already be dead)',
+            'Container stop failed (may already be dead)',
           );
         }),
     );
-
-    await Promise.all(killPromises);
+    await Promise.all(stopPromises);
   }
 }

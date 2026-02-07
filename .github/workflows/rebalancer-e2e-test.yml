@@ -28,7 +28,7 @@ jobs:
     timeout-minutes: 30
     strategy:
       fail-fast: false
-      max-parallel: 1
+      max-parallel: 4
       matrix:
         test:
           - weighted
@@ -43,9 +43,6 @@ jobs:
 
       - name: pnpm-build
         uses: ./.github/actions/pnpm-build-with-cache
-
-      - name: Setup Foundry
-        uses: ./.github/actions/setup-foundry
 
       - name: Run rebalancer E2E test (${{ matrix.test }})
         working-directory: typescript/rebalancer

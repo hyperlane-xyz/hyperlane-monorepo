@@ -2051,6 +2051,9 @@ importers:
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
+      testcontainers:
+        specifier: 'catalog:'
+        version: 11.7.0
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
