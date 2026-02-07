@@ -842,8 +842,15 @@ export {
   ANVIL_RPC_METHODS,
   getLocalProvider,
   impersonateAccount,
+  impersonateAccounts,
+  increaseTime,
+  mine,
   resetFork,
+  revertToSnapshot,
+  setBalance,
   setFork,
+  setStorageAt,
+  snapshot,
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export {

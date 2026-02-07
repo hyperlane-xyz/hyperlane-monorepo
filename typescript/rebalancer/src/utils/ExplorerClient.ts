@@ -33,7 +33,18 @@ export type ExplorerMessage = {
   message_body: string;
 };
 
-export class ExplorerClient {
+export interface IExplorerClient {
+  getInflightUserTransfers(
+    params: UserTransferQueryParams,
+    logger?: Logger,
+  ): Promise<ExplorerMessage[]>;
+  getInflightRebalanceActions(
+    params: RebalanceActionQueryParams,
+    logger?: Logger,
+  ): Promise<ExplorerMessage[]>;
+}
+
+export class ExplorerClient implements IExplorerClient {
   constructor(private readonly baseUrl: string) {}
 
   private toBytea(addr: string): string {

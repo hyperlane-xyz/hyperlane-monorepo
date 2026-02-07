@@ -2003,6 +2003,9 @@ importers:
       '@ethersproject/constants':
         specifier: '*'
         version: 5.8.0
+      '@hyperlane-xyz/relayer':
+        specifier: workspace:*
+        version: link:../relayer
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -2045,6 +2048,9 @@ importers:
       sinon:
         specifier: 'catalog:'
         version: 13.0.2
+      testcontainers:
+        specifier: 'catalog:'
+        version: 11.7.0
       tsx:
         specifier: 'catalog:'
         version: 4.19.1
