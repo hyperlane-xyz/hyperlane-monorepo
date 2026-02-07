@@ -40,7 +40,10 @@ import {
   type LocalDeploymentContext,
   LocalDeploymentManager,
 } from './LocalDeploymentManager.js';
-import { MockExplorerClient } from './MockExplorerClient.js';
+import {
+  MockExplorerClient,
+  type MockExplorerConfig,
+} from './MockExplorerClient.js';
 
 function encodeWarpRouteMessageBody(
   recipient: string,
@@ -176,8 +179,6 @@ export class TestRebalancerBuilder {
       this.multiProvider,
     );
 
-    const mockExplorer = this.buildMockExplorer();
-
     const deployerWallet = new ethers.Wallet(ANVIL_TEST_PRIVATE_KEY);
     const rebalancerAddresses = [deployerWallet.address];
 
@@ -186,13 +187,18 @@ export class TestRebalancerBuilder {
     const forkIndexer = new ForkIndexer(
       localProviders,
       hyperlaneCore,
-      mockExplorer,
       rebalancerAddresses,
       this.logger,
     );
 
     const confirmedBlockTags = await this.computeConfirmedBlockTags();
     await forkIndexer.initialize(confirmedBlockTags);
+
+    const mockExplorer = new MockExplorerClient(
+      this.buildMockExplorerConfig(),
+      forkIndexer,
+      () => this.computeConfirmedBlockTags(),
+    );
 
     const rebalancerConfig = new RebalancerConfig(
       MONITORED_ROUTE_ID,
@@ -298,7 +304,7 @@ export class TestRebalancerBuilder {
     );
   }
 
-  private buildMockExplorer(): MockExplorerClient {
+  private buildMockExplorerConfig(): MockExplorerConfig {
     const { deployedAddresses }: LocalDeploymentContext =
       this.deploymentManager.getContext();
     const userTransfers: ExplorerMessage[] = [...this.mockTransfers];
@@ -337,10 +343,10 @@ export class TestRebalancerBuilder {
       );
     }
 
-    return new MockExplorerClient({
+    return {
       userTransfers,
       rebalanceActions: [],
-    });
+    };
   }
 
   private async getWorkingMultiProvider(): Promise<MultiProvider> {

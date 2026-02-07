@@ -204,9 +204,7 @@ describe('WeightedStrategy E2E', function () {
       `Rebalance relay should succeed: ${rebalanceRelayResult.error}`,
     ).to.be.true;
 
-    // Sync actions to detect delivery and mark complete
     const blockTags = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags);
     await context.tracker.syncRebalanceActions(blockTags);
 
     // Assert: Action is now complete
@@ -247,7 +245,6 @@ describe('WeightedStrategy E2E', function () {
     await context.orchestrator.executeCycle(event1);
 
     const blockTags1 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags1);
     await context.tracker.syncRebalanceActions(blockTags1);
 
     const inflightAfterCycle1 = await context.tracker.getInProgressActions();
@@ -274,7 +271,6 @@ describe('WeightedStrategy E2E', function () {
     await context.orchestrator.executeCycle(event2);
 
     const blockTags2 = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags2);
     await context.tracker.syncRebalanceActions(blockTags2);
 
     // Check if new actions to base were created
