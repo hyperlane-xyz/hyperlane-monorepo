@@ -1,14 +1,10 @@
-import chai, { expect } from 'chai';
-import chaiAsPromised from 'chai-as-promised';
+import { expect } from 'chai';
 import { pino } from 'pino';
 import sinon from 'sinon';
 
 import { formatMessage, messageId } from '@hyperlane-xyz/utils';
 
 import { ForkIndexer } from './ForkIndexer.js';
-import { MockExplorerClient } from './MockExplorerClient.js';
-
-chai.use(chaiAsPromised);
 
 const testLogger = pino({ level: 'silent' });
 
@@ -62,13 +58,11 @@ describe('ForkIndexer', () => {
   let provider2Stub: any;
   let providers: Map<string, any>;
   let coreStub: any;
-  let mockExplorer: MockExplorerClient;
   let mailboxStub1: any;
   let mailboxStub2: any;
   let indexer: ForkIndexer;
 
   beforeEach(() => {
-    // Create provider stubs
     provider1Stub = {
       getBlockNumber: sinon.stub(),
     };
@@ -81,7 +75,6 @@ describe('ForkIndexer', () => {
       ['chain2', provider2Stub],
     ]);
 
-    // Create mailbox stubs with queryFilter
     mailboxStub1 = {
       queryFilter: sinon.stub().resolves([]),
       filters: {
@@ -95,7 +88,6 @@ describe('ForkIndexer', () => {
       },
     };
 
-    // Create HyperlaneCore stub
     coreStub = {
       getContracts: sinon.stub().callsFake((chain: string) => {
         if (chain === 'chain1') return { mailbox: mailboxStub1 };
@@ -111,14 +103,9 @@ describe('ForkIndexer', () => {
       },
     };
 
-    // Create MockExplorerClient
-    mockExplorer = new MockExplorerClient();
-
-    // Create ForkIndexer
     indexer = new ForkIndexer(
       providers,
       coreStub,
-      mockExplorer,
       [REBALANCER_ADDRESS],
       testLogger,
     );
@@ -141,13 +128,14 @@ describe('ForkIndexer', () => {
     });
   });
 
-  describe('sync - error handling', () => {
-    it('should throw if called before initialize()', async () => {
-      await expect(
-        indexer.sync({ chain1: 100, chain2: 100 }),
-      ).to.be.rejectedWith(
-        'ForkIndexer not initialized. Call initialize() first.',
-      );
+  describe('sync - uninitialized behavior', () => {
+    it('should be a no-op if called before initialize()', async () => {
+      await indexer.sync({ chain1: 100, chain2: 100 });
+
+      expect(mailboxStub1.queryFilter.called).to.be.false;
+      expect(mailboxStub2.queryFilter.called).to.be.false;
+      expect(indexer.getUserTransfers()).to.have.lengthOf(0);
+      expect(indexer.getRebalanceActions()).to.have.lengthOf(0);
     });
   });
 
@@ -199,11 +187,7 @@ describe('ForkIndexer', () => {
       // Advance block and sync
       await indexer.sync({ chain1: 110, chain2: 100 });
 
-      // Verify the MockExplorerClient received correct data
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
+      const userTransfers = indexer.getUserTransfers();
 
       expect(userTransfers).to.have.lengthOf(1);
       const transfer = userTransfers[0];
@@ -243,11 +227,7 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([mockEvent]);
       await indexer.sync({ chain1: 120, chain2: 100 });
 
-      // Should only have one transfer despite two events
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
+      const userTransfers = indexer.getUserTransfers();
       expect(userTransfers).to.have.lengthOf(1);
     });
   });
@@ -319,11 +299,7 @@ describe('ForkIndexer', () => {
       expect(mailboxStub1.queryFilter.secondCall.args[1]).to.equal(111);
       expect(mailboxStub1.queryFilter.secondCall.args[2]).to.equal(120);
 
-      // Should have both transfers
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
+      const userTransfers = indexer.getUserTransfers();
       expect(userTransfers).to.have.lengthOf(2);
     });
   });
@@ -349,18 +325,8 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([mockEvent]);
       await indexer.sync({ chain1: 110, chain2: 100 });
 
-      // Should be in rebalance actions, not user transfers
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
-      expect(userTransfers).to.have.lengthOf(0);
-
-      const rebalanceActions = await mockExplorer.getInflightRebalanceActions(
-        { routersByDomain: {}, bridges: [], rebalancerAddress: '' },
-        testLogger,
-      );
-      expect(rebalanceActions).to.have.lengthOf(1);
+      expect(indexer.getUserTransfers()).to.have.lengthOf(0);
+      expect(indexer.getRebalanceActions()).to.have.lengthOf(1);
     });
 
     it('should classify non-rebalancer txs as addUserTransfer', async () => {
@@ -383,18 +349,8 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([mockEvent]);
       await indexer.sync({ chain1: 110, chain2: 100 });
 
-      // Should be in user transfers, not rebalance actions
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
-      expect(userTransfers).to.have.lengthOf(1);
-
-      const rebalanceActions = await mockExplorer.getInflightRebalanceActions(
-        { routersByDomain: {}, bridges: [], rebalancerAddress: '' },
-        testLogger,
-      );
-      expect(rebalanceActions).to.have.lengthOf(0);
+      expect(indexer.getUserTransfers()).to.have.lengthOf(1);
+      expect(indexer.getRebalanceActions()).to.have.lengthOf(0);
     });
 
     it('should classify correctly with case-insensitive address comparison', async () => {
@@ -417,12 +373,7 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([mockEvent]);
       await indexer.sync({ chain1: 110, chain2: 100 });
 
-      // Should still be classified as rebalance action
-      const rebalanceActions = await mockExplorer.getInflightRebalanceActions(
-        { routersByDomain: {}, bridges: [], rebalancerAddress: '' },
-        testLogger,
-      );
-      expect(rebalanceActions).to.have.lengthOf(1);
+      expect(indexer.getRebalanceActions()).to.have.lengthOf(1);
     });
   });
 
@@ -447,12 +398,7 @@ describe('ForkIndexer', () => {
       mailboxStub1.queryFilter.resolves([mockEvent]);
       await indexer.sync({ chain1: 110, chain2: 100 });
 
-      // Should not add any transfers since destination is unknown
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
-      expect(userTransfers).to.have.lengthOf(0);
+      expect(indexer.getUserTransfers()).to.have.lengthOf(0);
     });
   });
 
@@ -496,11 +442,7 @@ describe('ForkIndexer', () => {
 
       await indexer.sync({ chain1: 110, chain2: 110 });
 
-      const userTransfers = await mockExplorer.getInflightUserTransfers(
-        { routersByDomain: {}, excludeTxSender: '' },
-        testLogger,
-      );
-      expect(userTransfers).to.have.lengthOf(2);
+      expect(indexer.getUserTransfers()).to.have.lengthOf(2);
     });
   });
 });

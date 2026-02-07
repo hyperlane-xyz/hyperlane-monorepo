@@ -219,11 +219,7 @@ describe('Collateral Deficit E2E', function () {
         `Before: ${initialCollateralBalances.anvil2.toString()}, After: ${balancesAfterUserTransfer.anvil2.toString()}`,
     ).to.be.true;
 
-    // Index the dispatched message using ForkIndexer
     const blockTags = await context.getConfirmedBlockTags();
-    await context.forkIndexer.sync(blockTags);
-
-    // Sync action tracker to pick up the new transfer
     await context.tracker.syncTransfers(blockTags);
 
     // Assert: User transfer exists in action tracker with correct fields
