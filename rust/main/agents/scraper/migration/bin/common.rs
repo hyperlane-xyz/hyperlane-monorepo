@@ -29,13 +29,16 @@ pub async fn init() -> Result<DatabaseConnection, DbErr> {
         match Database::connect(options).await {
             Ok(db) => return Ok(db),
             Err(e) => {
-                println!(
-                    "Connection attempt {attempt}/{MAX_RETRIES} failed: {e}, retrying in {RETRY_DELAY_SECS}s..."
-                );
                 last_err = Some(e);
-                tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
+                if attempt < MAX_RETRIES {
+                    println!(
+                        "Connection attempt {attempt}/{MAX_RETRIES} failed: {}, retrying in {RETRY_DELAY_SECS}s...",
+                        last_err.as_ref().unwrap()
+                    );
+                    tokio::time::sleep(Duration::from_secs(RETRY_DELAY_SECS)).await;
+                }
             }
         }
     }
-    Err(last_err.unwrap())
+    Err(last_err.expect("at least one connection attempt should have been made"))
 }
