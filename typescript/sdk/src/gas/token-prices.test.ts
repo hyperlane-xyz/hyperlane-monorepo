@@ -48,6 +48,59 @@ describe('TokenPriceGetter', () => {
         await tokenPriceGetter.getTokenPriceByIds(['ethereum', 'solana']),
       ).to.eql([priceA, priceB]);
     });
+
+    it('returns stale cached prices on API failure', async () => {
+      // First call populates cache (real timers)
+      await tokenPriceGetter.getTokenPriceByIds(['ethereum', 'solana']);
+
+      // Jump 15s ahead — past freshSeconds (10s) but before evictionSeconds (3h).
+      // This forces isFresh() to return false so the fetch path is actually hit.
+      const clock = sinon.useFakeTimers(Date.now() + 15_000);
+      try {
+        stub.rejects(new Error('429 Too Many Requests'));
+        const promise = tokenPriceGetter.getTokenPriceByIds([
+          'ethereum',
+          'solana',
+        ]);
+        // Resolve the internal sleep(10) timer
+        await clock.tickAsync(10);
+        const result = await promise;
+        expect(result).to.eql([priceA, priceB]);
+      } finally {
+        clock.restore();
+      }
+    });
+
+    it('returns undefined on API failure with no cache', async () => {
+      stub.rejects(new Error('429 Too Many Requests'));
+      const result = await tokenPriceGetter.getTokenPriceByIds([
+        'ethereum',
+        'solana',
+      ]);
+      expect(result).to.be.undefined;
+    });
+
+    it('returns undefined on API failure with partial cache', async () => {
+      // Populate cache for ethereum only
+      stub.resolves([priceA]);
+      await tokenPriceGetter.getTokenPriceByIds(['ethereum']);
+
+      // Jump past freshSeconds so both IDs need re-fetching
+      const clock = sinon.useFakeTimers(Date.now() + 15_000);
+      try {
+        stub.rejects(new Error('429 Too Many Requests'));
+        const promise = tokenPriceGetter.getTokenPriceByIds([
+          'ethereum',
+          'solana',
+        ]);
+        await clock.tickAsync(10);
+        const result = await promise;
+        // solana was never cached, so we cannot serve the full set
+        expect(result).to.be.undefined;
+      } finally {
+        clock.restore();
+      }
+    });
   });
 
   describe('getTokenPrice', () => {
