@@ -66,6 +66,7 @@
     "mocha": "catalog:",
     "prettier": "catalog:",
     "sinon": "catalog:",
+    "testcontainers": "catalog:",
     "tsx": "catalog:",
     "typescript": "catalog:"
   },
