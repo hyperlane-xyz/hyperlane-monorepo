@@ -20,7 +20,17 @@ pub async fn init() -> Result<DatabaseConnection, DbErr> {
         .init();
 
     let url = url();
-    println!("Connecting to {url}");
+    // Redact password from URL for logging (postgresql://user:pass@host -> postgresql://user:***@host)
+    let redacted = url
+        .find("://")
+        .and_then(|scheme_end| {
+            let after_scheme = scheme_end + 3;
+            let colon = url[after_scheme..].find(':')? + after_scheme;
+            let at = url[colon..].find('@')? + colon;
+            Some(format!("{}***{}", &url[..colon + 1], &url[at..]))
+        })
+        .unwrap_or_else(|| url.clone());
+    println!("Connecting to {redacted}");
 
     let mut last_err = None;
     for attempt in 1..=MAX_RETRIES {
