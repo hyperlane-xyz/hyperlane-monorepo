@@ -35,10 +35,6 @@
             "types": "./dist/fs/index.d.ts",
             "default": "./dist/fs/index.js"
         },
-        "./anvil": {
-            "types": "./dist/anvil/index.d.ts",
-            "default": "./dist/anvil/index.js"
-        },
         "./eslint-rules": {
             "types": "./dist/eslint-rules/index.d.ts",
             "default": "./dist/eslint-rules/index.js"
