@@ -5,7 +5,7 @@ import { type MultiProvider } from '@hyperlane-xyz/sdk';
 import { RebalancerConfig } from '../config/RebalancerConfig.js';
 import { getStrategyChainNames } from '../config/types.js';
 import { type MonitorEvent } from '../interfaces/IMonitor.js';
-import type { IRebalancer } from '../interfaces/IRebalancer.js';
+import type { IRebalancer, RebalanceRoute } from '../interfaces/IRebalancer.js';
 import type { IStrategy, StrategyRoute } from '../interfaces/IStrategy.js';
 import { Metrics } from '../metrics/Metrics.js';
 import {
@@ -131,7 +131,7 @@ export class RebalancerOrchestrator {
       return [];
     }
 
-    const rebalanceRoutes: Array<StrategyRoute & { intentId: string }> = [];
+    const rebalanceRoutes: RebalanceRoute[] = [];
     const intentIds: string[] = [];
 
     for (const route of strategyRoutes) {
@@ -184,8 +184,7 @@ export class RebalancerOrchestrator {
     results: Awaited<ReturnType<IRebalancer['rebalance']>>,
   ): Promise<void> {
     for (const result of results) {
-      const intentId = (result.route as StrategyRoute & { intentId: string })
-        .intentId;
+      const intentId = result.route.intentId;
       if (result.success && result.messageId) {
         await this.actionTracker.createRebalanceAction({
           intentId,
