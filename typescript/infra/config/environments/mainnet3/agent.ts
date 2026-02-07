@@ -483,8 +483,8 @@ export const hyperlaneContextAgentChainConfig: AgentChainConfig<
     torus: true,
     unichain: true,
     vana: true,
-    // Has RPC non-compliance that breaks scraping.
-    viction: false,
+    // Note: default rpc.viction.xyz endpoint can't be used for scraping (returns 429s).
+    viction: true,
     worldchain: true,
     xai: true,
     xlayer: true,
