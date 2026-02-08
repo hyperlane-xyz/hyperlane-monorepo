@@ -7,7 +7,10 @@ import {
   type MultiProtocolProvider,
   type MultiProvider,
   type ProtocolMap,
+  type SignerConfiguration,
+  SignerFactory,
   isJsonRpcSubmitterConfig,
+  isSignerRef,
 } from '@hyperlane-xyz/sdk';
 import {
   type Address,
@@ -29,6 +32,12 @@ import { MultiProtocolSignerFactory } from './MultiProtocolSignerFactory.js';
 export interface MultiProtocolSignerOptions {
   logger?: Logger;
   key?: SignerKeyProtocolMap;
+  /**
+   * Signer configuration loaded from registry.
+   * When provided, signers will be resolved from this configuration
+   * using the SignerFactory, falling back to key-based signers if needed.
+   */
+  signerConfiguration?: SignerConfiguration | null;
 }
 
 function getSignerCompatibleChains(
@@ -140,6 +149,11 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
   /**
    * @notice Creates signer for specific chain
+   *
+   * Signer resolution order:
+   * 1. Registry signer configuration (chain-specific > protocol-specific > default)
+   * 2. Submission strategy config (if JSON RPC submitter)
+   * 3. Key-based fallback (--key argument or HYP_KEY environment variable)
    */
   async initSigner(chain: ChainName): Promise<TypedSigner> {
     const maybeSigner = this.signers.get(chain);
@@ -149,6 +163,14 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
     const protocolType = this.multiProtocolProvider.getProtocol(chain);
 
+    // Try to get signer from registry configuration first
+    const registrySigner = await this.getSignerFromRegistry(chain, protocolType);
+    if (registrySigner) {
+      this.signers.set(chain, registrySigner as TypedSigner);
+      return registrySigner as TypedSigner;
+    }
+
+    // Fall back to existing strategy-based signer creation
     const signerStrategy = this.signerStrategiesByProtocol[protocolType];
     assert(signerStrategy, `No signer strategy found for chain ${chain}`);
 
@@ -173,6 +195,67 @@ export class MultiProtocolSignerManager implements IMultiProtocolSignerManager {
 
     this.signers.set(chain, signer);
     return signer;
+  }
+
+  /**
+   * Attempts to get a signer from the registry configuration.
+   * Resolution order: chain-specific > protocol-specific > default
+   */
+  private async getSignerFromRegistry(
+    chain: ChainName,
+    protocolType: ProtocolType,
+  ): Promise<TypedSigner | null> {
+    const signerConfig = this.options.signerConfiguration;
+    if (!signerConfig?.defaults && !signerConfig?.signers) {
+      return null;
+    }
+
+    // Only EVM signers are supported via registry for now
+    if (protocolType !== ProtocolType.Ethereum) {
+      return null;
+    }
+
+    let resolvedConfig = signerConfig.defaults?.default;
+
+    // Check for protocol-specific override
+    if (signerConfig.defaults?.protocols?.[protocolType]) {
+      resolvedConfig = signerConfig.defaults.protocols[protocolType];
+    }
+
+    // Check for chain-specific override (highest priority)
+    if (signerConfig.defaults?.chains?.[chain]) {
+      resolvedConfig = signerConfig.defaults.chains[chain];
+    }
+
+    if (!resolvedConfig) {
+      return null;
+    }
+
+    // Resolve ref if needed
+    if (isSignerRef(resolvedConfig)) {
+      const refName = resolvedConfig.ref;
+      const namedSigner = signerConfig.signers?.[refName];
+      if (!namedSigner) {
+        this.logger.warn(
+          `Signer ref '${refName}' not found in registry configuration`,
+        );
+        return null;
+      }
+      resolvedConfig = namedSigner;
+    }
+
+    try {
+      // Use SignerFactory to create the signer
+      const provider = this.multiProtocolProvider.getEthersV5Provider(chain);
+      const signer = await SignerFactory.createSigner(resolvedConfig, provider);
+      this.logger.info(`Created signer for chain ${chain} from registry configuration`);
+      return signer as TypedSigner;
+    } catch (error) {
+      this.logger.warn(
+        `Failed to create signer for chain ${chain} from registry: ${error}`,
+      );
+      return null;
+    }
   }
 
   /**
