@@ -43,7 +43,7 @@ jobs:
         run: cd solidity && forge build --build-info
 
       - name: Static analysis
-        uses: crytic/slither-action@v0.4.1
+        uses: crytic/slither-action@v0.4.2
         id: slither
         with:
           target: 'solidity/'
