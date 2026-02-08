@@ -31,6 +31,9 @@ contract Mailbox is
 
     // ============ Constants ============
 
+    // Test constant for bytecode check CI test - DELETE ME
+    uint256 public constant TEST_BYTECODE_CHANGE = 12345;
+
     // Domain of chain on which the contract is deployed
     uint32 public immutable localDomain;
 
