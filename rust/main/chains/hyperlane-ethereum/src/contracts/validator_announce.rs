@@ -180,6 +180,15 @@ where
         let receipt = report_tx(contract_call).await?;
         Ok(receipt.into())
     }
+
+    async fn announce_calldata(
+        &self,
+        announcement: SignedType<Announcement>,
+    ) -> ChainResult<Vec<u8>> {
+        let contract_call = self.announce_contract_call(announcement).await?;
+        let data = (contract_call.tx, contract_call.function);
+        serde_json::to_vec(&data).map_err(Into::into)
+    }
 }
 
 pub struct EthereumValidatorAnnounceAbi;
@@ -189,5 +198,114 @@ impl HyperlaneAbi for EthereumValidatorAnnounceAbi {
 
     fn fn_map() -> HashMap<Vec<u8>, &'static str> {
         crate::extract_fn_map(&IVALIDATORANNOUNCE_ABI)
+    }
+}
+
+#[cfg(test)]
+mod test {
+    use std::sync::Arc;
+
+    use ethers::{
+        providers::{MockProvider, Provider},
+        types::{Block, Transaction, U256 as EthersU256},
+    };
+    use ethers_core::types::FeeHistory;
+    use hyperlane_core::{
+        Announcement, ContractLocator, HyperlaneDomain, HyperlaneSignerExt, KnownHyperlaneDomain,
+        SignedType, ValidatorAnnounce, H256, U256,
+    };
+
+    use crate::{contracts::EthereumValidatorAnnounce, ConnectionConf, RpcConnectionConf, Signers};
+
+    fn get_test_validator_announce(
+        domain: HyperlaneDomain,
+    ) -> (
+        EthereumValidatorAnnounce<Provider<Arc<MockProvider>>>,
+        Arc<MockProvider>,
+    ) {
+        let mock_provider = Arc::new(MockProvider::new());
+        let provider = Arc::new(Provider::new(mock_provider.clone()));
+        let connection_conf = ConnectionConf {
+            rpc_connection: RpcConnectionConf::Http {
+                url: "http://127.0.0.1:8545".parse().unwrap(),
+            },
+            transaction_overrides: Default::default(),
+            op_submission_config: Default::default(),
+            consider_null_transaction_receipt: false,
+        };
+
+        let validator_announce = EthereumValidatorAnnounce::new(
+            provider.clone(),
+            &connection_conf,
+            &ContractLocator {
+                domain: &domain,
+                address: H256::default(),
+            },
+        );
+        (validator_announce, mock_provider)
+    }
+
+    async fn create_test_signed_announcement() -> SignedType<Announcement> {
+        let announcement = Announcement {
+            validator: H256::from_low_u64_be(1).into(),
+            mailbox_address: H256::from_low_u64_be(2),
+            mailbox_domain: 1,
+            storage_location: "s3://test-bucket/validator".to_string(),
+        };
+
+        // Create a test signer using LocalWallet
+        let signer: Signers = "1111111111111111111111111111111111111111111111111111111111111111"
+            .parse::<ethers::signers::LocalWallet>()
+            .unwrap()
+            .into();
+
+        signer.sign(announcement).await.unwrap()
+    }
+
+    /// Setup mock provider responses for gas estimation (LIFO order)
+    fn setup_gas_estimation_mocks(mock_provider: &MockProvider) {
+        let gas_price: U256 =
+            EthersU256::from(ethers::utils::parse_units("15", "gwei").unwrap()).into();
+        mock_provider.push(gas_price).unwrap();
+
+        let fee_history = FeeHistory {
+            oldest_block: ethers::types::U256::zero(),
+            base_fee_per_gas: vec![],
+            gas_used_ratio: vec![],
+            reward: vec![vec![]],
+        };
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history.clone()).unwrap();
+        mock_provider.push(fee_history).unwrap();
+
+        let latest_block: Block<Transaction> = Block {
+            gas_limit: ethers::types::U256::MAX,
+            ..Block::<Transaction>::default()
+        };
+        mock_provider.push(latest_block).unwrap();
+
+        let gas_limit = U256::from(100000u32);
+        mock_provider.push(gas_limit).unwrap();
+    }
+
+    #[tokio::test]
+    async fn test_announce_calldata_returns_valid_json_tuple() {
+        let domain = HyperlaneDomain::Known(KnownHyperlaneDomain::Ethereum);
+        let (validator_announce, mock_provider) = get_test_validator_announce(domain);
+        let signed_announcement = create_test_signed_announcement().await;
+        setup_gas_estimation_mocks(&mock_provider);
+
+        let calldata = validator_announce
+            .announce_calldata(signed_announcement)
+            .await
+            .unwrap();
+
+        // Verify calldata is valid JSON tuple of (TypedTransaction, Function)
+        assert!(!calldata.is_empty());
+        let parsed: serde_json::Value = serde_json::from_slice(&calldata).unwrap();
+        assert!(parsed.is_array());
+        assert_eq!(parsed.as_array().unwrap().len(), 2);
+        // Verify the function name is "announce"
+        assert_eq!(parsed[1]["name"], "announce");
     }
 }
