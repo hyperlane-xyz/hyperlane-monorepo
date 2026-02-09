@@ -468,9 +468,30 @@ impl<C: AleoClient> AleoProvider<C> {
             )
             .map_err(HyperlaneAleoError::from)?;
 
-        // Either use the proving service or generate the proof locally
+        // Either use the proving service (with local fallback) or generate the proof locally
         let transaction = match self.proving_service {
-            Some(ref client) => client.proving_request(authorization, fee).await,
+            Some(ref client) => {
+                match client
+                    .proving_request(authorization.clone(), fee.clone())
+                    .await
+                {
+                    Ok(tx) => Ok::<_, ChainCommunicationError>(tx),
+                    Err(e) => {
+                        debug!(
+                            error = %e,
+                            "Delegated proving failed, falling back to local proving"
+                        );
+                        Ok(vm
+                            .execute_authorization(
+                                authorization,
+                                Some(fee),
+                                Some(&self.client),
+                                &mut rng,
+                            )
+                            .map_err(HyperlaneAleoError::from)?)
+                    }
+                }
+            }
             None => Ok(vm
                 .execute_authorization(authorization, Some(fee), Some(&self.client), &mut rng)
                 .map_err(HyperlaneAleoError::from)?),
