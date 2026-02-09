@@ -1,3 +1,4 @@
+use std::str::FromStr;
 use std::sync::Arc;
 use std::time::Duration;
 
@@ -239,15 +240,10 @@ impl TronProvider {
         }
     }
 
-    fn get_block_info(block: &crate::provider::traits::BlockResponse) -> BlockInfo {
-        let block_id_bytes = hex::decode(&block.block_id).unwrap_or_default();
-        let hash = if block_id_bytes.len() >= 32 {
-            H256::from_slice(&block_id_bytes[..32])
-        } else {
-            H256::zero()
-        };
+    fn get_block_info(block: &crate::provider::traits::BlockResponse) -> ChainResult<BlockInfo> {
+        let hash = H256::from_str(&block.block_id)?;
 
-        BlockInfo {
+        Ok(BlockInfo {
             hash,
             timestamp: block
                 .block_header
@@ -256,7 +252,7 @@ impl TronProvider {
                 .checked_div(1000)
                 .unwrap_or_default(),
             number: block.block_header.raw_data.number,
-        }
+        })
     }
 }
 
@@ -340,7 +336,7 @@ impl HyperlaneProvider for TronProvider {
     /// Get block info for a given block height
     async fn get_block_by_height(&self, height: u64) -> ChainResult<BlockInfo> {
         let block = self.rest.get_block_by_num(height).await?;
-        Ok(Self::get_block_info(&block))
+        Self::get_block_info(&block)
     }
 
     /// Get txn info for a given txn hash
@@ -412,7 +408,7 @@ impl HyperlaneProvider for TronProvider {
 
     async fn get_chain_metrics(&self) -> ChainResult<Option<ChainInfo>> {
         let block = self.get_current_block().await?;
-        let chain_metrics = ChainInfo::new(Self::get_block_info(&block), None);
+        let chain_metrics = ChainInfo::new(Self::get_block_info(&block)?, None);
         Ok(Some(chain_metrics))
     }
 }
