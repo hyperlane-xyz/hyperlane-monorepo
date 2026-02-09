@@ -507,44 +507,15 @@ pub fn build_tron_connection_conf(
     err: &mut ConfigParsingError,
     _operation_batch: OpSubmissionConfig,
 ) -> Option<ChainConnectionConf> {
-    let mut local_err = ConfigParsingError::default();
-    let grpc_urls = parse_base_and_override_urls(
-        chain,
-        "grpcUrls",
-        "customGrpcUrls",
-        "http",
-        &mut local_err,
-        false,
-    );
-
-    let solidity_grpc_urls = parse_base_and_override_urls(
-        chain,
-        "solidityGrpcUrls",
-        "customSolidityGrpcUrls",
-        "http",
-        &mut local_err,
-        false,
-    );
-
-    let fee_multiplier = chain
+    let energy_multiplier = chain
         .chain(err)
-        .get_opt_key("feeMultiplier")
+        .get_opt_key("energyMultiplier")
         .parse_f64()
         .end();
 
-    if !local_err.is_ok() {
-        err.merge(local_err);
-        None
-    } else {
-        Some(ChainConnectionConf::Tron(
-            hyperlane_tron::ConnectionConf::new(
-                rpcs.to_vec(),
-                grpc_urls,
-                solidity_grpc_urls,
-                fee_multiplier,
-            ),
-        ))
-    }
+    Some(ChainConnectionConf::Tron(
+        hyperlane_tron::ConnectionConf::new(rpcs.to_vec(), energy_multiplier),
+    ))
 }
 
 pub fn build_radix_connection_conf(
