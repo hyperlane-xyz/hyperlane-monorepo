@@ -30,7 +30,21 @@ export const AleoPopupProvider = ({
 
   const handleWalletClick = async () => {
     setShowPopUp(false);
-    await getAdapter().connect(
+
+    const adapter = getAdapter();
+
+    // Check if wallet is installed by checking if the provider is available
+    if (!adapter.readyState || adapter.readyState === 'NotDetected') {
+      // Wallet not installed, open Chrome Web Store
+      window.open(
+        'https://chromewebstore.google.com/detail/shield/hhddpjpacfjaakjioinajgmhlbhfchao?utm_source=hyperlane&utm_medium=nexus',
+        '_blank',
+      );
+      return;
+    }
+
+    // Wallet is installed, proceed with connection
+    await adapter.connect(
       Network.MAINNET,
       WalletDecryptPermission.AutoDecrypt,
       [],
