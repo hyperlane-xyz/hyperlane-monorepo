@@ -311,7 +311,17 @@ impl Middleware for TronProvider {
             .await
             .map_err(|e| ProviderError::CustomError(e.to_string()))?;
 
-        Ok(ethers::types::U256::from(estimate.energy_required))
+        match estimate.result.result {
+            true => Ok(ethers::types::U256::from(estimate.energy_required)),
+            false => {
+                let message = format!(
+                    "Energy estimation failed: code={}, message={}",
+                    estimate.result.code.as_deref().unwrap_or("unknown"),
+                    estimate.result.message.as_deref().unwrap_or("unknown"),
+                );
+                Err(ProviderError::CustomError(message))
+            }
+        }
     }
 }
 

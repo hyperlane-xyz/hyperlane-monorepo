@@ -79,11 +79,23 @@ pub struct TriggerResultStatus {
     pub message: Option<String>,
 }
 
+#[derive(Deserialize, Debug)]
+pub struct EstimateEnergyResultStatus {
+    /// Whether the estimation succeeded
+    pub result: bool,
+    /// Error code if failed
+    pub code: Option<String>,
+    /// Error message if failed (hex-encoded)
+    pub message: Option<String>,
+}
+
 /// Result from estimate_energy
 #[derive(Deserialize, Debug)]
-pub struct EstimateEnergyResult {
+pub struct EstimateEnergyResponse {
     /// Energy required
     pub energy_required: u64,
+    /// Result status
+    pub result: EstimateEnergyResultStatus,
 }
 
 /// Transaction returned by trigger_smart_contract
@@ -144,7 +156,7 @@ impl<T: HttpClient> Deref for TronRpcClient<T> {
 }
 
 impl<Client: HttpClient> TronRpcClient<Client> {
-    /// Get the latest block (from full node)
+    /// Get the latest block (from solidity node)
     pub async fn get_now_block(&self) -> ChainResult<BlockResponse> {
         self.request_post("walletsolidity/getnowblock", &serde_json::json!({}))
             .await
@@ -199,7 +211,7 @@ impl<Client: HttpClient> TronRpcClient<Client> {
         owner_address: &str,
         contract_address: &str,
         data: &str,
-    ) -> ChainResult<EstimateEnergyResult> {
+    ) -> ChainResult<EstimateEnergyResponse> {
         let body = serde_json::json!({
             "owner_address": owner_address,
             "contract_address": contract_address,

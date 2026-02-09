@@ -28,8 +28,8 @@ pub(crate) fn build_fallback_provider(
 ) -> ChainResult<JsonProvider> {
     let mut builder = FallbackProvider::builder();
     for url in rpcs {
-        let url = url.clone().to_string() + "jsonrpc";
-        let url = Url::parse(&url)
+        let url = url
+            .join("jsonrpc")
             .map_err(|e| HyperlaneTronError::RestApiError(format!("invalid URL: {e}")))?;
         let http_provider = build_http_provider(url.clone())?;
         let metrics_provider =
