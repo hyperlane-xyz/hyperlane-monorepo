@@ -1,5 +1,5 @@
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
-import { BigNumber, constants, utils } from 'ethers';
+import { BigNumber, utils } from 'ethers';
 
 import { SwapAndBridgeParams, UniversalRouterCommand } from './types.js';
 
@@ -139,8 +139,13 @@ export function encodeV3SwapExactIn(
 export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   commands: string;
   inputs: string[];
+  value: BigNumber;
 } {
   const encodedCommands: UniversalRouterCommand[] = [];
+  const bridgeMsgFee = params.bridgeMsgFee ?? BigNumber.from(0);
+  const bridgeTokenFee = params.bridgeTokenFee ?? BigNumber.from(0);
+  const crossChainMsgFee = params.crossChainMsgFee ?? BigNumber.from(0);
+  const crossChainTokenFee = params.crossChainTokenFee ?? BigNumber.from(0);
 
   if (!eqAddress(params.originToken, params.bridgeToken)) {
     const path = utils.solidityPack(
@@ -165,8 +170,8 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       token: params.bridgeToken,
       bridge: params.warpRouteAddress,
       amount: params.amount,
-      msgFee: BigNumber.from(0),
-      tokenFee: BigNumber.from(0),
+      msgFee: bridgeMsgFee,
+      tokenFee: bridgeTokenFee,
       domain: params.destinationDomain,
       payerIsUser: true,
     }),
@@ -176,14 +181,14 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
     encodeExecuteCrossChain({
       domain: params.destinationDomain,
       icaRouter: params.icaRouterAddress,
-      remoteRouter: params.icaRouterAddress,
-      ism: constants.AddressZero,
-      commitment: constants.HashZero,
-      msgFee: BigNumber.from(0),
+      remoteRouter: params.remoteIcaRouterAddress,
+      ism: params.ismAddress,
+      commitment: params.commitment,
+      msgFee: crossChainMsgFee,
       token: params.bridgeToken,
-      tokenFee: BigNumber.from(0),
-      hook: '0x',
-      hookMetadata: '0x',
+      tokenFee: crossChainTokenFee,
+      hook: params.hook ?? '0x',
+      hookMetadata: params.hookMetadata ?? '0x',
     }),
   );
 
@@ -195,8 +200,11 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       )
       .join('');
 
+  const value = bridgeMsgFee.add(crossChainMsgFee);
+
   return {
     commands,
     inputs: encodedCommands.map((command) => command.encodedInput),
+    value,
   };
 }

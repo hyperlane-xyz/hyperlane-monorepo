@@ -33,8 +33,17 @@ export interface SwapAndBridgeParams {
   destinationDomain: number;
   warpRouteAddress: string;
   icaRouterAddress: string;
+  remoteIcaRouterAddress: string;
   universalRouterAddress: string;
+  ismAddress: string;
+  commitment: string;
   slippage: number;
+  bridgeMsgFee?: BigNumber;
+  bridgeTokenFee?: BigNumber;
+  crossChainMsgFee?: BigNumber;
+  crossChainTokenFee?: BigNumber;
+  hook?: string;
+  hookMetadata?: string;
 }
 
 export interface UniversalRouterCommand {
@@ -42,18 +51,8 @@ export interface UniversalRouterCommand {
   encodedInput: string;
 }
 
-export interface CommitmentParams {
-  calls: Array<{ to: string; data: string; value: string }>;
-  salt: string;
-  originDomain: number;
-  destinationDomain: number;
-  owner: string;
-  ismOverride?: string;
-}
-
 export interface IcaConfig {
   origin: number;
-  destination: number;
   owner: string;
   routerAddress: string;
   ismAddress: string;
