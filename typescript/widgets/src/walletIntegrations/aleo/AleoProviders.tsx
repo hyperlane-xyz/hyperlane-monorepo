@@ -44,15 +44,11 @@ export const AleoPopupProvider = ({
     }
 
     // Wallet is installed, proceed with connection
-    try {
-      await adapter.connect(
-        Network.MAINNET,
-        WalletDecryptPermission.AutoDecrypt,
-        [],
-      );
-    } catch (error: unknown) {
-      console.error('Failed to connect Aleo wallet', error);
-    }
+    await adapter.connect(
+      Network.MAINNET,
+      WalletDecryptPermission.AutoDecrypt,
+      [],
+    );
   };
 
   return (
