@@ -15,11 +15,13 @@ import { getDomainId } from '../commands/helpers.js';
 import {
   extendWarpConfig,
   hyperlaneWarpApply,
+  hyperlaneWarpApplyRaw,
   hyperlaneWarpDeploy,
   readWarpConfig,
 } from '../commands/warp.js';
 import {
   ANVIL_KEY,
+  CHAIN_4_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   CHAIN_NAME_4,
@@ -185,6 +187,135 @@ describe('hyperlane warp apply resumable extension tests', async function () {
     expect(routers3).to.include(chain4Id);
 
     // anvil4 should know about anvil2 and anvil3
+    const routers4 = Object.keys(finalConfig4[CHAIN_NAME_4].remoteRouters!);
+    expect(routers4).to.include(chain2Id);
+    expect(routers4).to.include(chain3Id);
+  });
+
+  it('should persist successful deployments and allow retry after partial failure', async () => {
+    const ownerAddress = new Wallet(ANVIL_KEY).address;
+
+    // Save original anvil4 metadata, then break its RPC
+    const originalMetadata = readYamlOrJson(CHAIN_4_METADATA_PATH) as Record<
+      string,
+      unknown
+    >;
+    const brokenMetadata = {
+      ...originalMetadata,
+      rpcUrls: [{ http: 'http://127.0.0.1:9999' }],
+    };
+    writeYamlOrJson(CHAIN_4_METADATA_PATH, brokenMetadata);
+
+    // Build deploy config: anvil2 (existing) + anvil3 + anvil4
+    const warpDeployPath = `${TEMP_PATH}/warp-route-deployment-partial.yaml`;
+    const config2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      WARP_CORE_CONFIG_PATH_2,
+      warpDeployPath,
+    );
+    delete config2[CHAIN_NAME_2].remoteRouters;
+    delete config2[CHAIN_NAME_2].destinationGas;
+
+    const warpDeployConfig = {
+      ...config2,
+      [CHAIN_NAME_3]: {
+        decimals: 18,
+        mailbox: chain3Addresses!.mailbox,
+        name: 'Ether',
+        owner: ownerAddress,
+        symbol: 'ETH',
+        type: TokenType.native,
+      },
+      [CHAIN_NAME_4]: {
+        decimals: 18,
+        mailbox: chain4Addresses!.mailbox,
+        name: 'Ether',
+        owner: ownerAddress,
+        symbol: 'ETH',
+        type: TokenType.native,
+      },
+    };
+    writeYamlOrJson(warpDeployPath, warpDeployConfig);
+
+    // Run warp apply — anvil3 should succeed, anvil4 should fail
+    const result = await hyperlaneWarpApplyRaw({
+      warpDeployPath,
+      warpCorePath: WARP_CORE_CONFIG_PATH_2,
+    }).nothrow();
+    expect(result.exitCode).to.not.equal(0);
+
+    // Restore anvil4 metadata
+    writeYamlOrJson(CHAIN_4_METADATA_PATH, originalMetadata);
+
+    // Verify anvil3 was persisted (partial success)
+    const combinedWarpCorePath_2_3 = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+    ]);
+    const partialWarpCore: WarpCoreConfig = readYamlOrJson(
+      combinedWarpCorePath_2_3,
+    );
+    const anvil3Address = partialWarpCore.tokens.find(
+      (t) => t.chainName === CHAIN_NAME_3,
+    )?.addressOrDenom;
+    expect(anvil3Address).to.be.a('string');
+
+    // Re-run warp apply — anvil4 RPC is now restored
+    await hyperlaneWarpApply(warpDeployPath, combinedWarpCorePath_2_3);
+
+    // Verify all 3 chains deployed
+    const combinedWarpCorePath_2_3_4 = getCombinedWarpRoutePath('ETH', [
+      CHAIN_NAME_2,
+      CHAIN_NAME_3,
+      CHAIN_NAME_4,
+    ]);
+    const finalWarpCore: WarpCoreConfig = readYamlOrJson(
+      combinedWarpCorePath_2_3_4,
+    );
+
+    // anvil3 address unchanged (not re-deployed)
+    const finalAnvil3Address = finalWarpCore.tokens.find(
+      (t) => t.chainName === CHAIN_NAME_3,
+    )?.addressOrDenom;
+    expect(finalAnvil3Address).to.equal(anvil3Address);
+
+    // anvil4 newly deployed
+    const anvil4Address = finalWarpCore.tokens.find(
+      (t) => t.chainName === CHAIN_NAME_4,
+    )?.addressOrDenom;
+    expect(anvil4Address).to.be.a('string');
+
+    // Verify all 3 chains enrolled in each other
+    const chain2Id = await getDomainId(CHAIN_NAME_2, ANVIL_KEY);
+    const chain3Id = await getDomainId(CHAIN_NAME_3, ANVIL_KEY);
+    const chain4Id = await getDomainId(CHAIN_NAME_4, ANVIL_KEY);
+
+    const readPath = `${TEMP_PATH}/warp-route-read-partial.yaml`;
+
+    const finalConfig2 = await readWarpConfig(
+      CHAIN_NAME_2,
+      combinedWarpCorePath_2_3_4,
+      readPath,
+    );
+    const finalConfig3 = await readWarpConfig(
+      CHAIN_NAME_3,
+      combinedWarpCorePath_2_3_4,
+      readPath,
+    );
+    const finalConfig4 = await readWarpConfig(
+      CHAIN_NAME_4,
+      combinedWarpCorePath_2_3_4,
+      readPath,
+    );
+
+    const routers2 = Object.keys(finalConfig2[CHAIN_NAME_2].remoteRouters!);
+    expect(routers2).to.include(chain3Id);
+    expect(routers2).to.include(chain4Id);
+
+    const routers3 = Object.keys(finalConfig3[CHAIN_NAME_3].remoteRouters!);
+    expect(routers3).to.include(chain2Id);
+    expect(routers3).to.include(chain4Id);
+
     const routers4 = Object.keys(finalConfig4[CHAIN_NAME_4].remoteRouters!);
     expect(routers4).to.include(chain2Id);
     expect(routers4).to.include(chain3Id);
