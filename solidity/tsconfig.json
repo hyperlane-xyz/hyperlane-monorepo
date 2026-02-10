@@ -11,6 +11,7 @@
     "zk-hardhat.config.cts",
     "tron-hardhat.config.cts",
     "rootHardhatConfig.cts",
+    "./plugins",
     "./dependencies"
   ]
 }

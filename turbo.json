@@ -9,6 +9,14 @@
       "dependsOn": ["build"],
       "outputs": ["dist/**", "artifacts-zk/**", "cache-zk/**"]
     },
+    "build:tron": {
+      "dependsOn": ["build"],
+      "outputs": ["artifacts-tron/**", "cache-tron/**"]
+    },
+    "@hyperlane-xyz/tron-sdk#build": {
+      "dependsOn": ["@hyperlane-xyz/core#build:tron", "^build"],
+      "outputs": ["dist/**"]
+    },
     "test:ci": {
       "dependsOn": ["build", "^test:ci"]
     },
