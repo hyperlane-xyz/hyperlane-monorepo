@@ -45,9 +45,6 @@ node patch-isContract.mjs $ISCONTRACT_FILES
 # Compile with tron-solc
 NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
 
-# trap will restore files, then generate artifacts
+# trap will restore files
 trap - EXIT
 restore_files
-
-# Generate artifact JSONs into tron-sdk
-node generate-tron-artifact-exports.mjs

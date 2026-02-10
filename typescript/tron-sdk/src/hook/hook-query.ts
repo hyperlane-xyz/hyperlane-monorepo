@@ -2,10 +2,10 @@ import { TronWeb } from 'tronweb';
 
 import { assert } from '@hyperlane-xyz/utils';
 
-import IPostDispatchHookAbi from '../abi/IPostDispatchHook.json' with { type: 'json' };
-import InterchainGasPaymasterAbi from '../abi/InterchainGasPaymaster.json' with { type: 'json' };
-import MerkleTreeHookAbi from '../abi/MerkleTreeHook.json' with { type: 'json' };
-import StorageGasOracleAbi from '../abi/StorageGasOracle.json' with { type: 'json' };
+import IPostDispatchHookAbi from '../abi/contracts/interfaces/hooks/IPostDispatchHook.sol/IPostDispatchHook.json' with { type: 'json' };
+import InterchainGasPaymasterAbi from '../abi/contracts/hooks/igp/InterchainGasPaymaster.sol/InterchainGasPaymaster.json' with { type: 'json' };
+import MerkleTreeHookAbi from '../abi/contracts/hooks/MerkleTreeHook.sol/MerkleTreeHook.json' with { type: 'json' };
+import StorageGasOracleAbi from '../abi/contracts/hooks/igp/StorageGasOracle.sol/StorageGasOracle.json' with { type: 'json' };
 import { TronHookTypes } from '../utils/types.js';
 
 /**

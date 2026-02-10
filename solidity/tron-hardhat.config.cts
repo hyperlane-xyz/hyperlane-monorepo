@@ -13,6 +13,6 @@ module.exports = {
   paths: {
     sources: './contracts',
     cache: './cache-tron',
-    artifacts: './artifacts-tron',
+    artifacts: '../typescript/tron-sdk/src/abi',
   },
 };
