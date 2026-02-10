@@ -491,55 +491,6 @@ export async function runWarpRouteApply(
 }
 
 /**
- * Handles the deployment and configuration of new contracts for extending a Warp route.
- * This function performs several key steps:
- * 1. Derives metadata from existing contracts and applies it to new configurations
- * 2. Deploys new contracts using the derived configurations
- * 3. Merges existing and new router configurations
- * 4. Generates an updated Warp core configuration
- */
-async function deployWarpExtensionContracts(
-  params: WarpApplyParams,
-  apiKeys: ChainMap<string>,
-  existingConfigs: WarpRouteDeployConfigMailboxRequired,
-  initialExtendedConfigs: WarpRouteDeployConfigMailboxRequired,
-  warpCoreConfigByChain: ChainMap<WarpCoreConfig['tokens'][number]>,
-) {
-  // Deploy new contracts with derived metadata
-  const extendedConfigs = await deriveMetadataFromExisting(
-    params.context.multiProvider,
-    existingConfigs,
-    initialExtendedConfigs,
-  );
-
-  const { deployedContracts: newDeployedContracts } = await executeDeploy(
-    {
-      context: params.context,
-      warpDeployConfig: extendedConfigs,
-    },
-    apiKeys,
-  );
-
-  // Merge existing and new routers
-  const mergedRouters = mergeAllRouters(
-    existingConfigs,
-    newDeployedContracts,
-    warpCoreConfigByChain,
-  );
-
-  // Get the updated core config
-  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
-    await getWarpCoreConfig(params, mergedRouters);
-  WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
-
-  return {
-    newDeployedContracts,
-    updatedWarpCoreConfig,
-    addWarpRouteOptions,
-  };
-}
-
-/**
  * Splits warp configs into existing and extended, and returns details about the extension.
  * @param warpCoreConfig The warp core config.
  * @param warpDeployConfig The warp deploy config.
@@ -632,29 +583,64 @@ export async function extendWarpRoute(
 
   logBlue(`Extending Warp Route to ${filteredExtendedChains.join(', ')}`);
 
-  // Deploy new contracts with derived metadata and merge with existing config
-  const { updatedWarpCoreConfig, addWarpRouteOptions } =
-    await deployWarpExtensionContracts(
-      params,
-      apiKeys,
-      filteredExistingConfigs,
-      filteredExtendedConfigs,
-      filteredWarpCoreConfigByChain,
-    );
+  // Derive metadata once for all new chains
+  const extendedConfigs = await deriveMetadataFromExisting(
+    context.multiProvider,
+    filteredExistingConfigs,
+    filteredExtendedConfigs,
+  );
 
-  // Re-add the non compatible chains to the warp core config so that expanding the config
-  // to get the proper remote routers and gas config works as expected
+  // Deploy all new chains in parallel
+  const { fulfilled, rejected } = await mapAllSettled(
+    filteredExtendedChains,
+    async (chain) => {
+      logBlue(`Deploying extension to ${chain}...`);
+      const { deployedContracts } = await executeDeploy(
+        {
+          context: params.context,
+          warpDeployConfig: { [chain]: extendedConfigs[chain] },
+        },
+        apiKeys,
+      );
+      logGreen(`Successfully deployed extension to ${chain}`);
+      return deployedContracts;
+    },
+    (chain) => chain,
+  );
+
+  // Collect successful deployments
+  let newDeployedContracts: ChainMap<Address> = {};
+  for (const [, contracts] of fulfilled) {
+    newDeployedContracts = { ...newDeployedContracts, ...contracts };
+  }
+
+  for (const [chain, error] of rejected) {
+    errorRed(`Failed to deploy extension to ${chain}: ${error.message}`);
+  }
+
+  if (Object.keys(newDeployedContracts).length === 0 && rejected.size > 0) {
+    throw new Error(
+      `Extension deployment failed for all chains: ${[...rejected.keys()].join(', ')}. Re-run to retry.`,
+    );
+  }
+
+  const mergedRouters = mergeAllRouters(
+    filteredExistingConfigs,
+    newDeployedContracts,
+    filteredWarpCoreConfigByChain,
+  );
+
+  const { warpCoreConfig: updatedWarpCoreConfig, addWarpRouteOptions } =
+    await getWarpCoreConfig(params, mergedRouters);
+  WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
+
   updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
 
-  // Preserve metadata fields from existing config that generateTokenConfigs doesn't include
-  // (e.g. logoURI, coinGeckoId, igpTokenAddressOrDenom, scale).
-  // Spread order ensures generated fields (address, decimals, connections) take precedence.
   updatedWarpCoreConfig.tokens = updatedWarpCoreConfig.tokens.map((token) => {
     const existingToken = warpCoreConfigByChain[token.chainName];
     return existingToken ? { ...existingToken, ...token } : token;
   });
 
-  // Preserve top-level options if no updates
   if (warpCoreConfig.options) {
     updatedWarpCoreConfig.options = {
       ...warpCoreConfig.options,
@@ -662,14 +648,21 @@ export async function extendWarpRoute(
     };
   }
 
-  // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
     params.warpRouteId
-      ? { warpRouteId: params.warpRouteId } // Use warpRouteId if provided, otherwise use the warpCoreConfig symbol
+      ? { warpRouteId: params.warpRouteId }
       : addWarpRouteOptions,
   );
+
+  // Throw after persisting successes so user can re-run for failures
+  if (rejected.size > 0) {
+    throw new Error(
+      `Extension deployment failed for chain(s): ${[...rejected.keys()].join(', ')}. ` +
+        `Successfully deployed chains have been saved to registry. Re-run to retry failed chains.`,
+    );
+  }
 
   return updatedWarpCoreConfig;
 }
