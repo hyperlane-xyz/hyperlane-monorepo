@@ -17,28 +17,6 @@ runs:
         path: ~/.cache/hardhat-nodejs/compilers-v2
         key: hardhat-compilers-${{ runner.os }}
 
-    - name: Cache tron-solc compiler
-      uses: actions/cache@v5
-      with:
-        path: ~/.tron/solc
-        key: tron-solc-${{ runner.os }}
-
-    # Pre-download tron-solc if not cached. The @layerzerolabs/hardhat-tron
-    # downloader uses undici's maxRedirections option which is incompatible
-    # with Node 24's built-in undici.
-    - name: Pre-download tron-solc
-      shell: bash
-      run: |
-        TRON_SOLC_VERSION=0.8.22
-        TRON_SOLC_DIR="$HOME/.tron/solc"
-        TRON_SOLC_FILE="$TRON_SOLC_DIR/soljson_v${TRON_SOLC_VERSION}.js"
-        if [ ! -f "$TRON_SOLC_FILE" ]; then
-          mkdir -p "$TRON_SOLC_DIR"
-          curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL \
-            "https://tronsuper.github.io/tron-solc-bin/bin/soljson_v${TRON_SOLC_VERSION}.js" \
-            -o "$TRON_SOLC_FILE"
-        fi
-
     # Always run install - pnpm needs to create symlinks from the cached store
     # The cache makes this much faster by restoring the pnpm store
     - name: Install dependencies

@@ -42,8 +42,8 @@ cp overwrites/tron/Create2.sol "$OZ_CREATE2"
 # shellcheck disable=SC2086
 node patch-isContract.mjs $ISCONTRACT_FILES
 
-# Compile with tron-solc (--network tron forces tron-solc usage)
-NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile --network tron
+# Compile with tron-solc
+NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts compile
 
 # trap will restore files, then generate artifacts
 trap - EXIT

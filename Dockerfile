@@ -81,19 +81,6 @@ RUN SOLC_BINARY="solc-linux-amd64-v${SOLC_VERSION}+commit.${SOLC_COMMIT}" && \
     curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL "$SOLC_BIN_URL" -o "$CACHE_DIR/${SOLC_BINARY}" && \
     chmod +x "$CACHE_DIR/${SOLC_BINARY}"
 
-# Pre-download tron-solc compiler. The @layerzerolabs/hardhat-tron downloader
-# uses undici's maxRedirections option which is incompatible with Node 24's
-# built-in undici. Pre-downloading avoids this issue and flaky network failures.
-#
-# To update when changing tron solc version in solidity/tron-hardhat.config.cts:
-#   Update TRON_SOLC_VERSION below
-ARG TRON_SOLC_VERSION=0.8.22
-RUN TRON_SOLC_DIR="/root/.tron/solc" && \
-    mkdir -p "$TRON_SOLC_DIR" && \
-    curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL \
-      "https://tronsuper.github.io/tron-solc-bin/bin/soljson_v${TRON_SOLC_VERSION}.js" \
-      -o "$TRON_SOLC_DIR/soljson_v${TRON_SOLC_VERSION}.js"
-
 RUN pnpm build
 
 # Baked-in registry version
