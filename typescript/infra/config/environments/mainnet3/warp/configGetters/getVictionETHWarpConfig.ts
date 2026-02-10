@@ -74,7 +74,7 @@ export const getVictionETHWarpConfig = async (
       currentChain,
       {
         ...baseConfig,
-
+        decimals: 18,
         tokenFee: getFixedRoutingFeeConfig(
           getWarpFeeOwner(currentChain),
           feeDestinations,
