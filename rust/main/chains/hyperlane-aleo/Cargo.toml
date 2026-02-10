@@ -39,7 +39,7 @@ snarkvm-algorithms.workspace = true
 snarkvm-console-account.workspace = true
 aleo-std.workspace = true
 aleo-std-storage.workspace = true
-reqwest = { workspace = true, features = ["json", "blocking"] }
+reqwest = { workspace = true, features = ["json", "blocking", "cookies"] }
 anyhow.workspace = true
 futures.workspace = true
 url.workspace = true
