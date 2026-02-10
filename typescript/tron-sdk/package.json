@@ -20,7 +20,7 @@
     ".": "./dist/index.js"
   },
   "scripts": {
-    "build": "rm -rf ./dist && tsc",
+    "build": "pnpm --filter @hyperlane-xyz/core build:tron && rm -rf ./dist && tsc",
     "format": "oxfmt --write ./src",
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache",
