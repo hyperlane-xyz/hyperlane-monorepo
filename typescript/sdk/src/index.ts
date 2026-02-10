@@ -890,7 +890,10 @@ export {
   WarpCoreFeeEstimate,
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
-export * from './swap/index.js';
+export * from './swap/types.js';
+export * from './swap/UniversalRouterEncoder.js';
+export * from './swap/SwapQuoter.js';
+export * from './swap/IcaDerivation.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {
