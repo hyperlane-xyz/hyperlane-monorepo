@@ -101,7 +101,10 @@ export function useAleoWalletDetails() {
 
 export function useAleoConnectFn(): () => void {
   const popUp = useAleoPopup();
-  assert(popUp, `AleoPopupProvider is not defined, make sure it is imported and wrapping your application`);
+  assert(
+    popUp,
+    `AleoPopupProvider is not defined, make sure it is imported and wrapping your application`,
+  );
 
   const connect = () => {
     popUp.setShowPopUp(true);
