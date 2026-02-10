@@ -634,13 +634,19 @@ export async function extendWarpRoute(
     await getWarpCoreConfig(params, mergedRouters);
   WarpCoreConfigSchema.parse(updatedWarpCoreConfig);
 
+  // Re-add the non compatible chains to the warp core config so that expanding the config
+  // to get the proper remote routers and gas config works as expected
   updatedWarpCoreConfig.tokens.push(...nonCompatibleWarpCoreConfigs);
 
+  // Preserve metadata fields from existing config that generateTokenConfigs doesn't include
+  // (e.g. logoURI, coinGeckoId, igpTokenAddressOrDenom, scale).
+  // Spread order ensures generated fields (address, decimals, connections) take precedence.
   updatedWarpCoreConfig.tokens = updatedWarpCoreConfig.tokens.map((token) => {
     const existingToken = warpCoreConfigByChain[token.chainName];
     return existingToken ? { ...existingToken, ...token } : token;
   });
 
+  // Preserve top-level options if no updates
   if (warpCoreConfig.options) {
     updatedWarpCoreConfig.options = {
       ...warpCoreConfig.options,
@@ -648,6 +654,7 @@ export async function extendWarpRoute(
     };
   }
 
+  // Write the updated artifacts
   await writeDeploymentArtifacts(
     updatedWarpCoreConfig,
     context,
