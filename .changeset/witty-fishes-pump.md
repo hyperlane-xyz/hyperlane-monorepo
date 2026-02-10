@@ -2,4 +2,4 @@
 "@hyperlane-xyz/widgets": patch
 ---
 
-fix: aleo popup
+Added Aleo wallet popup that links to the Chrome extension store when Shield wallet is not installed.
