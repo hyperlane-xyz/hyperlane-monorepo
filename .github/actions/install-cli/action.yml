@@ -30,6 +30,18 @@ runs:
       if: inputs.no-cache != 'false'
       uses: pnpm/action-setup@v4
 
+    # Pre-download tron-solc if not cached (Node 24 undici incompatibility)
+    - name: Pre-download tron-solc (no-cache path)
+      if: inputs.no-cache != 'false'
+      shell: bash
+      run: |
+        TRON_SOLC_VERSION=0.8.22
+        TRON_SOLC_DIR="$HOME/.tron/solc"
+        mkdir -p "$TRON_SOLC_DIR"
+        curl --retry 5 --retry-delay 5 --retry-all-errors -fsSL \
+          "https://tronsuper.github.io/tron-solc-bin/bin/soljson_v${TRON_SOLC_VERSION}.js" \
+          -o "$TRON_SOLC_DIR/soljson_v${TRON_SOLC_VERSION}.js"
+
     - name: pnpm-install-build-without-cache
       if: inputs.no-cache != 'false'
       shell: bash
