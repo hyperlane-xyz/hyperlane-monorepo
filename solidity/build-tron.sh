@@ -2,6 +2,12 @@
 set -e
 cd "$(dirname "$0")"
 
+# Ensure soldeer dependencies are installed before patching files.
+# The regular @hyperlane-xyz/core build also runs soldeer install, and if it
+# runs concurrently with our file patches below, soldeer's git checkout fails
+# on the dirty working tree. Running it first avoids the race condition.
+forge soldeer install --quiet
+
 OZ_CREATE2="dependencies/@openzeppelin-contracts-4.9.3/contracts/utils/Create2.sol"
 
 # Collect all .sol files that use isContract (contracts + dependencies)
