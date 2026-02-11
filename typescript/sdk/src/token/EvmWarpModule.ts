@@ -121,6 +121,10 @@ export class EvmWarpModule extends HyperlaneModule<
     protected readonly contractVerifier?: ContractVerifier,
   ) {
     super(args);
+    this.logger = rootLogger.child({
+      module: 'EvmWarpModule',
+      chain: String(args.chain),
+    });
     this.reader = new EvmWarpRouteReader(multiProvider, args.chain);
     this.chainName = this.multiProvider.getChainName(args.chain);
     this.chainId = multiProvider.getEvmChainId(args.chain);

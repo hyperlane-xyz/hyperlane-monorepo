@@ -46,6 +46,12 @@ export const logLevelCommandOption: Options = {
   choices: Object.values(LogLevel),
 };
 
+export const logDirCommandOption: Options = {
+  type: 'string',
+  description:
+    'Directory for persistent log files. Creates a timestamped subdirectory with combined.log and per-chain log files.',
+};
+
 export const registryUrisCommandOption: Options = {
   type: 'array',
   string: true,

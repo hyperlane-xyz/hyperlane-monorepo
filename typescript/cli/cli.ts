@@ -15,6 +15,7 @@ import {
   disableProxyCommandOption,
   githubAuthTokenOption,
   keyCommandOption,
+  logDirCommandOption,
   logFormatCommandOption,
   logLevelCommandOption,
   overrideRegistryUriCommandOption,
@@ -32,7 +33,7 @@ import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
 import { xerc20Command } from './src/commands/xerc20.js';
 import { contextMiddleware, signerMiddleware } from './src/context/context.js';
-import { configureLogger, errorRed } from './src/logger.js';
+import { configureLogger, errorRed, getFileLogRouter } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
 
@@ -45,6 +46,7 @@ try {
     .scriptName('hyperlane')
     .option('log', logFormatCommandOption)
     .option('verbosity', logLevelCommandOption)
+    .option('log-dir', logDirCommandOption)
     .option('registry', registryUrisCommandOption)
     .option('authToken', githubAuthTokenOption)
     .option('overrides', overrideRegistryUriCommandOption)
@@ -52,10 +54,14 @@ try {
     .option('disableProxy', disableProxyCommandOption)
     .option('yes', skipConfirmationOption)
     .option('strategy', strategyCommandOption)
-    .global(['log', 'verbosity', 'registry', 'overrides', 'yes'])
+    .global(['log', 'verbosity', 'registry', 'overrides', 'yes', 'log-dir'])
     .middleware([
       (argv) => {
-        configureLogger(argv.log as LogFormat, argv.verbosity as LogLevel);
+        configureLogger(
+          argv.log as LogFormat,
+          argv.verbosity as LogLevel,
+          argv.logDir as string | undefined,
+        );
       },
       contextMiddleware,
       signerMiddleware,
@@ -86,4 +92,6 @@ try {
     .showHelpOnFail(false).argv;
 } catch (error: any) {
   errorRed('Error: ' + error.message);
+} finally {
+  getFileLogRouter()?.close();
 }

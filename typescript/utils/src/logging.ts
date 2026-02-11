@@ -1,5 +1,6 @@
 import { BigNumber } from 'ethers';
 import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
+import type { Writable } from 'stream';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
 
@@ -59,10 +60,15 @@ export function getRootLogger() {
 export function configureRootLogger(
   newLogFormat: LogFormat,
   newLogLevel: LogLevel,
+  additionalStreams?: Writable[],
 ) {
   logFormat = newLogFormat;
   logLevel = toPinoLevel(newLogLevel) || logLevel;
-  rootLogger = createHyperlanePinoLogger(logLevel, logFormat);
+  rootLogger = createHyperlanePinoLogger(
+    logLevel,
+    logFormat,
+    additionalStreams,
+  );
   return rootLogger;
 }
 
@@ -74,7 +80,55 @@ export function setRootLogger(logger: Logger) {
 export function createHyperlanePinoLogger(
   logLevel: LevelWithSilent,
   logFormat: LogFormat,
+  additionalStreams?: Writable[],
 ) {
+  // When additional streams are provided, use pino.multistream so that
+  // logs go to both stdout (with formatting) and the extra streams (raw JSON).
+  if (additionalStreams && additionalStreams.length > 0) {
+    const streams: pino.StreamEntry[] = additionalStreams.map((s) => ({
+      stream: s,
+    }));
+
+    if (logFormat === LogFormat.Pretty) {
+      // Pretty mode with file streams: bypass pino for console output (same
+      // pattern as the non-multistream pretty path), but still pipe JSON to
+      // the additional streams via multistream.
+      return pino(
+        {
+          level: logLevel,
+          name: 'hyperlane',
+          formatters: {
+            bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
+          },
+          hooks: {
+            logMethod(inputArgs, method, level) {
+              if (level >= pino.levels.values[logLevel]) {
+                // eslint-disable-next-line no-console
+                console.log(...inputArgs);
+              }
+              // Still call method so JSON reaches the file streams
+              return method.apply(this, inputArgs);
+            },
+          },
+        },
+        pino.multistream(streams),
+      );
+    }
+
+    // JSON mode: stdout + file streams
+    streams.push({ stream: process.stdout });
+    return pino(
+      {
+        level: logLevel,
+        name: 'hyperlane',
+        formatters: {
+          bindings: (defaultBindings) => ({ pid: defaultBindings.pid }),
+        },
+      },
+      pino.multistream(streams),
+    );
+  }
+
   // In development, pino-pretty is used for a better dev experience,
   // but only if the log format is 'pretty'. This allows for JSON logs
   // in development as well if explicitly configured.
