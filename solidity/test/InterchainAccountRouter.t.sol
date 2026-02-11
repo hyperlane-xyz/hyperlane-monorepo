@@ -12,6 +12,7 @@ import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecu
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage, CommitmentReadIsm} from "../contracts/middleware/InterchainAccountRouter.sol";
+import {ERC20Test} from "../contracts/test/ERC20Test.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
@@ -1261,5 +1262,130 @@ contract InterchainAccountRouterTest is InterchainAccountRouterTestBase {
 
         vm.expectRevert("ICA: Previous commitment pending execution");
         ica.setCommitment(commitment);
+    }
+}
+
+contract ExecuteLocalUnauthenticatedTest is InterchainAccountRouterTestBase {
+    using TypeCasts for address;
+
+    ERC20Test internal token;
+
+    function setUp() public override {
+        super.setUp();
+        token = new ERC20Test("Test", "TST", 1e24, 18);
+    }
+
+    function _buildTransferCall(
+        address to,
+        uint256 amount
+    ) private view returns (CallLib.Call[] memory) {
+        CallLib.Call memory call = CallLib.Call(
+            address(token).addressToBytes32(),
+            0,
+            abi.encodeCall(token.transfer, (to, amount))
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+        return calls;
+    }
+
+    function _computeIcaAddress(
+        CallLib.Call[] memory calls
+    ) private view returns (address) {
+        bytes32 salt = keccak256(abi.encode(calls));
+        return
+            address(
+                originIcaRouter.getLocalInterchainAccount(
+                    origin,
+                    bytes32(0),
+                    address(originIcaRouter).addressToBytes32(),
+                    address(0),
+                    salt
+                )
+            );
+    }
+
+    function test_executeLocalUnauthenticated_deploysAndExecutes() public {
+        uint256 amount = 100e18;
+        CallLib.Call[] memory calls = _buildTransferCall(address(this), amount);
+        address icaAddr = _computeIcaAddress(calls);
+
+        // Fund the ICA
+        token.transfer(icaAddr, amount);
+        assertEq(token.balanceOf(icaAddr), amount);
+
+        uint256 balBefore = token.balanceOf(address(this));
+
+        // Execute
+        originIcaRouter.executeLocalUnauthenticated(calls);
+
+        // ICA was deployed and calls executed
+        assert(icaAddr.code.length > 0);
+        assertEq(token.balanceOf(icaAddr), 0);
+        assertEq(token.balanceOf(address(this)), balBefore + amount);
+    }
+
+    function test_executeLocalUnauthenticated_deterministicAddress() public {
+        uint256 amount = 50e18;
+        CallLib.Call[] memory calls = _buildTransferCall(address(this), amount);
+
+        address icaAddr1 = _computeIcaAddress(calls);
+        address icaAddr2 = _computeIcaAddress(calls);
+        assertEq(icaAddr1, icaAddr2);
+    }
+
+    function test_executeLocalUnauthenticated_differentCallsDifferentIca()
+        public
+    {
+        CallLib.Call[] memory calls1 = _buildTransferCall(address(this), 10e18);
+        CallLib.Call[] memory calls2 = _buildTransferCall(address(this), 20e18);
+
+        address ica1 = _computeIcaAddress(calls1);
+        address ica2 = _computeIcaAddress(calls2);
+        assertNotEq(ica1, ica2);
+    }
+
+    function test_executeLocalUnauthenticated_revertsIfUnderfunded() public {
+        uint256 amount = 100e18;
+        CallLib.Call[] memory calls = _buildTransferCall(address(this), amount);
+        // Don't fund the ICA — call should revert
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        originIcaRouter.executeLocalUnauthenticated(calls);
+    }
+
+    function test_executeLocalUnauthenticated_idempotentDeploy() public {
+        uint256 amount = 50e18;
+        CallLib.Call[] memory calls = _buildTransferCall(address(this), amount);
+        address icaAddr = _computeIcaAddress(calls);
+
+        // Fund and execute first time
+        token.transfer(icaAddr, amount);
+        originIcaRouter.executeLocalUnauthenticated(calls);
+
+        // Fund and execute second time — same ICA, no redeploy
+        token.transfer(icaAddr, amount);
+        originIcaRouter.executeLocalUnauthenticated(calls);
+
+        assertEq(token.balanceOf(icaAddr), 0);
+    }
+
+    function test_executeLocalUnauthenticated_withValue() public {
+        // Test with native value forwarding
+        CallLib.Call memory call = CallLib.Call(
+            address(target).addressToBytes32(),
+            1 ether,
+            abi.encodeCall(target.set, (bytes32("hello")))
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+
+        address icaAddr = _computeIcaAddress(calls);
+
+        // Fund ICA with ETH
+        vm.deal(icaAddr, 1 ether);
+
+        originIcaRouter.executeLocalUnauthenticated(calls);
+        assertEq(target.value(icaAddr), 1 ether);
+        assertEq(target.data(icaAddr), bytes32("hello"));
     }
 }

@@ -375,6 +375,12 @@ export {
 export { InterchainAccountChecker } from './middleware/account/InterchainAccountChecker.js';
 export { InterchainAccountDeployer } from './middleware/account/InterchainAccountDeployer.js';
 export {
+  computeTokenTransferIca,
+  computeTokenTransferIcaSalt,
+  relayTokenTransferIca,
+  getErc20Balance,
+} from './middleware/account/TokenTransferIca.js';
+export {
   AccountConfig,
   AccountConfigSchema,
   GetCallRemoteSettings,

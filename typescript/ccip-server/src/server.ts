@@ -12,6 +12,7 @@ import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
+import { TokenTransferIcaService } from './services/TokenTransferIcaService.js';
 import {
   PrometheusMetrics,
   UnhandledErrorReason,
@@ -22,6 +23,7 @@ export const moduleRegistry: Record<string, ServiceFactory> = {
   callCommitments: CallCommitmentsService,
   cctp: CCTPService,
   opstack: OPStackService,
+  tokenTransferIca: TokenTransferIcaService,
 };
 
 async function startServer() {

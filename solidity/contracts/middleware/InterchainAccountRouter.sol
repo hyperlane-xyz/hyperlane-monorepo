@@ -719,6 +719,27 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
+    /**
+     * @notice Deploys (if needed) and executes calls on an unauthenticated local ICA.
+     * The ICA address is deterministically derived from the calls themselves
+     * (salt = keccak256(abi.encode(calls))), so the ICA can only execute
+     * the exact calls that determined its address. No Mailbox dispatch needed.
+     * @param _calls The sequence of calls to execute
+     */
+    function executeLocalUnauthenticated(
+        CallLib.Call[] calldata _calls
+    ) external payable {
+        bytes32 _salt = keccak256(abi.encode(_calls));
+        OwnableMulticall ica = getDeployedInterchainAccount(
+            localDomain,
+            bytes32(0),
+            address(this).addressToBytes32(),
+            address(0),
+            _salt
+        );
+        ica.multicall{value: msg.value}(_calls);
+    }
+
     // refunds from the commit dispatch call used to fund reveal dispatch call
     receive() external payable {}
 
