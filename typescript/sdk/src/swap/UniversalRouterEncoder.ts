@@ -211,20 +211,26 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
     }),
   );
 
-  encodedCommands.push(
-    encodeExecuteCrossChain({
-      domain: params.destinationDomain,
-      icaRouter: params.icaRouterAddress,
-      remoteRouter: params.remoteIcaRouterAddress,
-      ism: params.ismAddress,
-      commitment: params.commitment,
-      msgFee: crossChainMsgFee,
-      token: params.bridgeToken,
-      tokenFee: crossChainTokenFee,
-      hook: params.hook ?? constants.AddressZero,
-      hookMetadata: params.hookMetadata ?? '0x',
-    }),
-  );
+  if (
+    params.icaRouterAddress &&
+    params.remoteIcaRouterAddress &&
+    params.commitment
+  ) {
+    encodedCommands.push(
+      encodeExecuteCrossChain({
+        domain: params.destinationDomain,
+        icaRouter: params.icaRouterAddress,
+        remoteRouter: params.remoteIcaRouterAddress,
+        ism: params.ismAddress ?? constants.AddressZero,
+        commitment: params.commitment,
+        msgFee: crossChainMsgFee,
+        token: params.bridgeToken,
+        tokenFee: crossChainTokenFee,
+        hook: params.hook ?? constants.AddressZero,
+        hookMetadata: params.hookMetadata ?? '0x',
+      }),
+    );
+  }
 
   const commands =
     '0x' +

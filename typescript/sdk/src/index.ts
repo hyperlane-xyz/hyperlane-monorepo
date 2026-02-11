@@ -900,7 +900,7 @@ export {
   buildSwapAndBridgeTx,
 } from './swap/UniversalRouterEncoder.js';
 export type { BridgeQuote } from './swap/SwapQuoter.js';
-export { getSwapQuote, getBridgeFee } from './swap/SwapQuoter.js';
+export { getSwapQuote, getBridgeFee, getIcaFee } from './swap/SwapQuoter.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {

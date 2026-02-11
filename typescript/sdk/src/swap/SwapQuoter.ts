@@ -8,6 +8,10 @@ const WARP_ROUTE_ABI = [
   'function quoteTransferRemote(uint32 destination, bytes32 recipient, uint256 amount) external view returns ((address token, uint256 amount)[] quotes)',
 ];
 
+const ICA_ROUTER_ABI = [
+  'function quoteGasPayment(uint32 _destinationDomain, uint256 _gasLimit) external view returns (uint256)',
+];
+
 export interface BridgeQuote {
   /** ETH msg fee (native gas for interchain message) */
   fee: BigNumber;
@@ -82,4 +86,18 @@ export async function getBridgeFee(
     feeToken: feeQuote?.token ?? constants.AddressZero,
     bridgeTokenFee,
   };
+}
+
+/**
+ * Quote the native fee for an ICA dispatch (EXECUTE_CROSS_CHAIN).
+ * Calls quoteGasPayment(uint32,uint256) on the origin ICA router.
+ */
+export async function getIcaFee(
+  provider: providers.Provider,
+  icaRouterAddress: string,
+  destinationDomain: number,
+  gasLimit = 50_000,
+): Promise<BigNumber> {
+  const router = new Contract(icaRouterAddress, ICA_ROUTER_ABI, provider);
+  return router.quoteGasPayment(destinationDomain, gasLimit);
 }

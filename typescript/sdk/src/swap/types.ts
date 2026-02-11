@@ -9,11 +9,11 @@ export interface SwapAndBridgeParams {
   originDomain: number;
   destinationDomain: number;
   warpRouteAddress: string;
-  icaRouterAddress: string;
-  remoteIcaRouterAddress: string;
+  icaRouterAddress?: string;
+  remoteIcaRouterAddress?: string;
   universalRouterAddress: string;
-  ismAddress: string;
-  commitment: string;
+  ismAddress?: string;
+  commitment?: string;
   slippage: number;
   /** True when the user pays with native ETH (requires WRAP_ETH before swap) */
   isNativeOrigin?: boolean;
