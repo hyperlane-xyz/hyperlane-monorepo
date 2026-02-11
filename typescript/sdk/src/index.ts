@@ -363,8 +363,11 @@ export {
   interchainAccountFactories,
 } from './middleware/account/contracts.js';
 export {
+  buildIcaCommitment,
+  buildPostCallsPayload,
   commitmentFromIcaCalls,
   encodeIcaCalls,
+  IcaCommitment,
   InterchainAccount,
   normalizeCalls,
   PostCallsSchema,
@@ -891,16 +894,33 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export type {
+  DexFlavor,
   SwapAndBridgeParams,
   UniversalRouterCommand,
+} from './swap/types.js';
+export {
+  DEFAULT_DEX_FLAVOR,
+  DEFAULT_POOL_PARAM,
+  DexFlavors,
+  getDexFlavorIsUni,
+  normalizePoolParam,
 } from './swap/types.js';
 export {
   Commands,
   BridgeTypes,
   buildSwapAndBridgeTx,
 } from './swap/UniversalRouterEncoder.js';
-export type { BridgeQuote } from './swap/SwapQuoter.js';
-export { getSwapQuote, getBridgeFee, getIcaFee } from './swap/SwapQuoter.js';
+export type {
+  BridgeQuote,
+  SwapQuoteOptions,
+  WarpRouteQuote,
+} from './swap/SwapQuoter.js';
+export {
+  getSwapQuote,
+  getBridgeFee,
+  getIcaFee,
+  parseBridgeQuoteTransferRemoteQuotes,
+} from './swap/SwapQuoter.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {

@@ -1,7 +1,12 @@
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 import { BigNumber, constants, utils } from 'ethers';
 
-import { SwapAndBridgeParams, UniversalRouterCommand } from './types.js';
+import {
+  SwapAndBridgeParams,
+  UniversalRouterCommand,
+  getDexFlavorIsUni,
+  normalizePoolParam,
+} from './types.js';
 
 export const Commands = {
   V3_SWAP_EXACT_IN: 0x00,
@@ -163,6 +168,8 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
 
   const hasSwap = !eqAddress(params.originToken, params.bridgeToken);
   const isNative = params.isNativeOrigin ?? false;
+  const poolParam = normalizePoolParam(params.poolParam);
+  const isUni = getDexFlavorIsUni(params.dexFlavor);
   const swapOut = params.expectedSwapOutput ?? BigNumber.from(0);
   // Apply slippage to get the worst-case swap output we'll accept.
   // Bridge amount is based on this minimum so it never exceeds actual balance.
@@ -180,7 +187,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
 
     const path = utils.solidityPack(
       ['address', 'uint24', 'address'],
-      [params.originToken, 500, params.bridgeToken],
+      [params.originToken, poolParam, params.bridgeToken],
     );
     encodedCommands.push(
       encodeV3SwapExactIn({
@@ -189,7 +196,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
         amountOutMinimum: swapOutMin,
         path,
         payerIsUser: !isNative,
-        isUni: true,
+        isUni,
       }),
     );
   }

@@ -173,4 +173,55 @@ describe('UniversalRouterEncoder', () => {
     expect(tx.commands).to.equal('0x0012');
     expect(tx.inputs).to.have.length(2);
   });
+
+  it('encodes swap path with custom poolParam and velodrome flavor', () => {
+    const tx = buildSwapAndBridgeTx({
+      originToken: ORIGIN_TOKEN,
+      bridgeToken: BRIDGE_TOKEN,
+      destinationToken: DESTINATION_TOKEN,
+      amount: BigNumber.from('1000'),
+      recipient: UNIVERSAL_ROUTER,
+      originDomain: 10,
+      destinationDomain: 8453,
+      warpRouteAddress: WARP_ROUTE,
+      universalRouterAddress: UNIVERSAL_ROUTER,
+      slippage: 0,
+      expectedSwapOutput: BigNumber.from('1000'),
+      poolParam: 200,
+      dexFlavor: 'velodrome-slipstream',
+      includeCrossChainCommand: false,
+    });
+
+    const decodedSwap = utils.defaultAbiCoder.decode(
+      ['address', 'uint256', 'uint256', 'bytes', 'bool', 'bool'],
+      tx.inputs[0],
+    );
+
+    const expectedPath = utils.solidityPack(
+      ['address', 'uint24', 'address'],
+      [ORIGIN_TOKEN, 200, BRIDGE_TOKEN],
+    );
+
+    expect(decodedSwap[3]).to.equal(expectedPath);
+    expect(decodedSwap[5]).to.equal(false);
+  });
+
+  it('throws for non-uint24 poolParam', () => {
+    expect(() =>
+      buildSwapAndBridgeTx({
+        originToken: ORIGIN_TOKEN,
+        bridgeToken: BRIDGE_TOKEN,
+        destinationToken: DESTINATION_TOKEN,
+        amount: BigNumber.from('1000'),
+        recipient: UNIVERSAL_ROUTER,
+        originDomain: 10,
+        destinationDomain: 8453,
+        warpRouteAddress: WARP_ROUTE,
+        universalRouterAddress: UNIVERSAL_ROUTER,
+        slippage: 0,
+        expectedSwapOutput: BigNumber.from('1000'),
+        poolParam: 16_777_216,
+      }),
+    ).to.throw('poolParam must be a uint24 integer');
+  });
 });
