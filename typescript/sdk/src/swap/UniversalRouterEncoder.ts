@@ -1,5 +1,5 @@
 import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
-import { BigNumber, utils } from 'ethers';
+import { BigNumber, constants, utils } from 'ethers';
 
 import { SwapAndBridgeParams, UniversalRouterCommand } from './types.js';
 
@@ -94,7 +94,7 @@ export function encodeExecuteCrossChain(
       'uint256',
       'address',
       'uint256',
-      'bytes',
+      'address',
       'bytes',
     ],
     [
@@ -106,8 +106,8 @@ export function encodeExecuteCrossChain(
       params.msgFee,
       params.token,
       params.tokenFee,
-      params.hook,
-      params.hookMetadata,
+      params.hook || constants.AddressZero,
+      params.hookMetadata || '0x',
     ],
   );
 
@@ -221,7 +221,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       msgFee: crossChainMsgFee,
       token: params.bridgeToken,
       tokenFee: crossChainTokenFee,
-      hook: params.hook ?? '0x',
+      hook: params.hook ?? constants.AddressZero,
       hookMetadata: params.hookMetadata ?? '0x',
     }),
   );
