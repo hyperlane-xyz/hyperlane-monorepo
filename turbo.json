@@ -11,7 +11,7 @@
     },
     "build:tron": {
       "dependsOn": ["build"],
-      "outputs": ["cache-tron/**"]
+      "outputs": ["cache-tron/**", "../typescript/tron-sdk/src/abi/**"]
     },
     "@hyperlane-xyz/tron-sdk#build": {
       "dependsOn": ["@hyperlane-xyz/core#build:tron", "^build"],
