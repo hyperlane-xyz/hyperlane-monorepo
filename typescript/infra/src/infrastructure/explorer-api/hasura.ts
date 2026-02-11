@@ -1,461 +1,271 @@
 /**
- * Hasura GraphQL Engine deployment on GKE using Pulumi + Helm
+ * Deploys Hasura GraphQL Engine on GKE using the official Hasura Helm chart.
  *
- * This module deploys Hasura CE on Kubernetes using the official Hasura Helm chart
- * from https://hasura.github.io/helm-charts (chart: graphql-engine).
+ * Uses the existing Cloud SQL instance (pgsql-message-explorer-0) that the
+ * scraper already writes to. DB connection string is fetched from GCP Secret
+ * Manager at deploy time.
  *
- * Configuration includes:
- * - Anonymous read-only access
- * - Mutations disabled
- * - Introspection disabled
- * - @cached(ttl: 5) support
+ * Follows the same pattern as prometheus.ts for remote Helm chart deployments.
  */
 
-import * as k8s from '@pulumi/kubernetes';
-import * as pulumi from '@pulumi/pulumi';
+import { spawn } from 'child_process';
 
-import type { HasuraConfig } from './config.js';
-import { HASURA_TRACKED_TABLES } from './cloudsql.js';
+import { assert, rootLogger, sleep } from '@hyperlane-xyz/utils';
 
-/**
- * Official Hasura Helm chart repository configuration.
- * @see https://github.com/hasura/helm-charts/tree/main/charts/graphql-engine
- */
-export const HASURA_HELM_REPO = {
-  name: 'hasura',
-  url: 'https://hasura.github.io/helm-charts',
-};
+import { fetchGCPSecret } from '../../utils/gcloud.js';
+import {
+  HelmCommand,
+  addHelmRepoIfRequired,
+  getDeployableHelmChartName,
+  helmifyValues,
+} from '../../utils/helm.js';
+import { execCmd } from '../../utils/utils.js';
 
-export const HASURA_HELM_CHART = {
-  name: 'graphql-engine',
-  version: '1.4.0',
-  repo: HASURA_HELM_REPO.url,
-};
+import {
+  HASURA_HELM_CHART,
+  type HasuraExplorerConfig,
+  type HasuraTrackedTable,
+} from './config.js';
 
-export interface HasuraDeploymentOutputs {
-  /** The Helm release */
-  release: k8s.helm.v3.Release;
-  /** The Kubernetes service */
-  service: k8s.core.v1.Service;
-  /** The service URL */
-  serviceUrl: pulumi.Output<string>;
-}
+const logger = rootLogger.child({ module: 'explorer-api' });
 
-/**
- * Hasura metadata configuration for tracking tables and setting permissions
- */
-export interface HasuraMetadata {
-  version: number;
-  sources: HasuraSource[];
-}
+export async function runHasuraExplorerHelmCommand(
+  action: HelmCommand,
+  config: HasuraExplorerConfig,
+) {
+  await addHelmRepoIfRequired(HASURA_HELM_CHART);
+  const chartName = getDeployableHelmChartName(HASURA_HELM_CHART);
 
-export interface HasuraSource {
-  name: string;
-  kind: string;
-  tables: HasuraTable[];
-  configuration: {
-    connection_info: {
-      database_url: { from_env: string };
-      pool_settings: {
-        max_connections: number;
-        idle_timeout: number;
-        retries: number;
-      };
-    };
-  };
-}
+  if (action === HelmCommand.Remove) {
+    return execCmd(
+      `helm ${action} ${config.releaseName} --namespace ${config.namespace}`,
+      {},
+      false,
+      true,
+    );
+  }
 
-export interface HasuraTable {
-  table: { schema: string; name: string };
-  select_permissions?: HasuraSelectPermission[];
-  configuration?: {
-    custom_root_fields?: {
-      select?: string;
-      select_aggregate?: string;
-      select_by_pk?: string;
-    };
-  };
-}
+  const values = await getHasuraHelmValues(config);
+  const setArgs = helmifyValues(values);
 
-export interface HasuraSelectPermission {
-  role: string;
-  permission: {
-    columns: string[] | '*';
-    filter: Record<string, unknown>;
-    allow_aggregations: boolean;
-    query_root_fields?: string[];
-  };
-}
-
-/**
- * Creates the Hasura namespace
- */
-export function createHasuraNamespace(
-  namespace: string,
-  provider?: k8s.Provider,
-): k8s.core.v1.Namespace {
-  return new k8s.core.v1.Namespace(
-    namespace,
-    {
-      metadata: {
-        name: namespace,
-        labels: {
-          'app.kubernetes.io/managed-by': 'pulumi',
-          'app.kubernetes.io/part-of': 'explorer-api',
-        },
-      },
-    },
-    { provider },
+  return execCmd(
+    `helm ${action} ${config.releaseName} ${chartName} --create-namespace --namespace ${config.namespace} --version ${HASURA_HELM_CHART.version} ${setArgs.join(' ')}`,
+    {},
+    false,
+    true,
   );
 }
 
-/**
- * Creates the Kubernetes secret for Hasura database connection
- */
-export function createHasuraDbSecret(
-  config: HasuraConfig,
-  dbConnectionString: pulumi.Input<string>,
-  provider?: k8s.Provider,
-): k8s.core.v1.Secret {
-  return new k8s.core.v1.Secret(
-    config.dbConnectionSecretName,
-    {
-      metadata: {
-        name: config.dbConnectionSecretName,
-        namespace: config.namespace,
-      },
-      type: 'Opaque',
-      stringData: {
-        HASURA_GRAPHQL_DATABASE_URL: dbConnectionString,
-      },
-    },
-    { provider },
-  );
-}
+async function getHasuraHelmValues(config: HasuraExplorerConfig) {
+  const dbUrl = await fetchDbConnectionString(config.dbConnectionSecretName);
+  const adminSecret = await fetchAdminSecret(config.adminSecretName);
 
-/**
- * Creates the Kubernetes secret for Hasura admin access
- */
-export function createHasuraAdminSecret(
-  config: HasuraConfig,
-  adminSecret: pulumi.Input<string>,
-  provider?: k8s.Provider,
-): k8s.core.v1.Secret {
-  return new k8s.core.v1.Secret(
-    config.adminSecretName,
-    {
-      metadata: {
-        name: config.adminSecretName,
-        namespace: config.namespace,
-      },
-      type: 'Opaque',
-      stringData: {
-        HASURA_GRAPHQL_ADMIN_SECRET: adminSecret,
-      },
-    },
-    { provider },
-  );
-}
-
-/**
- * Deploys Hasura using the official Helm chart from https://hasura.github.io/helm-charts
- *
- * @param config - Hasura configuration
- * @param dbSecret - Kubernetes secret containing database connection string
- * @param adminSecret - Kubernetes secret containing admin secret
- * @param provider - Kubernetes provider
- * @returns Helm release and service outputs
- */
-export function deployHasura(
-  config: HasuraConfig,
-  dbSecret: k8s.core.v1.Secret,
-  adminSecret: k8s.core.v1.Secret,
-  provider?: k8s.Provider,
-): HasuraDeploymentOutputs {
-  // Values for the official Hasura graphql-engine chart
-  // @see https://github.com/hasura/helm-charts/blob/main/charts/graphql-engine/values.yaml
-  const hasuraValues = {
-    // Image configuration
+  return {
     image: {
-      repository: 'hasura/graphql-engine',
       tag: config.imageTag,
-      pullPolicy: 'IfNotPresent',
     },
 
-    // Replica count
     replicaCount: config.replicas,
-
-    // Resource configuration
     resources: config.resources,
 
-    // Hasura-specific configuration (official chart structure)
-    hasura: {
-      // Database connection - use existing secret
-      adminSecret: {
-        existingSecret: config.adminSecretName,
-        key: 'HASURA_GRAPHQL_ADMIN_SECRET',
-      },
-      dbUrl: {
-        existingSecret: config.dbConnectionSecretName,
-        key: 'HASURA_GRAPHQL_DATABASE_URL',
-      },
-      // Console configuration
-      enableConsole: config.enableConsole,
-      // Dev mode disabled for production
-      devMode: false,
-      // Disable telemetry
-      enableTelemetry: false,
-    },
-
-    // Additional environment variables for features not in official chart values
-    extraEnv: [
-      // Enable anonymous role for read-only access
+    // Official chart supports passing env vars directly
+    env: [
+      { name: 'HASURA_GRAPHQL_DATABASE_URL', value: dbUrl },
+      { name: 'HASURA_GRAPHQL_ADMIN_SECRET', value: adminSecret },
       { name: 'HASURA_GRAPHQL_UNAUTHORIZED_ROLE', value: 'anonymous' },
-      // Introspection configuration (disabled for production)
       {
-        name: 'HASURA_GRAPHQL_ENABLE_INTROSPECTION',
-        value: config.enableIntrospection ? 'true' : 'false',
+        name: 'HASURA_GRAPHQL_ENABLE_CONSOLE',
+        value: String(config.enableConsole),
       },
-      // Enable @cached directive with TTL
+      // Disable introspection for production security
+      { name: 'HASURA_GRAPHQL_ENABLE_INTROSPECTION', value: 'false' },
+      // Disable mutations — read-only API
+      { name: 'HASURA_GRAPHQL_ENABLED_APIS', value: 'graphql,metadata' },
+      // Caching
       { name: 'HASURA_GRAPHQL_ENABLE_QUERY_CACHING', value: 'true' },
-      { name: 'HASURA_GRAPHQL_QUERY_CACHE_TTL', value: String(config.cacheTtl) },
-      // Logging
-      { name: 'HASURA_GRAPHQL_LOG_LEVEL', value: 'info' },
-      // Disable live queries
-      { name: 'HASURA_GRAPHQL_ENABLE_LIVE_QUERIES', value: 'false' },
-      // Connection pool settings
+      {
+        name: 'HASURA_GRAPHQL_QUERY_CACHE_TTL',
+        value: String(config.cacheTtl),
+      },
+      // Connection pool
       { name: 'HASURA_GRAPHQL_PG_CONNECTIONS', value: '50' },
       { name: 'HASURA_GRAPHQL_PG_TIMEOUT', value: '180' },
+      // Disable telemetry and dev mode
+      { name: 'HASURA_GRAPHQL_ENABLE_TELEMETRY', value: 'false' },
+      { name: 'HASURA_GRAPHQL_DEV_MODE', value: 'false' },
+      { name: 'HASURA_GRAPHQL_LOG_LEVEL', value: 'info' },
     ],
 
-    // Service configuration
     service: {
       type: 'ClusterIP',
       port: 8080,
     },
-
-    // Health checks
-    livenessProbe: {
-      httpGet: {
-        path: '/healthz',
-        port: 8080,
-      },
-      initialDelaySeconds: 30,
-      periodSeconds: 10,
-      failureThreshold: 3,
-    },
-    readinessProbe: {
-      httpGet: {
-        path: '/healthz',
-        port: 8080,
-      },
-      initialDelaySeconds: 5,
-      periodSeconds: 5,
-      failureThreshold: 3,
-    },
-
-    // Pod disruption budget for high availability
-    podDisruptionBudget: {
-      enabled: config.replicas > 1,
-      minAvailable: 1,
-    },
-
-    // Affinity rules for spreading pods across nodes
-    affinity: {
-      podAntiAffinity: {
-        preferredDuringSchedulingIgnoredDuringExecution: [
-          {
-            weight: 100,
-            podAffinityTerm: {
-              labelSelector: {
-                matchLabels: {
-                  'app.kubernetes.io/name': 'graphql-engine',
-                  'app.kubernetes.io/instance': config.releaseName,
-                },
-              },
-              topologyKey: 'kubernetes.io/hostname',
-            },
-          },
-        ],
-      },
-    },
-  };
-
-  // Deploy using official Hasura Helm chart from repository
-  const release = new k8s.helm.v3.Release(
-    config.releaseName,
-    {
-      name: config.releaseName,
-      namespace: config.namespace,
-      chart: HASURA_HELM_CHART.name,
-      version: HASURA_HELM_CHART.version,
-      repositoryOpts: {
-        repo: HASURA_HELM_CHART.repo,
-      },
-      values: hasuraValues,
-      createNamespace: false, // Namespace created separately
-      atomic: true,
-      timeout: 600, // 10 minutes
-    },
-    {
-      provider,
-      dependsOn: [dbSecret, adminSecret],
-    },
-  );
-
-  // Create service reference - official chart names service as {release}-graphql-engine
-  const service = k8s.core.v1.Service.get(
-    `${config.releaseName}-service`,
-    pulumi.interpolate`${config.namespace}/${config.releaseName}-graphql-engine`,
-    { provider },
-  );
-
-  const serviceUrl = pulumi.interpolate`http://${config.releaseName}-graphql-engine.${config.namespace}.svc.cluster.local:8080`;
-
-  return {
-    release,
-    service,
-    serviceUrl,
   };
 }
 
 /**
- * Generates Hasura metadata for tracking tables with anonymous read-only access
- * This is applied via the Hasura metadata API after deployment
+ * Applies Hasura metadata to track tables with anonymous read-only access.
+ * Intended to be run after deploying Hasura, via kubectl port-forward.
+ *
+ * @param hasuraUrl - Hasura URL (e.g. http://localhost:8080 via port-forward)
+ * @param adminSecret - Hasura admin secret
+ * @param tables - Tables to track with anonymous select permissions
  */
-export function generateHasuraMetadata(
-  tables: string[] = HASURA_TRACKED_TABLES,
-): HasuraMetadata {
-  const hasuraTables: HasuraTable[] = tables.map((tableName) => ({
-    table: { schema: 'public', name: tableName },
-    select_permissions: [
-      {
+export async function applyHasuraMetadata(
+  hasuraUrl: string,
+  adminSecret: string,
+  tables: HasuraTrackedTable[],
+) {
+  logger.info(`Applying metadata to ${hasuraUrl} for ${tables.length} tables`);
+
+  for (const table of tables) {
+    // Track the table
+    logger.info(`Tracking table: ${table.schema}.${table.name}`);
+    await hasuraMetadataRequest(hasuraUrl, adminSecret, {
+      type: 'pg_track_table',
+      args: {
+        source: 'default',
+        table: { schema: table.schema, name: table.name },
+      },
+    });
+
+    // Create anonymous select permission
+    logger.info(`Setting anonymous select permission on: ${table.name}`);
+    await hasuraMetadataRequest(hasuraUrl, adminSecret, {
+      type: 'pg_create_select_permission',
+      args: {
+        source: 'default',
+        table: { schema: table.schema, name: table.name },
         role: 'anonymous',
         permission: {
           columns: '*',
           filter: {},
           allow_aggregations: true,
-          // Only allow select operations (read-only)
-          query_root_fields: ['select', 'select_by_pk', 'select_aggregate'],
         },
       },
-    ],
-  }));
+    });
+  }
 
-  return {
-    version: 3,
-    sources: [
-      {
-        name: 'default',
-        kind: 'postgres',
-        tables: hasuraTables,
-        configuration: {
-          connection_info: {
-            database_url: { from_env: 'HASURA_GRAPHQL_DATABASE_URL' },
-            pool_settings: {
-              max_connections: 50,
-              idle_timeout: 180,
-              retries: 1,
-            },
-          },
-        },
-      },
-    ],
-  };
+  logger.info('Metadata applied successfully');
+}
+
+async function hasuraMetadataRequest(
+  hasuraUrl: string,
+  adminSecret: string,
+  body: Record<string, unknown>,
+) {
+  const response = await fetch(`${hasuraUrl}/v1/metadata`, {
+    method: 'POST',
+    headers: {
+      'Content-Type': 'application/json',
+      'X-Hasura-Admin-Secret': adminSecret,
+    },
+    body: JSON.stringify(body),
+  });
+
+  if (!response.ok) {
+    const text = await response.text();
+    // "already tracked" / "permission already exists" are idempotent — not errors
+    if (text.includes('already tracked') || text.includes('already exists')) {
+      logger.debug(`Idempotent: ${text}`);
+      return;
+    }
+    throw new Error(`Hasura metadata API error (${response.status}): ${text}`);
+  }
 }
 
 /**
- * Creates a ConfigMap with Hasura metadata for initialization
- * This can be mounted as a volume and applied during Hasura startup
+ * Waits for Hasura to be healthy, then applies metadata.
+ * Uses kubectl port-forward (same pattern as prometheus.ts).
  */
-export function createHasuraMetadataConfigMap(
-  config: HasuraConfig,
-  metadata: HasuraMetadata,
-  provider?: k8s.Provider,
-): k8s.core.v1.ConfigMap {
-  return new k8s.core.v1.ConfigMap(
-    `${config.releaseName}-metadata`,
-    {
-      metadata: {
-        name: `${config.releaseName}-metadata`,
-        namespace: config.namespace,
-      },
-      data: {
-        'metadata.json': JSON.stringify(metadata, null, 2),
-      },
-    },
-    { provider },
+export async function applyHasuraMetadataViaPortForward(
+  config: HasuraExplorerConfig,
+) {
+  const adminSecret = await fetchAdminSecret(config.adminSecretName);
+  const localPort = 18080;
+  const svcName = `${config.releaseName}-graphql-engine`;
+
+  const child = await startPortForward(
+    svcName,
+    config.namespace,
+    localPort,
+    8080,
   );
+
+  try {
+    const hasuraUrl = `http://localhost:${localPort}`;
+
+    // Wait for Hasura to be ready
+    for (let i = 0; i < 30; i++) {
+      try {
+        const resp = await fetch(`${hasuraUrl}/healthz`);
+        if (resp.ok) break;
+      } catch {
+        // not ready yet
+      }
+      logger.info('Waiting for Hasura to be ready...');
+      await sleep(2000);
+      assert(i < 29, 'Hasura did not become healthy within 60s');
+    }
+
+    const tables = config.trackedTables.map((t) =>
+      typeof t === 'string' ? { schema: 'public', name: t } : t,
+    );
+    await applyHasuraMetadata(hasuraUrl, adminSecret, tables);
+  } finally {
+    child.kill();
+  }
 }
 
-/**
- * Creates a Kubernetes Job to apply Hasura metadata
- * This is run after Hasura deployment to configure tables and permissions
- */
-export function createMetadataApplyJob(
-  config: HasuraConfig,
-  hasuraServiceUrl: pulumi.Input<string>,
-  adminSecret: pulumi.Input<string>,
-  metadataConfigMap: k8s.core.v1.ConfigMap,
-  provider?: k8s.Provider,
-): k8s.batch.v1.Job {
-  return new k8s.batch.v1.Job(
-    `${config.releaseName}-apply-metadata`,
-    {
-      metadata: {
-        name: `${config.releaseName}-apply-metadata`,
-        namespace: config.namespace,
-      },
-      spec: {
-        ttlSecondsAfterFinished: 600, // Clean up after 10 minutes
-        template: {
-          spec: {
-            restartPolicy: 'OnFailure',
-            containers: [
-              {
-                name: 'apply-metadata',
-                image: 'curlimages/curl:latest',
-                command: ['/bin/sh', '-c'],
-                args: [
-                  pulumi.interpolate`
-                    # Wait for Hasura to be ready
-                    until curl -s ${hasuraServiceUrl}/healthz; do
-                      echo "Waiting for Hasura..."
-                      sleep 5
-                    done
+function startPortForward(
+  svcName: string,
+  namespace: string,
+  localPort: number,
+  remotePort: number,
+): Promise<import('child_process').ChildProcess> {
+  return new Promise((resolve, reject) => {
+    const child = spawn('kubectl', [
+      'port-forward',
+      `svc/${svcName}`,
+      `${localPort}:${remotePort}`,
+      '-n',
+      namespace,
+    ]);
 
-                    # Apply metadata
-                    curl -X POST ${hasuraServiceUrl}/v1/metadata \
-                      -H "Content-Type: application/json" \
-                      -H "X-Hasura-Admin-Secret: ${adminSecret}" \
-                      -d @/metadata/metadata.json
+    child.stdout.on('data', (data: Buffer) => {
+      const output = data.toString();
+      logger.info(`port-forward: ${output.trim()}`);
+      if (output.includes('Forwarding from')) {
+        resolve(child);
+      }
+    });
 
-                    echo "Metadata applied successfully"
-                  `,
-                ],
-                volumeMounts: [
-                  {
-                    name: 'metadata',
-                    mountPath: '/metadata',
-                  },
-                ],
-              },
-            ],
-            volumes: [
-              {
-                name: 'metadata',
-                configMap: {
-                  name: metadataConfigMap.metadata.name,
-                },
-              },
-            ],
-          },
-        },
-      },
-    },
-    {
-      provider,
-      dependsOn: [metadataConfigMap],
-    },
-  );
+    child.stderr.on('data', (data: Buffer) => {
+      logger.error(`port-forward stderr: ${data.toString().trim()}`);
+    });
+
+    child.on('error', reject);
+    child.on('close', (code) => {
+      reject(new Error(`port-forward exited unexpectedly with code ${code}`));
+    });
+  });
+}
+
+async function fetchDbConnectionString(secretName: string): Promise<string> {
+  logger.info(`Fetching DB connection string from secret: ${secretName}`);
+  const secret = await fetchGCPSecret(secretName, false);
+  return (secret as string).trim();
+}
+
+async function fetchAdminSecret(secretName: string): Promise<string> {
+  logger.info(`Fetching admin secret from secret: ${secretName}`);
+  try {
+    const secret = await fetchGCPSecret(secretName, false);
+    return (secret as string).trim();
+  } catch {
+    logger.warn(
+      `Admin secret ${secretName} not found in GCP Secret Manager, generating a random one. Create this secret for stable admin access.`,
+    );
+    return crypto.randomUUID();
+  }
 }

@@ -1,6 +1,12 @@
-// Explorer API Infrastructure
-// This module provides Pulumi infrastructure for the Explorer API migration to GCP
-
-export * from './cloudsql.js';
-export * from './hasura.js';
-export * from './config.js';
+export {
+  runHasuraExplorerHelmCommand,
+  applyHasuraMetadata,
+  applyHasuraMetadataViaPortForward,
+} from './hasura.js';
+export {
+  type HasuraExplorerConfig,
+  type HasuraTrackedTable,
+  getHasuraExplorerConfig,
+  EXPLORER_TRACKED_TABLES,
+  HASURA_HELM_CHART,
+} from './config.js';
