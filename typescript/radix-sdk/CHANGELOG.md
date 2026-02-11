@@ -1,5 +1,14 @@
 # @hyperlane-xyz/radix-sdk
 
+## 25.1.0
+
+### Patch Changes
+
+- cbd400c: Increased Radix transaction epoch validity window from 2 to 10 epochs to prevent `TransactionEpochNoLongerValid` flakes in CI.
+- Updated dependencies [b930534]
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
 ## 25.0.0
 
 ### Patch Changes

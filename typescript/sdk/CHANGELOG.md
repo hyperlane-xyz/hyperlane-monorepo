@@ -1,5 +1,22 @@
 # @hyperlane-xyz/sdk
 
+## 25.1.0
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+- a18d0e6: Fixed nonce collision in EvmTokenFeeModule by deploying sub-fee contracts sequentially instead of in parallel.
+- Updated dependencies [b930534]
+- Updated dependencies [cbd400c]
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/radix-sdk@25.1.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/aleo-sdk@25.1.0
+  - @hyperlane-xyz/cosmos-sdk@25.1.0
+  - @hyperlane-xyz/deploy-sdk@1.3.2
+  - @hyperlane-xyz/provider-sdk@1.3.2
+  - @hyperlane-xyz/starknet-core@25.1.0
+
 ## 25.0.0
 
 ### Major Changes

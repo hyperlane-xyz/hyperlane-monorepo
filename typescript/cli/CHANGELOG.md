@@ -1,5 +1,15 @@
 # @hyperlane-xyz/cli
 
+## 25.1.0
+
+### Minor Changes
+
+- cae845c: Added top-level `xerc20 read` and `xerc20 apply` commands for viewing and managing XERC20 mint/burn limits.
+
+### Patch Changes
+
+- b930534: Added oxlint as a fast first-pass linter and converted imports to type-only where appropriate to resolve import cycle warnings.
+
 ## 25.0.0
 
 ### Patch Changes
