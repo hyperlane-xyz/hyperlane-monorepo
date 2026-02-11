@@ -1,7 +1,9 @@
 /**
  * Hasura GraphQL Engine deployment on GKE using Pulumi + Helm
  *
- * This module deploys Hasura CE on Kubernetes using the official Hasura Helm chart.
+ * This module deploys Hasura CE on Kubernetes using the official Hasura Helm chart
+ * from https://hasura.github.io/helm-charts (chart: graphql-engine).
+ *
  * Configuration includes:
  * - Anonymous read-only access
  * - Mutations disabled
@@ -14,6 +16,21 @@ import * as pulumi from '@pulumi/pulumi';
 
 import type { HasuraConfig } from './config.js';
 import { HASURA_TRACKED_TABLES } from './cloudsql.js';
+
+/**
+ * Official Hasura Helm chart repository configuration.
+ * @see https://github.com/hasura/helm-charts/tree/main/charts/graphql-engine
+ */
+export const HASURA_HELM_REPO = {
+  name: 'hasura',
+  url: 'https://hasura.github.io/helm-charts',
+};
+
+export const HASURA_HELM_CHART = {
+  name: 'graphql-engine',
+  version: '1.4.0',
+  repo: HASURA_HELM_REPO.url,
+};
 
 export interface HasuraDeploymentOutputs {
   /** The Helm release */
@@ -141,7 +158,7 @@ export function createHasuraAdminSecret(
 }
 
 /**
- * Deploys Hasura using Helm
+ * Deploys Hasura using the official Helm chart from https://hasura.github.io/helm-charts
  *
  * @param config - Hasura configuration
  * @param dbSecret - Kubernetes secret containing database connection string
@@ -155,60 +172,57 @@ export function deployHasura(
   adminSecret: k8s.core.v1.Secret,
   provider?: k8s.Provider,
 ): HasuraDeploymentOutputs {
+  // Values for the official Hasura graphql-engine chart
+  // @see https://github.com/hasura/helm-charts/blob/main/charts/graphql-engine/values.yaml
   const hasuraValues = {
+    // Image configuration
     image: {
       repository: 'hasura/graphql-engine',
       tag: config.imageTag,
       pullPolicy: 'IfNotPresent',
     },
+
+    // Replica count
     replicaCount: config.replicas,
+
+    // Resource configuration
     resources: config.resources,
 
-    // Environment variables
-    env: [
-      // Database connection from secret
-      {
-        name: 'HASURA_GRAPHQL_DATABASE_URL',
-        valueFrom: {
-          secretKeyRef: {
-            name: config.dbConnectionSecretName,
-            key: 'HASURA_GRAPHQL_DATABASE_URL',
-          },
-        },
+    // Hasura-specific configuration (official chart structure)
+    hasura: {
+      // Database connection - use existing secret
+      adminSecret: {
+        existingSecret: config.adminSecretName,
+        key: 'HASURA_GRAPHQL_ADMIN_SECRET',
       },
-      // Admin secret from secret
-      {
-        name: 'HASURA_GRAPHQL_ADMIN_SECRET',
-        valueFrom: {
-          secretKeyRef: {
-            name: config.adminSecretName,
-            key: 'HASURA_GRAPHQL_ADMIN_SECRET',
-          },
-        },
+      dbUrl: {
+        existingSecret: config.dbConnectionSecretName,
+        key: 'HASURA_GRAPHQL_DATABASE_URL',
       },
+      // Console configuration
+      enableConsole: config.enableConsole,
+      // Dev mode disabled for production
+      devMode: false,
+      // Disable telemetry
+      enableTelemetry: false,
+    },
+
+    // Additional environment variables for features not in official chart values
+    extraEnv: [
       // Enable anonymous role for read-only access
       { name: 'HASURA_GRAPHQL_UNAUTHORIZED_ROLE', value: 'anonymous' },
-      // Console configuration
-      {
-        name: 'HASURA_GRAPHQL_ENABLE_CONSOLE',
-        value: config.enableConsole ? 'true' : 'false',
-      },
       // Introspection configuration (disabled for production)
       {
         name: 'HASURA_GRAPHQL_ENABLE_INTROSPECTION',
         value: config.enableIntrospection ? 'true' : 'false',
       },
-      // Enable @cached directive
+      // Enable @cached directive with TTL
       { name: 'HASURA_GRAPHQL_ENABLE_QUERY_CACHING', value: 'true' },
       { name: 'HASURA_GRAPHQL_QUERY_CACHE_TTL', value: String(config.cacheTtl) },
-      // Dev mode disabled for production
-      { name: 'HASURA_GRAPHQL_DEV_MODE', value: 'false' },
       // Logging
       { name: 'HASURA_GRAPHQL_LOG_LEVEL', value: 'info' },
-      // Enable live queries
+      // Disable live queries
       { name: 'HASURA_GRAPHQL_ENABLE_LIVE_QUERIES', value: 'false' },
-      // Disable telemetry
-      { name: 'HASURA_GRAPHQL_ENABLE_TELEMETRY', value: 'false' },
       // Connection pool settings
       { name: 'HASURA_GRAPHQL_PG_CONNECTIONS', value: '50' },
       { name: 'HASURA_GRAPHQL_PG_TIMEOUT', value: '180' },
@@ -246,7 +260,7 @@ export function deployHasura(
       minAvailable: 1,
     },
 
-    // Affinity rules for spreading pods
+    // Affinity rules for spreading pods across nodes
     affinity: {
       podAntiAffinity: {
         preferredDuringSchedulingIgnoredDuringExecution: [
@@ -255,7 +269,7 @@ export function deployHasura(
             podAffinityTerm: {
               labelSelector: {
                 matchLabels: {
-                  'app.kubernetes.io/name': 'hasura',
+                  'app.kubernetes.io/name': 'graphql-engine',
                   'app.kubernetes.io/instance': config.releaseName,
                 },
               },
@@ -267,15 +281,17 @@ export function deployHasura(
     },
   };
 
-  // Deploy using Helm
-  // Note: We use a local chart since there's no official Hasura Helm chart repository.
-  // The chart is defined inline here using Kubernetes resources.
+  // Deploy using official Hasura Helm chart from repository
   const release = new k8s.helm.v3.Release(
     config.releaseName,
     {
       name: config.releaseName,
       namespace: config.namespace,
-      chart: './helm/hasura', // Path to local Hasura Helm chart
+      chart: HASURA_HELM_CHART.name,
+      version: HASURA_HELM_CHART.version,
+      repositoryOpts: {
+        repo: HASURA_HELM_CHART.repo,
+      },
       values: hasuraValues,
       createNamespace: false, // Namespace created separately
       atomic: true,
@@ -287,14 +303,14 @@ export function deployHasura(
     },
   );
 
-  // Create service reference
+  // Create service reference - official chart names service as {release}-graphql-engine
   const service = k8s.core.v1.Service.get(
     `${config.releaseName}-service`,
-    pulumi.interpolate`${config.namespace}/${config.releaseName}-hasura`,
+    pulumi.interpolate`${config.namespace}/${config.releaseName}-graphql-engine`,
     { provider },
   );
 
-  const serviceUrl = pulumi.interpolate`http://${config.releaseName}-hasura.${config.namespace}.svc.cluster.local:8080`;
+  const serviceUrl = pulumi.interpolate`http://${config.releaseName}-graphql-engine.${config.namespace}.svc.cluster.local:8080`;
 
   return {
     release,
