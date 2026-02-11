@@ -1,0 +1,86 @@
+# Default values for Hasura GraphQL Engine
+# This is a YAML-formatted file.
+
+# Image configuration
+image:
+  repository: hasura/graphql-engine
+  tag: v2.36.0
+  pullPolicy: IfNotPresent
+
+# Number of replicas
+replicaCount: 1
+
+# Resource limits and requests
+resources:
+  requests:
+    cpu: "250m"
+    memory: "256Mi"
+  limits:
+    cpu: "1000m"
+    memory: "1Gi"
+
+# Environment variables (list of name/value or name/valueFrom)
+env: []
+
+# Service configuration
+service:
+  type: ClusterIP
+  port: 8080
+
+# Liveness probe configuration
+livenessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 30
+  periodSeconds: 10
+  failureThreshold: 3
+
+# Readiness probe configuration
+readinessProbe:
+  httpGet:
+    path: /healthz
+    port: 8080
+  initialDelaySeconds: 5
+  periodSeconds: 5
+  failureThreshold: 3
+
+# Pod disruption budget
+podDisruptionBudget:
+  enabled: false
+  minAvailable: 1
+
+# Pod affinity rules
+affinity: {}
+
+# Node selector
+nodeSelector: {}
+
+# Tolerations
+tolerations: []
+
+# Additional labels
+labels: {}
+
+# Additional annotations
+annotations: {}
+
+# Pod security context
+podSecurityContext: {}
+
+# Container security context
+securityContext: {}
+
+# Service account
+serviceAccount:
+  create: false
+  name: ""
+  annotations: {}
+
+# Ingress configuration
+ingress:
+  enabled: false
+  className: ""
+  annotations: {}
+  hosts: []
+  tls: []

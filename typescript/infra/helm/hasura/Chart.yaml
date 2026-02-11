@@ -1,0 +1,13 @@
+apiVersion: v2
+name: hasura
+description: Hasura GraphQL Engine Helm chart for Explorer API
+type: application
+version: 1.0.0
+appVersion: "2.36.0"
+maintainers:
+  - name: Hyperlane
+    url: https://hyperlane.xyz
+keywords:
+  - hasura
+  - graphql
+  - explorer-api
