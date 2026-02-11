@@ -10,7 +10,6 @@ Query the relayer API to investigate stuck messages, their retry counts, and err
 ## When to Use
 
 1. **Alert-based triggers:**
-
    - Alert: "Known app context relayer queue length > 0 for 40m"
    - Any alert mentioning stuck messages in prepare queue
    - High retry counts for specific app contexts

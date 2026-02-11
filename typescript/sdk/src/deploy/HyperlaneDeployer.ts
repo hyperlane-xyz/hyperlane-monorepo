@@ -13,6 +13,10 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
+  TransparentUpgradeableProxy__factory as TronTransparentUpgradeableProxy__factory,
+  TimelockController__factory as TronTimelockController__factory,
+} from '@hyperlane-xyz/tron-sdk';
+import {
   Address,
   ProtocolType,
   addBufferToGasLimit,
@@ -61,6 +65,19 @@ import {
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
+/**
+ * Standalone helper: resolve EVM vs Tron factory based on chain technical stack.
+ */
+export function resolveTronFactory<F extends ethers.ContractFactory>(
+  multiProvider: MultiProvider,
+  chain: ChainName,
+  evmFactory: F,
+  tronFactory: F,
+): F {
+  const { technicalStack } = multiProvider.getChainMetadata(chain);
+  return technicalStack === ChainTechnicalStack.Tron ? tronFactory : evmFactory;
+}
+
 export interface DeployerOptions {
   logger?: Logger;
   chainTimeoutMs?: number;
@@ -68,6 +85,8 @@ export interface DeployerOptions {
   icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
   concurrentDeploy?: boolean;
+  /** Tron-compiled factories used when deploying to ChainTechnicalStack.Tron chains */
+  tronFactories?: HyperlaneFactories;
 }
 
 export abstract class HyperlaneDeployer<
@@ -91,7 +110,6 @@ export abstract class HyperlaneDeployer<
     protected readonly options: DeployerOptions = {},
     protected readonly recoverVerificationInputs = false,
     protected readonly icaAddresses = {},
-    protected readonly tronFactories?: Factories,
   ) {
     this.logger = options?.logger ?? rootLogger.child({ module: 'deployer' });
     this.chainTimeoutMs = options?.chainTimeoutMs ?? 15 * 60 * 1000; // 15 minute timeout per chain
@@ -464,9 +482,9 @@ export abstract class HyperlaneDeployer<
         // Estimate gas for the initialize transaction
         const estimatedGas = await contract
           .connect(signer)
-          .estimateGas[
-            this.initializeFnSignature(contractName)
-          ](...initializeArgs);
+          .estimateGas[this.initializeFnSignature(contractName)](
+            ...initializeArgs,
+          );
 
         // deploy with buffer on gas limit
         const overrides = this.multiProvider.getTransactionOverrides(chain);
@@ -541,10 +559,28 @@ export abstract class HyperlaneDeployer<
     contractKey: K,
   ): Factories[K] {
     const { technicalStack } = this.multiProvider.getChainMetadata(chain);
-    if (technicalStack === ChainTechnicalStack.Tron && this.tronFactories) {
-      return this.tronFactories[contractKey];
+    const tronFactories = this.options.tronFactories as Factories | undefined;
+    if (technicalStack === ChainTechnicalStack.Tron && tronFactories) {
+      return tronFactories[contractKey];
     }
     return this.factories[contractKey];
+  }
+
+  /**
+   * Resolve a factory for the given chain, selecting the Tron variant when appropriate.
+   * Use this for ad-hoc factories not in the deployer's Factories map.
+   */
+  resolveFactory<F extends ethers.ContractFactory>(
+    chain: ChainName,
+    evmFactory: F,
+    tronFactory: F,
+  ): F {
+    return resolveTronFactory(
+      this.multiProvider,
+      chain,
+      evmFactory,
+      tronFactory,
+    );
   }
 
   async deployContractWithName<K extends keyof Factories>(
@@ -681,9 +717,14 @@ export abstract class HyperlaneDeployer<
       initializeArgs,
       this.initializeFnSignature(contractName ?? ''),
     );
-    const proxy = await this.deployContractFromFactory(
+    const proxyFactory = this.resolveFactory(
       chain,
       new TransparentUpgradeableProxy__factory(),
+      new TronTransparentUpgradeableProxy__factory(),
+    );
+    const proxy = await this.deployContractFromFactory(
+      chain,
+      proxyFactory,
       'TransparentUpgradeableProxy',
       constructorArgs,
       undefined,
@@ -700,9 +741,14 @@ export abstract class HyperlaneDeployer<
   ): Promise<TimelockController> {
     const TimelockZkArtifact =
       await getZKSyncArtifactByContractName('TimelockController');
-    return this.multiProvider.handleDeploy(
+    const timelockFactory = this.resolveFactory(
       chain,
       new TimelockController__factory(),
+      new TronTimelockController__factory(),
+    );
+    return this.multiProvider.handleDeploy(
+      chain,
+      timelockFactory,
       // delay, [proposers], [executors], admin
       [
         timelockConfig.delay,

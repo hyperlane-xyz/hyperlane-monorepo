@@ -21,6 +21,26 @@ import {
   TokenBridgeCctpV1__factory,
   TokenBridgeCctpV2__factory,
 } from '@hyperlane-xyz/core';
+import {
+  EverclearEthBridge__factory as TronEverclearEthBridge__factory,
+  EverclearTokenBridge__factory as TronEverclearTokenBridge__factory,
+  HypERC20Collateral__factory as TronHypERC20Collateral__factory,
+  HypERC20__factory as TronHypERC20__factory,
+  HypERC721Collateral__factory as TronHypERC721Collateral__factory,
+  HypERC721URICollateral__factory as TronHypERC721URICollateral__factory,
+  HypERC721URIStorage__factory as TronHypERC721URIStorage__factory,
+  HypERC721__factory as TronHypERC721__factory,
+  HypERC4626Collateral__factory as TronHypERC4626Collateral__factory,
+  HypERC4626OwnerCollateral__factory as TronHypERC4626OwnerCollateral__factory,
+  HypERC4626__factory as TronHypERC4626__factory,
+  HypFiatToken__factory as TronHypFiatToken__factory,
+  HypNative__factory as TronHypNative__factory,
+  HypXERC20Lockbox__factory as TronHypXERC20Lockbox__factory,
+  HypXERC20__factory as TronHypXERC20__factory,
+  OpL1V1NativeTokenBridge__factory as TronOpL1V1NativeTokenBridge__factory,
+  OpL2NativeTokenBridge__factory as TronOpL2NativeTokenBridge__factory,
+  TokenBridgeCctpV1__factory as TronTokenBridgeCctpV1__factory,
+} from '@hyperlane-xyz/tron-sdk';
 
 import { DeployableTokenType, TokenType } from './config.js';
 
@@ -73,6 +93,25 @@ export const hypERC20factories = {
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 
+// Tron-compiled factories for TVM compatibility
+export const tronHypERC20factories = {
+  [TokenType.synthetic]: new TronHypERC20__factory(),
+  [TokenType.collateral]: new TronHypERC20Collateral__factory(),
+  [TokenType.collateralCctp]: new TronTokenBridgeCctpV1__factory(),
+  [TokenType.collateralVault]: new TronHypERC4626OwnerCollateral__factory(),
+  [TokenType.collateralVaultRebase]: new TronHypERC4626Collateral__factory(),
+  [TokenType.syntheticRebase]: new TronHypERC4626__factory(),
+  [TokenType.collateralFiat]: new TronHypFiatToken__factory(),
+  [TokenType.XERC20]: new TronHypXERC20__factory(),
+  [TokenType.XERC20Lockbox]: new TronHypXERC20Lockbox__factory(),
+  [TokenType.native]: new TronHypNative__factory(),
+  [TokenType.nativeOpL2]: new TronOpL2NativeTokenBridge__factory(),
+  [TokenType.nativeOpL1]: new TronOpL1V1NativeTokenBridge__factory(),
+  [TokenType.nativeScaled]: new TronHypNative__factory(),
+  [TokenType.ethEverclear]: new TronEverclearEthBridge__factory(),
+  [TokenType.collateralEverclear]: new TronEverclearTokenBridge__factory(),
+} as const satisfies Record<HypERC20TokenType, ContractFactory>;
+
 // Helper function to get the appropriate CCTP factory based on version
 export function getCctpFactory(version: 'V1' | 'V2') {
   return version === 'V1'
@@ -96,5 +135,12 @@ export const hypERC721factories = {
   [TokenType.synthetic]: new HypERC721__factory(),
 } as const;
 export type HypERC721Factories = typeof hypERC721factories;
+
+export const tronHypERC721factories = {
+  [TokenType.collateralUri]: new TronHypERC721URICollateral__factory(),
+  [TokenType.collateral]: new TronHypERC721Collateral__factory(),
+  [TokenType.syntheticUri]: new TronHypERC721URIStorage__factory(),
+  [TokenType.synthetic]: new TronHypERC721__factory(),
+} as const;
 
 export type TokenFactories = HypERC20Factories | HypERC721Factories;

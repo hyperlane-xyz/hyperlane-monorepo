@@ -27,8 +27,8 @@ function extractDomain(url: string): string {
     }
 
     return hostname;
-  } catch (e) {
-    const match = url.match(/^(?:https?:\/\/)?([^\/\?#]+)/);
+  } catch {
+    const match = url.match(/^(?:https?:\/\/)?([^/?#]+)/);
     if (!match) return url;
 
     const hostname = match[1];

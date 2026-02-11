@@ -21,9 +21,10 @@ import { AnnotatedRadixTransaction } from '../utils/types.js';
 import { getMerkleTreeHookConfig } from './hook-query.js';
 import { getCreateMerkleTreeHookTx } from './hook-tx.js';
 
-export class RadixMerkleTreeHookReader
-  implements ArtifactReader<MerkleTreeHookConfig, DeployedHookAddress>
-{
+export class RadixMerkleTreeHookReader implements ArtifactReader<
+  MerkleTreeHookConfig,
+  DeployedHookAddress
+> {
   constructor(private readonly gateway: Readonly<GatewayApiClient>) {}
 
   async read(

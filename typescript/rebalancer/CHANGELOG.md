@@ -1,5 +1,49 @@
 # @hyperlane-xyz/rebalancer
 
+## 1.0.3
+
+### Patch Changes
+
+- Updated dependencies [b930534]
+- Updated dependencies [a18d0e6]
+  - @hyperlane-xyz/sdk@25.1.0
+  - @hyperlane-xyz/utils@25.1.0
+  - @hyperlane-xyz/metrics@0.1.4
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/provider-sdk@1.3.2
+
+## 1.0.2
+
+### Patch Changes
+
+- Updated dependencies [52ce778]
+- Updated dependencies [aaabbad]
+  - @hyperlane-xyz/utils@25.0.0
+  - @hyperlane-xyz/sdk@25.0.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/metrics@0.1.3
+  - @hyperlane-xyz/provider-sdk@1.3.1
+
+## 1.0.1
+
+### Patch Changes
+
+- 8c80288: ActionTracker now uses MultiProtocolCore instead of HyperlaneCore for message delivery checks, enabling support for all VM types. Registry addresses are validated at startup to ensure mailbox is present.
+- Updated dependencies [57461b2]
+- Updated dependencies [d580bb6]
+- Updated dependencies [50868ce]
+- Updated dependencies [b05e9f8]
+- Updated dependencies [f44c2b4]
+- Updated dependencies [9dc71fe]
+- Updated dependencies [bde05e9]
+- Updated dependencies [d0b8c24]
+- Updated dependencies [4de5071]
+  - @hyperlane-xyz/utils@24.0.0
+  - @hyperlane-xyz/sdk@24.0.0
+  - @hyperlane-xyz/provider-sdk@1.3.0
+  - @hyperlane-xyz/core@10.1.5
+  - @hyperlane-xyz/metrics@0.1.2
+
 ## 1.0.0
 
 ### Major Changes
@@ -7,7 +51,6 @@
 - 0e1e48a: Inflight-aware rebalancing system with ActionTracker, new strategies, and type safety improvements.
 
   Breaking changes:
-
   - IRebalancer.rebalance() returned RebalanceExecutionResult[] instead of void
   - IStrategy.getRebalancingRoutes() accepted optional inflightContext parameter
   - IStrategy required a name property
@@ -15,7 +58,6 @@
   - MonitorEvent included confirmedBlockTags for confirmed block queries
 
   New features:
-
   - ActionTracker for tracking pending transfers and rebalance actions with Explorer integration
   - CollateralDeficitStrategy for just-in-time rebalancing based on pending inbound transfers
   - CompositeStrategy for chaining multiple strategies with coordination
@@ -24,7 +66,6 @@
   - Strategy config supports array format for composing multiple strategies (backwards compatible)
 
   Bug fixes:
-
   - Record failure metrics when rebalance results contain failures
   - Treat missing Dispatch event as rebalance failure
   - Fix CompositeStrategy oscillation by separating proposed from pending rebalances
@@ -96,7 +137,6 @@
 
 - bc8b22f: Moved rebalancer-specific type definitions from `@hyperlane-xyz/sdk` to `@hyperlane-xyz/rebalancer`. Updated CLI and infra imports to use the new location. The rebalancer package is now self-contained and doesn't pollute the SDK with rebalancer-specific types.
 - 9963e0e: feat: separate rebalancer package
-
   - Extract rebalancer logic from CLI into dedicated `@hyperlane-xyz/rebalancer` package
   - New package supports both manual CLI execution and continuous daemon mode for K8s deployments
   - CLI now imports from new package, maintaining backward compatibility for manual rebalancing

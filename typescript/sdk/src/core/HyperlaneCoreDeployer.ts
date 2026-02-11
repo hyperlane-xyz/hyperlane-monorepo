@@ -25,7 +25,12 @@ import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainMap, ChainName } from '../types.js';
 
 import { TestRecipientDeployer } from './TestRecipientDeployer.js';
-import { CoreAddresses, CoreFactories, coreFactories } from './contracts.js';
+import {
+  CoreAddresses,
+  CoreFactories,
+  coreFactories,
+  tronCoreFactories,
+} from './contracts.js';
 import { CoreConfig } from './types.js';
 
 export class HyperlaneCoreDeployer extends HyperlaneDeployer<
@@ -48,6 +53,7 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       ismFactory,
       contractVerifier,
       concurrentDeploy,
+      tronFactories: tronCoreFactories,
     });
     this.hookDeployer = new HyperlaneHookDeployer(
       multiProvider,
@@ -160,7 +166,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       defaultHook.address,
       (_mailbox) => _mailbox.defaultHook(),
       (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setDefaultHook(_hook, { ...txOverrides }),
+        _mailbox.populateTransaction.setDefaultHook(_hook, {
+          ...txOverrides,
+        }),
     );
 
     await this.configureHook(
@@ -169,7 +177,9 @@ export class HyperlaneCoreDeployer extends HyperlaneDeployer<
       requiredHook.address,
       (_mailbox) => _mailbox.requiredHook(),
       (_mailbox, _hook) =>
-        _mailbox.populateTransaction.setRequiredHook(_hook, { ...txOverrides }),
+        _mailbox.populateTransaction.setRequiredHook(_hook, {
+          ...txOverrides,
+        }),
     );
 
     await this.configureIsm(

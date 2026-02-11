@@ -1,22 +1,22 @@
 services:
-  tron-local:
-    image: tronprotocol/java-tron:latest
-    # container_name removed - testcontainers generates unique names
-    platform: linux/amd64
-    deploy:
-      resources:
-        limits:
-          memory: 8g
-    ports:
-      - '${TRON_HTTP_PORT:-8090}:8090' # HTTP API
-      - '${TRON_JSON_RPC_PORT:-8545}:8545' # JSON-RPC
-      - '${TRON_GRPC_PORT:-50051}:50051' # gRPC
-    volumes:
-      - ./conf:/java-tron/conf
-      - ./data:/java-tron/data
-      - ./logs:/java-tron/logs
-    command: >
-      -jvm "{-Xmx6g -Xms2g}"
-      -c /java-tron/conf/config.conf
-      -d /java-tron/data
-      -w
+    tron-local:
+        image: tronprotocol/java-tron:latest
+        # container_name removed - testcontainers generates unique names
+        platform: linux/amd64
+        deploy:
+            resources:
+                limits:
+                    memory: 8g
+        ports:
+            - "${TRON_HTTP_PORT:-8090}:8090" # HTTP API
+            - "${TRON_JSON_RPC_PORT:-8545}:8545" # JSON-RPC
+            - "${TRON_GRPC_PORT:-50051}:50051" # gRPC
+        volumes:
+            - ./conf:/java-tron/conf
+            - ./data:/java-tron/data
+            - ./logs:/java-tron/logs
+        command: >
+            -jvm "{-Xmx6g -Xms2g}"
+            -c /java-tron/conf/config.conf
+            -d /java-tron/data
+            -w

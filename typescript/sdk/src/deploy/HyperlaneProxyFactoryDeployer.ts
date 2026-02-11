@@ -25,18 +25,12 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy: boolean = false,
   ) {
-    super(
-      multiProvider,
-      proxyFactoryFactories,
-      {
-        logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
-        contractVerifier,
-        concurrentDeploy,
-      },
-      false, // recoverVerificationInputs
-      {}, // icaAddresses
-      tronProxyFactoryFactories,
-    );
+    super(multiProvider, proxyFactoryFactories, {
+      logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
+      contractVerifier,
+      concurrentDeploy,
+      tronFactories: tronProxyFactoryFactories,
+    });
   }
 
   async deployContracts(

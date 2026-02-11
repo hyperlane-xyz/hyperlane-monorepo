@@ -688,7 +688,7 @@ export function getEnvironmentDirectory(environment: DeployEnvironment) {
 export function getModuleDirectory(
   environment: DeployEnvironment,
   module: Modules,
-  context?: Contexts,
+  _context?: Contexts,
 ) {
   // for backwards compatibility with existing paths
   const suffixFn = () => {

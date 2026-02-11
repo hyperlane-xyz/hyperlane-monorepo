@@ -386,10 +386,13 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
-      contract = await contractFactory.deploy(...params, {
-        gasLimit: addBufferToGasLimit(estimatedGas),
-        ...overrides,
-      });
+      contract = await contractFactory.deploy(
+        ...params,
+        {
+          gasLimit: addBufferToGasLimit(estimatedGas),
+          ...overrides,
+        },
+      );
       // manually wait for deploy tx to be confirmed
       await this.handleTx(chainNameOrId, contract.deployTransaction);
     }

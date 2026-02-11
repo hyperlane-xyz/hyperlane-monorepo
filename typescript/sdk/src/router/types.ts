@@ -6,6 +6,10 @@ import {
   Router,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
+import {
+  ProxyAdmin__factory as TronProxyAdmin__factory,
+  TimelockController__factory as TronTimelockController__factory,
+} from '@hyperlane-xyz/tron-sdk';
 import { Address, AddressBytes32, isNumeric } from '@hyperlane-xyz/utils';
 
 import { HyperlaneFactories } from '../contracts/types.js';
@@ -46,6 +50,11 @@ export type ProxiedFactories = HyperlaneFactories & {
 export const proxiedFactories: ProxiedFactories = {
   proxyAdmin: new ProxyAdmin__factory(),
   timelockController: new TimelockController__factory(),
+};
+
+export const tronProxiedFactories: ProxiedFactories = {
+  proxyAdmin: new TronProxyAdmin__factory(),
+  timelockController: new TronTimelockController__factory(),
 };
 
 export enum ClientViolationType {

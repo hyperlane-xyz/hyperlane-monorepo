@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 
-import { ChainMap, ChainName } from '@hyperlane-xyz/sdk';
+import { ChainMap } from '@hyperlane-xyz/sdk';
 import { retryAsync } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 
@@ -17,7 +17,7 @@ import {
 
 const DEFAULT_TIMEOUT = 30_000;
 
-describe('Balance Alert Thresholds', async function () {
+describe('Balance Alert Thresholds', function () {
   this.timeout(DEFAULT_TIMEOUT);
 
   it('should have matching thresholds between Grafana alerts and threshold config files', async function () {

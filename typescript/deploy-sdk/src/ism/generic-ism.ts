@@ -99,9 +99,10 @@ function artifactToDerivedConfig(
  * Generic ISM Reader that can read any ISM type by detecting its type
  * and recursively expanding nested ISMs (e.g., for routing ISMs).
  */
-export class IsmReader
-  implements ArtifactReader<IsmArtifactConfig, DeployedIsmAddress>
-{
+export class IsmReader implements ArtifactReader<
+  IsmArtifactConfig,
+  DeployedIsmAddress
+> {
   protected readonly logger: Logger = rootLogger.child({
     module: IsmReader.name,
   });

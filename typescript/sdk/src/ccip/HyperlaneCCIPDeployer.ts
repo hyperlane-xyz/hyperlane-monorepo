@@ -1,5 +1,9 @@
 import { CCIPHook__factory, CCIPIsm__factory } from '@hyperlane-xyz/core';
 import {
+  CCIPHook__factory as TronCCIPHook__factory,
+  CCIPIsm__factory as TronCCIPIsm__factory,
+} from '@hyperlane-xyz/tron-sdk';
+import {
   ZERO_ADDRESS_HEX_32,
   addressToBytes32,
   assert,
@@ -208,7 +212,11 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
 
     const ccipIsm = await this.deployContractFromFactory(
       destination,
-      new CCIPIsm__factory(),
+      this.resolveFactory(
+        destination,
+        new CCIPIsm__factory(),
+        new TronCCIPIsm__factory(),
+      ),
       'CCIPIsm',
       [ccipIsmChainRouterAddress, ccipOriginChainSelector],
       undefined,
@@ -258,7 +266,11 @@ export class HyperlaneCCIPDeployer extends HyperlaneDeployer<
 
     const ccipHook = await this.deployContractFromFactory(
       origin,
-      new CCIPHook__factory(),
+      this.resolveFactory(
+        origin,
+        new CCIPHook__factory(),
+        new TronCCIPHook__factory(),
+      ),
       'CCIPHook',
       [
         ccipOriginChainRouterAddress,

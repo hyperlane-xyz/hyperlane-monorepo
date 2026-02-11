@@ -30,6 +30,20 @@ import {
   ZKSyncArtifact,
 } from '@hyperlane-xyz/core';
 import {
+  AmountRoutingIsm__factory as TronAmountRoutingIsm__factory,
+  ArbL2ToL1Ism__factory as TronArbL2ToL1Ism__factory,
+  CCIPIsm__factory as TronCCIPIsm__factory,
+  DefaultFallbackRoutingIsm__factory as TronDefaultFallbackRoutingIsm__factory,
+  DomainRoutingIsm__factory as TronDomainRoutingIsm__factory,
+  OPStackIsm__factory as TronOPStackIsm__factory,
+  PausableIsm__factory as TronPausableIsm__factory,
+  StorageAggregationIsm__factory as TronStorageAggregationIsm__factory,
+  StorageMerkleRootMultisigIsm__factory as TronStorageMerkleRootMultisigIsm__factory,
+  StorageMessageIdMultisigIsm__factory as TronStorageMessageIdMultisigIsm__factory,
+  TestIsm__factory as TronTestIsm__factory,
+  TrustedRelayerIsm__factory as TronTrustedRelayerIsm__factory,
+} from '@hyperlane-xyz/tron-sdk';
+import {
   Address,
   Domain,
   addBufferToGasLimit,
@@ -82,6 +96,15 @@ const ismFactories = {
   [IsmType.CCIP]: new CCIPIsm__factory(),
 };
 
+const tronIsmFactories = {
+  [IsmType.PAUSABLE]: new TronPausableIsm__factory(),
+  [IsmType.TRUSTED_RELAYER]: new TronTrustedRelayerIsm__factory(),
+  [IsmType.TEST_ISM]: new TronTestIsm__factory(),
+  [IsmType.OP_STACK]: new TronOPStackIsm__factory(),
+  [IsmType.ARB_L2_TO_L1]: new TronArbL2ToL1Ism__factory(),
+  [IsmType.CCIP]: new TronCCIPIsm__factory(),
+};
+
 class IsmDeployer extends HyperlaneDeployer<{}, typeof ismFactories> {
   protected readonly cachingEnabled = false;
 
@@ -97,6 +120,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
   public deployedIsms: ChainMap<any> = {};
   protected readonly deployer: IsmDeployer;
 
+  private resolveFactory<F extends ethers.ContractFactory>(
+    chain: ChainName,
+    evmFactory: F,
+    tronFactory: F,
+  ): F {
+    return this.deployer.resolveFactory(chain, evmFactory, tronFactory);
+  }
+
   constructor(
     contractsMap: HyperlaneContractsMap<ProxyFactoryFactories>,
     public readonly multiProvider: MultiProvider,
@@ -110,6 +141,7 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     );
     this.deployer = new IsmDeployer(multiProvider, ismFactories, {
       contractVerifier,
+      tronFactories: tronIsmFactories,
     });
   }
 
@@ -337,13 +369,21 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
       // TODO: support using minimal proxy factories for storage multisig ISMs too
       case IsmType.STORAGE_MERKLE_ROOT_MULTISIG:
         address = await deployStorage(
-          new StorageMerkleRootMultisigIsm__factory(),
+          this.resolveFactory(
+            destination,
+            new StorageMerkleRootMultisigIsm__factory(),
+            new TronStorageMerkleRootMultisigIsm__factory(),
+          ),
           await getZKSyncArtifactByContractName(config.type),
         );
         break;
       case IsmType.STORAGE_MESSAGE_ID_MULTISIG:
         address = await deployStorage(
-          new StorageMessageIdMultisigIsm__factory(),
+          this.resolveFactory(
+            destination,
+            new StorageMessageIdMultisigIsm__factory(),
+            new TronStorageMessageIdMultisigIsm__factory(),
+          ),
           await getZKSyncArtifactByContractName(config.type),
         );
         break;
@@ -431,9 +471,14 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
 
     const [lowerIsmAddress, upperIsmAddress] = addresses;
 
-    return this.multiProvider.handleDeploy(
+    const amountRoutingFactory = this.resolveFactory(
       params.destination,
       new AmountRoutingIsm__factory(),
+      new TronAmountRoutingIsm__factory(),
+    );
+    return this.multiProvider.handleDeploy(
+      params.destination,
+      amountRoutingFactory,
       [lowerIsmAddress, upperIsmAddress, threshold],
     );
   }
@@ -553,7 +598,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         logger.debug('Deploying fallback routing ISM ...');
         routingIsm = await this.multiProvider.handleDeploy(
           destination,
-          new DefaultFallbackRoutingIsm__factory(),
+          this.resolveFactory(
+            destination,
+            new DefaultFallbackRoutingIsm__factory(),
+            new TronDefaultFallbackRoutingIsm__factory(),
+          ),
           [mailbox],
           await getZKSyncArtifactByContractName(config.type),
         );
@@ -572,18 +621,24 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
         // deploying new domain routing ISM
         const owner = config.owner;
 
-        // if zksync we can't use the proxy factories, so we need to deploy directly
-        const isZksync =
-          this.multiProvider.getChainMetadata(destination).technicalStack ===
-          ChainTechnicalStack.ZkSync;
-        if (isZksync) {
+        // if zksync or tron we can't use the proxy factories, so we need to deploy directly
+        const techStack =
+          this.multiProvider.getChainMetadata(destination).technicalStack;
+        const isDirectDeploy =
+          techStack === ChainTechnicalStack.ZkSync ||
+          techStack === ChainTechnicalStack.Tron;
+        if (isDirectDeploy) {
           assert(
             this.deployer,
             'HyperlaneDeployer must be set to deploy routing ISM',
           );
           const routingIsm = await this.deployer?.deployContractFromFactory(
             destination,
-            new DomainRoutingIsm__factory(),
+            this.resolveFactory(
+              destination,
+              new DomainRoutingIsm__factory(),
+              new TronDomainRoutingIsm__factory(),
+            ),
             IsmType.ROUTING,
             [],
           );
@@ -666,7 +721,11 @@ export class HyperlaneIsmFactory extends HyperlaneApp<ProxyFactoryFactories> {
     let ismAddress: string;
     if (config.type === IsmType.STORAGE_AGGREGATION) {
       // TODO: support using minimal proxy factories for storage aggregation ISMs too
-      const factory = new StorageAggregationIsm__factory().connect(signer);
+      const factory = this.resolveFactory(
+        destination,
+        new StorageAggregationIsm__factory(),
+        new TronStorageAggregationIsm__factory(),
+      ).connect(signer);
       const ism = await this.multiProvider.handleDeploy(destination, factory, [
         addresses,
         config.threshold,

@@ -12,6 +12,10 @@ on:
   issue_comment:
     types: [created]
 
+env:
+  CLAUDE_OPUS_MODEL: claude-opus-4-6
+  CLAUDE_SONNET_MODEL: claude-sonnet-4-5
+
 concurrency:
   group: claude-review-${{ github.event.pull_request.number || github.event.issue.number }}
   cancel-in-progress: false
@@ -35,7 +39,7 @@ jobs:
         contains(join(github.event.pull_request.labels.*.name, ','), 'claude-review') &&
         github.event.pull_request.head.repo.full_name == github.repository
       )
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -65,47 +69,29 @@ jobs:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 0
 
-      - name: Read code review prompt
-        id: prompt
-        run: |
-          {
-            echo 'content<<EOF'
-            cat .github/prompts/code-review.md
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
       - name: Run Claude Code Review
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.prompt.outputs.content }}
+          prompt: Run /claude-review
           track_progress: true
           use_sticky_comment: true
           claude_args: |
-            --model claude-opus-4-5
+            --model ${{ env.CLAUDE_OPUS_MODEL }}
             --max-turns 30
 
-  # Security-focused review: auto on PR or manual via @claude security
+  # Security-focused review: manual via @claude security comment only
   security-review:
     if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude security') &&
       (
-        github.event_name == 'pull_request' &&
-        !github.event.pull_request.draft &&
-        !contains(github.event.pull_request.title, '[skip-review]') &&
-        !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      ) ||
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@claude security') &&
-        (
-          github.event.comment.author_association == 'MEMBER' ||
-          github.event.comment.author_association == 'OWNER' ||
-          github.event.comment.author_association == 'COLLABORATOR'
-        )
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
       )
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 20
     permissions:
       contents: read
@@ -135,29 +121,6 @@ jobs:
           ref: ${{ steps.pr-sha.outputs.head_sha }}
           fetch-depth: 2
 
-      - name: Collapse previous security review comments
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number || context.payload.pull_request.number;
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber
-            });
-            for (const comment of comments) {
-              if (comment.body.includes('Security Review') &&
-                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot') &&
-                  !comment.body.startsWith('<details>')) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                  body: `<details>\n<summary>Previous Security Review</summary>\n\n${comment.body}\n</details>`
-                });
-              }
-            }
-
       - name: Run Claude Security Review
         uses: anthropics/claude-code-security-review@25e460eb0a12077f0c6a1934d5dbae2f50785dda
         with:
@@ -166,30 +129,21 @@ jobs:
           upload-results: true
           exclude-directories: 'node_modules,dist,coverage,artifacts,cache,typechain'
           claudecode-timeout: '15'
-          claude-model: claude-opus-4-5
+          claude-model: ${{ env.CLAUDE_OPUS_MODEL }}
           custom-security-scan-instructions: '.github/prompts/security-scan.md'
 
-  # Trail of Bits security skills: auto on PR or manual via @claude security
+  # Trail of Bits security skills: manual via @claude security comment only
   tob-security-skills:
     if: |
+      github.event_name == 'issue_comment' &&
+      github.event.issue.pull_request &&
+      contains(github.event.comment.body, '@claude security') &&
       (
-        github.event_name == 'pull_request' &&
-        !github.event.pull_request.draft &&
-        !contains(github.event.pull_request.title, '[skip-review]') &&
-        !contains(join(github.event.pull_request.labels.*.name, ','), 'skip-review') &&
-        github.event.pull_request.head.repo.full_name == github.repository
-      ) ||
-      (
-        github.event_name == 'issue_comment' &&
-        github.event.issue.pull_request &&
-        contains(github.event.comment.body, '@claude security') &&
-        (
-          github.event.comment.author_association == 'MEMBER' ||
-          github.event.comment.author_association == 'OWNER' ||
-          github.event.comment.author_association == 'COLLABORATOR'
-        )
+        github.event.comment.author_association == 'MEMBER' ||
+        github.event.comment.author_association == 'OWNER' ||
+        github.event.comment.author_association == 'COLLABORATOR'
       )
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 25
     permissions:
       contents: read
@@ -215,6 +169,12 @@ jobs:
               core.setOutput('base_sha', context.payload.pull_request.base.sha);
             }
 
+      - name: Checkout repository
+        uses: actions/checkout@v6
+        with:
+          ref: ${{ steps.pr-sha.outputs.head_sha }}
+          fetch-depth: 0
+
       - name: Check for Solidity changes
         id: solidity-changes
         uses: dorny/paths-filter@v3
@@ -225,57 +185,16 @@ jobs:
             solidity:
               - 'solidity/**'
 
-      - name: Checkout repository
-        if: steps.solidity-changes.outputs.solidity == 'true'
-        uses: actions/checkout@v6
-        with:
-          ref: ${{ steps.pr-sha.outputs.head_sha }}
-          fetch-depth: 0
-
-      - name: Collapse previous ToB security comments
-        if: steps.solidity-changes.outputs.solidity == 'true'
-        uses: actions/github-script@v7
-        with:
-          script: |
-            const prNumber = context.issue.number || context.payload.pull_request.number;
-            const { data: comments } = await github.rest.issues.listComments({
-              owner: context.repo.owner,
-              repo: context.repo.repo,
-              issue_number: prNumber
-            });
-            for (const comment of comments) {
-              if (comment.body.includes('Trail of Bits') &&
-                  (comment.user.login.includes('github-actions') || comment.user.type === 'Bot') &&
-                  !comment.body.startsWith('<details>')) {
-                await github.rest.issues.updateComment({
-                  owner: context.repo.owner,
-                  repo: context.repo.repo,
-                  comment_id: comment.id,
-                  body: `<details>\n<summary>Previous Trail of Bits Review</summary>\n\n${comment.body}\n</details>`
-                });
-              }
-            }
-
-      - name: Read ToB security skills prompt
-        if: steps.solidity-changes.outputs.solidity == 'true'
-        id: tob-prompt
-        run: |
-          {
-            echo 'content<<EOF'
-            cat .github/prompts/tob-security-skills.md
-            echo 'EOF'
-          } >> $GITHUB_OUTPUT
-
       - name: Run ToB Security Skills
         if: steps.solidity-changes.outputs.solidity == 'true'
         uses: anthropics/claude-code-action@v1
         with:
           anthropic_api_key: ${{ secrets.ANTHROPIC_API_KEY }}
-          prompt: ${{ steps.tob-prompt.outputs.content }}
+          prompt: Run /claude-tob-review
           track_progress: true
           use_sticky_comment: true
           claude_args: |
-            --model claude-opus-4-5
+            --model ${{ env.CLAUDE_OPUS_MODEL }}
             --max-turns 25
 
   # Interactive @claude mentions in comments
@@ -302,7 +221,7 @@ jobs:
           github.event.comment.author_association == 'COLLABORATOR'
         )
       )
-    runs-on: depot-ubuntu-latest
+    runs-on: ubuntu-latest
     timeout-minutes: 15
     permissions:
       contents: read
@@ -343,5 +262,5 @@ jobs:
           track_progress: true
           use_sticky_comment: true
           claude_args: |
-            --model claude-sonnet-4-5
+            --model ${{ env.CLAUDE_SONNET_MODEL }}
             --max-turns 20

@@ -38,6 +38,7 @@ COPY typescript/infra/package.json ./typescript/infra/
 COPY typescript/keyfunder/package.json ./typescript/keyfunder/
 COPY typescript/provider-sdk/package.json ./typescript/provider-sdk/
 COPY typescript/radix-sdk/package.json ./typescript/radix-sdk/
+COPY typescript/tron-sdk/package.json ./typescript/tron-sdk/
 COPY typescript/rebalancer/package.json ./typescript/rebalancer/
 COPY typescript/rebalancer-sim/package.json ./typescript/rebalancer-sim/
 COPY typescript/tron-sdk/package.json ./typescript/tron-sdk/

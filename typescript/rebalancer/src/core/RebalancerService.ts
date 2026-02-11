@@ -61,6 +61,13 @@ export interface RebalancerServiceConfig {
 
   /** Service version for logging */
   version?: string;
+
+  /**
+   * Optional pre-configured ActionTracker.
+   * If provided, skips ActionTracker creation and uses this directly.
+   * Useful for simulation/testing where tracking is mocked externally.
+   */
+  actionTracker?: IActionTracker;
 }
 
 export interface ManualRebalanceRequest {
@@ -179,13 +186,24 @@ export class RebalancerService {
       );
     }
 
-    // Create ActionTracker for tracking inflight actions
-    const { tracker, adapter } =
-      await this.contextFactory.createActionTracker();
-    this.actionTracker = tracker;
-    this.inflightContextAdapter = adapter;
-    await this.actionTracker.initialize();
-    this.logger.info('ActionTracker initialized');
+    // Create or use provided ActionTracker for tracking inflight actions
+    if (this.config.actionTracker) {
+      // Use externally provided ActionTracker (e.g., for simulation/testing)
+      this.actionTracker = this.config.actionTracker;
+      this.inflightContextAdapter = new InflightContextAdapter(
+        this.actionTracker,
+        this.multiProvider,
+      );
+      await this.actionTracker.initialize();
+      this.logger.info('Using externally provided ActionTracker');
+    } else {
+      const { tracker, adapter } =
+        await this.contextFactory.createActionTracker();
+      this.actionTracker = tracker;
+      this.inflightContextAdapter = adapter;
+      await this.actionTracker.initialize();
+      this.logger.info('ActionTracker initialized');
+    }
 
     this.logger.info(
       {

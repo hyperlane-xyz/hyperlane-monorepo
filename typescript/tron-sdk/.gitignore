@@ -6,6 +6,7 @@ artifacts-tron
 forge-cache
 out
 src/typechain
+src/abi
 local-node/data
 local-node/logs
 coverage

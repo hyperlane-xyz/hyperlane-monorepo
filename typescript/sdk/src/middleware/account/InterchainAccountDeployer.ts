@@ -31,10 +31,10 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
       {
         contractVerifier,
         concurrentDeploy,
+        tronFactories: tronInterchainAccountFactories,
       },
       false, // recoverVerificationInputs
       {}, // icaAddresses
-      tronInterchainAccountFactories,
     );
   }
 

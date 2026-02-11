@@ -1,5 +1,5 @@
 import { confirm } from '@inquirer/prompts';
-import { Connection, Keypair, PublicKey } from '@solana/web3.js';
+import { Connection, PublicKey } from '@solana/web3.js';
 import { deserializeUnchecked } from 'borsh';
 import chalk from 'chalk';
 
@@ -24,7 +24,6 @@ import {
 import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
-import { getSecretRpcEndpoints } from '../../src/agents/index.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import {

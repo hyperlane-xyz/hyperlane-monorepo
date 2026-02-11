@@ -18,7 +18,7 @@ import { ContractVerifier } from '../deploy/verify/ContractVerifier.js';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-import { IgpFactories, igpFactories } from './contracts.js';
+import { IgpFactories, igpFactories, tronIgpFactories } from './contracts.js';
 import {
   oracleConfigToOracleData,
   serializeDifference,
@@ -38,6 +38,7 @@ export class HyperlaneIgpDeployer extends HyperlaneDeployer<
       logger: rootLogger.child({ module: 'IgpDeployer' }),
       contractVerifier,
       concurrentDeploy,
+      tronFactories: tronIgpFactories,
     });
   }
 
