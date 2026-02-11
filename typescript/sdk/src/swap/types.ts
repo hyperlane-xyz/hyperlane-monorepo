@@ -17,6 +17,8 @@ export interface SwapAndBridgeParams {
   slippage: number;
   /** True when the user pays with native ETH (requires WRAP_ETH before swap) */
   isNativeOrigin?: boolean;
+  /** Expected output from the swap, used to compute bridge amount minus token fee */
+  expectedSwapOutput?: BigNumber;
   bridgeMsgFee?: BigNumber;
   bridgeTokenFee?: BigNumber;
   crossChainMsgFee?: BigNumber;

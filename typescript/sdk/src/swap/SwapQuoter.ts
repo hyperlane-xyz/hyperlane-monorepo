@@ -9,8 +9,11 @@ const WARP_ROUTE_ABI = [
 ];
 
 export interface BridgeQuote {
+  /** ETH msg fee (native gas for interchain message) */
   fee: BigNumber;
   feeToken: string;
+  /** Token fee the bridge charges on top of the transfer amount */
+  bridgeTokenFee: BigNumber;
 }
 
 /**
@@ -60,8 +63,23 @@ export async function getBridgeFee(
     );
   const feeQuote = quotes[0];
 
+  // quoteTransferRemote returns: [ethMsgFee, totalTokenPull, ...].
+  // totalTokenPull = amount + bridgeInternalFee, so bridgeTokenFee = totalTokenPull - amount.
+  let bridgeTokenFee = BigNumber.from(0);
+  if (quotes.length > 1) {
+    const tokenPull = quotes[1];
+    if (
+      tokenPull &&
+      tokenPull.token.toLowerCase() !== constants.AddressZero.toLowerCase() &&
+      tokenPull.amount.gt(amount)
+    ) {
+      bridgeTokenFee = tokenPull.amount.sub(amount);
+    }
+  }
+
   return {
     fee: feeQuote?.amount ?? BigNumber.from(0),
     feeToken: feeQuote?.token ?? constants.AddressZero,
+    bridgeTokenFee,
   };
 }

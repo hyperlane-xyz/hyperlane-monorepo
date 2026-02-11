@@ -14,12 +14,6 @@ export const BridgeTypes = {
   HYP_ERC20_COLLATERAL: 0x03,
 } as const;
 
-// Sentinel value: tells the Universal Router to use its entire token balance
-// Equivalent to ActionConstants.CONTRACT_BALANCE (1 << 255)
-const CONTRACT_BALANCE = BigNumber.from(
-  '0x8000000000000000000000000000000000000000000000000000000000000000',
-);
-
 export type BridgeTokenParams = {
   bridgeType: number;
   recipient: string;
@@ -190,15 +184,22 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
     );
   }
 
+  // When hasSwap: the router holds swapOutput tokens after the swap.
+  // The bridge's transferRemote pulls (amount + internalFee) via transferFrom.
+  // So amount = swapOutput - bridgeTokenFee, and tokenFee (approval) = swapOutput.
+  const swapOut = params.expectedSwapOutput ?? BigNumber.from(0);
+  const bridgeAmount = hasSwap ? swapOut.sub(bridgeTokenFee) : params.amount;
+  const bridgeApproval = hasSwap ? swapOut : bridgeTokenFee;
+
   encodedCommands.push(
     encodeBridgeToken({
       bridgeType: BridgeTypes.HYP_ERC20_COLLATERAL,
       recipient: params.recipient,
       token: params.bridgeToken,
       bridge: params.warpRouteAddress,
-      amount: hasSwap ? CONTRACT_BALANCE : params.amount,
+      amount: bridgeAmount,
       msgFee: bridgeMsgFee,
-      tokenFee: hasSwap ? CONTRACT_BALANCE : bridgeTokenFee,
+      tokenFee: bridgeApproval,
       domain: params.destinationDomain,
       payerIsUser: !hasSwap,
     }),
