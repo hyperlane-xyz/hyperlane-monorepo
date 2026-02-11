@@ -891,33 +891,16 @@ export {
 } from './warp/types.js';
 export { WarpCore, WarpCoreOptions } from './warp/WarpCore.js';
 export type {
-  SwapQuote,
-  BridgeQuote,
-  TotalQuote,
   SwapAndBridgeParams,
   UniversalRouterCommand,
-  IcaConfig,
 } from './swap/types.js';
 export {
   Commands,
   BridgeTypes,
-  encodeBridgeToken,
-  encodeExecuteCrossChain,
-  encodeV3SwapExactIn,
   buildSwapAndBridgeTx,
 } from './swap/UniversalRouterEncoder.js';
-export type {
-  BridgeTokenParams,
-  ExecuteCrossChainParams,
-  V3SwapExactInParams,
-} from './swap/UniversalRouterEncoder.js';
-export {
-  QUOTER_ADDRESSES,
-  getSwapQuote,
-  getBridgeFee,
-  getTotalQuote,
-} from './swap/SwapQuoter.js';
-export { deriveIcaAddress } from './swap/IcaDerivation.js';
+export type { BridgeQuote } from './swap/SwapQuoter.js';
+export { getSwapQuote, getBridgeFee } from './swap/SwapQuoter.js';
 export { EvmTimelockReader } from './timelock/evm/EvmTimelockReader.js';
 export { EvmTimelockDeployer } from './timelock/evm/EvmTimelockDeployer.js';
 export {
