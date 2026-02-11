@@ -211,6 +211,30 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
 
   const includeCrossChainCommand = params.includeCrossChainCommand ?? true;
 
+  if (includeCrossChainCommand) {
+    const hasAnyCrossChainField =
+      !!params.icaRouterAddress ||
+      !!params.remoteIcaRouterAddress ||
+      !!params.commitment;
+
+    if (
+      hasAnyCrossChainField &&
+      (!params.icaRouterAddress || !params.remoteIcaRouterAddress)
+    ) {
+      throw new Error(
+        'includeCrossChainCommand requires both icaRouterAddress and remoteIcaRouterAddress',
+      );
+    }
+    if (hasAnyCrossChainField && !params.commitment) {
+      throw new Error(
+        'includeCrossChainCommand requires a non-empty commitment',
+      );
+    }
+    if (params.commitment && !utils.isHexString(params.commitment, 32)) {
+      throw new Error('commitment must be a bytes32 hex string');
+    }
+  }
+
   encodedCommands.push(
     encodeBridgeToken({
       bridgeType: BridgeTypes.HYP_ERC20_COLLATERAL,

@@ -174,6 +174,47 @@ describe('UniversalRouterEncoder', () => {
     expect(tx.inputs).to.have.length(2);
   });
 
+  it('throws when includeCrossChainCommand is true without commitment', () => {
+    expect(() =>
+      buildSwapAndBridgeTx({
+        originToken: ORIGIN_TOKEN,
+        bridgeToken: BRIDGE_TOKEN,
+        destinationToken: DESTINATION_TOKEN,
+        amount: BigNumber.from('1000'),
+        recipient: UNIVERSAL_ROUTER,
+        originDomain: 42161,
+        destinationDomain: 8453,
+        warpRouteAddress: WARP_ROUTE,
+        universalRouterAddress: UNIVERSAL_ROUTER,
+        icaRouterAddress: ICA_ROUTER,
+        remoteIcaRouterAddress: REMOTE_ICA_ROUTER,
+        slippage: 0,
+        expectedSwapOutput: BigNumber.from('2000'),
+      }),
+    ).to.throw('includeCrossChainCommand requires a non-empty commitment');
+  });
+
+  it('throws when cross-chain commitment is not bytes32', () => {
+    expect(() =>
+      buildSwapAndBridgeTx({
+        originToken: ORIGIN_TOKEN,
+        bridgeToken: BRIDGE_TOKEN,
+        destinationToken: DESTINATION_TOKEN,
+        amount: BigNumber.from('1000'),
+        recipient: UNIVERSAL_ROUTER,
+        originDomain: 42161,
+        destinationDomain: 8453,
+        warpRouteAddress: WARP_ROUTE,
+        universalRouterAddress: UNIVERSAL_ROUTER,
+        icaRouterAddress: ICA_ROUTER,
+        remoteIcaRouterAddress: REMOTE_ICA_ROUTER,
+        commitment: '0x1234',
+        slippage: 0,
+        expectedSwapOutput: BigNumber.from('2000'),
+      }),
+    ).to.throw('commitment must be a bytes32 hex string');
+  });
+
   it('encodes swap path with custom poolParam and velodrome flavor', () => {
     const tx = buildSwapAndBridgeTx({
       originToken: ORIGIN_TOKEN,
