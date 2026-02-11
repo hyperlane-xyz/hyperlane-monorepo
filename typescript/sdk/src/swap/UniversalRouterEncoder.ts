@@ -45,6 +45,7 @@ export type V3SwapExactInParams = {
   amountOutMinimum: BigNumber;
   path: string;
   payerIsUser: boolean;
+  isUni: boolean;
 };
 
 export function encodeBridgeToken(
@@ -132,13 +133,14 @@ export function encodeV3SwapExactIn(
   params: V3SwapExactInParams,
 ): UniversalRouterCommand {
   const encodedInput = utils.defaultAbiCoder.encode(
-    ['address', 'uint256', 'uint256', 'bytes', 'bool'],
+    ['address', 'uint256', 'uint256', 'bytes', 'bool', 'bool'],
     [
       params.recipient,
       params.amountIn,
       params.amountOutMinimum,
       params.path,
       params.payerIsUser,
+      params.isUni,
     ],
   );
 
@@ -187,6 +189,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
         amountOutMinimum: swapOutMin,
         path,
         payerIsUser: !isNative,
+        isUni: true,
       }),
     );
   }
@@ -195,7 +198,11 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   // Use swapOutMin (slippage-adjusted) so bridge never exceeds actual swap output.
   // Any surplus above swapOutMin stays as dust in the router.
   const bridgeAmount = hasSwap ? swapOutMin.sub(bridgeTokenFee) : params.amount;
-  const bridgeApproval = hasSwap ? swapOutMin : bridgeTokenFee;
+  const bridgeApproval = hasSwap
+    ? swapOutMin
+    : params.amount.add(bridgeTokenFee);
+
+  const includeCrossChainCommand = params.includeCrossChainCommand ?? true;
 
   encodedCommands.push(
     encodeBridgeToken({
@@ -212,6 +219,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   );
 
   if (
+    includeCrossChainCommand &&
     params.icaRouterAddress &&
     params.remoteIcaRouterAddress &&
     params.commitment

@@ -14,6 +14,7 @@ export interface SwapAndBridgeParams {
   universalRouterAddress: string;
   ismAddress?: string;
   commitment?: string;
+  includeCrossChainCommand?: boolean;
   slippage: number;
   /** True when the user pays with native ETH (requires WRAP_ETH before swap) */
   isNativeOrigin?: boolean;
