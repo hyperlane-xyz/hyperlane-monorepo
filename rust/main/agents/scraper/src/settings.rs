@@ -28,16 +28,8 @@ pub struct ScraperSettings {
     #[deref_mut]
     pub base: Settings,
 
-    /// Primary database connection string
     pub db: String,
-    /// Chains to scrape
     pub chains_to_scrape: Vec<HyperlaneDomain>,
-    /// Secondary database connection string for dual-write mode
-    /// When set, the scraper will write to both databases
-    pub secondary_db: Option<String>,
-    /// Enable dual-write mode - writes to both primary and secondary databases
-    /// Failures in the secondary database do not affect the primary pipeline
-    pub dual_write_enabled: bool,
 }
 
 #[derive(Debug, Deserialize)]
@@ -79,22 +71,6 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             .end()
             .map(|v| v.to_owned());
 
-        // Parse optional secondary database for dual-write mode
-        let secondary_db = p
-            .chain(&mut err)
-            .get_opt_key("secondaryDb")
-            .parse_string()
-            .end()
-            .map(|v| v.to_owned());
-
-        // Parse dual-write enabled flag (defaults to false if not set)
-        let dual_write_enabled = p
-            .chain(&mut err)
-            .get_opt_key("dualWriteEnabled")
-            .parse_bool()
-            .end()
-            .unwrap_or(false);
-
         let chains_to_scrape = if let (Some(base), Some(chains)) = (&base, chains_names_to_scrape) {
             chains
                 .into_iter()
@@ -115,8 +91,6 @@ impl FromRawConf<RawScraperSettings> for ScraperSettings {
             base,
             db,
             chains_to_scrape,
-            secondary_db,
-            dual_write_enabled,
         })
     }
 }
