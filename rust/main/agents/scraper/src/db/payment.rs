@@ -12,7 +12,7 @@ use crate::db::ScraperDb;
 
 use super::generated::gas_payment;
 
-#[derive(Debug)]
+#[derive(Debug, Clone)]
 pub struct StorablePayment<'a> {
     pub payment: &'a InterchainGasPayment,
     pub sequence: Option<i64>,

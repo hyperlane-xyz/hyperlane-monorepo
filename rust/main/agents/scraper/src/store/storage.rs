@@ -17,7 +17,7 @@ use hyperlane_core::{
     HyperlaneWatermarkedLogStore, LogMeta, H256, H512,
 };
 
-use crate::db::{BasicBlock, BlockCursor, ScraperDb, StorableTxn};
+use crate::db::{BasicBlock, BlockCursor, DualWriteDb, StorableTxn};
 
 /// Maximum number of records to query at a time. This came about because when a
 /// lot of messages are sent in a short period of time we were ending up with a
@@ -29,7 +29,7 @@ const CHUNK_SIZE: usize = 50;
 /// connections needed to scrape the contracts on a single blockchain.
 #[derive(Clone, Debug)]
 pub struct HyperlaneDbStore {
-    pub(crate) db: ScraperDb,
+    pub(crate) db: DualWriteDb,
     pub(crate) domain: HyperlaneDomain,
     pub(crate) mailbox_address: H256,
     pub(crate) interchain_gas_paymaster_address: H256,
@@ -42,7 +42,7 @@ pub struct HyperlaneDbStore {
 #[allow(unused)]
 impl HyperlaneDbStore {
     pub async fn new(
-        db: ScraperDb,
+        db: DualWriteDb,
         domain: HyperlaneDomain,
         mailbox_address: H256,
         interchain_gas_paymaster_address: H256,
