@@ -386,7 +386,9 @@ describe('UniversalRouterEncoder', () => {
         crossChainTokenFee: BigNumber.from('5'),
         includeCrossChainCommand: false,
       }),
-    ).to.throw('crossChainTokenFee requires includeCrossChainCommand to be true');
+    ).to.throw(
+      'crossChainTokenFee requires includeCrossChainCommand to be true',
+    );
   });
 
   it('throws for invalid slippage bounds', () => {
