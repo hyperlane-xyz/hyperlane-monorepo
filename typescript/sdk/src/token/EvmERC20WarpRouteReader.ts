@@ -83,8 +83,10 @@ import { getExtraLockBoxConfigs } from './xerc20.js';
 const REBALANCING_CONTRACT_VERSION = '8.0.0';
 export const TOKEN_FEE_CONTRACT_VERSION = '10.0.0';
 const SCALE_FRACTION_VERSION = '11.0.0';
-// Version that introduced ppm precision for CCTP V2 maxFeeBps (was bps before)
-export const CCTP_PPM_PRECISION_VERSION = '10.2.0';
+// Version that first introduced ppm precision for CCTP V2 fee storage (was bps before)
+export const CCTP_PPM_STORAGE_VERSION = '10.2.0';
+// Version that renamed maxFeeBps() to maxFeePpm() on-chain
+export const CCTP_PPM_PRECISION_VERSION = '11.0.0';
 
 export class EvmERC20WarpRouteReader extends EvmRouterReader {
   protected readonly logger = rootLogger.child({
@@ -683,13 +685,13 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
     const config = await deriveFunction(warpRouteAddress);
     config.contractVersion = await this.fetchPackageVersion(warpRouteAddress);
 
-    // Convert ppm to bps for CCTP V2 contracts with ppm precision
+    // Convert ppm to bps for CCTP V2 contracts that store fees in ppm (>= 10.2.0)
     if (
       config.type === TokenType.collateralCctp &&
       config.cctpVersion === 'V2' &&
       config.maxFeeBps !== undefined &&
       config.contractVersion &&
-      compareVersions(config.contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0
+      compareVersions(config.contractVersion, CCTP_PPM_STORAGE_VERSION) >= 0
     ) {
       config.maxFeeBps = config.maxFeeBps / 100;
     }
@@ -782,9 +784,24 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         hypToken,
         this.provider,
       );
-      const [minFinalityThreshold, maxFeeBps] = await Promise.all([
+
+      // Version-gate: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
+      const contractVersion = await this.fetchPackageVersion(hypToken);
+      const usesPpmName =
+        contractVersion !== undefined &&
+        compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
+
+      const [minFinalityThreshold, maxFeePpm] = await Promise.all([
         tokenBridgeV2.minFinalityThreshold(),
-        tokenBridgeV2.maxFeeBps(),
+        usesPpmName
+          ? tokenBridgeV2.maxFeePpm()
+          : tokenBridgeV2.provider
+              .call({
+                to: hypToken,
+                // maxFeeBps() selector
+                data: '0xbf769a3f',
+              })
+              .then((result) => BigNumber.from(result)),
       ]);
       return {
         ...collateralConfig,
@@ -794,7 +811,7 @@ export class EvmERC20WarpRouteReader extends EvmRouterReader {
         tokenMessenger,
         urls,
         minFinalityThreshold,
-        maxFeeBps: maxFeeBps.toNumber(),
+        maxFeeBps: maxFeePpm.toNumber(),
       };
     } else {
       throw new Error(`Unsupported CCTP version ${onchainCctpVersion}`);

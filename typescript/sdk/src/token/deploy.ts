@@ -1,5 +1,5 @@
 import { compareVersions } from 'compare-versions';
-import { constants } from 'ethers';
+import { BigNumber, constants } from 'ethers';
 
 import {
   ERC20__factory,
@@ -41,7 +41,10 @@ import { GasRouterDeployer } from '../router/GasRouterDeployer.js';
 import { resolveRouterMapConfig } from '../router/types.js';
 import { ChainMap, ChainName } from '../types.js';
 
-import { CCTP_PPM_PRECISION_VERSION } from './EvmERC20WarpRouteReader.js';
+import {
+  CCTP_PPM_PRECISION_VERSION,
+  CCTP_PPM_STORAGE_VERSION,
+} from './EvmERC20WarpRouteReader.js';
 import { TokenMetadataMap } from './TokenMetadataMap.js';
 import { TokenType, gasOverhead } from './config.js';
 import { resolveTokenFeeAddress } from './configUtils.js';
@@ -466,32 +469,61 @@ abstract class TokenDeployer<
           this.multiProvider.getSigner(chain),
         );
 
-        // Check contract version to determine if we need ppm conversion
+        // Check contract version to determine ppm conversion and function name
         const versionedContract = PackageVersioned__factory.connect(
           router,
           this.multiProvider.getProvider(chain),
         );
         const contractVersion = await versionedContract.PACKAGE_VERSION();
-        const usesPpmPrecision =
+        const usesPpmStorage =
+          compareVersions(contractVersion, CCTP_PPM_STORAGE_VERSION) >= 0;
+        const usesPpmName =
           compareVersions(contractVersion, CCTP_PPM_PRECISION_VERSION) >= 0;
 
-        // Convert bps to ppm for contracts that use ppm precision
-        const targetFee = usesPpmPrecision
+        // Convert bps to ppm for contracts that store fees in ppm (>= 10.2.0)
+        const targetFee = usesPpmStorage
           ? Math.round(config.maxFeeBps! * 100)
           : config.maxFeeBps!;
 
-        const currentMaxFee = await tokenBridgeV2.maxFeeBps();
+        // Read current fee: >= 11.0.0 uses maxFeePpm(), older uses maxFeeBps()
+        const currentMaxFee = usesPpmName
+          ? await tokenBridgeV2.maxFeePpm()
+          : BigNumber.from(
+              await tokenBridgeV2.provider.call({
+                to: router,
+                // maxFeeBps() selector
+                data: '0xbf769a3f',
+              }),
+            );
+
         if (currentMaxFee.toNumber() !== targetFee) {
-          const currentFeeBps = usesPpmPrecision
+          const currentFeeBps = usesPpmStorage
             ? currentMaxFee.toNumber() / 100
             : currentMaxFee.toNumber();
           this.logger.info(
-            `Setting maxFeeBps on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmPrecision ? ' (stored as ppm)' : ''}`,
+            `Setting maxFeePpm on ${chain} from ${currentFeeBps} bps to ${config.maxFeeBps} bps${usesPpmStorage ? ' (stored as ppm)' : ''}`,
           );
-          await this.multiProvider.handleTx(
-            chain,
-            tokenBridgeV2.setMaxFeeBps(targetFee),
-          );
+          // >= 11.0.0 uses setMaxFeePpm(), older uses setMaxFeeBps()
+          if (usesPpmName) {
+            await this.multiProvider.handleTx(
+              chain,
+              tokenBridgeV2.setMaxFeePpm(targetFee),
+            );
+          } else {
+            await this.multiProvider.handleTx(
+              chain,
+              tokenBridgeV2.signer.sendTransaction({
+                to: router,
+                // setMaxFeeBps(uint256) selector + abi-encoded targetFee
+                data:
+                  '0x246d4569' +
+                  BigNumber.from(targetFee)
+                    .toHexString()
+                    .slice(2)
+                    .padStart(64, '0'),
+              }),
+            );
+          }
         }
       }),
     );
