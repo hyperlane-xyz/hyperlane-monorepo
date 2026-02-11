@@ -162,6 +162,12 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   const hasSwap = !eqAddress(params.originToken, params.bridgeToken);
   const isNative = params.isNativeOrigin ?? false;
   const swapOut = params.expectedSwapOutput ?? BigNumber.from(0);
+  // Apply slippage to get the worst-case swap output we'll accept.
+  // Bridge amount is based on this minimum so it never exceeds actual balance.
+  const slippageBps = Math.floor((params.slippage ?? 0) * 10000);
+  const swapOutMin = hasSwap
+    ? swapOut.mul(10000 - slippageBps).div(10000)
+    : BigNumber.from(0);
 
   if (hasSwap) {
     if (isNative) {
@@ -174,13 +180,11 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       ['address', 'uint24', 'address'],
       [params.originToken, 500, params.bridgeToken],
     );
-    // amountOutMinimum = expectedSwapOutput ensures the swap produces at least
-    // the amount we promised the bridge, preventing shortfall from price movement.
     encodedCommands.push(
       encodeV3SwapExactIn({
         recipient: params.universalRouterAddress,
         amountIn: params.amount,
-        amountOutMinimum: swapOut,
+        amountOutMinimum: swapOutMin,
         path,
         payerIsUser: !isNative,
       }),
@@ -188,10 +192,10 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   }
 
   // When hasSwap: bridge's transferRemote pulls (amount + internalFee) via transferFrom.
-  // amount = expectedSwapOutput - bridgeTokenFee; approval (tokenFee) = expectedSwapOutput.
-  // Any extra output above expectedSwapOutput stays as dust in the router.
-  const bridgeAmount = hasSwap ? swapOut.sub(bridgeTokenFee) : params.amount;
-  const bridgeApproval = hasSwap ? swapOut : bridgeTokenFee;
+  // Use swapOutMin (slippage-adjusted) so bridge never exceeds actual swap output.
+  // Any surplus above swapOutMin stays as dust in the router.
+  const bridgeAmount = hasSwap ? swapOutMin.sub(bridgeTokenFee) : params.amount;
+  const bridgeApproval = hasSwap ? swapOutMin : bridgeTokenFee;
 
   encodedCommands.push(
     encodeBridgeToken({
