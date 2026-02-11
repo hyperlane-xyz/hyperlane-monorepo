@@ -161,6 +161,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
 
   const hasSwap = !eqAddress(params.originToken, params.bridgeToken);
   const isNative = params.isNativeOrigin ?? false;
+  const swapOut = params.expectedSwapOutput ?? BigNumber.from(0);
 
   if (hasSwap) {
     if (isNative) {
@@ -173,21 +174,22 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       ['address', 'uint24', 'address'],
       [params.originToken, 500, params.bridgeToken],
     );
+    // amountOutMinimum = expectedSwapOutput ensures the swap produces at least
+    // the amount we promised the bridge, preventing shortfall from price movement.
     encodedCommands.push(
       encodeV3SwapExactIn({
         recipient: params.universalRouterAddress,
         amountIn: params.amount,
-        amountOutMinimum: BigNumber.from(0),
+        amountOutMinimum: swapOut,
         path,
         payerIsUser: !isNative,
       }),
     );
   }
 
-  // When hasSwap: the router holds swapOutput tokens after the swap.
-  // The bridge's transferRemote pulls (amount + internalFee) via transferFrom.
-  // So amount = swapOutput - bridgeTokenFee, and tokenFee (approval) = swapOutput.
-  const swapOut = params.expectedSwapOutput ?? BigNumber.from(0);
+  // When hasSwap: bridge's transferRemote pulls (amount + internalFee) via transferFrom.
+  // amount = expectedSwapOutput - bridgeTokenFee; approval (tokenFee) = expectedSwapOutput.
+  // Any extra output above expectedSwapOutput stays as dust in the router.
   const bridgeAmount = hasSwap ? swapOut.sub(bridgeTokenFee) : params.amount;
   const bridgeApproval = hasSwap ? swapOut : bridgeTokenFee;
 
