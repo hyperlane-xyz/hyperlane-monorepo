@@ -5,6 +5,7 @@ import { SwapAndBridgeParams, UniversalRouterCommand } from './types.js';
 
 export const Commands = {
   V3_SWAP_EXACT_IN: 0x00,
+  WRAP_ETH: 0x0b,
   BRIDGE_TOKEN: 0x12,
   EXECUTE_CROSS_CHAIN: 0x13,
 } as const;
@@ -122,6 +123,17 @@ export function encodeExecuteCrossChain(
   };
 }
 
+export function encodeWrapEth(
+  recipient: string,
+  amount: BigNumber,
+): UniversalRouterCommand {
+  const encodedInput = utils.defaultAbiCoder.encode(
+    ['address', 'uint256'],
+    [recipient, amount],
+  );
+  return { commandType: Commands.WRAP_ETH, encodedInput };
+}
+
 export function encodeV3SwapExactIn(
   params: V3SwapExactInParams,
 ): UniversalRouterCommand {
@@ -154,8 +166,15 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   const crossChainTokenFee = params.crossChainTokenFee ?? BigNumber.from(0);
 
   const hasSwap = !eqAddress(params.originToken, params.bridgeToken);
+  const isNative = params.isNativeOrigin ?? false;
 
   if (hasSwap) {
+    if (isNative) {
+      encodedCommands.push(
+        encodeWrapEth(params.universalRouterAddress, params.amount),
+      );
+    }
+
     const path = utils.solidityPack(
       ['address', 'uint24', 'address'],
       [params.originToken, 500, params.bridgeToken],
@@ -166,7 +185,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
         amountIn: params.amount,
         amountOutMinimum: BigNumber.from(0),
         path,
-        payerIsUser: true,
+        payerIsUser: !isNative,
       }),
     );
   }
@@ -208,7 +227,10 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       )
       .join('');
 
-  const value = bridgeMsgFee.add(crossChainMsgFee);
+  let value = bridgeMsgFee.add(crossChainMsgFee);
+  if (hasSwap && isNative) {
+    value = value.add(params.amount);
+  }
 
   return {
     commands,

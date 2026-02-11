@@ -15,6 +15,8 @@ export interface SwapAndBridgeParams {
   ismAddress: string;
   commitment: string;
   slippage: number;
+  /** True when the user pays with native ETH (requires WRAP_ETH before swap) */
+  isNativeOrigin?: boolean;
   bridgeMsgFee?: BigNumber;
   bridgeTokenFee?: BigNumber;
   crossChainMsgFee?: BigNumber;
