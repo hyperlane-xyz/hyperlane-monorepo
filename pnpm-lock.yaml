@@ -2457,6 +2457,9 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 9.39.2
+      '@hyperlane-xyz/core':
+        specifier: workspace:*
+        version: link:../../solidity
       '@hyperlane-xyz/tsconfig':
         specifier: workspace:^
         version: link:../tsconfig
@@ -29858,7 +29861,7 @@ snapshots:
 
   date-fns@2.30.0:
     dependencies:
-      '@babel/runtime': 7.26.0
+      '@babel/runtime': 7.26.10
 
   date-fns@3.6.0: {}
 
