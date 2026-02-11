@@ -13,6 +13,12 @@ export const BridgeTypes = {
   HYP_ERC20_COLLATERAL: 0x03,
 } as const;
 
+// Sentinel value: tells the Universal Router to use its entire token balance
+// Equivalent to ActionConstants.CONTRACT_BALANCE (1 << 255)
+const CONTRACT_BALANCE = BigNumber.from(
+  '0x8000000000000000000000000000000000000000000000000000000000000000',
+);
+
 export type BridgeTokenParams = {
   bridgeType: number;
   recipient: string;
@@ -147,7 +153,9 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   const crossChainMsgFee = params.crossChainMsgFee ?? BigNumber.from(0);
   const crossChainTokenFee = params.crossChainTokenFee ?? BigNumber.from(0);
 
-  if (!eqAddress(params.originToken, params.bridgeToken)) {
+  const hasSwap = !eqAddress(params.originToken, params.bridgeToken);
+
+  if (hasSwap) {
     const path = utils.solidityPack(
       ['address', 'uint24', 'address'],
       [params.originToken, 500, params.bridgeToken],
@@ -169,11 +177,11 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
       recipient: params.recipient,
       token: params.bridgeToken,
       bridge: params.warpRouteAddress,
-      amount: params.amount,
+      amount: hasSwap ? CONTRACT_BALANCE : params.amount,
       msgFee: bridgeMsgFee,
-      tokenFee: bridgeTokenFee,
+      tokenFee: hasSwap ? CONTRACT_BALANCE : bridgeTokenFee,
       domain: params.destinationDomain,
-      payerIsUser: true,
+      payerIsUser: !hasSwap,
     }),
   );
 
