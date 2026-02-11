@@ -57,4 +57,30 @@ describe('InterchainAccount helpers', () => {
       value: '42',
     });
   });
+
+  it('buildPostCallsPayload supports pre-dispatch payload fields', () => {
+    const calls = [
+      {
+        to: randomAddress(),
+        data: '0xdeadbeef',
+      },
+    ];
+
+    const payload = buildPostCallsPayload({
+      calls,
+      relayers: [],
+      salt: '0x' + '44'.repeat(32),
+      originDomain: 10,
+      destinationDomain: 8453,
+      owner: randomAddress(),
+      userSalt: '0x' + '55'.repeat(32),
+      ismOverride: randomAddress(),
+    });
+
+    expect(payload.commitmentDispatchTx).to.equal(undefined);
+    expect(payload.destinationDomain).to.equal(8453);
+    expect(payload.owner).to.be.a('string');
+    expect(payload.userSalt).to.equal('0x' + '55'.repeat(32));
+    expect(payload.ismOverride).to.be.a('string');
+  });
 });

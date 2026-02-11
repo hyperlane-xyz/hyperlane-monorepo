@@ -161,6 +161,7 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   value: BigNumber;
 } {
   const encodedCommands: UniversalRouterCommand[] = [];
+  const includeCrossChainCommand = params.includeCrossChainCommand ?? true;
   const bridgeMsgFee = params.bridgeMsgFee ?? BigNumber.from(0);
   const bridgeTokenFee = params.bridgeTokenFee ?? BigNumber.from(0);
   const crossChainMsgFee = params.crossChainMsgFee ?? BigNumber.from(0);
@@ -171,12 +172,29 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   const poolParam = normalizePoolParam(params.poolParam);
   const isUni = getDexFlavorIsUni(params.dexFlavor);
   const swapOut = params.expectedSwapOutput ?? BigNumber.from(0);
+  const slippage = params.slippage ?? 0;
+  if (!Number.isFinite(slippage) || slippage < 0 || slippage >= 1) {
+    throw new Error(`slippage must be >= 0 and < 1, received ${slippage}`);
+  }
   // Apply slippage to get the worst-case swap output we'll accept.
   // Bridge amount is based on this minimum so it never exceeds actual balance.
-  const slippageBps = Math.floor((params.slippage ?? 0) * 10000);
+  const slippageBps = Math.floor(slippage * 10000);
   const swapOutMin = hasSwap
     ? swapOut.mul(10000 - slippageBps).div(10000)
     : BigNumber.from(0);
+
+  if (!includeCrossChainCommand) {
+    if (!crossChainMsgFee.isZero()) {
+      throw new Error(
+        'crossChainMsgFee requires includeCrossChainCommand to be true',
+      );
+    }
+    if (!crossChainTokenFee.isZero()) {
+      throw new Error(
+        'crossChainTokenFee requires includeCrossChainCommand to be true',
+      );
+    }
+  }
 
   if (hasSwap) {
     if (isNative) {
@@ -202,14 +220,23 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
   }
 
   // When hasSwap: bridge's transferRemote pulls (amount + internalFee) via transferFrom.
-  // Use swapOutMin (slippage-adjusted) so bridge never exceeds actual swap output.
-  // Any surplus above swapOutMin stays as dust in the router.
-  const bridgeAmount = hasSwap ? swapOutMin.sub(bridgeTokenFee) : params.amount;
+  // If cross-chain token fee is enabled, reserve that amount so EXECUTE_CROSS_CHAIN
+  // can pull it from router balance after BRIDGE_TOKEN executes.
+  const totalTokenFees = bridgeTokenFee.add(crossChainTokenFee);
+  if (hasSwap && swapOutMin.lte(totalTokenFees)) {
+    throw new Error(
+      'expectedSwapOutput after slippage is insufficient to cover bridge and cross-chain token fees',
+    );
+  }
   const bridgeApproval = hasSwap
-    ? swapOutMin
-    : params.amount.add(bridgeTokenFee);
-
-  const includeCrossChainCommand = params.includeCrossChainCommand ?? true;
+    ? swapOutMin.sub(crossChainTokenFee)
+    : params.amount.add(totalTokenFees);
+  const bridgeAmount = hasSwap
+    ? bridgeApproval.sub(bridgeTokenFee)
+    : params.amount;
+  if (bridgeAmount.lte(0)) {
+    throw new Error('bridge amount must be greater than zero');
+  }
 
   if (includeCrossChainCommand) {
     const hasAnyCrossChainField =
@@ -228,6 +255,14 @@ export function buildSwapAndBridgeTx(params: SwapAndBridgeParams): {
     if (hasAnyCrossChainField && !params.commitment) {
       throw new Error(
         'includeCrossChainCommand requires a non-empty commitment',
+      );
+    }
+    if (
+      (!crossChainMsgFee.isZero() || !crossChainTokenFee.isZero()) &&
+      !hasAnyCrossChainField
+    ) {
+      throw new Error(
+        'cross-chain fees require icaRouterAddress, remoteIcaRouterAddress, and commitment',
       );
     }
     if (params.commitment && !utils.isHexString(params.commitment, 32)) {

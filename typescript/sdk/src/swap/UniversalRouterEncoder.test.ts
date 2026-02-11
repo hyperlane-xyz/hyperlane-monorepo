@@ -34,6 +34,23 @@ describe('UniversalRouterEncoder', () => {
       encodedInput,
     );
 
+  const decodeExecuteCrossChain = (encodedInput: string) =>
+    utils.defaultAbiCoder.decode(
+      [
+        'uint32',
+        'address',
+        'bytes32',
+        'bytes32',
+        'bytes32',
+        'uint256',
+        'address',
+        'uint256',
+        'address',
+        'bytes',
+      ],
+      encodedInput,
+    );
+
   it('encodes V3 exact in input with isUni flag', () => {
     const path = utils.solidityPack(
       ['address', 'uint24', 'address'],
@@ -264,5 +281,128 @@ describe('UniversalRouterEncoder', () => {
         poolParam: 16_777_216,
       }),
     ).to.throw('poolParam must be a uint24 integer');
+  });
+
+  it('reserves cross-chain token fee from swap output', () => {
+    const tx = buildSwapAndBridgeTx({
+      originToken: ORIGIN_TOKEN,
+      bridgeToken: BRIDGE_TOKEN,
+      destinationToken: DESTINATION_TOKEN,
+      amount: BigNumber.from('1000'),
+      recipient: UNIVERSAL_ROUTER,
+      originDomain: 10,
+      destinationDomain: 8453,
+      warpRouteAddress: WARP_ROUTE,
+      universalRouterAddress: UNIVERSAL_ROUTER,
+      icaRouterAddress: ICA_ROUTER,
+      remoteIcaRouterAddress: REMOTE_ICA_ROUTER,
+      ismAddress: ISM,
+      commitment: utils.hexZeroPad('0x88', 32),
+      slippage: 0,
+      expectedSwapOutput: BigNumber.from('5000'),
+      bridgeTokenFee: BigNumber.from('125'),
+      crossChainTokenFee: BigNumber.from('25'),
+    });
+
+    const decodedBridge = decodeBridgeToken(tx.inputs[1]);
+    const decodedCrossChain = decodeExecuteCrossChain(tx.inputs[2]);
+
+    // 5000 output - 125 bridge fee - 25 cross-chain fee
+    expect(decodedBridge[4].toString()).to.equal('4850');
+    // bridge token pull reserves the extra 25 for EXECUTE_CROSS_CHAIN
+    expect(decodedBridge[6].toString()).to.equal('4975');
+    expect(decodedCrossChain[7].toString()).to.equal('25');
+  });
+
+  it('adds cross-chain token fee on top of no-swap bridge approval', () => {
+    const tx = buildSwapAndBridgeTx({
+      originToken: BRIDGE_TOKEN,
+      bridgeToken: BRIDGE_TOKEN,
+      destinationToken: DESTINATION_TOKEN,
+      amount: BigNumber.from('1000'),
+      recipient: UNIVERSAL_ROUTER,
+      originDomain: 10,
+      destinationDomain: 8453,
+      warpRouteAddress: WARP_ROUTE,
+      universalRouterAddress: UNIVERSAL_ROUTER,
+      icaRouterAddress: ICA_ROUTER,
+      remoteIcaRouterAddress: REMOTE_ICA_ROUTER,
+      ismAddress: ISM,
+      commitment: utils.hexZeroPad('0x77', 32),
+      slippage: 0,
+      bridgeTokenFee: BigNumber.from('7'),
+      crossChainTokenFee: BigNumber.from('3'),
+    });
+
+    const decodedBridge = decodeBridgeToken(tx.inputs[0]);
+    const decodedCrossChain = decodeExecuteCrossChain(tx.inputs[1]);
+
+    expect(decodedBridge[4].toString()).to.equal('1000');
+    // amount + bridge fee + cross-chain token fee reserve
+    expect(decodedBridge[6].toString()).to.equal('1010');
+    expect(decodedCrossChain[7].toString()).to.equal('3');
+  });
+
+  it('throws when cross-chain token fee exhausts swap output', () => {
+    expect(() =>
+      buildSwapAndBridgeTx({
+        originToken: ORIGIN_TOKEN,
+        bridgeToken: BRIDGE_TOKEN,
+        destinationToken: DESTINATION_TOKEN,
+        amount: BigNumber.from('1000'),
+        recipient: UNIVERSAL_ROUTER,
+        originDomain: 10,
+        destinationDomain: 8453,
+        warpRouteAddress: WARP_ROUTE,
+        universalRouterAddress: UNIVERSAL_ROUTER,
+        icaRouterAddress: ICA_ROUTER,
+        remoteIcaRouterAddress: REMOTE_ICA_ROUTER,
+        commitment: utils.hexZeroPad('0x66', 32),
+        slippage: 0,
+        expectedSwapOutput: BigNumber.from('100'),
+        bridgeTokenFee: BigNumber.from('90'),
+        crossChainTokenFee: BigNumber.from('10'),
+      }),
+    ).to.throw(
+      'expectedSwapOutput after slippage is insufficient to cover bridge and cross-chain token fees',
+    );
+  });
+
+  it('throws when cross-chain token fee is provided while cross-chain command is disabled', () => {
+    expect(() =>
+      buildSwapAndBridgeTx({
+        originToken: ORIGIN_TOKEN,
+        bridgeToken: BRIDGE_TOKEN,
+        destinationToken: DESTINATION_TOKEN,
+        amount: BigNumber.from('1000'),
+        recipient: UNIVERSAL_ROUTER,
+        originDomain: 10,
+        destinationDomain: 8453,
+        warpRouteAddress: WARP_ROUTE,
+        universalRouterAddress: UNIVERSAL_ROUTER,
+        slippage: 0,
+        expectedSwapOutput: BigNumber.from('1200'),
+        bridgeTokenFee: BigNumber.from('5'),
+        crossChainTokenFee: BigNumber.from('5'),
+        includeCrossChainCommand: false,
+      }),
+    ).to.throw('crossChainTokenFee requires includeCrossChainCommand to be true');
+  });
+
+  it('throws for invalid slippage bounds', () => {
+    expect(() =>
+      buildSwapAndBridgeTx({
+        originToken: ORIGIN_TOKEN,
+        bridgeToken: BRIDGE_TOKEN,
+        destinationToken: DESTINATION_TOKEN,
+        amount: BigNumber.from('1000'),
+        recipient: UNIVERSAL_ROUTER,
+        originDomain: 10,
+        destinationDomain: 8453,
+        warpRouteAddress: WARP_ROUTE,
+        universalRouterAddress: UNIVERSAL_ROUTER,
+        slippage: 1,
+      }),
+    ).to.throw('slippage must be >= 0 and < 1');
   });
 });

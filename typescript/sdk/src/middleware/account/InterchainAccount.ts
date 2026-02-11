@@ -569,8 +569,12 @@ export const PostCallsSchema = z.object({
     .min(1),
   relayers: z.array(z.string()),
   salt: z.string(),
-  commitmentDispatchTx: z.string(),
+  commitmentDispatchTx: z.string().optional(),
   originDomain: z.number(),
+  ismOverride: z.string().optional(),
+  userSalt: z.string().optional(),
+  destinationDomain: z.number().optional(),
+  owner: z.string().optional(),
 });
 
 export type PostCallsType = z.infer<typeof PostCallsSchema>;
@@ -579,8 +583,12 @@ export function buildPostCallsPayload(params: {
   calls: CallData[];
   relayers: string[];
   salt: string;
-  commitmentDispatchTx: string;
+  commitmentDispatchTx?: string;
   originDomain: number;
+  ismOverride?: string;
+  userSalt?: string;
+  destinationDomain?: number;
+  owner?: string;
 }): PostCallsType {
   const calls = params.calls.map((call) => {
     const payloadCall: { to: string; data: string; value?: string } = {
@@ -601,6 +609,10 @@ export function buildPostCallsPayload(params: {
     salt: params.salt,
     commitmentDispatchTx: params.commitmentDispatchTx,
     originDomain: params.originDomain,
+    ismOverride: params.ismOverride,
+    userSalt: params.userSalt,
+    destinationDomain: params.destinationDomain,
+    owner: params.owner,
   });
 }
 

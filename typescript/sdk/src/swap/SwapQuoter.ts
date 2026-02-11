@@ -1,3 +1,4 @@
+import { eqAddress, isZeroishAddress } from '@hyperlane-xyz/utils';
 import { BigNumber, Contract, constants, providers } from 'ethers';
 
 import {
@@ -56,22 +57,16 @@ function resolveSwapQuoteOptions(
   };
 }
 
-function isZeroAddress(token: string): boolean {
-  return token.toLowerCase() === constants.AddressZero.toLowerCase();
-}
-
 export function parseBridgeQuoteTransferRemoteQuotes(
   quotes: WarpRouteQuote[],
   amount: BigNumber,
   bridgeToken?: string,
 ): BridgeQuote {
-  const nativeFeeQuote = quotes.find((quote) => isZeroAddress(quote.token));
-  const tokenQuotes = quotes.filter((quote) => !isZeroAddress(quote.token));
+  const nativeFeeQuote = quotes.find((quote) => isZeroishAddress(quote.token));
+  const tokenQuotes = quotes.filter((quote) => !isZeroishAddress(quote.token));
 
   const matchingTokenQuote = bridgeToken
-    ? tokenQuotes.find(
-        (quote) => quote.token.toLowerCase() === bridgeToken.toLowerCase(),
-      )
+    ? tokenQuotes.find((quote) => eqAddress(quote.token, bridgeToken))
     : undefined;
 
   const tokenPullQuote =
@@ -107,7 +102,7 @@ export async function getSwapQuote(
   amountIn: BigNumber,
   poolParamOrOptions: number | SwapQuoteOptions = DEFAULT_POOL_PARAM,
 ): Promise<BigNumber> {
-  if (tokenIn.toLowerCase() === tokenOut.toLowerCase()) {
+  if (eqAddress(tokenIn, tokenOut)) {
     return amountIn;
   }
 
