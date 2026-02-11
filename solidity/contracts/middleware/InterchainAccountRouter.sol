@@ -719,6 +719,52 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             );
     }
 
+    /**
+     * @notice Dispatches a sequence of remote calls to be made by an unauthenticated
+     * interchain account on the destination domain (owned by zero address)
+     * @dev This is useful for token transfer ICAs where the calls are committed to
+     * by the salt and anyone can trigger the execution
+     * @param _destination The remote domain of the chain to make calls on
+     * @param _router The remote router address
+     * @param _ism The remote ISM address
+     * @param _calls The sequence of calls to make
+     * @param _hookMetadata The hook metadata to override with for the hook set by the owner
+     * @param _salt Salt which allows control over account derivation
+     * @param _hook The hook to use after sending our message to the mailbox
+     * @return The Hyperlane message ID
+     */
+    function callRemoteUnauthenticated(
+        uint32 _destination,
+        bytes32 _router,
+        bytes32 _ism,
+        CallLib.Call[] calldata _calls,
+        bytes memory _hookMetadata,
+        bytes32 _salt,
+        IPostDispatchHook _hook
+    ) public payable returns (bytes32) {
+        emit RemoteCallDispatched(
+            _destination,
+            address(0),
+            _router,
+            _ism,
+            _salt
+        );
+        bytes memory _body = InterchainAccountMessage.encode(
+            address(0), // Use zero address as owner for unauthenticated ICAs
+            _ism,
+            _calls,
+            _salt
+        );
+        return
+            _dispatchMessageWithHook(
+                _destination,
+                _router,
+                _body,
+                _hookMetadata,
+                _hook
+            );
+    }
+
     // refunds from the commit dispatch call used to fund reveal dispatch call
     receive() external payable {}
 
