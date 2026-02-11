@@ -89,13 +89,24 @@ contract TimelockRouterTest is Test {
     }
 
     function test_postDispatch() public {
-        bytes32 messageId = testMessage.id();
-        uint256 fee = originRouter.quoteDispatch(metadata, testMessage);
-
+        // Dispatch a real message through the mailbox with originRouter as the hook.
+        // This ensures latestDispatchedId is set before postDispatch is called.
+        bytes32 recipientAddress = address(0x1234).addressToBytes32();
+        uint256 fee = originMailbox.quoteDispatch(
+            DESTINATION_DOMAIN,
+            recipientAddress,
+            bytes("test body"),
+            bytes(""),
+            IPostDispatchHook(address(originRouter))
+        );
         vm.deal(address(this), fee);
-
-        // Post dispatch (sends message to destination)
-        originRouter.postDispatch{value: fee}(metadata, testMessage);
+        bytes32 messageId = originMailbox.dispatch{value: fee}(
+            DESTINATION_DOMAIN,
+            recipientAddress,
+            bytes("test body"),
+            bytes(""),
+            IPostDispatchHook(address(originRouter))
+        );
 
         // Expect MessageQueued event when the destination router receives the message
         vm.expectEmit(true, true, true, true, address(destinationRouter));
@@ -103,7 +114,7 @@ contract TimelockRouterTest is Test {
             messageId,
             uint48(block.timestamp) + TIMELOCK_WINDOW
         );
-        // Handle the message on destination router
+        // Handle the preverification message on destination router
         destinationMailbox.processNextInboundMessage();
 
         // Verify message readyAt is set correctly
@@ -111,6 +122,18 @@ contract TimelockRouterTest is Test {
             destinationRouter.readyAt(messageId),
             uint48(block.timestamp) + TIMELOCK_WINDOW
         );
+    }
+
+    function test_postDispatch_revertsForArbitraryMessage() public {
+        uint256 fee = originRouter.quoteDispatch(metadata, testMessage);
+        vm.deal(address(this), fee);
+
+        // Calling postDispatch directly (not via Mailbox.dispatch) should revert
+        // because latestDispatchedId on the mailbox won't match the message ID.
+        // This prevents an attacker from sending arbitrary message IDs as
+        // preverification messages (audit issue #1).
+        vm.expectRevert("message not dispatching");
+        originRouter.postDispatch{value: fee}(metadata, testMessage);
     }
 
     function test_quoteDispatch(uint256 fee) public {

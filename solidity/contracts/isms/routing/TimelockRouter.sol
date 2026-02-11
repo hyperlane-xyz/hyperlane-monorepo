@@ -85,12 +85,10 @@ contract TimelockRouter is
         bytes calldata /*metadata*/,
         bytes calldata message
     ) external payable {
+        bytes32 id = message.id();
+        require(_isLatestDispatched(id), "message not dispatching");
         // Send message ID to destination router for preverification
-        _Router_dispatch(
-            message.destination(),
-            msg.value,
-            abi.encode(message.id())
-        );
+        _Router_dispatch(message.destination(), msg.value, abi.encode(id));
     }
 
     /// @inheritdoc IPostDispatchHook
