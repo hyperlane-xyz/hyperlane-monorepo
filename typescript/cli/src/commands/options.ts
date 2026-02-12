@@ -261,6 +261,12 @@ export const warpRouteIdCommandOption: Options = {
   alias: 'id',
 };
 
+export const transferRouterIdCommandOption: Options = {
+  type: 'string',
+  description:
+    'Transfer router ID to load deploy config from registry (e.g. USDC/eclipsemainnet-transfer-router)',
+};
+
 export const forkCommandOptions: Record<string, Options> = {
   port: {
     type: 'number',
