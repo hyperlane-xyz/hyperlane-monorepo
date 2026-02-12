@@ -93,5 +93,5 @@ try {
 } catch (error: any) {
   errorRed('Error: ' + error.message);
 } finally {
-  getChainFileLogger()?.close();
+  await getChainFileLogger()?.close();
 }

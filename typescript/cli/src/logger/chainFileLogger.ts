@@ -58,10 +58,13 @@ export class ChainFileLogger {
     return stream;
   }
 
-  close(): void {
-    this.combinedStream.end();
-    for (const stream of this.chainStreams.values()) {
-      stream.end();
-    }
+  async close(): Promise<void> {
+    const endStream = (stream: fs.WriteStream) =>
+      new Promise<void>((resolve) => stream.end(resolve));
+
+    await Promise.all([
+      endStream(this.combinedStream),
+      ...[...this.chainStreams.values()].map(endStream),
+    ]);
   }
 }
