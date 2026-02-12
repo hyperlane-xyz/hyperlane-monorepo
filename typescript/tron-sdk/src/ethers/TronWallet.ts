@@ -3,6 +3,8 @@ import { TronWeb, Types } from 'tronweb';
 
 import { assert, ensure0x, strip0x } from '@hyperlane-xyz/utils';
 
+import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
+
 /** Union of possible TronWeb transaction types */
 export type TronTransaction =
   | Types.CreateSmartContractTransaction
@@ -20,6 +22,10 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
 /**
  * TronWallet extends ethers Wallet to handle Tron's transaction format.
  *
+ * Takes a single Tron node URL (e.g. http://localhost:9090) and derives:
+ * - JSON-RPC provider at {url}/jsonrpc for ethers compatibility
+ * - TronWeb HTTP client at {url} for transaction building/signing
+ *
  * Tron's JSON-RPC doesn't support eth_sendRawTransaction, so we override
  * sendTransaction to use TronWeb for building, signing, and broadcasting.
  *
@@ -27,17 +33,15 @@ export interface TronTransactionResponse extends providers.TransactionResponse {
  * gasLimit to Tron's feeLimit using: feeLimit = gasLimit × gasPrice.
  */
 export class TronWallet extends Wallet {
+  private readonly tronUrl: string;
   private tronWeb: TronWeb;
   private tronAddress: string;
 
-  constructor(
-    privateKey: string,
-    provider: providers.Provider,
-    tronGridUrl: string,
-  ) {
-    super(privateKey, provider);
+  constructor(privateKey: string, tronUrl: string) {
+    super(privateKey, new TronJsonRpcProvider(tronUrl));
+    this.tronUrl = tronUrl;
 
-    this.tronWeb = new TronWeb({ fullHost: tronGridUrl });
+    this.tronWeb = new TronWeb({ fullHost: tronUrl });
     const cleanKey = strip0x(privateKey);
     this.tronWeb.setPrivateKey(cleanKey);
 
@@ -45,6 +49,14 @@ export class TronWallet extends Wallet {
     assert(derivedAddress, 'Failed to derive Tron address from private key');
     this.tronAddress = derivedAddress;
     this.tronWeb.setAddress(this.tronAddress);
+  }
+
+  /**
+   * Override connect to preserve TronWallet type.
+   * Base Wallet.connect() returns a plain Wallet, losing Tron behavior.
+   */
+  connect(_provider: providers.Provider): TronWallet {
+    return new TronWallet(this.privateKey, this.tronUrl);
   }
 
   /** Convert ethers 0x address to Tron 41-prefixed hex */

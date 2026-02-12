@@ -1,60 +1,45 @@
-/* eslint-disable import/no-nodejs-modules */
-import { dirname, join } from 'path';
-import {
-  DockerComposeEnvironment,
-  StartedDockerComposeEnvironment,
-  Wait,
-} from 'testcontainers';
+import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { TronWeb } from 'tronweb';
-import { fileURLToPath } from 'url';
 
 import { pollAsync, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import { TronJsonRpcProvider } from '../ethers/TronJsonRpcProvider.js';
 
-const __filename = fileURLToPath(import.meta.url);
-const __dirname = dirname(__filename);
-
 /**
- * Extended test chain metadata for Tron
+ * Test chain metadata for Tron (tronbox/tre uses a single port for all APIs)
  */
 export interface TronTestChainMetadata {
   name: string;
   chainId: number;
   domainId: number;
-  rpcPort: number; // JSON-RPC port (8545)
-  httpPort: number; // HTTP API port (8090)
+  port: number; // Single port for HTTP API + JSON-RPC (/jsonrpc)
 }
 
 /**
- * Get the path to the local-node directory
- */
-export function getLocalNodeDir(): string {
-  return join(__dirname, '..', '..', 'local-node');
-}
-
-/**
- * Starts a local Tron node using Docker Compose via testcontainers
+ * Starts a local Tron node using the tronbox/tre Docker image.
+ * Exposes a single port for both HTTP API and JSON-RPC (/jsonrpc).
  *
  * @param chainMetadata - Test chain metadata configuration
- * @returns The DockerComposeEnvironment instance
+ * @returns The started container instance
  */
 export async function runTronNode(
   chainMetadata: TronTestChainMetadata,
-): Promise<StartedDockerComposeEnvironment> {
+): Promise<StartedTestContainer> {
   rootLogger.info(`Starting Tron node for ${chainMetadata.name}`);
 
-  // Retry docker-compose up to handle transient Docker registry errors in CI
-  const environment = await retryAsync<StartedDockerComposeEnvironment>(
-    async () =>
-      new DockerComposeEnvironment(getLocalNodeDir(), 'docker-compose.yml')
+  const container = await retryAsync(
+    () =>
+      new GenericContainer('tronbox/tre')
         .withEnvironment({
-          TRON_JSON_RPC_PORT: chainMetadata.rpcPort.toString(),
-          TRON_HTTP_PORT: chainMetadata.httpPort.toString(),
+          // Enable full EVM-compatible opcode support
+          preapprove: 'allowTvmCompatibleEvm:1',
         })
-        // Wait for JSON-RPC port to be listening
-        .withWaitStrategy('tron-local-1', Wait.forListeningPorts())
-        .up(),
+        .withExposedPorts({
+          container: 9090,
+          host: chainMetadata.port,
+        })
+        .withWaitStrategy(Wait.forListeningPorts())
+        .start(),
     3, // maxRetries
     5000, // baseRetryMs
   );
@@ -63,31 +48,29 @@ export async function runTronNode(
   rootLogger.info(
     `Waiting for Tron node to be ready for ${chainMetadata.name}`,
   );
-  await waitForTronNodeReady(chainMetadata.rpcPort, chainMetadata.httpPort);
+  await waitForTronNodeReady(chainMetadata.port);
 
-  return environment;
+  return container;
 }
 
 /**
  * Stops a Tron node started with runTronNode
  */
 export async function stopTronNode(
-  environment: StartedDockerComposeEnvironment,
+  container: StartedTestContainer,
 ): Promise<void> {
   rootLogger.info('Stopping Tron node');
-  await environment.down();
+  await container.stop();
 }
 
 /**
  * Poll until the Tron node is ready to process transactions.
- * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock) in a single poll.
+ * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock).
  */
-async function waitForTronNodeReady(
-  rpcPort: number,
-  httpPort: number,
-): Promise<void> {
-  const provider = new TronJsonRpcProvider(`http://127.0.0.1:${rpcPort}`);
-  const tronweb = new TronWeb({ fullHost: `http://127.0.0.1:${httpPort}` });
+async function waitForTronNodeReady(port: number): Promise<void> {
+  const tronUrl = `http://127.0.0.1:${port}`;
+  const provider = new TronJsonRpcProvider(tronUrl);
+  const tronweb = new TronWeb({ fullHost: tronUrl });
 
   await pollAsync(
     async () => {

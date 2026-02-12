@@ -20,10 +20,9 @@ before(async function () {
     // Single Tron node handles all 3 logical chains (anvil2/3/4 aliases)
     await runTronNode({
       name: 'tron-local',
-      chainId: 728126428,
-      domainId: 728126428,
-      rpcPort: 8545,
-      httpPort: 8090,
+      chainId: 3360022319,
+      domainId: 3360022319,
+      port: 9090,
     });
   } else {
     // Separate Anvil nodes for each chain

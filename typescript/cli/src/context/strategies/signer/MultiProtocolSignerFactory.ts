@@ -5,7 +5,7 @@ import {
   ChainTechnicalStack,
   type MultiProtocolProvider,
 } from '@hyperlane-xyz/sdk';
-import { TronJsonRpcProvider, TronWallet } from '@hyperlane-xyz/tron-sdk';
+import { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import { ProtocolType, assert } from '@hyperlane-xyz/utils';
 
 import {
@@ -40,18 +40,8 @@ class EvmSignerStrategy extends BaseMultiProtocolSigner {
     }
 
     if (technicalStack === ChainTechnicalStack.Tron) {
-      const { restUrls } = this.multiProtocolProvider.getChainMetadata(
-        config.chain,
-      );
       assert(rpcUrls.length > 0, `No RPC URLs for Tron chain ${config.chain}`);
-      assert(
-        restUrls && restUrls.length > 0,
-        `No REST URLs for Tron chain ${config.chain}. Tron requires restUrls for TronWeb HTTP API.`,
-      );
-      const rpcUrl = rpcUrls[0].http;
-      const provider = new TronJsonRpcProvider(rpcUrl);
-      const tronHttpUrl = restUrls[0].http;
-      return new TronWallet(privateKey, provider, tronHttpUrl);
+      return new TronWallet(privateKey, rpcUrls[0].http);
     }
 
     return new Wallet(privateKey);

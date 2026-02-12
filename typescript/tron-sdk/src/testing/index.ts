@@ -1,6 +1,5 @@
 // Testing utilities for Tron SDK
 export {
-  getLocalNodeDir,
   runTronNode,
   stopTronNode,
   type TronTestChainMetadata,

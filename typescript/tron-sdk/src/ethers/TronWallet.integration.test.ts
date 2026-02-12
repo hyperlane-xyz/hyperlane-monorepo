@@ -1,7 +1,7 @@
 /* eslint-disable import/no-nodejs-modules */
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
-import { StartedDockerComposeEnvironment } from 'testcontainers';
+import { StartedTestContainer } from 'testcontainers';
 
 import { TEST_TRON_PRIVATE_KEY } from '../testing/constants.js';
 import {
@@ -13,37 +13,31 @@ import { TestStorage } from '../typechain/contracts/test/TestStorage.js';
 import { TestStorage__factory } from '../typechain/factories/contracts/test/TestStorage__factory.js';
 
 import { TronContractFactory } from './TronContractFactory.js';
-import { TronJsonRpcProvider } from './TronJsonRpcProvider.js';
 import { TronWallet } from './TronWallet.js';
 
 const TEST_CHAIN: TronTestChainMetadata = {
   name: 'tron-test',
-  chainId: 728126428,
-  domainId: 728126428,
-  rpcPort: 18545,
-  httpPort: 18090,
+  chainId: 3360022319,
+  domainId: 3360022319,
+  port: 19090,
 };
 
 describe('TronWallet Integration Tests', function () {
   this.timeout(120_000); // 2 minutes for container startup
 
-  let environment: StartedDockerComposeEnvironment;
-  let provider: TronJsonRpcProvider;
+  let container: StartedTestContainer;
   let wallet: TronWallet;
 
   before(async () => {
-    environment = await runTronNode(TEST_CHAIN);
+    container = await runTronNode(TEST_CHAIN);
 
-    const rpcUrl = `http://127.0.0.1:${TEST_CHAIN.rpcPort}`;
-    const httpUrl = `http://127.0.0.1:${TEST_CHAIN.httpPort}`;
-
-    provider = new TronJsonRpcProvider(rpcUrl);
-    wallet = new TronWallet(TEST_TRON_PRIVATE_KEY, provider, httpUrl);
+    const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}`;
+    wallet = new TronWallet(TEST_TRON_PRIVATE_KEY, tronUrl);
   });
 
   after(async () => {
-    if (environment) {
-      await stopTronNode(environment);
+    if (container) {
+      await stopTronNode(container);
     }
   });
 
@@ -54,15 +48,16 @@ describe('TronWallet Integration Tests', function () {
         '0x1111111111111111111111111111111111111111111111111111111111111111';
       const recipientWallet = new TronWallet(
         recipientPrivateKey,
-        provider,
-        `http://127.0.0.1:${TEST_CHAIN.httpPort}`,
+        `http://127.0.0.1:${TEST_CHAIN.port}`,
       );
       const recipientAddress = recipientWallet.address;
 
       // Get initial balances
-      const senderBalanceBefore = await provider.getBalance(wallet.address);
+      const senderBalanceBefore = await wallet.provider.getBalance(
+        wallet.address,
+      );
       const recipientBalanceBefore =
-        await provider.getBalance(recipientAddress);
+        await wallet.provider.getBalance(recipientAddress);
 
       // Transfer 1 TRX (1,000,000 SUN)
       const transferAmount = BigNumber.from(1_000_000);
@@ -76,8 +71,11 @@ describe('TronWallet Integration Tests', function () {
       expect(receipt.status).to.equal(1);
 
       // Verify balances changed
-      const senderBalanceAfter = await provider.getBalance(wallet.address);
-      const recipientBalanceAfter = await provider.getBalance(recipientAddress);
+      const senderBalanceAfter = await wallet.provider.getBalance(
+        wallet.address,
+      );
+      const recipientBalanceAfter =
+        await wallet.provider.getBalance(recipientAddress);
 
       expect(recipientBalanceAfter.sub(recipientBalanceBefore)).to.deep.equal(
         transferAmount,

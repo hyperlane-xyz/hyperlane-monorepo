@@ -2,17 +2,15 @@
 # Uses protocol: ethereum with technicalStack: tron since TVM is EVM-compatible
 # Placeholder chain to maintain parity with anvil registry structure
 ---
-chainId: 728126428
-domainId: 728126427
+chainId: 3360022319
+domainId: 3360022317
 name: anvil1
 displayName: Tron Local 1
 protocol: ethereum
 technicalStack: tron
 rpcUrls:
-  - http: http://127.0.0.1:8545/jsonrpc
-restUrls:
-  - http: http://127.0.0.1:8090
+    - http: http://127.0.0.1:9090
 nativeToken:
-  name: TRX
-  symbol: TRX
-  decimals: 6
+    name: TRX
+    symbol: TRX
+    decimals: 6
