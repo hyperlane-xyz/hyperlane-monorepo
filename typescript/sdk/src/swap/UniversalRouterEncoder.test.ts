@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import { BigNumber, utils } from 'ethers';
+import { BigNumber, constants, utils } from 'ethers';
 
 import {
   Commands,
@@ -114,6 +114,39 @@ describe('UniversalRouterEncoder', () => {
     expect(decoded[8]).to.equal(UNIVERSAL_ROUTER);
   });
 
+  it('encodes zero-ish ISM as bytes32 zero', () => {
+    const command = encodeExecuteCrossChain({
+      domain: 8453,
+      icaRouter: ICA_ROUTER,
+      remoteRouter: REMOTE_ICA_ROUTER,
+      ism: constants.AddressZero,
+      commitment: utils.hexZeroPad('0x34', 32),
+      msgFee: BigNumber.from('1'),
+      token: BRIDGE_TOKEN,
+      tokenFee: BigNumber.from('0'),
+      hook: UNIVERSAL_ROUTER,
+      hookMetadata: '0x',
+    });
+
+    const decoded = utils.defaultAbiCoder.decode(
+      [
+        'uint32',
+        'address',
+        'bytes32',
+        'bytes32',
+        'bytes32',
+        'uint256',
+        'address',
+        'uint256',
+        'address',
+        'bytes',
+      ],
+      command.encodedInput,
+    );
+
+    expect(decoded[3]).to.equal(constants.HashZero);
+  });
+
   it('calculates total value for native swap + bridge + cross-chain', () => {
     const amount = BigNumber.from('1000000000000000000');
     const tx = buildSwapAndBridgeTx({
@@ -141,6 +174,28 @@ describe('UniversalRouterEncoder', () => {
     expect(tx.commands).to.equal('0x0b001213');
     expect(tx.inputs).to.have.length(4);
     expect(tx.value.toString()).to.equal(amount.add(500).toString());
+  });
+
+  it('defaults omitted ISM to bytes32 zero without throwing', () => {
+    const tx = buildSwapAndBridgeTx({
+      originToken: ORIGIN_TOKEN,
+      bridgeToken: BRIDGE_TOKEN,
+      destinationToken: DESTINATION_TOKEN,
+      amount: BigNumber.from('1000'),
+      recipient: UNIVERSAL_ROUTER,
+      originDomain: 42161,
+      destinationDomain: 8453,
+      warpRouteAddress: WARP_ROUTE,
+      universalRouterAddress: UNIVERSAL_ROUTER,
+      icaRouterAddress: ICA_ROUTER,
+      remoteIcaRouterAddress: REMOTE_ICA_ROUTER,
+      commitment: utils.hexZeroPad('0xab', 32),
+      slippage: 0,
+      expectedSwapOutput: BigNumber.from('2000'),
+    });
+
+    const decodedCrossChain = decodeExecuteCrossChain(tx.inputs[2]);
+    expect(decodedCrossChain[3]).to.equal(constants.HashZero);
   });
 
   it('sizes no-swap bridge approval as amount plus token fee', () => {

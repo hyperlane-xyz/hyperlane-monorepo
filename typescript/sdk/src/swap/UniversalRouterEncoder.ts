@@ -1,4 +1,8 @@
-import { addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
+import {
+  addressToBytes32,
+  eqAddress,
+  isZeroishAddress,
+} from '@hyperlane-xyz/utils';
 import { BigNumber, constants, utils } from 'ethers';
 
 import {
@@ -90,6 +94,9 @@ export function encodeBridgeToken(
 export function encodeExecuteCrossChain(
   params: ExecuteCrossChainParams,
 ): UniversalRouterCommand {
+  const encodedIsm = isZeroishAddress(params.ism)
+    ? constants.HashZero
+    : addressToBytes32(params.ism);
   const encodedInput = utils.defaultAbiCoder.encode(
     [
       'uint32',
@@ -107,7 +114,7 @@ export function encodeExecuteCrossChain(
       params.domain,
       params.icaRouter,
       addressToBytes32(params.remoteRouter),
-      addressToBytes32(params.ism),
+      encodedIsm,
       params.commitment,
       params.msgFee,
       params.token,
