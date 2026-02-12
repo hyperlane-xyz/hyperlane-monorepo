@@ -7,7 +7,45 @@ import {
   WarpRouteDeployConfigMailboxRequired,
 } from '../token/types.js';
 
-import { verifyScale } from './decimals.js';
+import { scaleToScalar, verifyScale } from './decimals.js';
+
+describe(scaleToScalar.name, () => {
+  it('should return 1 for undefined', () => {
+    expect(scaleToScalar(undefined)).to.equal(1);
+  });
+
+  it('should return the number directly for numeric scale', () => {
+    expect(scaleToScalar(1_000_000_000_000)).to.equal(1_000_000_000_000);
+    expect(scaleToScalar(1)).to.equal(1);
+  });
+
+  it('should parse string scale', () => {
+    expect(scaleToScalar('1000000000000')).to.equal(1_000_000_000_000);
+    expect(scaleToScalar('1')).to.equal(1);
+  });
+
+  it('should compute numerator / denominator for fractional scale', () => {
+    expect(
+      scaleToScalar({ numerator: 1_000_000_000_000, denominator: 1 }),
+    ).to.equal(1_000_000_000_000);
+    expect(
+      scaleToScalar({ numerator: 1, denominator: 1_000_000_000_000 }),
+    ).to.equal(1e-12);
+    expect(scaleToScalar({ numerator: 1, denominator: 1 })).to.equal(1);
+  });
+
+  it('should handle string numerator and denominator', () => {
+    expect(
+      scaleToScalar({ numerator: '1000000000000', denominator: '1' }),
+    ).to.equal(1_000_000_000_000);
+  });
+
+  it('should treat legacy integer scale as equivalent to {numerator: scale, denominator: 1}', () => {
+    const legacy = 1_000_000_000_000;
+    const fractional = { numerator: 1_000_000_000_000, denominator: 1 };
+    expect(scaleToScalar(legacy)).to.equal(scaleToScalar(fractional));
+  });
+});
 
 describe(verifyScale.name, () => {
   const TOKEN_NAME = 'TOKEN';

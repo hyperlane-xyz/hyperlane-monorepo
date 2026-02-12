@@ -6,6 +6,31 @@ import {
 } from '../token/types.js';
 import { ChainMap } from '../types.js';
 
+type Scale =
+  | number
+  | string
+  | { numerator: number | string; denominator: number | string };
+
+/**
+ * Converts a scale value (number, string, or {numerator, denominator}) to a
+ * scalar number for comparison. Returns 1 if scale is undefined.
+ */
+export function scaleToScalar(scale?: Scale): number {
+  if (scale === undefined) return 1;
+  if (typeof scale === 'number') return scale;
+  if (typeof scale === 'string') return Number(scale);
+
+  const numerator =
+    typeof scale.numerator === 'string'
+      ? Number(scale.numerator)
+      : scale.numerator;
+  const denominator =
+    typeof scale.denominator === 'string'
+      ? Number(scale.denominator)
+      : scale.denominator;
+  return numerator / denominator;
+}
+
 export function verifyScale(
   configMap: Map<string, TokenMetadata> | WarpRouteDeployConfigMailboxRequired,
 ): boolean {
@@ -15,10 +40,7 @@ export function verifyScale(
       : configMap;
   const decimalsByChain: ChainMap<{
     decimals: number;
-    scale?:
-      | number
-      | string
-      | { numerator: number | string; denominator: number | string };
+    scale?: Scale;
   }> = objMap(chainDecimalConfigPairs, (chain, config) => {
     assert(
       config.decimals,
@@ -37,27 +59,7 @@ export function verifyScale(
       if (config.decimals) {
         const calculatedScale = 10 ** (maxDecimals - config.decimals);
 
-        // Convert scale to scalar value for comparison
-        let scaleValue: number;
-        if (config.scale === undefined) {
-          scaleValue = 1;
-        } else if (typeof config.scale === 'number') {
-          scaleValue = config.scale;
-        } else if (typeof config.scale === 'string') {
-          scaleValue = Number(config.scale);
-        } else {
-          const numerator =
-            typeof config.scale.numerator === 'string'
-              ? Number(config.scale.numerator)
-              : config.scale.numerator;
-          const denominator =
-            typeof config.scale.denominator === 'string'
-              ? Number(config.scale.denominator)
-              : config.scale.denominator;
-          scaleValue = numerator / denominator;
-        }
-
-        if (calculatedScale !== scaleValue) {
+        if (calculatedScale !== scaleToScalar(config.scale)) {
           return false;
         }
       }
