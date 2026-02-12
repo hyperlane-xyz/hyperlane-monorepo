@@ -693,8 +693,8 @@ jobs:
 
   tron-sdk-e2e-run:
     runs-on: depot-ubuntu-latest
-    needs: [rust-only]
-    if: needs.rust-only.outputs.only_rust == 'false'
+    needs: [change-detection]
+    if: needs.change-detection.outputs.only_rust == 'false'
     timeout-minutes: 10
     steps:
       - uses: actions/checkout@v6
