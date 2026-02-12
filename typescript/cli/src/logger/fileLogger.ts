@@ -2,6 +2,7 @@ import fs from 'fs';
 import path from 'path';
 import { Transform, type Writable } from 'stream';
 
+// eslint-disable-next-line no-control-regex -- intentional: matching ANSI escape sequences
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 
 export class FileLogRouter {
@@ -15,7 +16,7 @@ export class FileLogRouter {
     fs.mkdirSync(this.logDir, { recursive: true });
     this.combinedStream = fs.createWriteStream(
       path.join(this.logDir, 'combined.log'),
-      { flags: 'a' },
+      { flags: 'a' }, // append
     );
   }
 
@@ -27,6 +28,7 @@ export class FileLogRouter {
     return new Transform({
       transform: (chunk, _encoding, callback) => {
         const line = chunk.toString();
+        // Strip ANSI escape codes (e.g. chalk colors) so log files contain clean, parseable JSON
         const stripped = line.replace(ANSI_REGEX, '');
 
         this.combinedStream.write(stripped);

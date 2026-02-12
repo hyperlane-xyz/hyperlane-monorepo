@@ -1,8 +1,12 @@
 import { BigNumber } from 'ethers';
 import { LevelWithSilent, Logger, LoggerOptions, pino } from 'pino';
-import type { Writable } from 'stream';
 
 import { inKubernetes, safelyAccessEnvVar } from './env.js';
+
+// Minimal interface to avoid importing Node's 'stream' module (restricted in cross-platform code)
+interface WritableStream {
+  write(chunk: any): boolean;
+}
 
 // Re-export Logger type for other packages to use
 export type { Logger };
@@ -60,7 +64,7 @@ export function getRootLogger() {
 export function configureRootLogger(
   newLogFormat: LogFormat,
   newLogLevel: LogLevel,
-  additionalStreams?: Writable[],
+  additionalStreams?: WritableStream[],
 ) {
   logFormat = newLogFormat;
   logLevel = toPinoLevel(newLogLevel) || logLevel;
@@ -80,7 +84,7 @@ export function setRootLogger(logger: Logger) {
 export function createHyperlanePinoLogger(
   logLevel: LevelWithSilent,
   logFormat: LogFormat,
-  additionalStreams?: Writable[],
+  additionalStreams?: WritableStream[],
 ) {
   // When additional streams are provided, use pino.multistream so that
   // logs go to both stdout (with formatting) and the extra streams (raw JSON).
