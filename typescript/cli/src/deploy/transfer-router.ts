@@ -9,9 +9,11 @@ import {
   TransferRouter__factory,
 } from '@hyperlane-xyz/core';
 import {
+  EvmTokenFeeReader,
   type MultiProvider,
   type TokenFeeConfigInput,
   TokenFeeType,
+  convertToBps,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -105,10 +107,44 @@ async function deployFeeContract(
 
   // LinearFee, ProgressiveFee, RegressiveFee all take [token, maxFee, halfAmount, owner]
   const { owner } = resolvedConfig;
-  const maxFee =
-    'maxFee' in resolvedConfig ? BigInt(resolvedConfig.maxFee!) : 0n;
-  const halfAmount =
-    'halfAmount' in resolvedConfig ? BigInt(resolvedConfig.halfAmount!) : 0n;
+  let maxFee: bigint;
+  let halfAmount: bigint;
+
+  const hasMaxFee =
+    'maxFee' in resolvedConfig && resolvedConfig.maxFee !== undefined;
+  const hasHalfAmount =
+    'halfAmount' in resolvedConfig && resolvedConfig.halfAmount !== undefined;
+  const hasBps = 'bps' in resolvedConfig && resolvedConfig.bps !== undefined;
+
+  if (hasMaxFee && hasHalfAmount) {
+    const explicitMaxFee = BigInt(resolvedConfig.maxFee!);
+    const explicitHalfAmount = BigInt(resolvedConfig.halfAmount!);
+    if (hasBps) {
+      const computedBps = convertToBps(explicitMaxFee, explicitHalfAmount);
+      if (resolvedConfig.bps !== computedBps) {
+        // User explicitly provided a different bps — derive from bps
+        const reader = new EvmTokenFeeReader(multiProvider, chain);
+        const derived = reader.convertFromBps(BigInt(resolvedConfig.bps!));
+        maxFee = derived.maxFee;
+        halfAmount = derived.halfAmount;
+      } else {
+        maxFee = explicitMaxFee;
+        halfAmount = explicitHalfAmount;
+      }
+    } else {
+      maxFee = explicitMaxFee;
+      halfAmount = explicitHalfAmount;
+    }
+  } else if (hasBps) {
+    const reader = new EvmTokenFeeReader(multiProvider, chain);
+    const derived = reader.convertFromBps(BigInt(resolvedConfig.bps!));
+    maxFee = derived.maxFee;
+    halfAmount = derived.halfAmount;
+  } else {
+    throw new Error(
+      'Fee config must provide either bps or both maxFee and halfAmount',
+    );
+  }
 
   const factory = feeFactories[resolvedConfig.type];
   const feeContract = await multiProvider.handleDeploy(chain, factory, [
