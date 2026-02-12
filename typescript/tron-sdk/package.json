@@ -42,7 +42,6 @@
   "dependencies": {
     "@ethersproject/abi": "*",
     "@ethersproject/providers": "*",
-    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/provider-sdk": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
     "@hyperlane-xyz/utils": "workspace:*",
@@ -52,6 +51,7 @@
   },
   "devDependencies": {
     "@eslint/js": "catalog:",
+    "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/eslint-config": "workspace:^",
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
