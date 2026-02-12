@@ -77,7 +77,7 @@ jobs:
         uses: ./.github/actions/setup-foundry
 
       - name: Build packages
-        run: pnpm run build && pnpm run build:zk
+        run: pnpm turbo run build --force && pnpm turbo run build:zk --force
 
       - name: Publish beta packages
         run: pnpm exec changeset publish --tag ${{ inputs.snapshot_tag }} --no-git-tag
