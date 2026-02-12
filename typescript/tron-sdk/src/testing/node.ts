@@ -16,8 +16,16 @@ export interface TronTestChainMetadata {
 }
 
 /**
+ * The internal port tronbox/tre listens on (not configurable).
+ */
+const TRE_CONTAINER_PORT = 9090;
+
+/**
  * Starts a local Tron node using the tronbox/tre Docker image.
- * Exposes a single port for both HTTP API and JSON-RPC (/jsonrpc).
+ *
+ * Uses host networking when the requested port matches the container's
+ * internal port (9090), avoiding testcontainers' hardcoded 10s port
+ * binding timeout. Falls back to explicit port mapping otherwise.
  *
  * @param chainMetadata - Test chain metadata configuration
  * @returns The started container instance
@@ -27,20 +35,35 @@ export async function runTronNode(
 ): Promise<StartedTestContainer> {
   rootLogger.info(`Starting Tron node for ${chainMetadata.name}`);
 
+  const useHostNetwork = chainMetadata.port === TRE_CONTAINER_PORT;
+
   const container = await retryAsync(
-    () =>
-      new GenericContainer('tronbox/tre')
-        .withEnvironment({
-          // Enable full EVM-compatible opcode support
-          preapprove: 'allowTvmCompatibleEvm:1',
-        })
-        .withExposedPorts({
-          container: 9090,
+    () => {
+      const gc = new GenericContainer('tronbox/tre').withEnvironment({
+        // Enable full EVM-compatible opcode support
+        preapprove: 'allowTvmCompatibleEvm:1',
+      });
+
+      if (useHostNetwork) {
+        // Host networking: port 9090 is directly accessible, no port
+        // mapping needed. Avoids testcontainers' 10s port bind timeout.
+        gc.withNetworkMode('host');
+      } else {
+        gc.withExposedPorts({
+          container: TRE_CONTAINER_PORT,
           host: chainMetadata.port,
-        })
-        .withStartupTimeout(120_000) // 2 min for image pull + service startup
-        .withWaitStrategy(Wait.forListeningPorts())
-        .start(),
+        });
+      }
+
+      return gc
+        .withStartupTimeout(120_000)
+        .withWaitStrategy(
+          Wait.forLogMessage(/TRE now listening on/).withStartupTimeout(
+            120_000,
+          ),
+        )
+        .start();
+    },
     3, // maxRetries
     5000, // baseRetryMs
   );

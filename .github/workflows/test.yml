@@ -370,14 +370,6 @@ jobs:
           - warp-send
           # xerc20
           - xerc20
-        # Tron: only run core-deploy and warp-deploy for now
-        include:
-          - stack: tron
-            test: core-deploy
-          - stack: tron
-            test: warp-deploy-1
-          - stack: tron
-            test: warp-deploy-2
     steps:
       - uses: actions/checkout@v6
         with:
@@ -477,6 +469,40 @@ jobs:
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
 
+  cli-tron-e2e-matrix:
+    runs-on: depot-ubuntu-latest
+    needs: [change-detection]
+    if: needs.change-detection.outputs.skip_cli_e2e != 'true'
+    timeout-minutes: 20
+    strategy:
+      fail-fast: false
+      matrix:
+        test:
+          # Core Commands
+          - core-deploy
+          # Warp Commands
+          - warp-deploy-1
+          - warp-deploy-2
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+          submodules: recursive
+
+      - name: install-hyperlane-cli
+        id: install-hyperlane-cli
+        uses: ./.github/actions/install-cli
+        with:
+          ref: ${{ github.event.pull_request.head.sha || github.sha }}
+
+      - name: Checkout registry
+        uses: ./.github/actions/checkout-registry
+
+      - name: CLI tron e2e tests (${{ matrix.test }})
+        run: pnpm -C typescript/cli test:tron:e2e
+        env:
+          CLI_E2E_TEST: ${{ matrix.test }}
+
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-latest
     needs: [change-detection]
@@ -561,6 +587,7 @@ jobs:
         cli-cosmos-e2e-matrix,
         cli-cross-chain-e2e-matrix,
         cli-radix-e2e-matrix,
+        cli-tron-e2e-matrix,
         cli-aleo-e2e-matrix,
       ]
     if: always()
@@ -586,6 +613,11 @@ jobs:
         with:
           job_name: 'CLI Radix E2E'
           result: ${{ needs.cli-radix-e2e-matrix.result }}
+      - name: Check CLI Tron E2E status
+        uses: ./.github/actions/check-job-status
+        with:
+          job_name: 'CLI Tron E2E'
+          result: ${{ needs.cli-tron-e2e-matrix.result }}
       - name: Check CLI Aleo E2E status
         uses: ./.github/actions/check-job-status
         with:
