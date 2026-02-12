@@ -40,13 +40,10 @@ export async function runTronNode(
   const container = await retryAsync(
     () => {
       const gc = new GenericContainer('tronbox/tre').withEnvironment({
-        // Enable full EVM-compatible opcode support
         preapprove: 'allowTvmCompatibleEvm:1',
       });
 
       if (useHostNetwork) {
-        // Host networking: port 9090 is directly accessible, no port
-        // mapping needed. Avoids testcontainers' 10s port bind timeout.
         gc.withNetworkMode('host');
       } else {
         gc.withExposedPorts({
@@ -64,11 +61,10 @@ export async function runTronNode(
         )
         .start();
     },
-    3, // maxRetries
-    5000, // baseRetryMs
+    3,
+    5000,
   );
 
-  // Poll until the node is ready to process transactions
   rootLogger.info(
     `Waiting for Tron node to be ready for ${chainMetadata.name}`,
   );
@@ -87,21 +83,35 @@ export async function stopTronNode(
   await container.stop();
 }
 
+function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
+  return new Promise((resolve, reject) => {
+    const timer = setTimeout(
+      () => reject(new Error(`Timed out after ${ms}ms`)),
+      ms,
+    );
+    promise.then(resolve, reject).finally(() => clearTimeout(timer));
+  });
+}
+
 /**
  * Poll until the Tron node is ready to process transactions.
  * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock).
  */
 async function waitForTronNodeReady(port: number): Promise<void> {
   const tronUrl = `http://127.0.0.1:${port}`;
-  const provider = new TronJsonRpcProvider(tronUrl);
-  const tronweb = new TronWeb({ fullHost: tronUrl });
 
   await pollAsync(
     async () => {
-      const [blockNumber, block] = await Promise.all([
-        provider.getBlockNumber(),
-        tronweb.trx.getCurrentBlock(),
-      ]);
+      // Create fresh instances each attempt — the TRE proxy accepts TCP
+      // connections before internal services are ready, causing requests
+      // to hang. A hung ethers provider poisons all subsequent calls.
+      const provider = new TronJsonRpcProvider(tronUrl);
+      const tronweb = new TronWeb({ fullHost: tronUrl });
+
+      const [blockNumber, block] = await withTimeout(
+        Promise.all([provider.getBlockNumber(), tronweb.trx.getCurrentBlock()]),
+        5000,
+      );
       if (blockNumber === 0) {
         throw new Error('Block number is 0, node not ready');
       }
@@ -112,7 +122,7 @@ async function waitForTronNodeReady(port: number): Promise<void> {
         `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok`,
       );
     },
-    1000, // poll every 1 second
-    60, // max 60 attempts (60 seconds)
+    1000,
+    60,
   );
 }
