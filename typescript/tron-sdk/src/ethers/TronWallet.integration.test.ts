@@ -1,4 +1,3 @@
-/* eslint-disable import/no-nodejs-modules */
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 import { StartedTestContainer } from 'testcontainers';

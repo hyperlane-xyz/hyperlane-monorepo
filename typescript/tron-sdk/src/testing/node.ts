@@ -38,6 +38,7 @@ export async function runTronNode(
           container: 9090,
           host: chainMetadata.port,
         })
+        .withStartupTimeout(120_000) // 2 min for image pull + service startup
         .withWaitStrategy(Wait.forListeningPorts())
         .start(),
     3, // maxRetries
