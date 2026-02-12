@@ -5,7 +5,7 @@ import { Transform, type Writable } from 'stream';
 // eslint-disable-next-line no-control-regex -- intentional: matching ANSI escape sequences
 const ANSI_REGEX = /\x1b\[[0-9;]*m/g;
 
-export class FileLogRouter {
+export class ChainFileLogger {
   private combinedStream: fs.WriteStream;
   private chainStreams: Map<string, fs.WriteStream> = new Map();
   private logDir: string;

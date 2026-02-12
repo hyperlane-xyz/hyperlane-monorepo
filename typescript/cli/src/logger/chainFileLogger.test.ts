@@ -3,25 +3,25 @@ import fs from 'fs';
 import os from 'os';
 import path from 'path';
 
-import { FileLogRouter } from './fileLogger.js';
+import { ChainFileLogger } from './chainFileLogger.js';
 
-describe('FileLogRouter', () => {
+describe('ChainFileLogger', () => {
   let tmpDir: string;
-  let router: FileLogRouter;
+  let logger: ChainFileLogger;
 
   beforeEach(() => {
     tmpDir = fs.mkdtempSync(path.join(os.tmpdir(), 'hyperlane-log-test-'));
-    router = new FileLogRouter(tmpDir);
+    logger = new ChainFileLogger(tmpDir);
   });
 
   afterEach(() => {
-    router.close();
+    logger.close();
     fs.rmSync(tmpDir, { recursive: true, force: true });
   });
 
   function writeLines(lines: string[]): Promise<void> {
     return new Promise((resolve, reject) => {
-      const stream = router.createStream();
+      const stream = logger.createStream();
       let i = 0;
       const writeNext = () => {
         if (i >= lines.length) {
@@ -46,7 +46,7 @@ describe('FileLogRouter', () => {
   }
 
   it('creates a timestamped directory', () => {
-    const logDir = router.getLogDir();
+    const logDir = logger.getLogDir();
     expect(fs.existsSync(logDir)).to.be.true;
     expect(logDir.startsWith(tmpDir)).to.be.true;
     const dirname = path.basename(logDir);
@@ -63,10 +63,10 @@ describe('FileLogRouter', () => {
     await writeLines(lines);
 
     // Allow streams to flush
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    const combined = readFile(path.join(router.getLogDir(), 'combined.log'));
+    const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
     expect(combined).to.include('"msg":"one"');
     expect(combined).to.include('"msg":"two"');
     expect(combined).to.include('"msg":"three"');
@@ -75,10 +75,10 @@ describe('FileLogRouter', () => {
   it('routes lines with chain field to chain file', async () => {
     await writeLines([JSON.stringify({ chain: 'ethereum', msg: 'deploy' })]);
 
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    const chainFile = path.join(router.getLogDir(), 'ethereum.log');
+    const chainFile = path.join(logger.getLogDir(), 'ethereum.log');
     expect(fs.existsSync(chainFile)).to.be.true;
     const content = readFile(chainFile);
     expect(content).to.include('"chain":"ethereum"');
@@ -88,13 +88,13 @@ describe('FileLogRouter', () => {
   it('lines without chain go only to combined', async () => {
     await writeLines([JSON.stringify({ msg: 'startup' })]);
 
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    const combined = readFile(path.join(router.getLogDir(), 'combined.log'));
+    const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
     expect(combined).to.include('"msg":"startup"');
 
-    const logDir = router.getLogDir();
+    const logDir = logger.getLogDir();
     const files = fs.readdirSync(logDir);
     const chainFiles = files.filter(
       (f) => f !== 'combined.log' && f.endsWith('.log'),
@@ -105,10 +105,10 @@ describe('FileLogRouter', () => {
   it('strips ANSI codes', async () => {
     await writeLines([JSON.stringify({ msg: '\x1b[31mred error\x1b[0m' })]);
 
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    const combined = readFile(path.join(router.getLogDir(), 'combined.log'));
+    const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
     expect(combined).to.not.include('\x1b[');
     expect(combined).to.include('red error');
   });
@@ -119,22 +119,22 @@ describe('FileLogRouter', () => {
       JSON.stringify({ chain: 'polygon', msg: 'poly-log' }),
     ]);
 
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    expect(fs.existsSync(path.join(router.getLogDir(), 'ethereum.log'))).to.be
+    expect(fs.existsSync(path.join(logger.getLogDir(), 'ethereum.log'))).to.be
       .true;
-    expect(fs.existsSync(path.join(router.getLogDir(), 'polygon.log'))).to.be
+    expect(fs.existsSync(path.join(logger.getLogDir(), 'polygon.log'))).to.be
       .true;
   });
 
   it('handles non-JSON lines gracefully', async () => {
     await writeLines(['plain text line', 'another plain line']);
 
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    const combined = readFile(path.join(router.getLogDir(), 'combined.log'));
+    const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
     expect(combined).to.include('plain text line');
     expect(combined).to.include('another plain line');
   });
@@ -145,14 +145,14 @@ describe('FileLogRouter', () => {
       JSON.stringify({ msg: 'global' }),
     ]);
 
-    router.close();
+    logger.close();
     await new Promise((r) => setTimeout(r, 50));
 
-    const combined = readFile(path.join(router.getLogDir(), 'combined.log'));
+    const combined = readFile(path.join(logger.getLogDir(), 'combined.log'));
     expect(combined).to.include('"msg":"test"');
     expect(combined).to.include('"msg":"global"');
 
-    const chainFile = readFile(path.join(router.getLogDir(), 'ethereum.log'));
+    const chainFile = readFile(path.join(logger.getLogDir(), 'ethereum.log'));
     expect(chainFile).to.include('"msg":"test"');
   });
 });

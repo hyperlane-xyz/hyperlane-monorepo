@@ -33,7 +33,7 @@ import { validatorCommand } from './src/commands/validator.js';
 import { warpCommand } from './src/commands/warp.js';
 import { xerc20Command } from './src/commands/xerc20.js';
 import { contextMiddleware, signerMiddleware } from './src/context/context.js';
-import { configureLogger, errorRed, getFileLogRouter } from './src/logger.js';
+import { configureLogger, errorRed, getChainFileLogger } from './src/logger.js';
 import { checkVersion } from './src/utils/version-check.js';
 import { VERSION } from './src/version.js';
 
@@ -93,5 +93,5 @@ try {
 } catch (error: any) {
   errorRed('Error: ' + error.message);
 } finally {
-  getFileLogRouter()?.close();
+  getChainFileLogger()?.close();
 }

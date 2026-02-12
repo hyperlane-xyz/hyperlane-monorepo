@@ -10,13 +10,13 @@ import {
   safelyAccessEnvVar,
 } from '@hyperlane-xyz/utils';
 
-import { FileLogRouter } from './logger/fileLogger.js';
+import { ChainFileLogger } from './logger/chainFileLogger.js';
 
 let logger = rootLogger;
-let fileLogRouter: FileLogRouter | undefined;
+let chainFileLogger: ChainFileLogger | undefined;
 
-export function getFileLogRouter(): FileLogRouter | undefined {
-  return fileLogRouter;
+export function getChainFileLogger(): ChainFileLogger | undefined {
+  return chainFileLogger;
 }
 
 export function configureLogger(
@@ -29,12 +29,14 @@ export function configureLogger(
   logLevel = logLevel || safelyAccessEnvVar('LOG_LEVEL', true) || LogLevel.Info;
 
   if (logDir) {
-    fileLogRouter = new FileLogRouter(logDir);
+    chainFileLogger = new ChainFileLogger(logDir);
     logger = configureRootLogger(logFormat, logLevel, [
-      fileLogRouter.createStream(),
+      chainFileLogger.createStream(),
     ]).child({ module: 'cli' });
   } else {
-    logger = configureRootLogger(logFormat, logLevel).child({ module: 'cli' });
+    logger = configureRootLogger(logFormat, logLevel).child({
+      module: 'cli',
+    });
   }
 }
 
