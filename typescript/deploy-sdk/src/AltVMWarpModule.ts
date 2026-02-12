@@ -53,7 +53,7 @@ export class AltVMWarpModule implements HypModule<TokenRouterModuleType> {
 
     this.logger = rootLogger.child({
       module: AltVMWarpModule.name,
-      chain: String(args.chain),
+      chain: args.chain,
     });
   }
 

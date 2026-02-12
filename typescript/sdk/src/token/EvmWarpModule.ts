@@ -123,7 +123,7 @@ export class EvmWarpModule extends HyperlaneModule<
     super(args);
     this.logger = rootLogger.child({
       module: 'EvmWarpModule',
-      chain: String(args.chain),
+      chain: args.chain,
     });
     this.reader = new EvmWarpRouteReader(multiProvider, args.chain);
     this.chainName = this.multiProvider.getChainName(args.chain);
