@@ -16,7 +16,6 @@ import {
 } from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
-import type { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import {
   Address,
   addBufferToGasLimit,
@@ -378,29 +377,11 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {
-      // For Tron, swap in the tron-compiled factory and wrap with TronContractFactory.
-      // @hyperlane-xyz/tron-sdk exports typechain factories with class names identical to
-      // @hyperlane-xyz/core (e.g. Mailbox__factory), generated from the same Solidity source.
-      // They share the same ABIs and deploy signatures, differing only in TVM bytecode.
-      let contractFactory;
-      if (technicalStack === ChainTechnicalStack.Tron) {
-        const TronSdk = await import('@hyperlane-xyz/tron-sdk');
-        const TronFactory = (TronSdk as Record<string, any>)[
-          factory.constructor.name
-        ];
-        if (!TronFactory) {
-          throw new Error(
-            `No Tron-compiled factory found for ${factory.constructor.name}`,
-          );
-        }
-        factory = new TronFactory() as F;
-        contractFactory = new TronSdk.TronContractFactory(
-          factory,
-          signer as TronWallet,
-        );
-      } else {
-        contractFactory = factory.connect(signer);
-      }
+      const resolved =
+        technicalStack === ChainTechnicalStack.Tron
+          ? await this.resolveTronFactory(factory)
+          : factory;
+      const contractFactory = resolved.connect(signer);
 
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);
@@ -422,6 +403,33 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
 
     // return deployed contract
     return contract as Awaited<ReturnType<F['deploy']>>;
+  }
+
+  /**
+   * Resolve a core typechain factory to its Tron-compiled equivalent
+   * wrapped with TronContractFactory for deployment.
+   *
+   * @hyperlane-xyz/tron-sdk exports typechain factories with class names identical to
+   * @hyperlane-xyz/core (e.g. Mailbox__factory), generated from the same Solidity source.
+   * They share the same ABIs and deploy signatures, differing only in TVM bytecode.
+   *
+   * Looks up the tron factory by factory.constructor.name and wraps it
+   * with TronContractFactory to handle Tron's deployment flow.
+   * @throws if no matching Tron factory is found
+   */
+  async resolveTronFactory<F extends ContractFactory>(
+    factory: F,
+  ): Promise<ContractFactory> {
+    const TronSdk = await import('@hyperlane-xyz/tron-sdk');
+    const TronFactory = (TronSdk as Record<string, any>)[
+      factory.constructor.name
+    ];
+    if (!TronFactory) {
+      throw new Error(
+        `No Tron-compiled factory found for ${factory.constructor.name}`,
+      );
+    }
+    return new TronSdk.TronContractFactory(new TronFactory());
   }
 
   /**
