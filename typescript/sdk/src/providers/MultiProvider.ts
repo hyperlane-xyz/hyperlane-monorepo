@@ -16,6 +16,7 @@ import {
 } from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
+import type { TronWallet } from '@hyperlane-xyz/tron-sdk';
 import {
   Address,
   addBufferToGasLimit,
@@ -392,7 +393,7 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
         factory = new TronFactory() as F;
         contractFactory = new TronSdk.TronContractFactory(
           factory,
-          signer as InstanceType<typeof TronSdk.TronWallet>,
+          signer as TronWallet,
         );
       } else {
         contractFactory = factory.connect(signer);
