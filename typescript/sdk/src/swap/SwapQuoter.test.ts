@@ -40,6 +40,24 @@ describe('SwapQuoter', () => {
     expect(parsed.bridgeTokenFee.toString()).to.equal('21');
   });
 
+  it('aggregates multiple native fee quotes', () => {
+    const parsed = parseBridgeQuoteTransferRemoteQuotes(
+      [
+        { token: constants.AddressZero, amount: BigNumber.from(3) },
+        { token: TOKEN_A, amount: BigNumber.from(1002) },
+        { token: constants.AddressZero, amount: BigNumber.from(7) },
+      ],
+      BigNumber.from(1000),
+      TOKEN_A,
+    );
+
+    expect(parsed.fee.toString()).to.equal('10');
+    expect(parsed.feeToken).to.equal(constants.AddressZero);
+    expect(parsed.tokenPull.toString()).to.equal('1002');
+    expect(parsed.tokenPullToken).to.equal(TOKEN_A);
+    expect(parsed.bridgeTokenFee.toString()).to.equal('2');
+  });
+
   it('uses the requested bridge token quote when provided', () => {
     const parsed = parseBridgeQuoteTransferRemoteQuotes(
       [
@@ -54,6 +72,22 @@ describe('SwapQuoter', () => {
     expect(parsed.tokenPull.toString()).to.equal('1007');
     expect(parsed.tokenPullToken).to.equal(TOKEN_A);
     expect(parsed.bridgeTokenFee.toString()).to.equal('7');
+  });
+
+  it('aggregates duplicate token quotes before selecting a token pull', () => {
+    const parsed = parseBridgeQuoteTransferRemoteQuotes(
+      [
+        { token: TOKEN_A, amount: BigNumber.from(600) },
+        { token: TOKEN_B, amount: BigNumber.from(1000) },
+        { token: TOKEN_A, amount: BigNumber.from(450) },
+      ],
+      BigNumber.from(1000),
+      TOKEN_A,
+    );
+
+    expect(parsed.tokenPull.toString()).to.equal('1050');
+    expect(parsed.tokenPullToken).to.equal(TOKEN_A);
+    expect(parsed.bridgeTokenFee.toString()).to.equal('50');
   });
 
   it('returns zero fees when no native or token quote is available', () => {

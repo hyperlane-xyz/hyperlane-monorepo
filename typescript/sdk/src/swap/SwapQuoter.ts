@@ -62,9 +62,26 @@ export function parseBridgeQuoteTransferRemoteQuotes(
   amount: BigNumber,
   bridgeToken?: string,
 ): BridgeQuote {
-  const nativeFeeQuote = quotes.find((quote) => isZeroishAddress(quote.token));
-  const tokenQuotes = quotes.filter((quote) => !isZeroishAddress(quote.token));
+  const nativeFee = quotes.reduce((sum, quote) => {
+    return isZeroishAddress(quote.token) ? sum.add(quote.amount) : sum;
+  }, BigNumber.from(0));
 
+  const tokenQuoteTotals = quotes.reduce<Map<string, WarpRouteQuote>>(
+    (aggregated, quote) => {
+      if (isZeroishAddress(quote.token)) return aggregated;
+      const key = quote.token.toLowerCase();
+      const existing = aggregated.get(key);
+      if (existing) {
+        existing.amount = existing.amount.add(quote.amount);
+      } else {
+        aggregated.set(key, { token: quote.token, amount: quote.amount });
+      }
+      return aggregated;
+    },
+    new Map<string, WarpRouteQuote>(),
+  );
+
+  const tokenQuotes = Array.from(tokenQuoteTotals.values());
   const matchingTokenQuote = bridgeToken
     ? tokenQuotes.find((quote) => eqAddress(quote.token, bridgeToken))
     : undefined;
@@ -82,8 +99,8 @@ export function parseBridgeQuoteTransferRemoteQuotes(
     : BigNumber.from(0);
 
   return {
-    fee: nativeFeeQuote?.amount ?? BigNumber.from(0),
-    feeToken: nativeFeeQuote?.token ?? constants.AddressZero,
+    fee: nativeFee,
+    feeToken: constants.AddressZero,
     tokenPull,
     tokenPullToken: tokenPullQuote?.token ?? constants.AddressZero,
     bridgeTokenFee,
@@ -135,12 +152,13 @@ export async function getBridgeFee(
   destination: number,
   amount: BigNumber,
   bridgeToken?: string,
+  recipient = constants.HashZero,
 ): Promise<BridgeQuote> {
   const warpRoute = new Contract(warpRouteAddress, WARP_ROUTE_ABI, provider);
   const quotes: WarpRouteQuote[] =
     await warpRoute.callStatic.quoteTransferRemote(
       destination,
-      constants.HashZero,
+      recipient,
       amount,
     );
   return parseBridgeQuoteTransferRemoteQuotes(quotes, amount, bridgeToken);
