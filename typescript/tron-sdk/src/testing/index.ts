@@ -2,6 +2,7 @@
 export {
   runTronNode,
   stopTronNode,
+  type TronNodeInfo,
   type TronTestChainMetadata,
 } from './node.js';
 

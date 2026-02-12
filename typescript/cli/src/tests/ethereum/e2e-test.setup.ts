@@ -17,7 +17,8 @@ before(async function () {
   );
 
   if (IS_TRON_TEST) {
-    // Single Tron node handles all 3 logical chains (anvil2/3/4 aliases)
+    // Single Tron node handles all 3 logical chains (anvil2/3/4 aliases).
+    // runTronNode uses a fixed mnemonic so ANVIL_KEY matches account 0.
     await runTronNode({
       name: 'tron-local',
       chainId: 3360022319,

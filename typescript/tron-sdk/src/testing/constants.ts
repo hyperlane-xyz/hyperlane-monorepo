@@ -1,6 +1,7 @@
 /**
  * Test private key for tronbox/tre local network (account 0).
- * Pre-funded with 10,000 TRX.
+ * Derived from the fixed mnemonic in node.ts ("abandon abandon ... about")
+ * via HD path m/44'/195'/0'/0/0. Pre-funded with 10,000 TRX.
  */
 export const TEST_TRON_PRIVATE_KEY =
-  'b08db05665f2b691035aa6ad5a81cf20c2f0a448270cc24bcc9323bceb26b7d6';
+  'b5a4cea271ff424d7c31dc12a3e43e401df7a40d7412a15750f3f0b6b5449a28';

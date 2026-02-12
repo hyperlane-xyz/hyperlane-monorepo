@@ -1,9 +1,8 @@
 import { expect } from 'chai';
 import { BigNumber } from 'ethers';
-import { StartedTestContainer } from 'testcontainers';
 
-import { TEST_TRON_PRIVATE_KEY } from '../testing/constants.js';
 import {
+  TronNodeInfo,
   TronTestChainMetadata,
   runTronNode,
   stopTronNode,
@@ -24,19 +23,19 @@ const TEST_CHAIN: TronTestChainMetadata = {
 describe('TronWallet Integration Tests', function () {
   this.timeout(120_000); // 2 minutes for container startup
 
-  let container: StartedTestContainer;
+  let node: TronNodeInfo;
   let wallet: TronWallet;
 
   before(async () => {
-    container = await runTronNode(TEST_CHAIN);
+    node = await runTronNode(TEST_CHAIN);
 
     const tronUrl = `http://127.0.0.1:${TEST_CHAIN.port}`;
-    wallet = new TronWallet(TEST_TRON_PRIVATE_KEY, tronUrl);
+    wallet = new TronWallet(node.privateKeys[0], tronUrl);
   });
 
   after(async () => {
-    if (container) {
-      await stopTronNode(container);
+    if (node) {
+      await stopTronNode(node);
     }
   });
 

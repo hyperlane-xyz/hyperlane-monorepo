@@ -21,6 +21,23 @@ export interface TronTestChainMetadata {
 const TRE_CONTAINER_PORT = 9090;
 
 /**
+ * Fixed mnemonic passed to tronbox/tre so accounts are deterministic.
+ * The derived account 0 private key must match TEST_TRON_PRIVATE_KEY
+ * in constants.ts.
+ */
+const TRE_MNEMONIC =
+  'abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon abandon about';
+
+/**
+ * Result of starting a Tron node, including the container and funded keys.
+ */
+export interface TronNodeInfo {
+  container: StartedTestContainer;
+  /** Private keys of accounts pre-funded by TRE (hex, no 0x prefix). */
+  privateKeys: string[];
+}
+
+/**
  * Starts a local Tron node using the tronbox/tre Docker image.
  *
  * Uses host networking when the requested port matches the container's
@@ -28,11 +45,11 @@ const TRE_CONTAINER_PORT = 9090;
  * binding timeout. Falls back to explicit port mapping otherwise.
  *
  * @param chainMetadata - Test chain metadata configuration
- * @returns The started container instance
+ * @returns Container and pre-funded account private keys
  */
 export async function runTronNode(
   chainMetadata: TronTestChainMetadata,
-): Promise<StartedTestContainer> {
+): Promise<TronNodeInfo> {
   rootLogger.info(`Starting Tron node for ${chainMetadata.name}`);
 
   const useHostNetwork = chainMetadata.port === TRE_CONTAINER_PORT;
@@ -41,6 +58,7 @@ export async function runTronNode(
     () => {
       const gc = new GenericContainer('tronbox/tre').withEnvironment({
         preapprove: 'allowTvmCompatibleEvm:1',
+        mnemonic: TRE_MNEMONIC,
       });
 
       if (useHostNetwork) {
@@ -68,18 +86,23 @@ export async function runTronNode(
   rootLogger.info(
     `Waiting for Tron node to be ready for ${chainMetadata.name}`,
   );
-  await waitForTronNodeReady(chainMetadata.port);
+  const privateKeys = await waitForTronNodeReady(chainMetadata.port);
 
-  return container;
+  return { container, privateKeys };
 }
 
 /**
- * Stops a Tron node started with runTronNode
+ * Stops a Tron node started with runTronNode.
+ * Accepts either a StartedTestContainer or a TronNodeInfo.
  */
 export async function stopTronNode(
-  container: StartedTestContainer,
+  nodeOrContainer: StartedTestContainer | TronNodeInfo,
 ): Promise<void> {
   rootLogger.info('Stopping Tron node');
+  const container =
+    'container' in nodeOrContainer
+      ? nodeOrContainer.container
+      : nodeOrContainer;
   await container.stop();
 }
 
@@ -95,10 +118,13 @@ function withTimeout<T>(promise: Promise<T>, ms: number): Promise<T> {
 
 /**
  * Poll until the Tron node is ready to process transactions.
- * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock).
+ * Checks JSON-RPC, HTTP API, and account funding.
+ * Returns the pre-funded private keys.
  */
-async function waitForTronNodeReady(port: number): Promise<void> {
+async function waitForTronNodeReady(port: number): Promise<string[]> {
   const tronUrl = `http://127.0.0.1:${port}`;
+
+  let privateKeys: string[] = [];
 
   await pollAsync(
     async () => {
@@ -118,11 +144,25 @@ async function waitForTronNodeReady(port: number): Promise<void> {
       if (!block.blockID) {
         throw new Error('HTTP API returned invalid block data');
       }
+
+      // Wait for TRE to fund accounts (happens after node starts mining)
+      const resp = await withTimeout(
+        fetch(`${tronUrl}/admin/accounts-json`),
+        5000,
+      );
+      const data = (await resp.json()) as { privateKeys: string[] };
+      if (!data.privateKeys?.length) {
+        throw new Error('No funded accounts yet');
+      }
+      privateKeys = data.privateKeys;
+
       rootLogger.info(
-        `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok`,
+        `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok, ${privateKeys.length} funded accounts`,
       );
     },
     1000,
     60,
   );
+
+  return privateKeys;
 }
