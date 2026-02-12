@@ -380,6 +380,8 @@ export { InterchainAccountDeployer } from './middleware/account/InterchainAccoun
 export {
   AccountConfig,
   AccountConfigSchema,
+  GetCallRemoteCommitRevealSettings,
+  GetCallRemoteCommitRevealSettingsSchema,
   GetCallRemoteSettings,
   GetCallRemoteSettingsSchema,
 } from './middleware/account/types.js';
@@ -926,6 +928,7 @@ export {
   buildErc20TransferCall,
   buildIcaCommitmentFromRawCalls,
   buildUniversalRouterExecuteCall,
+  buildUniversalRouterV3SwapExactInCall,
   buildWarpTransferRemoteCall,
 } from './swap/CommitmentCalls.js';
 export type { IcaCommitmentFromRawCalls } from './swap/CommitmentCalls.js';

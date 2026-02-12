@@ -40,7 +40,11 @@ import {
   InterchainAccountFactories,
   interchainAccountFactories,
 } from './contracts.js';
-import { AccountConfig, GetCallRemoteSettings } from './types.js';
+import {
+  AccountConfig,
+  GetCallRemoteCommitRevealSettings,
+  GetCallRemoteSettings,
+} from './types.js';
 
 const IGP_DEFAULT_GAS = BigNumber.from(50_000);
 const ICA_OVERHEAD = BigNumber.from(50_000);
@@ -401,6 +405,49 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
     return callEncoded;
   }
 
+  /**
+   * Populate a commit-reveal ICA dispatch transaction.
+   * Uses the simple overload callRemoteCommitReveal(uint32,bytes32,uint256),
+   * which relies on enrolled remote router/ISM defaults.
+   */
+  async getCallRemoteCommitReveal({
+    chain,
+    destination,
+    commitment,
+    gasLimit,
+    config,
+  }: GetCallRemoteCommitRevealSettings): Promise<PopulatedTransaction> {
+    const localRouter = config.localRouter
+      ? InterchainAccountRouter__factory.connect(
+          config.localRouter,
+          this.multiProvider.getSigner(chain),
+        )
+      : this.router(this.contractsMap[chain]);
+    const remoteDomain = this.multiProvider.getDomainId(destination);
+    const revealGasLimit = BigNumber.from(gasLimit ?? IGP_DEFAULT_GAS);
+
+    if (!utils.isHexString(commitment, 32)) {
+      throw new Error('commitment must be a bytes32 hex string');
+    }
+
+    let quote: BigNumber;
+    try {
+      quote = await localRouter['quoteGasForCommitReveal(uint32,uint256)'](
+        remoteDomain,
+        revealGasLimit,
+      );
+    } catch {
+      quote = await localRouter['quoteGasPayment(uint32,uint256)'](
+        remoteDomain,
+        revealGasLimit,
+      );
+    }
+
+    return localRouter.populateTransaction[
+      'callRemoteCommitReveal(uint32,bytes32,uint256)'
+    ](remoteDomain, commitment, revealGasLimit, { value: quote });
+  }
+
   private extractGasLimitFromMetadata(metadata: string): BigNumber | null {
     const parsed = parseStandardHookMetadata(metadata);
     return parsed ? BigNumber.from(parsed.gasLimit) : null;
@@ -423,6 +470,25 @@ export class InterchainAccount extends RouterApp<InterchainAccountFactories> {
         innerCalls,
         config,
         hookMetadata,
+      }),
+    );
+  }
+
+  async callRemoteCommitReveal({
+    chain,
+    destination,
+    commitment,
+    gasLimit,
+    config,
+  }: GetCallRemoteCommitRevealSettings): Promise<void> {
+    await this.multiProvider.sendTransaction(
+      chain,
+      this.getCallRemoteCommitReveal({
+        chain,
+        destination,
+        commitment,
+        gasLimit,
+        config,
       }),
     );
   }

@@ -1,4 +1,4 @@
-import { CallData, addressToBytes32 } from '@hyperlane-xyz/utils';
+import { CallData, addressToBytes32, eqAddress } from '@hyperlane-xyz/utils';
 import { BigNumber, BigNumberish, utils } from 'ethers';
 
 import {
@@ -7,6 +7,13 @@ import {
   buildIcaCommitment,
   normalizeCalls,
 } from '../middleware/account/InterchainAccount.js';
+import { Commands, encodeV3SwapExactIn } from './UniversalRouterEncoder.js';
+import {
+  DEFAULT_DEX_FLAVOR,
+  DexFlavor,
+  getDexFlavorIsUni,
+  normalizePoolParam,
+} from './types.js';
 
 const ERC20_INTERFACE = new utils.Interface([
   'function approve(address spender, uint256 amount) returns (bool)',
@@ -89,6 +96,48 @@ export function buildUniversalRouterExecuteCall(params: {
     ]),
     value: toOptionalValueString(params.value),
   };
+}
+
+export function buildUniversalRouterV3SwapExactInCall(params: {
+  universalRouter: string;
+  recipient: string;
+  tokenIn: string;
+  tokenOut: string;
+  amountIn: BigNumberish;
+  amountOutMinimum: BigNumberish;
+  deadline: BigNumberish;
+  payerIsUser?: boolean;
+  poolParam?: number;
+  dexFlavor?: DexFlavor;
+  value?: BigNumberish;
+}): RawCallData {
+  if (eqAddress(params.tokenIn, params.tokenOut)) {
+    throw new Error('tokenIn and tokenOut must differ for destination swap');
+  }
+
+  const poolParam = normalizePoolParam(params.poolParam);
+  const isUni = getDexFlavorIsUni(params.dexFlavor ?? DEFAULT_DEX_FLAVOR);
+  const path = utils.solidityPack(
+    ['address', 'uint24', 'address'],
+    [params.tokenIn, poolParam, params.tokenOut],
+  );
+
+  const command = encodeV3SwapExactIn({
+    recipient: params.recipient,
+    amountIn: BigNumber.from(params.amountIn),
+    amountOutMinimum: BigNumber.from(params.amountOutMinimum),
+    path,
+    payerIsUser: params.payerIsUser ?? true,
+    isUni,
+  });
+
+  return buildUniversalRouterExecuteCall({
+    universalRouter: params.universalRouter,
+    commands: utils.hexZeroPad(utils.hexlify(Commands.V3_SWAP_EXACT_IN), 1),
+    inputs: [command.encodedInput],
+    deadline: params.deadline,
+    value: params.value,
+  });
 }
 
 export type IcaCommitmentFromRawCalls = {
