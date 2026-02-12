@@ -301,12 +301,11 @@ export const getEclipseUSDCStrategyConfig = (): ChainSubmissionStrategy => {
     new Set<(typeof evmDeploymentChains)[number]>(safeChains),
   );
 
+  const chainAddress = getChainAddresses();
   const icaStrategies: [string, SubmissionStrategy][] = [...icaChains].map(
     (chain) => {
-      const chainAddress = getChainAddresses()[chain];
-      assert(chainAddress, `Could not fetch addresses for chain ${chain}`);
       const originInterchainAccountRouter =
-        chainAddress.interchainAccountRouter;
+        chainAddress[originSafeChain].interchainAccountRouter;
       assert(
         originInterchainAccountRouter,
         `Could not fetch originInterchainAccountRouter for chain ${chain}`,
