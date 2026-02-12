@@ -48,8 +48,10 @@ import {
   CHAIN_NAME_3,
   CORE_CONFIG_PATH,
   DEFAULT_E2E_TEST_TIMEOUT,
+  IS_TRON_TEST,
   REGISTRY_PATH,
   TEMP_PATH,
+  TRON_KEY_1,
   WARP_DEPLOY_OUTPUT_PATH,
 } from '../consts.js';
 
@@ -79,9 +81,12 @@ describe('hyperlane warp deploy e2e tests', async function () {
     walletChain2 = new Wallet(ANVIL_KEY).connect(providerChain2);
     ownerAddress = walletChain2.address;
 
+    // Use different deployer keys on Tron to avoid "Dup transaction" errors
+    // when deploying identical core bytecodes in parallel to the same node.
+    const chain3Key = IS_TRON_TEST ? TRON_KEY_1 : ANVIL_KEY;
     [chain2Addresses, chain3Addresses] = await Promise.all([
       deployOrUseExistingCore(CHAIN_NAME_2, CORE_CONFIG_PATH, ANVIL_KEY),
-      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, ANVIL_KEY),
+      deployOrUseExistingCore(CHAIN_NAME_3, CORE_CONFIG_PATH, chain3Key),
     ]);
   });
 
@@ -282,7 +287,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
-          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          {
+            decimals: expectedTokenDecimals,
+            symbol: expectedTokenSymbol,
+          },
         );
       }
     });
@@ -556,7 +564,10 @@ describe('hyperlane warp deploy e2e tests', async function () {
           warpConfig,
           COMBINED_WARP_CORE_CONFIG_PATH,
           chainName,
-          { decimals: expectedTokenDecimals, symbol: expectedTokenSymbol },
+          {
+            decimals: expectedTokenDecimals,
+            symbol: expectedTokenSymbol,
+          },
         );
       }
     });

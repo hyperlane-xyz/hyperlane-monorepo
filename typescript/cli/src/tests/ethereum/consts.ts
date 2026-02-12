@@ -67,6 +67,15 @@ export const DEFAULT_E2E_TEST_TIMEOUT =
 // Export test stack for conditional logic in setup
 export const IS_TRON_TEST = TEST_STACK === 'tron';
 
+// Deterministic TRE keys derived from BIP-44 m/44'/195'/0'/0/N
+// Mnemonic: abandon abandon abandon abandon abandon abandon abandon about
+// Key 0 = ANVIL_KEY for tron. Keys 1-2 used as separate deployers to avoid
+// "Dup transaction" errors when deploying identical core contracts in parallel.
+export const TRON_KEY_1 =
+  'edb728e259afca2ddcc428459e7681b8414668649aedbc8d25c0872da219b2e6';
+export const TRON_KEY_2 =
+  '0e5684898be2d272d54eb2be3fd41a12f720db6358cee02c2d23043eed4bf7a2';
+
 export function getCombinedWarpRoutePath(
   tokenSymbol: string,
   chains: string[],
