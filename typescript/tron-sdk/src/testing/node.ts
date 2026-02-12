@@ -1,3 +1,5 @@
+import { execSync } from 'child_process';
+
 import { GenericContainer, StartedTestContainer, Wait } from 'testcontainers';
 import { TronWeb } from 'tronweb';
 
@@ -14,6 +16,8 @@ export interface TronTestChainMetadata {
   domainId: number;
   port: number; // Single port for HTTP API + JSON-RPC (/jsonrpc)
 }
+
+const TRE_IMAGE = 'tronbox/tre';
 
 /**
  * The internal port tronbox/tre listens on (not configurable).
@@ -37,6 +41,74 @@ export interface TronNodeInfo {
   privateKeys: string[];
 }
 
+/** Run a shell command and return stdout, swallowing errors. */
+function shell(cmd: string): string {
+  try {
+    return execSync(cmd, { timeout: 10_000 }).toString().trim();
+  } catch {
+    return `<command failed: ${cmd}>`;
+  }
+}
+
+/** Log Docker environment diagnostics before starting the container. */
+function logPreFlightDiagnostics(): void {
+  rootLogger.info(
+    '[tron-diag] Docker version: ' +
+      shell('docker version --format "{{.Server.Version}}"'),
+  );
+  rootLogger.info(
+    '[tron-diag] Docker info (memory): ' +
+      shell('docker info --format "{{.MemTotal}}"'),
+  );
+  rootLogger.info(
+    '[tron-diag] Free memory: ' + shell('free -h 2>/dev/null || echo "N/A"'),
+  );
+  rootLogger.info(
+    '[tron-diag] Disk space: ' +
+      shell('df -h / 2>/dev/null | tail -1 || echo "N/A"'),
+  );
+
+  const imageId = shell(`docker images -q ${TRE_IMAGE}`);
+  rootLogger.info(
+    `[tron-diag] TRE image cached: ${imageId ? 'yes (' + imageId + ')' : 'no (will pull)'}`,
+  );
+}
+
+/** Dump diagnostics for a failed container start. */
+function logPostFailureDiagnostics(attempt: number): void {
+  rootLogger.error(
+    `[tron-diag] Container start failed (attempt ${attempt}). Dumping diagnostics...`,
+  );
+
+  const ps = shell(
+    'docker ps -a --filter ancestor=tronbox/tre --format "{{.ID}} {{.Status}} {{.Ports}}" --no-trunc',
+  );
+  rootLogger.error('[tron-diag] TRE containers: ' + ps);
+
+  if (!ps || ps.startsWith('<command failed')) return;
+
+  const containerId = ps.split('\n')[0]?.split(' ')[0];
+  if (!containerId) return;
+
+  const state = shell(
+    `docker inspect --format "{{json .State}}" ${containerId}`,
+  );
+  rootLogger.error('[tron-diag] Container state: ' + state);
+
+  const ports = shell(
+    `docker inspect --format "{{json .NetworkSettings.Ports}}" ${containerId}`,
+  );
+  rootLogger.error('[tron-diag] Container ports: ' + ports);
+
+  const hostConfig = shell(
+    `docker inspect --format "{{json .HostConfig.PortBindings}}" ${containerId}`,
+  );
+  rootLogger.error('[tron-diag] HostConfig.PortBindings: ' + hostConfig);
+
+  const logs = shell(`docker logs --tail 50 ${containerId} 2>&1`);
+  rootLogger.error('[tron-diag] Container logs (last 50 lines):\n' + logs);
+}
+
 /**
  * Starts a local Tron node using the tronbox/tre Docker image.
  *
@@ -51,12 +123,21 @@ export async function runTronNode(
   chainMetadata: TronTestChainMetadata,
 ): Promise<TronNodeInfo> {
   rootLogger.info(`Starting Tron node for ${chainMetadata.name}`);
+  logPreFlightDiagnostics();
 
   const useHostNetwork = chainMetadata.port === TRE_CONTAINER_PORT;
+  rootLogger.info(
+    `[tron-diag] Port config: requested=${chainMetadata.port}, container=${TRE_CONTAINER_PORT}, useHostNetwork=${useHostNetwork}`,
+  );
 
+  let attempt = 0;
   const container = await retryAsync(
-    () => {
-      const gc = new GenericContainer('tronbox/tre').withEnvironment({
+    async () => {
+      attempt++;
+      rootLogger.info(`[tron-diag] Starting container attempt ${attempt}`);
+      const startTime = Date.now();
+
+      const gc = new GenericContainer(TRE_IMAGE).withEnvironment({
         preapprove: 'allowTvmCompatibleEvm:1',
         mnemonic: TRE_MNEMONIC,
       });
@@ -70,14 +151,29 @@ export async function runTronNode(
         });
       }
 
-      return gc
-        .withStartupTimeout(120_000)
-        .withWaitStrategy(
-          Wait.forLogMessage(/TRE now listening on/).withStartupTimeout(
-            120_000,
-          ),
-        )
-        .start();
+      try {
+        const started = await gc
+          .withStartupTimeout(120_000)
+          .withWaitStrategy(
+            Wait.forLogMessage(/TRE now listening on/).withStartupTimeout(
+              120_000,
+            ),
+          )
+          .start();
+
+        rootLogger.info(
+          `[tron-diag] Container started in ${Date.now() - startTime}ms`,
+        );
+        return started;
+      } catch (err: unknown) {
+        const elapsed = Date.now() - startTime;
+        const msg = err instanceof Error ? err.message : String(err);
+        rootLogger.error(
+          `[tron-diag] Container start failed after ${elapsed}ms: ${msg}`,
+        );
+        logPostFailureDiagnostics(attempt);
+        throw err;
+      }
     },
     3,
     5000,
