@@ -1,4 +1,4 @@
-import { ContractFactory, Signer } from 'ethers';
+import { ContractFactory } from 'ethers';
 import { Types } from 'tronweb';
 
 import { assert } from '@hyperlane-xyz/utils';
@@ -71,7 +71,7 @@ export class TronContractFactory<
   /**
    * Returns a new TronContractFactory connected to the given signer.
    */
-  override connect(signer: Signer): TronContractFactory<F> {
-    return new TronContractFactory(this.factory, signer as TronWallet);
+  override connect(signer: TronWallet): TronContractFactory<F> {
+    return new TronContractFactory(this.factory, signer);
   }
 }
