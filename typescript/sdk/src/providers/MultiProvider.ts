@@ -378,7 +378,10 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {
-      // For Tron, swap in the tron-compiled factory and wrap with TronContractFactory
+      // For Tron, swap in the tron-compiled factory and wrap with TronContractFactory.
+      // @hyperlane-xyz/tron-sdk exports typechain factories with class names identical to
+      // @hyperlane-xyz/core (e.g. Mailbox__factory), generated from the same Solidity source.
+      // They share the same ABIs and deploy signatures, differing only in TVM bytecode.
       let contractFactory;
       if (technicalStack === ChainTechnicalStack.Tron) {
         const TronSdk = await import('@hyperlane-xyz/tron-sdk');
