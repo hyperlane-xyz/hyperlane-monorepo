@@ -16,7 +16,6 @@ import {
 } from 'zksync-ethers';
 
 import { ZKSyncArtifact } from '@hyperlane-xyz/core';
-import { TronContractFactory, TronWallet } from '@hyperlane-xyz/tron-sdk';
 import {
   Address,
   addBufferToGasLimit,
@@ -381,18 +380,19 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // For Tron, swap in the tron-compiled factory and wrap with TronContractFactory
       let contractFactory;
       if (technicalStack === ChainTechnicalStack.Tron) {
-        const tronSdk: Record<string, any> =
-          await import('@hyperlane-xyz/tron-sdk');
-        const TronFactory = tronSdk[factory.constructor.name];
+        const TronSdk = await import('@hyperlane-xyz/tron-sdk');
+        const TronFactory = (TronSdk as Record<string, any>)[
+          factory.constructor.name
+        ];
         if (!TronFactory) {
           throw new Error(
             `No Tron-compiled factory found for ${factory.constructor.name}`,
           );
         }
         factory = new TronFactory() as F;
-        contractFactory = new TronContractFactory(
+        contractFactory = new TronSdk.TronContractFactory(
           factory,
-          signer as TronWallet,
+          signer as InstanceType<typeof TronSdk.TronWallet>,
         );
       } else {
         contractFactory = factory.connect(signer);
