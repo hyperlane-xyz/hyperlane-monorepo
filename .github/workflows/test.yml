@@ -502,7 +502,6 @@ jobs:
         run: pnpm -C typescript/cli test:tron:e2e
         env:
           CLI_E2E_TEST: ${{ matrix.test }}
-          DEBUG: testcontainers*
 
   cli-cross-chain-e2e-matrix:
     runs-on: depot-ubuntu-latest
@@ -740,8 +739,6 @@ jobs:
 
       - name: Tron SDK e2e tests with coverage
         run: pnpm -C typescript/tron-sdk coverage
-        env:
-          DEBUG: testcontainers*
 
       - name: Upload coverage reports to Codecov
         uses: codecov/codecov-action@v4
