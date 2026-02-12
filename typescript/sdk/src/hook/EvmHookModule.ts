@@ -27,7 +27,6 @@ import {
   StorageGasOracle,
   StorageGasOracle__factory,
 } from '@hyperlane-xyz/core';
-import { StorageGasOracle__factory as TronStorageGasOracle__factory } from '@hyperlane-xyz/tron-sdk';
 import {
   Address,
   Domain,
@@ -63,12 +62,7 @@ import { ChainName, ChainNameOrId } from '../types.js';
 import { normalizeConfig } from '../utils/ism.js';
 
 import { EvmHookReader } from './EvmHookReader.js';
-import {
-  DeployedHook,
-  HookFactories,
-  hookFactories,
-  tronHookFactories,
-} from './contracts.js';
+import { DeployedHook, HookFactories, hookFactories } from './contracts.js';
 import {
   AggregationHookConfig,
   AmountRoutingHookConfig,
@@ -140,9 +134,7 @@ export class EvmHookModule extends HyperlaneModule<
       ccipContractCache,
       contractVerifier,
     );
-    this.deployer = new HookDeployer(multiProvider, hookFactories, {
-      tronFactories: tronHookFactories,
-    });
+    this.deployer = new HookDeployer(multiProvider, hookFactories);
 
     this.chain = multiProvider.getChainName(this.args.chain);
     this.chainId = multiProvider.getEvmChainId(this.chain);
@@ -592,9 +584,7 @@ export class EvmHookModule extends HyperlaneModule<
 
     // if maxProtocolFee has changed, deploy a new hook
     if (currentConfig.maxProtocolFee !== targetConfig.maxProtocolFee) {
-      const hook = await this.deployProtocolFeeHook({
-        config: targetConfig,
-      });
+      const hook = await this.deployProtocolFeeHook({ config: targetConfig });
       this.args.addresses.deployedHook = hook.address;
       return [];
     }
@@ -730,9 +720,7 @@ export class EvmHookModule extends HyperlaneModule<
     config: ProtocolFeeHookConfig;
   }): Promise<ProtocolFee> {
     this.logger.debug('Deploying ProtocolFeeHook...');
-    const deployer = new HookDeployer(this.multiProvider, hookFactories, {
-      tronFactories: tronHookFactories,
-    });
+    const deployer = new HookDeployer(this.multiProvider, hookFactories);
     return deployer.deployContract(this.chain, HookType.PROTOCOL_FEE, [
       config.maxProtocolFee,
       config.protocolFee,
@@ -747,9 +735,7 @@ export class EvmHookModule extends HyperlaneModule<
     config: PausableHookConfig;
   }): Promise<PausableHook> {
     this.logger.debug('Deploying PausableHook...');
-    const deployer = new HookDeployer(this.multiProvider, hookFactories, {
-      tronFactories: tronHookFactories,
-    });
+    const deployer = new HookDeployer(this.multiProvider, hookFactories);
     const hook = await deployer.deployContract(
       this.chain,
       HookType.PAUSABLE,
@@ -1153,11 +1139,7 @@ export class EvmHookModule extends HyperlaneModule<
     // Deploy the StorageGasOracle, by default msg.sender is the owner
     const gasOracle = await this.deployer.deployContractFromFactory(
       this.chain,
-      this.deployer.resolveFactory(
-        this.chain,
-        new StorageGasOracle__factory(),
-        new TronStorageGasOracle__factory(),
-      ),
+      new StorageGasOracle__factory(),
       'storageGasOracle',
       [],
     );

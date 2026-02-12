@@ -5,6 +5,7 @@ import {
   StartedDockerComposeEnvironment,
   Wait,
 } from 'testcontainers';
+import { TronWeb } from 'tronweb';
 import { fileURLToPath } from 'url';
 
 import { pollAsync, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
@@ -79,48 +80,30 @@ export async function stopTronNode(
 
 /**
  * Poll until the Tron node is ready to process transactions.
- * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock).
+ * Checks both JSON-RPC (eth_blockNumber) and HTTP API (wallet/getblock) in a single poll.
  */
 async function waitForTronNodeReady(
   rpcPort: number,
   httpPort: number,
 ): Promise<void> {
   const provider = new TronJsonRpcProvider(`http://127.0.0.1:${rpcPort}`);
+  const tronweb = new TronWeb({ fullHost: `http://127.0.0.1:${httpPort}` });
 
-  // Wait for JSON-RPC to be ready
   await pollAsync(
     async () => {
-      const blockNumber = await provider.getBlockNumber();
+      const [blockNumber, block] = await Promise.all([
+        provider.getBlockNumber(),
+        tronweb.trx.getCurrentBlock(),
+      ]);
       if (blockNumber === 0) {
         throw new Error('Block number is 0, node not ready');
       }
-      rootLogger.info(`Tron JSON-RPC ready at block ${blockNumber}`);
-      return blockNumber;
-    },
-    1000, // poll every 1 second
-    60, // max 60 attempts (60 seconds)
-  );
-
-  // Wait for HTTP API to be ready (required for TronWeb transaction building)
-  await pollAsync(
-    async () => {
-      const response = await fetch(
-        `http://127.0.0.1:${httpPort}/wallet/getblock`,
-        {
-          method: 'POST',
-          headers: { 'Content-Type': 'application/json' },
-          body: JSON.stringify({ detail: false }),
-        },
-      );
-      if (!response.ok) {
-        throw new Error(`HTTP API not ready: ${response.status}`);
-      }
-      const data = await response.json();
-      if (!data.blockID) {
+      if (!block.blockID) {
         throw new Error('HTTP API returned invalid block data');
       }
-      rootLogger.info(`Tron HTTP API ready`);
-      return data;
+      rootLogger.info(
+        `Tron node ready: JSON-RPC at block ${blockNumber}, HTTP API ok`,
+      );
     },
     1000, // poll every 1 second
     60, // max 60 attempts (60 seconds)

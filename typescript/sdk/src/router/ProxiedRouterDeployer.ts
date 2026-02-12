@@ -7,7 +7,6 @@ import {
   TimelockController,
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
-import { ProxyAdmin__factory as TronProxyAdmin__factory } from '@hyperlane-xyz/tron-sdk';
 import { eqAddress } from '@hyperlane-xyz/utils';
 
 import { HyperlaneContracts, HyperlaneFactories } from '../contracts/types.js';
@@ -20,7 +19,6 @@ import {
   ProxiedFactories,
   ProxiedRouterConfig,
   proxiedFactories,
-  tronProxiedFactories,
 } from './types.js';
 
 export abstract class ProxiedRouterDeployer<
@@ -38,15 +36,7 @@ export abstract class ProxiedRouterDeployer<
         ...factories,
         ...proxiedFactories,
       },
-      {
-        ...options,
-        tronFactories: options?.tronFactories
-          ? {
-              ...options.tronFactories,
-              ...tronProxiedFactories,
-            }
-          : undefined,
-      },
+      options,
     );
   }
 
@@ -110,11 +100,7 @@ export abstract class ProxiedRouterDeployer<
 
       proxyAdmin = await this.deployContractFromFactory(
         chain,
-        this.resolveFactory(
-          chain,
-          new ProxyAdmin__factory(),
-          new TronProxyAdmin__factory(),
-        ),
+        this.factories.proxyAdmin,
         'proxyAdmin',
         [],
       );

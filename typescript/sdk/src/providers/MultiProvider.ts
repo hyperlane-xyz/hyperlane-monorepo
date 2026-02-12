@@ -378,11 +378,25 @@ export class MultiProvider<MetaExt = {}> extends ChainMetadataManager<MetaExt> {
       // no need to `handleTx` for zkSync as the zksync deployer itself
       // will wait for the deploy tx to be confirmed before returning
     } else {
-      // For Tron, wrap with TronContractFactory to handle address extraction
-      const contractFactory =
-        technicalStack === ChainTechnicalStack.Tron
-          ? new TronContractFactory(factory, signer as TronWallet)
-          : factory.connect(signer);
+      // For Tron, swap in the tron-compiled factory and wrap with TronContractFactory
+      let contractFactory;
+      if (technicalStack === ChainTechnicalStack.Tron) {
+        const tronSdk: Record<string, any> =
+          await import('@hyperlane-xyz/tron-sdk');
+        const TronFactory = tronSdk[factory.constructor.name];
+        if (!TronFactory) {
+          throw new Error(
+            `No Tron-compiled factory found for ${factory.constructor.name}`,
+          );
+        }
+        factory = new TronFactory() as F;
+        contractFactory = new TronContractFactory(
+          factory,
+          signer as TronWallet,
+        );
+      } else {
+        contractFactory = factory.connect(signer);
+      }
 
       const deployTx = contractFactory.getDeployTransaction(...params);
       estimatedGas = await signer.estimateGas(deployTx);

@@ -48,8 +48,6 @@ import {
   hypERC20factories,
   hypERC721contracts,
   hypERC721factories,
-  tronHypERC20factories,
-  tronHypERC721factories,
 } from './contracts.js';
 import { deriveTokenMetadata } from './tokenMetadataUtils.js';
 import {
@@ -134,14 +132,12 @@ abstract class TokenDeployer<
     ismFactory?: HyperlaneIsmFactory,
     contractVerifier?: ContractVerifier,
     concurrentDeploy = true,
-    tronFactories?: Factories,
   ) {
     super(multiProvider, factories, {
       logger: rootLogger.child({ module: loggerName }),
       ismFactory,
       contractVerifier,
       concurrentDeploy,
-      tronFactories,
     }); // factories not used in deploy
   }
 
@@ -603,7 +599,6 @@ export class HypERC20Deployer extends TokenDeployer<HypERC20Factories> {
       ismFactory,
       contractVerifier,
       concurrentDeploy,
-      tronHypERC20factories,
     );
   }
 
@@ -712,8 +707,6 @@ export class HypERC721Deployer extends TokenDeployer<HypERC721Factories> {
       'HypERC721Deployer',
       ismFactory,
       contractVerifier,
-      true,
-      tronHypERC721factories,
     );
   }
 

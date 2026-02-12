@@ -1,5 +1,4 @@
 import { TestRecipient, TestRecipient__factory } from '@hyperlane-xyz/core';
-import { TestRecipient__factory as TronTestRecipient__factory } from '@hyperlane-xyz/tron-sdk';
 import { Address, rootLogger } from '@hyperlane-xyz/utils';
 
 import { HyperlaneDeployer } from '../deploy/HyperlaneDeployer.js';
@@ -25,10 +24,6 @@ export const testRecipientFactories = {
   testRecipient: new TestRecipient__factory(),
 };
 
-const tronTestRecipientFactories = {
-  testRecipient: new TronTestRecipient__factory(),
-};
-
 export class TestRecipientDeployer extends HyperlaneDeployer<
   TestRecipientConfig,
   typeof testRecipientFactories
@@ -42,7 +37,6 @@ export class TestRecipientDeployer extends HyperlaneDeployer<
       logger: rootLogger.child({ module: 'TestRecipientDeployer' }),
       contractVerifier,
       concurrentDeploy,
-      tronFactories: tronTestRecipientFactories,
     });
   }
 

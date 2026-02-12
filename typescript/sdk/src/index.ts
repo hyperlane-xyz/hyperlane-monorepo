@@ -111,7 +111,6 @@ export { HyperlaneAppChecker } from './deploy/HyperlaneAppChecker.js';
 export {
   DeployerOptions,
   HyperlaneDeployer,
-  resolveTronFactory,
 } from './deploy/HyperlaneDeployer.js';
 export { HyperlaneProxyFactoryDeployer } from './deploy/HyperlaneProxyFactoryDeployer.js';
 export {
@@ -612,7 +611,6 @@ export {
   MailboxClientConfigSchema,
   ProxiedFactories,
   proxiedFactories,
-  tronProxiedFactories,
   ProxiedRouterConfig,
   RemoteRouters,
   resolveRouterMapConfig,

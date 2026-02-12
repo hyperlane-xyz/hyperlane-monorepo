@@ -1,5 +1,4 @@
 import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
-import { ProxyAdmin__factory as TronProxyAdmin__factory } from '@hyperlane-xyz/tron-sdk';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
   AltVMDeployer,
@@ -55,7 +54,6 @@ import {
 import { ChainMap } from '../types.js';
 import { extractIsmAndHookFactoryAddresses } from '../utils/ism.js';
 
-import { resolveTronFactory } from './HyperlaneDeployer.js';
 import { HyperlaneProxyFactoryDeployer } from './HyperlaneProxyFactoryDeployer.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
 
@@ -336,18 +334,8 @@ async function createWarpHook({
       // If config.proxyadmin.address exists, then use that. otherwise deploy a new proxyAdmin
       const proxyAdminAddress: Address =
         warpConfig.proxyAdmin?.address ??
-        (
-          await multiProvider.handleDeploy(
-            chain,
-            resolveTronFactory(
-              multiProvider,
-              chain,
-              new ProxyAdmin__factory(),
-              new TronProxyAdmin__factory(),
-            ),
-            [],
-          )
-        ).address;
+        (await multiProvider.handleDeploy(chain, new ProxyAdmin__factory(), []))
+          .address;
 
       const evmHookModule = await EvmHookModule.create({
         chain,

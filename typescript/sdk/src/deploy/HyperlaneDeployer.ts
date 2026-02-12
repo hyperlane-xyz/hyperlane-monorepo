@@ -13,10 +13,6 @@ import {
 } from '@hyperlane-xyz/core';
 import { buildArtifact as coreBuildArtifact } from '@hyperlane-xyz/core/buildArtifact.js';
 import {
-  TransparentUpgradeableProxy__factory as TronTransparentUpgradeableProxy__factory,
-  TimelockController__factory as TronTimelockController__factory,
-} from '@hyperlane-xyz/tron-sdk';
-import {
   Address,
   ProtocolType,
   addBufferToGasLimit,
@@ -65,19 +61,6 @@ import {
   shouldAddVerificationInput,
 } from './verify/utils.js';
 
-/**
- * Standalone helper: resolve EVM vs Tron factory based on chain technical stack.
- */
-export function resolveTronFactory<F extends ethers.ContractFactory>(
-  multiProvider: MultiProvider,
-  chain: ChainName,
-  evmFactory: F,
-  tronFactory: F,
-): F {
-  const { technicalStack } = multiProvider.getChainMetadata(chain);
-  return technicalStack === ChainTechnicalStack.Tron ? tronFactory : evmFactory;
-}
-
 export interface DeployerOptions {
   logger?: Logger;
   chainTimeoutMs?: number;
@@ -85,8 +68,6 @@ export interface DeployerOptions {
   icaApp?: InterchainAccount;
   contractVerifier?: ContractVerifier;
   concurrentDeploy?: boolean;
-  /** Tron-compiled factories used when deploying to ChainTechnicalStack.Tron chains */
-  tronFactories?: HyperlaneFactories;
 }
 
 export abstract class HyperlaneDeployer<
@@ -551,38 +532,6 @@ export abstract class HyperlaneDeployer<
    * @param {boolean} shouldRecover - Flag indicating whether to attempt recovery if deployment fails.
    * @returns {Promise<HyperlaneContracts<Factories>[K]>} A promise that resolves to the deployed contract instance.
    */
-  /**
-   * Get the factory for a contract, selecting Tron factories when appropriate.
-   */
-  protected getFactory<K extends keyof Factories>(
-    chain: ChainName,
-    contractKey: K,
-  ): Factories[K] {
-    const { technicalStack } = this.multiProvider.getChainMetadata(chain);
-    const tronFactories = this.options.tronFactories as Factories | undefined;
-    if (technicalStack === ChainTechnicalStack.Tron && tronFactories) {
-      return tronFactories[contractKey];
-    }
-    return this.factories[contractKey];
-  }
-
-  /**
-   * Resolve a factory for the given chain, selecting the Tron variant when appropriate.
-   * Use this for ad-hoc factories not in the deployer's Factories map.
-   */
-  resolveFactory<F extends ethers.ContractFactory>(
-    chain: ChainName,
-    evmFactory: F,
-    tronFactory: F,
-  ): F {
-    return resolveTronFactory(
-      this.multiProvider,
-      chain,
-      evmFactory,
-      tronFactory,
-    );
-  }
-
   async deployContractWithName<K extends keyof Factories>(
     chain: ChainName,
     contractKey: K,
@@ -595,7 +544,7 @@ export abstract class HyperlaneDeployer<
   ): Promise<HyperlaneContracts<Factories>[K]> {
     const contract = await this.deployContractFromFactory(
       chain,
-      this.getFactory(chain, contractKey),
+      this.factories[contractKey],
       contractName,
       constructorArgs,
       initializeArgs,
@@ -717,14 +666,9 @@ export abstract class HyperlaneDeployer<
       initializeArgs,
       this.initializeFnSignature(contractName ?? ''),
     );
-    const proxyFactory = this.resolveFactory(
-      chain,
-      new TransparentUpgradeableProxy__factory(),
-      new TronTransparentUpgradeableProxy__factory(),
-    );
     const proxy = await this.deployContractFromFactory(
       chain,
-      proxyFactory,
+      new TransparentUpgradeableProxy__factory(),
       'TransparentUpgradeableProxy',
       constructorArgs,
       undefined,
@@ -741,14 +685,9 @@ export abstract class HyperlaneDeployer<
   ): Promise<TimelockController> {
     const TimelockZkArtifact =
       await getZKSyncArtifactByContractName('TimelockController');
-    const timelockFactory = this.resolveFactory(
-      chain,
-      new TimelockController__factory(),
-      new TronTimelockController__factory(),
-    );
     return this.multiProvider.handleDeploy(
       chain,
-      timelockFactory,
+      new TimelockController__factory(),
       // delay, [proposers], [executors], admin
       [
         timelockConfig.delay,

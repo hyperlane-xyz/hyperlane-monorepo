@@ -11,7 +11,6 @@ import {
   ProxyFactoryFactories,
   proxyFactoryFactories,
   proxyFactoryImplementations,
-  tronProxyFactoryFactories,
 } from './contracts.js';
 import { createDefaultProxyFactoryFactories } from './proxyFactoryUtils.js';
 import { ContractVerifier } from './verify/ContractVerifier.js';
@@ -29,7 +28,6 @@ export class HyperlaneProxyFactoryDeployer extends HyperlaneDeployer<
       logger: rootLogger.child({ module: 'IsmFactoryDeployer' }),
       contractVerifier,
       concurrentDeploy,
-      tronFactories: tronProxyFactoryFactories,
     });
   }
 

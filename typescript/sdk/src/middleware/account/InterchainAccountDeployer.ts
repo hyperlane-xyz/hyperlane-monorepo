@@ -13,7 +13,6 @@ import { ChainName } from '../../types.js';
 import {
   InterchainAccountFactories,
   interchainAccountFactories,
-  tronInterchainAccountFactories,
 } from './contracts.js';
 
 export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
@@ -25,17 +24,10 @@ export class InterchainAccountDeployer extends HyperlaneRouterDeployer<
     contractVerifier?: ContractVerifier,
     concurrentDeploy?: boolean,
   ) {
-    super(
-      multiProvider,
-      interchainAccountFactories,
-      {
-        contractVerifier,
-        concurrentDeploy,
-        tronFactories: tronInterchainAccountFactories,
-      },
-      false, // recoverVerificationInputs
-      {}, // icaAddresses
-    );
+    super(multiProvider, interchainAccountFactories, {
+      contractVerifier,
+      concurrentDeploy,
+    });
   }
 
   router(contracts: HyperlaneContracts<InterchainAccountFactories>): Router {
