@@ -30,7 +30,7 @@
     "scripts": {
         "build": "pnpm build:sol && rm -rf ./dist && tsc",
         "build:sol": "pnpm -C ../../solidity build:tron",
-        "format": "oxfmt --write ./src",
+        "format": "oxfmt --write src/**/*.ts !src/typechain !src/abi",
         "lint": "eslint -c ./eslint.config.mjs",
         "clean": "rm -rf ./dist ./cache ./src/typechain ./src/abi ./coverage",
         "dev": "tsc --watch",
