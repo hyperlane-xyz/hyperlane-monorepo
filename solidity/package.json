@@ -80,7 +80,7 @@
         "hardhat-esm": "NODE_OPTIONS='--import tsx/esm' hardhat --config hardhat.config.cts",
         "hardhat-tron": "NODE_OPTIONS='--import tsx/esm' hardhat --config tron-hardhat.config.cts",
         "hardhat-zk": "NODE_OPTIONS='--import tsx/esm' hardhat --config zk-hardhat.config.cts",
-        "prettier": "prettier --write ./contracts ./test",
+        "format": "prettier --write ./contracts ./test",
         "test": "pnpm version:exhaustive && pnpm hardhat-esm test && pnpm test:forge",
         "test:hardhat": "pnpm hardhat-esm test",
         "test:forge": "pnpm fixtures && forge test -vvv --decode-internal --no-match-contract 'Everclear|Tron'",

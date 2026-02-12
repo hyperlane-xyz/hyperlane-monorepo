@@ -15,18 +15,18 @@ ISCONTRACT_FILES=$(grep -rl '\.isContract\b' contracts/ dependencies/ --include=
 
 # Backup all files we'll modify
 backup_files() {
-	cp "$OZ_CREATE2" "$OZ_CREATE2.bak"
-	for f in $ISCONTRACT_FILES; do
-		cp "$f" "$f.bak"
-	done
+  cp "$OZ_CREATE2" "$OZ_CREATE2.bak"
+  for f in $ISCONTRACT_FILES; do
+    cp "$f" "$f.bak"
+  done
 }
 
 # Restore all files from backups
 restore_files() {
-	mv "$OZ_CREATE2.bak" "$OZ_CREATE2"
-	for f in $ISCONTRACT_FILES; do
-		mv "$f.bak" "$f"
-	done
+  mv "$OZ_CREATE2.bak" "$OZ_CREATE2"
+  for f in $ISCONTRACT_FILES; do
+    mv "$f.bak" "$f"
+  done
 }
 
 # Ensure restoration even on failure
