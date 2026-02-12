@@ -18,6 +18,7 @@ const WARP_ROUTE_ABI = [
 ];
 
 const ICA_ROUTER_ABI = [
+  'function quoteGasForCommitReveal(uint32 _destinationDomain, uint256 _gasLimit) external view returns (uint256)',
   'function quoteGasPayment(uint32 _destinationDomain, uint256 _gasLimit) external view returns (uint256)',
 ];
 
@@ -165,8 +166,9 @@ export async function getBridgeFee(
 }
 
 /**
- * Quote the native fee for an ICA dispatch (EXECUTE_CROSS_CHAIN).
- * Calls quoteGasPayment(uint32,uint256) on the origin ICA router.
+ * Quote the native fee for an ICA commit-reveal dispatch (EXECUTE_CROSS_CHAIN).
+ * Uses quoteGasForCommitReveal(uint32,uint256) when available and falls back to
+ * quoteGasPayment(uint32,uint256) for older routers.
  */
 export async function getIcaFee(
   provider: providers.Provider,
@@ -175,5 +177,12 @@ export async function getIcaFee(
   gasLimit = 50_000,
 ): Promise<BigNumber> {
   const router = new Contract(icaRouterAddress, ICA_ROUTER_ABI, provider);
-  return router.quoteGasPayment(destinationDomain, gasLimit);
+  try {
+    return await router.callStatic.quoteGasForCommitReveal(
+      destinationDomain,
+      gasLimit,
+    );
+  } catch {
+    return router.callStatic.quoteGasPayment(destinationDomain, gasLimit);
+  }
 }
