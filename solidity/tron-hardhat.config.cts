@@ -18,15 +18,15 @@ import {rootHardhatConfig} from "./rootHardhatConfig.cjs";
  */
 module.exports = {
     ...rootHardhatConfig,
+    paths: {
+        sources: "./contracts",
+        artifacts: "../typescript/tron-sdk/src/abi",
+        cache: "./cache-tron",
+    },
     typechain: {
         outDir: "../typescript/tron-sdk/src/typechain",
         target: "ethers-v5",
         alwaysGenerateOverloads: true,
         node16Modules: true,
-    },
-    paths: {
-        sources: "./contracts",
-        artifacts: "../typescript/tron-sdk/src/abi",
-        cache: "./cache-tron",
     },
 };

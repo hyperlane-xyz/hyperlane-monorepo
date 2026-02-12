@@ -2459,9 +2459,6 @@ importers:
       '@ethersproject/providers':
         specifier: '*'
         version: 5.8.0(bufferutil@4.0.9)(utf-8-validate@5.0.10)
-      '@hyperlane-xyz/core':
-        specifier: workspace:*
-        version: link:../../solidity
       '@hyperlane-xyz/provider-sdk':
         specifier: workspace:*
         version: link:../provider-sdk
@@ -2484,6 +2481,9 @@ importers:
       '@eslint/js':
         specifier: 'catalog:'
         version: 9.39.2
+      '@hyperlane-xyz/core':
+        specifier: workspace:*
+        version: link:../../solidity
       '@hyperlane-xyz/eslint-config':
         specifier: workspace:^
         version: link:../eslint-config
@@ -2538,9 +2538,6 @@ importers:
       node-fetch:
         specifier: ^3.3.2
         version: 3.3.2(patch_hash=9872737c7a2d7862012132c60c476cac6a03a48fe575d80388b4ba1176583bf9)
-      prettier:
-        specifier: 'catalog:'
-        version: 3.8.1
       testcontainers:
         specifier: 'catalog:'
         version: 11.7.0
