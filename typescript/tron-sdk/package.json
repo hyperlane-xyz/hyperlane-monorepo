@@ -28,14 +28,12 @@
     }
   },
   "scripts": {
-    "build": "pnpm build:sol && rm -rf ./dist && tsc",
-    "build:sol": "pnpm -C ../../solidity build:tron",
+    "build": "rm -rf ./dist && tsc",
     "format": "oxfmt --write src/**/*.ts !src/typechain !src/abi",
     "lint": "eslint -c ./eslint.config.mjs",
     "clean": "rm -rf ./dist ./cache ./src/typechain ./src/abi ./coverage",
     "dev": "tsc --watch",
     "test": "mocha --config .mocharc.json './src/**/*.test.ts'",
-    "test:e2e": "pnpm test",
     "coverage": "c8 pnpm test"
   },
   "dependencies": {
