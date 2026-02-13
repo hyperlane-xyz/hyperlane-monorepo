@@ -1,6 +1,6 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import yargs, { Argv } from 'yargs';
+import yargs from 'yargs';
 
 import {
   SquadsProposalStatus,
@@ -16,16 +16,9 @@ import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import { chainIsProtocol } from '../../src/utils/utils.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+import { withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
-
-function withTransactionIndex<T>(args: Argv<T>) {
-  return args
-    .describe('transactionIndex', 'Transaction index of the proposal')
-    .number('transactionIndex')
-    .demandOption('transactionIndex')
-    .alias('t', 'transactionIndex');
-}
 
 // CLI argument parsing
 async function main() {

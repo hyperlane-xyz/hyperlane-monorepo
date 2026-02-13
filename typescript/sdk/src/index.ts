@@ -940,7 +940,6 @@ export {
   getPendingProposalsForChains,
   getSquadTxStatus,
   parseSquadProposal,
-  logProposals,
   decodePermissions,
   buildSquadsVaultTransactionProposal,
   buildSquadsProposalRejection,

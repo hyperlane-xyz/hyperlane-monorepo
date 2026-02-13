@@ -8,7 +8,6 @@ import {
   SvmMultiProtocolSignerAdapter,
   executeProposal,
   getPendingProposalsForChains,
-  logProposals,
   squadsConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -22,6 +21,7 @@ import { executePendingTransactions } from '../../src/tx/utils.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+import { logProposals } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 

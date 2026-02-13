@@ -300,23 +300,6 @@ export function parseSquadProposal(proposal: accounts.Proposal) {
   };
 }
 
-export function logProposals(pendingProposals: SquadProposalStatus[]) {
-  rootLogger.info(`Found ${pendingProposals.length} pending proposal(s):`);
-  const formattedProposals = pendingProposals.map((p) => ({
-    ...p,
-    approvals: `${p.approvals}/${p.threshold}`,
-  }));
-  console.table(formattedProposals, [
-    'chain',
-    'nonce',
-    'submissionDate',
-    'fullTxHash',
-    'approvals',
-    'status',
-    'balance',
-  ]);
-}
-
 /**
  * Squads V4 account types (also used to identify tx types)
  */

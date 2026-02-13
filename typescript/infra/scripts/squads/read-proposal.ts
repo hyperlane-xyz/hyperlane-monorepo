@@ -17,6 +17,7 @@ import {
 
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+import { withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
@@ -26,14 +27,6 @@ function withVerbose<T>(args: Argv<T>) {
     .boolean('verbose')
     .default('verbose', false)
     .alias('v', 'verbose');
-}
-
-function withTransactionIndex<T>(args: Argv<T>) {
-  return args
-    .describe('transactionIndex', 'Transaction index of the proposal')
-    .number('transactionIndex')
-    .demandOption('transactionIndex')
-    .alias('t', 'transactionIndex');
 }
 
 async function main() {

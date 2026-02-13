@@ -7,7 +7,6 @@ import {
   SquadsTransactionReader,
   SvmMultisigConfigMap,
   getPendingProposalsForChains,
-  logProposals,
   squadsConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -26,6 +25,7 @@ import {
 } from '../../src/utils/sealevel.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
+import { logProposals } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
