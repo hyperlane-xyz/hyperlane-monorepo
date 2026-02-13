@@ -1,6 +1,3 @@
-import type SafeApiKit from '@safe-global/api-kit';
-import type Safe from '@safe-global/protocol-kit';
-import type { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 
 import {
@@ -18,6 +15,10 @@ import {
   addBufferToGasLimit,
   eqAddress,
 } from '@hyperlane-xyz/utils';
+
+type SafeSdk = Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
+type SafeService = Awaited<ReturnType<typeof getSafeAndService>>['safeService'];
+type SafeTx = Awaited<ReturnType<typeof createSafeTransaction>>;
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<void>;
@@ -62,8 +63,8 @@ export class SafeMultiSend extends MultiSend {
     public readonly multiProvider: MultiProvider,
     public readonly chain: ChainName,
     public readonly safeAddress: Address,
-    private readonly safeSdk: Safe.default,
-    private readonly safeService: SafeApiKit.default,
+    private readonly safeSdk: SafeSdk,
+    private readonly safeService: SafeService,
   ) {
     super();
   }
@@ -134,9 +135,9 @@ export class SafeMultiSend extends MultiSend {
 
   // Helper function to propose a safe transaction
   private async proposeSafeTransaction(
-    safeSdk: Safe.default,
-    safeService: SafeApiKit.default,
-    safeTransaction: SafeTransaction,
+    safeSdk: SafeSdk,
+    safeService: SafeService,
+    safeTransaction: SafeTx,
   ) {
     const signer = this.multiProvider.getSigner(this.chain);
     await proposeSafeTransaction(
