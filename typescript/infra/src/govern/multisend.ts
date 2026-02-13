@@ -1,6 +1,6 @@
-import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
+import type SafeApiKit from '@safe-global/api-kit';
+import type Safe from '@safe-global/protocol-kit';
+import type { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 
 import {

@@ -2,7 +2,7 @@ import SafeApiKit, {
   SafeMultisigTransactionListResponse,
 } from '@safe-global/api-kit';
 import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
-import {
+import type {
   MetaTransactionData,
   OperationType,
   SafeTransaction,
