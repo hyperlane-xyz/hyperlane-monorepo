@@ -2,7 +2,11 @@ import chalk from 'chalk';
 import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
-import { AnnotatedEV5Transaction } from '@hyperlane-xyz/sdk';
+import {
+  AnnotatedEV5Transaction,
+  getPendingTxsForChains,
+  getSafeTx,
+} from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
@@ -18,7 +22,6 @@ import {
 } from '../../src/tx/govern-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
-import { getPendingTxsForChains, getSafeTx } from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

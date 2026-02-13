@@ -1,6 +1,7 @@
 import Safe from '@safe-global/protocol-kit';
 import yargs from 'yargs';
 
+import { getOwnerChanges, getSafeAndService } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
@@ -10,7 +11,6 @@ import {
 } from '../../../config/environments/mainnet3/governance/utils.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import { getOwnerChanges, getSafeAndService } from '../../../src/utils/safe.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 
 enum SafeConfigViolationType {

@@ -1,7 +1,12 @@
 import Safe from '@safe-global/protocol-kit';
 import yargs from 'yargs';
 
-import { ChainName } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  getOwnerChanges,
+  getSafeAndService,
+  updateSafeOwner,
+} from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
@@ -13,11 +18,6 @@ import { AnnotatedCallData } from '../../../src/govern/HyperlaneAppGovernor.js';
 import { SafeMultiSend } from '../../../src/govern/multisend.js';
 import { GovernanceType, withGovernanceType } from '../../../src/governance.js';
 import { Role } from '../../../src/roles.js';
-import {
-  getOwnerChanges,
-  getSafeAndService,
-  updateSafeOwner,
-} from '../../../src/utils/safe.js';
 import { withChainsRequired, withPropose } from '../../agent-utils.js';
 import { getEnvironmentConfig } from '../../core-utils.js';
 

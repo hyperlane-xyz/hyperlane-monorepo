@@ -21,7 +21,7 @@ import {
 
 import { getChain, getRegistryWithOverrides } from '../../config/registry.js';
 import { getSecretRpcEndpoints } from '../agents/index.js';
-import { getSafeApiKey } from '../utils/safe.js';
+import { fetchGCPSecret } from '../utils/gcloud.js';
 
 import { DeployEnvironment } from './environment.js';
 
@@ -65,6 +65,12 @@ export const defaultRetry: ProviderRetryOptions = {
   maxRetries: 6,
   baseRetryDelayMs: 50,
 };
+
+const SAFE_API_KEY_SECRET_NAME = 'gnosis-safe-api-key';
+
+async function getSafeApiKey(): Promise<string> {
+  return (await fetchGCPSecret(SAFE_API_KEY_SECRET_NAME, false)) as string;
+}
 
 export async function fetchProvider(
   chainName: ChainName,

@@ -847,11 +847,30 @@ export {
   stopImpersonatingAccount,
 } from './utils/fork.js';
 export {
+  asHex,
   canProposeSafeTransactions,
+  createSafeTransaction,
+  createSafeTransactionData,
+  decodeMultiSendData,
+  deleteAllPendingSafeTxs,
+  deleteSafeTx,
+  executeTx,
+  getOwnerChanges,
   getSafe,
+  getSafeAndService,
   getSafeDelegates,
   getSafeService,
+  getSafeTx,
+  getPendingTxsForChains,
+  parseSafeTx,
+  proposeSafeTransaction,
+  retrySafeApi,
+  SafeCallData,
+  SafeOwnerUpdateCall,
+  SafeStatus,
+  SafeTxStatus,
   safeApiKeyRequired,
+  updateSafeOwner,
 } from './utils/gnosisSafe.js';
 export { HyperlaneReader } from './utils/HyperlaneReader.js';
 export {

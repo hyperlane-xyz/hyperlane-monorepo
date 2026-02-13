@@ -4,6 +4,13 @@ import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
 import {
+  createSafeTransaction,
+  createSafeTransactionData,
+  deleteSafeTx,
+  getPendingTxsForChains,
+  getSafeAndService,
+} from '@hyperlane-xyz/sdk';
+import {
   LogFormat,
   LogLevel,
   assert,
@@ -15,13 +22,6 @@ import {
 import { Contexts } from '../../config/contexts.js';
 import { awSafes as safes } from '../../config/environments/mainnet3/governance/safe/aw.js';
 import { Role } from '../../src/roles.js';
-import {
-  createSafeTransaction,
-  createSafeTransactionData,
-  deleteSafeTx,
-  getPendingTxsForChains,
-  getSafeAndService,
-} from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

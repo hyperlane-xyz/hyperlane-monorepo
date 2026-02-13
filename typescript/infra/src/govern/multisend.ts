@@ -3,21 +3,21 @@ import Safe from '@safe-global/protocol-kit';
 import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 import chalk from 'chalk';
 
-import { ChainName, MultiProvider } from '@hyperlane-xyz/sdk';
+import {
+  ChainName,
+  MultiProvider,
+  createSafeTransaction,
+  createSafeTransactionData,
+  getSafeAndService,
+  proposeSafeTransaction,
+  retrySafeApi,
+} from '@hyperlane-xyz/sdk';
 import {
   Address,
   CallData,
   addBufferToGasLimit,
   eqAddress,
 } from '@hyperlane-xyz/utils';
-
-import {
-  createSafeTransaction,
-  createSafeTransactionData,
-  getSafeAndService,
-  proposeSafeTransaction,
-  retrySafeApi,
-} from '../utils/safe.js';
 
 export abstract class MultiSend {
   abstract sendTransactions(calls: CallData[]): Promise<void>;

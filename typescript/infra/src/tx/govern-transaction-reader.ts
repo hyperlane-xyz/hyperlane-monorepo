@@ -34,6 +34,9 @@ import {
   EvmTokenFeeReader,
   InterchainAccount,
   MultiProvider,
+  decodeMultiSendData,
+  getSafeTx,
+  parseSafeTx,
   TokenFeeType,
   TokenStandard,
   WarpCoreConfig,
@@ -79,7 +82,6 @@ import {
   Owner,
   determineGovernanceType,
 } from '../governance.js';
-import { decodeMultiSendData, getSafeTx, parseSafeTx } from '../utils/safe.js';
 
 export interface GovernTransaction extends Record<string, any> {
   chain: ChainName;

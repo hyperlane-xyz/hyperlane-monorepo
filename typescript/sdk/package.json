@@ -65,6 +65,7 @@
     "@turnkey/solana": "catalog:",
     "bignumber.js": "catalog:",
     "borsh": "catalog:",
+    "chalk": "catalog:",
     "compare-versions": "^6.1.1",
     "cosmjs-types": "catalog:",
     "cross-fetch": "^3.1.5",

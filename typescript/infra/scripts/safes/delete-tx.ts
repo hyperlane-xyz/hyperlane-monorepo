@@ -1,12 +1,12 @@
 import yargs from 'yargs';
 
+import { deleteSafeTx } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
 import { getGovernanceSafes } from '../../config/environments/mainnet3/governance/utils.js';
 import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
-import { deleteSafeTx } from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 

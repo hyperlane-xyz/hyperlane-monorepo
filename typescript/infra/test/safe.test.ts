@@ -2,8 +2,7 @@ import { expect } from 'chai';
 import { BigNumber } from 'ethers';
 
 import { ISafe__factory } from '@hyperlane-xyz/core';
-
-import { getOwnerChanges, parseSafeTx } from '../src/utils/safe.js';
+import { getOwnerChanges, parseSafeTx } from '@hyperlane-xyz/sdk';
 
 describe('Safe Utils', () => {
   describe('getOwnerChanges', () => {

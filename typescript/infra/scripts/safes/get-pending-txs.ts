@@ -3,6 +3,11 @@ import chalk from 'chalk';
 import yargs from 'yargs';
 
 import {
+  SafeTxStatus,
+  executeTx,
+  getPendingTxsForChains,
+} from '@hyperlane-xyz/sdk';
+import {
   LogFormat,
   LogLevel,
   configureRootLogger,
@@ -15,11 +20,6 @@ import { withGovernanceType } from '../../src/governance.js';
 import { Role } from '../../src/roles.js';
 import { executePendingTransactions } from '../../src/tx/utils.js';
 import { logTable } from '../../src/utils/log.js';
-import {
-  SafeTxStatus,
-  executeTx,
-  getPendingTxsForChains,
-} from '../../src/utils/safe.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
