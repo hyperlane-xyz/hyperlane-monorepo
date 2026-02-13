@@ -144,7 +144,7 @@ export class AleoProvider extends AleoBase implements AltVM.IProvider {
     // The USAD deployment is a special case
     // It doesn't use the token_registry to mint tokens, but instead has a custom program on Aleo
     // Query the USAD token program to get the total supply for USAD instead of the token_registry
-    if (req.programId && req.programId !== 'hyp_warp_token_usad.aleo') {
+    if (req.programId && req.programId === 'hyp_warp_token_usad.aleo') {
       result = await this.queryMappingValue(
         'usad_stablecoin.aleo',
         'token_info',
