@@ -327,8 +327,17 @@ export async function getSafeAndService(
     );
   }
 
-  const safeSigner = (signer ??
-    multiProvider.getSigner(chain)) as SafeProviderConfig['signer'];
+  let safeSigner = signer;
+  if (!safeSigner) {
+    const multiProviderSigner = multiProvider.getSigner(
+      chain,
+    ) as ethers.Signer & {
+      privateKey?: string;
+    };
+    safeSigner =
+      multiProviderSigner.privateKey ??
+      (await multiProviderSigner.getAddress());
+  }
   let safeSdk: Safe.default;
   try {
     safeSdk = await retrySafeApi(() =>
