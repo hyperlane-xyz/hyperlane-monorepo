@@ -6,7 +6,7 @@ import {
 } from '@safe-global/safe-core-sdk-types';
 import { Logger } from 'pino';
 
-import { Address, assert, rootLogger } from '@hyperlane-xyz/utils';
+import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
   canProposeSafeTransactions,
@@ -19,6 +19,9 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
 import { EV5GnosisSafeTxSubmitterProps } from './types.js';
+
+const SAFE_API_RETRIES = 10;
+const SAFE_API_BASE_RETRY_MS = 1000;
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
@@ -47,7 +50,8 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
     );
 
-    const signerAddress = await multiProvider.getSigner(chain).getAddress();
+    const signer = multiProvider.getSigner(chain);
+    const signerAddress = await signer.getAddress();
     const authorized = await canProposeSafeTransactions(
       signerAddress,
       chain,
@@ -59,7 +63,14 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Signer ${signerAddress} is not an authorized Safe Proposer for ${safeAddress}`,
     );
 
-    const safe = await getSafe(chain, multiProvider, safeAddress);
+    const safeSignerKey =
+      'privateKey' in signer ? (signer as any).privateKey : undefined;
+    const safe = await getSafe(
+      chain,
+      multiProvider,
+      safeAddress,
+      safeSignerKey,
+    );
     const safeService = await getSafeService(chain, multiProvider);
 
     return new EV5GnosisSafeTxSubmitter(
@@ -71,8 +82,10 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   }
 
   protected async getNextNonce(): Promise<number> {
-    const nextNonce = await this.safeService.getNextNonce(
-      this.props.safeAddress,
+    const nextNonce = await retryAsync(
+      () => this.safeService.getNextNonce(this.props.safeAddress),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
     );
 
     return parseInt(nextNonce);
@@ -135,12 +148,17 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
       `Submitting transaction proposal to ${this.props.safeAddress} on ${this.props.chain}: ${safeTxHash}`,
     );
 
-    return this.safeService.proposeTransaction({
-      safeAddress: this.props.safeAddress,
-      safeTransactionData: safeTransaction.data,
-      safeTxHash,
-      senderAddress,
-      senderSignature,
-    });
+    return retryAsync(
+      () =>
+        this.safeService.proposeTransaction({
+          safeAddress: this.props.safeAddress,
+          safeTransactionData: safeTransaction.data,
+          safeTxHash,
+          senderAddress,
+          senderSignature,
+        }),
+      SAFE_API_RETRIES,
+      SAFE_API_BASE_RETRY_MS,
+    );
   }
 }
