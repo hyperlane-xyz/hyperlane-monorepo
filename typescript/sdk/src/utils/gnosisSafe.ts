@@ -10,8 +10,8 @@ import { Address, retryAsync } from '@hyperlane-xyz/utils';
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { ChainName } from '../types.js';
 
-const SAFE_API_RETRIES = 10;
-const SAFE_API_BASE_RETRY_MS = 1000;
+export const SAFE_API_RETRIES = 10;
+export const SAFE_API_BASE_RETRY_MS = 1000;
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);

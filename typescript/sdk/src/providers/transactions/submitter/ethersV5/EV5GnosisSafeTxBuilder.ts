@@ -1,10 +1,5 @@
-import SafeApiKit from '@safe-global/api-kit';
-import Safe from '@safe-global/protocol-kit';
 import { SafeTransactionData } from '@safe-global/safe-core-sdk-types';
 
-import { assert } from '@hyperlane-xyz/utils';
-
-import { getSafe, getSafeService } from '../../../../utils/gnosisSafe.js';
 import { MultiProvider } from '../../../MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../../../ProviderType.js';
 import { TxSubmitterType } from '../TxSubmitterTypes.js';
@@ -27,29 +22,20 @@ export interface GnosisTransactionBuilderPayload {
 export class EV5GnosisSafeTxBuilder extends EV5GnosisSafeTxSubmitter {
   public readonly txSubmitterType: TxSubmitterType =
     TxSubmitterType.GNOSIS_TX_BUILDER;
-  constructor(
-    public readonly multiProvider: MultiProvider,
-    public readonly props: EV5GnosisSafeTxBuilderProps,
-    safe: Safe.default,
-    safeService: SafeApiKit.default,
-  ) {
-    super(multiProvider, props, safe, safeService);
-  }
+
+  declare public readonly props: EV5GnosisSafeTxBuilderProps;
 
   static async create(
     multiProvider: MultiProvider,
     props: EV5GnosisSafeTxBuilderProps,
   ): Promise<EV5GnosisSafeTxBuilder> {
     const { chain, safeAddress } = props;
-    const { gnosisSafeTransactionServiceUrl } =
-      multiProvider.getChainMetadata(chain);
-    assert(
-      gnosisSafeTransactionServiceUrl,
-      `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
-    );
-    const safe = await getSafe(chain, multiProvider, safeAddress);
-    const safeService = await getSafeService(chain, multiProvider);
-
+    const { safe, safeService } =
+      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+        chain,
+        multiProvider,
+        safeAddress,
+      );
     return new EV5GnosisSafeTxBuilder(multiProvider, props, safe, safeService);
   }
 

@@ -9,6 +9,8 @@ import { Logger } from 'pino';
 import { Address, assert, retryAsync, rootLogger } from '@hyperlane-xyz/utils';
 
 import {
+  SAFE_API_BASE_RETRY_MS,
+  SAFE_API_RETRIES,
   canProposeSafeTransactions,
   getSafe,
   getSafeService,
@@ -19,9 +21,6 @@ import { TxSubmitterType } from '../TxSubmitterTypes.js';
 
 import { EV5TxSubmitterInterface } from './EV5TxSubmitterInterface.js';
 import { EV5GnosisSafeTxSubmitterProps } from './types.js';
-
-const SAFE_API_RETRIES = 10;
-const SAFE_API_BASE_RETRY_MS = 1000;
 
 export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   public readonly txSubmitterType: TxSubmitterType =
@@ -34,21 +33,33 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
   constructor(
     public readonly multiProvider: MultiProvider,
     public readonly props: EV5GnosisSafeTxSubmitterProps,
-    private safe: Safe.default,
-    private safeService: SafeApiKit.default,
+    protected safe: Safe.default,
+    protected safeService: SafeApiKit.default,
   ) {}
 
-  static async create(
+  protected static async initSafeAndService(
+    chain: string,
     multiProvider: MultiProvider,
-    props: EV5GnosisSafeTxSubmitterProps,
-  ): Promise<EV5GnosisSafeTxSubmitter> {
-    const { chain, safeAddress } = props;
+    safeAddress: Address,
+    signerKey?: string,
+  ): Promise<{ safe: Safe.default; safeService: SafeApiKit.default }> {
     const { gnosisSafeTransactionServiceUrl } =
       multiProvider.getChainMetadata(chain);
     assert(
       gnosisSafeTransactionServiceUrl,
       `Must set gnosisSafeTransactionServiceUrl in the Registry metadata for ${chain}`,
     );
+
+    const safe = await getSafe(chain, multiProvider, safeAddress, signerKey);
+    const safeService = await getSafeService(chain, multiProvider);
+    return { safe, safeService };
+  }
+
+  static async create(
+    multiProvider: MultiProvider,
+    props: EV5GnosisSafeTxSubmitterProps,
+  ): Promise<EV5GnosisSafeTxSubmitter> {
+    const { chain, safeAddress } = props;
 
     const signer = multiProvider.getSigner(chain);
     const signerAddress = await signer.getAddress();
@@ -64,14 +75,20 @@ export class EV5GnosisSafeTxSubmitter implements EV5TxSubmitterInterface {
     );
 
     const safeSignerKey =
-      'privateKey' in signer ? (signer as any).privateKey : undefined;
-    const safe = await getSafe(
-      chain,
-      multiProvider,
-      safeAddress,
+      'privateKey' in signer
+        ? (signer as { privateKey: string }).privateKey
+        : undefined;
+    assert(
       safeSignerKey,
+      'Signer must have a private key to propose Safe transactions',
     );
-    const safeService = await getSafeService(chain, multiProvider);
+    const { safe, safeService } =
+      await EV5GnosisSafeTxSubmitter.initSafeAndService(
+        chain,
+        multiProvider,
+        safeAddress,
+        safeSignerKey,
+      );
 
     return new EV5GnosisSafeTxSubmitter(
       multiProvider,
