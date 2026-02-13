@@ -64,41 +64,36 @@ async function getHasuraHelmValues(config: HasuraExplorerConfig) {
     image: {
       tag: config.imageTag,
     },
-
-    replicaCount: config.replicas,
+    replicas: config.replicas,
     resources: config.resources,
-
-    // Official chart supports passing env vars directly
-    env: [
-      { name: 'HASURA_GRAPHQL_DATABASE_URL', value: dbUrl },
-      { name: 'HASURA_GRAPHQL_ADMIN_SECRET', value: adminSecret },
-      { name: 'HASURA_GRAPHQL_UNAUTHORIZED_ROLE', value: 'anonymous' },
-      {
-        name: 'HASURA_GRAPHQL_ENABLE_CONSOLE',
-        value: String(config.enableConsole),
+    // Disable built-in postgres — use external Cloud SQL
+    postgres: {
+      enabled: false,
+    },
+    config: {
+      unauthorizedRole: 'anonymous',
+      enableConsole: config.enableConsole,
+      devMode: false,
+      extraConfigs: {
+        HASURA_GRAPHQL_ENABLE_INTROSPECTION: 'false',
+        HASURA_GRAPHQL_ENABLED_APIS: 'graphql,metadata',
+        HASURA_GRAPHQL_ENABLE_QUERY_CACHING: 'true',
+        HASURA_GRAPHQL_QUERY_CACHE_TTL: String(config.cacheTtl),
+        HASURA_GRAPHQL_PG_CONNECTIONS: '50',
+        HASURA_GRAPHQL_PG_TIMEOUT: '180',
+        HASURA_GRAPHQL_ENABLE_TELEMETRY: 'false',
+        HASURA_GRAPHQL_LOG_LEVEL: 'info',
       },
-      // Disable introspection for production security
-      { name: 'HASURA_GRAPHQL_ENABLE_INTROSPECTION', value: 'false' },
-      // Disable mutations — read-only API
-      { name: 'HASURA_GRAPHQL_ENABLED_APIS', value: 'graphql,metadata' },
-      // Caching
-      { name: 'HASURA_GRAPHQL_ENABLE_QUERY_CACHING', value: 'true' },
-      {
-        name: 'HASURA_GRAPHQL_QUERY_CACHE_TTL',
-        value: String(config.cacheTtl),
-      },
-      // Connection pool
-      { name: 'HASURA_GRAPHQL_PG_CONNECTIONS', value: '50' },
-      { name: 'HASURA_GRAPHQL_PG_TIMEOUT', value: '180' },
-      // Disable telemetry and dev mode
-      { name: 'HASURA_GRAPHQL_ENABLE_TELEMETRY', value: 'false' },
-      { name: 'HASURA_GRAPHQL_DEV_MODE', value: 'false' },
-      { name: 'HASURA_GRAPHQL_LOG_LEVEL', value: 'info' },
-    ],
-
+    },
+    secret: {
+      adminSecret,
+      metadataDbUrl: dbUrl,
+    },
+    // Chart's metadataDbUrl maps to METADATA_DATABASE_URL (metadata only);
+    // DATABASE_URL adds the DB as the default data source
+    extraEnvs: [{ name: 'HASURA_GRAPHQL_DATABASE_URL', value: dbUrl }],
     service: {
       type: 'ClusterIP',
-      port: 8080,
     },
   };
 }

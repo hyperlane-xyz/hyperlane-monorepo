@@ -10,7 +10,7 @@ export const HASURA_HELM_REPOSITORY: HelmChartRepositoryConfig = {
 
 export const HASURA_HELM_CHART: HelmChartConfig = {
   name: 'graphql-engine',
-  version: '1.4.0',
+  version: '0.9.1',
   repository: HASURA_HELM_REPOSITORY,
 };
 
