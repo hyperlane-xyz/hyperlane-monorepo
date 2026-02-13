@@ -1,24 +1,31 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import yargs from 'yargs';
+import yargs, { Argv } from 'yargs';
 
-import { SvmMultiProtocolSignerAdapter } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
-
-import { chainsToSkip } from '../../src/config/chain.js';
 import {
   SquadsProposalStatus,
+  SvmMultiProtocolSignerAdapter,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
   getSquadProposal,
-  withTransactionIndex,
-} from '../../src/utils/squads.js';
+} from '@hyperlane-xyz/sdk';
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+
+import { chainsToSkip } from '../../src/config/chain.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import { chainIsProtocol } from '../../src/utils/utils.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
 const environment = 'mainnet3';
+
+function withTransactionIndex<T>(args: Argv<T>) {
+  return args
+    .describe('transactionIndex', 'Transaction index of the proposal')
+    .number('transactionIndex')
+    .demandOption('transactionIndex')
+    .alias('t', 'transactionIndex');
+}
 
 // CLI argument parsing
 async function main() {

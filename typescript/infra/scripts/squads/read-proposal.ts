@@ -2,6 +2,12 @@ import chalk from 'chalk';
 import yargs, { Argv } from 'yargs';
 
 import {
+  SquadsProposalStatus,
+  getSquadProposal,
+  getSquadsKeys,
+  squadsConfigs,
+} from '@hyperlane-xyz/sdk';
+import {
   LogFormat,
   LogLevel,
   configureRootLogger,
@@ -9,12 +15,6 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { getSquadsKeys, squadsConfigs } from '../../src/config/squads.js';
-import {
-  SquadsProposalStatus,
-  getSquadProposal,
-  withTransactionIndex,
-} from '../../src/utils/squads.js';
 import { withChain } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -26,6 +26,14 @@ function withVerbose<T>(args: Argv<T>) {
     .boolean('verbose')
     .default('verbose', false)
     .alias('v', 'verbose');
+}
+
+function withTransactionIndex<T>(args: Argv<T>) {
+  return args
+    .describe('transactionIndex', 'Transaction index of the proposal')
+    .number('transactionIndex')
+    .demandOption('transactionIndex')
+    .alias('t', 'transactionIndex');
 }
 
 async function main() {

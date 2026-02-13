@@ -1,23 +1,29 @@
+import fs from 'fs';
 import chalk from 'chalk';
 import yargs from 'yargs';
 
+import {
+  SquadsTransaction,
+  SquadsTransactionReader,
+  SvmMultisigConfigMap,
+  getPendingProposalsForChains,
+  logProposals,
+  squadsConfigs,
+} from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
   configureRootLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
+import { readJson } from '@hyperlane-xyz/utils/fs';
 
-import { squadsConfigs } from '../../src/config/squads.js';
-import {
-  SquadsTransaction,
-  SquadsTransactionReader,
-} from '../../src/tx/squads-transaction-reader.js';
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
+import { Contexts } from '../../config/contexts.js';
 import {
-  getPendingProposalsForChains,
-  logProposals,
-} from '../../src/utils/squads.js';
+  loadCoreProgramIds,
+  multisigIsmConfigPath,
+} from '../../src/utils/sealevel.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
@@ -39,7 +45,18 @@ async function main() {
   const warpRoutes = await registry.getWarpRoutes();
 
   // Initialize the transaction reader
-  const reader = new SquadsTransactionReader(environment, mpp);
+  const reader = new SquadsTransactionReader(mpp, {
+    resolveCoreProgramIds: (chain) => loadCoreProgramIds(environment, chain),
+    resolveExpectedMultisigConfig: (chain) => {
+      const configPath = multisigIsmConfigPath(
+        environment,
+        Contexts.Hyperlane,
+        chain,
+      );
+      if (!fs.existsSync(configPath)) return null;
+      return readJson(configPath) as SvmMultisigConfigMap;
+    },
+  });
   await reader.init(warpRoutes);
 
   // Get the pending proposals for the relevant chains

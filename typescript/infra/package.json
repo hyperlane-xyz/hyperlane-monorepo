@@ -96,7 +96,6 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
-    "@sqds/multisig": "2.1.4",
     "@types/bs58": "^5.0.0",
     "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",

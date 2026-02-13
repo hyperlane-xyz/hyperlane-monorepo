@@ -1,18 +1,29 @@
-/**
- * Squads transaction parser for Hyperlane operations
- * Parses VaultTransaction instructions to verify governance operations
- *
- * Similar to govern-transaction-reader.ts but for SVM/Squads multisigs
- */
 import { ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
 import { accounts, getTransactionPda, types } from '@sqds/multisig';
 import { deserializeUnchecked } from 'borsh';
-import chalk from 'chalk';
-import fs from 'fs';
 
+import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+
+import { defaultMultisigConfigs } from '../consts/multisigIsm.js';
+import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import { ChainName } from '../types.js';
 import {
-  ChainName,
-  MultiProtocolProvider,
+  SealevelMultisigIsmInstructionName,
+  SealevelMultisigIsmInstructionType,
+  SealevelMultisigIsmSetValidatorsInstruction,
+  SealevelMultisigIsmSetValidatorsInstructionSchema,
+  SealevelMultisigIsmTransferOwnershipInstruction,
+  SealevelMultisigIsmTransferOwnershipInstructionSchema,
+} from '../ism/serialization.js';
+import {
+  SealevelMailboxInstructionName,
+  SealevelMailboxInstructionType,
+  SealevelMailboxSetDefaultIsmInstruction,
+  SealevelMailboxSetDefaultIsmInstructionSchema,
+  SealevelMailboxTransferOwnershipInstruction,
+  SealevelMailboxTransferOwnershipInstructionSchema,
+} from '../mailbox/serialization.js';
+import {
   SealevelEnrollRemoteRouterInstruction,
   SealevelEnrollRemoteRouterInstructionSchema,
   SealevelEnrollRemoteRoutersInstruction,
@@ -21,48 +32,16 @@ import {
   SealevelHypTokenInstructionName,
   SealevelHypTokenTransferOwnershipInstruction,
   SealevelHypTokenTransferOwnershipInstructionSchema,
-  SealevelInstructionWrapper,
-  SealevelMailboxInstructionName,
-  SealevelMailboxInstructionType,
-  SealevelMailboxSetDefaultIsmInstruction,
-  SealevelMailboxSetDefaultIsmInstructionSchema,
-  SealevelMailboxTransferOwnershipInstruction,
-  SealevelMailboxTransferOwnershipInstructionSchema,
-  SealevelMultisigIsmInstructionName,
-  SealevelMultisigIsmInstructionType,
-  SealevelMultisigIsmSetValidatorsInstruction,
-  SealevelMultisigIsmSetValidatorsInstructionSchema,
-  SealevelMultisigIsmTransferOwnershipInstruction,
-  SealevelMultisigIsmTransferOwnershipInstructionSchema,
   SealevelSetDestinationGasConfigsInstruction,
   SealevelSetDestinationGasConfigsInstructionSchema,
   SealevelSetInterchainGasPaymasterInstruction,
   SealevelSetInterchainGasPaymasterInstructionSchema,
   SealevelSetInterchainSecurityModuleInstruction,
   SealevelSetInterchainSecurityModuleInstructionSchema,
-  WarpCoreConfig,
-  defaultMultisigConfigs,
-} from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+} from '../token/adapters/serialization.js';
+import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
+import { WarpCoreConfig } from '../warp/types.js';
 
-import { Contexts } from '../../config/contexts.js';
-import { DeployEnvironment } from '../config/environment.js';
-import {
-  ErrorMessage,
-  HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
-  InstructionType,
-  MAILBOX_DISCRIMINATOR_SIZE,
-  MAX_SOLANA_ACCOUNTS,
-  MAX_SOLANA_ACCOUNT_SIZE,
-  ProgramName,
-  SYSTEM_PROGRAM_ID,
-  SvmMultisigConfigMap,
-  WarningMessage,
-  formatUnknownInstructionWarning,
-  formatUnknownProgramWarning,
-  loadCoreProgramIds,
-  multisigIsmConfigPath,
-} from '../utils/sealevel.js';
 import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   SquadsInstructionName,
@@ -72,13 +51,76 @@ import {
   getSquadProposal,
   isConfigTransaction,
   isVaultTransaction,
-} from '../utils/squads.js';
+} from './utils.js';
 
-import { GovernTransaction } from './govern-transaction-reader.js';
+export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
+export const MAILBOX_DISCRIMINATOR_SIZE = 1;
+export const MAX_SOLANA_ACCOUNTS = 256;
+export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
+export const SYSTEM_PROGRAM_ID = new PublicKey(
+  '11111111111111111111111111111111',
+);
 
-/**
- * Parsed instruction result with human-readable information
- */
+export enum ProgramName {
+  MAILBOX = 'Mailbox',
+  MULTISIG_ISM = 'MultisigIsmMessageId',
+  WARP_ROUTE = 'WarpRoute',
+  SYSTEM_PROGRAM = 'System Program',
+  UNKNOWN = 'Unknown',
+}
+
+export enum InstructionType {
+  UNKNOWN = 'Unknown',
+  SYSTEM_CALL = 'System Call',
+  PARSE_FAILED = 'Parse Failed',
+}
+
+export enum ErrorMessage {
+  INSTRUCTION_TOO_SHORT = 'Instruction data too short',
+  INVALID_MULTISIG_ISM_DATA = 'Invalid MultisigIsm instruction data',
+}
+
+export enum WarningMessage {
+  OWNERSHIP_TRANSFER = '⚠️  OWNERSHIP TRANSFER DETECTED',
+  OWNERSHIP_RENUNCIATION = '⚠️  OWNERSHIP RENUNCIATION DETECTED',
+}
+
+export function formatUnknownProgramWarning(programId: string): string {
+  return `⚠️  UNKNOWN PROGRAM: ${programId}`;
+}
+
+export function formatUnknownInstructionWarning(
+  programName: string,
+  discriminator: number,
+): string {
+  return `Unknown ${programName} instruction (discriminator: ${discriminator})`;
+}
+
+export type SvmMultisigConfigMap = Record<
+  ChainName,
+  {
+    threshold: number;
+    validators: string[];
+  }
+>;
+
+export interface SquadsCoreProgramIds {
+  mailbox: string;
+  multisig_ism_message_id: string;
+}
+
+export interface SquadsTransactionReaderOptions {
+  resolveCoreProgramIds: (chain: ChainName) => SquadsCoreProgramIds;
+  resolveExpectedMultisigConfig?: (
+    chain: ChainName,
+  ) => SvmMultisigConfigMap | null;
+}
+
+export interface SquadsGovernTransaction extends Record<string, any> {
+  chain: ChainName;
+  nestedTx?: SquadsGovernTransaction;
+}
+
 export interface ParsedInstruction {
   programId: PublicKey;
   programName: string;
@@ -86,92 +128,61 @@ export interface ParsedInstruction {
   data: any;
   accounts: PublicKey[];
   warnings: string[];
-  insight?: string; // Add insight here so it's generated during parsing
+  insight?: string;
 }
 
-/**
- * Squads transaction result matching GovernTransaction format
- */
 export interface SquadsTransaction extends Record<string, any> {
   chain: ChainName;
   proposalPda?: string;
   transactionIndex?: number;
   multisig?: string;
-  instructions?: GovernTransaction[];
+  instructions?: SquadsGovernTransaction[];
 }
 
-/**
- * Format validator addresses with their aliases from defaultMultisigConfigs
- */
 function formatValidatorsWithAliases(
   chain: ChainName,
   validators: string[],
 ): string[] {
   const config = defaultMultisigConfigs[chain];
-  if (!config) {
-    return validators;
-  }
+  if (!config) return validators;
 
-  // Create a map of address -> alias
   const aliasMap = new Map<string, string>();
-  for (const v of config.validators) {
-    aliasMap.set(v.address.toLowerCase(), v.alias);
+  for (const validator of config.validators) {
+    aliasMap.set(validator.address.toLowerCase(), validator.alias);
   }
 
-  // Format each validator with alias if available
-  return validators.map((addr) => {
-    const alias = aliasMap.get(addr.toLowerCase());
-    return alias ? `${addr} (${alias})` : addr;
+  return validators.map((address) => {
+    const alias = aliasMap.get(address.toLowerCase());
+    return alias ? `${address} (${alias})` : address;
   });
 }
 
-/**
- * Warp route metadata for display
- */
 interface WarpRouteMetadata {
   symbol: string;
   name: string;
   routeName: string;
 }
 
-/**
- * SquadsTransactionReader - Main class for parsing Squads proposals
- *
- * Similar to GovernTransactionReader but for SVM/Squads multisigs
- */
 export class SquadsTransactionReader {
   errors: any[] = [];
-  private multisigConfigs: Map<ChainName, SvmMultisigConfigMap> = new Map();
-
-  /**
-   * Index of known warp route program IDs by chain
-   * Maps chain -> lowercase program ID -> metadata
-   */
+  private multisigConfigs: Map<ChainName, SvmMultisigConfigMap | null> =
+    new Map();
   readonly warpRouteIndex: Map<ChainName, Map<string, WarpRouteMetadata>> =
     new Map();
 
   constructor(
-    readonly environment: DeployEnvironment,
     readonly mpp: MultiProtocolProvider,
+    private readonly options: SquadsTransactionReaderOptions,
   ) {}
 
-  /**
-   * Initialize the reader with warp routes from the registry
-   * Call this before parsing transactions
-   */
   async init(warpRoutes: Record<string, WarpCoreConfig>): Promise<void> {
     for (const [routeName, warpRoute] of Object.entries(warpRoutes)) {
       for (const token of Object.values(warpRoute.tokens)) {
-        // Only index Sealevel chains
         const chainProtocol = this.mpp.tryGetProtocol(token.chainName);
-        if (chainProtocol !== ProtocolType.Sealevel) {
-          continue;
-        }
+        if (chainProtocol !== ProtocolType.Sealevel) continue;
 
         const address = token.addressOrDenom?.toLowerCase();
-        if (!address) {
-          continue;
-        }
+        if (!address) continue;
 
         if (!this.warpRouteIndex.has(token.chainName)) {
           this.warpRouteIndex.set(token.chainName, new Map());
@@ -184,53 +195,33 @@ export class SquadsTransactionReader {
         });
       }
     }
-
-    rootLogger.debug(
-      `Indexed ${Array.from(this.warpRouteIndex.values()).reduce((sum, map) => sum + map.size, 0)} Sealevel warp routes`,
-    );
   }
 
-  /**
-   * Check if a program ID is a known warp route
-   */
   private isWarpRouteProgram(
     chain: ChainName,
     programId: PublicKey,
   ): WarpRouteMetadata | undefined {
-    const chainIndex = this.warpRouteIndex.get(chain);
-    if (!chainIndex) {
-      return undefined;
-    }
-    return chainIndex.get(programId.toBase58().toLowerCase());
+    return this.warpRouteIndex
+      .get(chain)
+      ?.get(programId.toBase58().toLowerCase());
   }
 
-  /**
-   * Parse a warp route instruction using Borsh schemas
-   * Instructions have 8-byte program discriminator + 1-byte enum discriminator + data
-   */
   private readWarpRouteInstruction(
     chain: ChainName,
     instructionData: Buffer,
     metadata: WarpRouteMetadata,
   ): Partial<ParsedInstruction> {
-    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1; // 8 bytes + 1 byte enum
+    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1;
     if (instructionData.length < minLength) {
       return {
         instructionType: 'WarpRouteInstruction',
-        data: {
-          routeName: metadata.routeName,
-          symbol: metadata.symbol,
-          error: 'Instruction data too short',
-        },
+        data: { routeName: metadata.routeName, symbol: metadata.symbol },
         insight: `${metadata.symbol} warp route instruction (data too short)`,
         warnings: [],
       };
     }
 
-    // Skip 8-byte program discriminator, read enum discriminator
     const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
-
-    // Prepare buffer for Borsh deserialization (skip program discriminator)
     const borshData = instructionData.subarray(
       HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
     );
@@ -245,10 +236,9 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelEnrollRemoteRouterInstruction;
-          const config = instruction.config;
-          const domain = config.domain;
+          const domain = instruction.config.domain;
           const chainName = this.mpp.tryGetChainName(domain);
-          const router = config.routerAddress;
+          const router = instruction.config.routerAddress;
           const chainInfo = chainName
             ? `${chainName} (${domain})`
             : `${domain}`;
@@ -279,18 +269,14 @@ export class SquadsTransactionReader {
             chainName: this.mpp.tryGetChainName(config.domain) ?? undefined,
             router: config.routerAddress,
           }));
-          const count = routers.length;
-          const routerSummary = routers
-            .map((r) => r.chainName ?? `domain ${r.domain}`)
-            .join(', ');
 
           return {
             instructionType:
               SealevelHypTokenInstructionName[
                 SealevelHypTokenInstruction.EnrollRemoteRouters
               ],
-            data: { count, routers },
-            insight: `Enroll ${count} remote router(s): ${routerSummary}`,
+            data: { count: routers.length, routers },
+            insight: `Enroll ${routers.length} remote router(s)`,
             warnings: [],
           };
         }
@@ -308,21 +294,14 @@ export class SquadsTransactionReader {
             chainName: this.mpp.tryGetChainName(config.domain) ?? undefined,
             gas: config.gas,
           }));
-          const count = configs.length;
-          const configSummary = configs
-            .map(
-              (c) =>
-                `${c.chainName ?? `domain ${c.domain}`}: ${c.gas?.toString() ?? 'unset'}`,
-            )
-            .join(', ');
 
           return {
             instructionType:
               SealevelHypTokenInstructionName[
                 SealevelHypTokenInstruction.SetDestinationGasConfigs
               ],
-            data: { count, configs },
-            insight: `Set destination gas for ${count} chain(s): ${configSummary}`,
+            data: { count: configs.length, configs },
+            insight: `Set destination gas for ${configs.length} chain(s)`,
             warnings: [],
           };
         }
@@ -403,8 +382,6 @@ export class SquadsTransactionReader {
           };
         }
 
-        case SealevelHypTokenInstruction.Init:
-        case SealevelHypTokenInstruction.TransferRemote:
         default:
           return {
             instructionType:
@@ -416,7 +393,7 @@ export class SquadsTransactionReader {
               symbol: metadata.symbol,
               rawData: instructionData.toString('hex'),
             },
-            insight: `${metadata.symbol} ${SealevelHypTokenInstructionName[discriminator as SealevelHypTokenInstruction] ?? 'unknown'} instruction (${metadata.routeName})`,
+            insight: `${metadata.symbol} warp route instruction (${metadata.routeName})`,
             warnings: [],
           };
       }
@@ -427,7 +404,6 @@ export class SquadsTransactionReader {
           routeName: metadata.routeName,
           symbol: metadata.symbol,
           error: `Failed to deserialize: ${error}`,
-          rawData: instructionData.toString('hex'),
         },
         insight: `${metadata.symbol} warp route instruction (parse error)`,
         warnings: [`Borsh deserialization failed: ${error}`],
@@ -435,9 +411,6 @@ export class SquadsTransactionReader {
     }
   }
 
-  /**
-   * Check if instruction is for Mailbox program
-   */
   private isMailboxInstruction(
     programId: PublicKey,
     corePrograms: { mailbox: PublicKey },
@@ -445,9 +418,6 @@ export class SquadsTransactionReader {
     return programId.equals(corePrograms.mailbox);
   }
 
-  /**
-   * Read and parse a Mailbox instruction using Borsh schemas
-   */
   private readMailboxInstruction(
     instructionData: Buffer,
   ): Partial<ParsedInstruction> {
@@ -459,22 +429,10 @@ export class SquadsTransactionReader {
       };
     }
 
-    // Read discriminator to determine instruction type (Borsh u8 enum)
     const discriminator = instructionData[0];
 
     try {
       switch (discriminator) {
-        // Note: Parsing not implemented for the following Mailbox instructions:
-        // - INIT (0): Init(Init)
-        // - INBOX_PROCESS (1): InboxProcess(InboxProcess)
-        // - INBOX_GET_RECIPIENT_ISM (3): InboxGetRecipientIsm(Pubkey)
-        // - OUTBOX_DISPATCH (4): OutboxDispatch(OutboxDispatch)
-        // - OUTBOX_GET_COUNT (5): OutboxGetCount
-        // - OUTBOX_GET_LATEST_CHECKPOINT (6): OutboxGetLatestCheckpoint
-        // - OUTBOX_GET_ROOT (7): OutboxGetRoot
-        // - GET_OWNER (8): GetOwner
-        // - CLAIM_PROTOCOL_FEES (10): ClaimProtocolFees
-        // - SET_PROTOCOL_FEE_CONFIG (11): SetProtocolFeeConfig(ProtocolFee)
         case SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM: {
           const wrapper = deserializeUnchecked(
             SealevelMailboxSetDefaultIsmInstructionSchema,
@@ -483,14 +441,11 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMailboxSetDefaultIsmInstruction;
-          const ismAddress = instruction.newIsmPubkey.toBase58();
 
           return {
             instructionType: SealevelMailboxInstructionName[discriminator],
-            data: {
-              newDefaultIsm: ismAddress,
-            },
-            insight: `Set default ISM to ${ismAddress}`,
+            data: { newDefaultIsm: instruction.newIsmPubkey.toBase58() },
+            insight: `Set default ISM to ${instruction.newIsmPubkey.toBase58()}`,
             warnings: [],
           };
         }
@@ -505,13 +460,10 @@ export class SquadsTransactionReader {
             wrapper.data as SealevelMailboxTransferOwnershipInstruction;
 
           if (instruction.newOwnerPubkey) {
-            const newOwnerAddress = instruction.newOwnerPubkey.toBase58();
             return {
               instructionType: SealevelMailboxInstructionName[discriminator],
-              data: {
-                newOwner: newOwnerAddress,
-              },
-              insight: `Transfer ownership to ${newOwnerAddress}`,
+              data: { newOwner: instruction.newOwnerPubkey.toBase58() },
+              insight: `Transfer ownership to ${instruction.newOwnerPubkey.toBase58()}`,
               warnings: [WarningMessage.OWNERSHIP_TRANSFER],
             };
           }
@@ -545,9 +497,6 @@ export class SquadsTransactionReader {
     }
   }
 
-  /**
-   * Check if instruction is for MultisigIsm program
-   */
   private isMultisigIsmInstruction(
     programId: PublicKey,
     corePrograms: { multisigIsmMessageId: PublicKey },
@@ -555,17 +504,11 @@ export class SquadsTransactionReader {
     return programId.equals(corePrograms.multisigIsmMessageId);
   }
 
-  /**
-   * Read and parse a MultisigIsm instruction using Borsh schemas
-   *
-   * Note: MultisigIsm instructions MUST have an 8-byte program discriminator prefix
-   * that must be handled before Borsh deserialization.
-   */
   private readMultisigIsmInstruction(
     chain: ChainName,
     instructionData: Buffer,
   ): Partial<ParsedInstruction> {
-    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1; // 8 bytes program discriminator + at least 1 byte for enum
+    const minLength = HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE + 1;
     if (instructionData.length < minLength) {
       return {
         instructionType: InstructionType.UNKNOWN,
@@ -574,19 +517,13 @@ export class SquadsTransactionReader {
       };
     }
 
-    // Skip 8-byte program discriminator, read enum discriminator
     const discriminator = instructionData[HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE];
-
-    // Prepare buffer for Borsh deserialization (skip program discriminator)
     const borshData = instructionData.subarray(
       HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE,
     );
 
     try {
       switch (discriminator) {
-        // Note: Parsing not implemented for the following MultisigIsm instructions:
-        // - INIT (0): Initialize
-        // - GET_OWNER (2): GetOwner
         case SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD: {
           const wrapper = deserializeUnchecked(
             SealevelMultisigIsmSetValidatorsInstructionSchema,
@@ -595,24 +532,20 @@ export class SquadsTransactionReader {
           );
           const instruction =
             wrapper.data as SealevelMultisigIsmSetValidatorsInstruction;
-
           const remoteChain = this.mpp.tryGetChainName(instruction.domain);
           const chainInfo = remoteChain
             ? `${remoteChain} (${instruction.domain})`
             : `${instruction.domain}`;
-
-          const validatorCount = instruction.validators.length;
-          const insight = `Set ${validatorCount} validator${validatorCount > 1 ? 's' : ''} with threshold ${instruction.threshold} for ${chainInfo}`;
 
           return {
             instructionType: SealevelMultisigIsmInstructionName[discriminator],
             data: {
               domain: instruction.domain,
               threshold: instruction.threshold,
-              validatorCount,
+              validatorCount: instruction.validators.length,
               validators: instruction.validatorAddresses,
             },
-            insight,
+            insight: `Set ${instruction.validators.length} validator(s) with threshold ${instruction.threshold} for ${chainInfo}`,
             warnings: [],
           };
         }
@@ -627,14 +560,11 @@ export class SquadsTransactionReader {
             wrapper.data as SealevelMultisigIsmTransferOwnershipInstruction;
 
           if (instruction.newOwnerPubkey) {
-            const newOwnerAddress = instruction.newOwnerPubkey.toBase58();
             return {
               instructionType:
                 SealevelMultisigIsmInstructionName[discriminator],
-              data: {
-                newOwner: newOwnerAddress,
-              },
-              insight: `Transfer ownership to ${newOwnerAddress}`,
+              data: { newOwner: instruction.newOwnerPubkey.toBase58() },
+              insight: `Transfer ownership to ${instruction.newOwnerPubkey.toBase58()}`,
               warnings: [WarningMessage.OWNERSHIP_TRANSFER],
             };
           }
@@ -668,9 +598,6 @@ export class SquadsTransactionReader {
     }
   }
 
-  /**
-   * Fetch proposal data from chain
-   */
   private async fetchProposalData(
     chain: ChainName,
     transactionIndex: number,
@@ -700,14 +627,11 @@ export class SquadsTransactionReader {
     return { proposal, proposalPda, multisigPda, programId };
   }
 
-  /**
-   * Fetch transaction account info
-   */
   private async fetchTransactionAccount(
     chain: ChainName,
     transactionIndex: number,
     transactionPda: PublicKey,
-  ): Promise<any> {
+  ) {
     const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
     const accountInfo = await svmProvider.getAccountInfo(transactionPda);
 
@@ -717,26 +641,15 @@ export class SquadsTransactionReader {
       );
     }
 
-    rootLogger.debug(
-      chalk.gray(`Transaction account size: ${accountInfo.data.length} bytes`),
-    );
-
-    // Validate account size is reasonable (max ~10KB for a Solana transaction)
     if (accountInfo.data.length > MAX_SOLANA_ACCOUNT_SIZE) {
       rootLogger.warn(
-        chalk.yellow(
-          `Transaction account is unusually large: ${accountInfo.data.length} bytes`,
-        ),
+        `Transaction account is unusually large: ${accountInfo.data.length} bytes`,
       );
     }
 
     return accountInfo;
   }
 
-  /**
-   * Resolve address lookup table accounts to get all account keys
-   * Appends lookup table addresses to the static account keys
-   */
   private async resolveAddressLookupTables(
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
@@ -745,58 +658,35 @@ export class SquadsTransactionReader {
     const accountKeys = [...vaultTransaction.message.accountKeys];
     const lookups = vaultTransaction.message.addressTableLookups;
 
-    if (!lookups || lookups.length === 0) {
-      return accountKeys;
-    }
+    if (!lookups || lookups.length === 0) return accountKeys;
 
     for (const lookup of lookups) {
       try {
-        // Fetch the address lookup table account
         const lookupTableAccount = await svmProvider.getAccountInfo(
           lookup.accountKey,
         );
-        if (!lookupTableAccount) {
-          rootLogger.warn(
-            chalk.yellow(
-              `Address lookup table ${lookup.accountKey.toBase58()} not found`,
-            ),
-          );
-          continue;
-        }
+        if (!lookupTableAccount) continue;
 
-        // Parse the lookup table data to extract addresses
-        // Lookup table format: Authority (32) + deactivation slot (8) + last extended slot (8) + last extended slot start index (1) + padding (7) = 56 bytes
         const data = lookupTableAccount.data;
         const LOOKUP_TABLE_META_SIZE = 56;
         const addresses: PublicKey[] = [];
 
-        for (
-          let i = LOOKUP_TABLE_META_SIZE;
-          i < data.length;
-          i += 32 // Each address is 32 bytes
-        ) {
+        for (let i = LOOKUP_TABLE_META_SIZE; i < data.length; i += 32) {
           const addressBytes = data.slice(i, i + 32);
           if (addressBytes.length === 32) {
             addresses.push(new PublicKey(addressBytes));
           }
         }
 
-        // Add writable addresses first, then readonly (matching Solana's order)
         for (const idx of lookup.writableIndexes) {
-          if (idx < addresses.length) {
-            accountKeys.push(addresses[idx]);
-          }
+          if (idx < addresses.length) accountKeys.push(addresses[idx]);
         }
         for (const idx of lookup.readonlyIndexes) {
-          if (idx < addresses.length) {
-            accountKeys.push(addresses[idx]);
-          }
+          if (idx < addresses.length) accountKeys.push(addresses[idx]);
         }
       } catch (error) {
         rootLogger.warn(
-          chalk.yellow(
-            `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${error}`,
-          ),
+          `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${error}`,
         );
       }
     }
@@ -804,40 +694,31 @@ export class SquadsTransactionReader {
     return accountKeys;
   }
 
-  /**
-   * Parse instructions from a VaultTransaction
-   */
   private async parseVaultInstructions(
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
   ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
-    const coreProgramIds = loadCoreProgramIds(this.environment, chain);
+    const coreProgramIds = this.options.resolveCoreProgramIds(chain);
     const corePrograms = {
       mailbox: new PublicKey(coreProgramIds.mailbox),
-      validatorAnnounce: new PublicKey(coreProgramIds.validator_announce),
       multisigIsmMessageId: new PublicKey(
         coreProgramIds.multisig_ism_message_id,
       ),
-      igpProgramId: new PublicKey(coreProgramIds.igp_program_id),
     };
 
     const parsedInstructions: ParsedInstruction[] = [];
     const warnings: string[] = [];
-
-    // Resolve address lookup tables to get complete account keys
     const accountKeys = await this.resolveAddressLookupTables(
       chain,
       vaultTransaction,
     );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
-    // Parse all instructions, skipping compute budget setup instructions
     for (const [
       idx,
       instruction,
     ] of vaultTransaction.message.instructions.entries()) {
       try {
-        // Validate programIdIndex
         if (
           instruction.programIdIndex >= accountKeys.length ||
           instruction.programIdIndex < 0
@@ -847,7 +728,6 @@ export class SquadsTransactionReader {
           );
         }
 
-        // Validate accountIndexes
         if (
           !instruction.accountIndexes ||
           instruction.accountIndexes.length > MAX_SOLANA_ACCOUNTS
@@ -864,38 +744,22 @@ export class SquadsTransactionReader {
           );
         }
 
-        // Skip compute budget instructions (setup, not program logic)
-        if (programId.equals(computeBudgetProgramId)) {
-          rootLogger.debug(
-            chalk.gray(`Skipping compute budget instruction at index ${idx}`),
-          );
-          continue;
-        }
+        if (programId.equals(computeBudgetProgramId)) continue;
 
         const instructionData = Buffer.from(instruction.data);
-
-        // Map account indexes to account keys
         const accounts: PublicKey[] = [];
-        for (let i = 0; i < instruction.accountIndexes.length; i++) {
-          const accountIdx = instruction.accountIndexes[i];
+        for (const accountIdx of instruction.accountIndexes) {
           if (accountIdx < accountKeys.length) {
             const key = accountKeys[accountIdx];
-            if (key) {
-              accounts.push(key);
-            }
+            if (key) accounts.push(key);
           }
         }
 
-        // Parse based on program type using if/return pattern
-        let parsed: Partial<ParsedInstruction>;
-        let programName: string;
-
         if (this.isMailboxInstruction(programId, corePrograms)) {
-          programName = ProgramName.MAILBOX;
-          parsed = this.readMailboxInstruction(instructionData);
+          const parsed = this.readMailboxInstruction(instructionData);
           parsedInstructions.push({
             programId,
-            programName,
+            programName: ProgramName.MAILBOX,
             instructionType: parsed.instructionType || InstructionType.UNKNOWN,
             data: parsed.data || {},
             accounts,
@@ -907,11 +771,13 @@ export class SquadsTransactionReader {
         }
 
         if (this.isMultisigIsmInstruction(programId, corePrograms)) {
-          programName = ProgramName.MULTISIG_ISM;
-          parsed = this.readMultisigIsmInstruction(chain, instructionData);
+          const parsed = this.readMultisigIsmInstruction(
+            chain,
+            instructionData,
+          );
           parsedInstructions.push({
             programId,
-            programName,
+            programName: ProgramName.MULTISIG_ISM,
             instructionType: parsed.instructionType || InstructionType.UNKNOWN,
             data: parsed.data || {},
             accounts,
@@ -923,10 +789,9 @@ export class SquadsTransactionReader {
         }
 
         if (programId.equals(SYSTEM_PROGRAM_ID)) {
-          programName = ProgramName.SYSTEM_PROGRAM;
           parsedInstructions.push({
             programId,
-            programName,
+            programName: ProgramName.SYSTEM_PROGRAM,
             instructionType: InstructionType.SYSTEM_CALL,
             data: {},
             accounts,
@@ -935,10 +800,8 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        // Check if it's a known warp route program
         const warpRouteMetadata = this.isWarpRouteProgram(chain, programId);
         if (warpRouteMetadata) {
-          programName = ProgramName.WARP_ROUTE;
           const parsed = this.readWarpRouteInstruction(
             chain,
             instructionData,
@@ -946,7 +809,7 @@ export class SquadsTransactionReader {
           );
           parsedInstructions.push({
             programId,
-            programName,
+            programName: ProgramName.WARP_ROUTE,
             instructionType: parsed.instructionType || 'WarpRouteInstruction',
             data: {
               routeName: warpRouteMetadata.routeName,
@@ -961,15 +824,13 @@ export class SquadsTransactionReader {
           continue;
         }
 
-        // Unknown program - add warning
-        programName = ProgramName.UNKNOWN;
         const unknownWarnings = [
           formatUnknownProgramWarning(programId.toBase58()),
           'This instruction could not be verified!',
         ];
         parsedInstructions.push({
           programId,
-          programName,
+          programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.UNKNOWN,
           data: {
             programId: programId.toBase58(),
@@ -981,12 +842,9 @@ export class SquadsTransactionReader {
         warnings.push(...unknownWarnings);
       } catch (error) {
         const errorMsg = `Instruction ${idx}: ${error}`;
-        rootLogger.error(chalk.red(`Failed to parse instruction: ${errorMsg}`));
         warnings.push(`Failed to parse instruction: ${errorMsg}`);
-
-        // Create a placeholder parsed instruction for failed parsing
         parsedInstructions.push({
-          programId: new PublicKey('11111111111111111111111111111111'),
+          programId: SYSTEM_PROGRAM_ID,
           programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.PARSE_FAILED,
           data: { error: String(error) },
@@ -999,9 +857,6 @@ export class SquadsTransactionReader {
     return { instructions: parsedInstructions, warnings };
   }
 
-  /**
-   * Read and format a ConfigTransaction
-   */
   private async readConfigTransaction(
     chain: ChainName,
     proposalData: {
@@ -1011,23 +866,14 @@ export class SquadsTransactionReader {
     },
     accountInfo: any,
   ): Promise<SquadsTransaction> {
-    rootLogger.info(
-      chalk.gray(
-        `${chain} proposal ${proposalData.proposal.transactionIndex}: ConfigTransaction (parsing multisig configuration changes)`,
-      ),
-    );
-
     const [configTx] = accounts.ConfigTransaction.fromAccountInfo(
       accountInfo,
       0,
     );
-
-    const instructions: GovernTransaction[] = [];
+    const instructions: SquadsGovernTransaction[] = [];
     for (const action of configTx.actions) {
       const instruction = this.formatConfigAction(chain, action);
-      if (instruction) {
-        instructions.push(instruction);
-      }
+      if (instruction) instructions.push(instruction);
     }
 
     return {
@@ -1039,9 +885,6 @@ export class SquadsTransactionReader {
     };
   }
 
-  /**
-   * Read and format a VaultTransaction
-   */
   private async readVaultTransaction(
     chain: ChainName,
     transactionIndex: number,
@@ -1057,23 +900,12 @@ export class SquadsTransactionReader {
     let vaultTransaction: accounts.VaultTransaction;
     try {
       vaultTransaction = await accounts.VaultTransaction.fromAccountAddress(
-        // @ts-ignore - Connection type mismatch
+        // @ts-ignore squads sdk provider typing mismatch
         svmProvider,
         transactionPda,
       );
     } catch (error) {
-      if (
-        error instanceof RangeError &&
-        error.message.includes('out of range')
-      ) {
-        const errorMsg = `VaultTransaction at ${transactionPda.toBase58()} has incompatible structure (likely different Squads V4 version). This chain may require Squads SDK update.`;
-        rootLogger.warn(chalk.yellow(errorMsg));
-        this.errors.push({ chain, transactionIndex, error: errorMsg });
-        throw new Error(errorMsg);
-      }
-
       const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${error}`;
-      rootLogger.error(chalk.red(errorMsg));
       this.errors.push({ chain, transactionIndex, error: errorMsg });
       throw new Error(errorMsg);
     }
@@ -1096,57 +928,41 @@ export class SquadsTransactionReader {
     };
   }
 
-  /**
-   * Read and parse a Squads proposal
-   *
-   * @param chain - Chain name
-   * @param transactionIndex - Proposal transaction index
-   * @returns SquadsTransaction formatted for output
-   */
   async read(
     chain: ChainName,
     transactionIndex: number,
   ): Promise<SquadsTransaction> {
     try {
-      // Fetch proposal and related PDAs
       const proposalData = await this.fetchProposalData(
         chain,
         transactionIndex,
       );
-
-      // Get transaction PDA
       const [transactionPda] = getTransactionPda({
         multisigPda: proposalData.multisigPda,
         index: BigInt(proposalData.proposal.transactionIndex.toString()),
         programId: proposalData.programId,
       });
 
-      // Fetch transaction account
       const accountInfo = await this.fetchTransactionAccount(
         chain,
         transactionIndex,
         transactionPda,
       );
 
-      // Check transaction type and delegate to appropriate handler
       if (isConfigTransaction(accountInfo.data)) {
         return this.readConfigTransaction(chain, proposalData, accountInfo);
       }
 
-      // Warn if unknown transaction type
       if (!isVaultTransaction(accountInfo.data)) {
         const discriminator = accountInfo.data.slice(
           0,
           SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
         );
         rootLogger.warn(
-          chalk.yellow(
-            `Unknown transaction discriminator: ${discriminator.toString()}. Expected VaultTransaction or ConfigTransaction`,
-          ),
+          `Unknown transaction discriminator: ${discriminator.toString()}. Expected VaultTransaction or ConfigTransaction`,
         );
       }
 
-      // Handle as VaultTransaction
       return this.readVaultTransaction(
         chain,
         transactionIndex,
@@ -1159,43 +975,27 @@ export class SquadsTransactionReader {
     }
   }
 
-  /**
-   * Load multisig config for a chain
-   */
   private loadMultisigConfig(chain: ChainName): SvmMultisigConfigMap | null {
     if (this.multisigConfigs.has(chain)) {
-      return this.multisigConfigs.get(chain)!;
+      return this.multisigConfigs.get(chain) ?? null;
+    }
+
+    if (!this.options.resolveExpectedMultisigConfig) {
+      this.multisigConfigs.set(chain, null);
+      return null;
     }
 
     try {
-      const configPath = multisigIsmConfigPath(
-        this.environment,
-        Contexts.Hyperlane,
-        chain,
-      );
-      if (!fs.existsSync(configPath)) {
-        rootLogger.warn(
-          chalk.yellow(`No multisig config found at ${configPath}`),
-        );
-        return null;
-      }
-
-      const config = JSON.parse(
-        fs.readFileSync(configPath, 'utf-8'),
-      ) as SvmMultisigConfigMap;
+      const config = this.options.resolveExpectedMultisigConfig(chain);
       this.multisigConfigs.set(chain, config);
       return config;
     } catch (error) {
-      rootLogger.warn(
-        chalk.yellow(`Failed to load multisig config for ${chain}: ${error}`),
-      );
+      rootLogger.warn(`Failed to load multisig config for ${chain}: ${error}`);
+      this.multisigConfigs.set(chain, null);
       return null;
     }
   }
 
-  /**
-   * Verify if the parsed configuration matches the expected config
-   */
   private verifyConfiguration(
     originChain: ChainName,
     remoteDomain: number,
@@ -1224,21 +1024,18 @@ export class SquadsTransactionReader {
       return { matches: false, issues };
     }
 
-    // Check threshold
     if (expectedConfig.threshold !== threshold) {
       issues.push(
         `Threshold mismatch: expected ${expectedConfig.threshold}, got ${threshold}`,
       );
     }
 
-    // Check validator count
     if (expectedConfig.validators.length !== validators.length) {
       issues.push(
         `Validator count mismatch: expected ${expectedConfig.validators.length}, got ${validators.length}`,
       );
     }
 
-    // Check validators match (normalize to lowercase for comparison)
     const expectedValidatorsSet = new Set(
       expectedConfig.validators.map((v) => v.toLowerCase()),
     );
@@ -1262,13 +1059,10 @@ export class SquadsTransactionReader {
     return { matches: issues.length === 0, issues };
   }
 
-  /**
-   * Format a ConfigAction as a GovernTransaction for display
-   */
   private formatConfigAction(
     chain: ChainName,
     action: types.ConfigAction,
-  ): GovernTransaction | null {
+  ): SquadsGovernTransaction | null {
     let type: string;
     let args: Record<string, any>;
     let insight: string;
@@ -1280,31 +1074,22 @@ export class SquadsTransactionReader {
 
       type = SquadsInstructionName[SquadsInstructionType.ADD_MEMBER];
       args = {
-        member: member,
-        permissions: {
-          mask: permissionsMask,
-          decoded: permissionsStr,
-        },
+        member,
+        permissions: { mask: permissionsMask, decoded: permissionsStr },
       };
       insight = `Add member ${member} with ${permissionsStr} permissions`;
     } else if (types.isConfigActionRemoveMember(action)) {
       const member = action.oldMember.toBase58();
       type = SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER];
-      args = {
-        member: member,
-      };
+      args = { member };
       insight = `Remove member ${member}`;
     } else if (types.isConfigActionChangeThreshold(action)) {
       type = SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD];
-      args = {
-        threshold: action.newThreshold,
-      };
+      args = { threshold: action.newThreshold };
       insight = `Change threshold to ${action.newThreshold}`;
     } else if (types.isConfigActionSetTimeLock(action)) {
       type = 'SetTimeLock';
-      args = {
-        timeLock: action.newTimeLock,
-      };
+      args = { timeLock: action.newTimeLock };
       insight = `Set time lock to ${action.newTimeLock}s`;
     } else if (types.isConfigActionAddSpendingLimit(action)) {
       type = 'AddSpendingLimit';
@@ -1318,12 +1103,9 @@ export class SquadsTransactionReader {
       insight = `Add spending limit for vault ${action.vaultIndex}`;
     } else if (types.isConfigActionRemoveSpendingLimit(action)) {
       type = 'RemoveSpendingLimit';
-      args = {
-        spendingLimit: action.spendingLimit.toBase58(),
-      };
+      args = { spendingLimit: action.spendingLimit.toBase58() };
       insight = `Remove spending limit ${action.spendingLimit.toBase58()}`;
     } else {
-      // Unknown action type
       return null;
     }
 
@@ -1336,33 +1118,23 @@ export class SquadsTransactionReader {
     };
   }
 
-  /**
-   * Format a single instruction as a GovernTransaction
-   */
   private formatInstruction(
     chain: ChainName,
     inst: ParsedInstruction,
-  ): GovernTransaction {
+  ): SquadsGovernTransaction {
     const to = `${inst.programName} (${inst.programId.toBase58()})`;
-    const insight = inst.insight || `${inst.instructionType} instruction`;
-
-    // Base transaction
-    const tx: GovernTransaction = {
+    const tx: SquadsGovernTransaction = {
       chain,
       to,
       type: inst.instructionType,
-      insight,
+      insight: inst.insight || `${inst.instructionType} instruction`,
     };
 
-    // Add args for important instructions
     switch (inst.instructionType) {
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
-        // Get remote chain for aliases
         const remoteChain = this.mpp.tryGetChainName(inst.data.domain);
-
-        // Format validators with aliases for display
         const validatorsWithAliases = remoteChain
           ? formatValidatorsWithAliases(remoteChain, inst.data.validators)
           : inst.data.validators;
@@ -1370,109 +1142,75 @@ export class SquadsTransactionReader {
         tx.args = {
           domain: inst.data.domain,
           threshold: inst.data.threshold,
-          validators: validatorsWithAliases, // Display with aliases
+          validators: validatorsWithAliases,
         };
 
-        // Verify configuration matches expected values (using plain validators)
         const verification = this.verifyConfiguration(
           chain,
           inst.data.domain,
           inst.data.threshold,
-          inst.data.validators, // Use plain validators for verification
+          inst.data.validators,
         );
 
         const chainInfo = remoteChain
           ? `${remoteChain} (${inst.data.domain})`
           : `${inst.data.domain}`;
 
-        if (verification.matches) {
-          tx.insight = `✅ matches expected config for ${chainInfo}`;
-        } else {
-          tx.insight = `❌ fatal mismatch: ${verification.issues.join(', ')}`;
-          // Add warning
-          if (!inst.warnings) {
-            inst.warnings = [];
-          }
-          inst.warnings.push(
-            `Configuration mismatch for ${chainInfo}: ${verification.issues.join(', ')}`,
-          );
-        }
+        tx.insight = verification.matches
+          ? `✅ matches expected config for ${chainInfo}`
+          : `❌ fatal mismatch: ${verification.issues.join(', ')}`;
         break;
       }
 
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
-      ]: {
-        tx.args = {
-          module: inst.data.newDefaultIsm,
-        };
+      ]:
+        tx.args = { module: inst.data.newDefaultIsm };
         break;
-      }
 
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
       ]:
-      // falls through
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
-      ]: {
-        tx.args = {
-          newOwner: inst.data.newOwner || null,
-        };
+      ]:
+        tx.args = { newOwner: inst.data.newOwner || null };
         break;
-      }
 
-      case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]: {
-        // Decode permissions bitmask into human-readable string
-        const permissionsStr = decodePermissions(inst.data.permissions.mask);
-
+      case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]:
         tx.args = {
           member: inst.data.newMember,
           permissions: {
             mask: inst.data.permissions.mask,
-            decoded: permissionsStr,
+            decoded: decodePermissions(inst.data.permissions.mask),
           },
         };
-
-        // Update insight to include decoded permissions
-        tx.insight = `${inst.insight} with ${permissionsStr} permissions`;
         break;
-      }
 
-      case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]: {
-        tx.args = {
-          member: inst.data.memberToRemove,
-        };
+      case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]:
+        tx.args = { member: inst.data.memberToRemove };
         break;
-      }
 
-      case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
-        tx.args = {
-          newThreshold: inst.data.newThreshold,
-        };
+      case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]:
+        tx.args = { newThreshold: inst.data.newThreshold };
         break;
-      }
 
-      // Warp Route instructions
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.EnrollRemoteRouter
       ]: {
         const chainName = inst.data.chainName || `domain ${inst.data.domain}`;
-        tx.args = {
-          [chainName]: inst.data.router || 'unenrolled',
-        };
+        tx.args = { [chainName]: inst.data.router || 'unenrolled' };
         break;
       }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.EnrollRemoteRouters
       ]: {
-        // Build a map of chainName -> router address
         const routers: Record<string, string> = {};
         if (inst.data.routers && Array.isArray(inst.data.routers)) {
-          for (const r of inst.data.routers) {
-            const key = r.chainName || `domain ${r.domain}`;
-            routers[key] = r.router || 'unenrolled';
+          for (const router of inst.data.routers) {
+            const key = router.chainName || `domain ${router.domain}`;
+            routers[key] = router.router || 'unenrolled';
           }
         }
         tx.args = routers;
@@ -1482,12 +1220,11 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetDestinationGasConfigs
       ]: {
-        // Build a map of chainName -> gas value
         const gasConfigs: Record<string, string> = {};
         if (inst.data.configs && Array.isArray(inst.data.configs)) {
-          for (const c of inst.data.configs) {
-            const key = c.chainName || `domain ${c.domain}`;
-            gasConfigs[key] = c.gas?.toString() ?? 'unset';
+          for (const config of inst.data.configs) {
+            const key = config.chainName || `domain ${config.domain}`;
+            gasConfigs[key] = config.gas?.toString() ?? 'unset';
           }
         }
         tx.args = gasConfigs;
@@ -1496,28 +1233,21 @@ export class SquadsTransactionReader {
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetInterchainSecurityModule
-      ]: {
-        tx.args = {
-          ism: inst.data.ism || null,
-        };
+      ]:
+        tx.args = { ism: inst.data.ism || null };
         break;
-      }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetInterchainGasPaymaster
-      ]: {
+      ]:
         tx.args = inst.data.igp || { igp: null };
         break;
-      }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.TransferOwnership
-      ]: {
-        tx.args = {
-          newOwner: inst.data.newOwner || null,
-        };
+      ]:
+        tx.args = { newOwner: inst.data.newOwner || null };
         break;
-      }
     }
 
     return tx;

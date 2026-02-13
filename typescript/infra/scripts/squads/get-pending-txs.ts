@@ -2,7 +2,15 @@ import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
 import yargs from 'yargs';
 
-import { ChainMap, SvmMultiProtocolSignerAdapter } from '@hyperlane-xyz/sdk';
+import {
+  ChainMap,
+  SquadTxStatus,
+  SvmMultiProtocolSignerAdapter,
+  executeProposal,
+  getPendingProposalsForChains,
+  logProposals,
+  squadsConfigs,
+} from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
   LogLevel,
@@ -10,14 +18,7 @@ import {
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
-import { squadsConfigs } from '../../src/config/squads.js';
 import { executePendingTransactions } from '../../src/tx/utils.js';
-import {
-  SquadTxStatus,
-  executeProposal,
-  getPendingProposalsForChains,
-  logProposals,
-} from '../../src/utils/squads.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import { withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';

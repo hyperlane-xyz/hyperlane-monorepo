@@ -11,7 +11,10 @@ import {
   ChainName,
   IsmType,
   MultiProtocolProvider,
+  SQUADS_PROPOSAL_OVERHEAD,
   SvmMultiProtocolSignerAdapter,
+  squadsConfigs,
+  submitProposalToSquads,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
@@ -20,9 +23,7 @@ import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
 import { chainsToSkip } from '../../src/config/chain.js';
 import { DeployEnvironment } from '../../src/config/environment.js';
-import { squadsConfigs } from '../../src/config/squads.js';
 import {
-  SQUADS_PROPOSAL_OVERHEAD,
   SvmMultisigConfigMap,
   batchInstructionsBySize,
   buildMultisigIsmInstructions,
@@ -33,7 +34,6 @@ import {
   multisigIsmConfigPath,
   serializeMultisigIsmDifference,
 } from '../../src/utils/sealevel.js';
-import { submitProposalToSquads } from '../../src/utils/squads.js';
 import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
 import { chainIsProtocol } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
