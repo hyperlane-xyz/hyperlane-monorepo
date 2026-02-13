@@ -117,6 +117,9 @@ export class TokenTransferIcaService extends BaseService {
         'Successfully executed token transfer ICA',
       );
 
+      // Fire-and-forget: trigger self-relay for the execution tx
+      this.triggerSelfRelay(data.chain, executionTxHash, logger);
+
       return res.json({
         success: true,
         validated: true,
@@ -146,14 +149,37 @@ export class TokenTransferIcaService extends BaseService {
         return false;
       }
 
+      logger.info(
+        { logsCount: receipt.logs.length, status: receipt.status },
+        'Receipt fetched',
+      );
+
+      const expectedIcaPadded = ethers.utils.hexZeroPad(
+        data.icaAddress.toLowerCase(),
+        32,
+      );
+
       const transferLog = receipt.logs.find((log) => {
-        return (
-          log.topics[0] === TRANSFER_EVENT_SIGNATURE &&
+        const t0Match = log.topics[0] === TRANSFER_EVENT_SIGNATURE;
+        const addrMatch =
           ethers.utils.getAddress(log.address) ===
-            ethers.utils.getAddress(data.tokenAddress) &&
-          log.topics[2] ===
-            ethers.utils.hexZeroPad(data.icaAddress.toLowerCase(), 32)
+          ethers.utils.getAddress(data.tokenAddress);
+        const icaMatch = log.topics[2] === expectedIcaPadded;
+
+        logger.info(
+          {
+            logAddress: log.address,
+            expectedToken: data.tokenAddress,
+            topic2: log.topics[2],
+            expectedIca: expectedIcaPadded,
+            t0Match,
+            addrMatch,
+            icaMatch,
+          },
+          'Checking log',
         );
+
+        return t0Match && addrMatch && icaMatch;
       });
 
       if (!transferLog) {
@@ -207,10 +233,20 @@ export class TokenTransferIcaService extends BaseService {
         data: call.data,
       }));
 
-      logger.info('Calling executeLocalUnauthenticated');
+      // Sum up msg.value needed across all calls (e.g. interchain gas payment)
+      const totalValue = normalizedCalls.reduce(
+        (sum, call) => sum.add(call.value),
+        ethers.BigNumber.from(0),
+      );
+
+      logger.info(
+        { totalValue: totalValue.toString() },
+        'Calling executeLocalUnauthenticated',
+      );
 
       const tx = await router.executeLocalUnauthenticated(normalizedCalls, {
         gasLimit: 500000,
+        value: totalValue,
       });
 
       const receipt = await tx.wait();
@@ -225,6 +261,62 @@ export class TokenTransferIcaService extends BaseService {
       logger.error({ error }, 'Error executing local unauthenticated ICA call');
       return null;
     }
+  }
+
+  private triggerSelfRelay(chain: string, txHash: string, logger: Logger) {
+    const port = process.env.SERVER_PORT ?? '3000';
+    const url = `http://localhost:${port}/selfRelay/relay`;
+
+    const doRelay = async () => {
+      let delay = 2_000;
+      const maxAttempts = 20;
+
+      for (let attempt = 1; attempt <= maxAttempts; attempt++) {
+        try {
+          const resp = await fetch(url, {
+            method: 'POST',
+            headers: { 'Content-Type': 'application/json' },
+            body: JSON.stringify({ originChain: chain, txHash }),
+          });
+          const data = await resp.json();
+
+          if (data.success && data.messages?.length > 0) {
+            logger.info(
+              { txHash, relayedMessages: data.messages },
+              'Self-relay succeeded after ICA execution',
+            );
+            return;
+          }
+
+          // Attestation pending or no messages yet — retry
+          logger.info(
+            { txHash, attempt, maxAttempts, status: resp.status },
+            'Self-relay not ready, retrying',
+          );
+        } catch (error) {
+          logger.warn(
+            { txHash, attempt, error: String(error) },
+            'Self-relay request failed, retrying',
+          );
+        }
+
+        await new Promise((r) => setTimeout(r, delay));
+        delay = Math.min(delay * 1.5, 30_000);
+      }
+
+      logger.warn(
+        { txHash },
+        'Self-relay timed out after ICA execution — standard relayer will handle',
+      );
+    };
+
+    // Fire and forget
+    doRelay().catch((err) =>
+      logger.error(
+        { err, txHash },
+        'Unexpected error in self-relay background task',
+      ),
+    );
   }
 
   private async validateIcaAddress(

@@ -23,6 +23,7 @@ export {
   RoutingMetadata,
 } from './metadata/index.js';
 export type {
+  LocalCcipReadResolver,
   MetadataBuilder,
   MetadataContext,
   StructuredMetadata,

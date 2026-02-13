@@ -52,12 +52,14 @@ export class HyperlaneRelayer {
 
   constructor({
     core,
+    metadataBuilder,
     caching = true,
     retryTimeout = 1000,
     whitelist = undefined,
     observer = {},
   }: {
     core: HyperlaneCore;
+    metadataBuilder?: BaseMetadataBuilder;
     caching?: boolean;
     retryTimeout?: number;
     whitelist?: ChainMap<Address[]>;
@@ -66,7 +68,7 @@ export class HyperlaneRelayer {
     this.core = core;
     this.retryTimeout = retryTimeout;
     this.logger = core.logger.child({ module: 'Relayer' });
-    this.metadataBuilder = new BaseMetadataBuilder(core);
+    this.metadataBuilder = metadataBuilder ?? new BaseMetadataBuilder(core);
     this.multiProvider = core.multiProvider;
     this.observer = observer;
     if (whitelist) {

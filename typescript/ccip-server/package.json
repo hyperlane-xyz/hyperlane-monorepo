@@ -30,6 +30,7 @@
     "@hyperlane-xyz/core": "workspace:*",
     "@hyperlane-xyz/metrics": "workspace:*",
     "@hyperlane-xyz/registry": "catalog:",
+    "@hyperlane-xyz/relayer": "workspace:*",
     "@hyperlane-xyz/sdk": "workspace:*",
     "@hyperlane-xyz/utils": "workspace:*",
     "@prisma/adapter-pg": "^7.3.0",

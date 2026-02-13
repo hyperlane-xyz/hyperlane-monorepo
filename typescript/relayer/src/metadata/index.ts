@@ -5,6 +5,7 @@ export {
 export { ArbL2ToL1Metadata, ArbL2ToL1MetadataBuilder } from './arbL2ToL1.js';
 export { BaseMetadataBuilder } from './builder.js';
 export { OffchainLookupMetadataBuilder } from './ccipread.js';
+export type { LocalCcipReadResolver } from './ccipread.js';
 export { decodeIsmMetadata } from './decode.js';
 export { MultisigMetadata, MultisigMetadataBuilder } from './multisig.js';
 export { NullMetadata, NullMetadataBuilder } from './null.js';

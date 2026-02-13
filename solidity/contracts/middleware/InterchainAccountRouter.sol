@@ -32,6 +32,8 @@ import {StandardHookMetadata} from "../hooks/libs/StandardHookMetadata.sol";
 // ============ External Imports ============
 import {Create2} from "@openzeppelin/contracts/utils/Create2.sol";
 import {Address} from "@openzeppelin/contracts/utils/Address.sol";
+import {IERC20} from "@openzeppelin/contracts/token/ERC20/IERC20.sol";
+import {IERC20Permit} from "@openzeppelin/contracts/token/ERC20/extensions/IERC20Permit.sol";
 
 /*
  * @title A contract that allows accounts on chain A to call contracts via a
@@ -737,6 +739,56 @@ contract InterchainAccountRouter is Router, AbstractRoutingIsm {
             address(0),
             _salt
         );
+        ica.multicall{value: msg.value}(_calls);
+    }
+
+    /**
+     * @notice Gasless variant: uses an ERC-2612 permit to pull tokens from the
+     * owner into the deterministic ICA, then executes the calls.
+     * @param _calls The sequence of calls to execute via the ICA
+     * @param _token ERC20Permit token address
+     * @param _owner Token owner who signed the permit
+     * @param _amount Amount approved via permit
+     * @param _deadline Permit deadline
+     * @param _v Signature v
+     * @param _r Signature r
+     * @param _s Signature s
+     */
+    function executeLocalUnauthenticatedWithPermit(
+        CallLib.Call[] calldata _calls,
+        address _token,
+        address _owner,
+        uint256 _amount,
+        uint256 _deadline,
+        uint8 _v,
+        bytes32 _r,
+        bytes32 _s
+    ) external payable {
+        // Execute permit: owner grants this router allowance
+        IERC20Permit(_token).permit(
+            _owner,
+            address(this),
+            _amount,
+            _deadline,
+            _v,
+            _r,
+            _s
+        );
+
+        // Derive ICA from calls (same as executeLocalUnauthenticated)
+        bytes32 _salt = keccak256(abi.encode(_calls));
+        OwnableMulticall ica = getDeployedInterchainAccount(
+            localDomain,
+            bytes32(0),
+            address(this).addressToBytes32(),
+            address(0),
+            _salt
+        );
+
+        // Fund ICA with tokens
+        IERC20(_token).transferFrom(_owner, address(ica), _amount);
+
+        // Execute ICA calls
         ica.multicall{value: msg.value}(_calls);
     }
 

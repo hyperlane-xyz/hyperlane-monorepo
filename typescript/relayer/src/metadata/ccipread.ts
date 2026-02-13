@@ -15,9 +15,15 @@ import type {
   MetadataContext,
 } from './types.js';
 
+export type LocalCcipReadResolver = (
+  context: MetadataContext<WithAddress<OffchainLookupIsmConfig>>,
+  callData: string,
+) => Promise<string | undefined>;
+
 export class OffchainLookupMetadataBuilder implements MetadataBuilder {
   readonly type = IsmType.OFFCHAIN_LOOKUP;
   private core: HyperlaneCore;
+  public localResolver?: LocalCcipReadResolver;
 
   constructor(core: HyperlaneCore) {
     this.core = core;
@@ -62,6 +68,13 @@ export class OffchainLookupMetadataBuilder implements MetadataBuilder {
     };
 
     const callDataHex = utils.hexlify(callData);
+
+    if (this.localResolver) {
+      const result = await this.localResolver(context, callDataHex);
+      if (result) {
+        return { ...baseResult, metadata: result };
+      }
+    }
 
     const signer = this.core.multiProvider.getSigner(
       message.parsed.destination,

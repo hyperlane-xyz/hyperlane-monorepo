@@ -12,6 +12,8 @@ import { CCTPService } from './services/CCTPService.js';
 import { CallCommitmentsService } from './services/CallCommitmentsService.js';
 import { HealthService } from './services/HealthService.js';
 import { OPStackService } from './services/OPStackService.js';
+import { GaslessPermitService } from './services/GaslessPermitService.js';
+import { SelfRelayService } from './services/SelfRelayService.js';
 import { TokenTransferIcaService } from './services/TokenTransferIcaService.js';
 import {
   PrometheusMetrics,
@@ -22,7 +24,9 @@ import {
 export const moduleRegistry: Record<string, ServiceFactory> = {
   callCommitments: CallCommitmentsService,
   cctp: CCTPService,
+  gaslessPermit: GaslessPermitService,
   opstack: OPStackService,
+  selfRelay: SelfRelayService,
   tokenTransferIca: TokenTransferIcaService,
 };
 

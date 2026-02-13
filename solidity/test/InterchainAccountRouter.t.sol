@@ -12,7 +12,7 @@ import {IInterchainSecurityModule} from "../contracts/interfaces/IInterchainSecu
 import {TestInterchainGasPaymaster} from "../contracts/test/TestInterchainGasPaymaster.sol";
 import {IPostDispatchHook} from "../contracts/interfaces/hooks/IPostDispatchHook.sol";
 import {CallLib, OwnableMulticall, InterchainAccountRouter, InterchainAccountMessage, CommitmentReadIsm} from "../contracts/middleware/InterchainAccountRouter.sol";
-import {ERC20Test} from "../contracts/test/ERC20Test.sol";
+import {ERC20Test, ERC20PermitTest} from "../contracts/test/ERC20Test.sol";
 import {AbstractPostDispatchHook} from "../contracts/hooks/libs/AbstractPostDispatchHook.sol";
 import {TestPostDispatchHook} from "../contracts/test/TestPostDispatchHook.sol";
 import {Message} from "../contracts/libs/Message.sol";
@@ -1387,5 +1387,273 @@ contract ExecuteLocalUnauthenticatedTest is InterchainAccountRouterTestBase {
         originIcaRouter.executeLocalUnauthenticated(calls);
         assertEq(target.value(icaAddr), 1 ether);
         assertEq(target.data(icaAddr), bytes32("hello"));
+    }
+}
+
+contract ExecuteLocalUnauthenticatedWithPermitTest is
+    InterchainAccountRouterTestBase
+{
+    using TypeCasts for address;
+
+    ERC20PermitTest internal permitToken;
+    uint256 internal ownerPrivateKey = 0xA11CE;
+    address internal owner;
+
+    function setUp() public override {
+        super.setUp();
+        owner = vm.addr(ownerPrivateKey);
+        permitToken = new ERC20PermitTest("TestPermit", "TPMT", 1e24, 18);
+        // Fund owner with 500e18 tokens
+        permitToken.transfer(owner, 500e18);
+    }
+
+    function _buildTransferCall(
+        address to,
+        uint256 amount
+    ) private view returns (CallLib.Call[] memory) {
+        CallLib.Call memory call = CallLib.Call(
+            address(permitToken).addressToBytes32(),
+            0,
+            abi.encodeCall(permitToken.transfer, (to, amount))
+        );
+        CallLib.Call[] memory calls = new CallLib.Call[](1);
+        calls[0] = call;
+        return calls;
+    }
+
+    function _computeIcaAddress(
+        CallLib.Call[] memory calls
+    ) private view returns (address) {
+        bytes32 salt = keccak256(abi.encode(calls));
+        return
+            address(
+                originIcaRouter.getLocalInterchainAccount(
+                    origin,
+                    bytes32(0),
+                    address(originIcaRouter).addressToBytes32(),
+                    address(0),
+                    salt
+                )
+            );
+    }
+
+    function _signPermit(
+        address spender,
+        uint256 amount,
+        uint256 deadline
+    ) private view returns (uint8 v, bytes32 r, bytes32 s) {
+        bytes32 PERMIT_TYPEHASH = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                owner,
+                spender,
+                amount,
+                permitToken.nonces(owner),
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                permitToken.DOMAIN_SEPARATOR(),
+                structHash
+            )
+        );
+        (v, r, s) = vm.sign(ownerPrivateKey, digest);
+    }
+
+    function test_withPermit_deploysAndExecutes() public {
+        uint256 amount = 100e18;
+        address recipient = address(0xBEEF);
+        CallLib.Call[] memory calls = _buildTransferCall(recipient, amount);
+        address icaAddr = _computeIcaAddress(calls);
+
+        uint256 ownerBalBefore = permitToken.balanceOf(owner);
+        uint256 deadline = block.timestamp + 1 hours;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(
+            address(originIcaRouter),
+            amount,
+            deadline
+        );
+
+        originIcaRouter.executeLocalUnauthenticatedWithPermit(
+            calls,
+            address(permitToken),
+            owner,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+
+        // Owner balance decreased by amount
+        assertEq(permitToken.balanceOf(owner), ownerBalBefore - amount);
+        // Recipient got the tokens
+        assertEq(permitToken.balanceOf(recipient), amount);
+        // ICA was deployed
+        assert(icaAddr.code.length > 0);
+        // ICA has no remaining tokens
+        assertEq(permitToken.balanceOf(icaAddr), 0);
+    }
+
+    function test_withPermit_revertsExpiredDeadline() public {
+        uint256 amount = 100e18;
+        CallLib.Call[] memory calls = _buildTransferCall(
+            address(0xBEEF),
+            amount
+        );
+        uint256 deadline = block.timestamp - 1;
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(
+            address(originIcaRouter),
+            amount,
+            deadline
+        );
+
+        vm.expectRevert("ERC20Permit: expired deadline");
+        originIcaRouter.executeLocalUnauthenticatedWithPermit(
+            calls,
+            address(permitToken),
+            owner,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+    }
+
+    function test_withPermit_revertsInvalidSignature() public {
+        uint256 amount = 100e18;
+        CallLib.Call[] memory calls = _buildTransferCall(
+            address(0xBEEF),
+            amount
+        );
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Sign with wrong key
+        uint256 wrongKey = 0xBAD;
+        bytes32 PERMIT_TYPEHASH = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                owner,
+                address(originIcaRouter),
+                amount,
+                permitToken.nonces(owner),
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                permitToken.DOMAIN_SEPARATOR(),
+                structHash
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(wrongKey, digest);
+
+        vm.expectRevert("ERC20Permit: invalid signature");
+        originIcaRouter.executeLocalUnauthenticatedWithPermit(
+            calls,
+            address(permitToken),
+            owner,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+    }
+
+    function test_withPermit_revertsInsufficientBalance() public {
+        // Owner only has 500e18 total, but we fund them with less for this test
+        address poorOwner = vm.addr(0xBEE);
+        permitToken.transfer(poorOwner, 50e18);
+
+        uint256 amount = 100e18;
+        CallLib.Call[] memory calls = _buildTransferCall(
+            address(0xBEEF),
+            amount
+        );
+        uint256 deadline = block.timestamp + 1 hours;
+
+        // Sign permit as poorOwner
+        bytes32 PERMIT_TYPEHASH = keccak256(
+            "Permit(address owner,address spender,uint256 value,uint256 nonce,uint256 deadline)"
+        );
+        bytes32 structHash = keccak256(
+            abi.encode(
+                PERMIT_TYPEHASH,
+                poorOwner,
+                address(originIcaRouter),
+                amount,
+                permitToken.nonces(poorOwner),
+                deadline
+            )
+        );
+        bytes32 digest = keccak256(
+            abi.encodePacked(
+                "\x19\x01",
+                permitToken.DOMAIN_SEPARATOR(),
+                structHash
+            )
+        );
+        (uint8 v, bytes32 r, bytes32 s) = vm.sign(0xBEE, digest);
+
+        vm.expectRevert("ERC20: transfer amount exceeds balance");
+        originIcaRouter.executeLocalUnauthenticatedWithPermit(
+            calls,
+            address(permitToken),
+            poorOwner,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+    }
+
+    function test_withPermit_noncePreventsReplay() public {
+        uint256 amount = 100e18;
+        address recipient = address(0xBEEF);
+        CallLib.Call[] memory calls = _buildTransferCall(recipient, amount);
+        uint256 deadline = block.timestamp + 1 hours;
+
+        (uint8 v, bytes32 r, bytes32 s) = _signPermit(
+            address(originIcaRouter),
+            amount,
+            deadline
+        );
+
+        // First call succeeds
+        originIcaRouter.executeLocalUnauthenticatedWithPermit(
+            calls,
+            address(permitToken),
+            owner,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
+
+        // Second call with same signature reverts (nonce consumed)
+        vm.expectRevert("ERC20Permit: invalid signature");
+        originIcaRouter.executeLocalUnauthenticatedWithPermit(
+            calls,
+            address(permitToken),
+            owner,
+            amount,
+            deadline,
+            v,
+            r,
+            s
+        );
     }
 }

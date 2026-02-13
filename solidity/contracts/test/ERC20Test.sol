@@ -2,6 +2,7 @@
 pragma solidity >=0.8.0;
 
 import "@openzeppelin/contracts/token/ERC20/ERC20.sol";
+import "@openzeppelin/contracts/token/ERC20/extensions/ERC20Permit.sol";
 import "@openzeppelin/contracts/access/Ownable.sol";
 import {Math} from "@openzeppelin/contracts/utils/math/Math.sol";
 
@@ -37,6 +38,32 @@ contract ERC20Test is ERC20 {
 
     function burnFrom(address account, uint256 amount) public {
         _burn(account, amount);
+    }
+}
+
+contract ERC20PermitTest is ERC20Permit {
+    uint8 public immutable _decimals;
+
+    constructor(
+        string memory name,
+        string memory symbol,
+        uint256 totalSupply,
+        uint8 __decimals
+    ) ERC20(name, symbol) ERC20Permit(name) {
+        _decimals = __decimals;
+        _mint(msg.sender, totalSupply);
+    }
+
+    function decimals() public view override returns (uint8) {
+        return _decimals;
+    }
+
+    function mint(uint256 amount) public {
+        _mint(msg.sender, amount);
+    }
+
+    function mintTo(address account, uint256 amount) public {
+        _mint(account, amount);
     }
 }
 
