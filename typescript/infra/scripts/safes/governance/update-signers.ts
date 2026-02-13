@@ -1,4 +1,3 @@
-import Safe from '@safe-global/protocol-kit';
 import yargs from 'yargs';
 
 import {
@@ -48,7 +47,7 @@ async function main() {
       continue;
     }
 
-    let safeSdk: Safe.default;
+    let safeSdk: Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
     try {
       ({ safeSdk } = await getSafeAndService(
         chain,

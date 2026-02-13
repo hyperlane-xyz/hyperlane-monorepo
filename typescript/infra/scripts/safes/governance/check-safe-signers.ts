@@ -1,4 +1,3 @@
-import Safe from '@safe-global/protocol-kit';
 import yargs from 'yargs';
 
 import { getOwnerChanges, getSafeAndService } from '@hyperlane-xyz/sdk';
@@ -47,7 +46,7 @@ async function main() {
 
   const chainViolations = await Promise.all(
     Object.entries(safes).map(async ([chain, safeAddress]) => {
-      let safeSdk: Safe.default;
+      let safeSdk: Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
       try {
         ({ safeSdk } = await getSafeAndService(
           chain,
