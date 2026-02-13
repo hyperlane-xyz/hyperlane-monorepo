@@ -334,9 +334,15 @@ export async function getSafeAndService(
     ) as ethers.Signer & {
       privateKey?: string;
     };
-    safeSigner =
-      multiProviderSigner.privateKey ??
-      (await multiProviderSigner.getAddress());
+    safeSigner = multiProviderSigner.privateKey;
+    if (!safeSigner) {
+      const signerAddress = await multiProviderSigner.getAddress();
+      throw new Error(
+        `Failed to initialize Safe signer for chain ${chain}. ` +
+          `MultiProvider signer ${signerAddress} does not expose a private key. ` +
+          `Pass an explicit Safe signer to getSafeAndService.`,
+      );
+    }
   }
   let safeSdk: Safe.default;
   try {
