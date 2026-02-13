@@ -1,0 +1,18 @@
+{
+  "solanamainnet": {
+    "type": "native",
+    "decimals": 9,
+    "name": "Solana",
+    "symbol": "SOL",
+    "owner": "9bRSUPjfS3xS6n5EfkJzHFTRDa4AHLda8BU2pP4HoWnf",
+    "uri": "https://raw.githubusercontent.com/hyperlane-xyz/hyperlane-registry/main/deployments/warp_routes/SOL/metadata.json",
+    "interchainGasPaymaster": "AkeHBbE5JkwVppujCQQ6WuxsVsJtruBAjUo6fDCFp6fF"
+  },
+  "celestia": {
+    "type": "synthetic",
+    "decimals": 9,
+    "name": "SOL",
+    "symbol": "SOL",
+    "foreignDeployment": "0x726f757465725f6170700000000000000000000000000002000000000000000a"
+  }
+}
