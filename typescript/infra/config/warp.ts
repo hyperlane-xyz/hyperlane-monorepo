@@ -63,7 +63,6 @@ import {
 import {
   getEclipseUSDCStrategyConfig,
   getEclipseUSDCWarpConfig,
-  getUSDCEclipseFileSubmitterStrategyConfig,
 } from './environments/mainnet3/warp/configGetters/getEclipseUSDCWarpConfig.js';
 import { getElectroneumUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getElectroneumUSDCWarpConfig.js';
 import {
@@ -225,7 +224,7 @@ export const strategyConfigGetterMap: Record<string, StrategyConfigGetter> = {
   [WarpRouteIds.BaseEthereumREZSTAGING]:
     getRezStagingGnosisSafeBuilderStrategyConfig,
   [WarpRouteIds.BsquaredUBTC]: getUbtcGnosisSafeBuilderStrategyConfigGenerator,
-  [WarpRouteIds.EclipseUSDC]: getUSDCEclipseFileSubmitterStrategyConfig,
+  [WarpRouteIds.EclipseUSDC]: getEclipseUSDCStrategyConfig,
   [WarpRouteIds.EclipseUSDCSTAGE]:
     getUSDCSTAGEEclipseFileSubmitterStrategyConfig,
   [WarpRouteIds.MainnetCCTPV1]: getCCTPV1StrategyConfig,
