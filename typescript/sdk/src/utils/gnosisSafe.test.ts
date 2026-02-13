@@ -91,6 +91,50 @@ describe('gnosisSafe utils', () => {
         '0x0000000000000000000000000000000000000003',
       ]);
     });
+
+    it('returns empty arrays when owners are unchanged', async () => {
+      const owners = [
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000002',
+      ];
+
+      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        owners,
+        owners,
+      );
+
+      expect(ownersToRemove).to.deep.equal([]);
+      expect(ownersToAdd).to.deep.equal([]);
+    });
+
+    it('handles multiple replacements', async () => {
+      const currentOwners = [
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000002',
+        '0x0000000000000000000000000000000000000003',
+        '0x0000000000000000000000000000000000000004',
+      ];
+      const expectedOwners = [
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000005',
+        '0x0000000000000000000000000000000000000006',
+        '0x0000000000000000000000000000000000000004',
+      ];
+
+      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        currentOwners,
+        expectedOwners,
+      );
+
+      expect(ownersToRemove).to.deep.equal([
+        '0x0000000000000000000000000000000000000002',
+        '0x0000000000000000000000000000000000000003',
+      ]);
+      expect(ownersToAdd).to.deep.equal([
+        '0x0000000000000000000000000000000000000005',
+        '0x0000000000000000000000000000000000000006',
+      ]);
+    });
   });
 
   describe(parseSafeTx.name, () => {
@@ -115,6 +159,43 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args[0]).to.equal(prevOwner);
       expect(decoded.args[1]).to.equal(oldOwner);
       expect(decoded.args[2]).to.equal(newOwner);
+    });
+
+    it('parses addOwnerWithThreshold tx calldata', () => {
+      const safeInterface = ISafe__factory.createInterface();
+      const newOwner = '0x0000000000000000000000000000000000000005';
+      const threshold = 2;
+      const data = safeInterface.encodeFunctionData('addOwnerWithThreshold', [
+        newOwner,
+        threshold,
+      ]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('addOwnerWithThreshold');
+      expect(decoded.args[0]).to.equal(newOwner);
+      expect(decoded.args[1].toNumber()).to.equal(threshold);
+    });
+
+    it('parses changeThreshold tx calldata', () => {
+      const safeInterface = ISafe__factory.createInterface();
+      const newThreshold = 3;
+      const data = safeInterface.encodeFunctionData('changeThreshold', [
+        newThreshold,
+      ]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args[0].toNumber()).to.equal(newThreshold);
     });
   });
 
