@@ -867,6 +867,7 @@ export {
   retrySafeApi,
   SafeCallData,
   SafeOwnerUpdateCall,
+  SafeServiceTransaction,
   SafeStatus,
   SafeTxStatus,
   safeApiKeyRequired,

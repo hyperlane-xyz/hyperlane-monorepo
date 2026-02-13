@@ -54,6 +54,21 @@ export type SafeStatus = {
   balance: string;
 };
 
+export type SafeServiceTransaction = {
+  to: Address;
+  data: string;
+  value: string;
+  proposer?: Address;
+  safeTxHash?: string;
+  [key: string]: unknown;
+};
+
+type SafeServicePendingTransactionsResponse = {
+  results: Array<{
+    safeTxHash: string;
+  }>;
+};
+
 export enum SafeTxStatus {
   NO_CONFIRMATIONS = '🔴',
   PENDING = '🟡',
@@ -454,7 +469,7 @@ export async function getSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeTxHash: string,
-): Promise<any> {
+): Promise<SafeServiceTransaction | undefined> {
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
   const headers = getSafeServiceHeaders(chain, multiProvider);
   const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
@@ -468,7 +483,7 @@ export async function getSafeTx(
       if (!txDetailsResponse.ok) {
         throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
       }
-      return txDetailsResponse.json();
+      return (await txDetailsResponse.json()) as SafeServiceTransaction;
     });
   } catch (error) {
     rootLogger.error(
@@ -507,7 +522,7 @@ export async function deleteSafeTx(
     return;
   }
 
-  const txDetails = await txDetailsResponse.json();
+  const txDetails = (await txDetailsResponse.json()) as SafeServiceTransaction;
   const proposer = txDetails.proposer;
   if (!proposer) {
     rootLogger.error(
@@ -613,7 +628,8 @@ export async function deleteAllPendingSafeTxs(
     return;
   }
 
-  const pendingTxs = await pendingTxsResponse.json();
+  const pendingTxs =
+    (await pendingTxsResponse.json()) as SafeServicePendingTransactionsResponse;
   for (const tx of pendingTxs.results) {
     await deleteSafeTx(chain, multiProvider, safeAddress, tx.safeTxHash);
   }
