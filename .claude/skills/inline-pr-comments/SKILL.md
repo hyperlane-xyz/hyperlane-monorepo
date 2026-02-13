@@ -15,35 +15,25 @@ Use this skill to post code review feedback as inline comments on specific lines
 
 ## Instructions
 
-Post a review with inline comments using `gh api`:
+Use MCP inline comment tool, not `gh api`:
 
-```bash
-gh api repos/{owner}/{repo}/pulls/{pr_number}/reviews --input - << 'EOF'
-{
-  "event": "COMMENT",
-  "body": "Optional summary of overall findings",
-  "comments": [
-    {
-      "path": "path/to/file.ts",
-      "line": 42,
-      "body": "Issue description and suggested fix"
-    },
-    {
-      "path": "another/file.ts",
-      "start_line": 10,
-      "line": 15,
-      "body": "Multi-line comment spanning lines 10-15"
-    }
-  ]
-}
-EOF
-```
+1. For each issue on a changed line, call:
+   - `mcp__github_inline_comment__create_inline_comment`
+2. Required args:
+   - `path`
+   - `body`
+   - `line` (single-line), or `startLine` + `line` (multi-line)
+   - `side: "RIGHT"` unless intentionally commenting old code
+3. After posting inline comments, update the Claude sticky summary comment with:
+   - `mcp__github_comment__update_claude_comment`
+4. Do **not** use `gh api` here; action tool permissions often block non-git Bash commands.
 
-### Comment Fields
+### Comment Fields (`create_inline_comment`)
 
 - `path` - File path relative to repo root
 - `line` - Line number in the NEW version of the file (right side of diff)
-- `start_line` + `line` - For comments spanning multiple lines
+- `startLine` + `line` - For comments spanning multiple lines
+- `side` - `RIGHT` (new code) or `LEFT` (old code), default to `RIGHT`
 - `body` - Markdown-formatted feedback
 
 ### Limitations
