@@ -6,6 +6,8 @@ export const TEMP_PATH = '/tmp'; // /temp gets removed at the end of all-test.sh
 
 export const ANVIL_KEY =
   '0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80';
+export const ANVIL_SECONDARY_KEY =
+  '0x59c6995e998f97a5a0044966f0945386db44d5a69ca0de26ea85f113d89e7c3f';
 export const ANVIL_DEPLOYER_ADDRESS =
   '0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266';
 export const E2E_TEST_BURN_ADDRESS =

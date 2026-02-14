@@ -23,9 +23,11 @@ import {
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { runEvmNode } from '../../nodes.js';
 import { createMockSafeApi } from '../commands/helpers.js';
 import {
   ANVIL_KEY,
+  ANVIL_SECONDARY_KEY,
   CHAIN_2_METADATA_PATH,
   CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
@@ -62,10 +64,92 @@ describe('hyperlane core apply e2e tests', async function () {
   let initialOwnerAddress: Address;
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
+  let startedNodes: { stop: () => Promise<void> }[] = [];
+
+  async function isRpcReady(rpcUrl: string): Promise<boolean> {
+    try {
+      const response = await fetch(rpcUrl, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({
+          id: 1,
+          jsonrpc: '2.0',
+          method: 'eth_chainId',
+          params: [],
+        }),
+      });
+      return response.ok;
+    } catch {
+      return false;
+    }
+  }
+
+  async function deployMockSafeAndTimelock() {
+    const provider = signer.provider!;
+    const deploySigner = new Wallet(ANVIL_SECONDARY_KEY, provider);
+    const deploySignerBalance = await provider.getBalance(deploySigner.address);
+    if (deploySignerBalance.lt(ethers.utils.parseEther('10'))) {
+      const fundTx = await signer.sendTransaction({
+        to: deploySigner.address,
+        value: ethers.utils.parseEther('100'),
+      });
+      await fundTx.wait();
+    }
+    const mockSafe = await new MockSafe__factory().connect(deploySigner).deploy(
+      [initialOwnerAddress],
+      1,
+    );
+    const timelock = await new TimelockController__factory()
+      .connect(deploySigner)
+      .deploy(
+        0,
+        [initialOwnerAddress],
+        [initialOwnerAddress],
+        ethers.constants.AddressZero,
+      );
+    return { mockSafe, timelock };
+  }
+
+  async function deployMockSafeOnly() {
+    const provider = signer.provider!;
+    const deploySigner = new Wallet(ANVIL_SECONDARY_KEY, provider);
+    const deploySignerBalance = await provider.getBalance(deploySigner.address);
+    if (deploySignerBalance.lt(ethers.utils.parseEther('10'))) {
+      const fundTx = await signer.sendTransaction({
+        to: deploySigner.address,
+        value: ethers.utils.parseEther('100'),
+      });
+      await fundTx.wait();
+    }
+    return new MockSafe__factory().connect(deploySigner).deploy(
+      [initialOwnerAddress],
+      1,
+    );
+  }
 
   before(async () => {
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain2RpcUrl = chain2Metadata.rpcUrls[0].http;
+    const chain3RpcUrl = chain3Metadata.rpcUrls[0].http;
+    if (!(await isRpcReady(chain2RpcUrl))) {
+      const chain2RpcPort = parseInt(new URL(chain2RpcUrl).port, 10);
+      startedNodes.push(
+        await runEvmNode({
+          rpcPort: chain2RpcPort,
+          chainId: chain2Metadata.chainId,
+        } as any),
+      );
+    }
+    if (!(await isRpcReady(chain3RpcUrl))) {
+      const chain3RpcPort = parseInt(new URL(chain3RpcUrl).port, 10);
+      startedNodes.push(
+        await runEvmNode({
+          rpcPort: chain3RpcPort,
+          chainId: chain3Metadata.chainId,
+        } as any),
+      );
+    }
 
     const provider = new ethers.providers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,
@@ -77,6 +161,11 @@ describe('hyperlane core apply e2e tests', async function () {
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
+  });
+
+  after(async () => {
+    await Promise.all(startedNodes.map((node) => node.stop()));
+    startedNodes = [];
   });
 
   it('should update the mailbox owner', async () => {
@@ -340,19 +429,7 @@ describe('hyperlane core apply e2e tests', async function () {
   it('should route same-chain core txs to multiple inferred submitters', async () => {
     await hyperlaneCore.deploy(ANVIL_KEY);
 
-    const [mockSafe, timelock] = await Promise.all([
-      new MockSafe__factory()
-        .connect(signer)
-        .deploy([initialOwnerAddress], 1),
-      new TimelockController__factory()
-        .connect(signer)
-        .deploy(
-          0,
-          [initialOwnerAddress],
-          [initialOwnerAddress],
-          ethers.constants.AddressZero,
-        ),
-    ]);
+    const { mockSafe, timelock } = await deployMockSafeAndTimelock();
 
     const mockSafeApiServer = await createMockSafeApi(
       readYamlOrJson(CHAIN_2_METADATA_PATH),
@@ -391,112 +468,107 @@ describe('hyperlane core apply e2e tests', async function () {
   it('should route same-chain core txs using explicit submitterOverrides strategy', async () => {
     const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
 
-    const [mockSafe, timelock] = await Promise.all([
-      new MockSafe__factory()
-        .connect(signer)
-        .deploy([initialOwnerAddress], 1),
-      new TimelockController__factory()
-        .connect(signer)
-        .deploy(
-          0,
-          [initialOwnerAddress],
-          [initialOwnerAddress],
-          ethers.constants.AddressZero,
-        ),
-    ]);
+    const { mockSafe, timelock } = await deployMockSafeAndTimelock();
+    const mockSafeApiServer = await createMockSafeApi(
+      readYamlOrJson(CHAIN_2_METADATA_PATH),
+      mockSafe.address,
+      initialOwnerAddress,
+      5,
+    );
 
-    const strategyPath = `${TEMP_PATH}/core-apply-submitter-overrides.yaml`;
-    writeYamlOrJson(strategyPath, {
-      [CHAIN_NAME_2]: {
-        submitter: {
-          type: TxSubmitterType.JSON_RPC,
-          chain: CHAIN_NAME_2,
-        },
-        submitterOverrides: {
-          [addresses.mailbox]: {
-            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+    try {
+
+      const strategyPath = `${TEMP_PATH}/core-apply-submitter-overrides.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
             chain: CHAIN_NAME_2,
-            safeAddress: mockSafe.address,
-            version: '1.0',
           },
-          [addresses.proxyAdmin!]: {
-            type: TxSubmitterType.TIMELOCK_CONTROLLER,
-            chain: CHAIN_NAME_2,
-            timelockAddress: timelock.address,
-            proposerSubmitter: {
-              type: TxSubmitterType.JSON_RPC,
+          submitterOverrides: {
+            [addresses.mailbox]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
               chain: CHAIN_NAME_2,
+              safeAddress: mockSafe.address,
+              version: '1.0',
+            },
+            [addresses.proxyAdmin!]: {
+              type: TxSubmitterType.TIMELOCK_CONTROLLER,
+              chain: CHAIN_NAME_2,
+              timelockAddress: timelock.address,
+              proposerSubmitter: {
+                type: TxSubmitterType.JSON_RPC,
+                chain: CHAIN_NAME_2,
+              },
             },
           },
         },
-      },
-    });
+      });
 
-    const config: CoreConfig = await hyperlaneCore.readConfig();
-    config.owner = randomAddress().toLowerCase();
-    config.proxyAdmin = {
-      ...config.proxyAdmin!,
-      owner: randomAddress().toLowerCase(),
-    };
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, config);
+      const config: CoreConfig = await hyperlaneCore.readConfig();
+      config.owner = randomAddress().toLowerCase();
+      config.proxyAdmin = {
+        ...config.proxyAdmin!,
+        owner: randomAddress().toLowerCase(),
+      };
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, config);
 
-    const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
-    expect(result.exitCode).to.equal(0);
-    expect(result.text()).to.include('gnosisSafeTxBuilder');
-    expect(result.text()).to.include('timelockController');
+      const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
+      expect(result.exitCode).to.equal(0);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
+      expect(result.text()).to.include('timelockController');
+    } finally {
+      await mockSafeApiServer.close();
+    }
   });
 
   it('should route core apply using uppercase 0X override target keys', async () => {
     const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
     const mailboxUpperPrefix = `0X${addresses.mailbox.slice(2)}`;
 
-    const mockSafe = await new MockSafe__factory()
-      .connect(signer)
-      .deploy([initialOwnerAddress], 1);
+    const mockSafe = await deployMockSafeOnly();
+    const mockSafeApiServer = await createMockSafeApi(
+      readYamlOrJson(CHAIN_2_METADATA_PATH),
+      mockSafe.address,
+      initialOwnerAddress,
+      5,
+    );
 
-    const strategyPath = `${TEMP_PATH}/core-apply-submitter-overrides-upper-prefix.yaml`;
-    writeYamlOrJson(strategyPath, {
-      [CHAIN_NAME_2]: {
-        submitter: {
-          type: TxSubmitterType.JSON_RPC,
-          chain: CHAIN_NAME_2,
-        },
-        submitterOverrides: {
-          [mailboxUpperPrefix]: {
-            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+    try {
+      const strategyPath = `${TEMP_PATH}/core-apply-submitter-overrides-upper-prefix.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
             chain: CHAIN_NAME_2,
-            safeAddress: mockSafe.address,
-            version: '1.0',
+          },
+          submitterOverrides: {
+            [mailboxUpperPrefix]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: CHAIN_NAME_2,
+              safeAddress: mockSafe.address,
+              version: '1.0',
+            },
           },
         },
-      },
-    });
+      });
 
-    const config: CoreConfig = await hyperlaneCore.readConfig();
-    config.owner = randomAddress().toLowerCase();
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, config);
+      const config: CoreConfig = await hyperlaneCore.readConfig();
+      config.owner = randomAddress().toLowerCase();
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, config);
 
-    const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
-    expect(result.exitCode).to.equal(0);
-    expect(result.text()).to.include('gnosisSafeTxBuilder');
+      const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
+      expect(result.exitCode).to.equal(0);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
+    } finally {
+      await mockSafeApiServer.close();
+    }
   });
 
   it('should prioritize selector-specific override over target-only override for core apply', async () => {
     const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
 
-    const [mockSafe, timelock] = await Promise.all([
-      new MockSafe__factory()
-        .connect(signer)
-        .deploy([initialOwnerAddress], 1),
-      new TimelockController__factory()
-        .connect(signer)
-        .deploy(
-          0,
-          [initialOwnerAddress],
-          [initialOwnerAddress],
-          ethers.constants.AddressZero,
-        ),
-    ]);
+    const { mockSafe, timelock } = await deployMockSafeAndTimelock();
 
     const strategyPath = `${TEMP_PATH}/core-apply-selector-overrides.yaml`;
     writeYamlOrJson(strategyPath, {
@@ -538,19 +610,7 @@ describe('hyperlane core apply e2e tests', async function () {
   it('should match selector-specific override with uppercase 0X selector prefix for core apply', async () => {
     const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
 
-    const [mockSafe, timelock] = await Promise.all([
-      new MockSafe__factory()
-        .connect(signer)
-        .deploy([initialOwnerAddress], 1),
-      new TimelockController__factory()
-        .connect(signer)
-        .deploy(
-          0,
-          [initialOwnerAddress],
-          [initialOwnerAddress],
-          ethers.constants.AddressZero,
-        ),
-    ]);
+    const { mockSafe, timelock } = await deployMockSafeAndTimelock();
 
     const strategyPath = `${TEMP_PATH}/core-apply-selector-overrides-upper-prefix.yaml`;
     writeYamlOrJson(strategyPath, {
