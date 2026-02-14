@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import yargs from 'yargs';
 
 import {
+  parseSquadProposal,
   SquadsProposalVoteError,
   SquadsProposalStatus,
   SvmMultiProtocolSignerAdapter,
@@ -58,15 +59,23 @@ async function main() {
   }
 
   const { proposal, multisig } = proposalData;
-  const status = proposal.status.__kind;
+  const parsedProposal = parseSquadProposal(proposal);
+  const { status, transactionIndex: proposalTransactionIndex } = parsedProposal;
+  if (proposalTransactionIndex !== transactionIndex) {
+    rootLogger.warn(
+      chalk.yellow(
+        `Requested transaction index ${transactionIndex} but proposal account reports index ${proposalTransactionIndex}. Using on-chain proposal index for this operation.`,
+      ),
+    );
+  }
   rootLogger.info(chalk.gray(`Found proposal with status: ${status}`));
 
   // Check if proposal is stale
   const staleTransactionIndex = Number(multisig.staleTransactionIndex);
-  if (transactionIndex < staleTransactionIndex) {
+  if (proposalTransactionIndex < staleTransactionIndex) {
     rootLogger.warn(
       chalk.yellow(
-        `⚠️  Proposal ${transactionIndex} is stale (current stale index: ${staleTransactionIndex})`,
+        `⚠️  Proposal ${proposalTransactionIndex} is stale (current stale index: ${staleTransactionIndex})`,
       ),
     );
     rootLogger.info(
@@ -79,20 +88,20 @@ async function main() {
   // Check if proposal is already executed, cancelled, or rejected
   if (status === SquadsProposalStatus.Executed) {
     throw new Error(
-      `Proposal ${transactionIndex} has already been executed and cannot be modified.`,
+      `Proposal ${proposalTransactionIndex} has already been executed and cannot be modified.`,
     );
   }
 
   if (status === SquadsProposalStatus.Cancelled) {
     rootLogger.warn(
-      chalk.yellow(`Proposal ${transactionIndex} is already cancelled.`),
+      chalk.yellow(`Proposal ${proposalTransactionIndex} is already cancelled.`),
     );
     return;
   }
 
   if (status === SquadsProposalStatus.Rejected) {
     rootLogger.warn(
-      chalk.yellow(`Proposal ${transactionIndex} is already rejected.`),
+      chalk.yellow(`Proposal ${proposalTransactionIndex} is already rejected.`),
     );
     return;
   }
@@ -105,7 +114,7 @@ async function main() {
     status !== SquadsProposalStatus.Approved
   ) {
     throw new Error(
-      `Proposal ${transactionIndex} is ${status} and cannot be modified by this script. Expected ${SquadsProposalStatus.Active} or ${SquadsProposalStatus.Approved}.`,
+      `Proposal ${proposalTransactionIndex} is ${status} and cannot be modified by this script. Expected ${SquadsProposalStatus.Active} or ${SquadsProposalStatus.Approved}.`,
     );
   }
 
@@ -134,19 +143,19 @@ async function main() {
     ? await buildSquadsProposalRejection(
         chain,
         mpp,
-        BigInt(transactionIndex),
+        BigInt(proposalTransactionIndex),
         signerAdapter.publicKey(),
       )
     : await buildSquadsProposalCancellation(
         chain,
         mpp,
-        BigInt(transactionIndex),
+        BigInt(proposalTransactionIndex),
         signerAdapter.publicKey(),
       );
 
   // Confirm with user
   const shouldProceed = await confirm({
-    message: `Are you sure you want to ${action} proposal ${transactionIndex} on ${chain}?`,
+    message: `Are you sure you want to ${action} proposal ${proposalTransactionIndex} on ${chain}?`,
     default: false,
   });
 
@@ -169,7 +178,7 @@ async function main() {
 
     rootLogger.info(
       chalk.green(
-        `Proposal ${transactionIndex} has been ${actionPastTense} successfully.`,
+        `Proposal ${proposalTransactionIndex} has been ${actionPastTense} successfully.`,
       ),
     );
 
@@ -181,21 +190,21 @@ async function main() {
       case SquadsProposalVoteError.AlreadyRejected:
         rootLogger.warn(
           chalk.yellow(
-            `Member has already rejected proposal ${transactionIndex}.`,
+            `Member has already rejected proposal ${proposalTransactionIndex}.`,
           ),
         );
         return;
       case SquadsProposalVoteError.AlreadyApproved:
         rootLogger.warn(
           chalk.yellow(
-            `Member has already approved proposal ${transactionIndex}.`,
+            `Member has already approved proposal ${proposalTransactionIndex}.`,
           ),
         );
         return;
       case SquadsProposalVoteError.AlreadyCancelled:
         rootLogger.warn(
           chalk.yellow(
-            `Proposal ${transactionIndex} has already been cancelled.`,
+            `Proposal ${proposalTransactionIndex} has already been cancelled.`,
           ),
         );
         return;
