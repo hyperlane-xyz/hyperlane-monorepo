@@ -8787,8 +8787,32 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedPlusEmptyHexLog = {
+      topics: ['0xmalformed-signed-plus-empty-hex-tostring'],
+      data: '0x',
+      blockNumber: {
+        toString: () => '+0x',
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedMinusEmptyHexLog = {
+      topics: ['0xmalformed-signed-minus-empty-hex-tostring'],
+      data: '0x',
+      blockNumber: {
+        toString: () => '-0X',
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const provider = {
-      getLogs: sinon.stub().resolves([validLog, malformedPlusLog, malformedMinusLog]),
+      getLogs: sinon.stub().resolves([
+        validLog,
+        malformedPlusLog,
+        malformedMinusLog,
+        malformedPlusEmptyHexLog,
+        malformedMinusEmptyHexLog,
+      ]),
     };
 
     const icaRouterStub = sinon
@@ -16349,6 +16373,24 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedPlusEmptyHexGrant = {
+      topics: ['0xgrant-malformed-signed-plus-empty-hex-tostring'],
+      data: '0x',
+      blockNumber: {
+        toString: () => '+0x',
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedMinusEmptyHexGrant = {
+      topics: ['0xgrant-malformed-signed-minus-empty-hex-tostring'],
+      data: '0x',
+      blockNumber: {
+        toString: () => '-0X',
+      },
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -16360,7 +16402,13 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (filter.topics?.[0] === 'RoleGranted') {
-          return [validGrant, malformedPlusGrant, malformedMinusGrant];
+          return [
+            validGrant,
+            malformedPlusGrant,
+            malformedMinusGrant,
+            malformedPlusEmptyHexGrant,
+            malformedMinusEmptyHexGrant,
+          ];
         }
         return [revoke];
       }),
