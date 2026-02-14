@@ -256,6 +256,16 @@ describe('gnosisSafe utils', () => {
 
       expect(callData.value).to.equal('42');
     });
+
+    it('serializes bigint values to decimal strings', () => {
+      const callData = createSafeTransactionData({
+        to: '0x00000000000000000000000000000000000000aa',
+        data: '0x1234',
+        value: 123n,
+      });
+
+      expect(callData.value).to.equal('123');
+    });
   });
 
   describe(getOwnerChanges.name, () => {
