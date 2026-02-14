@@ -10,7 +10,7 @@ import {
   buildSquadsProposalRejection,
   getSquadsChains,
   getSquadProposal,
-  parseSquadsProposalVoteError,
+  parseSquadsProposalVoteErrorFromError,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -22,15 +22,6 @@ import { getEnvironmentConfig } from '../core-utils.js';
 import { withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
-
-function getTransactionLogs(error: unknown): string[] | undefined {
-  if (!error || typeof error !== 'object') return undefined;
-  if (!('transactionLogs' in error)) return undefined;
-  const maybeLogs = (error as { transactionLogs?: unknown }).transactionLogs;
-  return Array.isArray(maybeLogs)
-    ? maybeLogs.filter((v): v is string => typeof v === 'string')
-    : undefined;
-}
 
 // CLI argument parsing
 async function main() {
@@ -180,32 +171,29 @@ async function main() {
     const explorerUrl = mpp.getExplorerTxUrl(chain, { hash: signature });
     rootLogger.info(chalk.gray(`Transaction: ${explorerUrl}`));
   } catch (error: unknown) {
-    const transactionLogs = getTransactionLogs(error);
-    if (transactionLogs) {
-      const parsedError = parseSquadsProposalVoteError(transactionLogs);
-      switch (parsedError) {
-        case SquadsProposalVoteError.AlreadyRejected:
-          rootLogger.warn(
-            chalk.yellow(
-              `Member has already rejected proposal ${transactionIndex}.`,
-            ),
-          );
-          return;
-        case SquadsProposalVoteError.AlreadyApproved:
-          rootLogger.warn(
-            chalk.yellow(
-              `Member has already approved proposal ${transactionIndex}.`,
-            ),
-          );
-          return;
-        case SquadsProposalVoteError.AlreadyCancelled:
-          rootLogger.warn(
-            chalk.yellow(
-              `Proposal ${transactionIndex} has already been cancelled.`,
-            ),
-          );
-          return;
-      }
+    const parsedError = parseSquadsProposalVoteErrorFromError(error);
+    switch (parsedError) {
+      case SquadsProposalVoteError.AlreadyRejected:
+        rootLogger.warn(
+          chalk.yellow(
+            `Member has already rejected proposal ${transactionIndex}.`,
+          ),
+        );
+        return;
+      case SquadsProposalVoteError.AlreadyApproved:
+        rootLogger.warn(
+          chalk.yellow(
+            `Member has already approved proposal ${transactionIndex}.`,
+          ),
+        );
+        return;
+      case SquadsProposalVoteError.AlreadyCancelled:
+        rootLogger.warn(
+          chalk.yellow(
+            `Proposal ${transactionIndex} has already been cancelled.`,
+          ),
+        );
+        return;
     }
 
     // Re-throw if not a handled error

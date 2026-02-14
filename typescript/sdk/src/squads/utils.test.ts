@@ -10,6 +10,7 @@ import {
   decodePermissions,
   getSquadTxStatus,
   isConfigTransaction,
+  parseSquadsProposalVoteErrorFromError,
   parseSquadsProposalVoteError,
   isVaultTransaction,
 } from './utils.js';
@@ -78,6 +79,27 @@ describe('squads utils', () => {
       expect(parseSquadsProposalVoteError(['some unrelated log'])).to.equal(
         undefined,
       );
+    });
+  });
+
+  describe(parseSquadsProposalVoteErrorFromError.name, () => {
+    it('parses known vote error from unknown error shape', () => {
+      const error = {
+        transactionLogs: ['Program log: AlreadyCancelled'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
+    it('returns undefined for malformed unknown error shape', () => {
+      expect(parseSquadsProposalVoteErrorFromError({})).to.equal(undefined);
+      expect(parseSquadsProposalVoteErrorFromError(null)).to.equal(undefined);
+      expect(
+        parseSquadsProposalVoteErrorFromError({
+          transactionLogs: ['ok', 123],
+        }),
+      ).to.equal(undefined);
     });
   });
 

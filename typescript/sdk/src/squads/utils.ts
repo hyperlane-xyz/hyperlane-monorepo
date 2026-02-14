@@ -97,6 +97,22 @@ export function parseSquadsProposalVoteError(
   return undefined;
 }
 
+/**
+ * Parse known Squads proposal vote/cancel errors from an unknown error object.
+ * Expects optional `transactionLogs` string array shape from Solana RPC failures.
+ */
+export function parseSquadsProposalVoteErrorFromError(
+  error: unknown,
+): SquadsProposalVoteError | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  if (!('transactionLogs' in error)) return undefined;
+  const maybeLogs = (error as { transactionLogs?: unknown }).transactionLogs;
+  if (!Array.isArray(maybeLogs)) return undefined;
+  const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
+  if (logs.length === 0) return undefined;
+  return parseSquadsProposalVoteError(logs);
+}
+
 export async function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
