@@ -3514,7 +3514,11 @@ describe('gnosisSafe utils', () => {
 
   describe(createSafeTransaction.name, () => {
     const exampleTransactions = [
-      { to: '0x00000000000000000000000000000000000000aa', data: '0x1234' },
+      {
+        to: '0x00000000000000000000000000000000000000aa',
+        data: '0x1234',
+        value: '0',
+      },
     ];
 
     it('forwards calls to Safe SDK createTransaction', async () => {
@@ -3541,6 +3545,7 @@ describe('gnosisSafe utils', () => {
             {
               to: '0x00000000000000000000000000000000000000aa',
               data: '0x1234',
+              value: '0',
             },
           ],
           onlyCalls: true,
@@ -3566,6 +3571,7 @@ describe('gnosisSafe utils', () => {
             {
               to: '0x00000000000000000000000000000000000000aa',
               data: '0x1234',
+              value: '0',
             },
           ],
           onlyCalls: false,
