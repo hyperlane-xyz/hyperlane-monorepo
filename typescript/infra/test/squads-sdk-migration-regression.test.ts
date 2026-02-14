@@ -109,6 +109,15 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
   return files;
 }
 
+function listSquadsScriptFiles(): string[] {
+  const squadsScriptsDir = path.join(INFRA_ROOT, 'scripts/squads');
+  return fs
+    .readdirSync(squadsScriptsDir, { withFileTypes: true })
+    .filter((entry) => entry.isFile() && entry.name.endsWith('.ts'))
+    .map((entry) => path.join('scripts/squads', entry.name))
+    .sort();
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps guarded squads script path lists valid and deduplicated', () => {
     expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(SQUADS_SCRIPT_PATHS.length);
@@ -131,6 +140,15 @@ describe('squads sdk migration regression', () => {
         `Expected formatting-guarded script to be in primary squads script list: ${scriptPath}`,
       ).to.equal(true);
     }
+  });
+
+  it('keeps guarded squads script list synchronized with scripts/squads directory', () => {
+    const discoveredSquadsScripts = listSquadsScriptFiles();
+    const configuredSquadsScripts = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
+      scriptPath.startsWith('scripts/squads/'),
+    ).sort();
+
+    expect(configuredSquadsScripts).to.deep.equal(discoveredSquadsScripts);
   });
 
   it('keeps infra squads regression script stable', () => {
