@@ -126,6 +126,10 @@ export function parseSquadsProposalVoteError(
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
 ): SquadsProposalVoteError | undefined {
+  if (typeof error === 'string') {
+    return parseSquadsProposalVoteError([error]);
+  }
+
   if (!error || typeof error !== 'object') {
     return undefined;
   }

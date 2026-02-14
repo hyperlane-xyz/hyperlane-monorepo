@@ -145,6 +145,14 @@ describe('squads utils', () => {
   });
 
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
+    it('parses known vote error from string error values', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError(
+          'custom program error: 0x177b',
+        ),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
+
     it('parses known vote error from unknown error shape', () => {
       const error = {
         transactionLogs: ['Program log: AlreadyCancelled'],
