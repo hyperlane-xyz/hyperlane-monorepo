@@ -96,11 +96,15 @@ async function main() {
           );
           return [`${chain}-${nonce}-${fullTxHash}`, result];
         } catch (error) {
+          const errorMessage = String(error);
           rootLogger.error(
             chalk.red(`Error parsing proposal ${nonce} on ${chain}:`),
             error,
           );
-          return [`${chain}-${nonce}-${fullTxHash}`, { chain, error }];
+          return [
+            `${chain}-${nonce}-${fullTxHash}`,
+            { chain, error: errorMessage },
+          ];
         }
       },
     ),
