@@ -118,6 +118,7 @@ function cacheKey(chain: ChainName, address: Address): string {
 
 const MAX_LOG_POSITION_STRING_LENGTH = 256;
 const MAX_LOG_POSITION_RAW_STRING_LENGTH = 4096;
+const MAX_HYPERLANE_DOMAIN_ID = 0xffffffff;
 const LOG_POSITION_HEX_STRING_REGEX = /^0x[0-9a-f]+$/i;
 const LOG_POSITION_DECIMAL_STRING_REGEX = /^[0-9]+$/;
 
@@ -558,7 +559,8 @@ async function inferIcaSubmitterFromAccount({
       const normalizedOriginDomain = Number(parsed.args.origin);
       if (
         !Number.isSafeInteger(normalizedOriginDomain) ||
-        normalizedOriginDomain < 0
+        normalizedOriginDomain < 0 ||
+        normalizedOriginDomain > MAX_HYPERLANE_DOMAIN_ID
       ) {
         continue;
       }
