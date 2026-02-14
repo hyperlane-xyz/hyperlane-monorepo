@@ -120,6 +120,18 @@ describe('squads error-format', () => {
       ).to.equal('Error: boom\n at sample.ts:1:1');
     });
 
+    it('falls back to message when preferred Error stack is low-signal', () => {
+      const error = new Error('boom');
+      error.stack = 'Error';
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorStackForErrorInstances: true,
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('boom');
+    });
+
     it('prefers object stack then message before final fallback', () => {
       expect(
         stringifyUnknownSquadsError({
@@ -151,6 +163,23 @@ describe('squads error-format', () => {
           },
         }),
       ).to.equal('{"foo":"bar"}');
+    });
+
+    it('ignores low-signal object formatter outputs and falls back', () => {
+      const formatted = stringifyUnknownSquadsError(
+        {
+          toString() {
+            return 'custom object error';
+          },
+        },
+        {
+          formatObject() {
+            return '[object CustomErrorLike]';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('custom object error');
     });
 
     it('falls back when object formatter throws', () => {
