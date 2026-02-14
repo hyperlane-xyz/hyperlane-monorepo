@@ -3478,6 +3478,54 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args.operation).to.equal(0);
     });
 
+    it('parses execTransactionFromModule tx calldata', () => {
+      const moduleInterface = new ethers.utils.Interface([
+        'function execTransactionFromModule(address to,uint256 value,bytes data,uint8 operation)',
+      ]);
+      const data = moduleInterface.encodeFunctionData(
+        'execTransactionFromModule',
+        ['0x00000000000000000000000000000000000000aa', 5, '0x1234', 1],
+      );
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('execTransactionFromModule');
+      expect(decoded.args.to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000aa'),
+      );
+      expect(decoded.args.value.toNumber()).to.equal(5);
+      expect(decoded.args.data).to.equal('0x1234');
+      expect(decoded.args.operation).to.equal(1);
+    });
+
+    it('parses execTransactionFromModuleReturnData tx calldata', () => {
+      const moduleInterface = new ethers.utils.Interface([
+        'function execTransactionFromModuleReturnData(address to,uint256 value,bytes data,uint8 operation) returns (bool success, bytes returnData)',
+      ]);
+      const data = moduleInterface.encodeFunctionData(
+        'execTransactionFromModuleReturnData',
+        ['0x00000000000000000000000000000000000000bb', 9, '0xabcd', 0],
+      );
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('execTransactionFromModuleReturnData');
+      expect(decoded.args.to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000bb'),
+      );
+      expect(decoded.args.value.toNumber()).to.equal(9);
+      expect(decoded.args.data).to.equal('0xabcd');
+      expect(decoded.args.operation).to.equal(0);
+    });
+
     it('throws for calldata that does not match the safe interface', () => {
       expect(() =>
         parseSafeTx({
