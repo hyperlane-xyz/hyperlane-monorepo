@@ -2,8 +2,6 @@ import { PublicKey } from '@solana/web3.js';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { ChainName } from '../types.js';
-
 export type SquadConfig = {
   programId: Address;
   multisigPda: Address;
@@ -38,7 +36,7 @@ export const squadsConfigs = {
     multisigPda: 'XgeE3uXEy5bKPbgYv3D9pWovhu3PWrxt3RR5bdp9RkW',
     vault: '4chV16Dea6CW6xyQcHj9RPwBZitfxYgpafkSoZgzy4G8',
   },
-} as const satisfies Record<ChainName, SquadConfig>;
+} as const satisfies Record<string, SquadConfig>;
 
 export type SquadsChainName = keyof typeof squadsConfigs;
 
@@ -88,7 +86,7 @@ export function assertIsSquadsChain(
   );
 }
 
-export function getSquadsKeys(chainName: ChainName): SquadsKeys {
+export function getSquadsKeys(chainName: string): SquadsKeys {
   assertIsSquadsChain(chainName);
   const config = squadsConfigs[chainName];
 
