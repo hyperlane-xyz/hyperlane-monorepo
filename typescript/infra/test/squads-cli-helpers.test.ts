@@ -1,5 +1,5 @@
 import { expect } from 'chai';
-import yargs from 'yargs';
+import yargs, { type Argv } from 'yargs';
 
 import { ChainName, getSquadsChains } from '@hyperlane-xyz/sdk';
 
@@ -9,6 +9,17 @@ import {
   withSquadsChain,
   withSquadsChains,
 } from '../scripts/squads/cli-helpers.js';
+
+function parseArgs(args: Argv) {
+  return args
+    .exitProcess(false)
+    .showHelpOnFail(false)
+    .fail((message, error) => {
+      if (error) throw error;
+      throw new Error(message);
+    })
+    .parse();
+}
 
 describe('squads cli helpers', () => {
   it('resolves to configured squads chains when undefined', () => {
@@ -74,7 +85,7 @@ describe('squads cli helpers', () => {
   it('parses chain from c alias', async () => {
     const chain = getSquadsChains()[0];
 
-    const parsedArgs = await withSquadsChain(yargs(['-c', chain])).parse();
+    const parsedArgs = await parseArgs(withSquadsChain(yargs(['-c', chain])));
 
     expect(parsedArgs.chain).to.equal(chain);
   });
@@ -82,9 +93,7 @@ describe('squads cli helpers', () => {
   it('rejects non-squads chain via chain parser choices', async () => {
     let parserError: Error | undefined;
     try {
-      await withSquadsChain(
-        yargs(['--chain', 'ethereum']).exitProcess(false),
-      ).parse();
+      await parseArgs(withSquadsChain(yargs(['--chain', 'ethereum'])));
     } catch (error) {
       parserError = error as Error;
     }
@@ -96,7 +105,7 @@ describe('squads cli helpers', () => {
   it('requires chain when using required chain parser helper', async () => {
     let parserError: Error | undefined;
     try {
-      await withRequiredSquadsChain(yargs([]).exitProcess(false)).parse();
+      await parseArgs(withRequiredSquadsChain(yargs([])));
     } catch (error) {
       parserError = error as Error;
     }
@@ -108,9 +117,9 @@ describe('squads cli helpers', () => {
   it('deduplicates chains parsed from repeated args', async () => {
     const chain = getSquadsChains()[0];
 
-    const parsedArgs = await withSquadsChains(
-      yargs(['--chains', chain, '--chains', chain]),
-    ).parse();
+    const parsedArgs = await parseArgs(
+      withSquadsChains(yargs(['--chains', chain, '--chains', chain])),
+    );
 
     expect(parsedArgs.chains).to.deep.equal([chain]);
   });
@@ -118,16 +127,18 @@ describe('squads cli helpers', () => {
   it('deduplicates long-form chains while preserving first-seen order', async () => {
     const [firstChain, secondChain] = getSquadsChains();
 
-    const parsedArgs = await withSquadsChains(
-      yargs([
-        '--chains',
-        firstChain,
-        '--chains',
-        secondChain,
-        '--chains',
-        firstChain,
-      ]),
-    ).parse();
+    const parsedArgs = await parseArgs(
+      withSquadsChains(
+        yargs([
+          '--chains',
+          firstChain,
+          '--chains',
+          secondChain,
+          '--chains',
+          firstChain,
+        ]),
+      ),
+    );
 
     expect(parsedArgs.chains).to.deep.equal([firstChain, secondChain]);
   });
@@ -135,9 +146,11 @@ describe('squads cli helpers', () => {
   it('parses chains from c alias and deduplicates', async () => {
     const [firstChain, secondChain] = getSquadsChains();
 
-    const parsedArgs = await withSquadsChains(
-      yargs(['-c', firstChain, '-c', secondChain, '-c', firstChain]),
-    ).parse();
+    const parsedArgs = await parseArgs(
+      withSquadsChains(
+        yargs(['-c', firstChain, '-c', secondChain, '-c', firstChain]),
+      ),
+    );
 
     expect(parsedArgs.chains).to.deep.equal([firstChain, secondChain]);
   });
@@ -145,9 +158,7 @@ describe('squads cli helpers', () => {
   it('rejects non-squads chain via chains parser choices', async () => {
     let parserError: Error | undefined;
     try {
-      await withSquadsChains(
-        yargs(['--chains', 'ethereum']).exitProcess(false),
-      ).parse();
+      await parseArgs(withSquadsChains(yargs(['--chains', 'ethereum'])));
     } catch (error) {
       parserError = error as Error;
     }
