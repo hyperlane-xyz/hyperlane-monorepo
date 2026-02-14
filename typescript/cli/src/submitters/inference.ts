@@ -41,7 +41,7 @@ type InferredSubmitter = SubmitterMetadata;
 type Cache = {
   safeByChainAndAddress: Map<string, boolean>;
   timelockByChainAndAddress: Map<string, boolean>;
-  icaByChainAndAddress: Map<string, InferredSubmitter>;
+  icaByChainAndAddress: Map<string, InferredSubmitter | null>;
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
   signerByChain: Map<ChainName, boolean>;
   protocolIsEthereumByChain: Map<string, boolean>;
@@ -245,15 +245,16 @@ async function inferIcaSubmitterFromAccount({
   }
 
   const cacheId = cacheKey(destinationChain, accountAddress);
-  const cached = cache.icaByChainAndAddress.get(cacheId);
-  if (cached) {
-    return cached;
+  if (cache.icaByChainAndAddress.has(cacheId)) {
+    const cached = cache.icaByChainAndAddress.get(cacheId);
+    return cached ?? null;
   }
 
   const registryAddresses = await context.registry.getAddresses();
   const destinationAddresses = registryAddresses[destinationChain];
   const destinationRouterAddress = destinationAddresses?.interchainAccountRouter;
   if (!destinationRouterAddress) {
+    cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
 
@@ -343,6 +344,7 @@ async function inferIcaSubmitterFromAccount({
       }
     }
 
+    cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
 
@@ -356,10 +358,12 @@ async function inferIcaSubmitterFromAccount({
   try {
     originChain = context.multiProvider.getChainName(originDomain);
   } catch {
+    cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
 
   if (!hasSignerForChain(context, cache, originChain)) {
+    cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
 
