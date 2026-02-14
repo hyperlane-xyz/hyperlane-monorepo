@@ -305,4 +305,85 @@ describe('squads transaction reader', () => {
       },
     ]);
   });
+
+  it('records exactly one error when config transaction read fails', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: () => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    readerAny.readConfigTransaction = async () => {
+      throw new Error('config read failed');
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal('config read failed');
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: 'Error: config read failed',
+      },
+    ]);
+  });
+
+  it('records exactly one error when proposal data lookup fails', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => {
+      throw new Error('Proposal 5 not found on solanamainnet');
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Proposal 5 not found on solanamainnet',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: 'Error: Proposal 5 not found on solanamainnet',
+      },
+    ]);
+  });
 });
