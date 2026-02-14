@@ -15,6 +15,7 @@ import {
   isConfigTransaction,
   parseSquadsProposalVoteError,
   parseSquadsProposalVoteErrorFromError,
+  parseSquadProposal,
   isVaultTransaction,
 } from './utils.js';
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -71,6 +72,26 @@ describe('squads utils', () => {
       expect(getSquadTxStatus('Executed', 3, 3, 9, 10)).to.equal(
         SquadTxStatus.EXECUTED,
       );
+    });
+  });
+
+  describe(parseSquadProposal.name, () => {
+    it('extracts status, vote counts, and numeric transaction index', () => {
+      const parsed = parseSquadProposal({
+        status: { __kind: SquadsProposalStatus.Active },
+        approved: [{}, {}, {}],
+        rejected: [{}],
+        cancelled: [{}, {}],
+        transactionIndex: 42n,
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed).to.deep.equal({
+        status: SquadsProposalStatus.Active,
+        approvals: 3,
+        rejections: 1,
+        cancellations: 2,
+        transactionIndex: 42,
+      });
     });
   });
 

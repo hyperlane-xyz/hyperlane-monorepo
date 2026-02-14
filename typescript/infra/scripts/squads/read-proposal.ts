@@ -5,6 +5,7 @@ import {
   SquadTxStatus,
   SquadsProposalStatus,
   getSquadTxStatus,
+  parseSquadProposal,
   getSquadProposal,
   getSquadsKeys,
 } from '@hyperlane-xyz/sdk';
@@ -59,6 +60,7 @@ async function main() {
     }
 
     const { proposal, multisig, proposalPda } = proposalData;
+    const parsedProposal = parseSquadProposal(proposal);
 
     // Display basic proposal information
     rootLogger.info(chalk.green.bold('\n📋 Proposal Information:'));
@@ -74,8 +76,7 @@ async function main() {
     const staleTransactionIndex = Number(multisig.staleTransactionIndex);
     const currentTransactionIndex = Number(multisig.transactionIndex);
     const timeLock = Number(multisig.timeLock);
-    const status = proposal.status.__kind;
-    const approvals = proposal.approved.length;
+    const { status, approvals, rejections, cancellations } = parsedProposal;
     const derivedStatus = getSquadTxStatus(
       status,
       approvals,
@@ -100,11 +101,9 @@ async function main() {
 
     // Display voting information
     rootLogger.info(chalk.green.bold('\n🗳️  Voting Information:'));
-    rootLogger.info(chalk.white(`  Approvals: ${proposal.approved.length}`));
-    rootLogger.info(chalk.white(`  Rejections: ${proposal.rejected.length}`));
-    rootLogger.info(
-      chalk.white(`  Cancellations: ${proposal.cancelled.length}`),
-    );
+    rootLogger.info(chalk.white(`  Approvals: ${approvals}`));
+    rootLogger.info(chalk.white(`  Rejections: ${rejections}`));
+    rootLogger.info(chalk.white(`  Cancellations: ${cancellations}`));
     rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
 
     if (derivedStatus === SquadTxStatus.APPROVED) {
