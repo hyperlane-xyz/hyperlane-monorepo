@@ -1,6 +1,6 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
-import { encodeFunctionData, getAddress, parseAbi } from 'viem';
+import { type Address, encodeFunctionData, getAddress, parseAbi } from 'viem';
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
 
@@ -31,6 +31,11 @@ import {
   safeApiKeyRequired,
   updateSafeOwner,
 } from './gnosisSafe.js';
+
+function getSafeApiPrototype(): Record<string, unknown> {
+  return (SafeApiKit as unknown as { prototype: Record<string, unknown> })
+    .prototype;
+}
 
 describe('gnosisSafe utils', () => {
   const safeInterface = new ethers.utils.Interface([
@@ -5139,10 +5144,7 @@ describe('gnosisSafe utils', () => {
 
   describe(executeTx.name, () => {
     const safeModule = Safe as unknown as { init: unknown };
-    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
-      string,
-      unknown
-    >;
+    const safeApiPrototype = getSafeApiPrototype();
     const originalSafeInit = safeModule.init;
     const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
     const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
@@ -5448,10 +5450,7 @@ describe('gnosisSafe utils', () => {
 
   describe(canProposeSafeTransactions.name, () => {
     const safeModule = Safe as unknown as { init: unknown };
-    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
-      string,
-      unknown
-    >;
+    const safeApiPrototype = getSafeApiPrototype();
     const originalSafeInit = safeModule.init;
     const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
     const originalGetSafeDelegates = safeApiPrototype.getSafeDelegates;
@@ -5562,10 +5561,7 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(getSafeAndService.name, () => {
-    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
-      string,
-      unknown
-    >;
+    const safeApiPrototype = getSafeApiPrototype();
     const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
     const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
     const safeModule = Safe as unknown as { init: unknown };
@@ -5633,10 +5629,7 @@ describe('gnosisSafe utils', () => {
 
   describe(getPendingTxsForChains.name, () => {
     const safeModule = Safe as unknown as { init: unknown };
-    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
-      string,
-      unknown
-    >;
+    const safeApiPrototype = getSafeApiPrototype();
     const originalSafeInit = safeModule.init;
     const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
     const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
@@ -5854,6 +5847,54 @@ describe('gnosisSafe utils', () => {
 
       expect(statuses).to.have.lengthOf(1);
       expect(statuses[0].chain).to.equal('test');
+    });
+
+    it('skips duplicate chain entries after normalization', async () => {
+      let pendingCalls = 0;
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => {
+        pendingCalls += 1;
+        return {
+          results: [
+            {
+              nonce: '1',
+              submissionDate: '2026-01-01T00:00:00Z',
+              safeTxHash: `0x${'aa'.repeat(32)}`,
+              confirmations: [],
+            },
+          ],
+        };
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['  test  ', 'test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.have.lengthOf(1);
+      expect(statuses[0].chain).to.equal('test');
+      expect(pendingCalls).to.equal(1);
     });
 
     it('skips entries when confirmations length accessor is inaccessible', async () => {

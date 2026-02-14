@@ -2565,16 +2565,17 @@ export async function getPendingTxsForChains(
     Number.isSafeInteger(chainCount) && chainCount >= 0,
     `Safe chain list length is invalid: ${stringifyValueForError(chainCount)}`,
   );
-  const txs: SafeStatus[] = [];
-  await Promise.all(
+  const seenChains = new Set<string>();
+  const txsByChain = await Promise.all(
     chains.map(async (chain, index) => {
+      const chainTxs: SafeStatus[] = [];
       if (typeof chain !== 'string') {
         rootLogger.error(
           chalk.red.bold(
             `Safe chain entry must be a string at index ${index}: ${stringifyValueForError(chain)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       const chainName = chain.trim();
       if (chainName.length === 0) {
@@ -2583,8 +2584,17 @@ export async function getPendingTxsForChains(
             `Safe chain entry must be non-empty at index ${index}: ${stringifyValueForError(chain)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
+      if (seenChains.has(chainName)) {
+        rootLogger.info(
+          chalk.gray.italic(
+            `Skipping duplicate safe chain entry ${chainName} at index ${index}`,
+          ),
+        );
+        return chainTxs;
+      }
+      seenChains.add(chainName);
       let safeAddress: unknown;
       try {
         safeAddress = safes[chainName];
@@ -2592,11 +2602,11 @@ export async function getPendingTxsForChains(
         rootLogger.error(
           chalk.red.bold(`Safe address is inaccessible for ${chainName}`),
         );
-        return;
+        return chainTxs;
       }
       if (!safeAddress) {
         rootLogger.error(chalk.red.bold(`No safe found for ${chainName}`));
-        return;
+        return chainTxs;
       }
       let normalizedSafeAddress: Address;
       try {
@@ -2607,7 +2617,7 @@ export async function getPendingTxsForChains(
             `Invalid safe configured for ${chainName}: ${stringifyValueForError(error)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
 
       if (chainName === 'endurance') {
@@ -2616,7 +2626,7 @@ export async function getPendingTxsForChains(
             `Skipping chain ${chainName} as it does not have a functional safe API`,
           ),
         );
-        return;
+        return chainTxs;
       }
 
       let safeSdk: Safe.default;
@@ -2633,7 +2643,7 @@ export async function getPendingTxsForChains(
             `Skipping chain ${chain} as there was an error getting the safe service: ${error}`,
           ),
         );
-        return;
+        return chainTxs;
       }
 
       let thresholdRaw: unknown;
@@ -2645,7 +2655,7 @@ export async function getPendingTxsForChains(
             `Failed to fetch threshold for safe ${normalizedSafeAddress} on ${chain}: ${error}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       let threshold: number;
       try {
@@ -2655,7 +2665,7 @@ export async function getPendingTxsForChains(
         );
       } catch (error) {
         rootLogger.error(chalk.red(String(error)));
-        return;
+        return chainTxs;
       }
       if (threshold === 0) {
         rootLogger.error(
@@ -2663,7 +2673,7 @@ export async function getPendingTxsForChains(
             `Safe threshold must be a positive integer on ${chain}: ${stringifyValueForError(thresholdRaw)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
 
       let pendingTxs: unknown;
@@ -2682,7 +2692,7 @@ export async function getPendingTxsForChains(
             `Failed to fetch pending transactions for safe ${normalizedSafeAddress} on ${chain} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
           ),
         );
-        return;
+        return chainTxs;
       }
 
       if (!pendingTxs || typeof pendingTxs !== 'object') {
@@ -2691,7 +2701,7 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction payload must be an object on ${chain}: ${stringifyValueForError(pendingTxs)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       let pendingTxResults: unknown;
       try {
@@ -2703,7 +2713,7 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction list is inaccessible on ${chain}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       if (!Array.isArray(pendingTxResults)) {
         rootLogger.error(
@@ -2711,7 +2721,7 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction list must be an array on ${chain}: ${stringifyValueForError(pendingTxResults)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       let pendingTxCount = 0;
       try {
@@ -2722,7 +2732,7 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction list length is inaccessible on ${chain}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       if (!Number.isSafeInteger(pendingTxCount) || pendingTxCount < 0) {
         rootLogger.error(
@@ -2730,7 +2740,7 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction list length is invalid on ${chain}: ${stringifyValueForError(pendingTxCount)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       if (pendingTxCount === 0) {
         rootLogger.info(
@@ -2738,7 +2748,7 @@ export async function getPendingTxsForChains(
             `No pending transactions found for safe ${normalizedSafeAddress} on ${chain}`,
           ),
         );
-        return;
+        return chainTxs;
       }
 
       let safeBalanceRaw: unknown;
@@ -2750,7 +2760,7 @@ export async function getPendingTxsForChains(
             `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chain}: ${error}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       let balance: BigNumber;
       try {
@@ -2760,7 +2770,7 @@ export async function getPendingTxsForChains(
         );
       } catch (error) {
         rootLogger.error(chalk.red(String(error)));
-        return;
+        return chainTxs;
       }
       let nativeToken: unknown;
       try {
@@ -2771,7 +2781,7 @@ export async function getPendingTxsForChains(
             `Failed to fetch native token metadata for ${chainName}: ${error}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       if (nativeToken === null || typeof nativeToken !== 'object') {
         rootLogger.error(
@@ -2779,7 +2789,7 @@ export async function getPendingTxsForChains(
             `Native token metadata must be an object for ${chain}: ${stringifyValueForError(nativeToken)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       let nativeTokenSymbol: unknown;
       let nativeTokenDecimals: unknown;
@@ -2795,7 +2805,7 @@ export async function getPendingTxsForChains(
             `Native token metadata fields are inaccessible for ${chain}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       if (
         typeof nativeTokenSymbol !== 'string' ||
@@ -2806,7 +2816,7 @@ export async function getPendingTxsForChains(
             `Native token symbol must be non-empty string for ${chain}: ${stringifyValueForError(nativeTokenSymbol)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       if (
         typeof nativeTokenDecimals !== 'number' ||
@@ -2818,7 +2828,7 @@ export async function getPendingTxsForChains(
             `Native token decimals must be non-negative integer for ${chain}: ${stringifyValueForError(nativeTokenDecimals)}`,
           ),
         );
-        return;
+        return chainTxs;
       }
       const formattedBalance = formatUnits(balance, nativeTokenDecimals);
 
@@ -2912,7 +2922,7 @@ export async function getPendingTxsForChains(
                 ? SafeTxStatus.ONE_AWAY
                 : SafeTxStatus.PENDING;
 
-        txs.push({
+        chainTxs.push({
           chain: chainName,
           nonce: normalizedNonce,
           submissionDate: normalizedSubmissionDate.toDateString(),
@@ -2924,8 +2934,10 @@ export async function getPendingTxsForChains(
           balance: `${Number(formattedBalance).toFixed(5)} ${nativeTokenSymbol.trim()}`,
         });
       });
+      return chainTxs;
     }),
   );
+  const txs = txsByChain.flat();
   return txs.sort(
     (a, b) => a.chain.localeCompare(b.chain) || a.nonce - b.nonce,
   );
