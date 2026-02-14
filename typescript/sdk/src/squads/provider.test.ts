@@ -41,6 +41,14 @@ describe('squads provider bridge', () => {
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
 
+  it('accepts null-prototype provider-like objects with callable getAccountInfo', () => {
+    const providerLike = Object.assign(Object.create(null), {
+      getAccountInfo: async () => null,
+    }) as SolanaProvider;
+
+    expect(toSquadsProvider(providerLike)).to.equal(providerLike);
+  });
+
   const invalidGetAccountInfoCases: Array<{
     title: string;
     provider: unknown;
