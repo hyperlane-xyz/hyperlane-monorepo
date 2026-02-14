@@ -14344,7 +14344,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(chainNameCalls).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
-      expect(signerAddressCallsByChain.anvil3 ?? 0).to.equal(0);
+      expect(signerAddressCallsByChain.anvil3 ?? 0).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -15584,7 +15584,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const context = {
       multiProvider: {
         getProtocol: () => ProtocolType.Ethereum,
-        getSignerAddress: async () => SIGNER,
+        getSignerAddress: async (chainName: string) => {
+          if (chainName === CHAIN) return SIGNER;
+          throw new Error(`unexpected signer lookup for ${chainName}`);
+        },
         getProvider: () => provider,
         tryGetSigner: (chainName: string) => {
           if (chainName === CHAIN) return {};
@@ -15612,6 +15615,112 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('infers ICA when origin signer probe throws but signer address lookup succeeds', async () => {
+    const inferredIcaOwner = '0x7878787878787878787878787878787878787878';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+    const originRouterAddress = '0x9191919191919191919191919191919191919191';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    let originDerivationCalls = 0;
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
+          return {
+            ['getRemoteInterchainAccount(address,address,address)']: async (
+              owner: string,
+            ) => {
+              originDerivationCalls += 1;
+              if (owner.toLowerCase() === SIGNER.toLowerCase()) {
+                return inferredIcaOwner;
+              }
+              return ethersConstants.AddressZero;
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let originSignerProbeCalls = 0;
+    let originSignerAddressLookups = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          if (chainName === CHAIN) return SIGNER;
+          originSignerAddressLookups += 1;
+          return SIGNER;
+        },
+        getProvider: () => provider,
+        tryGetSigner: (chainName: string) => {
+          if (chainName === CHAIN) return {};
+          originSignerProbeCalls += 1;
+          throw new Error(`No chain signer set for ${chainName}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+          anvil3: {
+            interchainAccountRouter: originRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
+      expect((batches[0].config.submitter as any).owner).to.equal(SIGNER);
+      expect((batches[0].config.submitter as any).internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(provider.getLogs.callCount).to.equal(1);
+      expect(originSignerProbeCalls).to.equal(1);
+      expect(originSignerAddressLookups).to.equal(1);
+      expect(originDerivationCalls).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -15701,7 +15810,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
       expect(provider.getLogs.callCount).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
-      expect(originSignerAddressLookups).to.equal(0);
+      expect(originSignerAddressLookups).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -26521,7 +26630,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
-      expect(originSignerAddressLookups).to.equal(0);
+      expect(originSignerAddressLookups).to.equal(1);
       expect(originSignerProbeCalls).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(3);
     } finally {
@@ -26654,7 +26763,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         (batches[1].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
       expect(originSignerProbeCalls).to.equal(1);
-      expect(originSignerAddressLookups).to.equal(0);
+      expect(originSignerAddressLookups).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(5);
     } finally {
       ownableStub.restore();

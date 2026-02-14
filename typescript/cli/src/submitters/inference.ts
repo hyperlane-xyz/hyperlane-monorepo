@@ -277,8 +277,10 @@ async function hasSignerForChain(
     cache.signerByChain.set(chain, hasSigner);
     return hasSigner;
   } catch {
-    cache.signerByChain.set(chain, false);
-    return false;
+    const signerAddress = await getSignerAddressForChain(context, cache, chain);
+    const hasSigner = !!signerAddress;
+    cache.signerByChain.set(chain, hasSigner);
+    return hasSigner;
   }
 }
 
