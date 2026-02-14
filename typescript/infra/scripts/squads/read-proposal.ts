@@ -74,14 +74,20 @@ async function main() {
     const staleTransactionIndex = Number(multisig.staleTransactionIndex);
     const currentTransactionIndex = Number(multisig.transactionIndex);
     const timeLock = Number(multisig.timeLock);
+    const status = proposal.status.__kind;
+    const approvals = proposal.approved.length;
+    const derivedStatus = getSquadTxStatus(
+      status,
+      approvals,
+      threshold,
+      transactionIndex,
+      staleTransactionIndex,
+    );
 
     // Display proposal status
     rootLogger.info(chalk.green.bold('\n📊 Status Information:'));
-    rootLogger.info(
-      chalk.white(
-        `  Status: ${transactionIndex < staleTransactionIndex ? 'Stale' : proposal.status.__kind}`,
-      ),
-    );
+    rootLogger.info(chalk.white(`  On-chain Status: ${status}`));
+    rootLogger.info(chalk.white(`  Derived Status: ${derivedStatus}`));
     if ('timestamp' in proposal.status && proposal.status.timestamp) {
       const timestamp = Number(proposal.status.timestamp);
       const date = new Date(timestamp * 1000);
@@ -100,18 +106,6 @@ async function main() {
       chalk.white(`  Cancellations: ${proposal.cancelled.length}`),
     );
     rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
-
-    const status = proposal.status.__kind;
-    const approvals = proposal.approved.length;
-    const derivedStatus = getSquadTxStatus(
-      status,
-      approvals,
-      threshold,
-      transactionIndex,
-      staleTransactionIndex,
-    );
-
-    rootLogger.info(chalk.white(`  Derived Status: ${derivedStatus}`));
 
     if (derivedStatus === SquadTxStatus.APPROVED) {
       rootLogger.info(
