@@ -359,7 +359,7 @@ async function processChain(
   context: Contexts,
   adapter: SvmMultiProtocolSignerAdapter,
 ): Promise<{
-  chain: string;
+  chain: SquadsChainName;
   updated: number;
   matched: number;
 }> {
@@ -475,8 +475,11 @@ async function main() {
   );
 
   // Process all chains sequentially (to avoid overwhelming the user with prompts)
-  const results: Array<{ chain: string; updated: number; matched: number }> =
-    [];
+  const results: Array<{
+    chain: SquadsChainName;
+    updated: number;
+    matched: number;
+  }> = [];
 
   for (const chain of chains) {
     const signerAdapter = new SvmMultiProtocolSignerAdapter(
