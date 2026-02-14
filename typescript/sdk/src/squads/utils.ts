@@ -311,25 +311,36 @@ export async function getPendingProposalsForChains(
             if (!proposalData) continue;
 
             const { proposal } = proposalData;
+            const parsedProposal = parseSquadProposal(proposal);
+            const {
+              status: proposalStatus,
+              approvals,
+              rejections,
+              cancellations,
+              transactionIndex,
+            } = parsedProposal;
+
+            if (transactionIndex !== i) {
+              rootLogger.warn(
+                `Skipping proposal ${i} on ${chain} due to index mismatch (parsed ${transactionIndex})`,
+              );
+              continue;
+            }
 
             if (
-              proposal.status.__kind === SquadsProposalStatus.Executed ||
-              proposal.status.__kind === SquadsProposalStatus.Rejected ||
-              proposal.status.__kind === SquadsProposalStatus.Cancelled
+              proposalStatus === SquadsProposalStatus.Executed ||
+              proposalStatus === SquadsProposalStatus.Rejected ||
+              proposalStatus === SquadsProposalStatus.Cancelled
             ) {
               continue;
             }
 
             if (i < staleTransactionIndex) continue;
 
-            const approvals = proposal.approved.length;
-            const rejections = proposal.rejected.length;
-            const cancellations = proposal.cancelled.length;
-
             if (rejections > 0) continue;
 
             const status = getSquadTxStatus(
-              proposal.status.__kind,
+              proposalStatus,
               approvals,
               threshold,
               i,
@@ -338,8 +349,9 @@ export async function getPendingProposalsForChains(
 
             let submissionDate = 'Executing';
             if (
-              proposal.status.__kind !== SquadsProposalStatus.Executing &&
-              proposal.status.timestamp
+              proposalStatus !== SquadsProposalStatus.Executing &&
+              'timestamp' in proposal.status &&
+              typeof proposal.status.timestamp !== 'undefined'
             ) {
               const timestamp = Number(proposal.status.timestamp);
               submissionDate = new Date(timestamp * 1000).toDateString();

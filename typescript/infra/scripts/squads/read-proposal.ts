@@ -89,7 +89,10 @@ async function main() {
     rootLogger.info(chalk.green.bold('\n📊 Status Information:'));
     rootLogger.info(chalk.white(`  On-chain Status: ${status}`));
     rootLogger.info(chalk.white(`  Derived Status: ${derivedStatus}`));
-    if ('timestamp' in proposal.status && proposal.status.timestamp) {
+    if (
+      'timestamp' in proposal.status &&
+      typeof proposal.status.timestamp !== 'undefined'
+    ) {
       const timestamp = Number(proposal.status.timestamp);
       const date = new Date(timestamp * 1000);
       rootLogger.info(
@@ -152,7 +155,7 @@ async function main() {
     // Display transaction details
     rootLogger.info(chalk.green.bold('\n💼 Transaction Details:'));
     rootLogger.info(
-      chalk.white(`  Transaction Index: ${Number(proposal.transactionIndex)}`),
+      chalk.white(`  Transaction Index: ${parsedProposal.transactionIndex}`),
     );
     rootLogger.info(chalk.white(`  Bump: ${Number(proposal.bump)}`));
 
