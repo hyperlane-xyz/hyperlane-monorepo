@@ -37,10 +37,12 @@ import {
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
   assertIsSquadsChain,
+  getUnsupportedSquadsChainsErrorMessage,
   getSquadsChains,
   getSquadsKeys,
   isSquadsChain,
   partitionSquadsChains,
+  resolveSquadsChains,
   squadsConfigs,
 } from './config.js';
 
@@ -2984,6 +2986,43 @@ describe('squads utils', () => {
 
     expect(squadsChains).to.deep.equal(['solanamainnet']);
     expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
+  });
+
+  it('resolves squads chains to configured defaults when input omitted', () => {
+    expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
+  });
+
+  it('resolves explicit squads chains while deduplicating and preserving order', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    expect(
+      resolveSquadsChains([firstChain, secondChain, firstChain]),
+    ).to.deep.equal([firstChain, secondChain]);
+  });
+
+  it('throws for explicit non-squads chains', () => {
+    expect(() => resolveSquadsChains(['ethereum'])).to.throw(
+      'Squads configuration not found for chains: ethereum',
+    );
+  });
+
+  it('formats unsupported squads chain errors with trimmed deduplicated chain names', () => {
+    expect(
+      getUnsupportedSquadsChainsErrorMessage(
+        [' ethereum ', '', ''],
+        [' solanamainnet ', ''],
+      ),
+    ).to.equal(
+      'Squads configuration not found for chains: ethereum, <empty>. Available Squads chains: solanamainnet, <empty>',
+    );
+  });
+
+  it('fails fast when unsupported-chain formatter receives empty inputs', () => {
+    expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
+      'Expected at least one unsupported squads chain to format error message',
+    );
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(['ethereum'], []),
+    ).to.throw('Expected at least one configured squads chain');
   });
 
   it('exports canonical proposal statuses', () => {

@@ -6,8 +6,9 @@ import {
   MultiProtocolProvider,
   SquadProposalStatus,
   SquadsChainName,
+  getUnsupportedSquadsChainsErrorMessage as getUnsupportedSquadsChainsErrorMessageFromSdk,
   getSquadsChains,
-  partitionSquadsChains,
+  resolveSquadsChains as resolveSquadsChainsFromSdk,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
@@ -93,56 +94,20 @@ export function getUnsupportedSquadsChainsErrorMessage(
   nonSquadsChains: readonly string[],
   configuredSquadsChains: readonly string[] = getSquadsChains(),
 ): string {
-  assert(
-    nonSquadsChains.length > 0,
-    'Expected at least one unsupported squads chain to format error message',
+  return getUnsupportedSquadsChainsErrorMessageFromSdk(
+    nonSquadsChains,
+    configuredSquadsChains,
   );
-  const uniqueNonSquadsChains = Array.from(new Set(nonSquadsChains));
-  const uniqueConfiguredSquadsChains = Array.from(
-    new Set(configuredSquadsChains),
-  );
-  assert(
-    uniqueConfiguredSquadsChains.length > 0,
-    'Expected at least one configured squads chain',
-  );
-
-  const formattedUnsupportedChains = Array.from(
-    new Set(uniqueNonSquadsChains.map(formatChainNameForDisplay)),
-  );
-  const formattedConfiguredChains = Array.from(
-    new Set(uniqueConfiguredSquadsChains.map(formatChainNameForDisplay)),
-  );
-
-  return (
-    `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +
-    `Available Squads chains: ${formattedConfiguredChains.join(', ')}`
-  );
-}
-
-function formatChainNameForDisplay(chain: string): string {
-  const trimmedChain = chain.trim();
-  return trimmedChain.length > 0 ? trimmedChain : '<empty>';
 }
 
 export function resolveSquadsChains(
   chains?: readonly unknown[],
 ): SquadsChainName[] {
-  const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
     const normalizedChains = normalizeProvidedChains(chains);
-    const { squadsChains, nonSquadsChains } =
-      partitionSquadsChains(normalizedChains);
-    if (nonSquadsChains.length > 0) {
-      throw new Error(
-        getUnsupportedSquadsChainsErrorMessage(
-          nonSquadsChains,
-          configuredSquadsChains,
-        ),
-      );
-    }
-    return [...squadsChains];
+    return resolveSquadsChainsFromSdk(normalizedChains);
   }
-  return [...configuredSquadsChains];
+  return getSquadsChains();
 }
 
 function getArgTypeName(value: unknown): string {

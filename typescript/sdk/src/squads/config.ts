@@ -76,6 +76,56 @@ export function partitionSquadsChains(chains: readonly string[]): {
   return { squadsChains, nonSquadsChains };
 }
 
+function formatChainNameForDisplay(chain: string): string {
+  const trimmedChain = chain.trim();
+  return trimmedChain.length > 0 ? trimmedChain : '<empty>';
+}
+
+export function getUnsupportedSquadsChainsErrorMessage(
+  nonSquadsChains: readonly string[],
+  configuredSquadsChains: readonly string[] = getSquadsChains(),
+): string {
+  if (nonSquadsChains.length === 0) {
+    throw new Error(
+      'Expected at least one unsupported squads chain to format error message',
+    );
+  }
+
+  const uniqueConfiguredSquadsChains = Array.from(
+    new Set(configuredSquadsChains),
+  );
+  if (uniqueConfiguredSquadsChains.length === 0) {
+    throw new Error('Expected at least one configured squads chain');
+  }
+
+  const formattedUnsupportedChains = Array.from(
+    new Set(nonSquadsChains.map(formatChainNameForDisplay)),
+  );
+  const formattedConfiguredChains = Array.from(
+    new Set(uniqueConfiguredSquadsChains.map(formatChainNameForDisplay)),
+  );
+
+  return (
+    `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +
+    `Available Squads chains: ${formattedConfiguredChains.join(', ')}`
+  );
+}
+
+export function resolveSquadsChains(
+  chains?: readonly string[],
+): SquadsChainName[] {
+  if (!chains || chains.length === 0) {
+    return getSquadsChains();
+  }
+
+  const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
+  if (nonSquadsChains.length > 0) {
+    throw new Error(getUnsupportedSquadsChainsErrorMessage(nonSquadsChains));
+  }
+
+  return [...squadsChains];
+}
+
 export function assertIsSquadsChain(
   chainName: string,
 ): asserts chainName is SquadsChainName {
