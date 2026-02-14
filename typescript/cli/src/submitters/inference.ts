@@ -454,10 +454,17 @@ async function inferTimelockProposerSubmitter({
   const provider = context.multiProvider.getProvider(chain);
   const timelock = TimelockController__factory.connect(timelockAddress, provider);
 
-  const [isOpenProposerRole, signerHasRole] = await Promise.all([
-    timelock.hasRole(PROPOSER_ROLE, ethersConstants.AddressZero),
-    timelock.hasRole(PROPOSER_ROLE, signerAddress),
-  ]);
+  let isOpenProposerRole = false;
+  let signerHasRole = false;
+  try {
+    [isOpenProposerRole, signerHasRole] = await Promise.all([
+      timelock.hasRole(PROPOSER_ROLE, ethersConstants.AddressZero),
+      timelock.hasRole(PROPOSER_ROLE, signerAddress),
+    ]);
+  } catch {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
+    return defaultSubmitter;
+  }
 
   if (isOpenProposerRole || signerHasRole) {
     cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
@@ -467,20 +474,27 @@ async function inferTimelockProposerSubmitter({
   const roleGrantedTopic = timelock.interface.getEventTopic('RoleGranted');
   const roleRevokedTopic = timelock.interface.getEventTopic('RoleRevoked');
 
-  const [grantedLogs, revokedLogs] = await Promise.all([
-    provider.getLogs({
-      address: timelockAddress,
-      topics: [roleGrantedTopic, PROPOSER_ROLE],
-      fromBlock: 0,
-      toBlock: 'latest',
-    }),
-    provider.getLogs({
-      address: timelockAddress,
-      topics: [roleRevokedTopic, PROPOSER_ROLE],
-      fromBlock: 0,
-      toBlock: 'latest',
-    }),
-  ]);
+  let grantedLogs: Awaited<ReturnType<typeof provider.getLogs>>;
+  let revokedLogs: Awaited<ReturnType<typeof provider.getLogs>>;
+  try {
+    [grantedLogs, revokedLogs] = await Promise.all([
+      provider.getLogs({
+        address: timelockAddress,
+        topics: [roleGrantedTopic, PROPOSER_ROLE],
+        fromBlock: 0,
+        toBlock: 'latest',
+      }),
+      provider.getLogs({
+        address: timelockAddress,
+        topics: [roleRevokedTopic, PROPOSER_ROLE],
+        fromBlock: 0,
+        toBlock: 'latest',
+      }),
+    ]);
+  } catch {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
+    return defaultSubmitter;
+  }
 
   const granted = new Set<Address>();
   for (const log of grantedLogs) {
