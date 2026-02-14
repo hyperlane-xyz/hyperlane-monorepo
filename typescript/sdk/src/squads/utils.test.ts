@@ -756,6 +756,36 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when members entry is not an object', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [1],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] must be an object',
+      );
+    });
+
+    it('throws when members entry is missing key', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{}],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] must include key',
+      );
+    });
+
     it('throws when members array is empty but threshold is positive', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({

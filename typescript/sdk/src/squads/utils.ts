@@ -721,19 +721,12 @@ export function parseSquadMultisig(
   const timeLock = toSafeInteger(multisig.timeLock, `${fieldPrefix} timelock`, {
     nonNegative: true,
   });
-  const members = (multisig as { members?: unknown }).members;
-  if (typeof members !== 'undefined') {
-    assert(
-      Array.isArray(members),
-      `Squads ${fieldPrefix} members must be an array when provided`,
-    );
-  }
+  const memberCount = getMultisigMemberCount(multisig, fieldPrefix);
 
   assert(
     staleTransactionIndex <= currentTransactionIndex,
     `Squads ${fieldPrefix} stale transaction index must be less than or equal to transaction index: ${staleTransactionIndex} > ${currentTransactionIndex}`,
   );
-  const memberCount = Array.isArray(members) ? members.length : undefined;
   if (typeof memberCount === 'number') {
     assert(
       threshold <= memberCount,
@@ -747,6 +740,35 @@ export function parseSquadMultisig(
     staleTransactionIndex,
     timeLock,
   };
+}
+
+function getMultisigMemberCount(
+  multisig: accounts.Multisig,
+  fieldPrefix: string,
+): number | undefined {
+  const members = (multisig as { members?: unknown }).members;
+  if (typeof members === 'undefined') {
+    return undefined;
+  }
+
+  assert(
+    Array.isArray(members),
+    `Squads ${fieldPrefix} members must be an array when provided`,
+  );
+
+  for (let index = 0; index < members.length; index += 1) {
+    const member: unknown = members[index];
+    assert(
+      member && typeof member === 'object',
+      `Squads ${fieldPrefix} members[${index}] must be an object`,
+    );
+    assert(
+      typeof (member as { key?: unknown }).key !== 'undefined',
+      `Squads ${fieldPrefix} members[${index}] must include key`,
+    );
+  }
+
+  return members.length;
 }
 
 /**
