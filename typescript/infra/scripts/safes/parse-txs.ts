@@ -70,51 +70,75 @@ async function main() {
     'balance',
   ]);
 
-  const chainResultEntries = (
-    await Promise.all(
-      pendingTxs.map(
-        async ({
-          chain,
-          nonce,
-          fullTxHash,
-        }): Promise<[string, GovernTransaction] | undefined> => {
-          rootLogger.info(
-            chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
+  const parseResults = await Promise.all(
+    pendingTxs.map(
+      async ({
+        chain,
+        nonce,
+        fullTxHash,
+      }): Promise<
+        | { success: [string, GovernTransaction] }
+        | { failure: { chain: string; fullTxHash: string } }
+      > => {
+        rootLogger.info(
+          chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
+        );
+        try {
+          const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
+          assert(
+            hasSafeServiceTransactionPayload(safeTx),
+            `Safe transaction ${fullTxHash} on ${chain} is missing to/data/value`,
           );
-          try {
-            const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
-            assert(
-              hasSafeServiceTransactionPayload(safeTx),
-              `Safe transaction ${fullTxHash} on ${chain} is missing to/data/value`,
-            );
-            const tx: AnnotatedEV5Transaction = {
-              to: safeTx.to,
-              data: safeTx.data,
-              value: BigNumber.from(safeTx.value),
-            };
-            const results = await reader.read(chain, tx);
-            rootLogger.info(
-              chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
-            );
-            return [`${chain}-${nonce}-${fullTxHash}`, results];
-          } catch (err) {
-            rootLogger.error(
-              chalk.red(
-                `Error reading transaction ${fullTxHash} on ${chain}: ${err}`,
-              ),
-            );
-            return undefined;
-          }
-        },
-      ),
-    )
-  ).filter((result): result is [string, GovernTransaction] => !!result);
+          const tx: AnnotatedEV5Transaction = {
+            to: safeTx.to,
+            data: safeTx.data,
+            value: BigNumber.from(safeTx.value),
+          };
+          const results = await reader.read(chain, tx);
+          rootLogger.info(
+            chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
+          );
+          return { success: [`${chain}-${nonce}-${fullTxHash}`, results] };
+        } catch (err) {
+          rootLogger.error(
+            chalk.red(
+              `Error reading transaction ${fullTxHash} on ${chain}: ${err}`,
+            ),
+          );
+          return { failure: { chain, fullTxHash } };
+        }
+      },
+    ),
+  );
+
+  const chainResultEntries = parseResults
+    .map((result) => ('success' in result ? result.success : undefined))
+    .filter((result): result is [string, GovernTransaction] => !!result);
+  const failedTxReads = parseResults
+    .map((result) => ('failure' in result ? result.failure : undefined))
+    .filter(
+      (
+        result,
+      ): result is {
+        chain: string;
+        fullTxHash: string;
+      } => !!result,
+    );
 
   processGovernorReaderResult(
     chainResultEntries,
     reader.errors,
     'safe-tx-parse-results',
   );
+
+  if (failedTxReads.length > 0) {
+    rootLogger.error(
+      chalk.red(
+        `Failed to parse ${failedTxReads.length} Safe transaction(s). See logs above for details.`,
+      ),
+    );
+    process.exit(1);
+  }
 }
 
 main().catch((err) => {
