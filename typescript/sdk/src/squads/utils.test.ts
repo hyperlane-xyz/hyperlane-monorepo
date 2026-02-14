@@ -62,6 +62,24 @@ describe('squads utils', () => {
       );
     });
 
+    it('returns stale for stale draft proposal', () => {
+      expect(getSquadTxStatus('Draft', 0, 2, 5, 10)).to.equal(
+        SquadTxStatus.STALE,
+      );
+    });
+
+    it('returns stale for stale approved proposal', () => {
+      expect(getSquadTxStatus('Approved', 2, 2, 5, 10)).to.equal(
+        SquadTxStatus.STALE,
+      );
+    });
+
+    it('returns stale for stale executing proposal', () => {
+      expect(getSquadTxStatus('Executing', 2, 2, 5, 10)).to.equal(
+        SquadTxStatus.STALE,
+      );
+    });
+
     it('returns one-away status for active proposal', () => {
       expect(getSquadTxStatus('Active', 2, 3, 12, 10)).to.equal(
         SquadTxStatus.ONE_AWAY,
