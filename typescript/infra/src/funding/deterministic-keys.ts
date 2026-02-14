@@ -2,7 +2,7 @@ import { Wallet, utils } from 'ethers';
 
 import { Contexts } from '../../config/contexts.js';
 import { AgentGCPKey } from '../agents/gcp.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { Role } from '../roles.js';
 
 // Keys that are derived from the deployer key, mainly to have deterministic addresses on every chain

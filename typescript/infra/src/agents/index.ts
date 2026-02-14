@@ -27,7 +27,7 @@ import {
 } from '../config/agent/relayer.js';
 import { ScraperConfigHelper } from '../config/agent/scraper.js';
 import { ValidatorConfigHelper } from '../config/agent/validator.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { AgentRole, Role } from '../roles.js';
 import {
   createServiceAccountIfNotExists,

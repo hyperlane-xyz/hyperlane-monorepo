@@ -2,7 +2,7 @@ import { join } from 'path';
 
 import { Contexts } from '../config/contexts.js';
 
-import type { DeployEnvironment } from './config/environment.js';
+import type { DeployEnvironment } from './config/deploy-environment.js';
 import { getInfraPath } from './utils/utils.js';
 
 export function getEnvironmentDirectory(environment: DeployEnvironment) {
