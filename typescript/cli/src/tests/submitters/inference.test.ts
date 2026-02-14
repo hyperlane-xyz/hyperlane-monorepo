@@ -1191,6 +1191,57 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('uses transaction from fallback when transaction target is malformed', async () => {
+    const fromSafe = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect');
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== fromSafe.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          {
+            ...TX,
+            to: 'not-an-evm-address',
+            from: ` ${fromSafe} `,
+          } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when owner is unknown submitter type', async () => {
     const unknownOwner = '0x5555555555555555555555555555555555555555';
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({

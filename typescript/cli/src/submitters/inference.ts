@@ -544,21 +544,36 @@ async function inferSubmitterFromTransaction({
     return defaultSubmitter;
   }
 
-  const normalizedTarget = normalizeEvmAddressFlexible(to);
+  const normalizedTarget = tryNormalizeEvmAddress(to);
+  const normalizedFrom =
+    typeof from === 'string' ? tryNormalizeEvmAddress(from) : null;
+  if (!normalizedTarget && !normalizedFrom) {
+    return defaultSubmitter;
+  }
+
   const provider = context.multiProvider.getProvider(chain);
 
   let ownerAddress: Address | null = null;
-  try {
-    ownerAddress = await Ownable__factory.connect(normalizedTarget, provider).owner();
-  } catch {
-    ownerAddress = null;
+  if (normalizedTarget) {
+    try {
+      ownerAddress = await Ownable__factory.connect(
+        normalizedTarget,
+        provider,
+      ).owner();
+    } catch {
+      ownerAddress = null;
+    }
   }
 
+  const normalizedOwner = ownerAddress
+    ? tryNormalizeEvmAddress(ownerAddress)
+    : null;
   const addressToInferFrom =
-    ownerAddress ??
-    (typeof from === 'string'
-      ? normalizeEvmAddressFlexible(from)
-      : normalizedTarget);
+    normalizedOwner ?? normalizedFrom ?? normalizedTarget;
+
+  if (!addressToInferFrom) {
+    return defaultSubmitter;
+  }
 
   const inferredSubmitter = await inferSubmitterFromAddress({
     chain,
