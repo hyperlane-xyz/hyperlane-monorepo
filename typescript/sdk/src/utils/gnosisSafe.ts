@@ -85,8 +85,12 @@ function getUrlScheme(value: string): string | undefined {
   return schemeMatch?.[1]?.toLowerCase();
 }
 
+function isSchemeRelativeUrl(value: string): boolean {
+  return /^\/\/[^/]/.test(value);
+}
+
 function isSlashPrefixedRelativePath(value: string): boolean {
-  return value.startsWith('/') && !value.startsWith('//');
+  return value.startsWith('/') && !isSchemeRelativeUrl(value);
 }
 
 function parseHttpUrl(value: string): URL | undefined {
