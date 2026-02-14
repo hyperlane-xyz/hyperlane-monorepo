@@ -105,3 +105,5 @@ Nested extraction now also enqueues error-shaped `errors` wrapper objects direct
 Regression coverage now also confirms error-shaped `errors` wrappers with blank top-level messages still detect runtime-unavailable signals via nested `cause` chains.
 
 Regression coverage now also confirms error-shaped `errors` wrappers with non-string top-level messages still detect runtime-unavailable signals via nested `cause` chains.
+
+Regression coverage now also confirms iterable wrappers with non-matching yielded entries still detect runtime-unavailable signals exposed via wrapper-level `cause` fallbacks.

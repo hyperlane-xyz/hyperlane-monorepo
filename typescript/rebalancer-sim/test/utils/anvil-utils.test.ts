@@ -436,6 +436,19 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches runtime errors in iterable wrappers with cause fallbacks', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: {
+            *[Symbol.iterator]() {
+              yield { message: 'non-matching wrapper noise' };
+            },
+            cause: { message: 'No Docker client strategy found' },
+          },
+        }),
+      ).to.equal(true);
+    });
+
     it('matches docker runtime errors in map-based error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
