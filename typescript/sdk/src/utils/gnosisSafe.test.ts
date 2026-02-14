@@ -154,6 +154,10 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired('ws://safe-transaction-mainnet.5afe.dev'),
       ).to.equal(false);
+      expect(safeApiKeyRequired('https:/safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('http:/safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('https:/@safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('http:/@safe.global/api')).to.equal(false);
       expect(safeApiKeyRequired('mailto:safe.global')).to.equal(false);
       expect(safeApiKeyRequired('data:text/plain,safe.global')).to.equal(false);
       expect(safeApiKeyRequired('foo:/safe.global')).to.equal(false);
@@ -887,6 +891,18 @@ describe('gnosisSafe utils', () => {
     it('throws when explicit http(s) url is malformed', () => {
       expect(() => normalizeSafeServiceUrl('https://')).to.throw(
         'Safe tx service URL is invalid: https://',
+      );
+      expect(() => normalizeSafeServiceUrl('https:/safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: https:/safe.global/api',
+      );
+      expect(() => normalizeSafeServiceUrl('http:/safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: http:/safe.global/api',
+      );
+      expect(() => normalizeSafeServiceUrl('https:/@safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: https:/@safe.global/api',
+      );
+      expect(() => normalizeSafeServiceUrl('http:/@safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: http:/@safe.global/api',
       );
       expect(() => normalizeSafeServiceUrl('http://:443')).to.throw(
         'Safe tx service URL is invalid: http://:443',
