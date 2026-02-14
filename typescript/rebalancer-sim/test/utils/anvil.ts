@@ -66,6 +66,11 @@ function getErrorMessage(error: unknown): string {
     } catch {
       // Fall through to generic guarded extraction below.
     }
+
+    const errorName = getObjectProperty(error, 'name');
+    if (typeof errorName === 'string' && errorName.length > 0) {
+      return errorName;
+    }
   }
 
   if (typeof error === 'object' && error !== null) {

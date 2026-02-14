@@ -671,7 +671,7 @@ describe('Anvil utils', () => {
       });
 
       expect(formatLocalAnvilStartError(problematicError)).to.equal(
-        'Failed to start local anvil: {}',
+        'Failed to start local anvil: Error',
       );
     });
   });
