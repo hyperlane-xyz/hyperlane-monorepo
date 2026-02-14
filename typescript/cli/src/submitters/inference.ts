@@ -305,8 +305,14 @@ async function inferIcaSubmitterFromAccount({
   if (!lastLog) {
     // Fall back to deriving the ICA from signer owner and known routers,
     // to support routes where the ICA has not been deployed yet.
-    const signerAddress =
-      await context.multiProvider.getSignerAddress(destinationChain);
+    let signerAddress: Address;
+    try {
+      signerAddress =
+        await context.multiProvider.getSignerAddress(destinationChain);
+    } catch {
+      cache.icaByChainAndAddress.set(cacheId, null);
+      return null;
+    }
     const signerCandidates = [signerAddress];
 
     for (const ownerCandidate of signerCandidates) {

@@ -2833,6 +2833,85 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches null when destination signer lookup fails in ICA fallback path', async () => {
+    const inferredIcaOwner = '0x9494949494949494949494949494949494949494';
+    const destinationRouterAddress =
+      '0x9595959595959595959595959595959595959595';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let signerAddressCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => {
+          signerAddressCalls += 1;
+          if (signerAddressCalls === 1) {
+            return SIGNER;
+          }
+          if (signerAddressCalls === 2) {
+            throw new Error('destination signer unavailable');
+          }
+          return SIGNER;
+        },
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      // first tx: top-level signer lookup + ICA fallback signer lookup
+      // second tx: top-level signer lookup only due cached null ICA inference
+      expect(signerAddressCalls).to.equal(3);
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when ICA event log query fails', async () => {
     const inferredIcaOwner = '0x9292929292929292929292929292929292929292';
     const destinationRouterAddress =
