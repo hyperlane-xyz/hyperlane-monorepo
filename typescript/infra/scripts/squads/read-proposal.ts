@@ -84,7 +84,13 @@ async function main() {
     const staleTransactionIndex = Number(multisig.staleTransactionIndex);
     const currentTransactionIndex = Number(multisig.transactionIndex);
     const timeLock = Number(multisig.timeLock);
-    const { status, approvals, rejections, cancellations } = parsedProposal;
+    const {
+      status,
+      approvals,
+      rejections,
+      cancellations,
+      statusTimestampSeconds,
+    } = parsedProposal;
     const derivedStatus = getSquadTxStatus(
       status,
       approvals,
@@ -97,12 +103,8 @@ async function main() {
     rootLogger.info(chalk.green.bold('\n📊 Status Information:'));
     rootLogger.info(chalk.white(`  On-chain Status: ${status}`));
     rootLogger.info(chalk.white(`  Derived Status: ${derivedStatus}`));
-    if (
-      'timestamp' in proposal.status &&
-      typeof proposal.status.timestamp !== 'undefined'
-    ) {
-      const timestamp = Number(proposal.status.timestamp);
-      const date = new Date(timestamp * 1000);
+    if (typeof statusTimestampSeconds === 'number') {
+      const date = new Date(statusTimestampSeconds * 1000);
       rootLogger.info(
         chalk.white(
           `  Timestamp: ${date.toISOString()} (${date.toLocaleString()})`,

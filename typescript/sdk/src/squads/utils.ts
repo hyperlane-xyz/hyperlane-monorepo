@@ -318,6 +318,7 @@ export async function getPendingProposalsForChains(
               rejections,
               cancellations,
               transactionIndex,
+              statusTimestampSeconds,
             } = parsedProposal;
 
             if (transactionIndex !== i) {
@@ -350,11 +351,11 @@ export async function getPendingProposalsForChains(
             let submissionDate = 'Executing';
             if (
               proposalStatus !== SquadsProposalStatus.Executing &&
-              'timestamp' in proposal.status &&
-              typeof proposal.status.timestamp !== 'undefined'
+              typeof statusTimestampSeconds === 'number'
             ) {
-              const timestamp = Number(proposal.status.timestamp);
-              submissionDate = new Date(timestamp * 1000).toDateString();
+              submissionDate = new Date(
+                statusTimestampSeconds * 1000,
+              ).toDateString();
             }
 
             const [transactionPda] = getTransactionPda({
@@ -454,6 +455,18 @@ export function parseSquadProposal(proposal: accounts.Proposal) {
     Number.isSafeInteger(transactionIndex),
     `Squads transaction index exceeds JavaScript safe integer range: ${proposal.transactionIndex.toString()}`,
   );
+  const rawStatusTimestamp =
+    'timestamp' in proposal.status ? proposal.status.timestamp : undefined;
+  const statusTimestampSeconds =
+    typeof rawStatusTimestamp !== 'undefined'
+      ? Number(rawStatusTimestamp)
+      : undefined;
+  if (typeof statusTimestampSeconds === 'number') {
+    assert(
+      Number.isSafeInteger(statusTimestampSeconds),
+      `Squads status timestamp exceeds JavaScript safe integer range: ${String(rawStatusTimestamp)}`,
+    );
+  }
 
   return {
     status: proposal.status.__kind,
@@ -461,6 +474,7 @@ export function parseSquadProposal(proposal: accounts.Proposal) {
     rejections: proposal.rejected.length,
     cancellations: proposal.cancelled.length,
     transactionIndex,
+    statusTimestampSeconds,
   };
 }
 

@@ -91,6 +91,26 @@ describe('squads utils', () => {
         rejections: 1,
         cancellations: 2,
         transactionIndex: 42,
+        statusTimestampSeconds: undefined,
+      });
+    });
+
+    it('extracts numeric status timestamp when present', () => {
+      const parsed = parseSquadProposal({
+        status: { __kind: SquadsProposalStatus.Active, timestamp: 1700000000n },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex: 7n,
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed).to.deep.equal({
+        status: SquadsProposalStatus.Active,
+        approvals: 0,
+        rejections: 0,
+        cancellations: 0,
+        transactionIndex: 7,
+        statusTimestampSeconds: 1700000000,
       });
     });
 
@@ -106,6 +126,24 @@ describe('squads utils', () => {
 
       expect(parseUnsafeProposal).to.throw(
         'Squads transaction index exceeds JavaScript safe integer range',
+      );
+    });
+
+    it('throws when status timestamp exceeds JavaScript safe integer range', () => {
+      const parseUnsafeTimestampProposal = () =>
+        parseSquadProposal({
+          status: {
+            __kind: SquadsProposalStatus.Active,
+            timestamp: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+          },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 9n,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseUnsafeTimestampProposal).to.throw(
+        'Squads status timestamp exceeds JavaScript safe integer range',
       );
     });
   });
