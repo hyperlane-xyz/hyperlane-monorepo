@@ -202,6 +202,10 @@ function extractErrorMessages(error: unknown): string[] {
       enqueue(nestedErrors);
       return;
     }
+    if (nestedErrors instanceof String) {
+      enqueue(String(nestedErrors));
+      return;
+    }
 
     if (!nestedErrors) return;
 
