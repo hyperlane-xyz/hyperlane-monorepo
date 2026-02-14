@@ -1133,6 +1133,24 @@ export async function getOwnerChanges(
   ownersToRemove: Address[];
   ownersToAdd: Address[];
 }> {
+  const assertNoDuplicateOwners = (
+    owners: Address[],
+    ownerGroupName: string,
+  ): void => {
+    const seenOwners = new Set<string>();
+    for (const owner of owners) {
+      const normalizedOwner = owner.toLowerCase();
+      assert(
+        !seenOwners.has(normalizedOwner),
+        `Duplicate owner address found in ${ownerGroupName}: ${owner}`,
+      );
+      seenOwners.add(normalizedOwner);
+    }
+  };
+
+  assertNoDuplicateOwners(currentOwners, 'current owners');
+  assertNoDuplicateOwners(expectedOwners, 'expected owners');
+
   const ownersToRemove = currentOwners.filter(
     (owner) => !expectedOwners.some((newOwner) => eqAddress(owner, newOwner)),
   );

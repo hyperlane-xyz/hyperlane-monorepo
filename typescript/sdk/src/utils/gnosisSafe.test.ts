@@ -3219,6 +3219,19 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(getOwnerChanges.name, () => {
+    const expectOwnerChangesError = async (
+      currentOwners: string[],
+      expectedOwners: string[],
+      message: string,
+    ): Promise<void> => {
+      try {
+        await getOwnerChanges(currentOwners, expectedOwners);
+        expect.fail('Expected getOwnerChanges to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(message);
+      }
+    };
+
     it('diffs owners case-insensitively', async () => {
       const currentOwners = [
         '0xaBcd000000000000000000000000000000000001',
@@ -3334,6 +3347,28 @@ describe('gnosisSafe utils', () => {
         '0x0000000000000000000000000000000000000006',
         '0x0000000000000000000000000000000000000005',
       ]);
+    });
+
+    it('throws when current owners include duplicate addresses', async () => {
+      await expectOwnerChangesError(
+        [
+          '0x0000000000000000000000000000000000000001',
+          '0x0000000000000000000000000000000000000001',
+        ],
+        ['0x0000000000000000000000000000000000000002'],
+        'Duplicate owner address found in current owners: 0x0000000000000000000000000000000000000001',
+      );
+    });
+
+    it('throws when expected owners include case-insensitive duplicates', async () => {
+      await expectOwnerChangesError(
+        ['0x0000000000000000000000000000000000000001'],
+        [
+          '0xabcd000000000000000000000000000000000002',
+          '0xABCD000000000000000000000000000000000002',
+        ],
+        'Duplicate owner address found in expected owners: 0xABCD000000000000000000000000000000000002',
+      );
     });
   });
 
