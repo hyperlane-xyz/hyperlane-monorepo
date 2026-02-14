@@ -72,6 +72,12 @@ describe('squads utils', () => {
       expect(getMinimumProposalIndexToCheck(10, 10)).to.equal(0);
     });
 
+    it('handles near-max safe integer indices without precision loss', () => {
+      expect(
+        getMinimumProposalIndexToCheck(Number.MAX_SAFE_INTEGER, 10),
+      ).to.equal(Number.MAX_SAFE_INTEGER - 10);
+    });
+
     it('throws for negative current transaction index', () => {
       expect(() => getMinimumProposalIndexToCheck(-1)).to.throw(
         'Expected current transaction index to be a non-negative safe integer, got -1',
