@@ -73,7 +73,12 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
       continue;
     }
 
-    if (entry.isFile() && entry.name.endsWith('.ts')) {
+    const isTypeScriptLikeFile =
+      entry.isFile() &&
+      ['.ts', '.tsx', '.mts', '.cts'].some((extension) =>
+        entry.name.endsWith(extension),
+      );
+    if (isTypeScriptLikeFile) {
       files.push(entryRelativePath);
     }
   }
