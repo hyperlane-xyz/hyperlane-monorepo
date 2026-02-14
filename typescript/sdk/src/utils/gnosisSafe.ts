@@ -239,11 +239,15 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
+  const hasScheme = hasExplicitUrlScheme(trimmedUrl);
   const parsed =
     parseUrl(trimmedUrl) ??
-    (!hasExplicitUrlScheme(trimmedUrl)
-      ? parseUrl(`https://${trimmedUrl}`)
-      : undefined);
+    (!hasScheme ? parseUrl(`https://${trimmedUrl}`) : undefined);
+  if (!parsed && hasScheme) {
+    throw new Error(
+      `Safe tx service URL must use http(s): ${txServiceUrl.trim()}`,
+    );
+  }
   if (parsed) {
     parsed.search = '';
     parsed.hash = '';

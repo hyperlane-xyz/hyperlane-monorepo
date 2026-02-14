@@ -199,9 +199,12 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/tx-service/eth/api');
     });
 
-    it('does not infer https when a different explicit scheme is present', () => {
-      expect(normalizeSafeServiceUrl('ftp://safe.global')).to.equal(
-        'ftp://safe.global/api',
+    it('throws when a non-http scheme is provided explicitly', () => {
+      expect(() => normalizeSafeServiceUrl('ftp://safe.global')).to.throw(
+        'Safe tx service URL must use http(s): ftp://safe.global',
+      );
+      expect(() => normalizeSafeServiceUrl('ws://safe.global')).to.throw(
+        'Safe tx service URL must use http(s): ws://safe.global',
       );
     });
 
