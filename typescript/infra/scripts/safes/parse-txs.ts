@@ -70,42 +70,45 @@ async function main() {
     'balance',
   ]);
 
-  const chainResultEntries = await Promise.all(
-    pendingTxs.map(
-      async ({
-        chain,
-        nonce,
-        fullTxHash,
-      }): Promise<[string, GovernTransaction]> => {
-        rootLogger.info(
-          chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
-        );
-        const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
-        assert(
-          hasSafeServiceTransactionPayload(safeTx),
-          `Safe transaction ${fullTxHash} on ${chain} is missing to/data/value`,
-        );
-        const tx: AnnotatedEV5Transaction = {
-          to: safeTx.to,
-          data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
-        };
-
-        try {
-          const results = await reader.read(chain, tx);
+  const chainResultEntries = (
+    await Promise.all(
+      pendingTxs.map(
+        async ({
+          chain,
+          nonce,
+          fullTxHash,
+        }): Promise<[string, GovernTransaction] | undefined> => {
           rootLogger.info(
-            chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
+            chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
           );
-          return [`${chain}-${nonce}-${fullTxHash}`, results];
-        } catch (err) {
-          rootLogger.error(
-            chalk.red('Error reading transaction', err, chain, tx),
-          );
-          process.exit(1);
-        }
-      },
-    ),
-  );
+          try {
+            const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
+            assert(
+              hasSafeServiceTransactionPayload(safeTx),
+              `Safe transaction ${fullTxHash} on ${chain} is missing to/data/value`,
+            );
+            const tx: AnnotatedEV5Transaction = {
+              to: safeTx.to,
+              data: safeTx.data,
+              value: BigNumber.from(safeTx.value),
+            };
+            const results = await reader.read(chain, tx);
+            rootLogger.info(
+              chalk.blue(`Finished reading tx ${fullTxHash} on ${chain}`),
+            );
+            return [`${chain}-${nonce}-${fullTxHash}`, results];
+          } catch (err) {
+            rootLogger.error(
+              chalk.red(
+                `Error reading transaction ${fullTxHash} on ${chain}: ${err}`,
+              ),
+            );
+            return undefined;
+          }
+        },
+      ),
+    )
+  ).filter((result): result is [string, GovernTransaction] => !!result);
 
   processGovernorReaderResult(
     chainResultEntries,
