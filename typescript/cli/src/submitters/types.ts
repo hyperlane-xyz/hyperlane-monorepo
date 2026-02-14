@@ -34,16 +34,58 @@ const ExtendedSubmitterMetadataSchema: z.ZodSchema<ExtendedSubmitterMetadata> =
 
 export const ExtendedSubmissionStrategySchema: z.ZodSchema<{
   submitter: ExtendedSubmitterMetadata;
+  submitterOverrides?: Record<string, ExtendedSubmitterMetadata>;
 }> = z.object({
   submitter: ExtendedSubmitterMetadataSchema,
+  submitterOverrides: z.record(z.string(), ExtendedSubmitterMetadataSchema).optional(),
 });
 
 export type ExtendedSubmissionStrategy = z.infer<
   typeof ExtendedSubmissionStrategySchema
 >;
 
+function preprocessExtendedChainSubmissionStrategy(value: unknown) {
+  const raw = (value ?? {}) as Record<string, any>;
+  const preprocessedBase = preprocessChainSubmissionStrategy(raw as any) as Record<
+    string,
+    { submitter: SubmitterMetadata }
+  >;
+
+  const result: Record<string, any> = {};
+  for (const [chain, strategy] of Object.entries(raw)) {
+    const submitterOverrides = strategy?.submitterOverrides as
+      | Record<string, SubmitterMetadata>
+      | undefined;
+
+    let preprocessedOverrides: Record<string, SubmitterMetadata> | undefined;
+    if (submitterOverrides) {
+      preprocessedOverrides = Object.fromEntries(
+        Object.entries(submitterOverrides).map(([target, submitter]) => [
+          target,
+          (
+            preprocessChainSubmissionStrategy({
+              [chain]: {
+                submitter,
+              },
+            } as any) as Record<string, { submitter: SubmitterMetadata }>
+          )[chain].submitter,
+        ]),
+      );
+    }
+
+    result[chain] = {
+      submitter: preprocessedBase[chain]?.submitter ?? strategy.submitter,
+      ...(preprocessedOverrides
+        ? { submitterOverrides: preprocessedOverrides }
+        : {}),
+    };
+  }
+
+  return result;
+}
+
 export const ExtendedChainSubmissionStrategySchema = z.preprocess(
-  preprocessChainSubmissionStrategy,
+  preprocessExtendedChainSubmissionStrategy,
   z
     .record(ZChainName, ExtendedSubmissionStrategySchema)
     .superRefine(refineChainSubmissionStrategy),

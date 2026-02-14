@@ -556,6 +556,48 @@ function getConfigFingerprint(config: ExtendedSubmissionStrategy): string {
   return JSON.stringify(config.submitter);
 }
 
+function resolveExplicitSubmitterForTransaction({
+  chain,
+  protocol,
+  transaction,
+  explicitSubmissionStrategy,
+}: {
+  chain: ChainName;
+  protocol: ProtocolType;
+  transaction: TypedAnnotatedTransaction;
+  explicitSubmissionStrategy: ExtendedSubmissionStrategy;
+}): ExtendedSubmissionStrategy {
+  const to = (transaction as any).to;
+  const overrides = explicitSubmissionStrategy.submitterOverrides;
+
+  if (!overrides || !to || typeof to !== 'string') {
+    return ExtendedSubmissionStrategySchema.parse({
+      submitter: explicitSubmissionStrategy.submitter,
+    });
+  }
+
+  let selectedSubmitter = explicitSubmissionStrategy.submitter;
+  const entries = Object.entries(overrides);
+  if (protocol === ProtocolType.Ethereum) {
+    const normalizedTarget = normalizeAddressEvm(to);
+    const match = entries.find(([target]) =>
+      normalizeAddressEvm(target) === normalizedTarget,
+    );
+    if (match) {
+      selectedSubmitter = match[1];
+    }
+  } else {
+    const match = overrides[to];
+    if (match) {
+      selectedSubmitter = match;
+    }
+  }
+
+  return ExtendedSubmissionStrategySchema.parse({
+    submitter: selectedSubmitter,
+  });
+}
+
 function createCache(): Cache {
   return {
     safeByChainAndAddress: new Map(),
@@ -573,6 +615,7 @@ export async function resolveSubmitterBatchesForTransactions({
   isExtendedChain,
 }: ResolveSubmitterBatchesParams): Promise<ResolvedSubmitterBatch[]> {
   assert(transactions.length > 0, `No transactions provided for chain ${chain}`);
+  const protocol = context.multiProvider.getProtocol(chain);
 
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
     strategyUrl && !isExtendedChain
@@ -580,15 +623,39 @@ export async function resolveSubmitterBatchesForTransactions({
       : undefined;
 
   if (explicitSubmissionStrategy) {
-    return [
-      {
-        config: explicitSubmissionStrategy,
-        transactions,
-      },
-    ];
+    const grouped = new Map<
+      string,
+      { config: ExtendedSubmissionStrategy; transactions: TypedAnnotatedTransaction[]; firstIndex: number }
+    >();
+    for (const [index, transaction] of transactions.entries()) {
+      const selectedConfig = resolveExplicitSubmitterForTransaction({
+        chain,
+        protocol,
+        transaction,
+        explicitSubmissionStrategy,
+      });
+
+      const key = getConfigFingerprint(selectedConfig);
+      const existing = grouped.get(key);
+      if (existing) {
+        existing.transactions.push(transaction);
+      } else {
+        grouped.set(key, {
+          config: selectedConfig,
+          transactions: [transaction],
+          firstIndex: index,
+        });
+      }
+    }
+
+    return Array.from(grouped.values())
+      .sort((a, b) => a.firstIndex - b.firstIndex)
+      .map(({ config, transactions: groupedTransactions }) => ({
+        config,
+        transactions: groupedTransactions,
+      }));
   }
 
-  const protocol = context.multiProvider.getProtocol(chain);
   if (protocol !== ProtocolType.Ethereum) {
     return [
       {
