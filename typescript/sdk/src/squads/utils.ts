@@ -823,6 +823,31 @@ export function canModifySquadsProposalStatus(statusKind: string): boolean {
   );
 }
 
+export type SquadsProposalModification = Readonly<{
+  action: 'reject' | 'cancel';
+  pastTenseAction: 'rejected' | 'cancelled';
+}>;
+
+export function deriveSquadsProposalModification(
+  statusKind: string,
+): SquadsProposalModification | undefined {
+  const normalizedStatusKind = normalizeStatusKind(statusKind);
+  if (normalizedStatusKind === SquadsProposalStatus.Active) {
+    return {
+      action: 'reject',
+      pastTenseAction: 'rejected',
+    };
+  }
+  if (normalizedStatusKind === SquadsProposalStatus.Approved) {
+    return {
+      action: 'cancel',
+      pastTenseAction: 'cancelled',
+    };
+  }
+
+  return undefined;
+}
+
 export function isStaleSquadsProposal(
   statusKind: string,
   transactionIndex: number,

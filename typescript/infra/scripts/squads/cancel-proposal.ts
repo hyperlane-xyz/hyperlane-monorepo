@@ -10,7 +10,7 @@ import {
   SvmMultiProtocolSignerAdapter,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
-  canModifySquadsProposalStatus,
+  deriveSquadsProposalModification,
   getSquadProposal,
   isTerminalSquadsProposalStatus,
   isStaleSquadsProposal,
@@ -126,15 +126,15 @@ async function main() {
   // Determine the appropriate action based on proposal status
   // - Active proposals: Use Reject (vote against)
   // - Approved proposals: Use Cancel (prevent execution)
-  if (!canModifySquadsProposalStatus(status)) {
+  const proposalModification = deriveSquadsProposalModification(status);
+  if (!proposalModification) {
     throw new Error(
       `Proposal ${proposalTransactionIndex} is ${status} and cannot be modified by this script. Expected ${SquadsProposalStatus.Active} or ${SquadsProposalStatus.Approved}.`,
     );
   }
 
-  const isActive = status === SquadsProposalStatus.Active;
-  const action = isActive ? 'reject' : 'cancel';
-  const actionPastTense = isActive ? 'rejected' : 'cancelled';
+  const { action, pastTenseAction: actionPastTense } = proposalModification;
+  const isActive = action === 'reject';
 
   rootLogger.info(
     chalk.blue(

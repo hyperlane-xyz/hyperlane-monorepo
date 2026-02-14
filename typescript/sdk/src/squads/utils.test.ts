@@ -22,6 +22,7 @@ import {
   getSquadTxStatus,
   isTerminalSquadsProposalStatus,
   canModifySquadsProposalStatus,
+  deriveSquadsProposalModification,
   isStaleSquadsProposal,
   getTransactionType,
   isConfigTransaction,
@@ -3031,6 +3032,33 @@ describe('squads utils', () => {
     );
     expect(() => canModifySquadsProposalStatus(null as unknown as string)).to
       .throw('Expected status kind to be a string, got object');
+  });
+
+  it('derives proposal modification actions from status', () => {
+    expect(
+      deriveSquadsProposalModification(SquadsProposalStatus.Active),
+    ).to.deep.equal({
+      action: 'reject',
+      pastTenseAction: 'rejected',
+    });
+    expect(
+      deriveSquadsProposalModification(` ${SquadsProposalStatus.Approved} `),
+    ).to.deep.equal({
+      action: 'cancel',
+      pastTenseAction: 'cancelled',
+    });
+    expect(deriveSquadsProposalModification(SquadsProposalStatus.Draft)).to.eq(
+      undefined,
+    );
+  });
+
+  it('fails fast for invalid proposal-modification helper inputs', () => {
+    expect(() => deriveSquadsProposalModification('   ')).to.throw(
+      'Expected status kind to be a non-empty string',
+    );
+    expect(() =>
+      deriveSquadsProposalModification(null as unknown as string),
+    ).to.throw('Expected status kind to be a string, got object');
   });
 
   it('detects stale squads proposals only for non-terminal statuses', () => {
