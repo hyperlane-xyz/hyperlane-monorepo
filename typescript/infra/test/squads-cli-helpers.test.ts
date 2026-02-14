@@ -447,4 +447,18 @@ describe('squads cli helpers', () => {
     expect(parserError?.message).to.include('Invalid values');
     expect(parserError?.message).to.include('ethereum');
   });
+
+  it('rejects empty chains values via parser coercion', async () => {
+    let parserError: Error | undefined;
+    try {
+      await parseArgs(withSquadsChains(yargs(['--chains', '   '])));
+    } catch (error) {
+      parserError = error as Error;
+    }
+
+    expect(parserError).to.not.be.undefined;
+    expect(parserError?.message).to.include(
+      'Expected --chains[0] to be a non-empty string',
+    );
+  });
 });
