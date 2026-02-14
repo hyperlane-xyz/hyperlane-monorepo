@@ -406,6 +406,10 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('http://user:pass@safe.global/api')).to.equal(
         false,
       );
+      expect(safeApiKeyRequired('https://@safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('http://@safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('https://:@safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('http://:@safe.global/api')).to.equal(false);
       expect(safeApiKeyRequired('https://safe.global.evil.com/api')).to.equal(
         false,
       );
@@ -938,6 +942,18 @@ describe('gnosisSafe utils', () => {
       ).to.throw(
         'Safe tx service URL is invalid: http://safe.global%40evil.com/api',
       );
+      expect(() =>
+        normalizeSafeServiceUrl('https://@safe.global/api'),
+      ).to.throw('Safe tx service URL is invalid: https://@safe.global/api');
+      expect(() => normalizeSafeServiceUrl('http://@safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: http://@safe.global/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('https://:@safe.global/api'),
+      ).to.throw('Safe tx service URL is invalid: https://:@safe.global/api');
+      expect(() =>
+        normalizeSafeServiceUrl('http://:@safe.global/api'),
+      ).to.throw('Safe tx service URL is invalid: http://:@safe.global/api');
       expect(() =>
         normalizeSafeServiceUrl('https://safe.global@evil.com/api'),
       ).to.throw(

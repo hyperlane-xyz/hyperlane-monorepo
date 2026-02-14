@@ -169,6 +169,22 @@ function parseSchemeRelativeHttpUrl(value: string): URL | undefined {
   }
 }
 
+function extractExplicitAuthority(value: string): string | undefined {
+  if (!URL_SCHEME_WITH_AUTHORITY_REGEX.test(value)) {
+    return undefined;
+  }
+
+  const authorityAndPath = value.replace(/^[a-zA-Z][a-zA-Z\d+.-]*:\/+/, '');
+  return authorityAndPath.split(/[/?#]/, 1)[0];
+}
+
+function hasExplicitUserinfoLikeAuthority(value: string): boolean {
+  const authority = extractExplicitAuthority(value);
+  return (
+    authority !== undefined && USERINFO_LIKE_AUTHORITY_REGEX.test(authority)
+  );
+}
+
 function hasUrlUserinfo(parsed: URL): boolean {
   return parsed.username.length > 0 || parsed.password.length > 0;
 }
@@ -292,6 +308,9 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const trimmedUrl = txServiceUrl.trim();
+  if (hasExplicitUserinfoLikeAuthority(trimmedUrl)) {
+    return false;
+  }
   if (hasInvalidHostlessSafeServiceUrl(trimmedUrl)) {
     return false;
   }
@@ -341,6 +360,9 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
+  if (hasExplicitUserinfoLikeAuthority(trimmedUrl)) {
+    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+  }
   if (hasInvalidHostlessSafeServiceUrl(trimmedUrl)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
