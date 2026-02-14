@@ -451,13 +451,13 @@ async function getNextSquadsTransactionIndex(
 
 function buildVaultTransactionMessage(
   vaultPda: PublicKey,
-  ixs: TransactionInstruction[],
+  ixs: readonly TransactionInstruction[],
   recentBlockhash: string,
 ): TransactionMessage {
   return new TransactionMessage({
     payerKey: vaultPda,
     recentBlockhash,
-    instructions: ixs,
+    instructions: [...ixs],
   });
 }
 
@@ -515,7 +515,7 @@ function createProposalCancelInstruction(
 export async function buildSquadsVaultTransactionProposal(
   chain: ChainName,
   mpp: MultiProtocolProvider,
-  ixs: TransactionInstruction[],
+  ixs: readonly TransactionInstruction[],
   creator: PublicKey,
   memo?: string,
 ): Promise<{
@@ -603,7 +603,7 @@ export async function buildSquadsProposalCancellation(
 
 export async function submitProposalToSquads(
   chain: ChainName,
-  vaultInstructions: TransactionInstruction[],
+  vaultInstructions: readonly TransactionInstruction[],
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
   memo?: string,
