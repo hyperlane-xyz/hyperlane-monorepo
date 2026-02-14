@@ -163,6 +163,11 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'https://safe-transaction-mainnet.safe.global/path%2Esegment/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'http://safe-transaction-mainnet.safe.global/path@foo/api',
         ),
       ).to.equal(true);
@@ -211,6 +216,11 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired(
           'https://safe-transaction-mainnet.5afe.dev/path%25255cfoo/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
         ),
       ).to.equal(true);
       expect(
@@ -1227,11 +1237,21 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl('https://safe.global/path%25252540foo'),
       ).to.equal('https://safe.global/path%25252540foo/api');
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/path%2Esegment'),
+      ).to.equal('https://safe.global/path%2Esegment/api');
       expect(normalizeSafeServiceUrl('http://safe.global/path@foo')).to.equal(
         'http://safe.global/path@foo/api',
       );
       expect(normalizeSafeServiceUrl('http://safe.global/path%40foo')).to.equal(
         'http://safe.global/path%40foo/api',
+      );
+      expect(
+        normalizeSafeServiceUrl(
+          'https://safe-transaction-mainnet.5afe.dev/path%2Esegment',
+        ),
+      ).to.equal(
+        'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
       );
     });
 
