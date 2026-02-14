@@ -868,6 +868,7 @@ export {
   parseSafeTx,
   proposeSafeTransaction,
   retrySafeApi,
+  resolveSafeSigner,
   SafeCallData,
   SafeDeploymentConfig,
   SafeOwnerUpdateCall,

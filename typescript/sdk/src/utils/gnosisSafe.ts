@@ -399,6 +399,32 @@ export async function isLegacySafeApi(version?: string): Promise<boolean> {
   return false;
 }
 
+export async function resolveSafeSigner(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  signer?: SafeProviderConfig['signer'],
+): Promise<NonNullable<SafeProviderConfig['signer']>> {
+  if (signer) {
+    return signer;
+  }
+
+  const multiProviderSigner = multiProvider.getSigner(
+    chain,
+  ) as ethers.Signer & {
+    privateKey?: string;
+  };
+  if (multiProviderSigner.privateKey) {
+    return multiProviderSigner.privateKey;
+  }
+
+  const signerAddress = await multiProviderSigner.getAddress();
+  rootLogger.debug(
+    `MultiProvider signer ${signerAddress} on ${chain} does not expose a private key. ` +
+      'Falling back to address-based signer configuration for protocol-kit.',
+  );
+  return signerAddress;
+}
+
 export async function getSafeAndService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
@@ -424,23 +450,7 @@ export async function getSafeAndService(
     );
   }
 
-  let safeSigner = signer;
-  if (!safeSigner) {
-    const multiProviderSigner = multiProvider.getSigner(
-      chain,
-    ) as ethers.Signer & {
-      privateKey?: string;
-    };
-    safeSigner = multiProviderSigner.privateKey;
-    if (!safeSigner) {
-      const signerAddress = await multiProviderSigner.getAddress();
-      rootLogger.debug(
-        `MultiProvider signer ${signerAddress} on ${chain} does not expose a private key. ` +
-          'Falling back to address-based signer configuration for protocol-kit.',
-      );
-      safeSigner = signerAddress;
-    }
-  }
+  const safeSigner = await resolveSafeSigner(chain, multiProvider, signer);
   let safeSdk: Safe.default;
   try {
     safeSdk = await retrySafeApi(() =>

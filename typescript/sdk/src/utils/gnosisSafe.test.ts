@@ -11,6 +11,7 @@ import {
   isLegacySafeApi,
   normalizeSafeServiceUrl,
   parseSafeTx,
+  resolveSafeSigner,
   safeApiKeyRequired,
 } from './gnosisSafe.js';
 
@@ -66,6 +67,50 @@ describe('gnosisSafe utils', () => {
 
     it('accepts newer versions', async () => {
       expect(await isLegacySafeApi('5.19.1')).to.equal(false);
+    });
+  });
+
+  describe(resolveSafeSigner.name, () => {
+    it('returns explicit signer when provided', async () => {
+      const explicitSigner = '0x1234567890123456789012345678901234567890';
+      const multiProviderMock = {
+        getSigner: () => {
+          throw new Error('should not be called');
+        },
+      };
+
+      const signer = await resolveSafeSigner(
+        'test',
+        multiProviderMock as any,
+        explicitSigner,
+      );
+      expect(signer).to.equal(explicitSigner);
+    });
+
+    it('prefers multiprovider private key when signer is not provided', async () => {
+      const privateKey =
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      const multiProviderMock = {
+        getSigner: () => ({
+          privateKey,
+          getAddress: async () => '0x1111111111111111111111111111111111111111',
+        }),
+      };
+
+      const signer = await resolveSafeSigner('test', multiProviderMock as any);
+      expect(signer).to.equal(privateKey);
+    });
+
+    it('falls back to signer address when private key is unavailable', async () => {
+      const signerAddress = '0x2222222222222222222222222222222222222222';
+      const multiProviderMock = {
+        getSigner: () => ({
+          getAddress: async () => signerAddress,
+        }),
+      };
+
+      const signer = await resolveSafeSigner('test', multiProviderMock as any);
+      expect(signer).to.equal(signerAddress);
     });
   });
 
