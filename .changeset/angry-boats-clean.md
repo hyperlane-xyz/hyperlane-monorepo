@@ -21,6 +21,7 @@ Safe utility typing and robustness were improved by:
 - Hardening invalid-input error paths to safely handle unstringifiable runtime values while preserving deterministic, caller-level error messaging.
 - Strengthening owner-diff invariants with duplicate-owner and invalid-address fail-fast checks.
 - Strengthening owner-diff input boundaries with array-shape validation, fail-closed handling for inaccessible list metadata/entries, and deterministic non-string owner-entry rejection before duplicate/address checks.
+- Validating owner-list and deployment-version list lengths as safe non-negative integers before iteration to reject hostile runtime list metadata.
 - Normalizing Safe service URLs with host-only URL handling, non-http(s) scheme rejection, malformed authority/userinfo rejection, host-octet/Unicode/control-character authority guards, query/hash stripping, `/api` canonicalization, and explicit empty-value fail-fast assertions.
 - Hardening Safe URL helper boundaries with explicit non-string input handling: fail-closed API-key requirement checks and deterministic normalization errors (including unstringifiable runtime values).
 - Tightening Safe API key host matching with hostname boundary checks, trailing-dot normalization, malformed URL and userinfo spoof rejection (including encoded `@` and encoded backslash variants), and strict authority validation while preserving valid encoded path/query/fragment data.

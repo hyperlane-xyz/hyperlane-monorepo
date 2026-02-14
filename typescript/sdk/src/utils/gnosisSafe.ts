@@ -644,6 +644,10 @@ export function getKnownMultiSendAddresses(
   } catch {
     throw new Error('Safe deployment versions list length is inaccessible');
   }
+  assert(
+    Number.isSafeInteger(versionsCount) && versionsCount >= 0,
+    `Safe deployment versions list length is invalid: ${stringifyValueForError(versionsCount)}`,
+  );
 
   for (let index = 0; index < versionsCount; index += 1) {
     let version: unknown;
@@ -1244,6 +1248,10 @@ function assertValidUniqueOwners(
   } catch {
     throw new Error(`Owner list length is inaccessible for ${ownerGroupName}`);
   }
+  assert(
+    Number.isSafeInteger(ownerCount) && ownerCount >= 0,
+    `Owner list length is invalid for ${ownerGroupName}: ${stringifyValueForError(ownerCount)}`,
+  );
 
   for (let index = 0; index < ownerCount; index += 1) {
     let owner: unknown;

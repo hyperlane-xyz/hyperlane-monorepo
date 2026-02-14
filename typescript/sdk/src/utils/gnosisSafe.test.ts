@@ -3750,6 +3750,26 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws when owner list length is invalid', async () => {
+      const ownersWithInvalidLength = new Proxy(
+        ['0x0000000000000000000000000000000000000001'],
+        {
+          get(target, property, receiver) {
+            if (property === 'length') {
+              return Number.POSITIVE_INFINITY;
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      await expectOwnerChangesError(
+        ownersWithInvalidLength,
+        ['0x0000000000000000000000000000000000000002'],
+        'Owner list length is invalid for current owners: Infinity',
+      );
+    });
+
     it('throws when owner list entry access is inaccessible', async () => {
       const ownersWithThrowingEntry = [
         '0x0000000000000000000000000000000000000001',
@@ -4734,6 +4754,21 @@ describe('gnosisSafe utils', () => {
       expect(() =>
         getKnownMultiSendAddresses(versionsWithThrowingLength),
       ).to.throw('Safe deployment versions list length is inaccessible');
+    });
+
+    it('throws when safe deployment versions length is invalid', () => {
+      const versionsWithInvalidLength = new Proxy(['1.3.0'], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return Number.POSITIVE_INFINITY;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() =>
+        getKnownMultiSendAddresses(versionsWithInvalidLength),
+      ).to.throw('Safe deployment versions list length is invalid: Infinity');
     });
 
     it('throws when safe deployment version entry access is inaccessible', () => {
