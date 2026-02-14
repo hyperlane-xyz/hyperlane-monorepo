@@ -3605,7 +3605,7 @@ describe('gnosisSafe utils', () => {
       expect(() =>
         parseSafeTx({
           to: '0x1234567890123456789012345678901234567890',
-          data: null as unknown as string,
+          data: null,
           value: BigNumber.from(0),
         }),
       ).to.throw('Safe transaction data is required');
@@ -3646,7 +3646,7 @@ describe('gnosisSafe utils', () => {
       expect(() =>
         parseSafeTx({
           to: '0x1234567890123456789012345678901234567890',
-          data: 123 as unknown as string,
+          data: 123,
           value: BigNumber.from(0),
         }),
       ).to.throw('Safe transaction data must be hex');

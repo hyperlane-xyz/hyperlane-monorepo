@@ -1427,7 +1427,11 @@ export async function getPendingTxsForChains(
   );
 }
 
-export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+export type ParseableSafeTx = Omit<AnnotatedEV5Transaction, 'data'> & {
+  data?: unknown;
+};
+
+export function parseSafeTx(tx: ParseableSafeTx) {
   const normalizedData = asHex(tx.data, {
     required: SAFE_TX_DATA_REQUIRED_ERROR,
     invalid: SAFE_TX_DATA_INVALID_HEX_ERROR,
