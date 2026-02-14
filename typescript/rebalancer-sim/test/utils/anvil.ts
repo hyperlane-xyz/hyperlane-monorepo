@@ -15,6 +15,19 @@ const DEFAULT_CHAIN_ID = 31337;
 const LOCAL_ANVIL_HOST = '127.0.0.1';
 const LOCAL_ANVIL_STARTUP_TIMEOUT_MS = 30_000;
 const LOCAL_ANVIL_STOP_TIMEOUT_MS = 5_000;
+const WINDOWS_DOCKER_PIPE_ENGINES = [
+  'docker_engine',
+  'dockerdesktopengine',
+  'dockerdesktoplinuxengine',
+] as const;
+const WINDOWS_DOCKER_PIPE_UNAVAILABLE_PATTERNS =
+  WINDOWS_DOCKER_PIPE_ENGINES.flatMap((engine) => [
+    new RegExp(`npipe:.*${engine}`, 'i'),
+    new RegExp(`open \\/\\/\\.\\/pipe\\/${engine}`, 'i'),
+    new RegExp(`%2f%2f\\.%2fpipe%2f${engine}`, 'i'),
+    new RegExp(`%5c%5c\\.%5cpipe%5c${engine}`, 'i'),
+    new RegExp(String.raw`\\\\\.\\pipe\\${engine}`, 'i'),
+  ]);
 const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /could not find a working container runtime strategy/i,
   /no docker client strategy found/i,
@@ -32,18 +45,7 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /connect enoent .*podman\.sock/i,
   /connect econnrefused .*docker\.sock/i,
   /connect econnrefused .*podman\.sock/i,
-  /npipe:.*docker_engine/i,
-  /npipe:.*dockerdesktopengine/i,
-  /npipe:.*dockerdesktoplinuxengine/i,
-  /open \/\/\.\/pipe\/docker_engine/i,
-  /open \/\/\.\/pipe\/dockerdesktopengine/i,
-  /open \/\/\.\/pipe\/dockerdesktoplinuxengine/i,
-  /%2f%2f\.%2fpipe%2fdocker_engine/i,
-  /%2f%2f\.%2fpipe%2fdockerdesktopengine/i,
-  /%2f%2f\.%2fpipe%2fdockerdesktoplinuxengine/i,
-  /\\\\\.\\pipe\\docker_engine/i,
-  /\\\\\.\\pipe\\dockerdesktopengine/i,
-  /\\\\\.\\pipe\\dockerdesktoplinuxengine/i,
+  ...WINDOWS_DOCKER_PIPE_UNAVAILABLE_PATTERNS,
 ];
 
 function getErrorMessage(error: unknown): string {

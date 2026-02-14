@@ -160,6 +160,20 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches windows docker URL-encoded backslash named-pipe failures', () => {
+      const error = new Error(
+        'error during connect: Get "http://%5C%5C.%5Cpipe%5Cdocker_engine/v1.24/info": The system cannot find the file specified.',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches windows docker desktop engine URL-encoded backslash named-pipe failures', () => {
+      const error = new Error(
+        'error during connect: Get "http://%5C%5C.%5Cpipe%5CdockerDesktopEngine/v1.24/info": The system cannot find the file specified.',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches windows docker desktop engine npipe strategy failures', () => {
       const error = new Error(
         'Cannot connect to npipe:////./pipe/dockerDesktopEngine: The system cannot find the file specified.',
