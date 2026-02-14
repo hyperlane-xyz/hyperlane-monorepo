@@ -26,7 +26,7 @@ Use MCP inline comment tool, not `gh api`:
    - `side: "RIGHT"` unless intentionally commenting old code
 3. After posting inline comments, update the Claude sticky summary comment with:
    - `mcp__github_comment__update_claude_comment`
-4. Do **not** use `gh api` here; action tool permissions often block non-git Bash commands.
+4. Do **not** use `gh api` for inline comments; use MCP tools above. Exception: `gh api` is OK for submitting an APPROVE review.
 
 ### Comment Fields (`create_inline_comment`)
 
