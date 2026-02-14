@@ -183,6 +183,16 @@ describe('squads cli helpers', () => {
     expect(parsedArgs.chain).to.equal(chain);
   });
 
+  it('parses chain alias when using required chain parser helper', async () => {
+    const chain = getSquadsChains()[0];
+
+    const parsedArgs = await parseArgs(
+      withRequiredSquadsChain(yargs(['-c', chain])),
+    );
+
+    expect(parsedArgs.chain).to.equal(chain);
+  });
+
   it('deduplicates chains parsed from repeated args', async () => {
     const chain = getSquadsChains()[0];
 
@@ -234,5 +244,21 @@ describe('squads cli helpers', () => {
 
     expect(parserError).to.not.be.undefined;
     expect(parserError?.message).to.include('Invalid values');
+  });
+
+  it('rejects mixed squads and non-squads chains via parser choices', async () => {
+    const chain = getSquadsChains()[0];
+    let parserError: Error | undefined;
+    try {
+      await parseArgs(
+        withSquadsChains(yargs(['--chains', chain, '--chains', 'ethereum'])),
+      );
+    } catch (error) {
+      parserError = error as Error;
+    }
+
+    expect(parserError).to.not.be.undefined;
+    expect(parserError?.message).to.include('Invalid values');
+    expect(parserError?.message).to.include('ethereum');
   });
 });
