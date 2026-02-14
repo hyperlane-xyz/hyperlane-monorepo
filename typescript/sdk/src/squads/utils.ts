@@ -146,6 +146,12 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
 const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
+const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
+  'account does not exist',
+  'account not found',
+  'could not find account',
+  'failed to find account',
+] as const;
 
 function tokenizeFieldName(fieldName: string): string[] {
   return fieldName
@@ -447,11 +453,26 @@ export async function getSquadProposalAccount(
 
     return { proposal, proposalPda, multisigPda, programId };
   } catch (error) {
+    const errorText = String(error);
+    if (isLikelyMissingSquadsAccountError(error)) {
+      rootLogger.debug(
+        `Proposal ${transactionIndex} on ${chain} was not found: ${errorText}`,
+      );
+      return undefined;
+    }
+
     rootLogger.warn(
-      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
+      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${errorText}`,
     );
     return undefined;
   }
+}
+
+export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
+  const normalizedErrorText = String(error).toLowerCase();
+  return LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS.some((pattern) =>
+    normalizedErrorText.includes(pattern),
+  );
 }
 
 export async function getPendingProposalsForChains(

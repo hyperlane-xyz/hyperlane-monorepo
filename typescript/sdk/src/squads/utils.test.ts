@@ -13,6 +13,7 @@ import {
   assertValidTransactionIndexInput,
   getSquadAndProvider,
   getMinimumProposalIndexToCheck,
+  isLikelyMissingSquadsAccountError,
   getSquadProposalAccount,
   getSquadProposal,
   getSquadTxStatus,
@@ -56,6 +57,37 @@ async function captureAsyncError(
 }
 
 describe('squads utils', () => {
+  describe(isLikelyMissingSquadsAccountError.name, () => {
+    it('detects likely missing-account error messages', () => {
+      expect(
+        isLikelyMissingSquadsAccountError(
+          'Error: Account does not exist 11111111111111111111111111111111',
+        ),
+      ).to.equal(true);
+      expect(
+        isLikelyMissingSquadsAccountError(
+          new Error('failed to find account for address'),
+        ),
+      ).to.equal(true);
+      expect(
+        isLikelyMissingSquadsAccountError(
+          'rpc response: account not found for pubkey',
+        ),
+      ).to.equal(true);
+    });
+
+    it('returns false for non-missing-account errors', () => {
+      expect(
+        isLikelyMissingSquadsAccountError('provider lookup failed'),
+      ).to.equal(false);
+      expect(
+        isLikelyMissingSquadsAccountError(
+          new Error('timeout while fetching account'),
+        ),
+      ).to.equal(false);
+    });
+  });
+
   describe(assertValidTransactionIndexInput.name, () => {
     it('accepts non-negative safe integer transaction indices', () => {
       expect(() =>
