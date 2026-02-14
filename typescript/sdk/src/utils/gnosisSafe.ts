@@ -159,6 +159,9 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   const parseHostname = (value: string): string | undefined => {
     try {
       const parsed = new URL(value);
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return undefined;
+      }
       return parsed.hostname ? parsed.hostname.toLowerCase() : undefined;
     } catch {
       return undefined;
@@ -166,7 +169,11 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const extractHostname = (value: string): string | undefined => {
-    return parseHostname(value) ?? parseHostname(`https://${value}`);
+    const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value);
+    return (
+      parseHostname(value) ??
+      (!hasExplicitScheme ? parseHostname(`https://${value}`) : undefined)
+    );
   };
 
   const hostname = extractHostname(txServiceUrl.trim());
@@ -225,7 +232,10 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  const parsed = parseUrl(trimmedUrl) ?? parseUrl(`https://${trimmedUrl}`);
+  const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmedUrl);
+  const parsed =
+    parseUrl(trimmedUrl) ??
+    (!hasExplicitScheme ? parseUrl(`https://${trimmedUrl}`) : undefined);
   if (parsed) {
     parsed.search = '';
     parsed.hash = '';

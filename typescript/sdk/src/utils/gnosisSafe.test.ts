@@ -42,6 +42,13 @@ describe('gnosisSafe utils', () => {
       ).to.equal(false);
     });
 
+    it('returns false for non-http schemes even on safe hosts', () => {
+      expect(safeApiKeyRequired('ftp://safe.global/api')).to.equal(false);
+      expect(
+        safeApiKeyRequired('ws://safe-transaction-mainnet.5afe.dev'),
+      ).to.equal(false);
+    });
+
     it('handles uppercase hosts and safe subdomains', () => {
       expect(
         safeApiKeyRequired('HTTPS://SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL/API'),
@@ -173,6 +180,12 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl('safe.global/tx-service/eth?foo=bar#fragment'),
       ).to.equal('https://safe.global/tx-service/eth/api');
+    });
+
+    it('does not infer https when a different explicit scheme is present', () => {
+      expect(normalizeSafeServiceUrl('ftp://safe.global')).to.equal(
+        'ftp://safe.global/api',
+      );
     });
 
     it('drops query and hash components during normalization', () => {
