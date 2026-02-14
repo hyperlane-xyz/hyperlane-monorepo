@@ -71,6 +71,10 @@ export type ParsedSquadMultisig = Readonly<{
   timeLock: number;
 }>;
 
+export type NormalizeSquadsAddressValueResult =
+  | { address: string; error: undefined }
+  | { address: undefined; error: string };
+
 export enum SquadTxStatus {
   DRAFT = '📝',
   ACTIVE = '🟡',
@@ -160,6 +164,94 @@ function tokenizeFieldName(fieldName: string): string[] {
     .toLowerCase()
     .split('_')
     .filter((token) => token.length > 0);
+}
+
+function getUnknownValueTypeName(value: unknown): string {
+  if (value === null) {
+    return 'null';
+  }
+
+  return Array.isArray(value) ? 'array' : typeof value;
+}
+
+function formatUnknownErrorForMessage(error: unknown): string {
+  if (error instanceof Error) {
+    return error.message;
+  }
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  try {
+    return String(error);
+  } catch {
+    return '[unstringifiable error]';
+  }
+}
+
+export function normalizeSquadsAddressValue(
+  value: unknown,
+): NormalizeSquadsAddressValueResult {
+  let rawAddressValue: string;
+
+  if (typeof value === 'string') {
+    rawAddressValue = value;
+  } else {
+    if (!value || typeof value !== 'object') {
+      return {
+        address: undefined,
+        error: `expected string or object with toBase58(), got ${getUnknownValueTypeName(value)}`,
+      };
+    }
+
+    const toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
+    if (typeof toBase58Candidate !== 'function') {
+      return {
+        address: undefined,
+        error: 'missing toBase58() method',
+      };
+    }
+
+    try {
+      const toBase58Value = toBase58Candidate.call(value);
+      rawAddressValue =
+        typeof toBase58Value === 'string'
+          ? toBase58Value
+          : String(toBase58Value);
+    } catch (error) {
+      return {
+        address: undefined,
+        error: `failed to stringify key (${formatUnknownErrorForMessage(error)})`,
+      };
+    }
+  }
+
+  const trimmedAddressValue = rawAddressValue.trim();
+  if (trimmedAddressValue.length === 0) {
+    return {
+      address: undefined,
+      error: 'address value is empty',
+    };
+  }
+
+  if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedAddressValue)) {
+    return {
+      address: undefined,
+      error: 'address value is not a meaningful identifier',
+    };
+  }
+
+  try {
+    return {
+      address: new PublicKey(trimmedAddressValue).toBase58(),
+      error: undefined,
+    };
+  } catch {
+    return {
+      address: undefined,
+      error: 'address value is not a valid Solana address',
+    };
+  }
 }
 
 function isLikelyLogArrayFieldName(fieldName: string): boolean {

@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { PublicKey } from '@solana/web3.js';
 import { Argv } from 'yargs';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
@@ -37,7 +36,6 @@ const turnkeySignerPromises = new Map<
   Promise<TurnkeySealevelDeployerSigner>
 >();
 const registryPromises = new Map<DeployEnvironment, Promise<IRegistry>>();
-const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 
 function memoizeByEnvironment<T>(
   cache: Map<DeployEnvironment, Promise<T>>,
@@ -124,75 +122,6 @@ export function getUnsupportedSquadsChainsErrorMessage(
 function formatChainNameForDisplay(chain: string): string {
   const trimmedChain = chain.trim();
   return trimmedChain.length > 0 ? trimmedChain : '<empty>';
-}
-
-export type NormalizeSolanaAddressValueResult =
-  | { address: string; error: undefined }
-  | { address: undefined; error: string };
-
-export function normalizeSolanaAddressValue(
-  value: unknown,
-): NormalizeSolanaAddressValueResult {
-  let rawAddressValue: string;
-
-  if (typeof value === 'string') {
-    rawAddressValue = value;
-  } else {
-    if (!value || typeof value !== 'object') {
-      return {
-        address: undefined,
-        error: `expected string or object with toBase58(), got ${getArgTypeName(value)}`,
-      };
-    }
-
-    const toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
-    if (typeof toBase58Candidate !== 'function') {
-      return {
-        address: undefined,
-        error: 'missing toBase58() method',
-      };
-    }
-
-    try {
-      const toBase58Value = toBase58Candidate.call(value);
-      rawAddressValue =
-        typeof toBase58Value === 'string'
-          ? toBase58Value
-          : String(toBase58Value);
-    } catch (error) {
-      return {
-        address: undefined,
-        error: `failed to stringify key (${formatScriptError(error)})`,
-      };
-    }
-  }
-
-  const trimmedAddressValue = rawAddressValue.trim();
-  if (trimmedAddressValue.length === 0) {
-    return {
-      address: undefined,
-      error: 'address value is empty',
-    };
-  }
-
-  if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedAddressValue)) {
-    return {
-      address: undefined,
-      error: 'address value is not a meaningful identifier',
-    };
-  }
-
-  try {
-    return {
-      address: new PublicKey(trimmedAddressValue).toBase58(),
-      error: undefined,
-    };
-  } catch {
-    return {
-      address: undefined,
-      error: 'address value is not a valid Solana address',
-    };
-  }
 }
 
 export function resolveSquadsChains(

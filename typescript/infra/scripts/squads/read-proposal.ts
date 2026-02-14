@@ -8,6 +8,7 @@ import {
   parseSquadProposal,
   getSquadProposal,
   getSquadsKeys,
+  normalizeSquadsAddressValue,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -20,7 +21,6 @@ import {
 import {
   formatScriptError,
   getSquadsMultiProtocolProvider,
-  normalizeSolanaAddressValue,
   withRequiredSquadsChain,
   withTransactionIndex,
 } from './cli-helpers.js';
@@ -53,7 +53,7 @@ function toBase58IfPossible(
 ): string | undefined {
   const labelWithIndex =
     typeof index === 'number' ? `${label}[${index}]` : label;
-  const normalizedAddress = normalizeSolanaAddressValue(value);
+  const normalizedAddress = normalizeSquadsAddressValue(value);
   if (normalizedAddress.address) {
     return normalizedAddress.address;
   }

@@ -14,6 +14,7 @@ import {
   getSquadAndProvider,
   getMinimumProposalIndexToCheck,
   isLikelyMissingSquadsAccountError,
+  normalizeSquadsAddressValue,
   getSquadProposalAccount,
   getSquadProposal,
   getSquadTxStatus,
@@ -57,6 +58,75 @@ async function captureAsyncError(
 }
 
 describe('squads utils', () => {
+  describe(normalizeSquadsAddressValue.name, () => {
+    it('normalizes valid Solana address strings', () => {
+      expect(
+        normalizeSquadsAddressValue(' 11111111111111111111111111111111 '),
+      ).to.deep.equal({
+        address: '11111111111111111111111111111111',
+        error: undefined,
+      });
+    });
+
+    it('normalizes valid object addresses via toBase58()', () => {
+      expect(
+        normalizeSquadsAddressValue({
+          toBase58: () => '11111111111111111111111111111111',
+        }),
+      ).to.deep.equal({
+        address: '11111111111111111111111111111111',
+        error: undefined,
+      });
+    });
+
+    it('rejects empty Solana address strings', () => {
+      expect(normalizeSquadsAddressValue('   ')).to.deep.equal({
+        address: undefined,
+        error: 'address value is empty',
+      });
+    });
+
+    it('rejects generic object label strings', () => {
+      expect(normalizeSquadsAddressValue('[object Object]')).to.deep.equal({
+        address: undefined,
+        error: 'address value is not a meaningful identifier',
+      });
+    });
+
+    it('rejects non-address Solana string values', () => {
+      expect(normalizeSquadsAddressValue('not-an-address')).to.deep.equal({
+        address: undefined,
+        error: 'address value is not a valid Solana address',
+      });
+    });
+
+    it('rejects primitive values that are not strings', () => {
+      expect(normalizeSquadsAddressValue(123)).to.deep.equal({
+        address: undefined,
+        error: 'expected string or object with toBase58(), got number',
+      });
+    });
+
+    it('rejects objects missing toBase58()', () => {
+      expect(normalizeSquadsAddressValue({})).to.deep.equal({
+        address: undefined,
+        error: 'missing toBase58() method',
+      });
+    });
+
+    it('reports stringification failures from toBase58()', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw new Error('boom');
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.include('failed to stringify key');
+      expect(result.error).to.include('boom');
+    });
+  });
+
   describe(isLikelyMissingSquadsAccountError.name, () => {
     it('detects likely missing-account error messages', () => {
       expect(
