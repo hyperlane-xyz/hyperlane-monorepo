@@ -101,7 +101,7 @@ export type SvmMultisigConfigMap = Record<
   ChainName,
   {
     threshold: number;
-    validators: string[];
+    validators: readonly string[];
   }
 >;
 
@@ -142,10 +142,10 @@ export interface SquadsTransaction extends Record<string, unknown> {
 
 function formatValidatorsWithAliases(
   chain: ChainName,
-  validators: string[],
+  validators: readonly string[],
 ): string[] {
   const config = defaultMultisigConfigs[chain];
-  if (!config) return validators;
+  if (!config) return [...validators];
 
   const aliasMap = new Map<string, string>();
   for (const validator of config.validators) {
@@ -167,7 +167,7 @@ interface WarpRouteMetadata {
 type MultisigSetValidatorsData = {
   domain: number;
   threshold: number;
-  validators: string[];
+  validators: readonly string[];
 };
 
 type MailboxSetDefaultIsmData = {
@@ -1060,7 +1060,7 @@ export class SquadsTransactionReader {
     originChain: ChainName,
     remoteDomain: number,
     threshold: number,
-    validators: string[],
+    validators: readonly string[],
   ): { matches: boolean; issues: string[] } {
     const issues: string[] = [];
     const remoteChain = this.mpp.tryGetChainName(remoteDomain);
