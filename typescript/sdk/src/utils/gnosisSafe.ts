@@ -97,6 +97,12 @@ export type SafeServiceTransaction = {
   [key: string]: unknown;
 };
 
+export type SafeServiceTransactionWithPayload = SafeServiceTransaction & {
+  to: Address;
+  data: string;
+  value: string;
+};
+
 export type SafeAndService = {
   safeSdk: Safe.default;
   safeService: SafeApiKit.default;
@@ -119,6 +125,12 @@ export enum SafeTxStatus {
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
   return /safe\.global|5afe\.dev/.test(txServiceUrl);
+}
+
+export function hasSafeServiceTransactionPayload(
+  transaction: SafeServiceTransaction | undefined,
+): transaction is SafeServiceTransactionWithPayload {
+  return !!transaction?.to && !!transaction?.data && !!transaction?.value;
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {

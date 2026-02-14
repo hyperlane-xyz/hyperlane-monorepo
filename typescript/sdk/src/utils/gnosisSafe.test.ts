@@ -8,6 +8,7 @@ import {
   decodeMultiSendData,
   getKnownMultiSendAddresses,
   getOwnerChanges,
+  hasSafeServiceTransactionPayload,
   isLegacySafeApi,
   normalizeSafeServiceUrl,
   parseSafeTx,
@@ -135,6 +136,29 @@ describe('gnosisSafe utils', () => {
 
       const signer = await resolveSafeSigner('test', multiProviderMock);
       expect(signer).to.equal(signerAddress);
+    });
+  });
+
+  describe(hasSafeServiceTransactionPayload.name, () => {
+    it('returns true when to/data/value are present', () => {
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: '1',
+        }),
+      ).to.equal(true);
+    });
+
+    it('returns false when payload fields are missing', () => {
+      expect(hasSafeServiceTransactionPayload(undefined)).to.equal(false);
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: null,
+          value: '1',
+        }),
+      ).to.equal(false);
     });
   });
 

@@ -6,6 +6,7 @@ import {
   AnnotatedEV5Transaction,
   getPendingTxsForChains,
   getSafeTx,
+  hasSafeServiceTransactionPayload,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -81,20 +82,8 @@ async function main() {
         );
         const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
         assert(
-          safeTx,
-          `Failed to fetch Safe transaction ${fullTxHash} on chain ${chain}`,
-        );
-        assert(
-          safeTx.to,
-          `Safe transaction ${fullTxHash} on ${chain} has no to address`,
-        );
-        assert(
-          safeTx.data,
-          `Safe transaction ${fullTxHash} on ${chain} has no data`,
-        );
-        assert(
-          safeTx.value,
-          `Safe transaction ${fullTxHash} on ${chain} has no value`,
+          hasSafeServiceTransactionPayload(safeTx),
+          `Safe transaction ${fullTxHash} on ${chain} is missing to/data/value`,
         );
         const tx: AnnotatedEV5Transaction = {
           to: safeTx.to,

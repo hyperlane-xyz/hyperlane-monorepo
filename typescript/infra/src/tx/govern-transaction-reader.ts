@@ -28,6 +28,7 @@ import {
   MultiProvider,
   decodeMultiSendData,
   getKnownMultiSendAddresses,
+  hasSafeServiceTransactionPayload,
   getSafeTx,
   parseSafeTx,
   TokenFeeType,
@@ -1816,7 +1817,7 @@ export class GovernTransactionReader {
         insight: `${baseResult.insight} (transaction not found)`,
       };
     }
-    if (!approvedTx.to || !approvedTx.data || !approvedTx.value) {
+    if (!hasSafeServiceTransactionPayload(approvedTx)) {
       return {
         ...baseResult,
         insight: `${baseResult.insight} (transaction data incomplete)`,
