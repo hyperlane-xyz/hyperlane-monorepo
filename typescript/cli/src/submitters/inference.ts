@@ -653,28 +653,43 @@ async function inferTimelockProposerSubmitter({
     return defaultSubmitter;
   }
 
-  const granted = new Set<Address>();
-  for (const log of grantedLogs) {
-    try {
-      const parsed = timelock.interface.parseLog(log);
-      const normalizedAccount = tryNormalizeEvmAddress(
-        parsed.args.account as Address,
-      );
-      if (normalizedAccount) {
-        granted.add(normalizedAccount as Address);
-      }
-    } catch {
-      continue;
+  const roleLogs = [
+    ...grantedLogs.map((log) => ({ log, isGrant: true })),
+    ...revokedLogs.map((log) => ({ log, isGrant: false })),
+  ].sort((a, b) => {
+    const blockDiff =
+      (a.log.blockNumber ?? Number.MAX_SAFE_INTEGER) -
+      (b.log.blockNumber ?? Number.MAX_SAFE_INTEGER);
+    if (blockDiff !== 0) {
+      return blockDiff;
     }
-  }
-  for (const log of revokedLogs) {
+
+    const txIndexDiff =
+      (a.log.transactionIndex ?? Number.MAX_SAFE_INTEGER) -
+      (b.log.transactionIndex ?? Number.MAX_SAFE_INTEGER);
+    if (txIndexDiff !== 0) {
+      return txIndexDiff;
+    }
+
+    return (
+      (a.log.logIndex ?? Number.MAX_SAFE_INTEGER) -
+      (b.log.logIndex ?? Number.MAX_SAFE_INTEGER)
+    );
+  });
+
+  const granted = new Set<Address>();
+  for (const roleLog of roleLogs) {
     try {
-      const parsed = timelock.interface.parseLog(log);
+      const parsed = timelock.interface.parseLog(roleLog.log);
       const normalizedAccount = tryNormalizeEvmAddress(
         parsed.args.account as Address,
       );
       if (normalizedAccount) {
-        granted.delete(normalizedAccount as Address);
+        if (roleLog.isGrant) {
+          granted.add(normalizedAccount as Address);
+        } else {
+          granted.delete(normalizedAccount as Address);
+        }
       }
     } catch {
       continue;
