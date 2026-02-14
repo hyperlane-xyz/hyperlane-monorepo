@@ -11,7 +11,12 @@ import {
   isConfigTransaction,
   isVaultTransaction,
 } from './utils.js';
-import { getSquadsChains, getSquadsKeys, isSquadsChain } from './config.js';
+import {
+  getSquadsChains,
+  getSquadsKeys,
+  isSquadsChain,
+  squadsConfigs,
+} from './config.js';
 
 describe('squads utils', () => {
   describe(getSquadTxStatus.name, () => {
@@ -86,6 +91,19 @@ describe('squads utils', () => {
       expect(() => getSquadsKeys('unknown-chain')).to.throw(
         'Squads config not found on chain unknown-chain',
       );
+    });
+
+    it('resolves keys for every configured squads chain', () => {
+      for (const chain of getSquadsChains()) {
+        const keys = getSquadsKeys(chain);
+        expect(keys.multisigPda.toBase58()).to.equal(
+          squadsConfigs[chain].multisigPda,
+        );
+        expect(keys.programId.toBase58()).to.equal(
+          squadsConfigs[chain].programId,
+        );
+        expect(keys.vault.toBase58()).to.equal(squadsConfigs[chain].vault);
+      }
     });
   });
 
