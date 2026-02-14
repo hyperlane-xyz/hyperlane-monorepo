@@ -151,8 +151,10 @@ export enum SafeTxStatus {
 }
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
-  const hostMatchesDomain = (host: string, domain: string): boolean =>
-    host === domain || host.endsWith(`.${domain}`);
+  const hostMatchesDomain = (host: string, domain: string): boolean => {
+    const normalizedHost = host.replace(/\.+$/, '');
+    return normalizedHost === domain || normalizedHost.endsWith(`.${domain}`);
+  };
 
   const parseHostname = (value: string): string | undefined => {
     try {
