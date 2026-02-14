@@ -48,9 +48,7 @@ async function ensureEvmNodeForChain(
   } as Parameters<typeof runEvmNode>[0]);
 }
 
-before(async function () {
-  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
-
+async function ensureAllEvmNodesRunning(): Promise<void> {
   const testRegistryChains = [
     TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
     TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
@@ -75,6 +73,11 @@ before(async function () {
       ),
     ),
   );
+}
+
+before(async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  await ensureAllEvmNodesRunning();
 
   for (const registryPath of [REGISTRY_PATH, OLD_REGISTRY_PATH]) {
     Object.entries(TEST_CHAIN_NAMES_BY_PROTOCOL).forEach(
@@ -92,7 +95,9 @@ before(async function () {
 });
 
 // Reset the test registry for each test invocation
-beforeEach(() => {
+beforeEach(async function () {
+  this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+  await ensureAllEvmNodesRunning();
   for (const registryPath of [REGISTRY_PATH, OLD_REGISTRY_PATH]) {
     const deploymentPaths = `${registryPath}/deployments/warp_routes`;
 
