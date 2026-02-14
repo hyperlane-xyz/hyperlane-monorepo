@@ -345,6 +345,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from logMessages fields', () => {
+      const error = {
+        data: {
+          logMessages: ['custom program error: 0x177b'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('parses known vote error from nested cause transaction logs', () => {
       const error = {
         cause: {

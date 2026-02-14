@@ -111,7 +111,12 @@ const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPatte
     },
   ];
 
-const SQUADS_ERROR_LOG_ARRAY_FIELDS = ['transactionLogs', 'logs'] as const;
+const SQUADS_ERROR_LOG_ARRAY_FIELDS = [
+  'transactionLogs',
+  'logs',
+  'logMessages',
+  'transactionLogMessages',
+] as const;
 const SQUADS_ERROR_STRING_FIELDS = ['cause', 'error', 'originalError'] as const;
 const SQUADS_ERROR_STRING_ARRAY_FIELDS = ['errors'] as const;
 
