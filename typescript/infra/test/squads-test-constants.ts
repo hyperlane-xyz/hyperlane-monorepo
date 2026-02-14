@@ -11,12 +11,15 @@ export const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
 
-export const EXECUTABLE_SQUADS_SCRIPT_PATHS = SQUADS_SCRIPT_PATHS.filter(
-  (scriptPath) =>
-    !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-      scriptPath.endsWith(`/${fileName}`),
-    ),
+export const EXECUTABLE_SQUADS_SCRIPT_PATHS = Object.freeze(
+  SQUADS_SCRIPT_PATHS.filter(
+    (scriptPath) =>
+      !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+        scriptPath.endsWith(`/${fileName}`),
+      ),
+  ),
 );
 
-export const SQUADS_ERROR_FORMATTING_SCRIPT_PATHS =
-  EXECUTABLE_SQUADS_SCRIPT_PATHS;
+export const SQUADS_ERROR_FORMATTING_SCRIPT_PATHS = Object.freeze([
+  ...EXECUTABLE_SQUADS_SCRIPT_PATHS,
+]);

@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
 
 import {
+  EXECUTABLE_SQUADS_SCRIPT_PATHS,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_PATHS,
@@ -101,6 +102,13 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
 }
 
 describe('squads sdk migration regression', () => {
+  it('keeps squads script constants immutable', () => {
+    expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
+    expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
+    expect(Object.isFrozen(EXECUTABLE_SQUADS_SCRIPT_PATHS)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS)).to.equal(true);
+  });
+
   it('keeps guarded squads script path lists valid and deduplicated', () => {
     expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(SQUADS_SCRIPT_PATHS.length);
     expect(new Set(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS).size).to.equal(
