@@ -3829,6 +3829,60 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('falls back to jsonRpc when direct ICA destination router address is invalid', async () => {
+    const inferredIcaOwner = '0x9292929292929292929292929292929292929292';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    let registryReads = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => {
+          registryReads += 1;
+          return {
+            [CHAIN]: {
+              interchainAccountRouter: 'not-an-address',
+            },
+          };
+        },
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(0);
+      expect(registryReads).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('reuses cached destination signer in ICA fallback path', async () => {
     const inferredIcaOwner = '0x9494949494949494949494949494949494949494';
     const destinationRouterAddress =
@@ -5470,6 +5524,85 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
       expect(registryReads).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('falls back to default timelock proposer when destination router address is invalid', async () => {
+    const timelockOwner = '0x7979797979797979797979797979797979797979';
+    const nonSafeProposer = '0x7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a7a';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [{ topics: ['0xvalid-granted'], data: '0x' }];
+        }
+        return [];
+      }),
+    };
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: nonSafeProposer } }),
+        },
+      } as any);
+
+    let registryReads = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => {
+          registryReads += 1;
+          return {
+            [CHAIN]: {
+              interchainAccountRouter: 'not-an-address',
+            },
+            anvil3: {
+              interchainAccountRouter:
+                '0x8888888888888888888888888888888888888888',
+            },
+          };
+        },
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, { ...TX, to: '0x9999999999999999999999999999999999999999' } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(registryReads).to.equal(1);
+      expect(provider.getLogs.callCount).to.equal(2);
     } finally {
       ownableStub.restore();
       safeStub.restore();

@@ -382,6 +382,13 @@ async function inferIcaSubmitterFromAccount({
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
+  const normalizedDestinationRouterAddress = tryNormalizeEvmAddress(
+    destinationRouterAddress,
+  );
+  if (!normalizedDestinationRouterAddress) {
+    cache.icaByChainAndAddress.set(cacheId, null);
+    return null;
+  }
 
   const provider = getProviderForChain(context, cache, destinationChain);
   if (!provider) {
@@ -389,7 +396,7 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
   const destinationRouter = InterchainAccountRouter__factory.connect(
-    destinationRouterAddress,
+    normalizedDestinationRouterAddress,
     provider,
   );
 
@@ -438,6 +445,11 @@ async function inferIcaSubmitterFromAccount({
         if (!originRouterAddress) {
           continue;
         }
+        const normalizedOriginRouterAddress =
+          tryNormalizeEvmAddress(originRouterAddress);
+        if (!normalizedOriginRouterAddress) {
+          continue;
+        }
 
         try {
           if (!(await hasSignerForChain(context, cache, originChain))) {
@@ -449,12 +461,16 @@ async function inferIcaSubmitterFromAccount({
           }
 
           const originRouter = InterchainAccountRouter__factory.connect(
-            originRouterAddress,
+            normalizedOriginRouterAddress,
             originProvider,
           );
           const derivedAccount = await originRouter[
             'getRemoteInterchainAccount(address,address,address)'
-          ](ownerCandidate, destinationRouterAddress, ethersConstants.AddressZero);
+          ](
+            ownerCandidate,
+            normalizedDestinationRouterAddress,
+            ethersConstants.AddressZero,
+          );
 
           if (!eqAddress(derivedAccount, accountAddress)) {
             continue;
@@ -474,8 +490,8 @@ async function inferIcaSubmitterFromAccount({
             destinationChain,
             owner: ownerCandidate,
             internalSubmitter,
-            originInterchainAccountRouter: originRouterAddress,
-            destinationInterchainAccountRouter: destinationRouterAddress,
+            originInterchainAccountRouter: normalizedOriginRouterAddress,
+            destinationInterchainAccountRouter: normalizedDestinationRouterAddress,
           } satisfies Extract<
             InferredSubmitter,
             { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
@@ -540,7 +556,7 @@ async function inferIcaSubmitterFromAccount({
     owner,
     internalSubmitter,
     originInterchainAccountRouter: originRouter,
-    destinationInterchainAccountRouter: destinationRouterAddress,
+    destinationInterchainAccountRouter: normalizedDestinationRouterAddress,
     ...(eqAddress(ism, ethersConstants.AddressZero)
       ? {}
       : { interchainSecurityModule: ism }),
@@ -669,8 +685,9 @@ async function inferTimelockProposerSubmitter({
     (account) => !eqAddress(account, ethersConstants.AddressZero),
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
-  const destinationRouterAddress =
-    registryAddresses[chain]?.interchainAccountRouter;
+  const destinationRouterAddress = tryNormalizeEvmAddress(
+    registryAddresses[chain]?.interchainAccountRouter ?? '',
+  );
 
   for (const proposer of proposers) {
     if (eqAddress(proposer, signerAddress)) {
@@ -738,6 +755,11 @@ async function inferTimelockProposerSubmitter({
         if (!originRouterAddress) {
           continue;
         }
+        const normalizedOriginRouterAddress =
+          tryNormalizeEvmAddress(originRouterAddress);
+        if (!normalizedOriginRouterAddress) {
+          continue;
+        }
 
         try {
           if (!(await hasSignerForChain(context, cache, originChainName))) {
@@ -753,7 +775,7 @@ async function inferTimelockProposerSubmitter({
           }
 
           const originRouter = InterchainAccountRouter__factory.connect(
-            originRouterAddress,
+            normalizedOriginRouterAddress,
             originProvider,
           );
           const derivedIcaProposer = await originRouter[
@@ -781,7 +803,7 @@ async function inferTimelockProposerSubmitter({
             destinationChain: chain,
             owner: signerAddress,
             internalSubmitter,
-            originInterchainAccountRouter: originRouterAddress,
+            originInterchainAccountRouter: normalizedOriginRouterAddress,
             destinationInterchainAccountRouter: destinationRouterAddress,
           } satisfies Extract<
             InferredSubmitter,
@@ -817,6 +839,11 @@ async function inferTimelockProposerSubmitter({
       if (!originRouterAddress) {
         continue;
       }
+      const normalizedOriginRouterAddress =
+        tryNormalizeEvmAddress(originRouterAddress);
+      if (!normalizedOriginRouterAddress) {
+        continue;
+      }
 
       try {
         if (!(await hasSignerForChain(context, cache, originChainName))) {
@@ -832,7 +859,7 @@ async function inferTimelockProposerSubmitter({
         }
 
         const originRouter = InterchainAccountRouter__factory.connect(
-          originRouterAddress,
+          normalizedOriginRouterAddress,
           originProvider,
         );
         const derivedIcaProposer = await originRouter[
@@ -869,7 +896,7 @@ async function inferTimelockProposerSubmitter({
           destinationChain: chain,
           owner: signerAddress,
           internalSubmitter,
-          originInterchainAccountRouter: originRouterAddress,
+          originInterchainAccountRouter: normalizedOriginRouterAddress,
           destinationInterchainAccountRouter: destinationRouterAddress,
         } satisfies Extract<
           InferredSubmitter,
