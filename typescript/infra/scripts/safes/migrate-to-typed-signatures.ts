@@ -9,6 +9,7 @@ import {
   getPendingTxsForChains,
   getSafeAndService,
   hasSafeServiceTransactionPayload,
+  proposeSafeTransaction,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -141,19 +142,15 @@ async function main() {
           tx.nonce,
         );
 
-        // Although this is duplicated from the safe utils, we explicitly want to
-        // show that we're providing the signature generated from signTypedData.
-        const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-        const senderSignature = await safeSdk.signTypedData(safeTransaction);
-        const senderAddress = await multiProvider.getSignerAddress(tx.chain);
-
-        await safeService.proposeTransaction({
-          safeAddress: safes[tx.chain],
-          safeTransactionData: safeTransaction.data,
-          safeTxHash,
-          senderAddress,
-          senderSignature: senderSignature.data,
-        });
+        const signer = multiProvider.getSigner(tx.chain);
+        await proposeSafeTransaction(
+          tx.chain,
+          safeSdk,
+          safeService,
+          safeTransaction,
+          safes[tx.chain],
+          signer,
+        );
 
         rootLogger.info(
           chalk.green(
