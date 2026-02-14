@@ -91,6 +91,11 @@ async function main() {
     );
   }
 
+  if (remoteCalls.length === 0) {
+    rootLogger.info('No eligible ICA remote calls found; nothing to propose');
+    return;
+  }
+
   const safeMultiSend = await SafeMultiSend.initialize(
     multiProvider,
     originChain,
