@@ -48,6 +48,13 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker socket permission-denied failures', () => {
+      const error = new Error(
+        'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(

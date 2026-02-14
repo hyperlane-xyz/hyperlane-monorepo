@@ -76,6 +76,7 @@ export function isContainerRuntimeUnavailable(error: unknown): boolean {
     /could not find a working container runtime strategy/i,
     /no docker client strategy found/i,
     /cannot connect to the docker daemon/i,
+    /permission denied while trying to connect to the docker daemon socket/i,
     /dial unix .*docker\.sock/i,
     /failed to connect to .*docker\.sock/i,
     /connect econnrefused .*docker\.sock/i,
