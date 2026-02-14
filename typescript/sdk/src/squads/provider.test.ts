@@ -124,6 +124,16 @@ describe('squads provider bridge', () => {
       provider: 1n,
       providerType: 'bigint',
     },
+    {
+      title: 'labels symbol provider containers in malformed provider errors',
+      provider: Symbol('invalid-provider'),
+      providerType: 'symbol',
+    },
+    {
+      title: 'labels function provider containers in malformed provider errors',
+      provider: () => undefined,
+      providerType: 'function',
+    },
   ];
 
   for (const { title, provider, providerType } of invalidProviderContainerCases) {
