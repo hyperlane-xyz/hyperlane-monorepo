@@ -151,7 +151,10 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
     value !== null &&
     typeof (value as { toString?: unknown }).toString === 'function'
   ) {
-    const stringified = (value as { toString: () => string }).toString();
+    const stringified = (value as { toString: () => unknown }).toString();
+    if (typeof stringified !== 'string') {
+      return null;
+    }
     if (!stringified || stringified === '[object Object]') {
       return null;
     }
