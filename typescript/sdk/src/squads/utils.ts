@@ -160,9 +160,13 @@ function parseSquadsProposalVoteErrorText(
   return undefined;
 }
 
-function parseSquadsProposalVoteErrorFromUnknownArray(
+function parseSquadsProposalVoteErrorFromUnknownLogs(
   value: unknown,
 ): SquadsProposalVoteError | undefined {
+  if (typeof value === 'string') {
+    return parseSquadsProposalVoteErrorText(value);
+  }
+
   if (!Array.isArray(value)) {
     return undefined;
   }
@@ -203,7 +207,7 @@ export function parseSquadsProposalVoteErrorFromError(
     return parseSquadsProposalVoteErrorText(error);
   }
 
-  const parsedFromDirectArray = parseSquadsProposalVoteErrorFromUnknownArray(
+  const parsedFromDirectArray = parseSquadsProposalVoteErrorFromUnknownLogs(
     error,
   );
   if (parsedFromDirectArray) {
@@ -235,7 +239,7 @@ export function parseSquadsProposalVoteErrorFromError(
     for (const logField of SQUADS_ERROR_LOG_ARRAY_FIELDS) {
       const maybeLogs = currentRecord[logField];
       const parsedError =
-        parseSquadsProposalVoteErrorFromUnknownArray(maybeLogs);
+        parseSquadsProposalVoteErrorFromUnknownLogs(maybeLogs);
       if (parsedError) return parsedError;
     }
 
@@ -256,7 +260,7 @@ export function parseSquadsProposalVoteErrorFromError(
     for (const field of SQUADS_ERROR_STRING_ARRAY_FIELDS) {
       const value = currentRecord[field];
       const parsedError =
-        parseSquadsProposalVoteErrorFromUnknownArray(value);
+        parseSquadsProposalVoteErrorFromUnknownLogs(value);
       if (parsedError) return parsedError;
     }
 
@@ -266,7 +270,7 @@ export function parseSquadsProposalVoteErrorFromError(
         isLikelyLogArrayFieldName(key)
       ) {
         const parsedError =
-          parseSquadsProposalVoteErrorFromUnknownArray(nestedValue);
+          parseSquadsProposalVoteErrorFromUnknownLogs(nestedValue);
         if (parsedError) return parsedError;
       }
 

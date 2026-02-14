@@ -344,6 +344,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from string log fields', () => {
+      const error = {
+        transactionLogs: 'Program log: AlreadyRejected',
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('prefers transactionLogs over logs when both contain known errors', () => {
       const error = {
         transactionLogs: ['custom program error: 0x177c'],
@@ -354,9 +363,9 @@ describe('squads utils', () => {
       );
     });
 
-    it('uses logs when transactionLogs is present but not an array', () => {
+    it('uses logs when transactionLogs is present but not string/array', () => {
       const error = {
-        transactionLogs: 'custom program error: 0x177b',
+        transactionLogs: 123,
         logs: ['custom program error: 0x177a'],
       };
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
