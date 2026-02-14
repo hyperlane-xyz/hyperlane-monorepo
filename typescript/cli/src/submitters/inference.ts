@@ -44,6 +44,7 @@ type Cache = {
   icaByChainAndAddress: Map<string, InferredSubmitter | null>;
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
   signerByChain: Map<ChainName, boolean>;
+  signerAddressByChain: Map<ChainName, Address | null>;
   protocolIsEthereumByChain: Map<string, boolean>;
   registryAddresses?: Awaited<
     ReturnType<WriteCommandContext['registry']['getAddresses']>
@@ -178,6 +179,25 @@ async function getRegistryAddresses(
   return cache.registryAddresses;
 }
 
+async function getSignerAddressForChain(
+  context: WriteCommandContext,
+  cache: Cache,
+  chain: ChainName,
+): Promise<Address | null> {
+  if (cache.signerAddressByChain.has(chain)) {
+    return cache.signerAddressByChain.get(chain) ?? null;
+  }
+
+  try {
+    const signerAddress = await context.multiProvider.getSignerAddress(chain);
+    cache.signerAddressByChain.set(chain, signerAddress);
+    return signerAddress;
+  } catch {
+    cache.signerAddressByChain.set(chain, null);
+    return null;
+  }
+}
+
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
   return {
     submitter: {
@@ -305,11 +325,12 @@ async function inferIcaSubmitterFromAccount({
   if (!lastLog) {
     // Fall back to deriving the ICA from signer owner and known routers,
     // to support routes where the ICA has not been deployed yet.
-    let signerAddress: Address;
-    try {
-      signerAddress =
-        await context.multiProvider.getSignerAddress(destinationChain);
-    } catch {
+    const signerAddress = await getSignerAddressForChain(
+      context,
+      cache,
+      destinationChain,
+    );
+    if (!signerAddress) {
       cache.icaByChainAndAddress.set(cacheId, null);
       return null;
     }
@@ -467,10 +488,8 @@ async function inferTimelockProposerSubmitter({
     return defaultSubmitter;
   }
 
-  let signerAddress: Address;
-  try {
-    signerAddress = await context.multiProvider.getSignerAddress(chain);
-  } catch {
+  const signerAddress = await getSignerAddressForChain(context, cache, chain);
+  if (!signerAddress) {
     cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
     return defaultSubmitter;
   }
@@ -769,10 +788,8 @@ async function inferSubmitterFromAddress({
     return defaultSubmitter;
   }
 
-  let signerAddress: Address;
-  try {
-    signerAddress = await context.multiProvider.getSignerAddress(chain);
-  } catch {
+  const signerAddress = await getSignerAddressForChain(context, cache, chain);
+  if (!signerAddress) {
     return defaultSubmitter;
   }
   if (eqAddress(address, signerAddress)) {
@@ -1082,6 +1099,7 @@ function createCache(): Cache {
     icaByChainAndAddress: new Map(),
     timelockProposerByChainAndAddress: new Map(),
     signerByChain: new Map(),
+    signerAddressByChain: new Map(),
     protocolIsEthereumByChain: new Map(),
   };
 }

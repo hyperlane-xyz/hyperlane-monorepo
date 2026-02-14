@@ -2762,8 +2762,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       expect(provider.getLogs.callCount).to.equal(1);
       // tx1: destination owner inference + origin signer lookup for internal submitter
-      // tx2: destination owner inference only (ICA submitter is cached)
-      expect(signerAddressCalls).to.equal(3);
+      // tx2: both signer resolutions are cache hits
+      expect(signerAddressCalls).to.equal(2);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -3075,7 +3075,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
-  it('caches null when destination signer lookup fails in ICA fallback path', async () => {
+  it('reuses cached destination signer in ICA fallback path', async () => {
     const inferredIcaOwner = '0x9494949494949494949494949494949494949494';
     const destinationRouterAddress =
       '0x9595959595959595959595959595959595959595';
@@ -3142,9 +3142,9 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
-      // first tx: top-level signer lookup + ICA fallback signer lookup
-      // second tx: top-level signer lookup only due cached null ICA inference
-      expect(signerAddressCalls).to.equal(3);
+      // first tx resolves signer once, ICA fallback reuses cached signer
+      // second tx also reuses cache, so no additional signer lookups
+      expect(signerAddressCalls).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(1);
     } finally {
       ownableStub.restore();
@@ -3678,7 +3678,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
-  it('falls back to default timelock proposer when signer lookup fails', async () => {
+  it('reuses cached signer during timelock proposer inference', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
     const tx1 = { ...TX, to: '0xabababababababababababababababababababab' };
     const tx2 = { ...TX, to: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd' };
@@ -3740,11 +3740,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
-      expect(provider.getLogs.callCount).to.equal(0);
-      expect(hasRoleStub.callCount).to.equal(0);
-      // tx1: signer lookup in inferSubmitter + failing lookup in timelock proposer
-      // tx2: signer lookup in inferSubmitter only (proposer cached)
-      expect(signerAddressCalls).to.equal(3);
+      // first inference queries granted+revoked logs, second tx reuses cache
+      expect(provider.getLogs.callCount).to.equal(2);
+      expect(hasRoleStub.callCount).to.equal(2);
+      // signer address is resolved once and reused from cache
+      expect(signerAddressCalls).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
