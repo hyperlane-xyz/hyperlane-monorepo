@@ -38,6 +38,8 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+const SAFE_API_SEMVER_REGEX =
+  /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/i;
 const URL_SCHEME_WITH_AUTHORITY_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
 const MALFORMED_HTTP_SCHEME_DELIMITER_REGEX = /^https?:(?!\/\/)/i;
 const NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX =
@@ -66,9 +68,7 @@ const SAFE_INTERFACE = new ethers.utils.Interface([
 ]);
 
 function parseSemverPrefix(version: string): [number, number, number] {
-  const match = version
-    .trim()
-    .match(/^v?(\d+)\.(\d+)\.(\d+)(?:-[\dA-Za-z.-]+)?(?:\+[\dA-Za-z.-]+)?$/i);
+  const match = version.trim().match(SAFE_API_SEMVER_REGEX);
   if (!match) {
     throw new Error(`Invalid Safe API version: ${version}`);
   }

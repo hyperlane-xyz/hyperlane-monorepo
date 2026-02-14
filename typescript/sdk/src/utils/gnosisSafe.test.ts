@@ -2728,8 +2728,10 @@ describe('gnosisSafe utils', () => {
       expect(await isLegacySafeApi('V5.18.0')).to.equal(false);
       expect(await isLegacySafeApi('5.18.0+L2')).to.equal(false);
       expect(await isLegacySafeApi('V5.18.0+L2')).to.equal(false);
+      expect(await isLegacySafeApi('5.18.0+build.1')).to.equal(false);
       expect(await isLegacySafeApi('5.18.0-rc.1')).to.equal(false);
       expect(await isLegacySafeApi('5.18.0-rc.1+L2')).to.equal(false);
+      expect(await isLegacySafeApi('5.18.0-rc.1+build.7')).to.equal(false);
       expect(await isLegacySafeApi('v5.17.9-hotfix.2')).to.equal(true);
       expect(await isLegacySafeApi('v5.17.9-hotfix.2+meta.7')).to.equal(true);
       expect(await isLegacySafeApi('V5.17.9-hotfix.2')).to.equal(true);
@@ -2816,6 +2818,24 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Invalid Safe API version: 5.18.0-+L2',
+        );
+      }
+
+      try {
+        await isLegacySafeApi('5.18.0-rc..1');
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Invalid Safe API version: 5.18.0-rc..1',
+        );
+      }
+
+      try {
+        await isLegacySafeApi('5.18.0+build..1');
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Invalid Safe API version: 5.18.0+build..1',
         );
       }
     });
