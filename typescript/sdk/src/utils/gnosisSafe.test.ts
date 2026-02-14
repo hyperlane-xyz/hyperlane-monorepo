@@ -5643,6 +5643,84 @@ describe('gnosisSafe utils', () => {
       safeApiPrototype.getPendingTransactions = originalGetPendingTransactions;
     });
 
+    it('throws when chains input is not an array', async () => {
+      try {
+        await getPendingTxsForChains(
+          123 as unknown as string[],
+          {} as Parameters<typeof getPendingTxsForChains>[1],
+          {} as Record<string, Address>,
+        );
+        expect.fail('Expected getPendingTxsForChains to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe chain list must be an array: 123',
+        );
+      }
+    });
+
+    it('throws when safes input is not an object', async () => {
+      try {
+        await getPendingTxsForChains(
+          ['test'],
+          {} as Parameters<typeof getPendingTxsForChains>[1],
+          null as unknown as Record<string, Address>,
+        );
+        expect.fail('Expected getPendingTxsForChains to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe map must be an object: null',
+        );
+      }
+    });
+
+    it('throws when chain list length accessor is inaccessible', async () => {
+      const chainsWithThrowingLength = new Proxy(['test'], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      try {
+        await getPendingTxsForChains(
+          chainsWithThrowingLength as unknown as string[],
+          {} as Parameters<typeof getPendingTxsForChains>[1],
+          {} as Record<string, Address>,
+        );
+        expect.fail('Expected getPendingTxsForChains to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe chain list length is inaccessible',
+        );
+      }
+    });
+
+    it('throws when chain list length is invalid', async () => {
+      const chainsWithInvalidLength = new Proxy(['test'], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return Number.POSITIVE_INFINITY;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      try {
+        await getPendingTxsForChains(
+          chainsWithInvalidLength as unknown as string[],
+          {} as Parameters<typeof getPendingTxsForChains>[1],
+          {} as Record<string, Address>,
+        );
+        expect.fail('Expected getPendingTxsForChains to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe chain list length is invalid: Infinity',
+        );
+      }
+    });
+
     it('returns normalized pending tx statuses and skips malformed entries', async () => {
       safeModule.init = (async () => ({
         getThreshold: async () => 2,
@@ -5800,6 +5878,46 @@ describe('gnosisSafe utils', () => {
         [123 as unknown as string],
         multiProviderMock,
         { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.deep.equal([]);
+      expect(pendingCalls).to.equal(0);
+    });
+
+    it('returns empty and avoids service calls when safe map access is inaccessible', async () => {
+      let pendingCalls = 0;
+      safeApiPrototype.getPendingTransactions = (async () => {
+        pendingCalls += 1;
+        return { results: [] };
+      }) as unknown;
+
+      const safesWithThrowingAccessor = new Proxy(
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+        {
+          get(target, property, receiver) {
+            if (property === 'test') {
+              throw new Error('boom');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        safesWithThrowingAccessor as unknown as Record<string, Address>,
       );
 
       expect(statuses).to.deep.equal([]);
