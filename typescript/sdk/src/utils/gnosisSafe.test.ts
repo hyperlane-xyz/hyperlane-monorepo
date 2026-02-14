@@ -6647,6 +6647,44 @@ describe('gnosisSafe utils', () => {
       expect(fetchCalls).to.equal(1);
     });
 
+    it('getSafeTx retries unstringifiable fetch errors and returns undefined', async () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('fetch to-primitive boom');
+        },
+      };
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        throw unstringifiableError;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof getSafeTx>[1];
+
+      const clock = sinon.useFakeTimers();
+      const randomStub = sinon.stub(Math, 'random').returns(0);
+      try {
+        const transactionPromise = getSafeTx(
+          'test',
+          multiProviderMock,
+          `0x${'af'.repeat(32)}`,
+        );
+        await clock.tickAsync(20_000);
+        const transaction = await transactionPromise;
+
+        expect(transaction).to.equal(undefined);
+        expect(fetchCalls).to.equal(10);
+      } finally {
+        randomStub.restore();
+        clock.restore();
+      }
+    });
+
     it('deleteSafeTx throws for invalid safe tx hash before signer/network calls', async () => {
       let fetchCalled = false;
       let getSignerCalled = false;
