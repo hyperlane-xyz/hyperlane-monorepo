@@ -6,6 +6,7 @@ import { getSquadsChains } from '@hyperlane-xyz/sdk';
 import {
   formatScriptError,
   getUnsupportedSquadsChainsErrorMessage,
+  normalizeSolanaAddressValue,
   resolveSquadsChains,
   resolveSquadsChainsFromArgv,
   withRequiredSquadsChain,
@@ -723,5 +724,72 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(unformattableError)).to.equal(
       '[unformattable error object]',
     );
+  });
+
+  it('normalizes valid Solana address strings', () => {
+    expect(
+      normalizeSolanaAddressValue(' 11111111111111111111111111111111 '),
+    ).to.deep.equal({
+      address: '11111111111111111111111111111111',
+      error: undefined,
+    });
+  });
+
+  it('normalizes valid object addresses via toBase58()', () => {
+    expect(
+      normalizeSolanaAddressValue({
+        toBase58: () => '11111111111111111111111111111111',
+      }),
+    ).to.deep.equal({
+      address: '11111111111111111111111111111111',
+      error: undefined,
+    });
+  });
+
+  it('rejects empty Solana address strings', () => {
+    expect(normalizeSolanaAddressValue('   ')).to.deep.equal({
+      address: undefined,
+      error: 'address value is empty',
+    });
+  });
+
+  it('rejects generic object label strings', () => {
+    expect(normalizeSolanaAddressValue('[object Object]')).to.deep.equal({
+      address: undefined,
+      error: 'address value is not a meaningful identifier',
+    });
+  });
+
+  it('rejects non-address Solana string values', () => {
+    expect(normalizeSolanaAddressValue('not-an-address')).to.deep.equal({
+      address: undefined,
+      error: 'address value is not a valid Solana address',
+    });
+  });
+
+  it('rejects primitive values that are not strings', () => {
+    expect(normalizeSolanaAddressValue(123)).to.deep.equal({
+      address: undefined,
+      error: 'expected string or object with toBase58(), got number',
+    });
+  });
+
+  it('rejects objects missing toBase58()', () => {
+    expect(normalizeSolanaAddressValue({})).to.deep.equal({
+      address: undefined,
+      error: 'missing toBase58() method',
+    });
+  });
+
+  it('reports stringification failures from toBase58()', () => {
+    const result = normalizeSolanaAddressValue({
+      toBase58() {
+        throw new Error('boom');
+      },
+    });
+
+    expect(result.address).to.equal(undefined);
+    expect(result.error).to.include('failed to stringify key');
+    expect(result.error).to.include('boom');
   });
 });

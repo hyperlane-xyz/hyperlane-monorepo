@@ -1,5 +1,4 @@
 import chalk from 'chalk';
-import { PublicKey } from '@solana/web3.js';
 import yargs, { Argv } from 'yargs';
 
 import {
@@ -21,11 +20,10 @@ import {
 import {
   formatScriptError,
   getSquadsMultiProtocolProvider,
+  normalizeSolanaAddressValue,
   withRequiredSquadsChain,
   withTransactionIndex,
 } from './cli-helpers.js';
-
-const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 
 function withVerbose<T>(args: Argv<T>) {
   return args
@@ -35,30 +33,16 @@ function withVerbose<T>(args: Argv<T>) {
     .alias('v', 'verbose');
 }
 
-function describeValueForLog(value: unknown): string {
+function getValueTypeLabel(value: unknown): string {
   if (value === null) {
     return 'null';
   }
 
-  switch (typeof value) {
-    case 'undefined':
-    case 'boolean':
-    case 'number':
-    case 'bigint':
-    case 'symbol':
-      return String(value);
-    case 'string':
-      return value.length > 80 ? `${value.slice(0, 77)}...` : value;
-    case 'function':
-      return '[function]';
-    case 'object':
-      if (Array.isArray(value)) {
-        return `[array(length=${value.length})]`;
-      }
-      return Object.prototype.toString.call(value);
-    default:
-      return String(value);
+  if (Array.isArray(value)) {
+    return 'array';
   }
+
+  return typeof value;
 }
 
 function toBase58IfPossible(
@@ -69,73 +53,17 @@ function toBase58IfPossible(
 ): string | undefined {
   const labelWithIndex =
     typeof index === 'number' ? `${label}[${index}]` : label;
-
-  function normalizeAddress(rawValue: string, source: string): string | undefined {
-    const trimmedValue = rawValue.trim();
-    if (trimmedValue.length === 0) {
-      rootLogger.warn(
-        chalk.yellow(
-          `Skipping ${labelWithIndex} on ${chain}: ${source} returned an empty value`,
-        ),
-      );
-      return undefined;
-    }
-    if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedValue)) {
-      rootLogger.warn(
-        chalk.yellow(
-          `Skipping ${labelWithIndex} on ${chain}: ${source} returned a non-meaningful identifier`,
-        ),
-      );
-      return undefined;
-    }
-    try {
-      return new PublicKey(trimmedValue).toBase58();
-    } catch {
-      rootLogger.warn(
-        chalk.yellow(
-          `Skipping ${labelWithIndex} on ${chain}: ${source} returned an invalid Solana address`,
-        ),
-      );
-      return undefined;
-    }
+  const normalizedAddress = normalizeSolanaAddressValue(value);
+  if (normalizedAddress.address) {
+    return normalizedAddress.address;
   }
 
-  if (typeof value === 'string') {
-    return normalizeAddress(value, 'string value');
-  }
-
-  if (!value || typeof value !== 'object') {
-    rootLogger.warn(
-      chalk.yellow(
-        `Skipping ${labelWithIndex} on ${chain}: expected object with toBase58(), got ${describeValueForLog(value)}`,
-      ),
-    );
-    return undefined;
-  }
-
-  const toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
-  if (typeof toBase58Candidate !== 'function') {
-    rootLogger.warn(
-      chalk.yellow(
-        `Skipping ${labelWithIndex} on ${chain}: missing toBase58() method`,
-      ),
-    );
-    return undefined;
-  }
-
-  try {
-    const rawValue = toBase58Candidate.call(value);
-    const normalizedValue =
-      typeof rawValue === 'string' ? rawValue : String(rawValue);
-    return normalizeAddress(normalizedValue, 'toBase58()');
-  } catch (error) {
-    rootLogger.warn(
-      chalk.yellow(
-        `Skipping ${labelWithIndex} on ${chain}: failed to stringify key (${formatScriptError(error)})`,
-      ),
-    );
-    return undefined;
-  }
+  rootLogger.warn(
+    chalk.yellow(
+      `Skipping ${labelWithIndex} on ${chain}: ${normalizedAddress.error}`,
+    ),
+  );
+  return undefined;
 }
 
 function formatSignerList(
@@ -164,7 +92,7 @@ function formatMultisigMemberKey(
   if (!member || typeof member !== 'object') {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping multisig member[${index}] on ${chain}: expected object, got ${describeValueForLog(member)}`,
+        `Skipping multisig member[${index}] on ${chain}: expected object, got ${getValueTypeLabel(member)}`,
       ),
     );
     return undefined;
