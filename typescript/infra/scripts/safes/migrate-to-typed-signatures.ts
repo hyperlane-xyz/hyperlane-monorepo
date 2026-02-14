@@ -54,6 +54,13 @@ async function main() {
     true,
     chainsToCheck,
   );
+  const safeContextByChain = new Map<
+    string,
+    {
+      safeSdk: Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
+      safeService: Awaited<ReturnType<typeof getSafeAndService>>['safeService'];
+    }
+  >();
 
   const pendingTxs = await getPendingTxsForChains(
     chainsToCheck,
@@ -100,11 +107,17 @@ async function main() {
         `Reproposing transaction ${tx.shortTxHash} on chain ${tx.chain}`,
       );
       try {
-        const { safeSdk, safeService } = await getSafeAndService(
-          tx.chain,
-          multiProvider,
-          safes[tx.chain],
-        );
+        let safeContext = safeContextByChain.get(tx.chain);
+        if (!safeContext) {
+          const { safeSdk, safeService } = await getSafeAndService(
+            tx.chain,
+            multiProvider,
+            safes[tx.chain],
+          );
+          safeContext = { safeSdk, safeService };
+          safeContextByChain.set(tx.chain, safeContext);
+        }
+        const { safeSdk, safeService } = safeContext;
 
         const safeTx = await getSafeTx(tx.chain, multiProvider, tx.fullTxHash);
         assert(
