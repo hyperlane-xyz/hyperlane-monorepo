@@ -1,6 +1,7 @@
 import chalk from 'chalk';
 import { Argv } from 'yargs';
 
+import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
   ChainName,
   MultiProtocolProvider,
@@ -9,6 +10,7 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
+import type { EnvironmentConfig } from '../../src/config/environment.js';
 import { logTable } from '../../src/utils/log.js';
 
 export const SQUADS_ENVIRONMENT = 'mainnet3';
@@ -48,7 +50,7 @@ export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
   return getSquadsChains();
 }
 
-export async function getSquadsEnvironmentConfig() {
+export async function getSquadsEnvironmentConfig(): Promise<EnvironmentConfig> {
   const { getEnvironmentConfig } = await import('../core-utils.js');
   return getEnvironmentConfig(SQUADS_ENVIRONMENT);
 }
@@ -58,13 +60,19 @@ export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolPro
   return envConfig.getMultiProtocolProvider();
 }
 
-export async function getSquadsTurnkeySigner() {
+export async function getSquadsTurnkeySigner(): Promise<
+  Awaited<
+    ReturnType<
+      (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
+    >
+  >
+> {
   const { getTurnkeySealevelDeployerSigner } =
     await import('../../src/utils/turnkey.js');
   return getTurnkeySealevelDeployerSigner(SQUADS_ENVIRONMENT);
 }
 
-export async function getSquadsRegistry() {
+export async function getSquadsRegistry(): Promise<IRegistry> {
   const envConfig = await getSquadsEnvironmentConfig();
   return envConfig.getRegistry();
 }
