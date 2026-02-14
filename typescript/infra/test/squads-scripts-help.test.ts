@@ -1,5 +1,4 @@
 import { spawnSync } from 'node:child_process';
-import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -9,6 +8,7 @@ import {
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
+import { listExecutableSquadsDirectoryScripts } from './squads-test-utils.js';
 
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
@@ -59,20 +59,6 @@ function runScriptHelp(scriptPath: string) {
   });
 }
 
-function listSquadsScripts(): string[] {
-  const squadsScriptsDir = path.join(INFRA_ROOT, 'scripts/squads');
-  return fs
-    .readdirSync(squadsScriptsDir, { withFileTypes: true })
-    .filter(
-      (entry) =>
-        entry.isFile() &&
-        entry.name.endsWith('.ts') &&
-        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.includes(entry.name),
-    )
-    .map((entry) => path.join('scripts/squads', entry.name))
-    .sort();
-}
-
 describe('squads scripts --help smoke', function () {
   this.timeout(30_000);
 
@@ -87,7 +73,9 @@ describe('squads scripts --help smoke', function () {
     const configuredSquadsScripts = configuredScriptPaths
       .filter((scriptPath) => scriptPath.startsWith('scripts/squads/'))
       .sort();
-    expect(configuredSquadsScripts).to.deep.equal(listSquadsScripts());
+    expect(configuredSquadsScripts).to.deep.equal(
+      listExecutableSquadsDirectoryScripts(INFRA_ROOT),
+    );
 
     const executableScriptPathsFromConstants = SQUADS_SCRIPT_PATHS.filter(
       (scriptPath) =>
