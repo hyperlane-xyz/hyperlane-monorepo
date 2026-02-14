@@ -1166,6 +1166,10 @@ export async function proposeSafeTransaction(
     safeTransactionData !== null && typeof safeTransactionData === 'object',
     `Safe transaction data must be an object: ${stringifyValueForError(safeTransactionData)}`,
   );
+  assert(
+    hasSafeServiceTransactionPayload(safeTransactionData),
+    `Safe transaction data payload is invalid: ${stringifyValueForError(safeTransactionData)}`,
+  );
 
   let safeTxHash: unknown;
   try {
