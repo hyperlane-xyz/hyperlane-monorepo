@@ -861,6 +861,44 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when object member key cannot be stringified', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [
+            {
+              key: {
+                [Symbol.toPrimitive]: () => {
+                  throw new Error('cannot stringify');
+                },
+              },
+            },
+          ],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must be stringifiable',
+      );
+    });
+
+    it('throws when object member key stringifies to empty value', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: { toString: () => '   ' } }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must resolve to a non-empty string',
+      );
+    });
+
     it('throws when members array is empty but threshold is positive', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({

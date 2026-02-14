@@ -785,6 +785,20 @@ function getMultisigMemberCount(
         typeof (memberKey as { toString?: unknown }).toString === 'function',
         `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
       );
+      let normalizedMemberKey: string | undefined;
+      try {
+        normalizedMemberKey = String(memberKey);
+      } catch {
+        // handled by assertion below
+      }
+      assert(
+        typeof normalizedMemberKey === 'string',
+        `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
+      );
+      assert(
+        normalizedMemberKey.trim().length > 0,
+        `Squads ${fieldPrefix} members[${index}] key must resolve to a non-empty string`,
+      );
     }
   }
 
