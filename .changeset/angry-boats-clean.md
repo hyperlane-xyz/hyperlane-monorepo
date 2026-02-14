@@ -57,3 +57,4 @@ Safe utility typing and robustness were improved by:
 - Canonicalizing Safe delete EIP-712 payload fields (`safeTxHash`, verifying Safe address) before signing/submission.
 - Canonicalizing and validating Safe addresses in pending-tx deletion flows before tx-service requests.
 - Hardening pending Safe tx deletion list parsing and continuing deletion on malformed individual pending tx hashes.
+- Validating pending Safe tx deletion list length access and bounds before iterating response entries.

@@ -1541,8 +1541,18 @@ export async function deleteAllPendingSafeTxs(
     Array.isArray(pendingTxResults),
     `Pending Safe transactions list must be an array: ${stringifyValueForError(pendingTxResults)}`,
   );
+  let pendingTxCount = 0;
+  try {
+    pendingTxCount = pendingTxResults.length;
+  } catch {
+    throw new Error('Pending Safe transactions list length is inaccessible');
+  }
+  assert(
+    Number.isSafeInteger(pendingTxCount) && pendingTxCount >= 0,
+    `Pending Safe transactions list length is invalid: ${stringifyValueForError(pendingTxCount)}`,
+  );
 
-  for (let index = 0; index < pendingTxResults.length; index += 1) {
+  for (let index = 0; index < pendingTxCount; index += 1) {
     let pendingTxEntry: unknown;
     try {
       pendingTxEntry = pendingTxResults[index];
