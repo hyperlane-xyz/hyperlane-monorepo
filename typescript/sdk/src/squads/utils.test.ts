@@ -2127,6 +2127,26 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('uses provided provider override without multiprovider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal(
+        'solanamainnet',
+        mpp,
+        1,
+        {} as ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
+      );
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for unsupported chains before proposal fetch attempts', async () => {
       let providerLookupCalled = false;
       const mpp = {

@@ -384,6 +384,7 @@ export async function getSquadProposal(
   chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<
   | {
       proposal: accounts.Proposal;
@@ -396,7 +397,8 @@ export async function getSquadProposal(
   assertValidTransactionIndexInput(transactionIndex, chain);
 
   try {
-    const svmProvider = mpp.getSolanaWeb3Provider(chain);
+    const svmProvider =
+      svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
     const proposalData = await getSquadProposalAccount(
       chain,
       mpp,

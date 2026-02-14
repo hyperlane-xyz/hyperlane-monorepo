@@ -140,10 +140,16 @@ async function main() {
     const squadsKeys = getSquadsKeys(chain);
 
     const mpp = await getSquadsMultiProtocolProvider();
+    const svmProvider = mpp.getSolanaWeb3Provider(chain);
 
     rootLogger.info(chalk.gray('Fetching proposal data...'));
 
-    const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+    const proposalData = await getSquadProposal(
+      chain,
+      mpp,
+      transactionIndex,
+      svmProvider,
+    );
 
     if (!proposalData) {
       rootLogger.error(
@@ -393,9 +399,7 @@ async function main() {
 
     // Display vault information
     const { vault } = squadsKeys;
-    const vaultBalance = await mpp
-      .getSolanaWeb3Provider(chain)
-      .getBalance(vault);
+    const vaultBalance = await svmProvider.getBalance(vault);
     const nativeToken = mpp.getChainMetadata(chain).nativeToken;
     const decimals = nativeToken?.decimals;
     if (typeof decimals !== 'number') {
