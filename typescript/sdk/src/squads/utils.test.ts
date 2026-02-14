@@ -120,6 +120,27 @@ function createUnstringifiableObjectErrorWithThrowingStackGetter(
   return errorLikeObject;
 }
 
+function createStringifiableObjectErrorWithThrowingStackAndMessageGetters(
+  stringifiedValue: string,
+): { toString: () => string; stack?: string; message?: string } {
+  const errorLikeObject = {
+    toString: () => stringifiedValue,
+  } as { toString: () => string; stack?: string; message?: string };
+  Object.defineProperty(errorLikeObject, 'stack', {
+    configurable: true,
+    get() {
+      throw new Error('stack unavailable');
+    },
+  });
+  Object.defineProperty(errorLikeObject, 'message', {
+    configurable: true,
+    get() {
+      throw new Error('message unavailable');
+    },
+  });
+  return errorLikeObject;
+}
+
 describe('squads utils', () => {
   describe(normalizeSquadsAddressValue.name, () => {
     it('normalizes valid Solana address strings', () => {
@@ -282,6 +303,19 @@ describe('squads utils', () => {
 
       expect(result.address).to.equal(undefined);
       expect(result.error).to.equal('failed to stringify key (boom)');
+    });
+
+    it('falls back to String(error) when stack/message accessors throw during toBase58 failures', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw createStringifiableObjectErrorWithThrowingStackAndMessageGetters(
+            'custom error',
+          );
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal('failed to stringify key (custom error)');
     });
 
     it('rejects generic object identifiers returned by toBase58()', () => {
