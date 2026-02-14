@@ -1372,8 +1372,9 @@ export async function getPendingTxsForChains(
 }
 
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
+  assert(tx.data, 'Safe transaction data is required');
   return SAFE_INTERFACE.parseTransaction({
-    data: tx.data ?? '0x',
+    data: tx.data,
     value: tx.value,
   });
 }

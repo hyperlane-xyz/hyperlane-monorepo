@@ -3435,7 +3435,19 @@ describe('gnosisSafe utils', () => {
           to: '0x1234567890123456789012345678901234567890',
           value: BigNumber.from(0),
         }),
-      ).to.throw();
+      ).to.throw('Safe transaction data is required');
+    });
+
+    it('parses safe tx calldata when value is omitted', () => {
+      const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args[0].toNumber()).to.equal(2);
     });
   });
 
