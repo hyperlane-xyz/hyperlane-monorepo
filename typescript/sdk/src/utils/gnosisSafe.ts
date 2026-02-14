@@ -43,6 +43,7 @@ const NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX =
   /^(mailto|urn|data|blob|javascript):/i;
 const GENERIC_URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const HOST_WITH_PORT_PREFIX_REGEX = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
+const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -91,6 +92,10 @@ function isSchemeRelativeUrl(value: string): boolean {
 
 function isSlashPrefixedRelativePath(value: string): boolean {
   return value.startsWith('/') && !isSchemeRelativeUrl(value);
+}
+
+function hasSchemeRelativeHostWithEmptyPort(value: string): boolean {
+  return SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX.test(value);
 }
 
 function parseHttpUrl(value: string): URL | undefined {
@@ -214,7 +219,10 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  if (isSlashPrefixedRelativePath(trimmedUrl)) {
+  if (
+    isSlashPrefixedRelativePath(trimmedUrl) ||
+    hasSchemeRelativeHostWithEmptyPort(trimmedUrl)
+  ) {
     return false;
   }
 
@@ -263,7 +271,10 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
-  if (isSlashPrefixedRelativePath(trimmedUrl)) {
+  if (
+    isSlashPrefixedRelativePath(trimmedUrl) ||
+    hasSchemeRelativeHostWithEmptyPort(trimmedUrl)
+  ) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);
