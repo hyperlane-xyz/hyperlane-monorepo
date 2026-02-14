@@ -58,29 +58,60 @@ describe('squads cli helpers', () => {
     );
   });
 
-  it('throws for non-array argv chains input when provided', () => {
-    expect(() => resolveSquadsChainsFromArgv('solanamainnet')).to.throw(
-      'Expected --chains to resolve to an array, but received string',
-    );
-  });
+  const invalidArgvChainsContainerCases: Array<{
+    title: string;
+    chainsValue: unknown;
+    expectedType: string;
+  }> = [
+    {
+      title: 'throws for non-array argv chains input when provided',
+      chainsValue: 'solanamainnet',
+      expectedType: 'string',
+    },
+    {
+      title: 'labels numeric argv chains input clearly in error output',
+      chainsValue: 1,
+      expectedType: 'number',
+    },
+    {
+      title: 'labels null argv chains input clearly in error output',
+      chainsValue: null,
+      expectedType: 'null',
+    },
+    {
+      title: 'labels object argv chains input clearly in error output',
+      chainsValue: {},
+      expectedType: 'object',
+    },
+    {
+      title: 'labels boolean argv chains input clearly in error output',
+      chainsValue: false,
+      expectedType: 'boolean',
+    },
+    {
+      title: 'labels bigint argv chains input clearly in error output',
+      chainsValue: 1n,
+      expectedType: 'bigint',
+    },
+    {
+      title: 'labels symbol argv chains input clearly in error output',
+      chainsValue: Symbol('invalid-chains'),
+      expectedType: 'symbol',
+    },
+    {
+      title: 'labels function argv chains input clearly in error output',
+      chainsValue: () => ['invalid-chains'],
+      expectedType: 'function',
+    },
+  ];
 
-  it('labels numeric argv chains input clearly in error output', () => {
-    expect(() => resolveSquadsChainsFromArgv(1)).to.throw(
-      'Expected --chains to resolve to an array, but received number',
-    );
-  });
-
-  it('labels null argv chains input clearly in error output', () => {
-    expect(() => resolveSquadsChainsFromArgv(null)).to.throw(
-      'Expected --chains to resolve to an array, but received null',
-    );
-  });
-
-  it('labels object argv chains input clearly in error output', () => {
-    expect(() => resolveSquadsChainsFromArgv({})).to.throw(
-      'Expected --chains to resolve to an array, but received object',
-    );
-  });
+  for (const { title, chainsValue, expectedType } of invalidArgvChainsContainerCases) {
+    it(title, () => {
+      expect(() => resolveSquadsChainsFromArgv(chainsValue)).to.throw(
+        `Expected --chains to resolve to an array, but received ${expectedType}`,
+      );
+    });
+  }
 
   it('resolves argv chains from array input and deduplicates', () => {
     const [firstChain, secondChain] = getSquadsChains();
