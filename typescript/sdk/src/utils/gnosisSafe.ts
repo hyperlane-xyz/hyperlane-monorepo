@@ -78,7 +78,12 @@ const SAFE_INTERFACE = new ethers.utils.Interface([
   'function simulateAndRevert(address targetContract,bytes calldataPayload)',
 ]);
 
-function parseSemverPrefix(version: string): [number, number, number] {
+function parseSemverPrefix(version: unknown): [number, number, number] {
+  if (typeof version !== 'string') {
+    throw new Error(
+      `Invalid Safe API version: ${stringifyValueForError(version)}`,
+    );
+  }
   const match = version.trim().match(SAFE_API_SEMVER_REGEX);
   if (!match) {
     throw new Error(`Invalid Safe API version: ${version}`);
@@ -794,8 +799,8 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
   throw new Error('Unreachable');
 }
 
-export async function isLegacySafeApi(version?: string): Promise<boolean> {
-  if (!version) {
+export async function isLegacySafeApi(version?: unknown): Promise<boolean> {
+  if (version === undefined || version === null || version === '') {
     throw new Error('Version is required');
   }
   const minVersion = parseSemverPrefix(MIN_SAFE_API_VERSION);

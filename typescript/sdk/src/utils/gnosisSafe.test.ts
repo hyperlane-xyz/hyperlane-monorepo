@@ -2979,6 +2979,14 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(isLegacySafeApi.name, () => {
+    const stringifyVersionForExpectation = (version: unknown): string => {
+      try {
+        return String(version);
+      } catch {
+        return '<unstringifiable>';
+      }
+    };
+
     const expectLegacyStatus = async (
       version: string,
       isLegacy: boolean,
@@ -2987,14 +2995,14 @@ describe('gnosisSafe utils', () => {
     };
 
     const expectInvalidSafeApiVersion = async (
-      version: string,
+      version: unknown,
     ): Promise<void> => {
       try {
         await isLegacySafeApi(version);
         expect.fail('Expected isLegacySafeApi to throw');
       } catch (error) {
         expect((error as Error).message).to.equal(
-          `Invalid Safe API version: ${version}`,
+          `Invalid Safe API version: ${stringifyVersionForExpectation(version)}`,
         );
       }
     };
@@ -3071,6 +3079,14 @@ describe('gnosisSafe utils', () => {
       for (const version of invalidVersions) {
         await expectInvalidSafeApiVersion(version);
       }
+
+      await expectInvalidSafeApiVersion(123);
+      const unstringifiableVersion = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+      await expectInvalidSafeApiVersion(unstringifiableVersion);
     });
   });
 
