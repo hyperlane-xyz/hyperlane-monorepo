@@ -3644,6 +3644,23 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data must include function selector');
     });
 
+    it('throws when short transaction data is unprefixed', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: '12',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must include function selector');
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: '0X12',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must include function selector');
+    });
+
     it('accepts transaction data with uppercase 0X prefix', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
@@ -3949,6 +3966,12 @@ describe('gnosisSafe utils', () => {
         'Invalid multisend payload: missing multisend selector',
       );
       expect(() => decodeMultiSendData('12')).to.throw(
+        'Invalid multisend payload: missing multisend selector',
+      );
+      expect(() => decodeMultiSendData('0x12')).to.throw(
+        'Invalid multisend payload: missing multisend selector',
+      );
+      expect(() => decodeMultiSendData('AB')).to.throw(
         'Invalid multisend payload: missing multisend selector',
       );
     });
