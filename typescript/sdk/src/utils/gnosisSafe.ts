@@ -44,6 +44,7 @@ const NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX =
 const GENERIC_URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const HOST_WITH_PORT_PREFIX_REGEX = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
 const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
+const USERINFO_LIKE_AUTHORITY_REGEX = /@|%(?:25)*40/i;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -109,7 +110,9 @@ function extractHostlessAuthority(value: string): string | undefined {
 
 function hasUserinfoLikeAuthority(value: string): boolean {
   const authority = extractHostlessAuthority(value);
-  return authority !== undefined && /@|%(?:25)*40/i.test(authority);
+  return (
+    authority !== undefined && USERINFO_LIKE_AUTHORITY_REGEX.test(authority)
+  );
 }
 
 function hasMalformedSchemeRelativeAuthority(value: string): boolean {
