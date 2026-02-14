@@ -382,6 +382,32 @@ describe('squads error-format', () => {
       expect(formatterCallCount).to.equal(1);
     });
 
+    it('calls object formatter when stack getter throws and message is low-signal', () => {
+      let formatterCallCount = 0;
+      const objectWithThrowingStackGetter = {
+        message: 'Error:',
+      } as { stack?: string; message: string };
+      Object.defineProperty(objectWithThrowingStackGetter, 'stack', {
+        configurable: true,
+        get() {
+          throw new Error('stack unavailable');
+        },
+      });
+
+      const formatted = stringifyUnknownSquadsError(
+        objectWithThrowingStackGetter,
+        {
+          formatObject() {
+            formatterCallCount += 1;
+            return 'formatted object';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('formatted object');
+      expect(formatterCallCount).to.equal(1);
+    });
+
     it('ignores low-signal object formatter outputs and falls back', () => {
       const formatted = stringifyUnknownSquadsError(
         {
