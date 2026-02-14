@@ -34,6 +34,7 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe transaction-create helper to validate Safe SDK shape and `createTransaction` accessibility/type before invocation, with deterministic boundary errors.
 - Validating Safe transaction-create list entries (inaccessible/non-object) to fail fast on hostile transaction arrays before Safe SDK invocation.
 - Normalizing Safe transaction-create call failures and validating returned Safe transaction object shape for deterministic boundary behavior.
+- Validating and normalizing each Safe transaction-create list entry via shared call-data parser before SDK invocation, including deterministic invalid-call payload errors.
 - Hardening Safe transaction proposal helper boundaries (Safe SDK/service/signer object shape, Safe tx hash/signature/address validation, inaccessible payload guards, and deterministic proposal failure messaging).
 - Hardening Safe signer resolution boundaries by validating signer-provider lookup/runtime shape, inaccessible private-key accessors, and deterministic signer-address resolution failures.
 - Requiring typed-data signer support before Safe tx deletion.

@@ -1041,6 +1041,7 @@ export async function createSafeTransaction(
     Number.isSafeInteger(transactionsCount) && transactionsCount >= 0,
     `Safe transaction list length is invalid: ${stringifyValueForError(transactionsCount)}`,
   );
+  const normalizedTransactions: MetaTransactionData[] = [];
   for (let index = 0; index < transactionsCount; index += 1) {
     let transaction: unknown;
     try {
@@ -1054,6 +1055,7 @@ export async function createSafeTransaction(
       transaction !== null && typeof transaction === 'object',
       `Safe transaction entry must be an object at index ${index}: ${stringifyValueForError(transaction)}`,
     );
+    normalizedTransactions.push(createSafeTransactionData(transaction));
   }
   if (onlyCalls !== undefined) {
     assert(
@@ -1070,7 +1072,7 @@ export async function createSafeTransaction(
   let safeTransaction: unknown;
   try {
     safeTransaction = await createTransaction.call(safeSdkObject, {
-      transactions,
+      transactions: normalizedTransactions,
       onlyCalls,
       ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
     });
