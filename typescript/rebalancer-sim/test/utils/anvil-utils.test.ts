@@ -359,6 +359,24 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker runtime errors in string-valued AggregateError entries', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('ignores non-runtime string-valued AggregateError entries', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: 'unrelated nested startup warning',
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('handles cyclic cause chains safely', () => {
       const first = new Error('outer startup error');
       const second = new Error(

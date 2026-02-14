@@ -196,4 +196,6 @@ Nested error extraction now enqueues string-valued `errors` payloads directly, s
 
 Regression coverage now also confirms string-valued nested `errors` payloads match runtime-unavailable signals while non-runtime strings remain ignored.
 
+Regression coverage now also confirms string-valued `AggregateError.errors` payloads match runtime-unavailable signals while non-runtime scalar entries remain ignored.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
