@@ -64,6 +64,8 @@ const MULTISEND_SELECTOR_REQUIRED_ERROR =
   'Invalid multisend payload: missing multisend selector';
 const SAFE_CALL_PAYLOAD_INACCESSIBLE_ERROR =
   'Safe call payload fields are inaccessible';
+const SAFE_TX_DATA_PAYLOAD_INACCESSIBLE_ERROR =
+  'Safe transaction data payload fields are inaccessible';
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -1175,10 +1177,15 @@ export async function proposeSafeTransaction(
     hasSafeServiceTransactionPayload(safeTransactionData),
     `Safe transaction data payload is invalid: ${stringifyValueForError(safeTransactionData)}`,
   );
-  const normalizedSafeTransactionData = {
-    ...(safeTransactionData as Record<string, unknown>),
-    ...createSafeTransactionData(safeTransactionData),
-  };
+  let normalizedSafeTransactionData: Record<string, unknown>;
+  try {
+    normalizedSafeTransactionData = {
+      ...(safeTransactionData as Record<string, unknown>),
+      ...createSafeTransactionData(safeTransactionData),
+    };
+  } catch {
+    throw new Error(SAFE_TX_DATA_PAYLOAD_INACCESSIBLE_ERROR);
+  }
 
   let safeTxHash: unknown;
   try {

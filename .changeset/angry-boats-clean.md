@@ -42,5 +42,6 @@ Safe utility typing and robustness were improved by:
 - Canonicalizing Safe proposal submission addresses (`safeAddress`, transaction `to`, signer address) and transaction calldata casing before service submission.
 - Validating and canonicalizing Safe proposal sender signatures as hex before service submission.
 - Validating and canonicalizing Safe proposal transaction hashes before service submission and proposal logging.
+- Hardening Safe proposal payload normalization to fail closed when hostile payload fields throw during normalization/spread.
 - Hardening Safe signer resolution boundaries by validating signer-provider lookup/runtime shape, inaccessible private-key accessors, and deterministic signer-address resolution failures.
 - Requiring typed-data signer support before Safe tx deletion.

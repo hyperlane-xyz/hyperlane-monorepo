@@ -4736,6 +4736,47 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when safe transaction data payload fields are inaccessible', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+      const inaccessiblePayloadFieldSafeTransaction = {
+        data: {
+          to: safeAddress,
+          data: '0x1234',
+          value: '0',
+          get operation() {
+            throw new Error('boom');
+          },
+        },
+      };
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          inaccessiblePayloadFieldSafeTransaction as unknown as Parameters<
+            typeof proposeSafeTransaction
+          >[3],
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction data payload fields are inaccessible',
+        );
+      }
+    });
+
     it('throws when safe sdk hash/signing calls fail', async () => {
       const safeServiceMock = {
         proposeTransaction: async () => undefined,
