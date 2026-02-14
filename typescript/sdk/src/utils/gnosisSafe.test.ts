@@ -2711,174 +2711,87 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(isLegacySafeApi.name, () => {
+    const expectLegacyStatus = async (
+      version: string,
+      isLegacy: boolean,
+    ): Promise<void> => {
+      expect(await isLegacySafeApi(version)).to.equal(isLegacy);
+    };
+
+    const expectInvalidSafeApiVersion = async (
+      version: string,
+    ): Promise<void> => {
+      try {
+        await isLegacySafeApi(version);
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          `Invalid Safe API version: ${version}`,
+        );
+      }
+    };
+
     it('detects legacy versions', async () => {
-      expect(await isLegacySafeApi('5.17.9')).to.equal(true);
+      await expectLegacyStatus('5.17.9', true);
     });
 
     it('accepts minimum version', async () => {
-      expect(await isLegacySafeApi('5.18.0')).to.equal(false);
+      await expectLegacyStatus('5.18.0', false);
     });
 
     it('accepts newer versions', async () => {
-      expect(await isLegacySafeApi('5.19.1')).to.equal(false);
+      await expectLegacyStatus('5.19.1', false);
     });
 
     it('supports semver prefixes/suffixes used by services', async () => {
-      expect(await isLegacySafeApi('v5.18.0')).to.equal(false);
-      expect(await isLegacySafeApi('V5.18.0')).to.equal(false);
-      expect(await isLegacySafeApi('5.18.0+L2')).to.equal(false);
-      expect(await isLegacySafeApi('V5.18.0+L2')).to.equal(false);
-      expect(await isLegacySafeApi('5.18.0+build.1')).to.equal(false);
-      expect(await isLegacySafeApi('5.18.0-rc.1')).to.equal(false);
-      expect(await isLegacySafeApi('5.18.0-rc.1+L2')).to.equal(false);
-      expect(await isLegacySafeApi('5.18.0-rc.1+build.7')).to.equal(false);
-      expect(await isLegacySafeApi('5.18.0-0.3.7+exp.sha.5114f85')).to.equal(
-        false,
-      );
-      expect(await isLegacySafeApi('v5.17.9-hotfix.2')).to.equal(true);
-      expect(await isLegacySafeApi('v5.17.9-hotfix.2+meta.7')).to.equal(true);
-      expect(await isLegacySafeApi('V5.17.9-0.3.7+exp.sha.5114f85')).to.equal(
-        true,
-      );
-      expect(await isLegacySafeApi('V5.17.9-hotfix.2')).to.equal(true);
-      expect(await isLegacySafeApi('  v5.18.1-build.11  ')).to.equal(false);
-      expect(await isLegacySafeApi('  V5.18.1-build.11  ')).to.equal(false);
+      const nonLegacyVersions = [
+        'v5.18.0',
+        'V5.18.0',
+        '5.18.0+L2',
+        'V5.18.0+L2',
+        '5.18.0+build.1',
+        '5.18.0-rc.1',
+        '5.18.0-rc.1+L2',
+        '5.18.0-rc.1+build.7',
+        '5.18.0-0.3.7+exp.sha.5114f85',
+        '  v5.18.1-build.11  ',
+        '  V5.18.1-build.11  ',
+      ];
+      for (const version of nonLegacyVersions) {
+        await expectLegacyStatus(version, false);
+      }
+
+      const legacyVersions = [
+        'v5.17.9-hotfix.2',
+        'v5.17.9-hotfix.2+meta.7',
+        'V5.17.9-0.3.7+exp.sha.5114f85',
+        'V5.17.9-hotfix.2',
+      ];
+      for (const version of legacyVersions) {
+        await expectLegacyStatus(version, true);
+      }
     });
 
     it('throws on invalid versions', async () => {
-      try {
-        await isLegacySafeApi('invalid');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: invalid',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0foo');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0foo',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('V5.17.9foo');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: V5.17.9foo',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0-');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0-',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0+');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0+',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0+L2_beta');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0+L2_beta',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0-rc.1+');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0-rc.1+',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0-+L2');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0-+L2',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0-rc..1');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0-rc..1',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0+build..1');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0+build..1',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0 +L2');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0 +L2',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.18.0-rc.1 +build.7');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.18.0-rc.1 +build.7',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('9007199254740993.18.0');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 9007199254740993.18.0',
-        );
-      }
-
-      try {
-        await isLegacySafeApi('5.9007199254740993.0');
-        expect.fail('Expected isLegacySafeApi to throw');
-      } catch (error) {
-        expect((error as Error).message).to.equal(
-          'Invalid Safe API version: 5.9007199254740993.0',
-        );
+      const invalidVersions = [
+        'invalid',
+        '5.18',
+        '5.18.0foo',
+        'V5.17.9foo',
+        '5.18.0-',
+        '5.18.0+',
+        '5.18.0+L2_beta',
+        '5.18.0-rc.1+',
+        '5.18.0-+L2',
+        '5.18.0-rc..1',
+        '5.18.0+build..1',
+        '5.18.0 +L2',
+        '5.18.0-rc.1 +build.7',
+        '9007199254740993.18.0',
+        '5.9007199254740993.0',
+      ];
+      for (const version of invalidVersions) {
+        await expectInvalidSafeApiVersion(version);
       }
     });
   });
