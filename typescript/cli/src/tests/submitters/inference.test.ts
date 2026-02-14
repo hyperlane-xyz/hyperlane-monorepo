@@ -193,6 +193,55 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('keeps first target-only override when normalized EVM targets collide', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-overrides-target-collision-${Date.now()}.yaml`;
+    const normalizedTarget = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const mixedCaseTarget = '0xAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAaAa';
+
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [mixedCaseTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x1111111111111111111111111111111111111111',
+            version: '1.0',
+          },
+          [normalizedTarget]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x2222222222222222222222222222222222222222',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const tx = { ...TX, to: normalizedTarget };
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [tx as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('matches explicit EVM override when transaction target has whitespace', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-overrides-target-whitespace-${Date.now()}.yaml`;
     const overrideTarget = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -465,6 +514,60 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const batches = await resolveSubmitterBatchesForTransactions({
       chain: CHAIN,
       transactions: [txWithSelector as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.TIMELOCK_CONTROLLER,
+    );
+  });
+
+  it('keeps first selector-specific override when normalized selector keys collide', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-selector-collision-${Date.now()}.yaml`;
+    const target = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const selector = '0xdeadbeef';
+
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [`0XAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAAA@0XDEADBEEF`]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x3333333333333333333333333333333333333333',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+          [`${target}@${selector}`]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x4444444444444444444444444444444444444444',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const tx = {
+      ...TX,
+      to: target,
+      data: `${selector}0000`,
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [tx as any],
       context: {
         multiProvider: {
           getProtocol: () => ProtocolType.Ethereum,
