@@ -2097,6 +2097,21 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('looks up provider once when proposal fetch fails', async () => {
+      let providerLookupCount = 0;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCount += 1;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCount).to.equal(1);
+    });
+
     it('returns undefined when provider bridge validation fails', async () => {
       let providerLookupCalled = false;
       const mpp = {

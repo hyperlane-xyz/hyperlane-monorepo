@@ -392,17 +392,21 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  const proposalData = await getSquadProposalAccount(
-    chain,
-    mpp,
-    transactionIndex,
-  );
-  if (!proposalData) {
-    return undefined;
-  }
+  getSquadsKeys(chain);
+  assertValidTransactionIndexInput(transactionIndex, chain);
 
   try {
     const svmProvider = mpp.getSolanaWeb3Provider(chain);
+    const proposalData = await getSquadProposalAccount(
+      chain,
+      mpp,
+      transactionIndex,
+      svmProvider,
+    );
+    if (!proposalData) {
+      return undefined;
+    }
+
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const multisig = await accounts.Multisig.fromAccountAddress(
