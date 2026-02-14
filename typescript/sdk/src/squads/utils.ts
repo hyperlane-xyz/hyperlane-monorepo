@@ -77,20 +77,20 @@ export enum SquadsProposalVoteError {
 export function parseSquadsProposalVoteError(
   transactionLogs: string[],
 ): SquadsProposalVoteError | undefined {
-  const logs = transactionLogs.join('\n');
+  const logs = transactionLogs.join('\n').toLowerCase();
 
   // Error 6011 (0x177b): AlreadyRejected
-  if (logs.includes('AlreadyRejected') || logs.includes('0x177b')) {
+  if (logs.includes('alreadyrejected') || logs.includes('0x177b')) {
     return SquadsProposalVoteError.AlreadyRejected;
   }
 
   // Error 6010 (0x177a): AlreadyApproved
-  if (logs.includes('AlreadyApproved') || logs.includes('0x177a')) {
+  if (logs.includes('alreadyapproved') || logs.includes('0x177a')) {
     return SquadsProposalVoteError.AlreadyApproved;
   }
 
   // Error 6012 (0x177c): AlreadyCancelled
-  if (logs.includes('AlreadyCancelled') || logs.includes('0x177c')) {
+  if (logs.includes('alreadycancelled') || logs.includes('0x177c')) {
     return SquadsProposalVoteError.AlreadyCancelled;
   }
 

@@ -80,6 +80,15 @@ describe('squads utils', () => {
         undefined,
       );
     });
+
+    it('parses case-insensitive named and hex errors', () => {
+      expect(
+        parseSquadsProposalVoteError(['Program log: ALREADYCANCELLED']),
+      ).to.equal(SquadsProposalVoteError.AlreadyCancelled);
+      expect(
+        parseSquadsProposalVoteError(['custom program error: 0x177B']),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
   });
 
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
