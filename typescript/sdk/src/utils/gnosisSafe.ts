@@ -38,7 +38,9 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
-const URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
+const URL_SCHEME_WITH_AUTHORITY_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
+const NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX =
+  /^(mailto|urn|data|blob|javascript):/i;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -66,7 +68,10 @@ function parseSemverPrefix(version: string): [number, number, number] {
 }
 
 function hasExplicitUrlScheme(value: string): boolean {
-  return URL_SCHEME_PREFIX_REGEX.test(value);
+  return (
+    URL_SCHEME_WITH_AUTHORITY_REGEX.test(value) ||
+    NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX.test(value)
+  );
 }
 
 function parseHttpUrl(value: string): URL | undefined {
