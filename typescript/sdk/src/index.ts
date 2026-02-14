@@ -865,6 +865,8 @@ export {
   getSafeService,
   getSafeTx,
   getPendingTxsForChains,
+  isLegacySafeApi,
+  normalizeSafeServiceUrl,
   parseSafeTx,
   proposeSafeTransaction,
   retrySafeApi,
