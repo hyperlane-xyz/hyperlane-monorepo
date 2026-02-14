@@ -411,6 +411,36 @@ describe('squads utils', () => {
         'Squads proposal cancelled votes must be an array',
       );
     });
+
+    it('throws when proposal status is not an object', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: 'invalid-status',
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal status must be an object',
+      );
+    });
+
+    it('throws when proposal status kind is missing', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: {},
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal status kind must be a string',
+      );
+    });
   });
 
   describe(parseSquadMultisig.name, () => {

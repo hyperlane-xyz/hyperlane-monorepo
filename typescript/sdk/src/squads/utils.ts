@@ -644,13 +644,12 @@ export function parseSquadProposal(
   const approvals = getProposalVoteCount(proposal, 'approved');
   const rejections = getProposalVoteCount(proposal, 'rejected');
   const cancellations = getProposalVoteCount(proposal, 'cancelled');
+  const { statusKind, rawStatusTimestamp } = getProposalStatusMetadata(proposal);
   const transactionIndex = toSafeInteger(
     proposal.transactionIndex,
     'transaction index',
     { nonNegative: true },
   );
-  const rawStatusTimestamp =
-    'timestamp' in proposal.status ? proposal.status.timestamp : undefined;
   const statusTimestampSeconds =
     typeof rawStatusTimestamp !== 'undefined'
       ? toSafeInteger(rawStatusTimestamp, 'status timestamp', {
@@ -659,7 +658,7 @@ export function parseSquadProposal(
       : undefined;
 
   const parsedProposal: ParsedSquadProposal = {
-    status: proposal.status.__kind,
+    status: statusKind,
     approvals,
     rejections,
     cancellations,
@@ -668,6 +667,26 @@ export function parseSquadProposal(
   };
 
   return parsedProposal;
+}
+
+function getProposalStatusMetadata(proposal: accounts.Proposal): {
+  statusKind: SquadsProposalStatus;
+  rawStatusTimestamp: unknown;
+} {
+  const status = (proposal as unknown as { status?: unknown }).status;
+  assert(status && typeof status === 'object', 'Squads proposal status must be an object');
+
+  const statusRecord = status as Record<string, unknown>;
+  const statusKind = statusRecord.__kind;
+  assert(
+    typeof statusKind === 'string',
+    'Squads proposal status kind must be a string',
+  );
+
+  return {
+    statusKind: statusKind as SquadsProposalStatus,
+    rawStatusTimestamp: statusRecord.timestamp,
+  };
 }
 
 function getProposalVoteCount(
