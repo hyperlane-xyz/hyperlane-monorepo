@@ -168,6 +168,19 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in generator-based error collections', () => {
+      function* generateErrors() {
+        yield { message: 'random warning' };
+        yield { message: 'Cannot connect to the Docker daemon' };
+      }
+
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: generateErrors(),
+        }),
+      ).to.equal(true);
+    });
+
     it('matches docker runtime errors in object-valued error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
