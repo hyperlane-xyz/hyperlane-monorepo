@@ -1421,7 +1421,6 @@ export async function getPendingTxsForChains(
 }
 
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
-  assert(tx.data, 'Safe transaction data is required');
   const normalizedData = asHex(tx.data, {
     required: 'Safe transaction data is required',
     invalid: 'Safe transaction data must be hex',
