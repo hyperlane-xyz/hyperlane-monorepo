@@ -6,7 +6,6 @@ import {
   SquadsTransaction,
   SquadsTransactionReader,
   SvmMultisigConfigMap,
-  getSquadsChains,
   getPendingProposalsForChains,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -23,6 +22,7 @@ import {
   SQUADS_ENVIRONMENT,
   getSquadsMultiProtocolProvider,
   logProposals,
+  resolveSquadsChains,
   withSquadsChains,
 } from './cli-helpers.js';
 
@@ -59,8 +59,9 @@ async function main() {
   await reader.init(warpRoutes);
 
   // Get the pending proposals for the relevant chains
-  const chainsToCheck =
-    !chains || chains.length === 0 ? getSquadsChains() : chains;
+  const chainsToCheck = resolveSquadsChains(
+    Array.isArray(chains) ? chains : undefined,
+  );
 
   const pendingProposals = await getPendingProposalsForChains(
     chainsToCheck,

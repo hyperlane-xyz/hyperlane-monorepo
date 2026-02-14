@@ -41,6 +41,13 @@ export function withSquadsChains<T>(args: Argv<T>) {
     .alias('c', 'chains');
 }
 
+export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
+  if (chains && chains.length > 0) {
+    return chains;
+  }
+  return getSquadsChains();
+}
+
 export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolProvider> {
   const { getEnvironmentConfig } = await import('../core-utils.js');
   const envConfig = getEnvironmentConfig(SQUADS_ENVIRONMENT);

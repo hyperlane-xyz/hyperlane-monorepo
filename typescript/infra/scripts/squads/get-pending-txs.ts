@@ -7,7 +7,6 @@ import {
   SquadTxStatus,
   SvmMultiProtocolSignerAdapter,
   executeProposal,
-  getSquadsChains,
   getPendingProposalsForChains,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -22,6 +21,7 @@ import {
   getSquadsMultiProtocolProvider,
   getSquadsTurnkeySigner,
   logProposals,
+  resolveSquadsChains,
   withSquadsChains,
 } from './cli-helpers.js';
 
@@ -29,11 +29,9 @@ async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   const { chains } = await withSquadsChains(yargs(process.argv.slice(2))).argv;
-
-  const squadChains = getSquadsChains();
-  const selectedChains = Array.isArray(chains) ? chains : [];
-  const chainsToCheck =
-    selectedChains.length > 0 ? selectedChains : squadChains;
+  const chainsToCheck = resolveSquadsChains(
+    Array.isArray(chains) ? chains : undefined,
+  );
 
   if (chainsToCheck.length === 0) {
     rootLogger.error('No chains provided');
