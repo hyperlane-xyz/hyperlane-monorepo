@@ -386,9 +386,6 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  const { multisigPda } = getSquadsKeys(chain);
-  assertValidTransactionIndexInput(transactionIndex, chain);
-
   const proposalData = await getSquadProposalAccount(
     chain,
     mpp,
@@ -404,7 +401,7 @@ export async function getSquadProposal(
 
     const multisig = await accounts.Multisig.fromAccountAddress(
       squadsProvider,
-      multisigPda,
+      proposalData.multisigPda,
     );
 
     return { ...proposalData, multisig };
@@ -425,6 +422,8 @@ export async function getSquadProposalAccount(
   | {
       proposal: accounts.Proposal;
       proposalPda: PublicKey;
+      multisigPda: PublicKey;
+      programId: PublicKey;
     }
   | undefined
 > {
@@ -446,7 +445,7 @@ export async function getSquadProposalAccount(
       proposalPda,
     );
 
-    return { proposal, proposalPda };
+    return { proposal, proposalPda, multisigPda, programId };
   } catch (error) {
     rootLogger.warn(
       `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
