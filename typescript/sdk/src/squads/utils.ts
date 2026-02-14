@@ -126,20 +126,43 @@ export function parseSquadsProposalVoteError(
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
 ): SquadsProposalVoteError | undefined {
-  if (!error || typeof error !== 'object') return undefined;
+  if (!error || typeof error !== 'object') {
+    return undefined;
+  }
 
-  const errorWithLogs = error as {
-    transactionLogs?: unknown;
-    logs?: unknown;
-  };
-  const possibleLogs = [errorWithLogs.transactionLogs, errorWithLogs.logs];
+  const traversalQueue: unknown[] = [error];
+  const visitedObjects = new Set<object>();
 
-  for (const maybeLogs of possibleLogs) {
-    if (!Array.isArray(maybeLogs)) continue;
-    const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
-    if (logs.length === 0) continue;
-    const parsedError = parseSquadsProposalVoteError(logs);
-    if (parsedError) return parsedError;
+  while (traversalQueue.length > 0) {
+    const current = traversalQueue.shift();
+    if (!current || typeof current !== 'object') {
+      continue;
+    }
+
+    if (visitedObjects.has(current)) {
+      continue;
+    }
+    visitedObjects.add(current);
+
+    const currentRecord = current as Record<string, unknown>;
+    const possibleLogs = [
+      currentRecord.transactionLogs,
+      currentRecord.logs,
+    ] as const;
+
+    for (const maybeLogs of possibleLogs) {
+      if (!Array.isArray(maybeLogs)) continue;
+      const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
+      if (logs.length === 0) continue;
+      const parsedError = parseSquadsProposalVoteError(logs);
+      if (parsedError) return parsedError;
+    }
+
+    traversalQueue.push(
+      currentRecord.cause,
+      currentRecord.data,
+      currentRecord.value,
+    );
   }
 
   return undefined;

@@ -193,6 +193,40 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from nested data logs', () => {
+      const error = {
+        data: {
+          logs: ['Program log: AlreadyApproved'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('parses known vote error from nested cause transaction logs', () => {
+      const error = {
+        cause: {
+          transactionLogs: ['custom program error: 0x177b'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
+    it('prefers top-level parsed errors over nested errors', () => {
+      const error = {
+        logs: ['custom program error: 0x177c'],
+        cause: {
+          transactionLogs: ['custom program error: 0x177b'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
     it('parses known vote error from frozen log arrays in unknown error shape', () => {
       const error = {
         transactionLogs: Object.freeze(['Program log: AlreadyRejected']),
