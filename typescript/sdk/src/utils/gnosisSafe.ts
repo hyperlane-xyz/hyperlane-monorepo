@@ -109,7 +109,7 @@ function extractHostlessAuthority(value: string): string | undefined {
 
 function hasUserinfoLikeAuthority(value: string): boolean {
   const authority = extractHostlessAuthority(value);
-  return authority !== undefined && /@|%40/i.test(authority);
+  return authority !== undefined && /@|%(?:25)*40/i.test(authority);
 }
 
 function hasMalformedSchemeRelativeAuthority(value: string): boolean {
