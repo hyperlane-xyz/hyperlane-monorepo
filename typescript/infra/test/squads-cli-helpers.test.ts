@@ -36,8 +36,11 @@ async function getParseError(args: Argv): Promise<Error> {
     parserError = error as Error;
   }
 
-  expect(parserError).to.not.be.undefined;
-  return parserError!;
+  if (!parserError) {
+    throw new Error('Expected parser to throw an error');
+  }
+
+  return parserError;
 }
 
 describe('squads cli helpers', () => {
