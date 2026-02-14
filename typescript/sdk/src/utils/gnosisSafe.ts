@@ -169,6 +169,10 @@ function parseSchemeRelativeHttpUrl(value: string): URL | undefined {
   }
 }
 
+function hasUrlUserinfo(parsed: URL): boolean {
+  return parsed.username.length > 0 || parsed.password.length > 0;
+}
+
 export type SafeCallData = {
   to: Address;
   data: string;
@@ -352,6 +356,9 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
     throw new Error(`Safe tx service URL must use http(s): ${trimmedUrl}`);
   }
   if (!parsed) {
+    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+  }
+  if (hasUrlUserinfo(parsed)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   parsed.search = '';

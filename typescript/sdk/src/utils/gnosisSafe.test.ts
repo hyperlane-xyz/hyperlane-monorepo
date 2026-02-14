@@ -936,6 +936,26 @@ describe('gnosisSafe utils', () => {
         'Safe tx service URL is invalid: http://safe.global%40evil.com/api',
       );
       expect(() =>
+        normalizeSafeServiceUrl('https://safe.global@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe.global@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('http://safe.global@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: http://safe.global@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('http:///safe.global@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: http:///safe.global@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('https:////safe.global@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: https:////safe.global@evil.com/api',
+      );
+      expect(() =>
         normalizeSafeServiceUrl('http:///safe.global%2540evil.com/api'),
       ).to.throw(
         'Safe tx service URL is invalid: http:///safe.global%2540evil.com/api',
