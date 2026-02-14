@@ -845,11 +845,13 @@ async function inferSubmitterFromAddress({
 }
 
 async function inferSubmitterFromTransaction({
+  protocol,
   chain,
   transaction,
   context,
   cache,
 }: {
+  protocol: ProtocolType;
   chain: ChainName;
   transaction: TypedAnnotatedTransaction;
   context: WriteCommandContext;
@@ -857,7 +859,7 @@ async function inferSubmitterFromTransaction({
 }): Promise<ExtendedSubmissionStrategy> {
   const defaultSubmitter = getDefaultSubmitter(chain);
 
-  if (context.multiProvider.getProtocol(chain) !== ProtocolType.Ethereum) {
+  if (protocol !== ProtocolType.Ethereum) {
     return defaultSubmitter;
   }
 
@@ -1171,6 +1173,7 @@ export async function resolveSubmitterBatchesForTransactions({
     let inferred: ExtendedSubmissionStrategy;
     try {
       inferred = await inferSubmitterFromTransaction({
+        protocol,
         chain,
         transaction,
         context,

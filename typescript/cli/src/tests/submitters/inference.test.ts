@@ -133,6 +133,41 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('reuses protocol lookup for inferred transaction batches', async () => {
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => SIGNER,
+    } as any);
+
+    let protocolCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => {
+          protocolCalls += 1;
+          return ProtocolType.Ethereum;
+        },
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(protocolCalls).to.equal(1);
+    } finally {
+      ownableStub.restore();
+    }
+  });
+
   it('handles bigint-like explicit submitter fields in fingerprinting', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-timelock-delay-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
