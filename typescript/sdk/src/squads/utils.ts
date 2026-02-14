@@ -298,40 +298,50 @@ export function parseSquadsProposalVoteErrorFromError(
 }
 
 function toSafeInteger(value: unknown, fieldLabel: string): number {
-  const parsedValue = normalizeSafeIntegerValue(value);
+  const { parsedValue, displayValue } = normalizeSafeIntegerValue(value);
   assert(
     Number.isSafeInteger(parsedValue),
-    `Squads ${fieldLabel} must be a JavaScript safe integer: ${String(value)}`,
+    `Squads ${fieldLabel} must be a JavaScript safe integer: ${displayValue}`,
   );
   return parsedValue;
 }
 
-function normalizeSafeIntegerValue(value: unknown): number {
+function normalizeSafeIntegerValue(value: unknown): {
+  parsedValue: number;
+  displayValue: string;
+} {
   if (typeof value === 'number' || typeof value === 'bigint') {
-    return Number(value);
+    return { parsedValue: Number(value), displayValue: String(value) };
   }
 
   if (!value || typeof value !== 'object') {
-    return Number.NaN;
+    return { parsedValue: Number.NaN, displayValue: String(value) };
   }
 
   const toStringCandidate = (value as { toString?: unknown }).toString;
   if (typeof toStringCandidate !== 'function') {
-    return Number.NaN;
+    return {
+      parsedValue: Number.NaN,
+      displayValue: Object.prototype.toString.call(value),
+    };
   }
 
-  let stringValue: string;
+  let rawStringValue: unknown;
   try {
-    stringValue = toStringCandidate.call(value);
+    rawStringValue = toStringCandidate.call(value);
   } catch {
-    return Number.NaN;
+    return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
   }
 
-  if (!SAFE_INTEGER_DECIMAL_PATTERN.test(stringValue)) {
-    return Number.NaN;
+  const displayValue =
+    typeof rawStringValue === 'string'
+      ? rawStringValue
+      : String(rawStringValue);
+  if (!SAFE_INTEGER_DECIMAL_PATTERN.test(displayValue)) {
+    return { parsedValue: Number.NaN, displayValue };
   }
 
-  return Number(stringValue);
+  return { parsedValue: Number(displayValue), displayValue };
 }
 
 export function getSquadAndProvider(
