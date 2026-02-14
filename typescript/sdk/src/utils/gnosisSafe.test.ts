@@ -5899,6 +5899,101 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('deleteAllPendingSafeTxs continues when pending entry index access throws', async () => {
+      const safeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+      const normalizedSafeAddress = getAddress(safeAddress);
+      const mixedCaseHash = `0X${'CC'.repeat(32)}`;
+      const normalizedHash = `0x${'cc'.repeat(32)}`;
+      const proposerAddress = '0x00000000000000000000000000000000000000AA';
+      let typedDataDomain: Record<string, unknown> | undefined;
+      let typedDataMessage: Record<string, unknown> | undefined;
+      let deleteBody: string | undefined;
+      const requestUrls: string[] = [];
+
+      const signerMock = {
+        getAddress: async () => proposerAddress,
+        _signTypedData: async (
+          domain: Record<string, unknown>,
+          _types: Record<string, unknown>,
+          message: Record<string, unknown>,
+        ) => {
+          typedDataDomain = domain;
+          typedDataMessage = message;
+          return `0x${'44'.repeat(65)}`;
+        },
+      };
+      const throwingIndexResults = new Proxy(
+        [{ safeTxHash: mixedCaseHash }, { safeTxHash: mixedCaseHash }],
+        {
+          get(target, prop, receiver) {
+            if (prop === '0') {
+              throw new Error('index unavailable');
+            }
+            return Reflect.get(target, prop, receiver);
+          },
+        },
+      );
+
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        requestUrls.push(url);
+        if (requestUrls.length === 1) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ results: throwingIndexResults }),
+          } as unknown as Response;
+        }
+        if (requestUrls.length === 2) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ proposer: proposerAddress.toLowerCase() }),
+          } as unknown as Response;
+        }
+        deleteBody = init?.body as string | undefined;
+        return {
+          status: 204,
+          statusText: 'No Content',
+          text: async () => '',
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteAllPendingSafeTxs>[1];
+
+      await deleteAllPendingSafeTxs(
+        'test',
+        multiProviderMock,
+        safeAddress as Parameters<typeof deleteAllPendingSafeTxs>[2],
+      );
+
+      expect(requestUrls).to.deep.equal([
+        `https://safe-transaction-mainnet.safe.global/api/v2/safes/${normalizedSafeAddress}/multisig-transactions/?executed=false&limit=100`,
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+      ]);
+      expect(typedDataDomain?.verifyingContract).to.equal(
+        normalizedSafeAddress,
+      );
+      expect(typedDataMessage?.safeTxHash).to.equal(normalizedHash);
+      expect(deleteBody).to.equal(
+        JSON.stringify({
+          safeTxHash: normalizedHash,
+          signature: `0x${'44'.repeat(65)}`,
+        }),
+      );
+    });
+
     it('deleteAllPendingSafeTxs throws when pending tx list payload is invalid', async () => {
       globalThis.fetch = (async () => {
         return {
