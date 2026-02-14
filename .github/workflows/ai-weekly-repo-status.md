@@ -50,14 +50,18 @@ Use the GitHub API to collect:
 
 Group open PRs and issues by team using CODEOWNERS mapping:
 
-| Team      | Paths                                                                                        | Owners                                                  |
-| --------- | -------------------------------------------------------------------------------------------- | ------------------------------------------------------- |
-| Contracts | `solidity/`, `starknet/`                                                                     | yorhodes, ltyu, larryob, troykessler                    |
-| Agents    | `rust/`                                                                                      | ameten, yjamin                                          |
-| SDK       | `typescript/sdk/`, `typescript/utils/`, `typescript/deploy-sdk/`, `typescript/provider-sdk/` | yorhodes, ltyu, paulbalaji, xaroz, xeno097, antigremlin |
-| CLI       | `typescript/cli/`                                                                            | yorhodes, ltyu, xeno097, antigremlin                    |
-| Infra     | `typescript/infra/`                                                                          | paulbalaji, Mo-Hussain                                  |
-| Cosmos    | `typescript/cosmos-sdk/`, `typescript/cosmos-types/`                                         | troykessler, yjamin                                     |
+| Team         | Paths                                                | Owners                                                  |
+| ------------ | ---------------------------------------------------- | ------------------------------------------------------- |
+| Contracts    | `solidity/`                                          | yorhodes, ltyu, larryob                                 |
+| Starknet     | `starknet/`                                          | yorhodes, troykessler                                   |
+| Agents       | `rust/`                                              | ameten, yjamin                                          |
+| SDK          | `typescript/sdk/`, `typescript/utils/`               | yorhodes, ltyu, paulbalaji, xaroz, xeno097, antigremlin |
+| Multi-VM SDK | `typescript/deploy-sdk/`, `typescript/provider-sdk/` | ltyu, xeno097, troykessler, antigremlin                 |
+| Widgets      | `typescript/widgets/`                                | xaroz, xeno097, antigremlin                             |
+| CLI          | `typescript/cli/`                                    | yorhodes, ltyu, xeno097, antigremlin                    |
+| Infra        | `typescript/infra/`, `typescript/ccip-server/`       | paulbalaji, Mo-Hussain, nambrot                         |
+| Cosmos       | `typescript/cosmos-sdk/`, `typescript/cosmos-types/` | troykessler, yjamin                                     |
+| Radix        | `typescript/radix-sdk/`                              | troykessler, yjamin                                     |
 
 For each team, list:
 

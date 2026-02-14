@@ -39,12 +39,13 @@ Map changed file paths to labels. **Max 5 labels. Labels are additive only — n
 | `solidity/` (other, e.g. tests/scripts) | `protocol`                     |
 | `rust/main/agents/relayer/`             | `relayer`                      |
 | `rust/main/agents/validator/`           | `validator`                    |
-| `rust/main/agents/scraper/`             | `relayer`                      |
-| `rust/main/` (other)                    | `relayer`                      |
+| `rust/main/` (other)                    | (no label)                     |
 | `typescript/sdk/`                       | `sdk`                          |
 | `typescript/cli/`                       | `CLI`                          |
 | `typescript/infra/`                     | `infra-pkg`                    |
 | `typescript/utils/`                     | `sdk`                          |
+| `typescript/widgets/`                   | `sdk`                          |
+| `typescript/ccip-server/`               | `infra-pkg`                    |
 | `typescript/cosmos-sdk/`                | `cosmos`                       |
 | `typescript/cosmos-types/`              | `cosmos`                       |
 | `typescript/radix-sdk/`                 | `alt-VM`                       |
@@ -76,10 +77,19 @@ If cross-cutting, post a comment listing affected teams from CODEOWNERS (do NOT 
 ```
 This PR touches multiple areas:
 - **Contracts** (solidity/) — owners: yorhodes, ltyu, larryob
+- **Starknet** (starknet/) — owners: yorhodes, troykessler
+- **Agents** (rust/) — owners: ameten, yjamin
 - **SDK** (typescript/sdk/) — owners: yorhodes, ltyu, paulbalaji, xaroz, xeno097, antigremlin
+- **Multi-VM SDK** (typescript/deploy-sdk/, provider-sdk/) — owners: ltyu, xeno097, troykessler, antigremlin
+- **CLI** (typescript/cli/) — owners: yorhodes, ltyu, xeno097, antigremlin
+- **Infra** (typescript/infra/) — owners: paulbalaji, Mo-Hussain
+- **Cosmos** (typescript/cosmos-sdk/) — owners: troykessler, yjamin
+- **Radix** (typescript/radix-sdk/) — owners: troykessler, yjamin
+- **Widgets** (typescript/widgets/) — owners: xaroz, xeno097, antigremlin
+- **CCIP Server** (typescript/ccip-server/) — owners: Mo-Hussain, nambrot
 ```
 
-Adjust the team list based on which specific subdirectories are changed. Only list teams whose files are actually modified.
+Only list teams whose files are actually modified. Adjust the list based on which specific subdirectories are changed.
 
 Before posting, check for and hide/minimize previous auto-label bot comments on the PR to avoid noise.
 

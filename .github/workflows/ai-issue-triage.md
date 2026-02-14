@@ -74,13 +74,17 @@ Post a brief comment that includes:
 
 1. Which component(s) this relates to
 2. The relevant team for context (from CODEOWNERS, but do NOT @-mention):
-   - Contracts: yorhodes, ltyu, larryob
+   - Contracts (solidity/): yorhodes, ltyu, larryob
+   - Starknet: yorhodes, troykessler
    - Rust agents: ameten, yjamin
    - SDK/utils: yorhodes, ltyu, paulbalaji, xaroz, xeno097, antigremlin
+   - Multi-VM SDK (deploy-sdk, provider-sdk): ltyu, xeno097, troykessler, antigremlin
+   - Widgets: xaroz, xeno097, antigremlin
    - CLI: yorhodes, ltyu, xeno097, antigremlin
    - Infra: paulbalaji, Mo-Hussain
+   - CCIP Server: Mo-Hussain, nambrot
    - Cosmos: troykessler, yjamin
-   - Starknet: yorhodes, troykessler
+   - Radix: troykessler, yjamin
 3. Any clarifying questions if the issue is ambiguous
 
 Keep the comment concise (3-5 lines max). Do not repeat the issue content back.
