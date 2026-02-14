@@ -193,6 +193,21 @@ describe('squads utils', () => {
   });
 
   describe(getSquadProposal.name, () => {
+    it('returns undefined when provider bridge validation fails', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          return {};
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('fails fast for unsupported chains before proposal fetch attempts', async () => {
       let providerLookupCalled = false;
       const mpp = {
