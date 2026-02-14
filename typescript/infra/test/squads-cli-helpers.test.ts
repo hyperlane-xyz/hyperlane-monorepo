@@ -268,6 +268,16 @@ describe('squads cli helpers', () => {
     expect(parsedArgs.chain).to.equal(chain);
   });
 
+  it('trims chain parser values before validation', async () => {
+    const chain = getSquadsChains()[0];
+
+    const parsedArgs = await parseArgs(
+      withSquadsChain(yargs(['--chain', ` ${chain} `])),
+    );
+
+    expect(parsedArgs.chain).to.equal(chain);
+  });
+
   it('rejects non-squads chain via chain parser choices', async () => {
     let parserError: Error | undefined;
     try {
@@ -278,6 +288,20 @@ describe('squads cli helpers', () => {
 
     expect(parserError).to.not.be.undefined;
     expect(parserError?.message).to.include('Invalid values');
+  });
+
+  it('rejects empty chain parser values with clear error', async () => {
+    let parserError: Error | undefined;
+    try {
+      await parseArgs(withSquadsChain(yargs(['--chain', '   '])));
+    } catch (error) {
+      parserError = error as Error;
+    }
+
+    expect(parserError).to.not.be.undefined;
+    expect(parserError?.message).to.include(
+      'Expected --chain to be a non-empty string',
+    );
   });
 
   it('requires chain when using required chain parser helper', async () => {

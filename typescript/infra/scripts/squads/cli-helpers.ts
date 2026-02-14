@@ -66,6 +66,7 @@ export function withTransactionIndex<T>(args: Argv<T>) {
 export function withSquadsChain<T>(args: Argv<T>) {
   return args
     .describe('chain', 'chain name')
+    .coerce('chain', (chain: unknown) => normalizeArgvSingleChain(chain))
     .choices('chain', getSquadsChains())
     .alias('c', 'chain');
 }
@@ -158,6 +159,17 @@ function normalizeArgvChainValue(chain: unknown, index: number): string {
     trimmedChain.length > 0,
     `Expected --chains[${index}] to be a non-empty string`,
   );
+  return trimmedChain;
+}
+
+function normalizeArgvSingleChain(chain: unknown): string {
+  assert(
+    typeof chain === 'string',
+    `Expected --chain to be a string, but received ${getArgTypeName(chain)}`,
+  );
+
+  const trimmedChain = chain.trim();
+  assert(trimmedChain.length > 0, 'Expected --chain to be a non-empty string');
   return trimmedChain;
 }
 
