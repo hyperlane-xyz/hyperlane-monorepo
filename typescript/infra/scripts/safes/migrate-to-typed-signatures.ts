@@ -8,6 +8,7 @@ import {
   deleteSafeTx,
   getPendingTxsForChains,
   getSafeAndService,
+  getSafeTx,
   hasSafeServiceTransactionPayload,
   proposeSafeTransaction,
 } from '@hyperlane-xyz/sdk';
@@ -105,9 +106,9 @@ async function main() {
           safes[tx.chain],
         );
 
-        const safeTx = await safeService.getTransaction(tx.fullTxHash);
+        const safeTx = await getSafeTx(tx.chain, multiProvider, tx.fullTxHash);
         assert(
-          hasSafeServiceTransactionPayload(safeTx),
+          safeTx && hasSafeServiceTransactionPayload(safeTx),
           `Safe transaction ${tx.fullTxHash} on ${tx.chain} is missing to/data/value`,
         );
 
