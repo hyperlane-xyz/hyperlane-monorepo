@@ -1,4 +1,5 @@
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
+const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
 const GENERIC_ERROR_LABELS = new Set([
   'error',
   'typeerror',
@@ -19,7 +20,7 @@ export function normalizeStringifiedSquadsError(
 ): string | undefined {
   const trimmedFormattedError = formattedError.trim();
   const normalizedErrorLabel = trimmedFormattedError
-    .replace(/\s*:\s*$/, '')
+    .replace(TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN, '')
     .toLowerCase();
 
   if (

@@ -42,6 +42,9 @@ describe('squads error-format', () => {
           undefined,
         );
         expect(
+          normalizeStringifiedSquadsError(`${errorLabel} :\n\t`),
+        ).to.equal(undefined);
+        expect(
           normalizeStringifiedSquadsError(errorLabel.toLowerCase()),
         ).to.equal(undefined);
       }
