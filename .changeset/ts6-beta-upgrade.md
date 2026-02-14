@@ -61,3 +61,5 @@ Error-message extraction was hardened for proxy wrappers that throw on `message`
 Regression coverage was added for the final formatting fallback path when both JSON serialization and object inspection throw.
 
 Local-anvil startup error formatting was further hardened to avoid crashes when `code` reads or `toStringTag` formatting throw, with a stable placeholder fallback for fully unprintable error values.
+
+Regression coverage was expanded for wrapper errors with throwing `code` accessors to ensure startup formatting still returns actionable fallback messages.

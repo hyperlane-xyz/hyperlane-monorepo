@@ -598,6 +598,26 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: Unprintable error value',
       );
     });
+
+    it('ignores throwing code accessors on non-ENOENT errors', () => {
+      const wrappedError = new Proxy(
+        {
+          message: 'runtime unavailable',
+        },
+        {
+          get(target, property) {
+            if (property === 'code') {
+              throw new Error('blocked code accessor');
+            }
+            return Reflect.get(target, property);
+          },
+        },
+      );
+
+      expect(formatLocalAnvilStartError(wrappedError)).to.equal(
+        'Failed to start local anvil: runtime unavailable',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {
