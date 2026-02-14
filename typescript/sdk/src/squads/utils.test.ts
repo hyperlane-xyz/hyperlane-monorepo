@@ -27,6 +27,26 @@ import {
   squadsConfigs,
 } from './config.js';
 
+function captureSyncError(fn: () => void): Error | undefined {
+  try {
+    fn();
+    return undefined;
+  } catch (error) {
+    return error as Error;
+  }
+}
+
+async function captureAsyncError(
+  fn: () => Promise<unknown>,
+): Promise<Error | undefined> {
+  try {
+    await fn();
+    return undefined;
+  } catch (error) {
+    return error as Error;
+  }
+}
+
 describe('squads utils', () => {
   describe(getSquadTxStatus.name, () => {
     it('returns stale for stale non-executed proposal', () => {
@@ -210,12 +230,9 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      let thrownError: Error | undefined;
-      try {
-        getSquadAndProvider('unsupported-chain', mpp);
-      } catch (error) {
-        thrownError = error as Error;
-      }
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('unsupported-chain', mpp),
+      );
 
       expect(thrownError?.message).to.include(
         'Squads config not found on chain unsupported-chain',
@@ -232,12 +249,9 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      let thrownError: Error | undefined;
-      try {
-        getSquadAndProvider('solanamainnet', mpp);
-      } catch (error) {
-        thrownError = error as Error;
-      }
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
 
       expect(thrownError?.message).to.include('provider lookup failed');
       expect(providerLookupCalled).to.equal(true);
@@ -284,12 +298,9 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      let thrownError: Error | undefined;
-      try {
-        await getSquadProposal('unsupported-chain', mpp, 1);
-      } catch (error) {
-        thrownError = error as Error;
-      }
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposal('unsupported-chain', mpp, 1),
+      );
 
       expect(thrownError?.message).to.include(
         'Squads config not found on chain unsupported-chain',
