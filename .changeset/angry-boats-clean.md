@@ -62,3 +62,4 @@ Safe utility typing and robustness were improved by:
 - Validating Safe tx-service read helper response payload shape before returning tx details.
 - Hardening Safe delete signer shape/accessor/address validation before proposer comparison and signing.
 - Continuing pending Safe tx deletion processing when individual entries are non-object or hash accessors throw.
+- Avoiding repeated Safe tx-service retries on deterministic tx-detail JSON parsing failures.

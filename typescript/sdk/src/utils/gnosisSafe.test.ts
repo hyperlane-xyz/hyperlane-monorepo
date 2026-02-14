@@ -5220,6 +5220,36 @@ describe('gnosisSafe utils', () => {
       expect(fetchCalls).to.equal(1);
     });
 
+    it('getSafeTx returns undefined when tx details json parsing fails', async () => {
+      let fetchCalls = 0;
+      globalThis.fetch = (async () => {
+        fetchCalls += 1;
+        return {
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error('bad json');
+          },
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof getSafeTx>[1];
+
+      const transaction = await getSafeTx(
+        'test',
+        multiProviderMock,
+        `0x${'ac'.repeat(32)}`,
+      );
+
+      expect(transaction).to.equal(undefined);
+      expect(fetchCalls).to.equal(1);
+    });
+
     it('deleteSafeTx throws for invalid safe tx hash before signer/network calls', async () => {
       let fetchCalled = false;
       let getSignerCalled = false;

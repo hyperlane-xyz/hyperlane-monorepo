@@ -1361,17 +1361,17 @@ export async function getSafeTx(
   const headers = getSafeServiceHeaders(chain, multiProvider);
   const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${normalizedSafeTxHash}/`;
 
-  let txDetails: unknown;
+  let txDetailsResponse: Response;
   try {
-    txDetails = await retrySafeApi(async () => {
-      const txDetailsResponse = await fetch(txDetailsUrl, {
+    txDetailsResponse = await retrySafeApi(async () => {
+      const response = await fetch(txDetailsUrl, {
         method: 'GET',
         headers,
       });
-      if (!txDetailsResponse.ok) {
-        throw new Error(`HTTP error! status: ${txDetailsResponse.status}`);
+      if (!response.ok) {
+        throw new Error(`HTTP error! status: ${response.status}`);
       }
-      return (await txDetailsResponse.json()) as unknown;
+      return response;
     });
   } catch (error) {
     rootLogger.error(
@@ -1383,6 +1383,7 @@ export async function getSafeTx(
   }
 
   try {
+    const txDetails = (await txDetailsResponse.json()) as unknown;
     assert(
       txDetails !== null && typeof txDetails === 'object',
       `Safe transaction details payload must be an object: ${stringifyValueForError(txDetails)}`,
