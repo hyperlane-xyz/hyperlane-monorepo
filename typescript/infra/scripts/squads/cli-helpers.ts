@@ -272,9 +272,7 @@ export function formatScriptError(error: unknown): string {
   if (error && typeof error === 'object') {
     return stringifyUnknownSquadsError(error, {
       placeholder: '[unformattable error object]',
-      formatObject(value) {
-        return stringifyObject(value);
-      },
+      formatObject: stringifyObject,
     });
   }
 
