@@ -96,7 +96,7 @@ export function resolveSquadsChains(
     const normalizedChains = normalizeProvidedChains(chains);
     return resolveSquadsChainsFromSdk(normalizedChains);
   }
-  return getSquadsChains();
+  return resolveSquadsChainsFromSdk();
 }
 
 function getArgTypeName(value: unknown): string {
