@@ -4,6 +4,7 @@ import yargs, { type Argv } from 'yargs';
 import { ChainName, getSquadsChains } from '@hyperlane-xyz/sdk';
 
 import {
+  getUnsupportedSquadsChainsErrorMessage,
   resolveSquadsChains,
   withRequiredSquadsChain,
   withSquadsChain,
@@ -58,6 +59,17 @@ describe('squads cli helpers', () => {
 
     expect(() => resolveSquadsChains(['ethereum' as ChainName])).to.throw(
       `Available Squads chains: ${availableChains}`,
+    );
+  });
+
+  it('formats unsupported-chain error message with available chains', () => {
+    expect(
+      getUnsupportedSquadsChainsErrorMessage(
+        ['ethereum' as ChainName, 'arbitrum' as ChainName],
+        ['solanamainnet' as ChainName],
+      ),
+    ).to.equal(
+      'Squads configuration not found for chains: ethereum, arbitrum. Available Squads chains: solanamainnet',
     );
   });
 

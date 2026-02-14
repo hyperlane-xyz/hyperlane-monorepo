@@ -37,6 +37,7 @@ import {
 } from '../../src/utils/sealevel.js';
 import {
   getEnvironmentConfigFor,
+  getUnsupportedSquadsChainsErrorMessage,
   getMultiProtocolProviderFor,
   getTurnkeySignerFor,
   withSquadsChains,
@@ -464,8 +465,10 @@ async function main() {
 
   if (hasExplicitChains && nonSquadsChains.length > 0) {
     throw new Error(
-      `Squads configuration not found for chains: ${nonSquadsChains.join(', ')}. ` +
-        `Available Squads chains: ${configuredSquadsChains.join(', ')}`,
+      getUnsupportedSquadsChainsErrorMessage(
+        nonSquadsChains,
+        configuredSquadsChains,
+      ),
     );
   }
 

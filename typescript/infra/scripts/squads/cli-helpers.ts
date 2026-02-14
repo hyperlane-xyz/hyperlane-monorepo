@@ -86,6 +86,16 @@ export function withSquadsChains<T>(args: Argv<T>) {
     .alias('c', 'chains');
 }
 
+export function getUnsupportedSquadsChainsErrorMessage(
+  nonSquadsChains: ChainName[],
+  configuredSquadsChains: ChainName[] = getSquadsChains(),
+): string {
+  return (
+    `Squads configuration not found for chains: ${nonSquadsChains.join(', ')}. ` +
+    `Available Squads chains: ${configuredSquadsChains.join(', ')}`
+  );
+}
+
 export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
@@ -95,8 +105,10 @@ export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
     );
     if (nonSquadsChains.length > 0) {
       throw new Error(
-        `Squads configuration not found for chains: ${nonSquadsChains.join(', ')}. ` +
-          `Available Squads chains: ${configuredSquadsChains.join(', ')}`,
+        getUnsupportedSquadsChainsErrorMessage(
+          nonSquadsChains,
+          configuredSquadsChains,
+        ),
       );
     }
     return uniqueChains;
