@@ -104,6 +104,18 @@ describe('squads utils', () => {
       );
     });
 
+    it('does not mark rejected proposals as stale', () => {
+      expect(getSquadTxStatus('Rejected', 0, 3, 1, 10)).to.equal(
+        SquadTxStatus.REJECTED,
+      );
+    });
+
+    it('does not mark cancelled proposals as stale', () => {
+      expect(getSquadTxStatus('Cancelled', 0, 3, 1, 10)).to.equal(
+        SquadTxStatus.CANCELLED,
+      );
+    });
+
     it('returns unknown for unexpected proposal status values', () => {
       expect(
         getSquadTxStatus(

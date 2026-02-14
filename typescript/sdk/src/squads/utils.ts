@@ -507,7 +507,9 @@ export function getSquadTxStatus(
 ): SquadTxStatus {
   if (
     transactionIndex < staleTransactionIndex &&
-    statusKind !== SquadsProposalStatus.Executed
+    statusKind !== SquadsProposalStatus.Executed &&
+    statusKind !== SquadsProposalStatus.Rejected &&
+    statusKind !== SquadsProposalStatus.Cancelled
   ) {
     return SquadTxStatus.STALE;
   }
