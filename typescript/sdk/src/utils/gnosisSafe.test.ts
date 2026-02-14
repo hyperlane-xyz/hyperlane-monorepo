@@ -4348,6 +4348,26 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe deployment version must be a string: <unstringifiable>');
     });
 
+    it('throws for non-array safe deployment versions input', () => {
+      expect(() => getKnownMultiSendAddresses(123)).to.throw(
+        'Safe deployment versions must be an array: 123',
+      );
+      expect(() => getKnownMultiSendAddresses(null)).to.throw(
+        'Safe deployment versions must be an array: null',
+      );
+
+      const unstringifiableVersions = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+      expect(() =>
+        getKnownMultiSendAddresses(unstringifiableVersions),
+      ).to.throw(
+        'Safe deployment versions must be an array: <unstringifiable>',
+      );
+    });
+
     it('accepts safe deployment versions with surrounding whitespace', () => {
       const trimmed = getKnownMultiSendAddresses(['1.3.0']);
       const spaced = getKnownMultiSendAddresses(['  1.3.0  ']);

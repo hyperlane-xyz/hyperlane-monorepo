@@ -608,11 +608,15 @@ const chainOverrides: Record<
 export const DEFAULT_SAFE_DEPLOYMENT_VERSIONS = ['1.3.0', '1.4.1'] as const;
 
 export function getKnownMultiSendAddresses(
-  versions: readonly unknown[] = [...DEFAULT_SAFE_DEPLOYMENT_VERSIONS],
+  versions: unknown = [...DEFAULT_SAFE_DEPLOYMENT_VERSIONS],
 ): {
   multiSend: Address[];
   multiSendCallOnly: Address[];
 } {
+  assert(
+    Array.isArray(versions),
+    `Safe deployment versions must be an array: ${stringifyValueForError(versions)}`,
+  );
   const multiSend: Address[] = [];
   const multiSendCallOnly: Address[] = [];
 
