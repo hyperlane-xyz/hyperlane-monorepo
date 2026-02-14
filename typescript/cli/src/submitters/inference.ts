@@ -164,37 +164,40 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
   return null;
 }
 
-function normalizeLogPositionIndex(value: unknown): number {
-  const parsed = toNonNegativeIntegerBigInt(value);
-  if (parsed === null) {
-    return -1;
-  }
-  const max = BigInt(Number.MAX_SAFE_INTEGER);
-  return Number(parsed > max ? max : parsed);
-}
-
 function compareLogsByPosition(
   a: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
   b: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
 ): number {
-  const blockDiff =
-    normalizeLogPositionIndex(a.blockNumber) -
-    normalizeLogPositionIndex(b.blockNumber);
+  const compareIndex = (left: unknown, right: unknown): number => {
+    const leftIndex = toNonNegativeIntegerBigInt(left);
+    const rightIndex = toNonNegativeIntegerBigInt(right);
+
+    if (leftIndex === null) {
+      return rightIndex === null ? 0 : -1;
+    }
+    if (rightIndex === null) {
+      return 1;
+    }
+    if (leftIndex < rightIndex) {
+      return -1;
+    }
+    if (leftIndex > rightIndex) {
+      return 1;
+    }
+    return 0;
+  };
+
+  const blockDiff = compareIndex(a.blockNumber, b.blockNumber);
   if (blockDiff !== 0) {
     return blockDiff;
   }
 
-  const txIndexDiff =
-    normalizeLogPositionIndex(a.transactionIndex) -
-    normalizeLogPositionIndex(b.transactionIndex);
+  const txIndexDiff = compareIndex(a.transactionIndex, b.transactionIndex);
   if (txIndexDiff !== 0) {
     return txIndexDiff;
   }
 
-  return (
-    normalizeLogPositionIndex(a.logIndex) -
-    normalizeLogPositionIndex(b.logIndex)
-  );
+  return compareIndex(a.logIndex, b.logIndex);
 }
 
 async function hasSignerForChain(
