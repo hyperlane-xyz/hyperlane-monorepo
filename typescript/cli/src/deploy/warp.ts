@@ -76,6 +76,7 @@ import {
 } from '../logger.js';
 import { WarpSendLogs } from '../send/transfer.js';
 import { EV5FileSubmitter } from '../submitters/EV5FileSubmitter.js';
+import { resolveSubmitterBatchesForTransactions } from '../submitters/inference.js';
 import {
   CustomTxSubmitterType,
   type ExtendedChainSubmissionStrategy,
@@ -982,54 +983,63 @@ async function submitChainTransactions(
 
   await retryAsync(
     async () => {
-      const { submitter, config } = await getSubmitterByStrategy({
+      const resolvedBatches = await resolveSubmitterBatchesForTransactions({
         chain,
+        transactions,
         context: params.context,
         strategyUrl: params.strategyUrl,
         isExtendedChain,
       });
-      const transactionReceipts = await submitter.submit(
-        ...(transactions as any[]),
-      );
 
-      if (protocol !== ProtocolType.Ethereum) {
-        return;
-      }
-
-      if (transactionReceipts) {
-        const receiptPath = `${params.receiptsDir}/${chain}-${
-          submitter.txSubmitterType
-        }-${Date.now()}-receipts.json`;
-        writeYamlOrJson(receiptPath, transactionReceipts);
-        logGreen(
-          `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+      for (const resolvedBatch of resolvedBatches) {
+        const { submitter } = await getSubmitterByConfig({
+          chain,
+          context: params.context,
+          submissionStrategy: resolvedBatch.config,
+        });
+        const transactionReceipts = await submitter.submit(
+          ...(resolvedBatch.transactions as any[]),
         );
-      }
 
-      const canRelay = canSelfRelay(
-        params.selfRelay ?? false,
-        config,
-        transactionReceipts,
-      );
+        if (protocol !== ProtocolType.Ethereum) {
+          continue;
+        }
 
-      if (!canRelay.relay) {
-        return;
-      }
+        if (transactionReceipts) {
+          const receiptPath = `${params.receiptsDir}/${chain}-${
+            submitter.txSubmitterType
+          }-${Date.now()}-receipts.json`;
+          writeYamlOrJson(receiptPath, transactionReceipts);
+          logGreen(
+            `Transaction receipts for ${protocol} chain ${chain} successfully written to ${receiptPath}`,
+          );
+        }
 
-      // if self relaying does not work (possibly because metadata cannot be built yet)
-      // we don't want to rerun the complete code block as this will result in
-      // the update transactions being sent multiple times
-      try {
-        await retryAsync(() =>
-          runSelfRelay({
-            txReceipt: canRelay.txReceipt,
-            multiProvider: params.context.multiProvider,
-            registry: params.context.registry,
-            successMessage: WarpSendLogs.SUCCESS,
-          }),
+        const canRelay = canSelfRelay(
+          params.selfRelay ?? false,
+          resolvedBatch.config,
+          transactionReceipts,
         );
-      } catch (error) {
-        warnYellow(`Error when self-relaying Warp transaction`, error);
+
+        if (!canRelay.relay) {
+          continue;
+        }
+
+        // if self relaying does not work (possibly because metadata cannot be built yet)
+        // we don't want to rerun the complete code block as this will result in
+        // the update transactions being sent multiple times
+        try {
+          await retryAsync(() =>
+            runSelfRelay({
+              txReceipt: canRelay.txReceipt,
+              multiProvider: params.context.multiProvider,
+              registry: params.context.registry,
+              successMessage: WarpSendLogs.SUCCESS,
+            }),
+          );
+        } catch (error) {
+          warnYellow(`Error when self-relaying Warp transaction`, error);
+        }
       }
     },
     5, // attempts
@@ -1139,8 +1149,6 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
   submitter: TxSubmitterBuilder<T>;
   config: ExtendedSubmissionStrategy;
 }> {
-  const { multiProvider, altVmSigners, registry } = context;
-
   const defaultSubmitter: ExtendedSubmissionStrategy = {
     submitter: {
       chain,
@@ -1155,6 +1163,26 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
       : defaultSubmitter;
 
   const strategyToUse = submissionStrategy ?? defaultSubmitter;
+  return getSubmitterByConfig({
+    chain,
+    context,
+    submissionStrategy: strategyToUse,
+  });
+}
+
+export async function getSubmitterByConfig<T extends ProtocolType>({
+  chain,
+  context,
+  submissionStrategy,
+}: {
+  chain: ChainName;
+  context: WriteCommandContext;
+  submissionStrategy: ExtendedSubmissionStrategy;
+}): Promise<{
+  submitter: TxSubmitterBuilder<T>;
+  config: ExtendedSubmissionStrategy;
+}> {
+  const { multiProvider, altVmSigners, registry } = context;
   const protocol = multiProvider.getProtocol(chain);
 
   const additionalSubmitterFactories: any = {
@@ -1185,7 +1213,7 @@ export async function getSubmitterByStrategy<T extends ProtocolType>({
 
   return {
     submitter: await getSubmitterBuilder<T>({
-      submissionStrategy: strategyToUse as SubmissionStrategy, // TODO: fix this
+      submissionStrategy: submissionStrategy as SubmissionStrategy, // TODO: fix this
       multiProvider,
       coreAddressesByChain: await registry.getAddresses(),
       additionalSubmitterFactories,

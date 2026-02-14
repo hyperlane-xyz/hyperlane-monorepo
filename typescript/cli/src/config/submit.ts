@@ -7,8 +7,9 @@ import {
 import { type ProtocolType, errorToString } from '@hyperlane-xyz/utils';
 
 import { type WriteCommandContext } from '../context/types.js';
-import { getSubmitterByStrategy } from '../deploy/warp.js';
+import { getSubmitterByConfig } from '../deploy/warp.js';
 import { logGray, logRed } from '../logger.js';
+import { resolveSubmitterBatchesForTransactions } from '../submitters/inference.js';
 import {
   indentYamlOrJson,
   readYamlOrJson,
@@ -28,23 +29,34 @@ export async function runSubmit({
   receiptsFilepath: string;
   strategyPath?: string;
 }) {
-  const { submitter } = await getSubmitterByStrategy<ProtocolType>({
-    chain,
-    context,
-    strategyUrl: strategyPath,
-  });
-
   try {
-    const transactionReceipts = await submitter.submit(...transactions);
-    if (transactionReceipts) {
-      logGray(
-        '🧾 Transaction receipts:\n\n',
-        indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+    const resolvedBatches = await resolveSubmitterBatchesForTransactions({
+      chain,
+      transactions,
+      context,
+      strategyUrl: strategyPath,
+    });
+
+    for (const resolvedBatch of resolvedBatches) {
+      const { submitter } = await getSubmitterByConfig<ProtocolType>({
+        chain,
+        context,
+        submissionStrategy: resolvedBatch.config,
+      });
+
+      const transactionReceipts = await submitter.submit(
+        ...(resolvedBatch.transactions as any[]),
       );
-      const receiptPath = `${receiptsFilepath}/${chain}-${
-        submitter.txSubmitterType
-      }-${Date.now()}-receipts.json`;
-      writeYamlOrJson(receiptPath, transactionReceipts, 'json');
+      if (transactionReceipts) {
+        logGray(
+          '🧾 Transaction receipts:\n\n',
+          indentYamlOrJson(yamlStringify(transactionReceipts, null, 2), 4),
+        );
+        const receiptPath = `${receiptsFilepath}/${chain}-${
+          submitter.txSubmitterType
+        }-${Date.now()}-receipts.json`;
+        writeYamlOrJson(receiptPath, transactionReceipts, 'json');
+      }
     }
   } catch (error) {
     logRed(

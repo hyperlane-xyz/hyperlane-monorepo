@@ -6,6 +6,7 @@ import { GasAction, ProtocolType } from '@hyperlane-xyz/provider-sdk';
 import { type ChainAddresses } from '@hyperlane-xyz/registry';
 import {
   type ChainName,
+  type ChainMap,
   ContractVerifier,
   type CoreConfig,
   type DeployedCoreAddresses,
@@ -18,6 +19,7 @@ import { mustGet } from '@hyperlane-xyz/utils';
 import { type MultiProtocolSignerManager } from '../context/strategies/signer/MultiProtocolSignerManager.js';
 import { type WriteCommandContext } from '../context/types.js';
 import { log, logBlue, logGray, logGreen } from '../logger.js';
+import { resolveSubmitterBatchesForTransactions } from '../submitters/inference.js';
 import { indentYamlOrJson } from '../utils/files.js';
 
 import { validateCoreConfigForAltVM } from './configValidation.js';
@@ -28,7 +30,7 @@ import {
   runPreflightChecksForChains,
   validateCoreIsmCompatibility,
 } from './utils.js';
-import { getSubmitterByStrategy } from './warp.js';
+import { getSubmitterByConfig, getSubmitterByStrategy } from './warp.js';
 
 interface DeployParams {
   context: WriteCommandContext;
@@ -150,12 +152,33 @@ export async function runCoreApply(params: ApplyParams) {
 
       if (transactions.length) {
         logGray('Updating deployed core contracts');
+        const transactionsByChain: ChainMap<typeof transactions> = {};
         for (const transaction of transactions) {
-          await multiProvider.sendTransaction(
-            // Using the provided chain id because there might be remote chain transactions included in the batch
+          const transactionChain = multiProvider.getChainName(
             transaction.chainId ?? chain,
-            transaction,
           );
+          transactionsByChain[transactionChain] ??= [];
+          transactionsByChain[transactionChain].push(transaction);
+        }
+
+        for (const [transactionChain, chainTransactions] of Object.entries(
+          transactionsByChain,
+        )) {
+          const submitterBatches = await resolveSubmitterBatchesForTransactions({
+            chain: transactionChain,
+            transactions: chainTransactions as any[],
+            context,
+            strategyUrl: params.strategyUrl,
+          });
+
+          for (const batch of submitterBatches) {
+            const { submitter } = await getSubmitterByConfig({
+              chain: transactionChain,
+              context,
+              submissionStrategy: batch.config,
+            });
+            await submitter.submit(...(batch.transactions as any[]));
+          }
         }
 
         logGreen(`Core config updated on ${chain}.`);
