@@ -1377,6 +1377,53 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(providerCalls).to.equal(1);
   });
 
+  it('reuses provider lookup across owner, safe, and timelock probes', async () => {
+    const unknownOwner = '0x5555555555555555555555555555555555555555';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => unknownOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    let providerCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => {
+          providerCalls += 1;
+          return {};
+        },
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(2);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(1);
+      expect(providerCalls).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when inference throws on malformed transaction target', async () => {
     const context = {
       multiProvider: {
