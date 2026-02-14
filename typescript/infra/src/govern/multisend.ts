@@ -65,6 +65,7 @@ export class SafeMultiSend extends MultiSend {
     public readonly safeAddress: Address,
     private readonly safeSdk: SafeSdk,
     private readonly safeService: SafeService,
+    private readonly signer: ReturnType<MultiProvider['getSigner']>,
   ) {
     super();
   }
@@ -79,12 +80,14 @@ export class SafeMultiSend extends MultiSend {
       multiProvider,
       safeAddress,
     );
+    const signer = multiProvider.getSigner(chain);
     return new SafeMultiSend(
       multiProvider,
       chain,
       safeAddress,
       safeSdk,
       safeService,
+      signer,
     );
   }
 
@@ -129,14 +132,13 @@ export class SafeMultiSend extends MultiSend {
 
   // Helper function to propose a safe transaction
   private async proposeSafeTransaction(safeTransaction: SafeTx) {
-    const signer = this.multiProvider.getSigner(this.chain);
     await proposeSafeTransaction(
       this.chain,
       this.safeSdk,
       this.safeService,
       safeTransaction,
       this.safeAddress,
-      signer,
+      this.signer,
     );
   }
 }
