@@ -585,5 +585,73 @@ describe('hyperlane submit', function () {
       expect(output).to.match(/-timelockController-\d+-receipts\.json/);
       expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
+
+    it('should match selector-specific override when key uses uppercase 0X selector prefix', async function () {
+      const signerAddress = await xerc20Chain2.owner();
+      const mockSafe = await new MockSafe__factory()
+        .connect(xerc20Chain2.signer)
+        .deploy([signerAddress], 1);
+      const timelock = await new TimelockController__factory()
+        .connect(xerc20Chain2.signer)
+        .deploy(
+          0,
+          [signerAddress],
+          [signerAddress],
+          ethers.constants.AddressZero,
+        );
+
+      const selectorTx = await getMintOnlyOwnerTransaction(
+        xerc20Chain2,
+        ALICE,
+        randomInt(1, 1000),
+        ANVIL2_CHAIN_ID,
+      );
+      const txSelectorUpper = selectorTx.data!
+        .slice(0, 10)
+        .replace('0x', '0X')
+        .toUpperCase();
+
+      const strategyPath = `${TEMP_PATH}/submitter-overrides-selector-upper-prefix-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN_NAME_2,
+          },
+          submitterOverrides: {
+            [xerc20Chain2.address]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: CHAIN_NAME_2,
+              safeAddress: mockSafe.address,
+              version: '1.0',
+            },
+            [`${xerc20Chain2.address}@${txSelectorUpper}`]: {
+              type: TxSubmitterType.TIMELOCK_CONTROLLER,
+              chain: CHAIN_NAME_2,
+              timelockAddress: timelock.address,
+              proposerSubmitter: {
+                type: TxSubmitterType.JSON_RPC,
+                chain: CHAIN_NAME_2,
+              },
+            },
+          },
+        },
+      });
+
+      const targetOnlyTx = {
+        to: xerc20Chain2.address,
+        from: signerAddress,
+        data: '0x',
+        chainId: ANVIL2_CHAIN_ID,
+      };
+
+      const transactionsPath = `${TEMP_PATH}/submitter-overrides-selector-upper-prefix-transactions.yaml`;
+      writeYamlOrJson(transactionsPath, [selectorTx, targetOnlyTx]);
+
+      const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
+      const output = result.text();
+      expect(output).to.match(/-timelockController-\d+-receipts\.json/);
+      expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+    });
   });
 });
