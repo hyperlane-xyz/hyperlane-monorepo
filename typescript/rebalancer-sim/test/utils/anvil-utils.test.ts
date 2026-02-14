@@ -674,6 +674,17 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in boxed-string-valued errors fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildRealBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(true);
+    });
+
     it('ignores non-runtime string-valued errors fields', () => {
       expect(
         isContainerRuntimeUnavailable({
@@ -688,6 +699,17 @@ describe('Anvil utils', () => {
         isContainerRuntimeUnavailable({
           message: 'top-level wrapper noise',
           errors: new String('unrelated nested warning'),
+        }),
+      ).to.equal(false);
+    });
+
+    it('ignores non-runtime boxed-string-valued errors fields when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildRealBoxedStringWithThrowingToStringTag(
+            'unrelated nested warning',
+          ),
         }),
       ).to.equal(false);
     });

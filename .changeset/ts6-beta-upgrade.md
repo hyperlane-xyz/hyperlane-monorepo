@@ -231,3 +231,5 @@ Boxed-string normalization now no longer depends on `toStringTag` checks, and in
 Regression coverage now also confirms genuine boxed-string throw values plus boxed `code`/`message` metadata remain correctly normalized even when `Symbol.toStringTag` accessors throw.
 
 Regression coverage now also confirms boxed-string-valued `AggregateError.errors` payloads remain detectable when `Symbol.toStringTag` accessors throw, while coercible spoofed boxed-string `AggregateError.errors` payloads stay ignored.
+
+Regression coverage now also confirms boxed-string-valued wrapper `errors` fields remain detectable/ignorable under runtime/non-runtime signals even when boxed-string `Symbol.toStringTag` accessors throw.
