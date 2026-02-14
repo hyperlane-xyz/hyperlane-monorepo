@@ -202,4 +202,6 @@ Regression coverage now also confirms boxed string nested `errors` payloads matc
 
 Regression coverage now also confirms string-valued `AggregateError.errors` payloads match runtime-unavailable signals while non-runtime scalar entries remain ignored.
 
+Regression coverage now also confirms boxed-string-valued `AggregateError.errors` payloads match runtime-unavailable signals while non-runtime boxed-scalar entries remain ignored.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
