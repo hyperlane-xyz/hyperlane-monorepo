@@ -33,4 +33,10 @@ describe('squads provider bridge', () => {
       'Invalid Solana provider: missing getAccountInfo function',
     );
   });
+
+  it('throws for undefined malformed provider values', () => {
+    expect(() =>
+      toSquadsProvider(undefined as unknown as SolanaProvider),
+    ).to.throw('Invalid Solana provider: missing getAccountInfo function');
+  });
 });
