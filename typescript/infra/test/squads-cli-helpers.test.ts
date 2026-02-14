@@ -157,6 +157,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('labels null values in explicitly provided chains errors', () => {
+    expect(() => resolveSquadsChains([null])).to.throw(
+      'Expected chains[0] to be a string, but received null',
+    );
+  });
+
   it('reports exact index for explicitly provided non-string chain values', () => {
     const [chain] = getSquadsChains();
     expect(() => resolveSquadsChains([chain, 123])).to.throw(
