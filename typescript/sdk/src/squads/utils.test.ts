@@ -1201,6 +1201,21 @@ describe('squads utils', () => {
   });
 
   describe(getSquadProposal.name, () => {
+    it('allows zero transaction index and still attempts provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 0);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('returns undefined when provider lookup throws for supported chains', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -1284,6 +1299,26 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got 1.5',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for unsafe transaction index before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const unsafeIndex = Number.MAX_SAFE_INTEGER + 1;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposal('solanamainnet', mpp, unsafeIndex),
+      );
+
+      expect(thrownError?.message).to.equal(
+        `Expected transaction index to be a non-negative safe integer for solanamainnet, got ${unsafeIndex}`,
       );
       expect(providerLookupCalled).to.equal(false);
     });
