@@ -147,6 +147,12 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('https://transaction.foo.xyz///'),
       ).to.equal('https://transaction.foo.xyz/api');
     });
+
+    it('trims surrounding whitespace before normalization', () => {
+      expect(
+        normalizeSafeServiceUrl('  https://safe.global/tx-service/eth/api/  '),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+    });
   });
 
   describe(isLegacySafeApi.name, () => {
