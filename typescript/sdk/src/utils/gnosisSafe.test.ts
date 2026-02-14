@@ -2747,6 +2747,7 @@ describe('gnosisSafe utils', () => {
       const nonLegacyVersions = [
         'v5.18.0',
         'V5.18.0',
+        '9007199254740991.0.0',
         '5.18.0+L2',
         'V5.18.0+L2',
         '5.18.0+build.1',

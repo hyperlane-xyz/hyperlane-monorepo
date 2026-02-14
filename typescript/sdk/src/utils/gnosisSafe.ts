@@ -38,6 +38,10 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+// Strict semver parser for Safe tx-service versions:
+// - accepts optional v/V prefix
+// - accepts optional prerelease/build metadata identifiers
+// - rejects malformed metadata (empty identifiers, invalid separators)
 const SAFE_API_SEMVER_REGEX =
   /^v?(\d+)\.(\d+)\.(\d+)(?:-([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?(?:\+([0-9A-Za-z-]+(?:\.[0-9A-Za-z-]+)*))?$/i;
 const URL_SCHEME_WITH_AUTHORITY_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
@@ -75,6 +79,7 @@ function parseSemverPrefix(version: string): [number, number, number] {
   const major = Number(match[1]);
   const minor = Number(match[2]);
   const patch = Number(match[3]);
+  // Guard against precision loss when parsing extremely large numeric parts.
   if (
     !Number.isSafeInteger(major) ||
     !Number.isSafeInteger(minor) ||
