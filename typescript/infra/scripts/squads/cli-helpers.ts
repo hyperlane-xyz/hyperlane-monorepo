@@ -273,6 +273,13 @@ export function formatScriptError(error: unknown): string {
       }
     } catch {}
 
+    try {
+      const formattedError = String(error);
+      if (formattedError.length > 0) {
+        return formattedError;
+      }
+    } catch {}
+
     return '[unformattable error instance]';
   }
 

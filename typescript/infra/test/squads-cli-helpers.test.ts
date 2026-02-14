@@ -746,6 +746,25 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(error)).to.equal('boom');
   });
 
+  it('falls back to Error stringification when stack and message are empty', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+    Object.defineProperty(error, 'message', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+    error.toString = () => 'custom error string';
+
+    expect(formatScriptError(error)).to.equal('custom error string');
+  });
+
   it('formats string errors unchanged', () => {
     expect(formatScriptError('oops')).to.equal('oops');
   });
