@@ -3295,6 +3295,17 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws when call payload fields are inaccessible', () => {
+      const inaccessiblePayload = {
+        get to() {
+          throw new Error('boom');
+        },
+      };
+      expect(() => createSafeTransactionData(inaccessiblePayload)).to.throw(
+        'Safe call payload fields are inaccessible',
+      );
+    });
+
     it('throws when target address is invalid', () => {
       expect(() =>
         createSafeTransactionData({
@@ -3760,6 +3771,17 @@ describe('gnosisSafe utils', () => {
       );
       expect(() => parseSafeTx(123)).to.throw(
         'Safe transaction data is required',
+      );
+    });
+
+    it('throws when transaction payload fields are inaccessible', () => {
+      const inaccessiblePayload = {
+        get data() {
+          throw new Error('boom');
+        },
+      };
+      expect(() => parseSafeTx(inaccessiblePayload)).to.throw(
+        'Safe transaction payload fields are inaccessible',
       );
     });
 

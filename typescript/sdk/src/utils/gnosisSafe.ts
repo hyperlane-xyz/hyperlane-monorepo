@@ -58,8 +58,12 @@ const SAFE_TX_DATA_REQUIRED_ERROR = 'Safe transaction data is required';
 const SAFE_TX_DATA_INVALID_HEX_ERROR = 'Safe transaction data must be hex';
 const SAFE_TX_SELECTOR_REQUIRED_ERROR =
   'Safe transaction data must include function selector';
+const SAFE_TX_PAYLOAD_INACCESSIBLE_ERROR =
+  'Safe transaction payload fields are inaccessible';
 const MULTISEND_SELECTOR_REQUIRED_ERROR =
   'Invalid multisend payload: missing multisend selector';
+const SAFE_CALL_PAYLOAD_INACCESSIBLE_ERROR =
+  'Safe call payload fields are inaccessible';
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -910,18 +914,26 @@ export function createSafeTransactionData(call: unknown): MetaTransactionData {
     callData,
     `Safe call payload must be an object: ${stringifyValueForError(call)}`,
   );
+  let to: unknown;
+  let data: unknown;
+  let value: unknown;
+  try {
+    ({ to, data, value } = callData);
+  } catch {
+    throw new Error(SAFE_CALL_PAYLOAD_INACCESSIBLE_ERROR);
+  }
   assert(
-    typeof callData.to === 'string' && ethers.utils.isAddress(callData.to),
-    `Safe call target must be valid address: ${stringifyValueForError(callData.to)}`,
+    typeof to === 'string' && ethers.utils.isAddress(to),
+    `Safe call target must be valid address: ${stringifyValueForError(to)}`,
   );
-  const normalizedData = asHex(callData.data, {
+  const normalizedData = asHex(data, {
     required: 'Safe call data is required',
     invalid: 'Safe call data must be hex',
   });
   return {
-    to: callData.to,
+    to,
     data: normalizedData,
-    value: serializeSafeCallValue(callData.value),
+    value: serializeSafeCallValue(value),
   };
 }
 
@@ -1484,7 +1496,16 @@ export function parseSafeTx(tx: unknown) {
     tx !== null && typeof tx === 'object'
       ? (tx as Partial<ParseableSafeTx>)
       : undefined;
-  const normalizedData = asHex(txPayload?.data, {
+  let data: unknown;
+  let value: unknown;
+  if (txPayload) {
+    try {
+      ({ data, value } = txPayload);
+    } catch {
+      throw new Error(SAFE_TX_PAYLOAD_INACCESSIBLE_ERROR);
+    }
+  }
+  const normalizedData = asHex(data, {
     required: SAFE_TX_DATA_REQUIRED_ERROR,
     invalid: SAFE_TX_DATA_INVALID_HEX_ERROR,
   });
@@ -1494,7 +1515,7 @@ export function parseSafeTx(tx: unknown) {
   );
   return SAFE_INTERFACE.parseTransaction({
     data: normalizedData,
-    value: txPayload?.value as AnnotatedEV5Transaction['value'],
+    value: value as AnnotatedEV5Transaction['value'],
   });
 }
 
