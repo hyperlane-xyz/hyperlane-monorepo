@@ -43,6 +43,16 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'https://safe-transaction-mainnet.safe.global:443/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'HTTPS://SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL:443/API',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'https:////safe-transaction-mainnet.safe.global/api',
         ),
       ).to.equal(true);
@@ -378,6 +388,12 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('HTTP://SAFE.GLOBAL:80/API')).to.equal(
         'http://safe.global/api',
       );
+      expect(normalizeSafeServiceUrl('https://safe.global:443/api')).to.equal(
+        'https://safe.global/api',
+      );
+      expect(
+        normalizeSafeServiceUrl('HTTPS://SAFE.GLOBAL:443/TX-SERVICE/ETH/API'),
+      ).to.equal('https://safe.global/TX-SERVICE/ETH/api');
     });
 
     it('canonicalizes explicit http(s) urls with extra slashes', () => {
