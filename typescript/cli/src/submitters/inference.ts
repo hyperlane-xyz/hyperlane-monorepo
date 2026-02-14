@@ -476,8 +476,15 @@ async function inferTimelockProposerSubmitter({
     return defaultSubmitter;
   }
 
-  const roleGrantedTopic = timelock.interface.getEventTopic('RoleGranted');
-  const roleRevokedTopic = timelock.interface.getEventTopic('RoleRevoked');
+  let roleGrantedTopic: string;
+  let roleRevokedTopic: string;
+  try {
+    roleGrantedTopic = timelock.interface.getEventTopic('RoleGranted');
+    roleRevokedTopic = timelock.interface.getEventTopic('RoleRevoked');
+  } catch {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
+    return defaultSubmitter;
+  }
 
   let grantedLogs: Awaited<ReturnType<typeof provider.getLogs>>;
   let revokedLogs: Awaited<ReturnType<typeof provider.getLogs>>;
