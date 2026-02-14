@@ -4178,6 +4178,66 @@ describe('gnosisSafe utils', () => {
       ]);
     });
 
+    it('preserves non-core safe transaction payload fields when normalizing', async () => {
+      const proposedPayloads: unknown[] = [];
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async (payload: unknown) => {
+          proposedPayloads.push(payload);
+        },
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+      const safeTransactionWithExtras = {
+        data: {
+          to: safeAddress,
+          value: '0',
+          data: '0xABCD',
+          operation: 1,
+          safeTxGas: '12345',
+          baseGas: '0',
+          gasPrice: '0',
+          gasToken: '0x0000000000000000000000000000000000000000',
+          refundReceiver: '0x0000000000000000000000000000000000000000',
+          nonce: 7,
+        },
+      } as unknown as Parameters<typeof proposeSafeTransaction>[3];
+
+      await proposeSafeTransaction(
+        'test',
+        safeSdkMock,
+        safeServiceMock,
+        safeTransactionWithExtras,
+        safeAddress,
+        signerMock,
+      );
+
+      expect(proposedPayloads).to.deep.equal([
+        {
+          safeAddress: getAddress(safeAddress),
+          safeTransactionData: {
+            to: getAddress(safeAddress),
+            value: '0',
+            data: '0xabcd',
+            operation: 1,
+            safeTxGas: '12345',
+            baseGas: '0',
+            gasPrice: '0',
+            gasToken: '0x0000000000000000000000000000000000000000',
+            refundReceiver: '0x0000000000000000000000000000000000000000',
+            nonce: 7,
+          },
+          safeTxHash,
+          senderAddress,
+          senderSignature: '0xabcdef',
+        },
+      ]);
+    });
+
     it('throws when safe transaction hash is invalid', async () => {
       const safeSdkMock = {
         getTransactionHash: async () => 'bad-hash',
