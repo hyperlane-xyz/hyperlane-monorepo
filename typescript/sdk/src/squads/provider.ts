@@ -24,7 +24,7 @@ export function toSquadsProvider(
     typeof getAccountInfo === 'function',
     `Invalid Solana provider: expected getAccountInfo function, got ${formatValueType(
       getAccountInfo,
-    )}`,
+    )} (provider: ${formatValueType(provider)})`,
   );
 
   // Squads SDK expects a narrower connection type than sdk providers expose.

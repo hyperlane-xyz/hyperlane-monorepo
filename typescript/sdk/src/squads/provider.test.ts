@@ -16,7 +16,7 @@ describe('squads provider bridge', () => {
 
   it('throws for malformed provider values', () => {
     expect(() => toSquadsProvider({} as SolanaProvider)).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got undefined',
+      'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: object)',
     );
   });
 
@@ -26,7 +26,7 @@ describe('squads provider bridge', () => {
         getAccountInfo: 'not-a-function',
       } as unknown as SolanaProvider),
     ).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got string',
+      'Invalid Solana provider: expected getAccountInfo function, got string (provider: object)',
     );
   });
 
@@ -36,7 +36,7 @@ describe('squads provider bridge', () => {
         getAccountInfo: [],
       } as unknown as SolanaProvider),
     ).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got array',
+      'Invalid Solana provider: expected getAccountInfo function, got array (provider: object)',
     );
   });
 
@@ -46,7 +46,7 @@ describe('squads provider bridge', () => {
         getAccountInfo: null,
       } as unknown as SolanaProvider),
     ).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got null',
+      'Invalid Solana provider: expected getAccountInfo function, got null (provider: object)',
     );
   });
 
@@ -56,7 +56,7 @@ describe('squads provider bridge', () => {
         getAccountInfo: false,
       } as unknown as SolanaProvider),
     ).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got boolean',
+      'Invalid Solana provider: expected getAccountInfo function, got boolean (provider: object)',
     );
   });
 
@@ -66,13 +66,13 @@ describe('squads provider bridge', () => {
         getAccountInfo: {},
       } as unknown as SolanaProvider),
     ).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got object',
+      'Invalid Solana provider: expected getAccountInfo function, got object (provider: object)',
     );
   });
 
   it('throws for null malformed provider values', () => {
     expect(() => toSquadsProvider(null as unknown as SolanaProvider)).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got undefined',
+      'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: null)',
     );
   });
 
@@ -80,7 +80,7 @@ describe('squads provider bridge', () => {
     expect(() =>
       toSquadsProvider(undefined as unknown as SolanaProvider),
     ).to.throw(
-      'Invalid Solana provider: expected getAccountInfo function, got undefined',
+      'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: undefined)',
     );
   });
 });
