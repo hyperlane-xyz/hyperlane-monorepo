@@ -98,6 +98,9 @@ describe('squads utils', () => {
       expect(
         parseSquadsProposalVoteError(['custom program error: 0x177B']),
       ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+      expect(
+        parseSquadsProposalVoteError(['custom program error: 0x177C']),
+      ).to.equal(SquadsProposalVoteError.AlreadyCancelled);
     });
 
     it('parses readonly frozen transaction logs', () => {
