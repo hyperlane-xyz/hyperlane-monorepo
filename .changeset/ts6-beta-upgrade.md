@@ -37,3 +37,5 @@ Windows named-pipe runtime-unavailable detection was further expanded to include
 Windows matcher coverage was additionally expanded for URL-encoded named-pipe path signatures emitted by Docker daemon connection errors.
 
 Windows named-pipe detection was further broadened to include `dockerDesktopEngine` signatures across npipe, slash/backslash path, and URL-encoded forms.
+
+Windows named-pipe matcher coverage was also expanded for URL-encoded backslash pipe signatures, and matcher construction was refactored to derive Windows pipe patterns from a shared engine list for easier maintenance.
