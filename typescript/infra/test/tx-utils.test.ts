@@ -879,6 +879,20 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when output file name contains path separators', () => {
+    expect(() =>
+      processGovernorReaderResult([], [], 'nested/results'),
+    ).to.throw(
+      'Governor reader output file name must not include path separators: nested/results',
+    );
+
+    expect(() =>
+      processGovernorReaderResult([], [], 'nested\\results'),
+    ).to.throw(
+      'Governor reader output file name must not include path separators: nested\\results',
+    );
+  });
+
   it('throws when injected dependency functions are invalid', () => {
     expect(() =>
       processGovernorReaderResult([], [], 'safe-tx-parse-results', {

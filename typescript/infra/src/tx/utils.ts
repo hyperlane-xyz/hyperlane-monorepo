@@ -95,6 +95,14 @@ export function processGovernorReaderResult(
   }
   const normalizedOutputFileName = outputFileName.trim();
   if (
+    normalizedOutputFileName.includes('/') ||
+    normalizedOutputFileName.includes('\\')
+  ) {
+    throw new Error(
+      `Governor reader output file name must not include path separators: ${normalizedOutputFileName}`,
+    );
+  }
+  if (
     deps.writeYamlFn !== undefined &&
     typeof deps.writeYamlFn !== 'function'
   ) {
