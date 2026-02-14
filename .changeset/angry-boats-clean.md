@@ -51,4 +51,5 @@ Safe utility typing and robustness were improved by:
 - Validating and canonicalizing Safe signer private-key fallbacks as 32-byte hex values.
 - Validating and canonicalizing explicit Safe signer string inputs (address/private-key forms) with deterministic invalid-signer errors.
 - Trimming surrounding whitespace on explicit Safe signer string inputs before address/private-key validation.
+- Rejecting explicit non-string primitive signer inputs with deterministic runtime boundary errors.
 - Requiring typed-data signer support before Safe tx deletion.

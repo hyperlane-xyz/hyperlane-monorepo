@@ -900,6 +900,10 @@ export async function resolveSafeSigner(
       );
       return normalizedSignerPrivateKey;
     }
+    assert(
+      typeof signer === 'object' || typeof signer === 'function',
+      `Explicit Safe signer must be a signer object, address, or 32-byte hex private key: ${stringifyValueForError(signer)}`,
+    );
     return signer;
   }
 

@@ -3214,6 +3214,27 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when explicit signer is invalid non-string primitive', async () => {
+      const multiProviderMock: SignerProvider = {
+        getSigner: () => {
+          throw new Error('should not be called');
+        },
+      };
+
+      try {
+        await resolveSafeSigner(
+          'test',
+          multiProviderMock,
+          123 as unknown as Parameters<typeof resolveSafeSigner>[2],
+        );
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Explicit Safe signer must be a signer object, address, or 32-byte hex private key: 123',
+        );
+      }
+    });
+
     it('prefers multiprovider private key when signer is not provided', async () => {
       const wallet = ethers.Wallet.createRandom();
       const multiProviderMock: SignerProvider = {
