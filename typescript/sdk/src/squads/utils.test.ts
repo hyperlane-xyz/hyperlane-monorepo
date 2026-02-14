@@ -64,6 +64,14 @@ describe('squads utils', () => {
       expect(getMinimumProposalIndexToCheck(25, 10)).to.equal(15);
     });
 
+    it('returns current index when lookback count is zero', () => {
+      expect(getMinimumProposalIndexToCheck(25, 0)).to.equal(25);
+    });
+
+    it('returns zero when current index equals lookback count', () => {
+      expect(getMinimumProposalIndexToCheck(10, 10)).to.equal(0);
+    });
+
     it('throws for negative current transaction index', () => {
       expect(() => getMinimumProposalIndexToCheck(-1)).to.throw(
         'Expected current transaction index to be a non-negative safe integer, got -1',
