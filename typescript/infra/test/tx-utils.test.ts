@@ -954,6 +954,22 @@ describe('processGovernorReaderResult', () => {
     ).to.throw('Governor reader exitFn must be a function: null');
   });
 
+  it('throws when injected dependency functions are unstringifiable non-functions', () => {
+    const unstringifiableValue = {
+      [Symbol.toPrimitive]() {
+        throw new Error('dep to-primitive boom');
+      },
+    };
+
+    expect(() =>
+      processGovernorReaderResult([], [], 'safe-tx-parse-results', {
+        writeYamlFn: unstringifiableValue as unknown as any,
+      }),
+    ).to.throw(
+      'Governor reader writeYamlFn must be a function: <unstringifiable>',
+    );
+  });
+
   it('throws when injected dependency accessors are inaccessible', () => {
     const depsWithThrowingWriteYamlFn = new Proxy(
       {},
