@@ -640,6 +640,41 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('matches map wrappers when cause accessors throw but errors remain available', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const mapWrapper = Object.assign(
+        new Map([['noise', { message: 'non-matching wrapper noise' }]]),
+        {
+          errors: { message: 'Cannot connect to the Docker daemon' },
+          toJSON() {
+            throw new Error('json blocked');
+          },
+          [inspectCustom]() {
+            return 'map wrapper without nested details';
+          },
+        },
+      );
+      Object.defineProperty(mapWrapper, 'cause', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error('cause blocked');
+        },
+      });
+
+      const wrappedError = {
+        errors: mapWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches runtime errors in array wrappers with cause fallbacks when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const arrayWrapper = Object.assign([{ message: 'noise-entry' }], {

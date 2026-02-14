@@ -133,3 +133,5 @@ Regression coverage now also confirms error-shaped wrapper `errors` payloads pre
 Regression coverage now also confirms iterable-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
 
 Regression coverage now also confirms map-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
+
+Regression coverage now also confirms map-wrapper `errors` payloads still match runtime-unavailable signals when wrapper `cause` accessors throw but wrapper-level `errors` fallbacks remain available.
