@@ -84,7 +84,7 @@ export function withSquadsChains<T>(args: Argv<T>) {
 
 export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
   if (chains && chains.length > 0) {
-    return chains;
+    return Array.from(new Set(chains));
   }
   return getSquadsChains();
 }

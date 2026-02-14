@@ -25,6 +25,16 @@ describe('squads cli helpers', () => {
     expect(resolveSquadsChains(selectedChains)).to.deep.equal(selectedChains);
   });
 
+  it('deduplicates explicitly provided chains while preserving order', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    const selectedChains = [firstChain, secondChain, firstChain];
+
+    expect(resolveSquadsChains(selectedChains)).to.deep.equal([
+      firstChain,
+      secondChain,
+    ]);
+  });
+
   it('parses chain from c alias', async () => {
     const chain = getSquadsChains()[0];
 
