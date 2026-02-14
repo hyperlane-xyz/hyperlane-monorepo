@@ -101,4 +101,34 @@ describe('executePendingTransactions', () => {
       );
     }
   });
+
+  it('continues when transaction metadata derivation throws', async () => {
+    const txs = [{ id: 'tx1' }, { id: 'tx2' }, { id: 'tx3' }];
+    const executed: string[] = [];
+
+    const confirmPrompt = async () => true;
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => {
+          if (tx.id === 'tx2') {
+            throw new Error('cannot derive id');
+          }
+          return tx.id;
+        },
+        (tx) => `chain-${tx.id}`,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        confirmPrompt,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): <unknown>:<unknown>',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1', 'tx3']);
+  });
 });

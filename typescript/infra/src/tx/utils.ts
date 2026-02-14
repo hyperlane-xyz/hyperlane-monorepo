@@ -58,8 +58,23 @@ export async function executePendingTransactions<T>(
   }> = [];
 
   for (const tx of executableTxs) {
-    const id = txId(tx);
-    const chain = txChain(tx);
+    let id: string;
+    let chain: string;
+    try {
+      id = txId(tx);
+      chain = txChain(tx);
+    } catch (error) {
+      rootLogger.error(
+        chalk.red('Error deriving pending transaction metadata:'),
+        error,
+      );
+      failedTransactions.push({
+        id: '<unknown>',
+        chain: '<unknown>',
+        error,
+      });
+      continue;
+    }
 
     const confirmExecuteTx =
       confirmExecuteAll ||
