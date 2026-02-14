@@ -117,6 +117,7 @@ function cacheKey(chain: ChainName, address: Address): string {
 }
 
 const MAX_LOG_POSITION_STRING_LENGTH = 256;
+const MAX_LOG_POSITION_RAW_STRING_LENGTH = 4096;
 
 function normalizeNumericStringForBigInt(
   value: string,
@@ -161,7 +162,7 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) {
+    if (!trimmed || trimmed.length > MAX_LOG_POSITION_RAW_STRING_LENGTH) {
       return null;
     }
     const isHex = /^0x[0-9a-f]+$/i.test(trimmed);
