@@ -939,6 +939,21 @@ describe('squads cli helpers', () => {
     ).to.equal('rpc failed');
   });
 
+  it('falls back to object stringification when non-Error stack/message are low-signal labels', () => {
+    const objectWithLowSignalStackAndMessage = {
+      stack: 'TypeError:',
+      message: 'Error :',
+      code: 500,
+      reason: 'rpc failed',
+    };
+
+    const formatted = formatScriptError(objectWithLowSignalStackAndMessage);
+    expect(formatted).to.include('code');
+    expect(formatted).to.include('500');
+    expect(formatted).to.include('reason');
+    expect(formatted).to.include('rpc failed');
+  });
+
   it('falls back to message when non-Error object stack accessor throws', () => {
     const objectWithThrowingStackGetter = { message: 'rpc failed' } as {
       message: string;
