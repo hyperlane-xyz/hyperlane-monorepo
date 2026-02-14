@@ -1,6 +1,5 @@
 import { confirm } from '@inquirer/prompts';
 import chalk from 'chalk';
-import { BigNumber } from 'ethers';
 import yargs from 'yargs';
 
 import {
@@ -9,6 +8,7 @@ import {
   deleteSafeTx,
   getPendingTxsForChains,
   getSafeAndService,
+  hasSafeServiceTransactionPayload,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -105,10 +105,10 @@ async function main() {
         );
 
         const safeTx = await safeService.getTransaction(tx.fullTxHash);
-
-        assert(safeTx.to, 'Transaction has no to address');
-        assert(safeTx.data, 'Transaction has no data');
-        assert(safeTx.value, 'Transaction has no value');
+        assert(
+          hasSafeServiceTransactionPayload(safeTx),
+          `Safe transaction ${tx.fullTxHash} on ${tx.chain} is missing to/data/value`,
+        );
 
         // Log the transaction details
         rootLogger.info(
@@ -132,7 +132,7 @@ async function main() {
         const safeTransactionData = createSafeTransactionData({
           to: safeTx.to,
           data: safeTx.data,
-          value: BigNumber.from(safeTx.value),
+          value: safeTx.value,
         });
         const safeTransaction = await createSafeTransaction(
           safeSdk,
