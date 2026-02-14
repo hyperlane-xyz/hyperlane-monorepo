@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import { type Signer, Wallet, ethers } from 'ethers';
 
-import { ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import { MockSafe__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
   type CoreConfig,
@@ -18,6 +18,8 @@ import {
 
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
+import { createMockSafeApi } from '../commands/helpers.js';
+import { TEST_CHAIN_METADATA_BY_PROTOCOL } from '../../constants.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -253,5 +255,38 @@ describe('hyperlane core apply e2e tests', async function () {
     expect(
       updatedChain3Config.interchainAccountRouter?.remoteRouters,
     ).to.deep.equal({});
+  });
+
+  it('should infer gnosisSafeTxBuilder for safe-owned core updates', async () => {
+    await hyperlaneCore.deploy(ANVIL_KEY);
+
+    const mockSafe = await new MockSafe__factory()
+      .connect(signer)
+      .deploy([initialOwnerAddress], 1);
+    const safeAddress = mockSafe.address;
+
+    const mockSafeApiServer = await createMockSafeApi(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      safeAddress,
+      initialOwnerAddress,
+      5,
+    );
+
+    try {
+      const configOwnedBySigner: CoreConfig = await hyperlaneCore.readConfig();
+      configOwnedBySigner.owner = safeAddress;
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, configOwnedBySigner);
+      await hyperlaneCore.apply(ANVIL_KEY);
+
+      const configOwnedBySafe: CoreConfig = await hyperlaneCore.readConfig();
+      configOwnedBySafe.owner = randomAddress().toLowerCase();
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, configOwnedBySafe);
+
+      const result = await hyperlaneCore.apply(ANVIL_KEY).nothrow();
+      expect(result.exitCode).to.equal(0);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
+    } finally {
+      await mockSafeApiServer.close();
+    }
   });
 });

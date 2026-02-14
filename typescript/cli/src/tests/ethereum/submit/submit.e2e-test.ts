@@ -1,14 +1,23 @@
 import { expect } from 'chai';
 import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
 
-import { type XERC20VSTest, XERC20VSTest__factory } from '@hyperlane-xyz/core';
+import {
+  MockSafe__factory,
+  type XERC20VSTest,
+  XERC20VSTest__factory,
+} from '@hyperlane-xyz/core';
 import { TxSubmitterType, randomAddress } from '@hyperlane-xyz/sdk';
 import { type Address, randomInt } from '@hyperlane-xyz/utils';
 
 import { EV5FileSubmitter } from '../../../submitters/EV5FileSubmitter.js';
 import { CustomTxSubmitterType } from '../../../submitters/types.js';
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
-import { deployXERC20VSToken, hyperlaneSubmit } from '../commands/helpers.js';
+import {
+  createMockSafeApi,
+  deployXERC20VSToken,
+  hyperlaneSubmit,
+} from '../commands/helpers.js';
+import { TEST_CHAIN_METADATA_BY_PROTOCOL } from '../../constants.js';
 import {
   ANVIL_KEY,
   CHAIN_NAME_2,
@@ -276,6 +285,48 @@ describe('hyperlane submit', function () {
       await hyperlaneSubmit({ strategyPath, transactionsPath });
       const outputtedTransactions = readYamlOrJson(outputTransactionPath);
       expect(outputtedTransactions).to.deep.equal(transactions);
+    });
+  });
+
+  describe('auto inference', function () {
+    let mockSafeApiServer: Awaited<ReturnType<typeof createMockSafeApi>>;
+
+    before(async function () {
+      const owner = await xerc20Chain3.owner();
+      const mockSafe = await new MockSafe__factory()
+        .connect(xerc20Chain3.signer)
+        .deploy([owner], 1);
+      const safeAddress = mockSafe.address;
+
+      await xerc20Chain3.transferOwnership(safeAddress);
+
+      mockSafeApiServer = await createMockSafeApi(
+        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        safeAddress,
+        owner,
+        5,
+      );
+    });
+
+    after(async function () {
+      await mockSafeApiServer.close();
+    });
+
+    it('should infer gnosisSafeTxBuilder without strategy file for safe-owned tx targets', async function () {
+      const mintAmount = randomInt(1, 1000);
+      const transactions = [
+        await getMintOnlyOwnerTransaction(
+          xerc20Chain3,
+          BOB,
+          mintAmount,
+          ANVIL3_CHAIN_ID,
+        ),
+      ];
+      const transactionsPath = `${TEMP_PATH}/strategy-test-transactions-safe-inference.yaml`;
+      writeYamlOrJson(transactionsPath, transactions);
+
+      const result = await hyperlaneSubmit({ transactionsPath });
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
   });
 });

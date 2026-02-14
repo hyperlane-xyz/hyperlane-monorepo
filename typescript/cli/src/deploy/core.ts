@@ -177,6 +177,9 @@ export async function runCoreApply(params: ApplyParams) {
               context,
               submissionStrategy: batch.config,
             });
+            logGray(
+              `Submitting ${batch.transactions.length} core update transaction(s) on ${transactionChain} with submitter ${submitter.txSubmitterType}`,
+            );
             await submitter.submit(...(batch.transactions as any[]));
           }
         }
@@ -214,6 +217,9 @@ export async function runCoreApply(params: ApplyParams) {
 
       if (transactions.length) {
         logGray('Updating deployed core contracts');
+        logGray(
+          `Submitting ${transactions.length} core update transaction(s) on ${chain} with submitter ${submitter.txSubmitterType}`,
+        );
 
         await submitter.submit(...transactions);
 
