@@ -14,7 +14,9 @@ import {
   getSquadAndProvider,
   getMinimumProposalIndexToCheck,
   isLikelyMissingSquadsAccountError,
+  normalizeSquadsAddressList,
   normalizeSquadsAddressValue,
+  parseSquadsMultisigMembers,
   getSquadProposalAccount,
   getSquadProposal,
   getSquadTxStatus,
@@ -148,6 +150,73 @@ describe('squads utils', () => {
       ).to.deep.equal({
         address: undefined,
         error: 'address value is not a meaningful identifier',
+      });
+    });
+  });
+
+  describe(normalizeSquadsAddressList.name, () => {
+    it('collects normalized addresses and counts invalid entries', () => {
+      expect(
+        normalizeSquadsAddressList([
+          '11111111111111111111111111111111',
+          { toBase58: () => '11111111111111111111111111111111' },
+          null,
+          'not-an-address',
+        ]),
+      ).to.deep.equal({
+        addresses: [
+          '11111111111111111111111111111111',
+          '11111111111111111111111111111111',
+        ],
+        invalidEntries: 2,
+      });
+    });
+
+    it('returns empty address list for fully invalid input', () => {
+      expect(normalizeSquadsAddressList([null, 1, 'bad'])).to.deep.equal({
+        addresses: [],
+        invalidEntries: 3,
+      });
+    });
+  });
+
+  describe(parseSquadsMultisigMembers.name, () => {
+    it('parses multisig members with normalized keys and permissions', () => {
+      expect(
+        parseSquadsMultisigMembers([
+          {
+            key: '11111111111111111111111111111111',
+            permissions: 7,
+          },
+          {
+            key: { toBase58: () => '11111111111111111111111111111111' },
+          },
+        ]),
+      ).to.deep.equal({
+        members: [
+          {
+            key: '11111111111111111111111111111111',
+            permissions: 7,
+          },
+          {
+            key: '11111111111111111111111111111111',
+            permissions: null,
+          },
+        ],
+        invalidEntries: 0,
+      });
+    });
+
+    it('counts invalid multisig member entries', () => {
+      expect(
+        parseSquadsMultisigMembers([
+          null,
+          { permissions: 7 },
+          { key: 'not-an-address' },
+        ]),
+      ).to.deep.equal({
+        members: [],
+        invalidEntries: 3,
       });
     });
   });

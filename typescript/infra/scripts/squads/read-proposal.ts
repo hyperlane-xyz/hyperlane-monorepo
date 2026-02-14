@@ -8,7 +8,9 @@ import {
   parseSquadProposal,
   getSquadProposal,
   getSquadsKeys,
+  normalizeSquadsAddressList,
   normalizeSquadsAddressValue,
+  parseSquadsMultisigMembers,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -33,18 +35,6 @@ function withVerbose<T>(args: Argv<T>) {
     .alias('v', 'verbose');
 }
 
-function getValueTypeLabel(value: unknown): string {
-  if (value === null) {
-    return 'null';
-  }
-
-  if (Array.isArray(value)) {
-    return 'array';
-  }
-
-  return typeof value;
-}
-
 function toBase58IfPossible(
   value: unknown,
   label: string,
@@ -64,64 +54,6 @@ function toBase58IfPossible(
     ),
   );
   return undefined;
-}
-
-function formatSignerList(
-  values: readonly unknown[],
-  label: string,
-  chain: string,
-): { signers: string[]; skippedCount: number } {
-  const signerList: string[] = [];
-  let skippedCount = 0;
-  values.forEach((value, index) => {
-    const formatted = toBase58IfPossible(value, label, chain, index);
-    if (formatted) {
-      signerList.push(formatted);
-    } else {
-      skippedCount++;
-    }
-  });
-  return { signers: signerList, skippedCount };
-}
-
-function formatMultisigMemberKey(
-  member: unknown,
-  chain: string,
-  index: number,
-): string | undefined {
-  if (!member || typeof member !== 'object') {
-    rootLogger.warn(
-      chalk.yellow(
-        `Skipping multisig member[${index}] on ${chain}: expected object, got ${getValueTypeLabel(member)}`,
-      ),
-    );
-    return undefined;
-  }
-
-  const memberRecord = member as { key?: unknown };
-  const memberKey = memberRecord.key;
-  return toBase58IfPossible(memberKey, 'multisig.members', chain, index);
-}
-
-function formatMultisigMember(
-  member: unknown,
-  chain: string,
-  index: number,
-): { key: string; permissions: unknown } | undefined {
-  const key = formatMultisigMemberKey(member, chain, index);
-  if (!key) {
-    return undefined;
-  }
-
-  if (!member || typeof member !== 'object') {
-    return undefined;
-  }
-
-  const memberRecord = member as { permissions?: unknown };
-  return {
-    key,
-    permissions: memberRecord.permissions ?? null,
-  };
 }
 
 async function main() {
@@ -181,41 +113,23 @@ async function main() {
 
     const parsedProposal = parseSquadProposal(proposal);
     const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
-    const approvedVoters = formatSignerList(
-      proposal.approved,
-      'proposal.approved',
-      chain,
-    );
-    const rejectedVoters = formatSignerList(
-      proposal.rejected,
-      'proposal.rejected',
-      chain,
-    );
-    const cancelledVoters = formatSignerList(
-      proposal.cancelled,
-      'proposal.cancelled',
-      chain,
-    );
-    const multisigMembers = Array.isArray(multisig.members)
-      ? multisig.members
-      : [];
-    const formattedMultisigMemberRecords = multisigMembers
-      .map((member, index) => formatMultisigMember(member, chain, index))
-      .filter(
-        (
-          value,
-        ): value is {
-          key: string;
-          permissions: unknown;
-        } => typeof value !== 'undefined',
-      );
-    const totalMultisigMembersCount = multisigMembers.length;
+    const approvedVoters = normalizeSquadsAddressList(proposal.approved);
+    const rejectedVoters = normalizeSquadsAddressList(proposal.rejected);
+    const cancelledVoters = normalizeSquadsAddressList(proposal.cancelled);
+
+    const rawMultisigMembers = (multisig as { members?: unknown }).members;
+    const parsedMultisigMembers = Array.isArray(rawMultisigMembers)
+      ? parseSquadsMultisigMembers(rawMultisigMembers)
+      : { members: [], invalidEntries: 0 };
+    const formattedMultisigMemberRecords = parsedMultisigMembers.members;
+    const totalMultisigMembersCount = Array.isArray(rawMultisigMembers)
+      ? rawMultisigMembers.length
+      : 0;
     const formattedMultisigMembers = formattedMultisigMemberRecords.map(
       (member) => member.key,
     );
-    const skippedMultisigMembersCount =
-      totalMultisigMembersCount - formattedMultisigMemberRecords.length;
-    if (!Array.isArray(multisig.members)) {
+    const skippedMultisigMembersCount = parsedMultisigMembers.invalidEntries;
+    if (!Array.isArray(rawMultisigMembers)) {
       rootLogger.warn(
         chalk.yellow(
           `Multisig members field is missing or malformed for ${chain}; continuing without member listing.`,
@@ -270,24 +184,24 @@ async function main() {
       cancellations,
       statusTimestampSeconds,
     } = parsedProposal;
-    if (approvedVoters.skippedCount > 0) {
+    if (approvedVoters.invalidEntries > 0) {
       rootLogger.warn(
         chalk.yellow(
-          `Skipped ${approvedVoters.skippedCount} malformed approver entries on ${chain}.`,
+          `Skipped ${approvedVoters.invalidEntries} malformed approver entries on ${chain}.`,
         ),
       );
     }
-    if (rejectedVoters.skippedCount > 0) {
+    if (rejectedVoters.invalidEntries > 0) {
       rootLogger.warn(
         chalk.yellow(
-          `Skipped ${rejectedVoters.skippedCount} malformed rejector entries on ${chain}.`,
+          `Skipped ${rejectedVoters.invalidEntries} malformed rejector entries on ${chain}.`,
         ),
       );
     }
-    if (cancelledVoters.skippedCount > 0) {
+    if (cancelledVoters.invalidEntries > 0) {
       rootLogger.warn(
         chalk.yellow(
-          `Skipped ${cancelledVoters.skippedCount} malformed canceller entries on ${chain}.`,
+          `Skipped ${cancelledVoters.invalidEntries} malformed canceller entries on ${chain}.`,
         ),
       );
     }
@@ -315,30 +229,30 @@ async function main() {
 
     // Display voting information
     rootLogger.info(chalk.green.bold('\n🗳️  Voting Information:'));
-    if (approvedVoters.skippedCount > 0) {
+    if (approvedVoters.invalidEntries > 0) {
       rootLogger.info(
         chalk.white(
-          `  Approvals: ${approvals} (${approvedVoters.signers.length} with valid signer addresses)`,
+          `  Approvals: ${approvals} (${approvedVoters.addresses.length} with valid signer addresses)`,
         ),
       );
     } else {
       rootLogger.info(chalk.white(`  Approvals: ${approvals}`));
     }
 
-    if (rejectedVoters.skippedCount > 0) {
+    if (rejectedVoters.invalidEntries > 0) {
       rootLogger.info(
         chalk.white(
-          `  Rejections: ${rejections} (${rejectedVoters.signers.length} with valid signer addresses)`,
+          `  Rejections: ${rejections} (${rejectedVoters.addresses.length} with valid signer addresses)`,
         ),
       );
     } else {
       rootLogger.info(chalk.white(`  Rejections: ${rejections}`));
     }
 
-    if (cancelledVoters.skippedCount > 0) {
+    if (cancelledVoters.invalidEntries > 0) {
       rootLogger.info(
         chalk.white(
-          `  Cancellations: ${cancellations} (${cancelledVoters.signers.length} with valid signer addresses)`,
+          `  Cancellations: ${cancellations} (${cancelledVoters.addresses.length} with valid signer addresses)`,
         ),
       );
     } else {
@@ -367,25 +281,25 @@ async function main() {
     }
 
     // Display approvers
-    if (approvedVoters.signers.length > 0) {
+    if (approvedVoters.addresses.length > 0) {
       rootLogger.info(chalk.green.bold('\n✅ Approvers:'));
-      approvedVoters.signers.forEach((approver, index) => {
+      approvedVoters.addresses.forEach((approver, index) => {
         rootLogger.info(chalk.white(`  ${index + 1}. ${approver}`));
       });
     }
 
     // Display rejectors
-    if (rejectedVoters.signers.length > 0) {
+    if (rejectedVoters.addresses.length > 0) {
       rootLogger.info(chalk.red.bold('\n❌ Rejectors:'));
-      rejectedVoters.signers.forEach((rejector, index) => {
+      rejectedVoters.addresses.forEach((rejector, index) => {
         rootLogger.info(chalk.white(`  ${index + 1}. ${rejector}`));
       });
     }
 
     // Display cancellers
-    if (cancelledVoters.signers.length > 0) {
+    if (cancelledVoters.addresses.length > 0) {
       rootLogger.info(chalk.gray.bold('\n🚫 Cancellers:'));
-      cancelledVoters.signers.forEach((canceller, index) => {
+      cancelledVoters.addresses.forEach((canceller, index) => {
         rootLogger.info(chalk.white(`  ${index + 1}. ${canceller}`));
       });
     }

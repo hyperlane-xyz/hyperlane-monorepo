@@ -75,6 +75,21 @@ export type NormalizeSquadsAddressValueResult =
   | { address: string; error: undefined }
   | { address: undefined; error: string };
 
+export type NormalizeSquadsAddressListResult = Readonly<{
+  addresses: string[];
+  invalidEntries: number;
+}>;
+
+export type ParsedSquadsMultisigMember = Readonly<{
+  key: string;
+  permissions: unknown;
+}>;
+
+export type ParseSquadsMultisigMembersResult = Readonly<{
+  members: ParsedSquadsMultisigMember[];
+  invalidEntries: number;
+}>;
+
 export enum SquadTxStatus {
   DRAFT = '📝',
   ACTIVE = '🟡',
@@ -252,6 +267,55 @@ export function normalizeSquadsAddressValue(
       error: 'address value is not a valid Solana address',
     };
   }
+}
+
+export function normalizeSquadsAddressList(
+  values: readonly unknown[],
+): NormalizeSquadsAddressListResult {
+  const addresses: string[] = [];
+  let invalidEntries = 0;
+
+  for (const value of values) {
+    const normalizedAddress = normalizeSquadsAddressValue(value);
+    if (normalizedAddress.address) {
+      addresses.push(normalizedAddress.address);
+    } else {
+      invalidEntries += 1;
+    }
+  }
+
+  return { addresses, invalidEntries };
+}
+
+export function parseSquadsMultisigMembers(
+  members: readonly unknown[],
+): ParseSquadsMultisigMembersResult {
+  const parsedMembers: ParsedSquadsMultisigMember[] = [];
+  let invalidEntries = 0;
+
+  for (const member of members) {
+    if (!member || typeof member !== 'object') {
+      invalidEntries += 1;
+      continue;
+    }
+
+    const memberRecord = member as { key?: unknown; permissions?: unknown };
+    const normalizedMemberKey = normalizeSquadsAddressValue(memberRecord.key);
+    if (!normalizedMemberKey.address) {
+      invalidEntries += 1;
+      continue;
+    }
+
+    parsedMembers.push({
+      key: normalizedMemberKey.address,
+      permissions: memberRecord.permissions ?? null,
+    });
+  }
+
+  return {
+    members: parsedMembers,
+    invalidEntries,
+  };
 }
 
 function isLikelyLogArrayFieldName(fieldName: string): boolean {
