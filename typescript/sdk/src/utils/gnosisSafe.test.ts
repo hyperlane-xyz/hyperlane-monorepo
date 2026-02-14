@@ -1236,6 +1236,21 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
     });
 
+    it('accepts unicode path data outside the authority', () => {
+      expect(safeApiKeyRequired('https://safe.global/路径/api')).to.equal(true);
+      expect(safeApiKeyRequired('//safe.global/路径')).to.equal(true);
+      expect(safeApiKeyRequired('safe.global/路径')).to.equal(true);
+      expect(
+        safeApiKeyRequired('https://safe-transaction-mainnet.5afe.dev/путь'),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('//safe-transaction-mainnet.5afe.dev/путь'),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('safe-transaction-mainnet.5afe.dev/путь'),
+      ).to.equal(true);
+    });
+
     it('rejects encoded-backslash userinfo spoof patterns at deeper repeated-%25 depths', () => {
       const safeHosts = ['safe.global', 'safe-transaction-mainnet.5afe.dev'];
       const encodedBackslashes = ['%255c', '%255C'];
@@ -2890,6 +2905,25 @@ describe('gnosisSafe utils', () => {
         ),
       ).to.equal(
         'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
+      );
+    });
+
+    it('preserves unicode path data outside the authority', () => {
+      expect(normalizeSafeServiceUrl('//safe.global/路径')).to.equal(
+        'https://safe.global/%E8%B7%AF%E5%BE%84/api',
+      );
+      expect(normalizeSafeServiceUrl('safe.global/路径')).to.equal(
+        'https://safe.global/%E8%B7%AF%E5%BE%84/api',
+      );
+      expect(
+        normalizeSafeServiceUrl('//safe-transaction-mainnet.5afe.dev/путь'),
+      ).to.equal(
+        'https://safe-transaction-mainnet.5afe.dev/%D0%BF%D1%83%D1%82%D1%8C/api',
+      );
+      expect(
+        normalizeSafeServiceUrl('safe-transaction-mainnet.5afe.dev/путь'),
+      ).to.equal(
+        'https://safe-transaction-mainnet.5afe.dev/%D0%BF%D1%83%D1%82%D1%8C/api',
       );
     });
 
