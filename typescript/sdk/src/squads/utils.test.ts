@@ -2886,6 +2886,29 @@ describe('squads utils', () => {
         expect(keys.vault.toBase58()).to.equal(squadsConfigs[chain].vault);
       }
     });
+
+    it('returns a fresh keys container on every call', () => {
+      const firstKeys = getSquadsKeys('solanamainnet');
+      const secondKeys = getSquadsKeys('solanamainnet');
+
+      expect(firstKeys).to.not.equal(secondKeys);
+      expect(firstKeys.multisigPda.toBase58()).to.equal(
+        secondKeys.multisigPda.toBase58(),
+      );
+    });
+
+    it('does not leak caller mutation between key lookups', () => {
+      const mutableKeys = getSquadsKeys('solanamainnet') as {
+        multisigPda: PublicKey;
+        programId: PublicKey;
+        vault: PublicKey;
+      };
+      const originalVault = mutableKeys.vault.toBase58();
+      mutableKeys.vault = PublicKey.default;
+
+      const reloadedKeys = getSquadsKeys('solanamainnet');
+      expect(reloadedKeys.vault.toBase58()).to.equal(originalVault);
+    });
   });
 
   it('returns configured squads chains', () => {

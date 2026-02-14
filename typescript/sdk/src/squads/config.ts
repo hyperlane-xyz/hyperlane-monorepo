@@ -38,6 +38,19 @@ export const squadsConfigs = {
   },
 } as const satisfies Record<string, SquadConfig>;
 
+const SQUADS_KEYS_BY_CHAIN = Object.freeze(
+  Object.fromEntries(
+    Object.entries(squadsConfigs).map(([chainName, config]) => [
+      chainName,
+      Object.freeze({
+        multisigPda: new PublicKey(config.multisigPda),
+        programId: new PublicKey(config.programId),
+        vault: new PublicKey(config.vault),
+      }),
+    ]),
+  ) as Record<keyof typeof squadsConfigs, Readonly<SquadsKeys>>,
+);
+
 export type SquadsChainName = keyof typeof squadsConfigs;
 
 const SQUADS_CHAINS = Object.freeze(
@@ -138,11 +151,11 @@ export function assertIsSquadsChain(
 
 export function getSquadsKeys(chainName: string): SquadsKeys {
   assertIsSquadsChain(chainName);
-  const config = squadsConfigs[chainName];
+  const keys = SQUADS_KEYS_BY_CHAIN[chainName];
 
   return {
-    multisigPda: new PublicKey(config.multisigPda),
-    programId: new PublicKey(config.programId),
-    vault: new PublicKey(config.vault),
+    multisigPda: keys.multisigPda,
+    programId: keys.programId,
+    vault: keys.vault,
   };
 }
