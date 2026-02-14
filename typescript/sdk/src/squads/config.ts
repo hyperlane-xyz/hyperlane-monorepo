@@ -58,8 +58,14 @@ export function partitionSquadsChains(chains: string[]): {
 } {
   const squadsChains: ChainName[] = [];
   const nonSquadsChains: string[] = [];
+  const seenChains = new Set<string>();
 
   for (const chain of chains) {
+    if (seenChains.has(chain)) {
+      continue;
+    }
+    seenChains.add(chain);
+
     if (isSquadsChain(chain)) {
       squadsChains.push(chain);
     } else {

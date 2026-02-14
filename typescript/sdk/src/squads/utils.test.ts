@@ -143,6 +143,17 @@ describe('squads utils', () => {
     expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
   });
 
+  it('deduplicates chains when partitioning', () => {
+    const { squadsChains, nonSquadsChains } = partitionSquadsChains([
+      'solanamainnet',
+      'solanamainnet',
+      'unknown-chain',
+      'unknown-chain',
+    ]);
+    expect(squadsChains).to.deep.equal(['solanamainnet']);
+    expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
+  });
+
   it('exports canonical proposal statuses', () => {
     expect(SquadsProposalStatus.Active).to.equal('Active');
   });
