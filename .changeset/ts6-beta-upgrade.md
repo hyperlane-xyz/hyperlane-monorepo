@@ -63,3 +63,5 @@ Regression coverage was added for the final formatting fallback path when both J
 Local-anvil startup error formatting was further hardened to avoid crashes when `code` reads or `toStringTag` formatting throw, with a stable placeholder fallback for fully unprintable error values.
 
 Regression coverage was expanded for wrapper errors with throwing `code` accessors to ensure startup formatting still returns actionable fallback messages.
+
+Regression coverage was also added to guarantee the ENOENT install hint still wins when wrapper errors throw on `message` access.

@@ -618,6 +618,27 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: runtime unavailable',
       );
     });
+
+    it('still returns ENOENT install hint when message accessor throws', () => {
+      const wrappedError = new Proxy(
+        {},
+        {
+          get(_target, property) {
+            if (property === 'code') {
+              return 'ENOENT';
+            }
+            if (property === 'message') {
+              throw new Error('blocked message accessor');
+            }
+            return undefined;
+          },
+        },
+      );
+
+      expect(formatLocalAnvilStartError(wrappedError)).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {
