@@ -5766,8 +5766,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
-      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
-        .to.equal(safeProposer);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
       expect(provider.getLogs.callCount).to.equal(2);
     } finally {
       ownableStub.restore();
@@ -5866,7 +5869,109 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
       expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
-        .to.equal(safeProposer);
+        .to.equal(safeProposer.toLowerCase());
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('uses transaction/log index ordering for timelock role logs in same block', async () => {
+    const timelockOwner = '0x5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a5a';
+    const safeProposer = '0x6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b6b';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const earlyGrant = {
+      topics: ['0xgrant-early'],
+      data: '0x',
+      blockNumber: 300,
+      transactionIndex: 1,
+      logIndex: 2,
+    };
+    const middleRevoke = {
+      topics: ['0xrevoke-middle'],
+      data: '0x',
+      blockNumber: 300,
+      transactionIndex: 2,
+      logIndex: 10,
+    };
+    const lateGrant = {
+      topics: ['0xgrant-late'],
+      data: '0x',
+      blockNumber: 300,
+      transactionIndex: 3,
+      logIndex: 1,
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          // intentionally unsorted newest-first
+          return [lateGrant, earlyGrant];
+        }
+        return [middleRevoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
       expect(provider.getLogs.callCount).to.equal(2);
     } finally {
       ownableStub.restore();
