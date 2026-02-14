@@ -267,6 +267,10 @@ async function inferIcaSubmitterFromAccount({
         }
 
         try {
+          if (!hasSignerForChain(context, originChain)) {
+            continue;
+          }
+
           const originRouter = InterchainAccountRouter__factory.connect(
             originRouterAddress,
             context.multiProvider.getProvider(originChain),
@@ -300,10 +304,6 @@ async function inferIcaSubmitterFromAccount({
             { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
           >;
 
-          if (!hasSignerForChain(context, originChain)) {
-            continue;
-          }
-
           cache.icaByChainAndAddress.set(cacheId, submitter);
           return submitter;
         } catch {
@@ -325,6 +325,10 @@ async function inferIcaSubmitterFromAccount({
   try {
     originChain = context.multiProvider.getChainName(originDomain);
   } catch {
+    return null;
+  }
+
+  if (!hasSignerForChain(context, originChain)) {
     return null;
   }
 
@@ -351,10 +355,6 @@ async function inferIcaSubmitterFromAccount({
     InferredSubmitter,
     { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
   >;
-
-  if (!hasSignerForChain(context, originChain)) {
-    return null;
-  }
 
   cache.icaByChainAndAddress.set(cacheId, submitter);
   return submitter;
@@ -498,6 +498,10 @@ async function inferTimelockProposerSubmitter({
         }
 
         try {
+          if (!hasSignerForChain(context, originChainName)) {
+            continue;
+          }
+
           const originRouter = InterchainAccountRouter__factory.connect(
             originRouterAddress,
             context.multiProvider.getProvider(originChainName),
@@ -533,9 +537,6 @@ async function inferTimelockProposerSubmitter({
             InferredSubmitter,
             { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
           >;
-          if (!hasSignerForChain(context, originChainName)) {
-            continue;
-          }
           cache.timelockProposerByChainAndAddress.set(
             timelockKey,
             fallbackIcaSubmitter,
@@ -571,6 +572,10 @@ async function inferTimelockProposerSubmitter({
       }
 
       try {
+        if (!hasSignerForChain(context, originChainName)) {
+          continue;
+        }
+
         const originRouter = InterchainAccountRouter__factory.connect(
           originRouterAddress,
           context.multiProvider.getProvider(originChainName),
@@ -615,9 +620,6 @@ async function inferTimelockProposerSubmitter({
           InferredSubmitter,
           { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
         >;
-        if (!hasSignerForChain(context, originChainName)) {
-          continue;
-        }
         cache.timelockProposerByChainAndAddress.set(
           timelockKey,
           fallbackIcaSubmitter,
