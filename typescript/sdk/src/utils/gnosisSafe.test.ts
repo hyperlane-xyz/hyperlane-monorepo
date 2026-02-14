@@ -3624,6 +3624,19 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data must include function selector');
     });
 
+    it('accepts transaction data with uppercase 0X prefix', () => {
+      const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data: `0X${data.slice(2)}`,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+    });
+
     it('parses safe tx calldata when value is omitted', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
