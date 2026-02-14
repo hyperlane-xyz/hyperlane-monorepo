@@ -180,4 +180,8 @@ Regression coverage now also confirms noisy map/array/set/generator wrappers (an
 
 Regression coverage now also confirms noisy wrapper-level `message` fallbacks remain detectable when wrapper `cause` and `errors` accessors throw across map/array/set/generator and plain-object wrappers.
 
+Error extraction now deduplicates repeated object references while traversing nested wrapper payloads, preventing extraction-budget starvation from duplicate references that can mask later runtime-unavailable signals.
+
+Regression coverage now also confirms repeated-reference wrapper payloads still detect runtime-unavailable signals that appear after large duplicate object sequences.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.

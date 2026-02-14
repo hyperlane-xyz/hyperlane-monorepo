@@ -1390,6 +1390,20 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('deduplicates repeated object references to avoid extraction-starvation misses', () => {
+      const sharedNoise = { message: 'noise-shared' };
+      const repeatedNoiseErrors = [
+        ...Array.from({ length: 700 }, () => sharedNoise),
+        { message: 'No Docker client strategy found' },
+      ];
+
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: repeatedNoiseErrors,
+        }),
+      ).to.equal(true);
+    });
+
     it('matches iterable wrapper cause fallbacks even when noisy entries hit extraction limits', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const wrappedError = {

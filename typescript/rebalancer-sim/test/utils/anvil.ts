@@ -171,10 +171,21 @@ export function formatLocalAnvilStartError(error: unknown): string {
 function extractErrorMessages(error: unknown): string[] {
   const messages: string[] = [];
   const queue: unknown[] = [error];
+  const queuedObjects = new Set<unknown>();
+  if (typeof error === 'object' && error !== null) {
+    queuedObjects.add(error);
+  }
   let queueIndex = 0;
   const seen = new Set<unknown>();
   const enqueue = (value: unknown): boolean => {
+    if (typeof value === 'object' && value !== null) {
+      if (seen.has(value) || queuedObjects.has(value)) return true;
+    }
+
     if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return false;
+    if (typeof value === 'object' && value !== null) {
+      queuedObjects.add(value);
+    }
     queue.push(value);
     return true;
   };
