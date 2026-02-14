@@ -38,6 +38,7 @@ const MIN_SAFE_API_VERSION = '5.18.0';
 const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
+const URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -62,6 +63,10 @@ function parseSemverPrefix(version: string): [number, number, number] {
     throw new Error(`Invalid Safe API version: ${version}`);
   }
   return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
+function hasExplicitUrlScheme(value: string): boolean {
+  return URL_SCHEME_PREFIX_REGEX.test(value);
 }
 
 export type SafeCallData = {
@@ -169,10 +174,11 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const extractHostname = (value: string): string | undefined => {
-    const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(value);
     return (
       parseHostname(value) ??
-      (!hasExplicitScheme ? parseHostname(`https://${value}`) : undefined)
+      (!hasExplicitUrlScheme(value)
+        ? parseHostname(`https://${value}`)
+        : undefined)
     );
   };
 
@@ -232,10 +238,11 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  const hasExplicitScheme = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//.test(trimmedUrl);
   const parsed =
     parseUrl(trimmedUrl) ??
-    (!hasExplicitScheme ? parseUrl(`https://${trimmedUrl}`) : undefined);
+    (!hasExplicitUrlScheme(trimmedUrl)
+      ? parseUrl(`https://${trimmedUrl}`)
+      : undefined);
   if (parsed) {
     parsed.search = '';
     parsed.hash = '';
