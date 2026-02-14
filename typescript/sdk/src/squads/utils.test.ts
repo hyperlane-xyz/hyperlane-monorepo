@@ -101,6 +101,14 @@ describe('squads utils', () => {
         }),
       ).to.equal(undefined);
     });
+
+    it('ignores non-string logs but still parses known errors', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError({
+          transactionLogs: [123, 'custom program error: 0x177b'],
+        }),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
   });
 
   describe('transaction type discriminators', () => {
