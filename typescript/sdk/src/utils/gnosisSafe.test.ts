@@ -49,6 +49,7 @@ describe('gnosisSafe utils', () => {
       ).to.equal(false);
       expect(safeApiKeyRequired('mailto:safe.global')).to.equal(false);
       expect(safeApiKeyRequired('data:text/plain,safe.global')).to.equal(false);
+      expect(safeApiKeyRequired('foo:/safe.global')).to.equal(false);
     });
 
     it('handles uppercase hosts and safe subdomains', () => {
@@ -225,6 +226,9 @@ describe('gnosisSafe utils', () => {
       ).to.throw(
         'Safe tx service URL must use http(s): data:text/plain,safe.global',
       );
+      expect(() => normalizeSafeServiceUrl('foo:/safe.global')).to.throw(
+        'Safe tx service URL must use http(s): foo:/safe.global',
+      );
     });
 
     it('throws when explicit http(s) url is malformed', () => {
@@ -235,7 +239,7 @@ describe('gnosisSafe utils', () => {
         'Safe tx service URL is invalid: http://:443',
       );
       expect(() => normalizeSafeServiceUrl('foo:bar')).to.throw(
-        'Safe tx service URL is invalid: foo:bar',
+        'Safe tx service URL must use http(s): foo:bar',
       );
     });
 
