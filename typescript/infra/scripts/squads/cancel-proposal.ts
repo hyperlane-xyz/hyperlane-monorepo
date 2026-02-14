@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import yargs from 'yargs';
 
 import {
+  parseSquadMultisig,
   parseSquadProposal,
   SquadsProposalVoteError,
   SquadsProposalStatus,
@@ -60,6 +61,7 @@ async function main() {
 
   const { proposal, multisig } = proposalData;
   const parsedProposal = parseSquadProposal(proposal);
+  const parsedMultisig = parseSquadMultisig(multisig);
   const { status, transactionIndex: proposalTransactionIndex } = parsedProposal;
   if (proposalTransactionIndex !== transactionIndex) {
     rootLogger.warn(
@@ -71,7 +73,7 @@ async function main() {
   rootLogger.info(chalk.gray(`Found proposal with status: ${status}`));
 
   // Check if proposal is stale
-  const staleTransactionIndex = Number(multisig.staleTransactionIndex);
+  const staleTransactionIndex = parsedMultisig.staleTransactionIndex;
   if (proposalTransactionIndex < staleTransactionIndex) {
     rootLogger.warn(
       chalk.yellow(

@@ -15,6 +15,7 @@ import {
   isConfigTransaction,
   parseSquadsProposalVoteError,
   parseSquadsProposalVoteErrorFromError,
+  parseSquadMultisig,
   parseSquadProposal,
   isVaultTransaction,
 } from './utils.js';
@@ -216,6 +217,38 @@ describe('squads utils', () => {
 
       expect(parseUnsafeTimestampProposal).to.throw(
         'Squads status timestamp exceeds JavaScript safe integer range',
+      );
+    });
+  });
+
+  describe(parseSquadMultisig.name, () => {
+    it('extracts numeric multisig fields', () => {
+      const parsed = parseSquadMultisig({
+        threshold: 3n,
+        transactionIndex: 42n,
+        staleTransactionIndex: 17n,
+        timeLock: 60n,
+      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parsed).to.deep.equal({
+        threshold: 3,
+        currentTransactionIndex: 42,
+        staleTransactionIndex: 17,
+        timeLock: 60,
+      });
+    });
+
+    it('throws when multisig threshold exceeds JavaScript safe integer range', () => {
+      const parseUnsafeMultisig = () =>
+        parseSquadMultisig({
+          threshold: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseUnsafeMultisig).to.throw(
+        'Squads multisig threshold exceeds JavaScript safe integer range',
       );
     });
   });

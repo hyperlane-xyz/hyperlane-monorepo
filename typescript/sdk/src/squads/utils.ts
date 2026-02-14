@@ -61,6 +61,13 @@ export type ParsedSquadProposal = Readonly<{
   statusTimestampSeconds: number | undefined;
 }>;
 
+export type ParsedSquadMultisig = Readonly<{
+  threshold: number;
+  currentTransactionIndex: number;
+  staleTransactionIndex: number;
+  timeLock: number;
+}>;
+
 export enum SquadTxStatus {
   DRAFT = '📝',
   ACTIVE = '🟡',
@@ -375,19 +382,11 @@ export async function getPendingProposalsForChains(
           squadsProvider,
           multisigPda,
         );
-
-        const threshold = toSafeInteger(
-          multisig.threshold,
-          `${chain} multisig threshold`,
-        );
-        const currentTransactionIndex = toSafeInteger(
-          multisig.transactionIndex,
-          `${chain} multisig transaction index`,
-        );
-        const staleTransactionIndex = toSafeInteger(
-          multisig.staleTransactionIndex,
-          `${chain} multisig stale transaction index`,
-        );
+        const {
+          threshold,
+          currentTransactionIndex,
+          staleTransactionIndex,
+        } = parseSquadMultisig(multisig);
 
         const vaultBalance = await svmProvider.getBalance(vault);
         const nativeToken = mpp.getChainMetadata(chain).nativeToken;
@@ -580,6 +579,23 @@ export function parseSquadProposal(
   };
 
   return parsedProposal;
+}
+
+export function parseSquadMultisig(
+  multisig: accounts.Multisig,
+): ParsedSquadMultisig {
+  return {
+    threshold: toSafeInteger(multisig.threshold, 'multisig threshold'),
+    currentTransactionIndex: toSafeInteger(
+      multisig.transactionIndex,
+      'multisig transaction index',
+    ),
+    staleTransactionIndex: toSafeInteger(
+      multisig.staleTransactionIndex,
+      'multisig stale transaction index',
+    ),
+    timeLock: toSafeInteger(multisig.timeLock, 'multisig timelock'),
+  };
 }
 
 /**

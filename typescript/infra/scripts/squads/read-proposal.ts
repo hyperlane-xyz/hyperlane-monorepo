@@ -2,8 +2,8 @@ import chalk from 'chalk';
 import yargs, { Argv } from 'yargs';
 
 import {
+  parseSquadMultisig,
   SquadTxStatus,
-  SquadsProposalStatus,
   getSquadTxStatus,
   parseSquadProposal,
   getSquadProposal,
@@ -61,6 +61,7 @@ async function main() {
 
     const { proposal, multisig, proposalPda } = proposalData;
     const parsedProposal = parseSquadProposal(proposal);
+    const parsedMultisig = parseSquadMultisig(multisig);
     const proposalTransactionIndex = parsedProposal.transactionIndex;
     if (proposalTransactionIndex !== transactionIndex) {
       rootLogger.warn(
@@ -80,10 +81,12 @@ async function main() {
     );
 
     // Coerce all numeric fields to consistent types for safe comparison
-    const threshold = Number(multisig.threshold);
-    const staleTransactionIndex = Number(multisig.staleTransactionIndex);
-    const currentTransactionIndex = Number(multisig.transactionIndex);
-    const timeLock = Number(multisig.timeLock);
+    const {
+      threshold,
+      staleTransactionIndex,
+      currentTransactionIndex,
+      timeLock,
+    } = parsedMultisig;
     const {
       status,
       approvals,
