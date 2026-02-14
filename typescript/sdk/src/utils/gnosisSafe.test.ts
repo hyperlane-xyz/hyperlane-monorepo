@@ -214,6 +214,15 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('https://safe.global/tx-service/eth?foo=bar'),
       ).to.equal('https://safe.global/tx-service/eth/api');
     });
+
+    it('throws when service url is empty after trimming', () => {
+      expect(() => normalizeSafeServiceUrl('')).to.throw(
+        'Safe tx service URL is empty',
+      );
+      expect(() => normalizeSafeServiceUrl('   ')).to.throw(
+        'Safe tx service URL is empty',
+      );
+    });
   });
 
   describe(isLegacySafeApi.name, () => {

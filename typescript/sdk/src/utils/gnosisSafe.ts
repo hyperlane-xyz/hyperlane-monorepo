@@ -238,6 +238,7 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   };
 
   const trimmedUrl = txServiceUrl.trim();
+  assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
   const parsed =
     parseUrl(trimmedUrl) ??
     (!hasExplicitUrlScheme(trimmedUrl)
