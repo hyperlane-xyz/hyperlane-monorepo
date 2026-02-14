@@ -56,10 +56,12 @@ function readInfraFile(relativePath: string): string {
 function readInfraPackageJson(): {
   dependencies?: Record<string, string>;
   devDependencies?: Record<string, string>;
+  scripts?: Record<string, string>;
 } {
   return JSON.parse(readInfraFile('package.json')) as {
     dependencies?: Record<string, string>;
     devDependencies?: Record<string, string>;
+    scripts?: Record<string, string>;
   };
 }
 
@@ -108,6 +110,14 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
 }
 
 describe('squads sdk migration regression', () => {
+  it('keeps infra squads regression script stable', () => {
+    const infraPackageJson = readInfraPackageJson();
+
+    expect(infraPackageJson.scripts?.['test:squads']).to.equal(
+      'mocha --config ../sdk/.mocharc.json "test/squads-cli-helpers.test.ts" "test/squads-scripts-help.test.ts" "test/squads-sdk-migration-regression.test.ts"',
+    );
+  });
+
   it('keeps infra package explicitly depending on sdk squads surface', () => {
     const infraPackageJson = readInfraPackageJson();
 
