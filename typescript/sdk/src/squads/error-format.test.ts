@@ -24,6 +24,10 @@ describe('squads error-format', () => {
     it('returns undefined for bare built-in error labels', () => {
       expect(normalizeStringifiedSquadsError('Error')).to.equal(undefined);
       expect(normalizeStringifiedSquadsError('TypeError:')).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError('Error :')).to.equal(undefined);
+      expect(normalizeStringifiedSquadsError('  TypeError :   ')).to.equal(
+        undefined,
+      );
       expect(normalizeStringifiedSquadsError('referenceerror')).to.equal(
         undefined,
       );
@@ -33,6 +37,9 @@ describe('squads error-format', () => {
       expect(normalizeStringifiedSquadsError('RpcError')).to.equal('RpcError');
       expect(normalizeStringifiedSquadsError('Error: rpc failed')).to.equal(
         'Error: rpc failed',
+      );
+      expect(normalizeStringifiedSquadsError('Error : rpc failed')).to.equal(
+        'Error : rpc failed',
       );
     });
 

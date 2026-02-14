@@ -19,7 +19,7 @@ export function normalizeStringifiedSquadsError(
 ): string | undefined {
   const trimmedFormattedError = formattedError.trim();
   const normalizedErrorLabel = trimmedFormattedError
-    .replace(/:$/, '')
+    .replace(/\s*:\s*$/, '')
     .toLowerCase();
 
   if (
