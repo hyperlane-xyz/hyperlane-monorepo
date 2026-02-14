@@ -561,6 +561,22 @@ describe('Anvil utils', () => {
       expect(message).to.include('Failed to start local anvil:');
       expect(message).to.include('[Circular');
     });
+
+    it('falls back safely when stringify and inspect both throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          throw new Error('inspect blocked');
+        },
+      };
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object Object]',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {
