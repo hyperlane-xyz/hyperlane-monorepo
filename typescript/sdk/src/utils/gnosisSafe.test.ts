@@ -68,12 +68,22 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'https://safe-transaction-mainnet.safe.global/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'http://safe-transaction-mainnet.safe.global/api?email=user@hyperlane.xyz#user@hyperlane.xyz',
         ),
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
           'http://safe-transaction-mainnet.safe.global/api?email=user%25252540hyperlane.xyz#user%25252540hyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'http://safe-transaction-mainnet.safe.global/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
         ),
       ).to.equal(true);
       expect(
@@ -377,6 +387,11 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/api?email=user%25252540hyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
         ),
       ).to.equal(true);
       expect(
@@ -1330,12 +1345,22 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/tx-service/eth/api');
       expect(
         normalizeSafeServiceUrl(
+          'https://safe.global/tx-service/eth/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl(
           'http://safe.global/tx-service/eth/api?email=user@hyperlane.xyz#user@hyperlane.xyz',
         ),
       ).to.equal('http://safe.global/tx-service/eth/api');
       expect(
         normalizeSafeServiceUrl(
           'http://safe.global/tx-service/eth/api?email=user%25252540hyperlane.xyz#user%25252540hyperlane.xyz',
+        ),
+      ).to.equal('http://safe.global/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl(
+          'http://safe.global/tx-service/eth/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
         ),
       ).to.equal('http://safe.global/tx-service/eth/api');
     });
