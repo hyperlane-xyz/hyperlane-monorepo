@@ -1191,6 +1191,51 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('falls back to jsonRpc when owner is unknown submitter type', async () => {
+    const unknownOwner = '0x5555555555555555555555555555555555555555';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => unknownOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => {
+          throw new Error('not timelock');
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when ownable read fails and transaction from is malformed', async () => {
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
