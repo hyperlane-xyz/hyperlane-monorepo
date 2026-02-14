@@ -44,7 +44,6 @@ import { WarpCoreConfig } from '../warp/types.js';
 
 import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
-  assertValidTransactionIndexInput,
   SquadsInstructionName,
   SquadsInstructionType,
   decodePermissions,
@@ -54,6 +53,7 @@ import {
   isVaultTransaction,
 } from './utils.js';
 import { toSquadsProvider } from './provider.js';
+import { assertValidTransactionIndexInput } from './validation.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;

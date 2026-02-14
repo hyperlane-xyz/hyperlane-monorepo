@@ -102,6 +102,14 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws for infinite current transaction index', () => {
+      expect(() =>
+        getMinimumProposalIndexToCheck(Number.POSITIVE_INFINITY),
+      ).to.throw(
+        'Expected current transaction index to be a non-negative safe integer, got Infinity',
+      );
+    });
+
     it('throws for negative lookback count', () => {
       expect(() => getMinimumProposalIndexToCheck(1, -1)).to.throw(
         'Expected lookback count to be a non-negative safe integer, got -1',
@@ -111,6 +119,14 @@ describe('squads utils', () => {
     it('throws for non-integer lookback count', () => {
       expect(() => getMinimumProposalIndexToCheck(1, 0.5)).to.throw(
         'Expected lookback count to be a non-negative safe integer, got 0.5',
+      );
+    });
+
+    it('throws for infinite lookback count', () => {
+      expect(() =>
+        getMinimumProposalIndexToCheck(1, Number.POSITIVE_INFINITY),
+      ).to.throw(
+        'Expected lookback count to be a non-negative safe integer, got Infinity',
       );
     });
   });
@@ -2086,6 +2102,25 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('fails fast for infinite transaction index before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposal('solanamainnet', mpp, Number.POSITIVE_INFINITY),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got Infinity',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
   });
 
   describe(getTransactionType.name, () => {
@@ -2162,6 +2197,25 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for infinite transaction index before account lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, Number.POSITIVE_INFINITY),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got Infinity',
       );
       expect(providerLookupCalled).to.equal(false);
     });
@@ -2261,6 +2315,30 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for infinite transaction index before proposal execution setup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          'solanamainnet',
+          mpp,
+          Number.POSITIVE_INFINITY,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got Infinity',
       );
       expect(providerLookupCalled).to.equal(false);
     });

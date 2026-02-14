@@ -22,6 +22,7 @@ import {
   SquadsChainName,
 } from './config.js';
 import { toSquadsProvider } from './provider.js';
+import { assertValidTransactionIndexInput } from './validation.js';
 
 /**
  * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
@@ -1252,14 +1253,4 @@ export async function executeProposal(
     );
     throw error;
   }
-}
-
-export function assertValidTransactionIndexInput(
-  transactionIndex: number,
-  chain: ChainName,
-): void {
-  assert(
-    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
-    `Expected transaction index to be a non-negative safe integer for ${chain}, got ${transactionIndex}`,
-  );
 }
