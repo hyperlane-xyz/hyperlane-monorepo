@@ -14,6 +14,14 @@ describe('squads provider bridge', () => {
     expect(toSquadsProvider(provider as SolanaProvider)).to.equal(provider);
   });
 
+  it('accepts provider-like objects with callable getAccountInfo', () => {
+    const providerLike = {
+      getAccountInfo: async () => null,
+    } as unknown as SolanaProvider;
+
+    expect(toSquadsProvider(providerLike)).to.equal(providerLike);
+  });
+
   it('throws for malformed provider values', () => {
     expect(() => toSquadsProvider({} as SolanaProvider)).to.throw(
       'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: object)',
