@@ -63,7 +63,8 @@ async function main() {
     const parsedProposal = parseSquadProposal(proposal);
     const parsedMultisig = parseSquadMultisig(multisig);
     const proposalTransactionIndex = parsedProposal.transactionIndex;
-    if (proposalTransactionIndex !== transactionIndex) {
+    const isIndexMismatch = proposalTransactionIndex !== transactionIndex;
+    if (isIndexMismatch) {
       rootLogger.warn(
         chalk.yellow(
           `Requested transaction index ${transactionIndex} but proposal account reports index ${proposalTransactionIndex}. Using on-chain proposal index for status calculations.`,
@@ -74,7 +75,16 @@ async function main() {
     // Display basic proposal information
     rootLogger.info(chalk.green.bold('\n📋 Proposal Information:'));
     rootLogger.info(chalk.white(`  Chain: ${chain}`));
-    rootLogger.info(chalk.white(`  Transaction Index: ${transactionIndex}`));
+    if (isIndexMismatch) {
+      rootLogger.info(
+        chalk.white(`  Requested Transaction Index: ${transactionIndex}`),
+      );
+      rootLogger.info(
+        chalk.white(`  On-chain Transaction Index: ${proposalTransactionIndex}`),
+      );
+    } else {
+      rootLogger.info(chalk.white(`  Transaction Index: ${transactionIndex}`));
+    }
     rootLogger.info(chalk.white(`  Proposal PDA: ${proposalPda.toBase58()}`));
     rootLogger.info(
       chalk.white(`  Multisig PDA: ${proposal.multisig.toBase58()}`),
