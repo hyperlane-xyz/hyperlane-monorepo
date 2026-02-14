@@ -1,4 +1,5 @@
 import chalk from 'chalk';
+import { PublicKey } from '@solana/web3.js';
 import yargs, { Argv } from 'yargs';
 
 import {
@@ -69,26 +70,38 @@ function toBase58IfPossible(
   const labelWithIndex =
     typeof index === 'number' ? `${label}[${index}]` : label;
 
-  if (typeof value === 'string') {
-    const trimmedValue = value.trim();
-    if (trimmedValue.length > 0) {
-      if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedValue)) {
-        rootLogger.warn(
-          chalk.yellow(
-            `Skipping ${labelWithIndex} on ${chain}: string value must be a meaningful identifier`,
-          ),
-        );
-        return undefined;
-      }
-      return trimmedValue;
+  function normalizeAddress(rawValue: string, source: string): string | undefined {
+    const trimmedValue = rawValue.trim();
+    if (trimmedValue.length === 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipping ${labelWithIndex} on ${chain}: ${source} returned an empty value`,
+        ),
+      );
+      return undefined;
     }
+    if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedValue)) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipping ${labelWithIndex} on ${chain}: ${source} returned a non-meaningful identifier`,
+        ),
+      );
+      return undefined;
+    }
+    try {
+      return new PublicKey(trimmedValue).toBase58();
+    } catch {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipping ${labelWithIndex} on ${chain}: ${source} returned an invalid Solana address`,
+        ),
+      );
+      return undefined;
+    }
+  }
 
-    rootLogger.warn(
-      chalk.yellow(
-        `Skipping ${labelWithIndex} on ${chain}: string value is empty`,
-      ),
-    );
-    return undefined;
+  if (typeof value === 'string') {
+    return normalizeAddress(value, 'string value');
   }
 
   if (!value || typeof value !== 'object') {
@@ -113,28 +126,12 @@ function toBase58IfPossible(
   try {
     const rawValue = toBase58Candidate.call(value);
     const normalizedValue =
-      typeof rawValue === 'string' ? rawValue.trim() : String(rawValue).trim();
-    if (normalizedValue.length === 0) {
-      rootLogger.warn(
-        chalk.yellow(
-          `Skipping ${labelWithIndex} on ${chain}: toBase58() returned an empty value`,
-        ),
-      );
-      return undefined;
-    }
-    if (GENERIC_OBJECT_STRING_PATTERN.test(normalizedValue)) {
-      rootLogger.warn(
-        chalk.yellow(
-          `Skipping ${labelWithIndex} on ${chain}: toBase58() returned a non-meaningful identifier`,
-        ),
-      );
-      return undefined;
-    }
-    return normalizedValue;
+      typeof rawValue === 'string' ? rawValue : String(rawValue);
+    return normalizeAddress(normalizedValue, 'toBase58()');
   } catch (error) {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping ${labelWithIndex} on ${chain}: failed to stringify key (${String(error)})`,
+        `Skipping ${labelWithIndex} on ${chain}: failed to stringify key (${formatScriptError(error)})`,
       ),
     );
     return undefined;
