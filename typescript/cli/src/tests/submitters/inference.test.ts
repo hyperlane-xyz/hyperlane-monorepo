@@ -2674,6 +2674,103 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches unknown origin domain lookups across ICA event-derived inferences', async () => {
+    const inferredIcaOwnerA = '0x7676767676767676767676767676767676767676';
+    const inferredIcaOwnerB = '0x8686868686868686868686868686868686868686';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+    const originOwnerBytes32 =
+      `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+
+    const ownerByTarget: Record<string, string> = {
+      '0xabababababababababababababababababababab': inferredIcaOwnerA,
+      '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd': inferredIcaOwnerB,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([{ topics: [], data: '0x' }]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => ({
+                args: {
+                  origin: 999999,
+                  router:
+                    '0x0000000000000000000000009191919191919191919191919191919191919191',
+                  owner: originOwnerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              }),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let chainNameCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: () => {
+          chainNameCalls += 1;
+          throw new Error('unknown domain');
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0xABABABABABABABABABABABABABABABABABABABAB' } as any,
+          { ...TX, to: '0xCDCDCDCDCDCDCDCDCDCDCDCDCDCDCDCDCDCDCDCD' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(2);
+      expect(chainNameCalls).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('uses jsonRpc internal submitter when ICA event-derived origin signer lookup fails', async () => {
     const inferredIcaOwner = '0x6868686868686868686868686868686868686868';
     const destinationRouterAddress =

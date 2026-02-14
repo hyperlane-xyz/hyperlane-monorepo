@@ -46,6 +46,7 @@ type Cache = {
   signerByChain: Map<ChainName, boolean>;
   signerAddressByChain: Map<ChainName, Address | null>;
   protocolIsEthereumByChain: Map<string, boolean>;
+  chainNameByDomain: Map<number, ChainName | null>;
   registryAddresses?: Awaited<
     ReturnType<WriteCommandContext['registry']['getAddresses']>
   >;
@@ -194,6 +195,25 @@ async function getSignerAddressForChain(
     return signerAddress;
   } catch {
     cache.signerAddressByChain.set(chain, null);
+    return null;
+  }
+}
+
+function getChainNameForDomain(
+  context: WriteCommandContext,
+  cache: Cache,
+  domain: number,
+): ChainName | null {
+  if (cache.chainNameByDomain.has(domain)) {
+    return cache.chainNameByDomain.get(domain) ?? null;
+  }
+
+  try {
+    const chainName = context.multiProvider.getChainName(domain);
+    cache.chainNameByDomain.set(domain, chainName);
+    return chainName;
+  } catch {
+    cache.chainNameByDomain.set(domain, null);
     return null;
   }
 }
@@ -418,10 +438,8 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  let originChain: ChainName;
-  try {
-    originChain = context.multiProvider.getChainName(originDomain);
-  } catch {
+  const originChain = getChainNameForDomain(context, cache, originDomain);
+  if (!originChain) {
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
@@ -1101,6 +1119,7 @@ function createCache(): Cache {
     signerByChain: new Map(),
     signerAddressByChain: new Map(),
     protocolIsEthereumByChain: new Map(),
+    chainNameByDomain: new Map(),
   };
 }
 
