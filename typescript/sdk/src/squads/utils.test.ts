@@ -786,6 +786,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when members entry key is null', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: null }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] must include key',
+      );
+    });
+
     it('throws when members array is empty but threshold is positive', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
@@ -881,6 +896,24 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads solanamainnet multisig threshold must be a positive JavaScript safe integer: 0',
+      );
+    });
+
+    it('uses caller-provided field prefix for member key errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 1n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 1n,
+            timeLock: 0n,
+            members: [{ key: null }],
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig members[0] must include key',
       );
     });
 

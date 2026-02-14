@@ -762,8 +762,9 @@ function getMultisigMemberCount(
       member && typeof member === 'object',
       `Squads ${fieldPrefix} members[${index}] must be an object`,
     );
+    const memberKey = (member as { key?: unknown }).key;
     assert(
-      typeof (member as { key?: unknown }).key !== 'undefined',
+      typeof memberKey !== 'undefined' && memberKey !== null,
       `Squads ${fieldPrefix} members[${index}] must include key`,
     );
   }
