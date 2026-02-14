@@ -1395,7 +1395,21 @@ export async function deleteSafeTx(
 ): Promise<void> {
   const normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
   const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
-  const signer = multiProvider.getSigner(chain);
+  const signer = multiProvider.getSigner(chain) as unknown;
+  assert(
+    signer !== null && typeof signer === 'object',
+    `Safe deletion signer must be an object: ${stringifyValueForError(signer)}`,
+  );
+  let getSignerAddress: unknown;
+  try {
+    ({ getAddress: getSignerAddress } = signer as { getAddress?: unknown });
+  } catch {
+    throw new Error('Safe deletion signer getAddress accessor is inaccessible');
+  }
+  assert(
+    typeof getSignerAddress === 'function',
+    `Safe deletion signer getAddress must be a function: ${stringifyValueForError(getSignerAddress)}`,
+  );
   const chainId = multiProvider.getEvmChainId(chain);
   if (!chainId) {
     throw new Error(`Chain is not an EVM chain: ${chain}`);
@@ -1437,7 +1451,7 @@ export async function deleteSafeTx(
 
   let signerAddress: unknown;
   try {
-    signerAddress = await signer.getAddress();
+    signerAddress = await getSignerAddress.call(signer);
   } catch (error) {
     throw new Error(
       `Failed to resolve Safe deletion signer address: ${stringifyValueForError(error)}`,
@@ -1462,7 +1476,7 @@ export async function deleteSafeTx(
   );
 
   try {
-    assertEip712Signer(signer);
+    assertEip712Signer(signer as ethers.Signer);
     const totp = Math.floor(Date.now() / 1000 / 3600);
     const typedData = {
       types: {
@@ -1490,7 +1504,7 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await signer._signTypedData(
+    const signature = await (signer as Eip712Signer)._signTypedData(
       typedData.domain,
       { DeleteRequest: typedData.types.DeleteRequest },
       typedData.message,

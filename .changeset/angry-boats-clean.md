@@ -60,3 +60,4 @@ Safe utility typing and robustness were improved by:
 - Validating pending Safe tx deletion list length access and bounds before iterating response entries.
 - Validating Safe delete tx-detail payload/proposer fields before signer comparison and EIP-712 signing.
 - Validating Safe tx-service read helper response payload shape before returning tx details.
+- Hardening Safe delete signer shape/accessor/address validation before proposer comparison and signing.

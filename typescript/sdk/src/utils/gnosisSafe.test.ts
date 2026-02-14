@@ -5256,6 +5256,64 @@ describe('gnosisSafe utils', () => {
       expect(fetchCalled).to.equal(false);
     });
 
+    it('deleteSafeTx throws when deletion signer is non-object', async () => {
+      globalThis.fetch = (async () => {
+        throw new Error('fetch should not be called');
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => 123,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'11'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe deletion signer must be an object: 123',
+        );
+      }
+    });
+
+    it('deleteSafeTx throws when deletion signer getAddress is not a function', async () => {
+      globalThis.fetch = (async () => {
+        throw new Error('fetch should not be called');
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => ({ getAddress: 123 }),
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'12'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe deletion signer getAddress must be a function: 123',
+        );
+      }
+    });
+
     it('deleteSafeTx throws when tx details payload is non-object', async () => {
       let signTypedDataCalled = false;
       const signerMock = {
@@ -5294,6 +5352,98 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe transaction details payload must be an object: null',
+        );
+      }
+      expect(signTypedDataCalled).to.equal(false);
+    });
+
+    it('deleteSafeTx throws when deletion signer address resolution fails', async () => {
+      let signTypedDataCalled = false;
+      const signerMock = {
+        getAddress: async () => {
+          throw new Error('boom');
+        },
+        _signTypedData: async () => {
+          signTypedDataCalled = true;
+          return `0x${'11'.repeat(65)}`;
+        },
+      };
+
+      globalThis.fetch = (async () => {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            proposer: '0x00000000000000000000000000000000000000AA',
+          }),
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'44'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to resolve Safe deletion signer address: Error: boom',
+        );
+      }
+      expect(signTypedDataCalled).to.equal(false);
+    });
+
+    it('deleteSafeTx throws when deletion signer address is invalid', async () => {
+      let signTypedDataCalled = false;
+      const signerMock = {
+        getAddress: async () => 'bad',
+        _signTypedData: async () => {
+          signTypedDataCalled = true;
+          return `0x${'11'.repeat(65)}`;
+        },
+      };
+
+      globalThis.fetch = (async () => {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({
+            proposer: '0x00000000000000000000000000000000000000AA',
+          }),
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'55'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe deletion signer address must be valid: bad',
         );
       }
       expect(signTypedDataCalled).to.equal(false);
