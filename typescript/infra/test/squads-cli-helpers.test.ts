@@ -82,6 +82,13 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('reports the exact index for non-string argv chain values', () => {
+    const [chain] = getSquadsChains();
+    expect(() => resolveSquadsChainsFromArgv([chain, 123])).to.throw(
+      'Expected --chains[1] to be a string, but received number',
+    );
+  });
+
   it('accepts generic string arrays and validates squads support', () => {
     expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       'Squads configuration not found for chains: ethereum',
