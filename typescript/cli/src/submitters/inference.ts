@@ -587,8 +587,9 @@ function resolveExplicitSubmitterForTransaction({
     }
 
     const [target, maybeSelector] = parts.map((part) => part.trim());
-    if (/^0x[0-9a-fA-F]{8}$/.test(maybeSelector)) {
-      return { target, selector: maybeSelector.toLowerCase() };
+    const normalizedSelector = maybeSelector.toLowerCase();
+    if (/^0x[0-9a-f]{8}$/.test(normalizedSelector)) {
+      return { target, selector: normalizedSelector };
     }
     return { target: trimmedKey };
   };
