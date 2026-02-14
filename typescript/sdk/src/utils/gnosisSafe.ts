@@ -39,7 +39,7 @@ const SAFE_API_MAX_RETRIES = 10;
 const SAFE_API_MIN_DELAY_MS = 1000;
 const SAFE_API_MAX_DELAY_MS = 3000;
 const URL_SCHEME_WITH_AUTHORITY_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:\/\//;
-const MALFORMED_SINGLE_SLASH_HTTP_SCHEME_REGEX = /^https?:\/(?!\/)/i;
+const MALFORMED_HTTP_SCHEME_DELIMITER_REGEX = /^https?:(?!\/\/)/i;
 const NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX =
   /^(mailto|urn|data|blob|javascript):/i;
 const GENERIC_URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
@@ -186,8 +186,8 @@ function hasExplicitUserinfoLikeAuthority(value: string): boolean {
   );
 }
 
-function hasMalformedSingleSlashHttpScheme(value: string): boolean {
-  return MALFORMED_SINGLE_SLASH_HTTP_SCHEME_REGEX.test(value);
+function hasMalformedHttpSchemeDelimiter(value: string): boolean {
+  return MALFORMED_HTTP_SCHEME_DELIMITER_REGEX.test(value);
 }
 
 function hasUrlUserinfo(parsed: URL): boolean {
@@ -313,7 +313,7 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  if (hasMalformedSingleSlashHttpScheme(trimmedUrl)) {
+  if (hasMalformedHttpSchemeDelimiter(trimmedUrl)) {
     return false;
   }
   if (hasExplicitUserinfoLikeAuthority(trimmedUrl)) {
@@ -368,7 +368,7 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
-  if (hasMalformedSingleSlashHttpScheme(trimmedUrl)) {
+  if (hasMalformedHttpSchemeDelimiter(trimmedUrl)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   if (hasExplicitUserinfoLikeAuthority(trimmedUrl)) {
