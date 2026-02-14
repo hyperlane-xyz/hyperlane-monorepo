@@ -48,9 +48,13 @@ export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
   return getSquadsChains();
 }
 
-export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolProvider> {
+export async function getSquadsEnvironmentConfig() {
   const { getEnvironmentConfig } = await import('../core-utils.js');
-  const envConfig = getEnvironmentConfig(SQUADS_ENVIRONMENT);
+  return getEnvironmentConfig(SQUADS_ENVIRONMENT);
+}
+
+export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolProvider> {
+  const envConfig = await getSquadsEnvironmentConfig();
   return envConfig.getMultiProtocolProvider();
 }
 
@@ -58,6 +62,11 @@ export async function getSquadsTurnkeySigner() {
   const { getTurnkeySealevelDeployerSigner } =
     await import('../../src/utils/turnkey.js');
   return getTurnkeySealevelDeployerSigner(SQUADS_ENVIRONMENT);
+}
+
+export async function getSquadsRegistry() {
+  const envConfig = await getSquadsEnvironmentConfig();
+  return envConfig.getRegistry();
 }
 
 export function logProposals(pendingProposals: SquadProposalStatus[]) {

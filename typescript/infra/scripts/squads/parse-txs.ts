@@ -20,6 +20,7 @@ import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { Contexts } from '../../config/contexts.js';
 import {
   SQUADS_ENVIRONMENT,
+  getSquadsRegistry,
   getSquadsMultiProtocolProvider,
   logProposals,
   resolveSquadsChains,
@@ -35,11 +36,9 @@ async function main() {
 
   // Get the multiprovider for the environment
   const mpp = await getSquadsMultiProtocolProvider();
-  const { getEnvironmentConfig } = await import('../core-utils.js');
-  const config = getEnvironmentConfig(SQUADS_ENVIRONMENT);
 
   // Load warp routes from registry
-  const registry = await config.getRegistry();
+  const registry = await getSquadsRegistry();
   const warpRoutes = await registry.getWarpRoutes();
 
   // Initialize the transaction reader
