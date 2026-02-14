@@ -4,6 +4,7 @@ import yargs, { type Argv } from 'yargs';
 import { getSquadsChains } from '@hyperlane-xyz/sdk';
 
 import {
+  formatScriptError,
   getUnsupportedSquadsChainsErrorMessage,
   resolveSquadsChains,
   resolveSquadsChainsFromArgv,
@@ -685,6 +686,42 @@ describe('squads cli helpers', () => {
     await expectParseError(
       withSquadsChains(yargs(['--chains', '   '])),
       'Expected --chains[0] to be a non-empty string',
+    );
+  });
+
+  it('formats Error values using stack when available', () => {
+    const error = new Error('boom');
+
+    expect(formatScriptError(error)).to.equal(error.stack ?? error.message);
+  });
+
+  it('formats Error values using message when stack is unavailable', () => {
+    const error = new Error('boom');
+    error.stack = undefined;
+
+    expect(formatScriptError(error)).to.equal('boom');
+  });
+
+  it('formats string errors unchanged', () => {
+    expect(formatScriptError('oops')).to.equal('oops');
+  });
+
+  it('formats object errors via stable object stringification', () => {
+    const formatted = formatScriptError({ foo: 'bar' });
+
+    expect(formatted).to.include('foo');
+    expect(formatted).to.include('bar');
+  });
+
+  it('falls back for unformattable object errors', () => {
+    const unformattableError = {
+      toJSON() {
+        throw new Error('cannot serialize');
+      },
+    };
+
+    expect(formatScriptError(unformattableError)).to.equal(
+      '[unformattable error object]',
     );
   });
 });
