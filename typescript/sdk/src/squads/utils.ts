@@ -390,10 +390,7 @@ export async function getSquadProposal(
   | undefined
 > {
   const { multisigPda, programId } = getSquadsKeys(chain);
-  assert(
-    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
-    `Expected transaction index to be a non-negative safe integer for ${chain}, got ${transactionIndex}`,
-  );
+  assertValidTransactionIndexInput(transactionIndex, chain);
 
   try {
     const svmProvider = mpp.getSolanaWeb3Provider(chain);
@@ -1147,6 +1144,7 @@ export async function getTransactionType(
   mpp: MultiProtocolProvider,
   transactionIndex: number,
 ): Promise<SquadsAccountType> {
+  assertValidTransactionIndexInput(transactionIndex, chain);
   const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
@@ -1186,6 +1184,7 @@ export async function executeProposal(
   transactionIndex: number,
   signerAdapter: SvmMultiProtocolSignerAdapter,
 ): Promise<void> {
+  assertValidTransactionIndexInput(transactionIndex, chain);
   const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
@@ -1253,4 +1252,14 @@ export async function executeProposal(
     );
     throw error;
   }
+}
+
+function assertValidTransactionIndexInput(
+  transactionIndex: number,
+  chain: ChainName,
+): void {
+  assert(
+    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
+    `Expected transaction index to be a non-negative safe integer for ${chain}, got ${transactionIndex}`,
+  );
 }
