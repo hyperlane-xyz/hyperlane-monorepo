@@ -804,6 +804,10 @@ describe('squads cli helpers', () => {
     expect(formatScriptError('   ')).to.equal('[unformattable error value]');
   });
 
+  it('uses placeholder for bare Error-label string values', () => {
+    expect(formatScriptError('Error:')).to.equal('[unformattable error value]');
+  });
+
   it('formats object errors via stable object stringification', () => {
     const formatted = formatScriptError({ foo: 'bar' });
 
@@ -910,6 +914,24 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(objectWithGenericToString)).to.equal(
       '[unformattable error object]',
     );
+  });
+
+  it('ignores bare Error labels from Error stringification fallback', () => {
+    const error = new Error('');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+    Object.defineProperty(error, 'message', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+
+    expect(formatScriptError(error)).to.equal('[unformattable error instance]');
   });
 
   it('falls back for unformattable object errors', () => {

@@ -60,6 +60,7 @@ export const MAILBOX_DISCRIMINATOR_SIZE = 1;
 export const MAX_SOLANA_ACCOUNTS = 256;
 export const MAX_SOLANA_ACCOUNT_SIZE = 10240;
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
+const GENERIC_ERROR_LABEL_PATTERN = /^[a-z]*error:?$/i;
 export const SYSTEM_PROGRAM_ID = new PublicKey(
   '11111111111111111111111111111111',
 );
@@ -152,7 +153,8 @@ function normalizeStringifiedError(formattedError: string): string | undefined {
   const trimmedFormattedError = formattedError.trim();
   if (
     trimmedFormattedError.length === 0 ||
-    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError) ||
+    GENERIC_ERROR_LABEL_PATTERN.test(trimmedFormattedError)
   ) {
     return undefined;
   }

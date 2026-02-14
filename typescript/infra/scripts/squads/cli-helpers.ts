@@ -37,6 +37,7 @@ const turnkeySignerPromises = new Map<
 >();
 const registryPromises = new Map<DeployEnvironment, Promise<IRegistry>>();
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
+const GENERIC_ERROR_LABEL_PATTERN = /^[a-z]*error:?$/i;
 
 function memoizeByEnvironment<T>(
   cache: Map<DeployEnvironment, Promise<T>>,
@@ -114,7 +115,8 @@ function normalizeStringifiedError(
   const trimmedFormattedError = formattedError.trim();
   if (
     trimmedFormattedError.length === 0 ||
-    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError) ||
+    GENERIC_ERROR_LABEL_PATTERN.test(trimmedFormattedError)
   ) {
     return undefined;
   }
