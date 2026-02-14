@@ -126,7 +126,7 @@ export interface ParsedInstruction {
   programId: PublicKey;
   programName: string;
   instructionType: string;
-  data: any;
+  data: Record<string, unknown>;
   accounts: PublicKey[];
   warnings: string[];
   insight?: string;
@@ -163,6 +163,65 @@ interface WarpRouteMetadata {
   name: string;
   routeName: string;
 }
+
+type MultisigSetValidatorsData = {
+  domain: number;
+  threshold: number;
+  validators: string[];
+};
+
+type MailboxSetDefaultIsmData = {
+  newDefaultIsm: string;
+};
+
+type OwnershipTransferData = {
+  newOwner?: string | null;
+};
+
+type SquadsAddMemberData = {
+  newMember: string;
+  permissions: {
+    mask: number;
+  };
+};
+
+type SquadsRemoveMemberData = {
+  memberToRemove: string;
+};
+
+type SquadsChangeThresholdData = {
+  newThreshold: number;
+};
+
+type WarpEnrollRemoteRouterData = {
+  chainName?: string;
+  domain: number;
+  router?: string | null;
+};
+
+type WarpEnrollRemoteRoutersData = {
+  routers?: Array<{
+    chainName?: string;
+    domain: number;
+    router?: string | null;
+  }>;
+};
+
+type WarpSetDestinationGasConfigsData = {
+  configs?: Array<{
+    chainName?: string;
+    domain: number;
+    gas?: { toString(): string } | number | string | null;
+  }>;
+};
+
+type WarpSetIsmData = {
+  ism?: string | null;
+};
+
+type WarpSetIgpData = {
+  igp?: Record<string, unknown> | null;
+};
 
 export class SquadsTransactionReader {
   errors: Array<Record<string, unknown>> = [];
@@ -1135,27 +1194,28 @@ export class SquadsTransactionReader {
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD
       ]: {
-        const remoteChain = this.mpp.tryGetChainName(inst.data.domain);
+        const data = inst.data as MultisigSetValidatorsData;
+        const remoteChain = this.mpp.tryGetChainName(data.domain);
         const validatorsWithAliases = remoteChain
-          ? formatValidatorsWithAliases(remoteChain, inst.data.validators)
-          : inst.data.validators;
+          ? formatValidatorsWithAliases(remoteChain, data.validators)
+          : data.validators;
 
         tx.args = {
-          domain: inst.data.domain,
-          threshold: inst.data.threshold,
+          domain: data.domain,
+          threshold: data.threshold,
           validators: validatorsWithAliases,
         };
 
         const verification = this.verifyConfiguration(
           chain,
-          inst.data.domain,
-          inst.data.threshold,
-          inst.data.validators,
+          data.domain,
+          data.threshold,
+          data.validators,
         );
 
         const chainInfo = remoteChain
-          ? `${remoteChain} (${inst.data.domain})`
-          : `${inst.data.domain}`;
+          ? `${remoteChain} (${data.domain})`
+          : `${data.domain}`;
 
         tx.insight = verification.matches
           ? `✅ matches expected config for ${chainInfo}`
@@ -1165,51 +1225,63 @@ export class SquadsTransactionReader {
 
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.INBOX_SET_DEFAULT_ISM
-      ]:
-        tx.args = { module: inst.data.newDefaultIsm };
+      ]: {
+        const data = inst.data as MailboxSetDefaultIsmData;
+        tx.args = { module: data.newDefaultIsm };
         break;
+      }
 
       case SealevelMailboxInstructionName[
         SealevelMailboxInstructionType.TRANSFER_OWNERSHIP
       ]:
       case SealevelMultisigIsmInstructionName[
         SealevelMultisigIsmInstructionType.TRANSFER_OWNERSHIP
-      ]:
-        tx.args = { newOwner: inst.data.newOwner || null };
+      ]: {
+        const data = inst.data as OwnershipTransferData;
+        tx.args = { newOwner: data.newOwner || null };
         break;
+      }
 
-      case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]:
+      case SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]: {
+        const data = inst.data as SquadsAddMemberData;
         tx.args = {
-          member: inst.data.newMember,
+          member: data.newMember,
           permissions: {
-            mask: inst.data.permissions.mask,
-            decoded: decodePermissions(inst.data.permissions.mask),
+            mask: data.permissions.mask,
+            decoded: decodePermissions(data.permissions.mask),
           },
         };
         break;
+      }
 
-      case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]:
-        tx.args = { member: inst.data.memberToRemove };
+      case SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER]: {
+        const data = inst.data as SquadsRemoveMemberData;
+        tx.args = { member: data.memberToRemove };
         break;
+      }
 
-      case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]:
-        tx.args = { newThreshold: inst.data.newThreshold };
+      case SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD]: {
+        const data = inst.data as SquadsChangeThresholdData;
+        tx.args = { newThreshold: data.newThreshold };
         break;
+      }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.EnrollRemoteRouter
       ]: {
-        const chainName = inst.data.chainName || `domain ${inst.data.domain}`;
-        tx.args = { [chainName]: inst.data.router || 'unenrolled' };
+        const data = inst.data as WarpEnrollRemoteRouterData;
+        const chainName = data.chainName || `domain ${data.domain}`;
+        tx.args = { [chainName]: data.router || 'unenrolled' };
         break;
       }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.EnrollRemoteRouters
       ]: {
+        const data = inst.data as WarpEnrollRemoteRoutersData;
         const routers: Record<string, string> = {};
-        if (inst.data.routers && Array.isArray(inst.data.routers)) {
-          for (const router of inst.data.routers) {
+        if (data.routers && Array.isArray(data.routers)) {
+          for (const router of data.routers) {
             const key = router.chainName || `domain ${router.domain}`;
             routers[key] = router.router || 'unenrolled';
           }
@@ -1221,9 +1293,10 @@ export class SquadsTransactionReader {
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetDestinationGasConfigs
       ]: {
+        const data = inst.data as WarpSetDestinationGasConfigsData;
         const gasConfigs: Record<string, string> = {};
-        if (inst.data.configs && Array.isArray(inst.data.configs)) {
-          for (const config of inst.data.configs) {
+        if (data.configs && Array.isArray(data.configs)) {
+          for (const config of data.configs) {
             const key = config.chainName || `domain ${config.domain}`;
             gasConfigs[key] = config.gas?.toString() ?? 'unset';
           }
@@ -1234,21 +1307,27 @@ export class SquadsTransactionReader {
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetInterchainSecurityModule
-      ]:
-        tx.args = { ism: inst.data.ism || null };
+      ]: {
+        const data = inst.data as WarpSetIsmData;
+        tx.args = { ism: data.ism || null };
         break;
+      }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.SetInterchainGasPaymaster
-      ]:
-        tx.args = inst.data.igp || { igp: null };
+      ]: {
+        const data = inst.data as WarpSetIgpData;
+        tx.args = data.igp || { igp: null };
         break;
+      }
 
       case SealevelHypTokenInstructionName[
         SealevelHypTokenInstruction.TransferOwnership
-      ]:
-        tx.args = { newOwner: inst.data.newOwner || null };
+      ]: {
+        const data = inst.data as OwnershipTransferData;
+        tx.args = { newOwner: data.newOwner || null };
         break;
+      }
     }
 
     return tx;
