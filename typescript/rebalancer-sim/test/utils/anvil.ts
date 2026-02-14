@@ -103,12 +103,30 @@ async function getAvailablePort(): Promise<number> {
   });
 }
 
-async function stopLocalAnvilProcess(
+export async function stopLocalAnvilProcess(
   process: ChildProcessWithoutNullStreams,
 ): Promise<void> {
   if (process.killed || process.exitCode !== null) return;
 
-  await new Promise<void>((resolve) => {
+  await new Promise<void>((resolve, reject) => {
+    let settled = false;
+
+    const resolveOnce = () => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      process.removeListener('exit', onExit);
+      resolve();
+    };
+
+    const rejectOnce = (error: unknown) => {
+      if (settled) return;
+      settled = true;
+      clearTimeout(timeout);
+      process.removeListener('exit', onExit);
+      reject(error);
+    };
+
     const killSafely = (signal: NodeJS.Signals) => {
       try {
         process.kill(signal);
@@ -116,22 +134,25 @@ async function stopLocalAnvilProcess(
         const nodeError = error as NodeJS.ErrnoException | undefined;
         if (nodeError?.code === 'ESRCH') {
           // Process already exited between checks; treat as stopped.
-          resolve();
+          resolveOnce();
           return;
         }
-        throw error;
+        const message = error instanceof Error ? error.message : String(error);
+        rejectOnce(
+          new Error(
+            `Failed to stop local anvil process with ${signal}: ${message}`,
+          ),
+        );
       }
     };
 
     const timeout = setTimeout(() => {
       killSafely('SIGKILL');
-      resolve();
+      resolveOnce();
     }, LOCAL_ANVIL_STOP_TIMEOUT_MS);
 
-    process.once('exit', () => {
-      clearTimeout(timeout);
-      resolve();
-    });
+    const onExit = () => resolveOnce();
+    process.once('exit', onExit);
 
     killSafely('SIGTERM');
   });

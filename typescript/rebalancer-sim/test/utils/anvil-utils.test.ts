@@ -5,6 +5,7 @@ import {
   formatLocalAnvilStartError,
   getAnvilRpcUrl,
   isContainerRuntimeUnavailable,
+  stopLocalAnvilProcess,
 } from './anvil.js';
 
 describe('Anvil utils', () => {
@@ -75,6 +76,75 @@ describe('Anvil utils', () => {
       expect(formatLocalAnvilStartError(error)).to.equal(
         'Failed to start local anvil: permission denied',
       );
+    });
+  });
+
+  describe('stopLocalAnvilProcess', () => {
+    it('returns immediately when process already exited', async () => {
+      let killCalled = false;
+      const fakeProcess = {
+        killed: false,
+        exitCode: 0,
+        kill: () => {
+          killCalled = true;
+          return true;
+        },
+        once: () => fakeProcess,
+        removeListener: () => fakeProcess,
+      } as unknown as NodeJS.Process;
+
+      await stopLocalAnvilProcess(
+        fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
+      );
+      expect(killCalled).to.equal(false);
+    });
+
+    it('treats ESRCH as an already-stopped process', async () => {
+      const missingProcessError = new Error(
+        'kill ESRCH',
+      ) as NodeJS.ErrnoException;
+      missingProcessError.code = 'ESRCH';
+
+      const fakeProcess = {
+        killed: false,
+        exitCode: null,
+        kill: () => {
+          throw missingProcessError;
+        },
+        once: () => fakeProcess,
+        removeListener: () => fakeProcess,
+      } as unknown as NodeJS.Process;
+
+      await stopLocalAnvilProcess(
+        fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
+      );
+    });
+
+    it('rejects when kill fails with non-ESRCH errors', async () => {
+      const permissionError = new Error('operation not permitted');
+      const fakeProcess = {
+        killed: false,
+        exitCode: null,
+        kill: () => {
+          throw permissionError;
+        },
+        once: () => fakeProcess,
+        removeListener: () => fakeProcess,
+      } as unknown as NodeJS.Process;
+
+      let errorMessage = '';
+      try {
+        await stopLocalAnvilProcess(
+          fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
+        );
+      } catch (error) {
+        errorMessage = error instanceof Error ? error.message : String(error);
+      }
+
+      expect(errorMessage).to.include(
+        'Failed to stop local anvil process with SIGTERM',
+      );
+      expect(errorMessage).to.include('operation not permitted');
     });
   });
 });
