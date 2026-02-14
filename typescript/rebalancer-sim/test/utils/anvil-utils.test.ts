@@ -556,6 +556,24 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in string-valued errors fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: 'No Docker client strategy found',
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime string-valued errors fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: 'unrelated nested warning',
+        }),
+      ).to.equal(false);
+    });
+
     it('matches docker runtime errors in iterable error collections', () => {
       expect(
         isContainerRuntimeUnavailable({

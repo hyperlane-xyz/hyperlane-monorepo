@@ -198,7 +198,17 @@ function extractErrorMessages(error: unknown): string[] {
     }
   };
   const enqueueNestedErrors = (nestedErrors: unknown) => {
-    if (!nestedErrors || typeof nestedErrors === 'string') return;
+    if (typeof nestedErrors === 'string') {
+      enqueue(nestedErrors);
+      return;
+    }
+
+    if (!nestedErrors) return;
+
+    if (typeof nestedErrors !== 'object') {
+      enqueue(nestedErrors);
+      return;
+    }
     let wrapperFieldsEnqueued = false;
     const enqueueWrapperFieldsOnce = () => {
       if (wrapperFieldsEnqueued) return;

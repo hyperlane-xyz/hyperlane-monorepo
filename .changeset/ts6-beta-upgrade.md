@@ -192,4 +192,8 @@ Regression coverage now also confirms malformed iterable and map wrappers with f
 
 Regression coverage now also confirms malformed array, set, and generator wrappers with throwing iterators still detect runtime-unavailable non-enumerable wrapper-level `message` fallbacks, even when wrapper `cause` and `errors` accessors throw.
 
+Nested error extraction now enqueues string-valued `errors` payloads directly, so runtime-unavailable signals carried as scalar nested error strings remain detectable.
+
+Regression coverage now also confirms string-valued nested `errors` payloads match runtime-unavailable signals while non-runtime strings remain ignored.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
