@@ -688,7 +688,6 @@ export async function deleteSafeTx(
   safeTxHash: string,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
-  assertEip712Signer(signer);
   const chainId = multiProvider.getEvmChainId(chain);
   if (!chainId) {
     throw new Error(`Chain is not an EVM chain: ${chain}`);
@@ -730,6 +729,7 @@ export async function deleteSafeTx(
   rootLogger.info(`Deleting transaction ${safeTxHash} proposed by ${proposer}`);
 
   try {
+    assertEip712Signer(signer);
     const totp = Math.floor(Date.now() / 1000 / 3600);
     const typedData = {
       types: {
