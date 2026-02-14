@@ -599,8 +599,8 @@ function resolveExplicitSubmitterForTransaction({
       return undefined;
     }
 
-    const normalizedData = data.trim();
-    if (!/^0x[0-9a-fA-F]{8}/.test(normalizedData)) {
+    const normalizedData = data.trim().toLowerCase();
+    if (!/^0x[0-9a-f]{8}/.test(normalizedData)) {
       return undefined;
     }
     return normalizedData.slice(0, 10).toLowerCase();
