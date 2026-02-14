@@ -580,6 +580,14 @@ function resolveExplicitSubmitterForTransaction({
     return { target: key };
   };
 
+  const tryNormalizeEvmAddress = (address: string): string | null => {
+    try {
+      return normalizeAddressEvm(address);
+    } catch {
+      return null;
+    }
+  };
+
   const getTxSelector = (tx: TypedAnnotatedTransaction): string | undefined => {
     const data = (tx as any).data;
     if (typeof data !== 'string' || !/^0x[0-9a-fA-F]{8}/.test(data)) {
@@ -600,16 +608,25 @@ function resolveExplicitSubmitterForTransaction({
   let selectedSubmitter = explicitSubmissionStrategy.submitter;
   const entries = Object.entries(overrides);
   if (protocol === ProtocolType.Ethereum) {
-    const normalizedTarget = normalizeAddressEvm(to);
+    const normalizedTarget = tryNormalizeEvmAddress(to);
+    if (!normalizedTarget) {
+      return ExtendedSubmissionStrategySchema.parse({
+        submitter: explicitSubmissionStrategy.submitter,
+      });
+    }
     const selector = getTxSelector(transaction);
 
     if (selector) {
       const selectorMatch = entries.find(([overrideKey]) => {
         const parsed = parseOverrideKey(overrideKey);
+        const normalizedOverrideTarget = tryNormalizeEvmAddress(parsed.target);
+        if (!normalizedOverrideTarget) {
+          return false;
+        }
         return (
           !!parsed.selector &&
           parsed.selector === selector &&
-          normalizeAddressEvm(parsed.target) === normalizedTarget
+          normalizedOverrideTarget === normalizedTarget
         );
       });
       if (selectorMatch) {
@@ -620,9 +637,13 @@ function resolveExplicitSubmitterForTransaction({
     if (selectedSubmitter === explicitSubmissionStrategy.submitter) {
       const targetMatch = entries.find(([overrideKey]) => {
         const parsed = parseOverrideKey(overrideKey);
+        const normalizedOverrideTarget = tryNormalizeEvmAddress(parsed.target);
+        if (!normalizedOverrideTarget) {
+          return false;
+        }
         return (
           !parsed.selector &&
-          normalizeAddressEvm(parsed.target) === normalizedTarget
+          normalizedOverrideTarget === normalizedTarget
         );
       });
       if (targetMatch) {

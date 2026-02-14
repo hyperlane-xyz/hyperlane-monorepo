@@ -147,6 +147,40 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('ignores invalid override keys and falls back to default explicit submitter', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-invalid-overrides-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          'not-an-address@invalid-selector': {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x7777777777777777777777777777777777777777',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('falls back to jsonRpc when inference fails', async () => {
     const context = {
       multiProvider: {
