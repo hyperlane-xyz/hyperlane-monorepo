@@ -123,6 +123,7 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
   ...SQUADS_ERROR_LOG_ARRAY_FIELDS,
   ...SQUADS_ERROR_STRING_ARRAY_FIELDS,
 ]);
+const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
 
 function tokenizeFieldName(fieldName: string): string[] {
   return fieldName
@@ -134,8 +135,15 @@ function tokenizeFieldName(fieldName: string): string[] {
 }
 
 function isLikelyLogArrayFieldName(fieldName: string): boolean {
+  const cached = SQUADS_LOG_FIELD_NAME_CACHE.get(fieldName);
+  if (typeof cached === 'boolean') {
+    return cached;
+  }
+
   const tokens = tokenizeFieldName(fieldName);
-  return tokens.includes('log') || tokens.includes('logs');
+  const result = tokens.includes('log') || tokens.includes('logs');
+  SQUADS_LOG_FIELD_NAME_CACHE.set(fieldName, result);
+  return result;
 }
 
 function parseSquadsProposalVoteErrorText(
