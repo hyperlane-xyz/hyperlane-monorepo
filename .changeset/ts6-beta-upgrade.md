@@ -45,3 +45,5 @@ Matcher precision was also tightened with regression coverage that rejects unkno
 Nested runtime-error traversal was additionally hardened to tolerate malformed iterable wrappers (non-callable or throwing iterators), with safe fallback to object-value traversal.
 
 Nested iterable traversal is now also bounded to guard against unbounded iterator payloads in wrapper errors.
+
+Nested error-collection traversal was further hardened to tolerate throwing map iterators and throwing object accessors without crashing matcher evaluation.
