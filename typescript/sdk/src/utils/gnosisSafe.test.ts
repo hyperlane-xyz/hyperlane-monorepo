@@ -5567,9 +5567,14 @@ describe('gnosisSafe utils', () => {
       unknown
     >;
     const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
+    const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
+    const safeModule = Safe as unknown as { init: unknown };
+    const originalSafeInit = safeModule.init;
 
     afterEach(() => {
       safeApiPrototype.getServiceInfo = originalGetServiceInfo;
+      safeApiPrototype.getSafeInfo = originalGetSafeInfo;
+      safeModule.init = originalSafeInit;
     });
 
     it('throws when safe service info payload is non-object', async () => {
@@ -5597,6 +5602,30 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe service info payload must be an object for chain test: null',
+        );
+      }
+    });
+
+    it('throws with deterministic message when safe service init fails', async () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+      } as unknown as Parameters<typeof getSafeAndService>[1];
+
+      try {
+        await getSafeAndService(
+          'test',
+          multiProviderMock,
+          '0x52908400098527886e0f7030069857d2e4169ee7',
+        );
+        expect.fail('Expected getSafeAndService to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to initialize Safe service for chain test: Error: Failed to resolve EVM chain id for test: TypeError: multiProvider.getEvmChainId is not a function',
         );
       }
     });

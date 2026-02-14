@@ -1319,7 +1319,7 @@ export async function getSafeAndService(
     safeService = getSafeService(chain, multiProvider);
   } catch (error) {
     throw new Error(
-      `Failed to initialize Safe service for chain ${chain}: ${error}`,
+      `Failed to initialize Safe service for chain ${chain}: ${stringifyValueForError(error)}`,
     );
   }
 
@@ -1381,7 +1381,9 @@ export async function getSafeAndService(
       getSafe(chain, multiProvider, normalizedSafeAddress, safeSigner),
     );
   } catch (error) {
-    throw new Error(`Failed to initialize Safe for chain ${chain}: ${error}`);
+    throw new Error(
+      `Failed to initialize Safe for chain ${chain}: ${stringifyValueForError(error)}`,
+    );
   }
   return { safeSdk, safeService };
 }

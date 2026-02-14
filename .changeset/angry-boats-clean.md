@@ -77,3 +77,4 @@ Safe utility typing and robustness were improved by:
 - Hardening pending-status chain input handling by validating non-string/empty entries and trimming chain names before safe lookup/provider calls.
 - Hardening pending-status confirmation parsing by rejecting inaccessible or invalid confirmation-array lengths per entry.
 - Hardening Safe API key metadata parsing by rejecting non-string values and treating whitespace-only values as unset.
+- Normalizing getSafeAndService initialization error wrapping with deterministic unknown-error stringification.
