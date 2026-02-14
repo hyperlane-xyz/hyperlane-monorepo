@@ -110,11 +110,7 @@ export class SafeMultiSend extends MultiSend {
       const safeTransaction = await createSafeTransaction(this.safeSdk, [
         safeTransactionData,
       ]);
-      await this.proposeSafeTransaction(
-        this.safeSdk,
-        this.safeService,
-        safeTransaction,
-      );
+      await this.proposeSafeTransaction(safeTransaction);
     }
   }
 
@@ -128,24 +124,16 @@ export class SafeMultiSend extends MultiSend {
       safeTransactionData,
       true,
     );
-    await this.proposeSafeTransaction(
-      this.safeSdk,
-      this.safeService,
-      safeTransaction,
-    );
+    await this.proposeSafeTransaction(safeTransaction);
   }
 
   // Helper function to propose a safe transaction
-  private async proposeSafeTransaction(
-    safeSdk: SafeSdk,
-    safeService: SafeService,
-    safeTransaction: SafeTx,
-  ) {
+  private async proposeSafeTransaction(safeTransaction: SafeTx) {
     const signer = this.multiProvider.getSigner(this.chain);
     await proposeSafeTransaction(
       this.chain,
-      safeSdk,
-      safeService,
+      this.safeSdk,
+      this.safeService,
       safeTransaction,
       this.safeAddress,
       signer,
