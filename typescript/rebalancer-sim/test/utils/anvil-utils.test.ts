@@ -22,10 +22,22 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
 
+    it('matches docker daemon connection failures', () => {
+      const error = new Error(
+        'Cannot connect to the Docker daemon at unix:///var/run/docker.sock. Is the docker daemon running?',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(
           'No Docker client strategy found while bootstrapping tests',
+        ),
+      ).to.equal(true);
+      expect(
+        isContainerRuntimeUnavailable(
+          'dial unix /var/run/docker.sock: connect: permission denied',
         ),
       ).to.equal(true);
       expect(

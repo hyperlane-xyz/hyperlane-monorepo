@@ -62,10 +62,12 @@ interface StartedAnvil {
 
 export function isContainerRuntimeUnavailable(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
-  return (
-    message.includes('Could not find a working container runtime strategy') ||
-    message.includes('No Docker client strategy found')
-  );
+  return [
+    /could not find a working container runtime strategy/i,
+    /no docker client strategy found/i,
+    /cannot connect to the docker daemon/i,
+    /dial unix .*docker\.sock/i,
+  ].some((matcher) => matcher.test(message));
 }
 
 async function getAvailablePort(): Promise<number> {
