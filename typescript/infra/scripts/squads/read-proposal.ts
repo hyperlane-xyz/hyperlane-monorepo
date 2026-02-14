@@ -358,9 +358,36 @@ async function main() {
 
     // Display voting information
     rootLogger.info(chalk.green.bold('\n🗳️  Voting Information:'));
-    rootLogger.info(chalk.white(`  Approvals: ${approvals}`));
-    rootLogger.info(chalk.white(`  Rejections: ${rejections}`));
-    rootLogger.info(chalk.white(`  Cancellations: ${cancellations}`));
+    if (approvedVoters.skippedCount > 0) {
+      rootLogger.info(
+        chalk.white(
+          `  Approvals: ${approvals} (${approvedVoters.signers.length} with valid signer addresses)`,
+        ),
+      );
+    } else {
+      rootLogger.info(chalk.white(`  Approvals: ${approvals}`));
+    }
+
+    if (rejectedVoters.skippedCount > 0) {
+      rootLogger.info(
+        chalk.white(
+          `  Rejections: ${rejections} (${rejectedVoters.signers.length} with valid signer addresses)`,
+        ),
+      );
+    } else {
+      rootLogger.info(chalk.white(`  Rejections: ${rejections}`));
+    }
+
+    if (cancelledVoters.skippedCount > 0) {
+      rootLogger.info(
+        chalk.white(
+          `  Cancellations: ${cancellations} (${cancelledVoters.signers.length} with valid signer addresses)`,
+        ),
+      );
+    } else {
+      rootLogger.info(chalk.white(`  Cancellations: ${cancellations}`));
+    }
+
     rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
 
     if (derivedStatus === SquadTxStatus.APPROVED) {
