@@ -2287,6 +2287,28 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.include('provider lookup failed');
       expect(providerLookupCalled).to.equal(true);
     });
+
+    it('uses provided provider override without multiprovider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const providerOverride = {
+        provider: 'solana-override',
+      } as unknown as ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>;
+
+      const { svmProvider } = getSquadAndProvider(
+        'solanamainnet',
+        mpp,
+        providerOverride,
+      );
+
+      expect(providerLookupCalled).to.equal(false);
+      expect(svmProvider).to.equal(providerOverride);
+    });
   });
 
   describe(getSquadProposal.name, () => {

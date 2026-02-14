@@ -44,6 +44,7 @@ async function main() {
 
   // Get multi-protocol provider
   const mpp = await getSquadsMultiProtocolProvider();
+  const svmProvider = mpp.getSolanaWeb3Provider(chain);
 
   if (chainsToSkip.includes(chain)) {
     throw new Error(
@@ -64,7 +65,12 @@ async function main() {
     ),
   );
 
-  const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+  const proposalData = await getSquadProposal(
+    chain,
+    mpp,
+    transactionIndex,
+    svmProvider,
+  );
   if (!proposalData) {
     throw new Error(
       `Proposal ${transactionIndex} not found on ${chain}. Please check the transaction index.`,
@@ -153,12 +159,14 @@ async function main() {
         mpp,
         BigInt(proposalTransactionIndex),
         signerAdapter.publicKey(),
+        svmProvider,
       )
     : await buildSquadsProposalCancellation(
         chain,
         mpp,
         BigInt(proposalTransactionIndex),
         signerAdapter.publicKey(),
+        svmProvider,
       );
 
   // Confirm with user

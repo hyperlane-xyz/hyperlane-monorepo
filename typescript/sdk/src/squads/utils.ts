@@ -529,9 +529,10 @@ function normalizeSafeIntegerValue(value: unknown): {
 export function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
   const { vault, multisigPda, programId } = getSquadsKeys(chain);
-  const svmProvider = mpp.getSolanaWeb3Provider(chain);
+  const svmProvider = svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
 
   return { svmProvider, vault, multisigPda, programId };
 }
@@ -1317,10 +1318,15 @@ export async function buildSquadsProposalRejection(
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = getSquadAndProvider(
+    chain,
+    mpp,
+    svmProviderOverride,
+  );
 
   const rejectIx = instructions.proposalReject({
     multisigPda,
@@ -1339,10 +1345,15 @@ export async function buildSquadsProposalCancellation(
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = getSquadAndProvider(
+    chain,
+    mpp,
+    svmProviderOverride,
+  );
 
   const cancelIx = createProposalCancelInstruction(
     multisigPda,
@@ -1423,11 +1434,13 @@ export async function getTransactionType(
   chain: SquadsChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<SquadsAccountType> {
   assertValidTransactionIndexInput(transactionIndex, chain);
   const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
+    svmProviderOverride,
   );
 
   const [transactionPda] = getTransactionPda({
@@ -1470,7 +1483,12 @@ export async function executeProposal(
     mpp,
   );
 
-  const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+  const proposalData = await getSquadProposal(
+    chain,
+    mpp,
+    transactionIndex,
+    svmProvider,
+  );
   if (!proposalData) {
     throw new Error(`Failed to fetch proposal ${transactionIndex} on ${chain}`);
   }
@@ -1483,7 +1501,12 @@ export async function executeProposal(
     );
   }
 
-  const txType = await getTransactionType(chain, mpp, transactionIndex);
+  const txType = await getTransactionType(
+    chain,
+    mpp,
+    transactionIndex,
+    svmProvider,
+  );
   rootLogger.info(
     `Executing ${txType} proposal ${transactionIndex} on ${chain}`,
   );
