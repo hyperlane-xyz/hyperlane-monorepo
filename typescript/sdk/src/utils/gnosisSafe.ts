@@ -1394,25 +1394,42 @@ export function decodeMultiSendData(
 
   const args = decodedData.args;
   const txs: MetaTransactionData[] = [];
+  if (!args) {
+    return txs;
+  }
+
+  const [transactionBytes] = args;
   let index = 2;
 
-  if (args) {
-    const [transactionBytes] = args;
-    while (index < transactionBytes.length) {
-      const operation = `0x${transactionBytes.slice(index, (index += 2))}`;
-      const to = `0x${transactionBytes.slice(index, (index += 40))}`;
-      const value = `0x${transactionBytes.slice(index, (index += 64))}`;
-      const dataLength =
-        parseInt(`${transactionBytes.slice(index, (index += 64))}`, 16) * 2;
-      const data = `0x${transactionBytes.slice(index, (index += dataLength))}`;
+  const readSegment = (length: number, segmentName: string): string => {
+    const nextIndex = index + length;
+    assert(
+      nextIndex <= transactionBytes.length,
+      `Invalid multisend payload: truncated ${segmentName}`,
+    );
+    const segment = transactionBytes.slice(index, nextIndex);
+    index = nextIndex;
+    return segment;
+  };
 
-      txs.push({
-        operation: Number(operation) as OperationType,
-        to: getAddress(to),
-        value: BigInt(value).toString(),
-        data,
-      });
-    }
+  while (index < transactionBytes.length) {
+    const operation = `0x${readSegment(2, 'operation')}`;
+    const to = `0x${readSegment(40, 'to')}`;
+    const value = `0x${readSegment(64, 'value')}`;
+    const dataLengthHex = readSegment(64, 'data length');
+    const dataLength = Number.parseInt(dataLengthHex, 16) * 2;
+    assert(
+      Number.isSafeInteger(dataLength),
+      'Invalid multisend payload: malformed data length',
+    );
+    const data = `0x${readSegment(dataLength, 'data')}`;
+
+    txs.push({
+      operation: Number(operation) as OperationType,
+      to: getAddress(to),
+      value: BigInt(value).toString(),
+      data,
+    });
   }
 
   return txs;

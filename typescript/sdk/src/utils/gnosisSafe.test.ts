@@ -3548,6 +3548,37 @@ describe('gnosisSafe utils', () => {
 
       expect(() => decodeMultiSendData(nonMultiSendData)).to.throw();
     });
+
+    it('throws when an inner multisend tx payload is truncated', () => {
+      const malformedTxBytes = `0x${encodeMultiSendTx({
+        operation: 0,
+        to: '0x00000000000000000000000000000000000000aa',
+        value: 0n,
+        data: '0x1234',
+      }).slice(0, -2)}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [malformedTxBytes],
+      });
+
+      expect(() => decodeMultiSendData(encoded)).to.throw(
+        'Invalid multisend payload: truncated data',
+      );
+    });
+
+    it('throws when multisend tx header is truncated', () => {
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: ['0x00'],
+      });
+
+      expect(() => decodeMultiSendData(encoded)).to.throw(
+        'Invalid multisend payload: truncated to',
+      );
+    });
   });
 
   describe(getKnownMultiSendAddresses.name, () => {
