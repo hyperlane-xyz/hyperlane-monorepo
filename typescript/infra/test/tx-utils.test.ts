@@ -1076,6 +1076,30 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when writing result yaml fails with unstringifiable error', () => {
+    const unstringifiableWriteError = {
+      [Symbol.toPrimitive]() {
+        throw new Error('write to-primitive boom');
+      },
+    };
+
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => 1700000000000,
+          writeYamlFn: () => {
+            throw unstringifiableWriteError;
+          },
+        },
+      ),
+    ).to.throw(
+      'Governor reader failed to write results file safe-tx-parse-results-1700000000000.yaml: <unstringifiable>',
+    );
+  });
+
   it('exits with code 1 when fatal errors are present', () => {
     let writtenPath: string | undefined;
     let exitCode: number | undefined;
