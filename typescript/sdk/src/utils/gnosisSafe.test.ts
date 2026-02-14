@@ -83,6 +83,11 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired('//safe-transaction-mainnet.safe.global/api'),
       ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?foo=bar#fragment',
+        ),
+      ).to.equal(true);
     });
 
     it('requires safe domains to match on label boundaries', () => {
@@ -186,6 +191,11 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('//safe.global/tx-service/eth')).to.equal(
         'https://safe.global/tx-service/eth/api',
       );
+      expect(
+        normalizeSafeServiceUrl(
+          '//safe.global/tx-service/eth?foo=bar#fragment',
+        ),
+      ).to.equal('https://safe.global/tx-service/eth/api');
     });
 
     it('does not infer https when a different explicit scheme is present', () => {
