@@ -791,6 +791,23 @@ describe('squads cli helpers', () => {
     ).to.equal('Error: rpc failed\n at sample.ts:1:1');
   });
 
+  it('falls back to message when non-Error object stack accessor throws', () => {
+    const objectWithThrowingStackGetter = { message: 'rpc failed' } as {
+      message: string;
+      stack?: string;
+    };
+    Object.defineProperty(objectWithThrowingStackGetter, 'stack', {
+      configurable: true,
+      get() {
+        throw new Error('stack unavailable');
+      },
+    });
+
+    expect(formatScriptError(objectWithThrowingStackGetter)).to.equal(
+      'rpc failed',
+    );
+  });
+
   it('uses message when non-Error object stringification fails', () => {
     const messageBackedUnformattableObject = {
       message: 'rpc failed',
