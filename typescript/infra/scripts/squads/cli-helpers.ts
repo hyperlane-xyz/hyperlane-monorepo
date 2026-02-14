@@ -79,10 +79,8 @@ export function withSquadsChains<T>(args: Argv<T>) {
     .describe('chains', 'Set of chains to perform actions on.')
     .array('chains')
     .choices('chains', getSquadsChains())
-    .coerce(
-      'chains',
-      (selectedChains: string[] = []) =>
-        Array.from(new Set(selectedChains)) as ChainName[],
+    .coerce('chains', (selectedChains: unknown[] = []) =>
+      Array.from(new Set(selectedChains.map((chain) => String(chain)))),
     )
     .alias('c', 'chains');
 }

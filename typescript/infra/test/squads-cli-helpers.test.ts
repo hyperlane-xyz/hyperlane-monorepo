@@ -45,6 +45,19 @@ describe('squads cli helpers', () => {
     ).to.deep.equal([firstChain, secondChain]);
   });
 
+  it('stringifies argv chain values before resolving', () => {
+    const [firstChain] = getSquadsChains();
+    expect(
+      resolveSquadsChainsFromArgv([firstChain, `${firstChain}`]),
+    ).to.deep.equal([firstChain]);
+  });
+
+  it('rejects unsupported numeric argv chain values after stringification', () => {
+    expect(() => resolveSquadsChainsFromArgv([123])).to.throw(
+      'Squads configuration not found for chains: 123',
+    );
+  });
+
   it('accepts generic string arrays and validates squads support', () => {
     expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       'Squads configuration not found for chains: ethereum',
