@@ -116,25 +116,36 @@ function cacheKey(chain: ChainName, address: Address): string {
   return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
-function normalizeLogPositionIndex(value: unknown): number {
+function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
   if (typeof value === 'number') {
-    return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : -1;
-  }
-  if (typeof value === 'bigint') {
-    if (value < 0n) {
-      return -1;
+    if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) {
+      return null;
     }
-    const max = BigInt(Number.MAX_SAFE_INTEGER);
-    return Number(value > max ? max : value);
+    return BigInt(value);
   }
+
+  if (typeof value === 'bigint') {
+    return value >= 0n ? value : null;
+  }
+
   if (typeof value === 'string') {
     const trimmed = value.trim();
     if (!trimmed) {
-      return -1;
+      return null;
     }
-    const numeric = Number(trimmed);
-    return Number.isFinite(numeric) && numeric >= 0 ? Math.trunc(numeric) : -1;
+    const isHex = /^0x[0-9a-f]+$/i.test(trimmed);
+    const isDecimal = /^[0-9]+$/.test(trimmed);
+    if (!isHex && !isDecimal) {
+      return null;
+    }
+    try {
+      const parsed = BigInt(trimmed);
+      return parsed >= 0n ? parsed : null;
+    } catch {
+      return null;
+    }
   }
+
   if (
     typeof value === 'object' &&
     value !== null &&
@@ -142,11 +153,21 @@ function normalizeLogPositionIndex(value: unknown): number {
   ) {
     const stringified = (value as { toString: () => string }).toString();
     if (!stringified || stringified === '[object Object]') {
-      return -1;
+      return null;
     }
-    return normalizeLogPositionIndex(stringified);
+    return toNonNegativeIntegerBigInt(stringified);
   }
-  return -1;
+
+  return null;
+}
+
+function normalizeLogPositionIndex(value: unknown): number {
+  const parsed = toNonNegativeIntegerBigInt(value);
+  if (parsed === null) {
+    return -1;
+  }
+  const max = BigInt(Number.MAX_SAFE_INTEGER);
+  return Number(parsed > max ? max : parsed);
 }
 
 function compareLogsByPosition(
