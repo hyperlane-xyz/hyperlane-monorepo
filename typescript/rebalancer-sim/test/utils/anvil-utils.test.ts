@@ -325,6 +325,17 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('handles non-callable iterator markers in object error collections', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: {
+            [Symbol.iterator]: true,
+            nested: { message: 'No Docker client strategy found' },
+          },
+        }),
+      ).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(

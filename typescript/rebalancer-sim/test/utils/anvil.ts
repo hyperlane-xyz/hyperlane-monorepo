@@ -147,15 +147,16 @@ function extractErrorMessages(error: unknown): string[] {
       return;
     }
 
-    if (
-      typeof nestedErrors === 'object' &&
-      nestedErrors !== null &&
-      Symbol.iterator in nestedErrors
-    ) {
-      for (const nestedError of nestedErrors as Iterable<unknown>) {
-        queue.push(nestedError);
+    if (typeof nestedErrors === 'object' && nestedErrors !== null) {
+      const iterator = (nestedErrors as { [Symbol.iterator]?: unknown })[
+        Symbol.iterator
+      ];
+      if (typeof iterator === 'function') {
+        for (const nestedError of nestedErrors as Iterable<unknown>) {
+          queue.push(nestedError);
+        }
+        return;
       }
-      return;
     }
 
     if (
