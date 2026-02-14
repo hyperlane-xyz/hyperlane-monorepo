@@ -62,6 +62,16 @@ async function main() {
     const { proposal, multisig, proposalPda } = proposalData;
     const parsedProposal = parseSquadProposal(proposal);
     const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
+    const multisigMembers = Array.isArray(multisig.members)
+      ? multisig.members
+      : [];
+    if (!Array.isArray(multisig.members)) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Multisig members field is missing or malformed for ${chain}; continuing without member listing.`,
+        ),
+      );
+    }
     const proposalTransactionIndex = parsedProposal.transactionIndex;
     const isIndexMismatch = proposalTransactionIndex !== transactionIndex;
     if (isIndexMismatch) {
@@ -80,7 +90,9 @@ async function main() {
         chalk.white(`  Requested Transaction Index: ${transactionIndex}`),
       );
       rootLogger.info(
-        chalk.white(`  On-chain Transaction Index: ${proposalTransactionIndex}`),
+        chalk.white(
+          `  On-chain Transaction Index: ${proposalTransactionIndex}`,
+        ),
       );
     } else {
       rootLogger.info(chalk.white(`  Transaction Index: ${transactionIndex}`));
@@ -210,7 +222,7 @@ async function main() {
     // Display multisig information
     rootLogger.info(chalk.green.bold('\n🏛️  Multisig Information:'));
     rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
-    rootLogger.info(chalk.white(`  Members: ${multisig.members.length}`));
+    rootLogger.info(chalk.white(`  Members: ${multisigMembers.length}`));
     rootLogger.info(
       chalk.white(`  Current Transaction Index: ${currentTransactionIndex}`),
     );
@@ -227,7 +239,7 @@ async function main() {
 
     // Display members
     rootLogger.info(chalk.green.bold('\n👥 Multisig Members:'));
-    multisig.members.forEach((member, index) => {
+    multisigMembers.forEach((member, index) => {
       rootLogger.info(chalk.white(`  ${index + 1}. ${member.key.toBase58()}`));
     });
 
@@ -248,7 +260,7 @@ async function main() {
             staleTransactionIndex: staleTransactionIndex,
             rentCollector: multisig.rentCollector?.toBase58() || 'null',
             bump: multisig.bump,
-            members: multisig.members.map((m) => ({
+            members: multisigMembers.map((m) => ({
               key: m.key.toBase58(),
               permissions: m.permissions,
             })),
