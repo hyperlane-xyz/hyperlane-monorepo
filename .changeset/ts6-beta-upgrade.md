@@ -65,3 +65,5 @@ Local-anvil startup error formatting was further hardened to avoid crashes when 
 Regression coverage was expanded for wrapper errors with throwing `code` accessors to ensure startup formatting still returns actionable fallback messages.
 
 Regression coverage was also added to guarantee the ENOENT install hint still wins when wrapper errors throw on `message` access.
+
+Safe object-property access for formatter and matcher helpers was centralized to keep hostile wrapper handling consistent across `message`/`code`/`cause`/`errors` reads.

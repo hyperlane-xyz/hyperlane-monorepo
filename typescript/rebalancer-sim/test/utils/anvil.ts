@@ -50,17 +50,20 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   ...WINDOWS_DOCKER_PIPE_UNAVAILABLE_PATTERNS,
 ];
 
+const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
+  if (typeof value !== 'object' || value === null) return undefined;
+  try {
+    return (value as Record<PropertyKey, unknown>)[key];
+  } catch {
+    return undefined;
+  }
+};
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
 
   if (typeof error === 'object' && error !== null) {
-    let message: unknown;
-    try {
-      message = (error as { message?: unknown }).message;
-    } catch {
-      message = undefined;
-    }
-
+    const message = getObjectProperty(error, 'message');
     if (typeof message === 'string') {
       return message;
     }
@@ -131,14 +134,7 @@ interface StartedAnvil {
 }
 
 export function formatLocalAnvilStartError(error: unknown): string {
-  let errorCode: string | undefined;
-  try {
-    errorCode = (error as NodeJS.ErrnoException | undefined)?.code;
-  } catch {
-    errorCode = undefined;
-  }
-
-  if (errorCode === 'ENOENT') {
+  if (getObjectProperty(error, 'code') === 'ENOENT') {
     return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
   }
 
@@ -151,14 +147,6 @@ function extractErrorMessages(error: unknown): string[] {
   const queue: unknown[] = [error];
   let queueIndex = 0;
   const seen = new Set<unknown>();
-  const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
-    if (typeof value !== 'object' || value === null) return undefined;
-    try {
-      return (value as Record<PropertyKey, unknown>)[key];
-    } catch {
-      return undefined;
-    }
-  };
   const enqueue = (value: unknown): boolean => {
     if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return false;
     queue.push(value);
