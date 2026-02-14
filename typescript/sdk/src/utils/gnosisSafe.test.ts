@@ -4555,6 +4555,34 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws when safe deployment versions length access is inaccessible', () => {
+      const versionsWithThrowingLength = new Proxy(['1.3.0'], {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+
+      expect(() =>
+        getKnownMultiSendAddresses(versionsWithThrowingLength),
+      ).to.throw('Safe deployment versions list length is inaccessible');
+    });
+
+    it('throws when safe deployment version entry access is inaccessible', () => {
+      const versionsWithThrowingEntry = ['1.3.0'];
+      Object.defineProperty(versionsWithThrowingEntry, '0', {
+        get() {
+          throw new Error('boom');
+        },
+      });
+
+      expect(() =>
+        getKnownMultiSendAddresses(versionsWithThrowingEntry),
+      ).to.throw('Safe deployment version entry is inaccessible at index 0');
+    });
+
     it('accepts safe deployment versions with surrounding whitespace', () => {
       const trimmed = getKnownMultiSendAddresses(['1.3.0']);
       const spaced = getKnownMultiSendAddresses(['  1.3.0  ']);

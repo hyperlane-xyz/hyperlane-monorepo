@@ -638,7 +638,22 @@ export function getKnownMultiSendAddresses(
   const multiSend: Address[] = [];
   const multiSendCallOnly: Address[] = [];
 
-  for (const version of versions) {
+  let versionsCount = 0;
+  try {
+    versionsCount = versions.length;
+  } catch {
+    throw new Error('Safe deployment versions list length is inaccessible');
+  }
+
+  for (let index = 0; index < versionsCount; index += 1) {
+    let version: unknown;
+    try {
+      version = versions[index];
+    } catch {
+      throw new Error(
+        `Safe deployment version entry is inaccessible at index ${index}`,
+      );
+    }
     assert(
       typeof version === 'string',
       `Safe deployment version must be a string: ${stringifyValueForError(version)}`,
