@@ -162,4 +162,8 @@ Regression coverage now also confirms map, array, set, and generator wrappers wi
 
 Regression coverage now also confirms map, array, set, and generator wrappers with large non-matching entry sets still detect runtime-unavailable wrapper-level `errors` fallbacks under extraction-pressure scenarios.
 
+Regression coverage now also confirms map, array, set, and generator wrappers with large non-matching entry sets still detect wrapper-level runtime-unavailable `cause` fallbacks when wrapper `errors` fields are self-referential.
+
+Regression coverage now also confirms map, array, set, and generator wrappers with large non-matching entry sets still detect wrapper-level runtime-unavailable `errors` fallbacks when wrapper `cause` accessors throw.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.

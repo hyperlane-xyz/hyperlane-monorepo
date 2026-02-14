@@ -1381,6 +1381,53 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches wrapper cause fallbacks for noisy wrappers with self-referential errors fields', () => {
+      const runtimeCause = { message: 'No Docker client strategy found' };
+
+      for (const [wrapperName, errors] of buildNoisyWrappersWithFallback(
+        'cause',
+        runtimeCause,
+      )) {
+        if (typeof errors === 'object' && errors !== null) {
+          Object.defineProperty(errors, 'errors', {
+            value: errors,
+            enumerable: false,
+            configurable: true,
+          });
+        }
+
+        expect(
+          isContainerRuntimeUnavailable({ errors }),
+          `${wrapperName} wrapper should surface runtime cause despite self-referential errors`,
+        ).to.equal(true);
+      }
+    });
+
+    it('matches wrapper errors fallbacks for noisy wrappers with throwing cause accessors', () => {
+      const runtimeErrorsFallback = {
+        message: 'Cannot connect to the Docker daemon',
+      };
+
+      for (const [wrapperName, errors] of buildNoisyWrappersWithFallback(
+        'errors',
+        runtimeErrorsFallback,
+      )) {
+        if (typeof errors === 'object' && errors !== null) {
+          Object.defineProperty(errors, 'cause', {
+            configurable: true,
+            get() {
+              throw new Error('blocked cause accessor');
+            },
+          });
+        }
+
+        expect(
+          isContainerRuntimeUnavailable({ errors }),
+          `${wrapperName} wrapper should surface runtime errors fallback despite throwing cause`,
+        ).to.equal(true);
+      }
+    });
+
     it('still matches cause-chain runtime signals before extraction cap', () => {
       expect(isContainerRuntimeUnavailable(buildCauseChain(550, 120))).to.equal(
         true,
