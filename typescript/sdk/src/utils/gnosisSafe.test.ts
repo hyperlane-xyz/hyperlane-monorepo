@@ -3045,6 +3045,10 @@ describe('gnosisSafe utils', () => {
       const invalidVersions = [
         'invalid',
         '5.18',
+        '05.18.0',
+        '5.018.0',
+        '5.18.00',
+        'v05.18.0',
         '5.18.0foo',
         'V5.17.9foo',
         '5.18.0-',
