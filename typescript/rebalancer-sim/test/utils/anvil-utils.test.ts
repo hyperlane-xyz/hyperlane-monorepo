@@ -475,6 +475,32 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('matches runtime errors in iterable wrappers with errors fallbacks when wrapper formatting is non-informative', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        errors: {
+          *[Symbol.iterator]() {
+            yield { message: 'non-matching wrapper noise' };
+          },
+          errors: { message: 'Cannot connect to the Docker daemon' },
+          toJSON() {
+            throw new Error('json blocked');
+          },
+          [inspectCustom]() {
+            return 'iterable wrapper without nested details';
+          },
+        },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches docker runtime errors in map-based error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
