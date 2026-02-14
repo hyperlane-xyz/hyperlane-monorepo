@@ -3786,6 +3786,40 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when safe sdk createTransaction payload fields are inaccessible', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({
+          get data() {
+            throw new Error('boom');
+          },
+        }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK transaction payload fields are inaccessible',
+        );
+      }
+    });
+
+    it('throws when safe sdk createTransaction data is non-object', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: 'bad' }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK transaction data must be an object: bad',
+        );
+      }
+    });
+
     it('throws when transaction list length access is inaccessible', async () => {
       const transactionsWithThrowingLength = new Proxy(exampleTransactions, {
         get(target, property, receiver) {
@@ -4126,6 +4160,27 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe SDK createTransaction must return an object: 123',
+        );
+      }
+
+      expect(createTransactionCallCount).to.equal(1);
+    });
+
+    it('fails fast before return when safe sdk returns invalid payload data', async () => {
+      let createTransactionCallCount = 0;
+      const safeSdkMock = {
+        createTransaction: async () => {
+          createTransactionCallCount += 1;
+          return { data: 'bad' };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK transaction data must be an object: bad',
         );
       }
 

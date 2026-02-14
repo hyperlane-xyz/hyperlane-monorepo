@@ -64,6 +64,8 @@ const MULTISEND_SELECTOR_REQUIRED_ERROR =
   'Invalid multisend payload: missing multisend selector';
 const SAFE_CALL_PAYLOAD_INACCESSIBLE_ERROR =
   'Safe call payload fields are inaccessible';
+const SAFE_CREATED_TX_PAYLOAD_INACCESSIBLE_ERROR =
+  'Safe SDK transaction payload fields are inaccessible';
 const SAFE_TX_DATA_PAYLOAD_INACCESSIBLE_ERROR =
   'Safe transaction data payload fields are inaccessible';
 
@@ -1105,6 +1107,16 @@ export async function createSafeTransaction(
   assert(
     safeTransaction !== null && typeof safeTransaction === 'object',
     `Safe SDK createTransaction must return an object: ${stringifyValueForError(safeTransaction)}`,
+  );
+  let safeTransactionData: unknown;
+  try {
+    safeTransactionData = (safeTransaction as { data?: unknown }).data;
+  } catch {
+    throw new Error(SAFE_CREATED_TX_PAYLOAD_INACCESSIBLE_ERROR);
+  }
+  assert(
+    safeTransactionData !== null && typeof safeTransactionData === 'object',
+    `Safe SDK transaction data must be an object: ${stringifyValueForError(safeTransactionData)}`,
   );
   return safeTransaction as SafeTransaction;
 }
