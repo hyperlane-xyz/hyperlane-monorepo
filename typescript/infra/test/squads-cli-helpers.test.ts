@@ -32,9 +32,15 @@ describe('squads cli helpers', () => {
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
   });
 
-  it('resolves argv chains from non-array input to configured squads chains', () => {
+  it('resolves argv chains from undefined input to configured squads chains', () => {
     expect(resolveSquadsChainsFromArgv(undefined)).to.deep.equal(
       getSquadsChains(),
+    );
+  });
+
+  it('throws for non-array argv chains input when provided', () => {
+    expect(() => resolveSquadsChainsFromArgv('solanamainnet')).to.throw(
+      'Expected --chains to resolve to an array, but received string',
     );
   });
 

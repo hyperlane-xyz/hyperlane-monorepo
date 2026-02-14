@@ -117,9 +117,16 @@ export function resolveSquadsChains(chains?: string[]): ChainName[] {
 }
 
 export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
-  if (!Array.isArray(chains)) {
+  if (typeof chains === 'undefined') {
     return resolveSquadsChains(undefined);
   }
+
+  if (!Array.isArray(chains)) {
+    throw new Error(
+      `Expected --chains to resolve to an array, but received ${typeof chains}`,
+    );
+  }
+
   return resolveSquadsChains(chains.map((chain) => String(chain)));
 }
 
