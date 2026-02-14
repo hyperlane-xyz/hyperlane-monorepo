@@ -2,7 +2,7 @@ import { PublicKey } from '@solana/web3.js';
 
 import { Address } from '@hyperlane-xyz/utils';
 
-import { ChainMap, ChainName } from '../types.js';
+import { ChainName } from '../types.js';
 
 export type SquadConfig = {
   programId: Address;
@@ -12,7 +12,7 @@ export type SquadConfig = {
 
 export type SquadsKeys = Record<keyof SquadConfig, PublicKey>;
 
-export const squadsConfigs: ChainMap<SquadConfig> = {
+export const squadsConfigs = {
   solanamainnet: {
     programId: 'SQDS4ep65T869zMMBKyuUq6aD6EgTu8psMjkvj52pCf',
     multisigPda: 'EvptYJrjGUB3FXDoW8w8LTpwg1TTS4W1f628c1BnscB4',
@@ -38,25 +38,27 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
     multisigPda: 'XgeE3uXEy5bKPbgYv3D9pWovhu3PWrxt3RR5bdp9RkW',
     vault: '4chV16Dea6CW6xyQcHj9RPwBZitfxYgpafkSoZgzy4G8',
   },
-};
+} as const satisfies Record<ChainName, SquadConfig>;
+
+export type SquadsChainName = keyof typeof squadsConfigs;
 
 const SQUADS_CHAINS = Object.freeze(
   Object.keys(squadsConfigs),
-) as readonly ChainName[];
+) as readonly SquadsChainName[];
 
-export function getSquadsChains(): ChainName[] {
+export function getSquadsChains(): SquadsChainName[] {
   return [...SQUADS_CHAINS];
 }
 
-export function isSquadsChain(chainName: string): chainName is ChainName {
+export function isSquadsChain(chainName: string): chainName is SquadsChainName {
   return Object.prototype.hasOwnProperty.call(squadsConfigs, chainName);
 }
 
 export function partitionSquadsChains(chains: readonly string[]): {
-  squadsChains: ChainName[];
+  squadsChains: SquadsChainName[];
   nonSquadsChains: string[];
 } {
-  const squadsChains: ChainName[] = [];
+  const squadsChains: SquadsChainName[] = [];
   const nonSquadsChains: string[] = [];
   const seenChains = new Set<string>();
 
@@ -78,7 +80,7 @@ export function partitionSquadsChains(chains: readonly string[]): {
 
 export function assertIsSquadsChain(
   chainName: string,
-): asserts chainName is ChainName {
+): asserts chainName is SquadsChainName {
   if (isSquadsChain(chainName)) return;
 
   throw new Error(
