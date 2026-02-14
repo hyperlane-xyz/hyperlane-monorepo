@@ -7,19 +7,19 @@ import {
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 import {
-  type Address,
   type ChainName,
+  type SubmitterMetadata,
   type TypedAnnotatedTransaction,
   PROPOSER_ROLE,
   TxSubmitterType,
-  bytes32ToAddress,
 } from '@hyperlane-xyz/sdk';
 import {
+  type Address,
   ProtocolType,
   assert,
+  bytes32ToAddress,
   eqAddress,
-  isValidAddressEvm,
-  normalizeAddressEvm,
+  isAddressEvm,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -35,15 +35,13 @@ import {
 
 const logger = rootLogger.child({ module: 'submitter-inference' });
 const MAX_INFERENCE_DEPTH = 3;
+type InferredSubmitter = SubmitterMetadata;
 
 type Cache = {
   safeByChainAndAddress: Map<string, boolean>;
   timelockByChainAndAddress: Map<string, boolean>;
-  icaByChainAndAddress: Map<string, ExtendedSubmissionStrategy['submitter']>;
-  timelockProposerByChainAndAddress: Map<
-    string,
-    ExtendedSubmissionStrategy['submitter']
-  >;
+  icaByChainAndAddress: Map<string, InferredSubmitter>;
+  timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
 };
 
 type InferSubmitterFromAddressParams = {
@@ -95,10 +93,10 @@ function normalizeEvmAddressFlexible(address: string): string {
     ? `0x${trimmed.slice(2)}`
     : trimmed;
   assert(
-    isValidAddressEvm(normalizedPrefix),
+    isAddressEvm(normalizedPrefix),
     `Invalid EVM address: ${normalizedPrefix}`,
   );
-  return normalizeAddressEvm(normalizedPrefix);
+  return normalizedPrefix.toLowerCase();
 }
 
 function cacheKey(chain: ChainName, address: Address): string {
@@ -189,7 +187,7 @@ async function inferIcaSubmitterFromAccount({
   context,
   cache,
   depth,
-}: InferIcaParams): Promise<ExtendedSubmissionStrategy['submitter'] | null> {
+}: InferIcaParams): Promise<InferredSubmitter | null> {
   if (depth >= MAX_INFERENCE_DEPTH) {
     return null;
   }
@@ -279,7 +277,10 @@ async function inferIcaSubmitterFromAccount({
             internalSubmitter,
             originInterchainAccountRouter: originRouterAddress,
             destinationInterchainAccountRouter: destinationRouterAddress,
-          };
+          } satisfies Extract<
+            InferredSubmitter,
+            { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+          >;
 
           cache.icaByChainAndAddress.set(cacheId, submitter);
           return submitter;
@@ -324,7 +325,10 @@ async function inferIcaSubmitterFromAccount({
     ...(eqAddress(ism, ethersConstants.AddressZero)
       ? {}
       : { interchainSecurityModule: ism }),
-  };
+  } satisfies Extract<
+    InferredSubmitter,
+    { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+  >;
 
   cache.icaByChainAndAddress.set(cacheId, submitter);
   return submitter;
@@ -336,14 +340,14 @@ async function inferTimelockProposerSubmitter({
   context,
   cache,
   depth,
-}: InferTimelockProposerParams): Promise<ExtendedSubmissionStrategy['submitter']> {
+}: InferTimelockProposerParams): Promise<InferredSubmitter> {
   const timelockKey = cacheKey(chain, timelockAddress);
   const cached = cache.timelockProposerByChainAndAddress.get(timelockKey);
   if (cached) {
     return cached;
   }
 
-  const defaultSubmitter: ExtendedSubmissionStrategy['submitter'] = {
+  const defaultSubmitter: InferredSubmitter = {
     chain,
     type: TxSubmitterType.JSON_RPC,
   };
@@ -421,7 +425,10 @@ async function inferTimelockProposerSubmitter({
         type: TxSubmitterType.GNOSIS_TX_BUILDER,
         safeAddress: proposer,
         version: '1.0',
-      };
+      } satisfies Extract<
+        InferredSubmitter,
+        { type: TxSubmitterType.GNOSIS_TX_BUILDER }
+      >;
       cache.timelockProposerByChainAndAddress.set(
         timelockKey,
         proposerSubmitter,
@@ -452,8 +459,8 @@ async function inferSubmitterFromAddress({
   context,
   cache,
   depth,
-}: InferSubmitterFromAddressParams): Promise<ExtendedSubmissionStrategy['submitter']> {
-  const defaultSubmitter: ExtendedSubmissionStrategy['submitter'] = {
+}: InferSubmitterFromAddressParams): Promise<InferredSubmitter> {
+  const defaultSubmitter: InferredSubmitter = {
     chain,
     type: TxSubmitterType.JSON_RPC,
   };
@@ -480,7 +487,10 @@ async function inferSubmitterFromAddress({
       type: TxSubmitterType.GNOSIS_TX_BUILDER,
       safeAddress: address,
       version: '1.0',
-    };
+    } satisfies Extract<
+      InferredSubmitter,
+      { type: TxSubmitterType.GNOSIS_TX_BUILDER }
+    >;
   }
 
   if (
@@ -504,7 +514,10 @@ async function inferSubmitterFromAddress({
       type: TxSubmitterType.TIMELOCK_CONTROLLER,
       timelockAddress: address,
       proposerSubmitter,
-    };
+    } satisfies Extract<
+      InferredSubmitter,
+      { type: TxSubmitterType.TIMELOCK_CONTROLLER }
+    >;
   }
 
   const inferredIca = await inferIcaSubmitterFromAccount({

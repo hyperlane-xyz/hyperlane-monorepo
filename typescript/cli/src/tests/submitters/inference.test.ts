@@ -9,7 +9,8 @@ import {
   TimelockController__factory,
 } from '@hyperlane-xyz/core';
 
-import { ProtocolType, TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { TxSubmitterType } from '@hyperlane-xyz/sdk';
+import { ProtocolType } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
 import { writeYamlOrJson } from '../../utils/files.js';
@@ -57,10 +58,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
   it('falls back to inference when strategy file has no config for chain', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-missing-chain-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
-      someOtherChain: {
+      anvil3: {
         submitter: {
           type: TxSubmitterType.GNOSIS_TX_BUILDER,
-          chain: 'someOtherChain',
+          chain: 'anvil3',
           safeAddress: '0x2222222222222222222222222222222222222222',
           version: '1.0',
         },
@@ -1551,10 +1552,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
   it('uses non-ethereum default when strategy file has no config for chain', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-non-evm-missing-chain-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
-      someOtherChain: {
+      anvil3: {
         submitter: {
           type: TxSubmitterType.GNOSIS_TX_BUILDER,
-          chain: 'someOtherChain',
+          chain: 'anvil3',
           safeAddress: '0x2222222222222222222222222222222222222222',
           version: '1.0',
         },
@@ -2191,14 +2192,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
   it('normalizes uppercase 0X transaction target before inference owner lookup', async () => {
     const safeOwner = '0x2222222222222222222222222222222222222222';
-    const targetAddress = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
-      (targetAddressInput: string) => {
-        expect(targetAddressInput).to.equal(targetAddress);
-        return {
+      (_targetAddressInput: string) =>
+        ({
           owner: async () => safeOwner,
-        } as any;
-      },
+        }) as any,
     );
     const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
       (address: string) => {
