@@ -104,10 +104,24 @@ const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPatte
 const SQUADS_ERROR_LOG_ARRAY_FIELDS = ['transactionLogs', 'logs'] as const;
 const SQUADS_ERROR_NESTED_FIELDS = ['error', 'cause', 'data', 'value'] as const;
 
+function parseSquadsProposalVoteErrorText(
+  logsText: string,
+): SquadsProposalVoteError | undefined {
+  const normalizedLogs = logsText.toLowerCase();
+
+  for (const { error, patterns } of SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS) {
+    if (patterns.some((pattern) => normalizedLogs.includes(pattern))) {
+      return error;
+    }
+  }
+
+  return undefined;
+}
+
 function parseSquadsVoteErrorFromString(
   value: string,
 ): SquadsProposalVoteError | undefined {
-  return parseSquadsProposalVoteError([value]);
+  return parseSquadsProposalVoteErrorText(value);
 }
 
 /**
@@ -117,15 +131,7 @@ function parseSquadsVoteErrorFromString(
 export function parseSquadsProposalVoteError(
   transactionLogs: readonly string[],
 ): SquadsProposalVoteError | undefined {
-  const logs = transactionLogs.join('\n').toLowerCase();
-
-  for (const { error, patterns } of SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS) {
-    if (patterns.some((pattern) => logs.includes(pattern))) {
-      return error;
-    }
-  }
-
-  return undefined;
+  return parseSquadsProposalVoteErrorText(transactionLogs.join('\n'));
 }
 
 /**
