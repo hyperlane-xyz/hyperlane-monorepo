@@ -41,55 +41,89 @@ describe('squads provider bridge', () => {
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
 
-  it('throws for malformed provider values', () => {
-    expectInvalidProvider({}, 'undefined', 'object');
-  });
+  const invalidGetAccountInfoCases: Array<{
+    title: string;
+    provider: unknown;
+    getAccountInfoType: string;
+  }> = [
+    {
+      title: 'throws for malformed provider values',
+      provider: {},
+      getAccountInfoType: 'undefined',
+    },
+    {
+      title: 'throws when getAccountInfo exists but is not callable',
+      provider: { getAccountInfo: 'not-a-function' },
+      getAccountInfoType: 'string',
+    },
+    {
+      title: 'labels array getAccountInfo values in malformed provider errors',
+      provider: { getAccountInfo: [] },
+      getAccountInfoType: 'array',
+    },
+    {
+      title: 'labels null getAccountInfo values in malformed provider errors',
+      provider: { getAccountInfo: null },
+      getAccountInfoType: 'null',
+    },
+    {
+      title: 'labels boolean getAccountInfo values in malformed provider errors',
+      provider: { getAccountInfo: false },
+      getAccountInfoType: 'boolean',
+    },
+    {
+      title: 'labels object getAccountInfo values in malformed provider errors',
+      provider: { getAccountInfo: {} },
+      getAccountInfoType: 'object',
+    },
+  ];
 
-  it('throws when getAccountInfo exists but is not callable', () => {
-    expectInvalidProvider(
-      { getAccountInfo: 'not-a-function' },
-      'string',
-      'object',
-    );
-  });
+  for (const { title, provider, getAccountInfoType } of invalidGetAccountInfoCases) {
+    it(title, () => {
+      expectInvalidProvider(provider, getAccountInfoType, 'object');
+    });
+  }
 
-  it('labels array getAccountInfo values in malformed provider errors', () => {
-    expectInvalidProvider({ getAccountInfo: [] }, 'array', 'object');
-  });
+  const invalidProviderContainerCases: Array<{
+    title: string;
+    provider: unknown;
+    providerType: string;
+  }> = [
+    {
+      title: 'throws for null malformed provider values',
+      provider: null,
+      providerType: 'null',
+    },
+    {
+      title: 'throws for undefined malformed provider values',
+      provider: undefined,
+      providerType: 'undefined',
+    },
+    {
+      title: 'labels array provider containers in malformed provider errors',
+      provider: [],
+      providerType: 'array',
+    },
+    {
+      title: 'labels numeric provider containers in malformed provider errors',
+      provider: 1,
+      providerType: 'number',
+    },
+    {
+      title: 'labels string provider containers in malformed provider errors',
+      provider: 'invalid-provider',
+      providerType: 'string',
+    },
+    {
+      title: 'labels boolean provider containers in malformed provider errors',
+      provider: false,
+      providerType: 'boolean',
+    },
+  ];
 
-  it('labels null getAccountInfo values in malformed provider errors', () => {
-    expectInvalidProvider({ getAccountInfo: null }, 'null', 'object');
-  });
-
-  it('labels boolean getAccountInfo values in malformed provider errors', () => {
-    expectInvalidProvider({ getAccountInfo: false }, 'boolean', 'object');
-  });
-
-  it('labels object getAccountInfo values in malformed provider errors', () => {
-    expectInvalidProvider({ getAccountInfo: {} }, 'object', 'object');
-  });
-
-  it('throws for null malformed provider values', () => {
-    expectInvalidProvider(null, 'undefined', 'null');
-  });
-
-  it('throws for undefined malformed provider values', () => {
-    expectInvalidProvider(undefined, 'undefined', 'undefined');
-  });
-
-  it('labels array provider containers in malformed provider errors', () => {
-    expectInvalidProvider([], 'undefined', 'array');
-  });
-
-  it('labels numeric provider containers in malformed provider errors', () => {
-    expectInvalidProvider(1, 'undefined', 'number');
-  });
-
-  it('labels string provider containers in malformed provider errors', () => {
-    expectInvalidProvider('invalid-provider', 'undefined', 'string');
-  });
-
-  it('labels boolean provider containers in malformed provider errors', () => {
-    expectInvalidProvider(false, 'undefined', 'boolean');
-  });
+  for (const { title, provider, providerType } of invalidProviderContainerCases) {
+    it(title, () => {
+      expectInvalidProvider(provider, 'undefined', providerType);
+    });
+  }
 });
