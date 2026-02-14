@@ -76,6 +76,20 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker socket no-such-file failures', () => {
+      const error = new Error(
+        'open /var/run/docker.sock: no such file or directory',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches podman socket no-such-file failures', () => {
+      const error = new Error(
+        'open /run/user/1000/podman/podman.sock: no such file or directory',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches docker socket permission-denied failures', () => {
       const error = new Error(
         'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
