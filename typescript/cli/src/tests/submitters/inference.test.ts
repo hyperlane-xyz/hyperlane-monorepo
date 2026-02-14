@@ -1,6 +1,9 @@
 import { tmpdir } from 'os';
 
 import { expect } from 'chai';
+import sinon from 'sinon';
+
+import { ISafe__factory, Ownable__factory } from '@hyperlane-xyz/core';
 
 import { ProtocolType, TxSubmitterType } from '@hyperlane-xyz/sdk';
 
@@ -116,5 +119,117 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
     expect(batches).to.have.length(1);
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('routes same-chain transactions to different inferred submitters', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const txSignerOwned = {
+      ...TX,
+      to: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    };
+    const txSafeOwned = {
+      ...TX,
+      to: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () =>
+            targetAddress.toLowerCase() === txSignerOwned.to.toLowerCase()
+              ? SIGNER
+              : safeOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeOwner.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [txSignerOwned as any, txSafeOwned as any],
+        context,
+      });
+
+      expect(batches).to.have.length(2);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(batches[1].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(batches[0].transactions).to.deep.equal([txSignerOwned as any]);
+      expect(batches[1].transactions).to.deep.equal([txSafeOwned as any]);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
+  it('uses transaction from as fallback inference source when ownable read fails', async () => {
+    const fromSafe = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('not ownable'));
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== fromSafe.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [{ ...TX, from: fromSafe } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
   });
 });
