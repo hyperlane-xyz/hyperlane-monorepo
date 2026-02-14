@@ -132,6 +132,18 @@ function hasSignerForChain(
   }
 }
 
+function isEthereumProtocolChain(
+  context: WriteCommandContext,
+  chain: string,
+): chain is ChainName {
+  try {
+    return context.multiProvider.getProtocol(chain as ChainName) ===
+      ProtocolType.Ethereum;
+  } catch {
+    return false;
+  }
+}
+
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
   return {
     submitter: {
@@ -265,10 +277,7 @@ async function inferIcaSubmitterFromAccount({
           continue;
         }
 
-        if (
-          context.multiProvider.getProtocol(originChain) !==
-          ProtocolType.Ethereum
-        ) {
+        if (!isEthereumProtocolChain(context, originChain)) {
           continue;
         }
 
@@ -496,10 +505,7 @@ async function inferTimelockProposerSubmitter({
         if (originChainName === chain) {
           continue;
         }
-        if (
-          context.multiProvider.getProtocol(originChainName) !==
-          ProtocolType.Ethereum
-        ) {
+        if (!isEthereumProtocolChain(context, originChainName)) {
           continue;
         }
 
@@ -570,10 +576,7 @@ async function inferTimelockProposerSubmitter({
       if (originChainName === chain) {
         continue;
       }
-      if (
-        context.multiProvider.getProtocol(originChainName) !==
-        ProtocolType.Ethereum
-      ) {
+      if (!isEthereumProtocolChain(context, originChainName)) {
         continue;
       }
 
