@@ -1428,6 +1428,29 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches wrapper cause fallbacks for noisy wrappers with throwing errors accessors', () => {
+      const runtimeCause = { message: 'No Docker client strategy found' };
+
+      for (const [wrapperName, errors] of buildNoisyWrappersWithFallback(
+        'cause',
+        runtimeCause,
+      )) {
+        if (typeof errors === 'object' && errors !== null) {
+          Object.defineProperty(errors, 'errors', {
+            configurable: true,
+            get() {
+              throw new Error('blocked errors accessor');
+            },
+          });
+        }
+
+        expect(
+          isContainerRuntimeUnavailable({ errors }),
+          `${wrapperName} wrapper should surface runtime cause despite throwing errors accessor`,
+        ).to.equal(true);
+      }
+    });
+
     it('still matches cause-chain runtime signals before extraction cap', () => {
       expect(isContainerRuntimeUnavailable(buildCauseChain(550, 120))).to.equal(
         true,
