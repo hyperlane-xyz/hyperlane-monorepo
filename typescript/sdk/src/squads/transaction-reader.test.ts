@@ -699,4 +699,65 @@ describe('squads transaction reader', () => {
       'Failed to parse: [unstringifiable error]',
     ]);
   });
+
+  it('formats malformed Error instruction parse failures safely', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+      isMailboxInstruction: () => boolean;
+    };
+
+    readerAny.isMailboxInstruction = () => {
+      throw createErrorWithUnstringifiableMessage();
+    };
+
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction,
+      {
+        getAccountInfo: async () => null,
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      'Failed to parse instruction: Instruction 0: [unstringifiable error]',
+    ]);
+    expect(parsed.instructions).to.have.lengthOf(1);
+    expect(parsed.instructions[0]).to.include({
+      instructionType: 'Parse Failed',
+      programName: 'Unknown',
+    });
+    expect(parsed.instructions[0]?.data).to.deep.equal({
+      error: '[unstringifiable error]',
+    });
+    expect(parsed.instructions[0]?.warnings).to.deep.equal([
+      'Failed to parse: [unstringifiable error]',
+    ]);
+  });
 });
