@@ -1422,20 +1422,10 @@ export async function getPendingTxsForChains(
 
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   assert(tx.data, 'Safe transaction data is required');
-  let normalizedData: Hex;
-  try {
-    normalizedData = asHex(tx.data);
-  } catch (error) {
-    if (error instanceof Error) {
-      if (error.message === 'Hex value is required') {
-        throw new Error('Safe transaction data is required');
-      }
-      if (error.message.startsWith('Hex value must be valid hex:')) {
-        throw new Error('Safe transaction data must be hex');
-      }
-    }
-    throw error;
-  }
+  const normalizedData = asHex(tx.data, {
+    required: 'Safe transaction data is required',
+    invalid: 'Safe transaction data must be hex',
+  });
   assert(
     normalizedData.length >= 10,
     'Safe transaction data must include function selector',
@@ -1446,10 +1436,17 @@ export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   });
 }
 
-export function asHex(hex?: string): Hex {
-  assert(hex, 'Hex value is required');
+interface AsHexErrorMessages {
+  required?: string;
+  invalid?: string;
+}
+
+export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
+  const requiredErrorMessage =
+    errorMessages?.required ?? 'Hex value is required';
+  assert(hex, requiredErrorMessage);
   const normalizedHex = hex.trim();
-  assert(normalizedHex.length > 0, 'Hex value is required');
+  assert(normalizedHex.length > 0, requiredErrorMessage);
   const canonicalHex = normalizedHex.startsWith('0X')
     ? `0x${normalizedHex.slice(2)}`
     : normalizedHex;
@@ -1459,7 +1456,9 @@ export function asHex(hex?: string): Hex {
   }
 
   const prefixedHex = `0x${canonicalHex}`;
-  assert(isHex(prefixedHex), `Hex value must be valid hex: ${normalizedHex}`);
+  const invalidErrorMessage =
+    errorMessages?.invalid ?? `Hex value must be valid hex: ${normalizedHex}`;
+  assert(isHex(prefixedHex), invalidErrorMessage);
   return prefixedHex as Hex;
 }
 

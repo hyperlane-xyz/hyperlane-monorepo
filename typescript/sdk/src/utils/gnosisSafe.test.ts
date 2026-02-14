@@ -3732,6 +3732,22 @@ describe('gnosisSafe utils', () => {
         'Hex value must be valid hex: 0xxyz',
       );
     });
+
+    it('supports custom error messages', () => {
+      expect(() =>
+        asHex(' ', {
+          required: 'custom required message',
+          invalid: 'custom invalid message',
+        }),
+      ).to.throw('custom required message');
+
+      expect(() =>
+        asHex('0xxyz', {
+          required: 'custom required message',
+          invalid: 'custom invalid message',
+        }),
+      ).to.throw('custom invalid message');
+    });
   });
 
   describe(decodeMultiSendData.name, () => {
