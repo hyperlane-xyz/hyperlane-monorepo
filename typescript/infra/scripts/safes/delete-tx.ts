@@ -41,8 +41,13 @@ async function main() {
 
   const safes = getGovernanceSafes(governanceType);
   for (const chain of chains) {
+    const safeAddress = safes[chain];
+    if (!safeAddress) {
+      rootLogger.error(`No safe configured for ${chain}, skipping`);
+      continue;
+    }
     try {
-      await deleteSafeTx(chain, multiProvider, safes[chain], tx);
+      await deleteSafeTx(chain, multiProvider, safeAddress, tx);
     } catch (error) {
       rootLogger.error(`Error deleting transaction ${tx} for ${chain}:`, error);
     }

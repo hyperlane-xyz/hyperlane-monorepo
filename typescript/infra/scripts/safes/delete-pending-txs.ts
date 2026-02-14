@@ -31,8 +31,13 @@ async function main() {
   const safes = getGovernanceSafes(governanceType);
 
   for (const chain of chains) {
+    const safeAddress = safes[chain];
+    if (!safeAddress) {
+      rootLogger.error(`No safe configured for ${chain}, skipping`);
+      continue;
+    }
     try {
-      await deleteAllPendingSafeTxs(chain, multiProvider, safes[chain]);
+      await deleteAllPendingSafeTxs(chain, multiProvider, safeAddress);
     } catch (error) {
       rootLogger.error(
         `Error deleting pending transactions for ${chain}:`,
