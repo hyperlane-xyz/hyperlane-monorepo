@@ -318,6 +318,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when bignum-like transaction index is negative', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: { toString: () => '-1' },
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads transaction index must be a non-negative JavaScript safe integer: -1',
+      );
+    });
+
     it('throws when status timestamp is not a safe integer', () => {
       const parseUnsafeTimestampProposal = () =>
         parseSquadProposal({
@@ -449,6 +464,20 @@ describe('squads utils', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
           threshold: 0,
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be a positive JavaScript safe integer: 0',
+      );
+    });
+
+    it('throws when multisig threshold bignum-like value is zero', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: { toString: () => '0' },
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
