@@ -105,6 +105,27 @@ function createUnstringifiableErrorWithThrowingStackGetter(
   return errorLikeObject;
 }
 
+function createStringifiableErrorWithThrowingStackAndMessage(
+  stringifiedValue: string,
+): { toString: () => string; stack?: string; message?: string } {
+  const errorLikeObject = {
+    toString: () => stringifiedValue,
+  } as { toString: () => string; stack?: string; message?: string };
+  Object.defineProperty(errorLikeObject, 'stack', {
+    configurable: true,
+    get() {
+      throw new Error('stack unavailable');
+    },
+  });
+  Object.defineProperty(errorLikeObject, 'message', {
+    configurable: true,
+    get() {
+      throw new Error('message unavailable');
+    },
+  });
+  return errorLikeObject;
+}
+
 function createErrorWithUnstringifiableMessage(): Error {
   const error = new Error('boom');
   Object.defineProperty(error, 'message', {
@@ -625,6 +646,49 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('falls back to String(error) when stack and message accessors throw', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: () => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    const stringifiableErrorLikeObject =
+      createStringifiableErrorWithThrowingStackAndMessage('custom error');
+    readerAny.readConfigTransaction = async () => {
+      throw stringifiableErrorLikeObject;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError).to.equal(stringifiableErrorLikeObject);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: 'custom error',
+      },
+    ]);
+  });
+
   it('records exactly one error when proposal data lookup fails', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -1107,6 +1171,65 @@ describe('squads transaction reader', () => {
     });
     expect(parsed.instructions[0]?.warnings).to.deep.equal([
       'Failed to parse: unable to parse instruction',
+    ]);
+  });
+
+  it('falls back to String(error) when stack/message accessors throw during parse failures', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+      isMailboxInstruction: () => boolean;
+    };
+
+    readerAny.isMailboxInstruction = () => {
+      throw createStringifiableErrorWithThrowingStackAndMessage(
+        'custom parse error',
+      );
+    };
+
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction,
+      {
+        getAccountInfo: async () => null,
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      'Failed to parse instruction: Instruction 0: custom parse error',
+    ]);
+    expect(parsed.instructions).to.have.lengthOf(1);
+    expect(parsed.instructions[0]?.data).to.deep.equal({
+      error: 'custom parse error',
+    });
+    expect(parsed.instructions[0]?.warnings).to.deep.equal([
+      'Failed to parse: custom parse error',
     ]);
   });
 });
