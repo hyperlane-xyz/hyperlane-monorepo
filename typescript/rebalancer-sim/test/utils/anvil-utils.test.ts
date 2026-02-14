@@ -146,6 +146,13 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches windows docker desktop URL-encoded backslash named-pipe failures', () => {
+      const error = new Error(
+        'error during connect: Get "http://%5C%5C.%5Cpipe%5CdockerDesktopLinuxEngine/v1.24/info": The system cannot find the file specified.',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches windows docker desktop engine named-pipe failures', () => {
       const error = new Error(
         'error during connect: Get "http://%2F%2F.%2Fpipe%2FdockerDesktopEngine/v1.24/info": open //./pipe/dockerDesktopEngine: The system cannot find the file specified.',
