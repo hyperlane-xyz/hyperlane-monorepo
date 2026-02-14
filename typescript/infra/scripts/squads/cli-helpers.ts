@@ -86,8 +86,8 @@ export function withSquadsChains<T>(args: Argv<T>) {
 }
 
 export function getUnsupportedSquadsChainsErrorMessage(
-  nonSquadsChains: ChainName[],
-  configuredSquadsChains: ChainName[] = getSquadsChains(),
+  nonSquadsChains: string[],
+  configuredSquadsChains: string[] = getSquadsChains(),
 ): string {
   const uniqueNonSquadsChains = Array.from(new Set(nonSquadsChains));
   const uniqueConfiguredSquadsChains = Array.from(

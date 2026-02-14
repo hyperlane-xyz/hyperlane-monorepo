@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import yargs, { type Argv } from 'yargs';
 
-import { ChainName, getSquadsChains } from '@hyperlane-xyz/sdk';
+import { getSquadsChains } from '@hyperlane-xyz/sdk';
 
 import {
   getUnsupportedSquadsChainsErrorMessage,
@@ -82,7 +82,7 @@ describe('squads cli helpers', () => {
   });
 
   it('throws for explicitly provided non-squads chain', () => {
-    expect(() => resolveSquadsChains(['ethereum' as ChainName])).to.throw(
+    expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       'Squads configuration not found for chains: ethereum',
     );
   });
@@ -90,7 +90,7 @@ describe('squads cli helpers', () => {
   it('includes available squads chains in unsupported-chain error', () => {
     const availableChains = getSquadsChains().join(', ');
 
-    expect(() => resolveSquadsChains(['ethereum' as ChainName])).to.throw(
+    expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       `Available Squads chains: ${availableChains}`,
     );
   });
@@ -98,8 +98,8 @@ describe('squads cli helpers', () => {
   it('formats unsupported-chain error message with available chains', () => {
     expect(
       getUnsupportedSquadsChainsErrorMessage(
-        ['ethereum' as ChainName, 'arbitrum' as ChainName],
-        ['solanamainnet' as ChainName],
+        ['ethereum', 'arbitrum'],
+        ['solanamainnet'],
       ),
     ).to.equal(
       'Squads configuration not found for chains: ethereum, arbitrum. Available Squads chains: solanamainnet',
@@ -109,8 +109,8 @@ describe('squads cli helpers', () => {
   it('deduplicates values in unsupported-chain error formatter', () => {
     expect(
       getUnsupportedSquadsChainsErrorMessage(
-        ['ethereum' as ChainName, 'ethereum' as ChainName],
-        ['solanamainnet' as ChainName, 'solanamainnet' as ChainName],
+        ['ethereum', 'ethereum'],
+        ['solanamainnet', 'solanamainnet'],
       ),
     ).to.equal(
       'Squads configuration not found for chains: ethereum. Available Squads chains: solanamainnet',
@@ -119,24 +119,20 @@ describe('squads cli helpers', () => {
 
   it('reports unsupported chains once when duplicates are provided', () => {
     expect(() =>
-      resolveSquadsChains([
-        'ethereum' as ChainName,
-        'ethereum' as ChainName,
-        'arbitrum' as ChainName,
-      ]),
+      resolveSquadsChains(['ethereum', 'ethereum', 'arbitrum']),
     ).to.throw('Squads configuration not found for chains: ethereum, arbitrum');
   });
 
   it('uses shared formatter output for unsupported explicit chains', () => {
     const configuredSquadsChains = getSquadsChains();
     const providedChains = [
-      'ethereum' as ChainName,
-      'ethereum' as ChainName,
+      'ethereum',
+      'ethereum',
       configuredSquadsChains[0],
-      'arbitrum' as ChainName,
+      'arbitrum',
     ];
     const expectedErrorMessage = getUnsupportedSquadsChainsErrorMessage(
-      ['ethereum' as ChainName, 'arbitrum' as ChainName],
+      ['ethereum', 'arbitrum'],
       configuredSquadsChains,
     );
 
@@ -148,9 +144,7 @@ describe('squads cli helpers', () => {
   it('uses default configured squads chains when formatter list is omitted', () => {
     const availableChains = getSquadsChains().join(', ');
 
-    expect(
-      getUnsupportedSquadsChainsErrorMessage(['ethereum' as ChainName]),
-    ).to.equal(
+    expect(getUnsupportedSquadsChainsErrorMessage(['ethereum'])).to.equal(
       `Squads configuration not found for chains: ethereum. Available Squads chains: ${availableChains}`,
     );
   });
@@ -163,6 +157,15 @@ describe('squads cli helpers', () => {
     resolvedChains.push(firstChain);
 
     expect(selectedChains).to.deep.equal([firstChain, secondChain]);
+  });
+
+  it('does not mutate caller input when explicit chains contain duplicates', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    const selectedChains = [firstChain, secondChain, firstChain];
+
+    void resolveSquadsChains(selectedChains);
+
+    expect(selectedChains).to.deep.equal([firstChain, secondChain, firstChain]);
   });
 
   it('returns a defensive copy for default squads chains', () => {
