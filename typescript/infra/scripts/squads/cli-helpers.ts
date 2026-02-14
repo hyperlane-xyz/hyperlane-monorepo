@@ -259,7 +259,9 @@ export async function getSquadsRegistry(): Promise<IRegistry> {
   return getRegistryFor(SQUADS_ENVIRONMENT);
 }
 
-export function logProposals(pendingProposals: SquadProposalStatus[]) {
+export function logProposals(
+  pendingProposals: readonly SquadProposalStatus[],
+): void {
   rootLogger.info(
     chalk.cyan.bold(`Found ${pendingProposals.length} pending proposal(s):`),
   );
