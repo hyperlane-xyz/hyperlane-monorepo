@@ -101,7 +101,13 @@ async function main() {
     executableTxs,
     (tx) => tx.shortTxHash,
     (tx) => tx.chain,
-    (tx) => executeTx(tx.chain, multiProvider, safes[tx.chain], tx.fullTxHash),
+    (tx) => {
+      const safeAddress = safes[tx.chain];
+      if (!safeAddress) {
+        throw new Error(`No safe configured for ${tx.chain}`);
+      }
+      return executeTx(tx.chain, multiProvider, safeAddress, tx.fullTxHash);
+    },
   );
 
   process.exit(0);
