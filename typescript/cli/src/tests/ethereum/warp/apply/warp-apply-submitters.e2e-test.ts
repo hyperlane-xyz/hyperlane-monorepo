@@ -507,4 +507,144 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(txBuilderJson.transactions.length).to.equal(1);
     });
   });
+
+  describe('auto inference', () => {
+    it('should infer gnosisSafeTxBuilder for Safe-owned warp routes', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = safeAddress;
+      await deployAndExportWarpRoute();
+
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: '123456',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+    });
+
+    it('should infer interchainAccount for ICA-owned warp routes', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = chain3IcaAddress;
+      await deployAndExportWarpRoute();
+
+      const expectedChain2Gas = '43000';
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: expectedChain2Gas,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        relay: true,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+
+      expect(
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
+      ).to.equal(expectedChain2Gas);
+    });
+
+    it('should infer timelockController for timelock-owned warp routes', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = timelockInstance.address;
+      await deployAndExportWarpRoute();
+
+      const expectedUpdatedGasValue = '901';
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: expectedUpdatedGasValue,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      const executeTransaction = getTimelockExecuteTxFile(res.text());
+
+      const tx = await chain3Signer.sendTransaction(executeTransaction);
+      await tx.wait();
+
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+
+      expect(
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
+      ).to.equal(expectedUpdatedGasValue);
+    });
+
+    it('should infer timelock->interchainAccount proposer path', async () => {
+      const icaOnlyTimelock = await new TimelockController__factory()
+        .connect(chain3Signer)
+        .deploy(
+          0,
+          [chain3IcaAddress],
+          [chain3IcaAddress],
+          ethers.constants.AddressZero,
+        );
+
+      const warpDeployConfig = fixture.getDeployConfig();
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].owner = icaOnlyTimelock.address;
+      await deployAndExportWarpRoute();
+
+      const expectedUpdatedGasValue = '902';
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: expectedUpdatedGasValue,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const res = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        relay: true,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      const executeTransaction = getTimelockExecuteTxFile(res.text());
+      const tx = await chain3Signer.sendTransaction(executeTransaction);
+      await tx.wait();
+
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+
+      expect(
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
+      ).to.equal(expectedUpdatedGasValue);
+    });
+  });
 });

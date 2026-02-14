@@ -201,6 +201,71 @@ async function inferIcaSubmitterFromAccount({
 
   const lastLog = logs[logs.length - 1];
   if (!lastLog) {
+    // Fall back to deriving the ICA from signer owner and known routers,
+    // to support routes where the ICA has not been deployed yet.
+    const signerAddress =
+      await context.multiProvider.getSignerAddress(destinationChain);
+    const signerCandidates = [signerAddress];
+
+    for (const ownerCandidate of signerCandidates) {
+      for (const [originChain, originAddresses] of Object.entries(
+        registryAddresses,
+      )) {
+        if (originChain === destinationChain) {
+          continue;
+        }
+
+        if (
+          context.multiProvider.getProtocol(originChain) !==
+          ProtocolType.Ethereum
+        ) {
+          continue;
+        }
+
+        const originRouterAddress = originAddresses?.interchainAccountRouter;
+        if (!originRouterAddress) {
+          continue;
+        }
+
+        try {
+          const originRouter = InterchainAccountRouter__factory.connect(
+            originRouterAddress,
+            context.multiProvider.getProvider(originChain),
+          );
+          const derivedAccount = await originRouter[
+            'getRemoteInterchainAccount(address,address,address)'
+          ](ownerCandidate, destinationRouterAddress, ethersConstants.AddressZero);
+
+          if (!eqAddress(derivedAccount, accountAddress)) {
+            continue;
+          }
+
+          const internalSubmitter = await inferSubmitterFromAddress({
+            chain: originChain,
+            address: ownerCandidate,
+            context,
+            cache,
+            depth: depth + 1,
+          });
+
+          const submitter = {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: originChain,
+            destinationChain,
+            owner: ownerCandidate,
+            internalSubmitter,
+            originInterchainAccountRouter: originRouterAddress,
+            destinationInterchainAccountRouter: destinationRouterAddress,
+          };
+
+          cache.icaByChainAndAddress.set(cacheId, submitter);
+          return submitter;
+        } catch {
+          continue;
+        }
+      }
+    }
+
     return null;
   }
 
