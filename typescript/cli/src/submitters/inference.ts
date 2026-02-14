@@ -278,7 +278,13 @@ async function hasSignerForChain(
     }
 
     const signerAddress = await getSignerAddressForChain(context, cache, chain);
-    const hasSigner = !!signerAddress;
+    const fallbackSignerAddress = signerAddress
+      ? signerAddress
+      : await getSignerAddressFromSignerObject(signer);
+    if (fallbackSignerAddress) {
+      cache.signerAddressByChain.set(chain, fallbackSignerAddress);
+    }
+    const hasSigner = !!fallbackSignerAddress;
     cache.signerByChain.set(chain, hasSigner);
     return hasSigner;
   } catch {
@@ -286,6 +292,26 @@ async function hasSignerForChain(
     const hasSigner = !!signerAddress;
     cache.signerByChain.set(chain, hasSigner);
     return hasSigner;
+  }
+}
+
+async function getSignerAddressFromSignerObject(
+  signer: unknown,
+): Promise<Address | null> {
+  const maybeGetAddress = (signer as { getAddress?: unknown })?.getAddress;
+  if (typeof maybeGetAddress !== 'function') {
+    return null;
+  }
+
+  try {
+    const signerAddress = await maybeGetAddress.call(signer);
+    const normalizedSignerAddress = tryNormalizeEvmAddress(signerAddress);
+    return normalizedSignerAddress &&
+      !eqAddress(normalizedSignerAddress, ethersConstants.AddressZero)
+      ? (normalizedSignerAddress as Address)
+      : null;
+  } catch {
+    return null;
   }
 }
 
