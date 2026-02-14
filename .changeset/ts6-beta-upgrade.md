@@ -109,3 +109,5 @@ Regression coverage now also confirms error-shaped `errors` wrappers with non-st
 Regression coverage now also confirms iterable wrappers with non-matching yielded entries still detect runtime-unavailable signals exposed via wrapper-level `cause` fallbacks.
 
 Nested iterable wrapper traversal now also preserves wrapper-level `cause`/`errors` fallbacks after iterable value scans, so runtime-unavailable signals are still detected even when yielded values are non-matching and wrapper formatting is non-informative.
+
+Regression coverage now also confirms map-wrapper `errors` payloads preserve wrapper-level `cause` fallbacks after map-value scans, even when map entries are non-matching and wrapper formatting is non-informative.
