@@ -638,6 +638,47 @@ describe('processGovernorReaderResult', () => {
     ).to.throw('Governor reader errors must be an array: null');
   });
 
+  it('throws when result length is inaccessible', () => {
+    const resultWithThrowingLength = new Proxy(
+      [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+      {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() =>
+      processGovernorReaderResult(
+        resultWithThrowingLength as unknown as [string, any][],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('boom');
+  });
+
+  it('throws when errors length is invalid', () => {
+    const errorsWithInvalidLength = new Proxy([{ message: 'fatal' }], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return Number.POSITIVE_INFINITY;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        errorsWithInvalidLength as unknown as any[],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader errors length is invalid: Infinity');
+  });
+
   it('throws when output file name is invalid', () => {
     expect(() => processGovernorReaderResult([], [], '   ')).to.throw(
       'Governor reader output file name must be a non-empty string:    ',
@@ -662,6 +703,37 @@ describe('processGovernorReaderResult', () => {
         exitFn: null as unknown as any,
       }),
     ).to.throw('Governor reader exitFn must be a function: null');
+  });
+
+  it('throws when result entry access is inaccessible', () => {
+    const resultWithThrowingEntry = [
+      ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+    ];
+    Object.defineProperty(resultWithThrowingEntry, '0', {
+      get() {
+        throw new Error('entry boom');
+      },
+    });
+
+    expect(() =>
+      processGovernorReaderResult(
+        resultWithThrowingEntry as unknown as [string, any][],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader result entry at index 0 is inaccessible');
+  });
+
+  it('throws when result entry key is invalid', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [[123 as unknown as string, { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result key at index 0 must be a non-empty string: 123',
+    );
   });
 
   it('writes result yaml and does not exit when there are no fatal errors', () => {

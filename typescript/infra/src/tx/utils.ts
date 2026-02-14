@@ -24,6 +24,13 @@ function stringifyValueForError(value: unknown): string {
   }
 }
 
+function parseNonNegativeSafeLength(value: unknown, name: string): number {
+  if (!Number.isSafeInteger(value) || (value as number) < 0) {
+    throw new Error(`${name} is invalid: ${stringifyValueForError(value)}`);
+  }
+  return value as number;
+}
+
 export function processGovernorReaderResult(
   result: [string, GovernTransaction][],
   errors: any[],
@@ -38,6 +45,32 @@ export function processGovernorReaderResult(
   if (!Array.isArray(errors)) {
     throw new Error(
       `Governor reader errors must be an array: ${stringifyValueForError(errors)}`,
+    );
+  }
+  let resultCount = 0;
+  try {
+    resultCount = parseNonNegativeSafeLength(
+      result.length,
+      'Governor reader result length',
+    );
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : 'Governor reader result length is inaccessible',
+    );
+  }
+  let errorCount = 0;
+  try {
+    errorCount = parseNonNegativeSafeLength(
+      errors.length,
+      'Governor reader errors length',
+    );
+  } catch (error) {
+    throw new Error(
+      error instanceof Error
+        ? error.message
+        : 'Governor reader errors length is inaccessible',
     );
   }
   if (
@@ -71,11 +104,15 @@ export function processGovernorReaderResult(
   const nowFn = deps.nowFn ?? Date.now;
   const exitFn = deps.exitFn ?? process.exit;
 
-  if (errors.length) {
+  if (errorCount > 0) {
     rootLogger.error(
       chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
     );
-    rootLogger.info(stringifyObject(errors, 'yaml', 2));
+    try {
+      rootLogger.info(stringifyObject(errors, 'yaml', 2));
+    } catch {
+      rootLogger.info('<unstringifiable governor reader errors>');
+    }
     rootLogger.error(
       chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
     );
@@ -83,12 +120,52 @@ export function processGovernorReaderResult(
     rootLogger.info(chalk.green('✅✅✅✅✅ No fatal errors ✅✅✅✅✅'));
   }
 
-  const chainResults = Object.fromEntries(result);
+  const chainResults: Record<string, GovernTransaction> = {};
+  for (let index = 0; index < resultCount; index += 1) {
+    let resultEntry: [string, GovernTransaction];
+    try {
+      resultEntry = result[index] as [string, GovernTransaction];
+    } catch {
+      throw new Error(
+        `Governor reader result entry at index ${index} is inaccessible`,
+      );
+    }
+    if (!Array.isArray(resultEntry)) {
+      throw new Error(
+        `Governor reader result entry at index ${index} must be a tuple`,
+      );
+    }
+    let entryLength = 0;
+    try {
+      entryLength = parseNonNegativeSafeLength(
+        resultEntry.length,
+        `Governor reader result entry length at index ${index}`,
+      );
+    } catch (error) {
+      throw new Error(
+        error instanceof Error
+          ? error.message
+          : `Governor reader result entry at index ${index} has inaccessible length`,
+      );
+    }
+    if (entryLength < 2) {
+      throw new Error(
+        `Governor reader result entry at index ${index} must include key and transaction`,
+      );
+    }
+    const [resultKey, governTx] = resultEntry;
+    if (typeof resultKey !== 'string' || resultKey.trim().length === 0) {
+      throw new Error(
+        `Governor reader result key at index ${index} must be a non-empty string: ${stringifyValueForError(resultKey)}`,
+      );
+    }
+    chainResults[resultKey] = governTx;
+  }
   const resultsPath = `${normalizedOutputFileName}-${nowFn()}.yaml`;
   writeYamlFn(resultsPath, chainResults);
   rootLogger.info(`Results written to ${resultsPath}`);
 
-  if (errors.length) {
+  if (errorCount > 0) {
     exitFn(1);
   }
 }
