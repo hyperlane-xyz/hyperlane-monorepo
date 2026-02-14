@@ -104,6 +104,19 @@ function cacheKey(chain: ChainName, address: Address): string {
   return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
+function hasSignerForChain(
+  context: WriteCommandContext,
+  chain: ChainName,
+): boolean {
+  const maybeTryGetSigner = (context.multiProvider as any).tryGetSigner;
+  if (typeof maybeTryGetSigner !== 'function') {
+    // Preserve compatibility with lightweight test contexts that only mock
+    // the methods used by a specific test.
+    return true;
+  }
+  return !!maybeTryGetSigner.call(context.multiProvider, chain);
+}
+
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
   return {
     submitter: {
@@ -283,6 +296,10 @@ async function inferIcaSubmitterFromAccount({
             { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
           >;
 
+          if (!hasSignerForChain(context, originChain)) {
+            continue;
+          }
+
           cache.icaByChainAndAddress.set(cacheId, submitter);
           return submitter;
         } catch {
@@ -330,6 +347,10 @@ async function inferIcaSubmitterFromAccount({
     InferredSubmitter,
     { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
   >;
+
+  if (!hasSignerForChain(context, originChain)) {
+    return null;
+  }
 
   cache.icaByChainAndAddress.set(cacheId, submitter);
   return submitter;
@@ -508,6 +529,9 @@ async function inferTimelockProposerSubmitter({
             InferredSubmitter,
             { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
           >;
+          if (!hasSignerForChain(context, originChainName)) {
+            continue;
+          }
           cache.timelockProposerByChainAndAddress.set(
             timelockKey,
             fallbackIcaSubmitter,
@@ -587,6 +611,9 @@ async function inferTimelockProposerSubmitter({
           InferredSubmitter,
           { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
         >;
+        if (!hasSignerForChain(context, originChainName)) {
+          continue;
+        }
         cache.timelockProposerByChainAndAddress.set(
           timelockKey,
           fallbackIcaSubmitter,
