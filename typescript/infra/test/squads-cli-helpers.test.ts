@@ -765,6 +765,25 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(error)).to.equal('custom error string');
   });
 
+  it('ignores generic object labels when Error stringification is the fallback', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+    Object.defineProperty(error, 'message', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+    error.toString = () => '[object ErrorLike]';
+
+    expect(formatScriptError(error)).to.equal('[unformattable error instance]');
+  });
+
   it('formats string errors unchanged', () => {
     expect(formatScriptError('oops')).to.equal('oops');
   });
