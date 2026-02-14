@@ -456,6 +456,36 @@ describe('squads utils', () => {
         'Squads proposal status kind must be a string',
       );
     });
+
+    it('throws when proposal status kind is empty', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: '' },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal status kind must be a non-empty string',
+      );
+    });
+
+    it('throws when proposal status kind is whitespace', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: '   ' },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal status kind must be a non-empty string',
+      );
+    });
   });
 
   describe(parseSquadMultisig.name, () => {
