@@ -158,15 +158,25 @@ async function main() {
     const vaultBalance = await mpp
       .getSolanaWeb3Provider(chain)
       .getBalance(vault);
-    const decimals = mpp.getChainMetadata(chain).nativeToken?.decimals;
+    const nativeToken = mpp.getChainMetadata(chain).nativeToken;
+    const decimals = nativeToken?.decimals;
     if (!decimals) {
       rootLogger.error(chalk.red.bold(`No decimals found for ${chain}`));
+      process.exit(1);
+    }
+    const nativeTokenSymbol = nativeToken?.symbol;
+    if (!nativeTokenSymbol) {
+      rootLogger.error(
+        chalk.red.bold(`No native token symbol found for ${chain}`),
+      );
       process.exit(1);
     }
     const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
     rootLogger.info(chalk.green.bold('\n💰 Vault Information:'));
     rootLogger.info(chalk.white(`  Vault Address: ${vault.toBase58()}`));
-    rootLogger.info(chalk.white(`  Balance: ${balanceFormatted} SOL`));
+    rootLogger.info(
+      chalk.white(`  Balance: ${balanceFormatted} ${nativeTokenSymbol}`),
+    );
 
     // Display multisig information
     rootLogger.info(chalk.green.bold('\n🏛️  Multisig Information:'));
