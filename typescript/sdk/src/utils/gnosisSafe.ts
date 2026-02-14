@@ -120,6 +120,21 @@ export type SafeAndService = {
   safeService: SafeApiKit.default;
 };
 
+type SignTypedDataMethod = ethers.Wallet['_signTypedData'];
+type Eip712Signer = ethers.Signer & {
+  _signTypedData: SignTypedDataMethod;
+};
+
+function assertEip712Signer(
+  signer: ethers.Signer,
+): asserts signer is Eip712Signer {
+  assert(
+    typeof (signer as { _signTypedData?: unknown })._signTypedData ===
+      'function',
+    'Signer must support _signTypedData for Safe transaction deletion',
+  );
+}
+
 type SafeServicePendingTransactionsResponse = {
   results: Array<{
     safeTxHash: string;
@@ -673,6 +688,7 @@ export async function deleteSafeTx(
   safeTxHash: string,
 ): Promise<void> {
   const signer = multiProvider.getSigner(chain);
+  assertEip712Signer(signer);
   const chainId = multiProvider.getEvmChainId(chain);
   if (!chainId) {
     throw new Error(`Chain is not an EVM chain: ${chain}`);
