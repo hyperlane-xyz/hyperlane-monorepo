@@ -1,7 +1,9 @@
 import { expect } from 'chai';
+import { PublicKey } from '@solana/web3.js';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { SquadsTransactionReader } from './transaction-reader.js';
+import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
 
 function createReaderWithLookupCounter(): {
   reader: SquadsTransactionReader;
@@ -93,4 +95,61 @@ describe('squads transaction reader', () => {
       expect(getLookupCount()).to.equal(0);
     });
   }
+
+  it('uses requested transaction index when reading config transaction', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () =>
+      ({
+        proposal: {
+          transactionIndex: {
+            toString: () => {
+              throw new Error('proposal transactionIndex should not stringify');
+            },
+          },
+        },
+        proposalPda: new PublicKey('11111111111111111111111111111111'),
+        multisigPda: new PublicKey('11111111111111111111111111111111'),
+        programId: new PublicKey('11111111111111111111111111111111'),
+      }) as Record<string, unknown>;
+
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+
+    let observedTransactionIndex: number | undefined;
+    readerAny.readConfigTransaction = async (_, transactionIndex) => {
+      observedTransactionIndex = transactionIndex;
+      return { chain: 'solanamainnet', transactionIndex };
+    };
+
+    const result = (await reader.read('solanamainnet', 5)) as {
+      transactionIndex?: number;
+    };
+
+    expect(result.transactionIndex).to.equal(5);
+    expect(observedTransactionIndex).to.equal(5);
+  });
 });

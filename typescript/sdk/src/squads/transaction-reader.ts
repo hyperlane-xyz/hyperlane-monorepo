@@ -919,6 +919,7 @@ export class SquadsTransactionReader {
 
   private async readConfigTransaction(
     chain: ChainName,
+    transactionIndex: number,
     proposalData: {
       proposal: accounts.Proposal;
       proposalPda: PublicKey;
@@ -939,7 +940,7 @@ export class SquadsTransactionReader {
     return {
       chain,
       proposalPda: proposalData.proposalPda.toBase58(),
-      transactionIndex: Number(proposalData.proposal.transactionIndex),
+      transactionIndex,
       multisig: proposalData.multisigPda.toBase58(),
       instructions,
     };
@@ -980,7 +981,7 @@ export class SquadsTransactionReader {
     return {
       chain,
       proposalPda: proposalData.proposalPda.toBase58(),
-      transactionIndex: Number(proposalData.proposal.transactionIndex),
+      transactionIndex,
       multisig: proposalData.multisigPda.toBase58(),
       instructions: parsedInstructions.map((inst) =>
         this.formatInstruction(chain, inst),
@@ -1001,7 +1002,7 @@ export class SquadsTransactionReader {
       );
       const [transactionPda] = getTransactionPda({
         multisigPda: proposalData.multisigPda,
-        index: BigInt(proposalData.proposal.transactionIndex.toString()),
+        index: BigInt(transactionIndex),
         programId: proposalData.programId,
       });
 
@@ -1012,7 +1013,12 @@ export class SquadsTransactionReader {
       );
 
       if (isConfigTransaction(accountInfo.data)) {
-        return this.readConfigTransaction(chain, proposalData, accountInfo);
+        return this.readConfigTransaction(
+          chain,
+          transactionIndex,
+          proposalData,
+          accountInfo,
+        );
       }
 
       if (!isVaultTransaction(accountInfo.data)) {
