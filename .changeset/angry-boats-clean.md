@@ -6,4 +6,4 @@ Gnosis Safe utilities were expanded and centralized in the SDK, including Safe s
 
 Infra scripts were refactored to consume the SDK Safe utilities directly, duplicated infra Safe utility code was removed, and direct `@safe-global/*` infra dependencies used only for Safe utilities were dropped in favor of SDK helpers.
 
-Safe utility typing and robustness were improved by modeling nullable tx-service fields, hardening Safe API version parsing for real-world semver formats, and adding focused SDK unit coverage for signer resolution, transaction shaping, URL normalization, and multisend deployment discovery behavior.
+Safe utility typing and robustness were improved by modeling nullable tx-service fields, hardening Safe API version parsing for real-world semver formats, tightening Safe tx payload validation, normalizing Safe service URL and API key host handling, adding deployment transaction fail-fast assertions, and requiring typed-data signer support before Safe tx deletion.
