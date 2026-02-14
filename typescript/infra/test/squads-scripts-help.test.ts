@@ -28,6 +28,16 @@ const SQUADS_SCRIPT_HELP_CASES: readonly HelpCase[] = Object.freeze([
     scriptPath: 'scripts/squads/cancel-proposal.ts',
     expectedOutput: ['--help', '--version', '--chain', '--transactionIndex'],
   },
+  {
+    scriptPath: 'scripts/sealevel-helpers/update-multisig-ism-config.ts',
+    expectedOutput: [
+      '--help',
+      '--version',
+      '--chains',
+      '--environment',
+      '--context',
+    ],
+  },
 ]);
 
 function runScriptHelp(scriptPath: string) {
