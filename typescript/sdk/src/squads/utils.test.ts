@@ -187,7 +187,7 @@ describe('squads utils', () => {
       });
     });
 
-    it('throws when transaction index exceeds JavaScript safe integer range', () => {
+    it('throws when transaction index is not a safe integer', () => {
       const parseUnsafeProposal = () =>
         parseSquadProposal({
           status: { __kind: SquadsProposalStatus.Active },
@@ -198,11 +198,11 @@ describe('squads utils', () => {
         } as unknown as Parameters<typeof parseSquadProposal>[0]);
 
       expect(parseUnsafeProposal).to.throw(
-        'Squads transaction index exceeds JavaScript safe integer range',
+        'Squads transaction index must be a JavaScript safe integer',
       );
     });
 
-    it('throws when status timestamp exceeds JavaScript safe integer range', () => {
+    it('throws when status timestamp is not a safe integer', () => {
       const parseUnsafeTimestampProposal = () =>
         parseSquadProposal({
           status: {
@@ -216,7 +216,7 @@ describe('squads utils', () => {
         } as unknown as Parameters<typeof parseSquadProposal>[0]);
 
       expect(parseUnsafeTimestampProposal).to.throw(
-        'Squads status timestamp exceeds JavaScript safe integer range',
+        'Squads status timestamp must be a JavaScript safe integer',
       );
     });
   });
@@ -238,7 +238,7 @@ describe('squads utils', () => {
       });
     });
 
-    it('throws when multisig threshold exceeds JavaScript safe integer range', () => {
+    it('throws when multisig threshold is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({
           threshold: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
@@ -248,11 +248,25 @@ describe('squads utils', () => {
         } as unknown as Parameters<typeof parseSquadMultisig>[0]);
 
       expect(parseUnsafeMultisig).to.throw(
-        'Squads multisig threshold exceeds JavaScript safe integer range',
+        'Squads multisig threshold must be a JavaScript safe integer',
       );
     });
 
-    it('throws when multisig transaction index exceeds JavaScript safe integer range', () => {
+    it('throws when multisig threshold is non-numeric', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 'not-a-number',
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be a JavaScript safe integer: not-a-number',
+      );
+    });
+
+    it('throws when multisig transaction index is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({
           threshold: 1n,
@@ -262,11 +276,11 @@ describe('squads utils', () => {
         } as unknown as Parameters<typeof parseSquadMultisig>[0]);
 
       expect(parseUnsafeMultisig).to.throw(
-        'Squads multisig transaction index exceeds JavaScript safe integer range',
+        'Squads multisig transaction index must be a JavaScript safe integer',
       );
     });
 
-    it('throws when multisig stale transaction index exceeds JavaScript safe integer range', () => {
+    it('throws when multisig stale transaction index is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({
           threshold: 1n,
@@ -276,11 +290,11 @@ describe('squads utils', () => {
         } as unknown as Parameters<typeof parseSquadMultisig>[0]);
 
       expect(parseUnsafeMultisig).to.throw(
-        'Squads multisig stale transaction index exceeds JavaScript safe integer range',
+        'Squads multisig stale transaction index must be a JavaScript safe integer',
       );
     });
 
-    it('throws when multisig timelock exceeds JavaScript safe integer range', () => {
+    it('throws when multisig timelock is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({
           threshold: 1n,
@@ -290,7 +304,7 @@ describe('squads utils', () => {
         } as unknown as Parameters<typeof parseSquadMultisig>[0]);
 
       expect(parseUnsafeMultisig).to.throw(
-        'Squads multisig timelock exceeds JavaScript safe integer range',
+        'Squads multisig timelock must be a JavaScript safe integer',
       );
     });
 
@@ -307,7 +321,7 @@ describe('squads utils', () => {
         );
 
       expect(parseUnsafeMultisig).to.throw(
-        'Squads solanamainnet multisig threshold exceeds JavaScript safe integer range',
+        'Squads solanamainnet multisig threshold must be a JavaScript safe integer',
       );
     });
   });

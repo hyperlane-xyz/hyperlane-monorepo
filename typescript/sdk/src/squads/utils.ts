@@ -300,7 +300,7 @@ function toSafeInteger(value: unknown, fieldLabel: string): number {
   const parsedValue = Number(value);
   assert(
     Number.isSafeInteger(parsedValue),
-    `Squads ${fieldLabel} exceeds JavaScript safe integer range: ${String(value)}`,
+    `Squads ${fieldLabel} must be a JavaScript safe integer: ${String(value)}`,
   );
   return parsedValue;
 }
