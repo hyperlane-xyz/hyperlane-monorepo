@@ -457,6 +457,61 @@ describe('hyperlane submit', function () {
       expect(finalBob).to.eql(initialBob);
     });
 
+    it('should route using override keys with uppercase 0X target prefix', async function () {
+      const signerAddress = await xerc20Chain2.owner();
+
+      const mockSafe = await new MockSafe__factory()
+        .connect(xerc20Chain2.signer)
+        .deploy([signerAddress], 1);
+      const safeAddress = mockSafe.address;
+
+      const safeOwnedToken = await deployXERC20VSToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        9,
+        'TOKEN.OVR.UPPER',
+      );
+      await safeOwnedToken.transferOwnership(safeAddress);
+      const safeOwnedTokenUpperPrefix = `0X${safeOwnedToken.address.slice(2)}`;
+
+      const strategyPath = `${TEMP_PATH}/submitter-overrides-upper-prefix-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN_NAME_2,
+          },
+          submitterOverrides: {
+            [safeOwnedTokenUpperPrefix]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: CHAIN_NAME_2,
+              safeAddress,
+              version: '1.0',
+            },
+          },
+        },
+      });
+
+      const mintAmountSafe = randomInt(1, 1000);
+      const txSafeOwned = await getMintOnlyOwnerTransaction(
+        safeOwnedToken,
+        BOB,
+        mintAmountSafe,
+        ANVIL2_CHAIN_ID,
+      );
+
+      const transactionsPath = `${TEMP_PATH}/submitter-overrides-upper-prefix-transactions.yaml`;
+      writeYamlOrJson(transactionsPath, [txSafeOwned]);
+
+      const initialBob = await safeOwnedToken.balanceOf(BOB);
+      const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+
+      const finalBob = await safeOwnedToken.balanceOf(BOB);
+      // The Safe tx builder output is not executed onchain in this flow.
+      expect(finalBob).to.eql(initialBob);
+    });
+
     it('should prioritize selector-specific override over target-only override', async function () {
       const signerAddress = await xerc20Chain2.owner();
       const mockSafe = await new MockSafe__factory()
