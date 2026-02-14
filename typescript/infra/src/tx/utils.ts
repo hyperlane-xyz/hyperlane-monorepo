@@ -188,9 +188,12 @@ export function processGovernorReaderResult(
         `Governor reader result key at index ${index} must be a non-empty string: ${stringifyValueForError(resultKey)}`,
       );
     }
-    if (Object.prototype.hasOwnProperty.call(chainResults, resultKey)) {
+    const normalizedResultKey = resultKey.trim();
+    if (
+      Object.prototype.hasOwnProperty.call(chainResults, normalizedResultKey)
+    ) {
       throw new Error(
-        `Governor reader result key at index ${index} is duplicated: ${resultKey}`,
+        `Governor reader result key at index ${index} is duplicated: ${normalizedResultKey}`,
       );
     }
     if (governTx === undefined || governTx === null) {
@@ -198,7 +201,7 @@ export function processGovernorReaderResult(
         `Governor reader transaction at index ${index} must be defined`,
       );
     }
-    chainResults[resultKey] = governTx;
+    chainResults[normalizedResultKey] = governTx;
   }
   let timestampValue: unknown;
   try {

@@ -896,6 +896,21 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when normalized result keys are duplicated', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [
+          ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+          ['  chainA-1-0xabc  ', { status: 'ok' } as unknown as any],
+        ],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result key at index 1 is duplicated: chainA-1-0xabc',
+    );
+  });
+
   it('throws when result transaction is undefined', () => {
     expect(() =>
       processGovernorReaderResult(
@@ -942,6 +957,26 @@ describe('processGovernorReaderResult', () => {
       'chainA-1-0xabc': { status: 'ok' },
     });
     expect(exitCode).to.equal(undefined);
+  });
+
+  it('writes normalized result keys', () => {
+    let writtenValue: Record<string, unknown> | undefined;
+
+    processGovernorReaderResult(
+      [['  chainA-1-0xabc  ', { status: 'ok' } as unknown as any]],
+      [],
+      'safe-tx-parse-results',
+      {
+        nowFn: () => 1700000000000,
+        writeYamlFn: (_, value) => {
+          writtenValue = value as Record<string, unknown>;
+        },
+      },
+    );
+
+    expect(writtenValue).to.deep.equal({
+      'chainA-1-0xabc': { status: 'ok' },
+    });
   });
 
   it('throws when writing result yaml fails', () => {
