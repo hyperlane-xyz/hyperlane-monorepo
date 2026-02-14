@@ -67,14 +67,14 @@ args:
 
 ### Feedback Guidelines
 
-| Feedback Type                 | In Diff? | Where to Put It                                           |
-| ----------------------------- | -------- | --------------------------------------------------------- |
-| Specific code issue           | ✅ Yes   | Inline comment on that line                               |
-| Pattern repeated across files | ✅ Yes   | Inline on first occurrence + note "same issue in X, Y, Z" |
-| Related issue found           | ❌ No    | Summary body under "Observations Outside This PR"         |
-| Pre-existing bug discovered   | ❌ No    | Summary body (consider separate issue if critical)        |
-| Overall architecture concern  | N/A      | Summary body                                              |
+| Feedback Type                 | In Diff? | Where to Put It                                              |
+| ----------------------------- | -------- | ------------------------------------------------------------ |
+| Specific code issue           | ✅ Yes   | Inline comment on that line                                  |
+| Pattern repeated across files | ✅ Yes   | Inline on first occurrence + note "same issue in X, Y, Z"    |
+| Related issue found           | ❌ No    | Summary body under "Observations Outside This PR"            |
+| Pre-existing bug discovered   | ❌ No    | Summary body (consider separate issue if critical)           |
+| Overall architecture concern  | N/A      | Summary body                                                 |
 | Approve PR                    | N/A      | Out of scope for this skill; keep feedback in sticky comment |
-| Changes requested             | N/A      | Sticky comment; never use `REQUEST_CHANGES`               |
+| Changes requested             | N/A      | Sticky comment; never use `REQUEST_CHANGES`                  |
 
 Be concise. Group minor style issues together.
