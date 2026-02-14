@@ -325,20 +325,6 @@ export const TX_SIZE_SAFETY_MARGIN = 100;
 export const MAX_TX_SIZE = SOLANA_TX_SIZE_LIMIT - TX_SIZE_SAFETY_MARGIN;
 
 /**
- * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
- *
- * When submitting to Squads multisig, our instructions are embedded inside a
- * vaultTransactionCreate instruction + proposalCreate instruction. This adds
- * significant overhead (~450-500 bytes) that must be accounted for when batching.
- *
- * Components:
- * - vaultTransactionCreate instruction: ~300-350 bytes (accounts, discriminator, serialized message)
- * - proposalCreate instruction: ~100-150 bytes (accounts, discriminator)
- * - Additional account keys in outer transaction
- */
-export const SQUADS_PROPOSAL_OVERHEAD = 500;
-
-/**
  * Default batch size for fixed-count batching
  * Batches of 10 fill up about 60% of the limit for typical instructions
  */
@@ -384,7 +370,7 @@ export function estimateTransactionSize(
  *
  * @param instructions - Array of transaction instructions to batch
  * @param feePayer - Public key of the fee payer (needed for size estimation)
- * @param additionalOverhead - Additional bytes to reserve (e.g., SQUADS_PROPOSAL_OVERHEAD for multisig)
+ * @param additionalOverhead - Additional bytes to reserve for wrapper overhead
  * @returns Array of instruction batches, each fitting within the size limit
  */
 export function batchInstructionsBySize(
