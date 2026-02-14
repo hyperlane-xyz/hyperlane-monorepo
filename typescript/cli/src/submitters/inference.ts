@@ -654,9 +654,12 @@ function resolveExplicitSubmitterForTransaction({
       }
     }
   } else {
-    const match = overrides[to];
-    if (match) {
-      selectedSubmitter = match;
+    const normalizedTarget = to.trim();
+    const targetMatch = entries.find(
+      ([overrideKey]) => overrideKey.trim() === normalizedTarget,
+    );
+    if (targetMatch) {
+      selectedSubmitter = targetMatch[1];
     }
   }
 
