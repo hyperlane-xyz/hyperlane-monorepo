@@ -1,11 +1,13 @@
 import { expect } from 'chai';
 import yargs, { type Argv } from 'yargs';
 
-import { getSquadsChains } from '@hyperlane-xyz/sdk';
+import {
+  getSquadsChains,
+  getUnsupportedSquadsChainsErrorMessage,
+} from '@hyperlane-xyz/sdk';
 
 import {
   formatScriptError,
-  getUnsupportedSquadsChainsErrorMessage,
   resolveSquadsChains,
   resolveSquadsChainsFromArgv,
   withRequiredSquadsChain,

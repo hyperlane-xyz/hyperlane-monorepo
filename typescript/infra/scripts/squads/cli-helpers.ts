@@ -6,7 +6,6 @@ import {
   MultiProtocolProvider,
   SquadProposalStatus,
   SquadsChainName,
-  getUnsupportedSquadsChainsErrorMessage as getUnsupportedSquadsChainsErrorMessageFromSdk,
   getSquadsChains,
   resolveSquadsChains as resolveSquadsChainsFromSdk,
 } from '@hyperlane-xyz/sdk';
@@ -88,16 +87,6 @@ export function withSquadsChains<T>(args: Argv<T>) {
       Array.from(new Set(normalizeArgvChains(selectedChains))),
     )
     .alias('c', 'chains');
-}
-
-export function getUnsupportedSquadsChainsErrorMessage(
-  nonSquadsChains: readonly string[],
-  configuredSquadsChains: readonly string[] = getSquadsChains(),
-): string {
-  return getUnsupportedSquadsChainsErrorMessageFromSdk(
-    nonSquadsChains,
-    configuredSquadsChains,
-  );
 }
 
 export function resolveSquadsChains(
