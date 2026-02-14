@@ -3924,18 +3924,18 @@ describe('gnosisSafe utils', () => {
       }
     });
 
-    it('throws with deterministic message when service proposal fails', async () => {
+    it('throws with deterministic message when signer address resolution fails', async () => {
       const safeSdkMock = {
         getTransactionHash: async () => safeTxHash,
         signTypedData: async () => ({ data: '0xabcdef' }),
       } as unknown as Parameters<typeof proposeSafeTransaction>[1];
       const safeServiceMock = {
-        proposeTransaction: async () => {
-          throw new Error('submit failed');
-        },
+        proposeTransaction: async () => undefined,
       } as unknown as Parameters<typeof proposeSafeTransaction>[2];
       const signerMock = {
-        getAddress: async () => senderAddress,
+        getAddress: async () => {
+          throw new Error('signer unavailable');
+        },
       } as unknown as Parameters<typeof proposeSafeTransaction>[5];
 
       try {
@@ -3950,7 +3950,7 @@ describe('gnosisSafe utils', () => {
         expect.fail('Expected proposeSafeTransaction to throw');
       } catch (error) {
         expect((error as Error).message).to.equal(
-          `Failed to propose Safe transaction ${safeTxHash} on test: Error: submit failed`,
+          'Failed to resolve Safe signer address: Error: signer unavailable',
         );
       }
     });
