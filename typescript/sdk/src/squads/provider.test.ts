@@ -65,6 +65,19 @@ describe('squads provider bridge', () => {
     expect(getAccountInfoReadCount).to.equal(1);
   });
 
+  it('propagates getter errors while reading getAccountInfo', () => {
+    const providerLike = Object.create(null, {
+      getAccountInfo: {
+        get: () => {
+          throw new Error('getter failure');
+        },
+        enumerable: true,
+      },
+    }) as SolanaProvider;
+
+    expect(() => toSquadsProvider(providerLike)).to.throw('getter failure');
+  });
+
   const invalidGetAccountInfoCases: Array<{
     title: string;
     provider: unknown;
