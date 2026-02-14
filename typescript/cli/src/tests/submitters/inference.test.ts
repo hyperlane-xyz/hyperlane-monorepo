@@ -1385,10 +1385,12 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       .stub(TimelockController__factory, 'connect')
       .throws(new Error('timelock probe should not run'));
 
+    let signerAddressCalls = 0;
     const context = {
       multiProvider: {
         getProtocol: () => ProtocolType.Ethereum,
         getSignerAddress: async () => {
+          signerAddressCalls += 1;
           throw new Error('missing signer');
         },
         getProvider: () => ({}),
@@ -1401,15 +1403,16 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [TX as any],
+        transactions: [TX as any, TX as any],
         context,
       });
 
       expect(batches).to.have.length(1);
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
-      expect(ownableStub.callCount).to.equal(1);
+      expect(ownableStub.callCount).to.equal(2);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
+      expect(signerAddressCalls).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
