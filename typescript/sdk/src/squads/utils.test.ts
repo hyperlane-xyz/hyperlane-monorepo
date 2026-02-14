@@ -756,6 +756,37 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when members array is empty but threshold is positive', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be less than or equal to member count: 1 > 0',
+      );
+    });
+
+    it('skips member-count validation when members field is absent', () => {
+      const parsed = parseSquadMultisig({
+        threshold: 3n,
+        transactionIndex: 4n,
+        staleTransactionIndex: 4n,
+        timeLock: 0n,
+      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parsed).to.deep.equal({
+        threshold: 3,
+        currentTransactionIndex: 4,
+        staleTransactionIndex: 4,
+        timeLock: 0,
+      });
+    });
+
     it('throws when threshold exceeds multisig member count', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
