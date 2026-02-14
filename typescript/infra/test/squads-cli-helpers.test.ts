@@ -65,6 +65,13 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('returns a fresh default argv chains array reference per call', () => {
+    const firstResolvedChains = resolveSquadsChainsFromArgv(undefined);
+    const secondResolvedChains = resolveSquadsChainsFromArgv(undefined);
+
+    expect(firstResolvedChains).to.not.equal(secondResolvedChains);
+  });
+
   const invalidArgvChainsContainerCases: Array<{
     title: string;
     chainsValue: unknown;
