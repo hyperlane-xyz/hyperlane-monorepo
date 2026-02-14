@@ -207,6 +207,30 @@ describe('squads error-format', () => {
       ).to.equal('Error: boom');
     });
 
+    it('falls back to String(error) when preferred stack/message are low-signal labels', () => {
+      const error = new Error('boom');
+      Object.defineProperty(error, 'stack', {
+        configurable: true,
+        get() {
+          return 'TypeError:';
+        },
+      });
+      Object.defineProperty(error, 'message', {
+        configurable: true,
+        get() {
+          return 'Error :';
+        },
+      });
+      error.toString = () => 'custom low-signal chain fallback';
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorStackForErrorInstances: true,
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('custom low-signal chain fallback');
+    });
+
     it('returns placeholder for low-signal Error stringification', () => {
       const error = new Error('');
 
