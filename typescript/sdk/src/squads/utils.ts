@@ -289,6 +289,15 @@ export function parseSquadsProposalVoteErrorFromError(
   return undefined;
 }
 
+function toSafeInteger(value: unknown, fieldLabel: string): number {
+  const parsedValue = Number(value);
+  assert(
+    Number.isSafeInteger(parsedValue),
+    `Squads ${fieldLabel} exceeds JavaScript safe integer range: ${String(value)}`,
+  );
+  return parsedValue;
+}
+
 export function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
@@ -367,9 +376,18 @@ export async function getPendingProposalsForChains(
           multisigPda,
         );
 
-        const threshold = Number(multisig.threshold);
-        const currentTransactionIndex = Number(multisig.transactionIndex);
-        const staleTransactionIndex = Number(multisig.staleTransactionIndex);
+        const threshold = toSafeInteger(
+          multisig.threshold,
+          `${chain} multisig threshold`,
+        );
+        const currentTransactionIndex = toSafeInteger(
+          multisig.transactionIndex,
+          `${chain} multisig transaction index`,
+        );
+        const staleTransactionIndex = toSafeInteger(
+          multisig.staleTransactionIndex,
+          `${chain} multisig stale transaction index`,
+        );
 
         const vaultBalance = await svmProvider.getBalance(vault);
         const nativeToken = mpp.getChainMetadata(chain).nativeToken;
@@ -541,23 +559,16 @@ export function getSquadTxStatus(
 export function parseSquadProposal(
   proposal: accounts.Proposal,
 ): ParsedSquadProposal {
-  const transactionIndex = Number(proposal.transactionIndex);
-  assert(
-    Number.isSafeInteger(transactionIndex),
-    `Squads transaction index exceeds JavaScript safe integer range: ${proposal.transactionIndex.toString()}`,
+  const transactionIndex = toSafeInteger(
+    proposal.transactionIndex,
+    'transaction index',
   );
   const rawStatusTimestamp =
     'timestamp' in proposal.status ? proposal.status.timestamp : undefined;
   const statusTimestampSeconds =
     typeof rawStatusTimestamp !== 'undefined'
-      ? Number(rawStatusTimestamp)
+      ? toSafeInteger(rawStatusTimestamp, 'status timestamp')
       : undefined;
-  if (typeof statusTimestampSeconds === 'number') {
-    assert(
-      Number.isSafeInteger(statusTimestampSeconds),
-      `Squads status timestamp exceeds JavaScript safe integer range: ${String(rawStatusTimestamp)}`,
-    );
-  }
 
   const parsedProposal: ParsedSquadProposal = {
     status: proposal.status.__kind,
