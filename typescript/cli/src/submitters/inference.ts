@@ -558,7 +558,11 @@ async function inferIcaSubmitterFromAccount({
       originDomain = Number(parsed.args.origin);
       originRouter = bytes32ToAddress(parsed.args.router);
       owner = bytes32ToAddress(parsed.args.owner);
-      ism = parsed.args.ism as Address;
+      const normalizedIsm = tryNormalizeEvmAddress(parsed.args.ism as Address);
+      if (!normalizedIsm) {
+        continue;
+      }
+      ism = normalizedIsm as Address;
     } catch {
       continue;
     }
