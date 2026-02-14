@@ -531,7 +531,15 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('https://safe.global%2540evil.com/api'),
       ).to.equal(false);
       expect(
+        safeApiKeyRequired('https://safe.global%5C@evil.com/api'),
+      ).to.equal(false);
+      expect(
         safeApiKeyRequired('http://safe.global%252540evil.com/api'),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired(
+          'https://safe-transaction-mainnet.5afe.dev%5C@evil.com/api',
+        ),
       ).to.equal(false);
       expect(
         safeApiKeyRequired('https://safe.global%25252540evil.com/api'),
@@ -1229,9 +1237,21 @@ describe('gnosisSafe utils', () => {
         'Safe tx service URL is invalid: https://safe.global%2540evil.com/api',
       );
       expect(() =>
+        normalizeSafeServiceUrl('https://safe.global%5C@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe.global%5C@evil.com/api',
+      );
+      expect(() =>
         normalizeSafeServiceUrl('https://safe.global%25252540evil.com/api'),
       ).to.throw(
         'Safe tx service URL is invalid: https://safe.global%25252540evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
+          'https://safe-transaction-mainnet.5afe.dev%5C@evil.com/api',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe-transaction-mainnet.5afe.dev%5C@evil.com/api',
       );
       expect(() =>
         normalizeSafeServiceUrl('http://safe.global%252540evil.com/api'),
@@ -1400,6 +1420,11 @@ describe('gnosisSafe utils', () => {
           'http://safe.global/tx-service/eth/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
         ),
       ).to.equal('http://safe.global/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl(
+          'https://safe.global/path%5Cfoo?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/path%5Cfoo/api');
       expect(
         normalizeSafeServiceUrl(
           'https://safe-transaction-mainnet.5afe.dev/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
