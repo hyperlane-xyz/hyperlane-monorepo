@@ -33,7 +33,7 @@ function parseNonNegativeSafeLength(value: unknown, name: string): number {
 
 export function processGovernorReaderResult(
   result: [string, GovernTransaction][],
-  errors: any[],
+  errors: unknown[],
   outputFileName: string,
   deps: ProcessGovernorReaderResultDeps = {},
 ) {
@@ -234,7 +234,7 @@ export async function executePendingTransactions<T>(
   executableTxs: T[],
   txId: (tx: T) => string,
   txChain: (tx: T) => string,
-  executeTx: (tx: T) => Promise<any>,
+  executeTx: (tx: T) => Promise<unknown>,
   confirmPrompt: ConfirmPrompt = (options) => confirm(options),
 ) {
   if (!Array.isArray(executableTxs)) {
@@ -262,14 +262,20 @@ export async function executePendingTransactions<T>(
   }
 
   let executableTxCount = 0;
+  let executableTxCountValue: unknown;
   try {
-    executableTxCount = executableTxs.length;
+    executableTxCountValue = executableTxs.length;
   } catch {
     throw new Error('Executable transactions length is inaccessible');
   }
-  if (!Number.isSafeInteger(executableTxCount) || executableTxCount < 0) {
+  try {
+    executableTxCount = parseNonNegativeSafeLength(
+      executableTxCountValue,
+      'Executable transactions length',
+    );
+  } catch {
     throw new Error(
-      `Executable transactions length is invalid: ${stringifyValueForError(executableTxCount)}`,
+      `Executable transactions length is invalid: ${stringifyValueForError(executableTxCountValue)}`,
     );
   }
 
