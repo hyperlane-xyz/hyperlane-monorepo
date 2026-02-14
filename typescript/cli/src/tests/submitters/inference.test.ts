@@ -1276,6 +1276,50 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('falls back to jsonRpc when destination signer lookup fails during owner inference', async () => {
+    const safeOwner = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => {
+          throw new Error('missing signer');
+        },
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('uses transaction from fallback when transaction target is malformed', async () => {
     const fromSafe = '0x4444444444444444444444444444444444444444';
     const ownableStub = sinon.stub(Ownable__factory, 'connect');
@@ -2530,7 +2574,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
-  it('caches null when ICA event-derived internal submitter inference throws', async () => {
+  it('uses jsonRpc internal submitter when ICA event-derived origin signer lookup fails', async () => {
     const inferredIcaOwner = '0x6868686868686868686868686868686868686868';
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
@@ -2613,10 +2657,15 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).internalSubmitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
       expect(provider.getLogs.callCount).to.equal(1);
-      // first tx: destination signer + event-derived origin signer lookup
-      // second tx: destination signer only because null ICA result is cached
+      // tx1: destination owner inference + origin signer lookup for internal submitter
+      // tx2: destination owner inference only (ICA submitter is cached)
       expect(signerAddressCalls).to.equal(3);
     } finally {
       ownableStub.restore();

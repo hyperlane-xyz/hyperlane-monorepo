@@ -769,7 +769,12 @@ async function inferSubmitterFromAddress({
     return defaultSubmitter;
   }
 
-  const signerAddress = await context.multiProvider.getSignerAddress(chain);
+  let signerAddress: Address;
+  try {
+    signerAddress = await context.multiProvider.getSignerAddress(chain);
+  } catch {
+    return defaultSubmitter;
+  }
   if (eqAddress(address, signerAddress)) {
     return defaultSubmitter;
   }
