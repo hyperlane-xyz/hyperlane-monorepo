@@ -98,6 +98,10 @@ function hasSchemeRelativeHostWithEmptyPort(value: string): boolean {
   return SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX.test(value);
 }
 
+function hasMalformedSchemeRelativeAuthority(value: string): boolean {
+  return value.startsWith('//@') || value.startsWith('//:');
+}
+
 function parseHttpUrl(value: string): URL | undefined {
   try {
     const parsed = new URL(value);
@@ -105,6 +109,21 @@ function parseHttpUrl(value: string): URL | undefined {
       return undefined;
     }
     if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return undefined;
+    }
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
+function parseSchemeRelativeHttpUrl(value: string): URL | undefined {
+  if (!isSchemeRelativeUrl(value)) {
+    return undefined;
+  }
+  try {
+    const parsed = new URL(value, 'https://safe-url-base.invalid');
+    if (!parsed.hostname) {
       return undefined;
     }
     return parsed;
@@ -212,8 +231,11 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   const extractHostname = (value: string): string | undefined => {
     return (
       parseHostname(value) ??
+      parseSchemeRelativeHttpUrl(value)?.hostname.toLowerCase() ??
       (!hasExplicitUrlScheme(value)
-        ? parseHostname(`https://${value}`)
+        ? !isSchemeRelativeUrl(value)
+          ? parseHostname(`https://${value}`)
+          : undefined
         : undefined)
     );
   };
@@ -221,7 +243,8 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   const trimmedUrl = txServiceUrl.trim();
   if (
     isSlashPrefixedRelativePath(trimmedUrl) ||
-    hasSchemeRelativeHostWithEmptyPort(trimmedUrl)
+    hasSchemeRelativeHostWithEmptyPort(trimmedUrl) ||
+    hasMalformedSchemeRelativeAuthority(trimmedUrl)
   ) {
     return false;
   }
@@ -273,14 +296,18 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
   if (
     isSlashPrefixedRelativePath(trimmedUrl) ||
-    hasSchemeRelativeHostWithEmptyPort(trimmedUrl)
+    hasSchemeRelativeHostWithEmptyPort(trimmedUrl) ||
+    hasMalformedSchemeRelativeAuthority(trimmedUrl)
   ) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);
   const parsed =
     parseHttpUrl(trimmedUrl) ??
-    (!hasScheme ? parseHttpUrl(`https://${trimmedUrl}`) : undefined);
+    parseSchemeRelativeHttpUrl(trimmedUrl) ??
+    (!hasScheme && !isSchemeRelativeUrl(trimmedUrl)
+      ? parseHttpUrl(`https://${trimmedUrl}`)
+      : undefined);
   if (!parsed && hasScheme) {
     const scheme = getUrlScheme(trimmedUrl);
     if (scheme === 'http' || scheme === 'https') {

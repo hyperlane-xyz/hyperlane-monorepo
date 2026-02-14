@@ -154,6 +154,8 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('//safe.global:')).to.equal(false);
       expect(safeApiKeyRequired('//safe.global:/api')).to.equal(false);
       expect(safeApiKeyRequired('//safe.global:#frag')).to.equal(false);
+      expect(safeApiKeyRequired('//:pass@safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('//@safe.global/api')).to.equal(false);
       expect(safeApiKeyRequired('safe.global:')).to.equal(false);
       expect(
         safeApiKeyRequired('///safe-transaction-mainnet.safe.global/api'),
@@ -330,6 +332,12 @@ describe('gnosisSafe utils', () => {
       );
       expect(() => normalizeSafeServiceUrl('//safe.global:#frag')).to.throw(
         'Safe tx service URL is invalid: //safe.global:#frag',
+      );
+      expect(() => normalizeSafeServiceUrl('//:pass@safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: //:pass@safe.global/api',
+      );
+      expect(() => normalizeSafeServiceUrl('//@safe.global/api')).to.throw(
+        'Safe tx service URL is invalid: //@safe.global/api',
       );
       expect(() => normalizeSafeServiceUrl('safe.global:')).to.throw(
         'Safe tx service URL must use http(s): safe.global:',
