@@ -650,6 +650,19 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
       );
     });
+
+    it('handles Error instances with throwing message accessors', () => {
+      const problematicError = new Error('hidden');
+      Object.defineProperty(problematicError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+
+      expect(formatLocalAnvilStartError(problematicError)).to.equal(
+        'Failed to start local anvil: {}',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {

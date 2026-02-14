@@ -69,3 +69,5 @@ Regression coverage was also added to guarantee the ENOENT install hint still wi
 Safe object-property access for formatter and matcher helpers was centralized to keep hostile wrapper handling consistent across `message`/`code`/`cause`/`errors` reads.
 
 Local-anvil startup formatting now treats case-variant `ENOENT` code values equivalently, preserving missing-binary install guidance for wrapper-normalized error codes.
+
+Formatter fallback handling was also hardened for `Error` instances whose `message` accessors throw, preserving non-crashing startup diagnostics.
