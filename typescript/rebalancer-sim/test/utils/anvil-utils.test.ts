@@ -397,6 +397,19 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
     });
 
+    it('uses map entry values (not keys) when values iterator fails', () => {
+      class ThrowingValuesMap extends Map<string, { message: string }> {
+        public override values(): IterableIterator<{ message: string }> {
+          throw new Error('broken map values iterator');
+        }
+      }
+
+      const errors = new ThrowingValuesMap();
+      errors.set('No Docker client strategy found', { message: 'noise' });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(false);
+    });
+
     it('handles unbounded iterable error collections safely', () => {
       expect(
         isContainerRuntimeUnavailable({

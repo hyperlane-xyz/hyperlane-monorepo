@@ -157,6 +157,7 @@ function extractErrorMessages(error: unknown): string[] {
 
             if (!enqueue(nestedEntry)) break;
           }
+          return;
         } catch {
           // Fall through to generic iterable/object traversal.
         }
