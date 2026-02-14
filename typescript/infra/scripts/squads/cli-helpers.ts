@@ -108,12 +108,6 @@ function getArgTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
-function normalizeStringifiedError(
-  formattedError: string,
-): string | undefined {
-  return normalizeStringifiedSquadsError(formattedError);
-}
-
 function normalizeArgvSingleChain(chain: unknown): string {
   assert(
     typeof chain === 'string',
@@ -270,7 +264,7 @@ export function formatScriptError(error: unknown): string {
   if (error instanceof Error) {
     try {
       if (typeof error.stack === 'string') {
-        const normalizedStack = normalizeStringifiedError(error.stack);
+        const normalizedStack = normalizeStringifiedSquadsError(error.stack);
         if (normalizedStack) {
           return normalizedStack;
         }
@@ -279,7 +273,9 @@ export function formatScriptError(error: unknown): string {
 
     try {
       if (typeof error.message === 'string') {
-        const normalizedMessage = normalizeStringifiedError(error.message);
+        const normalizedMessage = normalizeStringifiedSquadsError(
+          error.message,
+        );
         if (normalizedMessage) {
           return normalizedMessage;
         }
@@ -287,7 +283,7 @@ export function formatScriptError(error: unknown): string {
     } catch {}
 
     try {
-      const normalizedError = normalizeStringifiedError(String(error));
+      const normalizedError = normalizeStringifiedSquadsError(String(error));
       if (normalizedError) return normalizedError;
     } catch {}
 
@@ -295,7 +291,7 @@ export function formatScriptError(error: unknown): string {
   }
 
   if (typeof error === 'string') {
-    const normalizedError = normalizeStringifiedError(error);
+    const normalizedError = normalizeStringifiedSquadsError(error);
     return normalizedError ?? '[unformattable error value]';
   }
 
@@ -303,7 +299,7 @@ export function formatScriptError(error: unknown): string {
     try {
       const stack = (error as { stack?: unknown }).stack;
       if (typeof stack === 'string') {
-        const normalizedStack = normalizeStringifiedError(stack);
+        const normalizedStack = normalizeStringifiedSquadsError(stack);
         if (normalizedStack) {
           return normalizedStack;
         }
@@ -313,7 +309,7 @@ export function formatScriptError(error: unknown): string {
     try {
       const message = (error as { message?: unknown }).message;
       if (typeof message === 'string') {
-        const normalizedMessage = normalizeStringifiedError(message);
+        const normalizedMessage = normalizeStringifiedSquadsError(message);
         if (normalizedMessage) {
           return normalizedMessage;
         }
@@ -325,7 +321,7 @@ export function formatScriptError(error: unknown): string {
     } catch {}
 
     try {
-      const normalizedError = normalizeStringifiedError(String(error));
+      const normalizedError = normalizeStringifiedSquadsError(String(error));
       if (normalizedError) return normalizedError;
     } catch {}
 
@@ -333,7 +329,7 @@ export function formatScriptError(error: unknown): string {
   }
 
   try {
-    const normalizedError = normalizeStringifiedError(String(error));
+    const normalizedError = normalizeStringifiedSquadsError(String(error));
     if (normalizedError) return normalizedError;
     return '[unformattable error value]';
   } catch {
