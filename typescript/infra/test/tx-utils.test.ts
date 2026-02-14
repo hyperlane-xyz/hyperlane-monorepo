@@ -657,7 +657,7 @@ describe('processGovernorReaderResult', () => {
         [],
         'safe-tx-parse-results',
       ),
-    ).to.throw('boom');
+    ).to.throw('Governor reader result length is inaccessible');
   });
 
   it('throws when errors length is invalid', () => {
@@ -677,6 +677,25 @@ describe('processGovernorReaderResult', () => {
         'safe-tx-parse-results',
       ),
     ).to.throw('Governor reader errors length is invalid: Infinity');
+  });
+
+  it('throws when errors length is inaccessible', () => {
+    const errorsWithThrowingLength = new Proxy([{ message: 'fatal' }], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('boom');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        errorsWithThrowingLength as unknown as any[],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader errors length is inaccessible');
   });
 
   it('throws when output file name is invalid', () => {
@@ -722,6 +741,56 @@ describe('processGovernorReaderResult', () => {
         'safe-tx-parse-results',
       ),
     ).to.throw('Governor reader result entry at index 0 is inaccessible');
+  });
+
+  it('throws when result entry length is inaccessible', () => {
+    const resultEntry = new Proxy(
+      ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+      {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('entry length boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const resultWithThrowingEntryLength = [resultEntry];
+
+    expect(() =>
+      processGovernorReaderResult(
+        resultWithThrowingEntryLength as unknown as [string, any][],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result entry length at index 0 is inaccessible',
+    );
+  });
+
+  it('throws when result entry length is invalid', () => {
+    const resultEntry = new Proxy(
+      ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+      {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return Number.POSITIVE_INFINITY;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    const resultWithInvalidEntryLength = [resultEntry];
+
+    expect(() =>
+      processGovernorReaderResult(
+        resultWithInvalidEntryLength as unknown as [string, any][],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result entry length at index 0 is invalid: Infinity',
+    );
   });
 
   it('throws when result entry key is invalid', () => {

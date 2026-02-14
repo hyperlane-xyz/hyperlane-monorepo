@@ -48,29 +48,41 @@ export function processGovernorReaderResult(
     );
   }
   let resultCount = 0;
+  let resultLengthValue: unknown;
+  try {
+    resultLengthValue = result.length;
+  } catch {
+    throw new Error('Governor reader result length is inaccessible');
+  }
   try {
     resultCount = parseNonNegativeSafeLength(
-      result.length,
+      resultLengthValue,
       'Governor reader result length',
     );
   } catch (error) {
     throw new Error(
       error instanceof Error
         ? error.message
-        : 'Governor reader result length is inaccessible',
+        : 'Governor reader result length is invalid',
     );
   }
   let errorCount = 0;
+  let errorsLengthValue: unknown;
+  try {
+    errorsLengthValue = errors.length;
+  } catch {
+    throw new Error('Governor reader errors length is inaccessible');
+  }
   try {
     errorCount = parseNonNegativeSafeLength(
-      errors.length,
+      errorsLengthValue,
       'Governor reader errors length',
     );
   } catch (error) {
     throw new Error(
       error instanceof Error
         ? error.message
-        : 'Governor reader errors length is inaccessible',
+        : 'Governor reader errors length is invalid',
     );
   }
   if (
@@ -136,16 +148,24 @@ export function processGovernorReaderResult(
       );
     }
     let entryLength = 0;
+    let entryLengthValue: unknown;
+    try {
+      entryLengthValue = resultEntry.length;
+    } catch {
+      throw new Error(
+        `Governor reader result entry length at index ${index} is inaccessible`,
+      );
+    }
     try {
       entryLength = parseNonNegativeSafeLength(
-        resultEntry.length,
+        entryLengthValue,
         `Governor reader result entry length at index ${index}`,
       );
     } catch (error) {
       throw new Error(
         error instanceof Error
           ? error.message
-          : `Governor reader result entry at index ${index} has inaccessible length`,
+          : `Governor reader result entry length at index ${index} is invalid`,
       );
     }
     if (entryLength < 2) {
