@@ -91,3 +91,5 @@ Matcher regression coverage now also confirms docker-runtime causes are still de
 Formatter and matcher message extraction now normalize non-empty strings by trimming surrounding whitespace, reducing noisy diagnostics from padded wrapper messages.
 
 Matcher regression coverage also now confirms docker-runtime causes are still detected when top-level wrapper-object messages are whitespace-only.
+
+Matcher regression coverage now also confirms docker-runtime causes are still detected when top-level wrapper-object `message` accessors throw.

@@ -290,6 +290,20 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches runtime causes when wrapper object message accessor throws', () => {
+      const wrappedError = {
+        cause: { message: 'No Docker client strategy found' },
+      };
+      Object.defineProperty(wrappedError, 'message', {
+        enumerable: true,
+        get() {
+          throw new Error('blocked message accessor');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('reads message from non-Error throw objects', () => {
       expect(
         isContainerRuntimeUnavailable({
