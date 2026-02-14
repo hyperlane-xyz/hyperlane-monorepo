@@ -5205,10 +5205,28 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedRawBoundaryPlusHexLog = {
+      topics: ['0xmalformed-raw-boundary-plus-hex'],
+      data: '0x',
+      blockNumber: `+0x${'0'.repeat(4093)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedRawPlusOnePlusHexLog = {
+      topics: ['0xmalformed-raw-plus-one-plus-hex'],
+      data: '0x',
+      blockNumber: `+0x${'0'.repeat(4094)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const provider = {
-      getLogs: sinon
-        .stub()
-        .resolves([validLog, malformedPlusHexLog, malformedUppercasePlusHexLog]),
+      getLogs: sinon.stub().resolves([
+        validLog,
+        malformedPlusHexLog,
+        malformedUppercasePlusHexLog,
+        malformedRawBoundaryPlusHexLog,
+        malformedRawPlusOnePlusHexLog,
+      ]),
     };
 
     const icaRouterStub = sinon
@@ -5330,10 +5348,28 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedRawBoundaryMinusHexLog = {
+      topics: ['0xmalformed-raw-boundary-minus-hex'],
+      data: '0x',
+      blockNumber: `-0x${'0'.repeat(4093)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedRawPlusOneMinusHexLog = {
+      topics: ['0xmalformed-raw-plus-one-minus-hex'],
+      data: '0x',
+      blockNumber: `-0x${'0'.repeat(4094)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const provider = {
-      getLogs: sinon
-        .stub()
-        .resolves([validLog, malformedMinusHexLog, malformedUppercaseMinusHexLog]),
+      getLogs: sinon.stub().resolves([
+        validLog,
+        malformedMinusHexLog,
+        malformedUppercaseMinusHexLog,
+        malformedRawBoundaryMinusHexLog,
+        malformedRawPlusOneMinusHexLog,
+      ]),
     };
 
     const icaRouterStub = sinon
@@ -13106,6 +13142,20 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedRawBoundaryPlusHexGrant = {
+      topics: ['0xgrant-malformed-raw-boundary-plus-hex'],
+      data: '0x',
+      blockNumber: `+0x${'0'.repeat(4093)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedRawPlusOnePlusHexGrant = {
+      topics: ['0xgrant-malformed-raw-plus-one-plus-hex'],
+      data: '0x',
+      blockNumber: `+0x${'0'.repeat(4094)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -13117,7 +13167,13 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (filter.topics?.[0] === 'RoleGranted') {
-          return [validGrant, malformedPlusHexGrant, malformedUppercasePlusHexGrant];
+          return [
+            validGrant,
+            malformedPlusHexGrant,
+            malformedUppercasePlusHexGrant,
+            malformedRawBoundaryPlusHexGrant,
+            malformedRawPlusOnePlusHexGrant,
+          ];
         }
         return [revoke];
       }),
@@ -13214,6 +13270,20 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedRawBoundaryMinusHexGrant = {
+      topics: ['0xgrant-malformed-raw-boundary-minus-hex'],
+      data: '0x',
+      blockNumber: `-0x${'0'.repeat(4093)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedRawPlusOneMinusHexGrant = {
+      topics: ['0xgrant-malformed-raw-plus-one-minus-hex'],
+      data: '0x',
+      blockNumber: `-0x${'0'.repeat(4094)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -13229,6 +13299,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
             validGrant,
             malformedMinusHexGrant,
             malformedUppercaseMinusHexGrant,
+            malformedRawBoundaryMinusHexGrant,
+            malformedRawPlusOneMinusHexGrant,
           ];
         }
         return [revoke];
