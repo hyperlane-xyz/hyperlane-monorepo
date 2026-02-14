@@ -570,14 +570,17 @@ function resolveExplicitSubmitterForTransaction({
   const parseOverrideKey = (
     key: string,
   ): { target: string; selector?: string } => {
-    const [target, maybeSelector] = key.split('@');
-    if (!maybeSelector) {
-      return { target: key };
+    const trimmedKey = key.trim();
+    const parts = trimmedKey.split('@');
+    if (parts.length !== 2) {
+      return { target: trimmedKey };
     }
+
+    const [target, maybeSelector] = parts.map((part) => part.trim());
     if (/^0x[0-9a-fA-F]{8}$/.test(maybeSelector)) {
       return { target, selector: maybeSelector.toLowerCase() };
     }
-    return { target: key };
+    return { target: trimmedKey };
   };
 
   const tryNormalizeEvmAddress = (address: string): string | null => {
