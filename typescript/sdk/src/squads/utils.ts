@@ -101,6 +101,15 @@ const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPatte
     },
   ];
 
+const SQUADS_ERROR_LOG_ARRAY_FIELDS = ['transactionLogs', 'logs'] as const;
+const SQUADS_ERROR_NESTED_FIELDS = ['error', 'cause', 'data', 'value'] as const;
+
+function parseSquadsVoteErrorFromString(
+  value: string,
+): SquadsProposalVoteError | undefined {
+  return parseSquadsProposalVoteError([value]);
+}
+
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -129,7 +138,7 @@ export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
 ): SquadsProposalVoteError | undefined {
   if (typeof error === 'string') {
-    return parseSquadsProposalVoteError([error]);
+    return parseSquadsVoteErrorFromString(error);
   }
 
   if (!error || typeof error !== 'object') {
@@ -145,7 +154,7 @@ export function parseSquadsProposalVoteErrorFromError(
     queueIndex++;
 
     if (typeof current === 'string') {
-      const parsedError = parseSquadsProposalVoteError([current]);
+      const parsedError = parseSquadsVoteErrorFromString(current);
       if (parsedError) return parsedError;
       continue;
     }
@@ -160,12 +169,8 @@ export function parseSquadsProposalVoteErrorFromError(
     visitedObjects.add(current);
 
     const currentRecord = current as Record<string, unknown>;
-    const possibleLogs = [
-      currentRecord.transactionLogs,
-      currentRecord.logs,
-    ] as const;
-
-    for (const maybeLogs of possibleLogs) {
+    for (const logField of SQUADS_ERROR_LOG_ARRAY_FIELDS) {
+      const maybeLogs = currentRecord[logField];
       if (!Array.isArray(maybeLogs)) continue;
       const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
       if (logs.length === 0) continue;
@@ -174,7 +179,7 @@ export function parseSquadsProposalVoteErrorFromError(
     }
 
     if (typeof currentRecord.message === 'string') {
-      const parsedError = parseSquadsProposalVoteError([currentRecord.message]);
+      const parsedError = parseSquadsVoteErrorFromString(currentRecord.message);
       if (parsedError) return parsedError;
     }
 
@@ -182,10 +187,7 @@ export function parseSquadsProposalVoteErrorFromError(
       ? currentRecord.errors
       : [];
     traversalQueue.push(
-      currentRecord.error,
-      currentRecord.cause,
-      currentRecord.data,
-      currentRecord.value,
+      ...SQUADS_ERROR_NESTED_FIELDS.map((field) => currentRecord[field]),
       ...nestedErrors,
     );
   }
