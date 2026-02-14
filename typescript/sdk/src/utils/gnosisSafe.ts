@@ -1608,26 +1608,32 @@ export async function deleteAllPendingSafeTxs(
     try {
       pendingTxEntry = pendingTxResults[index];
     } catch {
-      throw new Error(
-        `Pending Safe transaction entry is inaccessible at index ${index}`,
+      rootLogger.error(
+        chalk.red(
+          `Failed to read pending transaction entry at index ${index} on ${chain}`,
+        ),
       );
+      continue;
     }
-    assert(
-      pendingTxEntry !== null && typeof pendingTxEntry === 'object',
-      `Pending Safe transaction entry must be an object at index ${index}: ${stringifyValueForError(pendingTxEntry)}`,
-    );
+    if (pendingTxEntry === null || typeof pendingTxEntry !== 'object') {
+      rootLogger.error(
+        chalk.red(
+          `Pending Safe transaction entry must be an object at index ${index}: ${stringifyValueForError(pendingTxEntry)}`,
+        ),
+      );
+      continue;
+    }
     let pendingTxHash: unknown;
     try {
       pendingTxHash = (pendingTxEntry as { safeTxHash?: unknown }).safeTxHash;
     } catch {
-      throw new Error(
-        `Pending Safe transaction hash is inaccessible at index ${index}`,
+      rootLogger.error(
+        chalk.red(
+          `Failed to read pending transaction hash at index ${index} on ${chain}`,
+        ),
       );
+      continue;
     }
-    assert(
-      typeof pendingTxHash === 'string',
-      `Pending Safe transaction hash must be a string at index ${index}: ${stringifyValueForError(pendingTxHash)}`,
-    );
     try {
       await deleteSafeTx(
         chain,
@@ -1638,7 +1644,7 @@ export async function deleteAllPendingSafeTxs(
     } catch (error) {
       rootLogger.error(
         chalk.red(
-          `Failed to delete pending transaction ${pendingTxHash} on ${chain}`,
+          `Failed to delete pending transaction ${stringifyValueForError(pendingTxHash)} at index ${index} on ${chain}`,
         ),
         error,
       );
