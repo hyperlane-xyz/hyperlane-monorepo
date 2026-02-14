@@ -70,6 +70,13 @@ export enum SquadsProposalVoteError {
   AlreadyCancelled = 'alreadyCancelled',
 }
 
+export type SquadAndProvider = {
+  svmProvider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>;
+  vault: PublicKey;
+  multisigPda: PublicKey;
+  programId: PublicKey;
+};
+
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -116,7 +123,7 @@ export function parseSquadsProposalVoteErrorFromError(
 export function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
-) {
+): SquadAndProvider {
   const { vault, multisigPda, programId } = getSquadsKeys(chain);
   const svmProvider = mpp.getSolanaWeb3Provider(chain);
 
