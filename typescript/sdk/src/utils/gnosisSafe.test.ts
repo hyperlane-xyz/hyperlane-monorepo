@@ -334,6 +334,16 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('https://safe-transaction-mainnet.safe.global:8443'),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired(
+          'https:////safe-transaction-mainnet.safe.global/api?email=user%25252540hyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'http:///safe-transaction-mainnet.safe.global#user%25252540hyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired('//safe-transaction-mainnet.safe.global:8443/api'),
       ).to.equal(true);
       expect(safeApiKeyRequired('//safe.global')).to.equal(true);
@@ -747,6 +757,16 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('http:///safe.global/api')).to.equal(
         'http://safe.global/api',
       );
+      expect(
+        normalizeSafeServiceUrl(
+          'https:////safe.global/api?email=user%25252540hyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl(
+          'http:///safe.global#user%25252540hyperlane.xyz',
+        ),
+      ).to.equal('http://safe.global/api');
     });
 
     it('throws when a non-http scheme is provided explicitly', () => {
