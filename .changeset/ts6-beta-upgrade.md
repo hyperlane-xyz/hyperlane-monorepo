@@ -43,3 +43,5 @@ Windows named-pipe matcher coverage was also expanded for URL-encoded backslash 
 Matcher precision was also tightened with regression coverage that rejects unknown Windows named-pipe engine signatures, reducing false-positive fallback activation.
 
 Nested runtime-error traversal was additionally hardened to tolerate malformed iterable wrappers (non-callable or throwing iterators), with safe fallback to object-value traversal.
+
+Nested iterable traversal is now also bounded to guard against unbounded iterator payloads in wrapper errors.
