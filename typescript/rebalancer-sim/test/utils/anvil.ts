@@ -1,5 +1,6 @@
 import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
 import { createServer } from 'net';
+import { inspect } from 'util';
 
 import {
   GenericContainer,
@@ -42,7 +43,7 @@ function getErrorMessage(error: unknown): string {
     try {
       return JSON.stringify(error);
     } catch {
-      // Ignore JSON serialization failures and fall back to String conversion.
+      return inspect(error);
     }
   }
 

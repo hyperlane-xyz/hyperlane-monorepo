@@ -183,6 +183,15 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: {"reason":"spawn-failure","code":500}',
       );
     });
+
+    it('formats circular objects without throwing', () => {
+      const circular: { self?: unknown } = {};
+      circular.self = circular;
+
+      const message = formatLocalAnvilStartError(circular);
+      expect(message).to.include('Failed to start local anvil:');
+      expect(message).to.include('[Circular');
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {
