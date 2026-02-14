@@ -828,6 +828,24 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses caller-provided field prefix for members-array shape errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 1n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 1n,
+            timeLock: 0n,
+            members: 'not-an-array',
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig members must be an array when provided',
+      );
+    });
+
     it('throws when members entry is not an object', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
@@ -870,6 +888,24 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig members[0] must include key',
+      );
+    });
+
+    it('uses caller-provided field prefix for member key null errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 1n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 1n,
+            timeLock: 0n,
+            members: [{ key: null }],
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig members[0] must include key',
       );
     });
 
