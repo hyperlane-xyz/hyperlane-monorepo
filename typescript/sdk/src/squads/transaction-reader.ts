@@ -148,6 +148,27 @@ type SolanaWeb3Provider = ReturnType<
 >;
 
 function stringifyUnknownError(error: unknown): string {
+  if (error instanceof Error) {
+    try {
+      return String(error);
+    } catch {
+      return '[unstringifiable error]';
+    }
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string' && message.length > 0) {
+        return message;
+      }
+    } catch {}
+  }
+
   try {
     return String(error);
   } catch {
