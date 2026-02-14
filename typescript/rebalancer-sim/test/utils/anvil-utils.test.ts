@@ -378,5 +378,30 @@ describe('Anvil utils', () => {
       );
       expect(errorMessage).to.include('operation not permitted');
     });
+
+    it('formats non-Error kill failures with structured details', async () => {
+      const fakeProcess = {
+        killed: false,
+        exitCode: null,
+        kill: () => {
+          throw { reason: 'denied', code: 13 };
+        },
+        once: () => fakeProcess,
+        removeListener: () => fakeProcess,
+      } as unknown as NodeJS.Process;
+
+      let errorMessage = '';
+      try {
+        await stopLocalAnvilProcess(asChildProcess(fakeProcess));
+      } catch (error) {
+        errorMessage = error instanceof Error ? error.message : String(error);
+      }
+
+      expect(errorMessage).to.include(
+        'Failed to stop local anvil process with SIGTERM',
+      );
+      expect(errorMessage).to.include('"reason":"denied"');
+      expect(errorMessage).to.include('"code":13');
+    });
   });
 });
