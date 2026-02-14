@@ -137,6 +137,7 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
   ...SQUADS_ERROR_STRING_ARRAY_FIELDS,
 ]);
 const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
+const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 
 function tokenizeFieldName(fieldName: string): string[] {
   return fieldName
@@ -297,12 +298,40 @@ export function parseSquadsProposalVoteErrorFromError(
 }
 
 function toSafeInteger(value: unknown, fieldLabel: string): number {
-  const parsedValue = Number(value);
+  const parsedValue = normalizeSafeIntegerValue(value);
   assert(
     Number.isSafeInteger(parsedValue),
     `Squads ${fieldLabel} must be a JavaScript safe integer: ${String(value)}`,
   );
   return parsedValue;
+}
+
+function normalizeSafeIntegerValue(value: unknown): number {
+  if (typeof value === 'number' || typeof value === 'bigint') {
+    return Number(value);
+  }
+
+  if (!value || typeof value !== 'object') {
+    return Number.NaN;
+  }
+
+  const toStringCandidate = (value as { toString?: unknown }).toString;
+  if (typeof toStringCandidate !== 'function') {
+    return Number.NaN;
+  }
+
+  let stringValue: string;
+  try {
+    stringValue = toStringCandidate.call(value);
+  } catch {
+    return Number.NaN;
+  }
+
+  if (!SAFE_INTEGER_DECIMAL_PATTERN.test(stringValue)) {
+    return Number.NaN;
+  }
+
+  return Number(stringValue);
 }
 
 export function getSquadAndProvider(

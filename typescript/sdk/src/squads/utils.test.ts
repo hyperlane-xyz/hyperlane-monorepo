@@ -202,6 +202,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when transaction index is boolean-like', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: true,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads transaction index must be a JavaScript safe integer: true',
+      );
+    });
+
     it('throws when status timestamp is not a safe integer', () => {
       const parseUnsafeTimestampProposal = () =>
         parseSquadProposal({
@@ -263,6 +278,20 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: not-a-number',
+      );
+    });
+
+    it('throws when multisig threshold is numeric string input', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: '42',
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be a JavaScript safe integer: 42',
       );
     });
 
