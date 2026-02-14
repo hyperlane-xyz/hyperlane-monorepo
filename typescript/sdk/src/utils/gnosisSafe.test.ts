@@ -3517,6 +3517,38 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when safe sdk createTransaction call fails', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => {
+          throw new Error('boom');
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to create Safe transaction: Error: boom',
+        );
+      }
+    });
+
+    it('throws when safe sdk createTransaction returns non-object', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => 123,
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK createTransaction must return an object: 123',
+        );
+      }
+    });
+
     it('throws when transaction list length access is inaccessible', async () => {
       const transactionsWithThrowingLength = new Proxy(exampleTransactions, {
         get(target, property, receiver) {
@@ -3762,6 +3794,27 @@ describe('gnosisSafe utils', () => {
       }
 
       expect(createTransactionCallCount).to.equal(0);
+    });
+
+    it('fails fast before return when safe sdk returns invalid value', async () => {
+      let createTransactionCallCount = 0;
+      const safeSdkMock = {
+        createTransaction: async () => {
+          createTransactionCallCount += 1;
+          return 123;
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK createTransaction must return an object: 123',
+        );
+      }
+
+      expect(createTransactionCallCount).to.equal(1);
     });
   });
 

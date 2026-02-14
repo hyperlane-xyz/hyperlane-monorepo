@@ -1033,11 +1033,23 @@ export async function createSafeTransaction(
       `Safe transaction nonce must be a non-negative safe integer: ${stringifyValueForError(nonce)}`,
     );
   }
-  return createTransaction.call(safeSdkObject, {
-    transactions,
-    onlyCalls,
-    ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
-  });
+  let safeTransaction: unknown;
+  try {
+    safeTransaction = await createTransaction.call(safeSdkObject, {
+      transactions,
+      onlyCalls,
+      ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to create Safe transaction: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    safeTransaction !== null && typeof safeTransaction === 'object',
+    `Safe SDK createTransaction must return an object: ${stringifyValueForError(safeTransaction)}`,
+  );
+  return safeTransaction as SafeTransaction;
 }
 
 export async function proposeSafeTransaction(
