@@ -1,4 +1,4 @@
-import { accounts } from '@sqds/multisig';
+import type { accounts } from '@sqds/multisig';
 import { assert } from '@hyperlane-xyz/utils';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
