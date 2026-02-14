@@ -113,3 +113,5 @@ Nested iterable wrapper traversal now also preserves wrapper-level `cause`/`erro
 Regression coverage now also confirms map-wrapper `errors` payloads preserve wrapper-level `cause` fallbacks after map-value scans, even when map entries are non-matching and wrapper formatting is non-informative.
 
 Regression coverage now also confirms array-wrapper `errors` payloads preserve wrapper-level `cause` fallbacks after array-entry scans, even when entries are non-matching and wrapper formatting is non-informative.
+
+Regression coverage now also confirms set-wrapper `errors` payloads preserve wrapper-level `cause` fallbacks after set-entry scans, even when entries are non-matching and wrapper formatting is non-informative.
