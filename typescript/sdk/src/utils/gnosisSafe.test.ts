@@ -5289,6 +5289,40 @@ describe('gnosisSafe utils', () => {
       expect(fetchCalled).to.equal(false);
     });
 
+    it('deleteSafeTx throws when tx-details request fails', async () => {
+      const signerMock = {
+        getAddress: async () => '0x00000000000000000000000000000000000000AA',
+        _signTypedData: async () => `0x${'11'.repeat(65)}`,
+      };
+
+      globalThis.fetch = (async () => {
+        throw new Error('network down');
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'aa'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          `Failed to fetch transaction details for 0x${'aa'.repeat(32)}: Error: network down`,
+        );
+      }
+    });
+
     it('deleteSafeTx throws when deletion signer is non-object', async () => {
       globalThis.fetch = (async () => {
         throw new Error('fetch should not be called');
@@ -6143,6 +6177,34 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Pending Safe transactions list must be an array: not-array',
+        );
+      }
+    });
+
+    it('deleteAllPendingSafeTxs throws when pending tx request fails', async () => {
+      globalThis.fetch = (async () => {
+        throw new Error('network down');
+      }) as typeof fetch;
+
+      const safeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+      const normalizedSafeAddress = getAddress(safeAddress);
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteAllPendingSafeTxs>[1];
+
+      try {
+        await deleteAllPendingSafeTxs(
+          'test',
+          multiProviderMock,
+          safeAddress as Parameters<typeof deleteAllPendingSafeTxs>[2],
+        );
+        expect.fail('Expected deleteAllPendingSafeTxs to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          `Failed to fetch pending Safe transactions for ${normalizedSafeAddress}: Error: network down`,
         );
       }
     });

@@ -1437,10 +1437,17 @@ export async function deleteSafeTx(
   const headers = getSafeServiceHeaders(chain, multiProvider);
 
   const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${normalizedSafeTxHash}/`;
-  const txDetailsResponse = await fetch(txDetailsUrl, {
-    method: 'GET',
-    headers,
-  });
+  let txDetailsResponse: Response;
+  try {
+    txDetailsResponse = await fetch(txDetailsUrl, {
+      method: 'GET',
+      headers,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch transaction details for ${normalizedSafeTxHash}: ${stringifyValueForError(error)}`,
+    );
+  }
 
   if (!txDetailsResponse.ok) {
     rootLogger.error(
@@ -1575,10 +1582,17 @@ export async function deleteAllPendingSafeTxs(
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
   const headers = getSafeServiceHeaders(chain, multiProvider);
   const pendingTxsUrl = `${txServiceUrl}/v2/safes/${normalizedSafeAddress}/multisig-transactions/?executed=false&limit=100`;
-  const pendingTxsResponse = await fetch(pendingTxsUrl, {
-    method: 'GET',
-    headers,
-  });
+  let pendingTxsResponse: Response;
+  try {
+    pendingTxsResponse = await fetch(pendingTxsUrl, {
+      method: 'GET',
+      headers,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch pending Safe transactions for ${normalizedSafeAddress}: ${stringifyValueForError(error)}`,
+    );
+  }
 
   if (!pendingTxsResponse.ok) {
     rootLogger.error(
