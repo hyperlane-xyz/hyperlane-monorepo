@@ -18,6 +18,17 @@ function expectInvalidProvider(
   );
 }
 
+function createGetterBackedProvider(
+  getGetAccountInfo: () => unknown,
+): SolanaProvider {
+  return Object.create(null, {
+    getAccountInfo: {
+      get: getGetAccountInfo,
+      enumerable: true,
+    },
+  }) as SolanaProvider;
+}
+
 describe('squads provider bridge', () => {
   it('returns the same provider for valid solana connection', () => {
     const provider = new Connection('http://localhost:8899');
@@ -51,47 +62,45 @@ describe('squads provider bridge', () => {
 
   it('reads getAccountInfo once during provider validation', () => {
     let getAccountInfoReadCount = 0;
-    const providerLike = Object.create(null, {
-      getAccountInfo: {
-        get: () => {
-          getAccountInfoReadCount += 1;
-          return async () => null;
-        },
-        enumerable: true,
-      },
-    }) as SolanaProvider;
+    const providerLike = createGetterBackedProvider(() => {
+      getAccountInfoReadCount += 1;
+      return async () => null;
+    });
 
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
     expect(getAccountInfoReadCount).to.equal(1);
   });
 
   it('propagates getter errors while reading getAccountInfo', () => {
-    const providerLike = Object.create(null, {
-      getAccountInfo: {
-        get: () => {
-          throw new Error('getter failure');
-        },
-        enumerable: true,
-      },
-    }) as SolanaProvider;
+    const providerLike = createGetterBackedProvider(() => {
+      throw new Error('getter failure');
+    });
 
     expect(() => toSquadsProvider(providerLike)).to.throw('getter failure');
   });
 
   it('reads malformed getter-backed getAccountInfo once during validation', () => {
     let getAccountInfoReadCount = 0;
-    const providerLike = Object.create(null, {
-      getAccountInfo: {
-        get: () => {
-          getAccountInfoReadCount += 1;
-          return 'not-a-function';
-        },
-        enumerable: true,
-      },
-    }) as SolanaProvider;
+    const providerLike = createGetterBackedProvider(() => {
+      getAccountInfoReadCount += 1;
+      return 'not-a-function';
+    });
 
     expect(() => toSquadsProvider(providerLike)).to.throw(
       'Invalid Solana provider: expected getAccountInfo function, got string (provider: object)',
+    );
+    expect(getAccountInfoReadCount).to.equal(1);
+  });
+
+  it('reads undefined getter-backed getAccountInfo once during validation', () => {
+    let getAccountInfoReadCount = 0;
+    const providerLike = createGetterBackedProvider(() => {
+      getAccountInfoReadCount += 1;
+      return undefined;
+    });
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: object)',
     );
     expect(getAccountInfoReadCount).to.equal(1);
   });
