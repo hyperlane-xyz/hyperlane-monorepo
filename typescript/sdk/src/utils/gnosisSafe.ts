@@ -1447,8 +1447,12 @@ export type ParseableSafeTx = Omit<AnnotatedEV5Transaction, 'data'> & {
   data?: unknown;
 };
 
-export function parseSafeTx(tx: ParseableSafeTx) {
-  const normalizedData = asHex(tx.data, {
+export function parseSafeTx(tx: unknown) {
+  const txPayload =
+    tx !== null && typeof tx === 'object'
+      ? (tx as Partial<ParseableSafeTx>)
+      : undefined;
+  const normalizedData = asHex(txPayload?.data, {
     required: SAFE_TX_DATA_REQUIRED_ERROR,
     invalid: SAFE_TX_DATA_INVALID_HEX_ERROR,
   });
@@ -1458,7 +1462,7 @@ export function parseSafeTx(tx: ParseableSafeTx) {
   );
   return SAFE_INTERFACE.parseTransaction({
     data: normalizedData,
-    value: tx.value,
+    value: txPayload?.value as AnnotatedEV5Transaction['value'],
   });
 }
 

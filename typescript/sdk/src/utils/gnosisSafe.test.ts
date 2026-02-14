@@ -3657,6 +3657,15 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data is required');
     });
 
+    it('throws when transaction payload is non-object', () => {
+      expect(() => parseSafeTx(null)).to.throw(
+        'Safe transaction data is required',
+      );
+      expect(() => parseSafeTx(123)).to.throw(
+        'Safe transaction data is required',
+      );
+    });
+
     it('throws when transaction data is only whitespace', () => {
       expect(() =>
         parseSafeTx({
