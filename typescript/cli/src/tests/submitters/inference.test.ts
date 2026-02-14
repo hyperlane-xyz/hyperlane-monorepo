@@ -12,7 +12,7 @@ import {
 } from '@hyperlane-xyz/core';
 
 import { TxSubmitterType } from '@hyperlane-xyz/sdk';
-import { ProtocolType } from '@hyperlane-xyz/utils';
+import { ProtocolType, eqAddress } from '@hyperlane-xyz/utils';
 
 import { resolveSubmitterBatchesForTransactions } from '../../submitters/inference.js';
 import { writeYamlOrJson } from '../../utils/files.js';
@@ -16585,6 +16585,83 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(provider.getLogs.callCount).to.equal(0);
       // first inference checks open role and signer role once; second tx reuses cache
       expect(hasRoleStub.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('uses default timelock proposer when padded uppercase signer has proposer role', async () => {
+    const timelockOwner = '0x7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b7b';
+    const tx1 = { ...TX, to: '0xabababababababababababababababababababab' };
+    const tx2 = { ...TX, to: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd' };
+    const normalizedSigner = `0x${SIGNER.slice(2).toLowerCase()}`;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+    const hasRoleAccounts: string[] = [];
+    const hasRoleStub = sinon
+      .stub()
+      .callsFake(async (_role: string, account: string) => {
+        hasRoleAccounts.push(account);
+        return eqAddress(account, normalizedSigner);
+      });
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: hasRoleStub,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => `  0X${SIGNER.slice(2).toUpperCase()}  `,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [tx1 as any, tx2 as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].transactions).to.have.length(2);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(0);
+      expect(hasRoleStub.callCount).to.equal(2);
+      expect(hasRoleAccounts).to.have.length(2);
+      expect(eqAddress(hasRoleAccounts[0], ethersConstants.AddressZero)).to.equal(
+        true,
+      );
+      expect(eqAddress(hasRoleAccounts[1], normalizedSigner)).to.equal(true);
     } finally {
       ownableStub.restore();
       safeStub.restore();
