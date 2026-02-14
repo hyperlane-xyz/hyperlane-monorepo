@@ -7324,6 +7324,56 @@ describe('gnosisSafe utils', () => {
       expect(thresholdTx.value.eq(BigNumber.from(5))).to.equal(true);
       expect(thresholdTx.description).to.equal('Change safe threshold to 1');
     });
+
+    it('throws when threshold transaction creation fails', async () => {
+      await expectUpdateSafeOwnerError(
+        {
+          safeSdk: {
+            getThreshold: async () => 2,
+            getOwners: async () => [ownerA, ownerB],
+            createChangeThresholdTx: async () => {
+              throw new Error('tx build failed');
+            },
+          } as unknown as Parameters<typeof updateSafeOwner>[0]['safeSdk'],
+          threshold: 1,
+        },
+        'Failed to create Safe threshold transaction: Error: tx build failed',
+      );
+    });
+
+    it('throws when threshold transaction payload is invalid', async () => {
+      await expectUpdateSafeOwnerError(
+        {
+          safeSdk: {
+            getThreshold: async () => 2,
+            getOwners: async () => [ownerA, ownerB],
+            createChangeThresholdTx: async () => ({
+              data: {
+                to: 'bad',
+                data: '0x1234',
+                value: '1',
+              },
+            }),
+          } as unknown as Parameters<typeof updateSafeOwner>[0]['safeSdk'],
+          threshold: 1,
+        },
+        'Safe threshold transaction target must be valid address: bad',
+      );
+    });
+
+    it('throws when owner retrieval fails', async () => {
+      await expectUpdateSafeOwnerError(
+        {
+          safeSdk: {
+            getThreshold: async () => 2,
+            getOwners: async () => {
+              throw new Error('owner lookup failed');
+            },
+          } as unknown as Parameters<typeof updateSafeOwner>[0]['safeSdk'],
+        },
+        'Failed to fetch Safe owners: Error: owner lookup failed',
+      );
+    });
   });
 
   describe(parseSafeTx.name, () => {
