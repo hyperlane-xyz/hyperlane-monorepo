@@ -560,6 +560,26 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws safe-integer error when toString output cannot stringify', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: {
+            toString: () => ({
+              [Symbol.toPrimitive]: () => {
+                throw new Error('cannot stringify');
+              },
+            }),
+          },
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be a JavaScript safe integer: [unstringifiable value]',
+      );
+    });
+
     it('throws when multisig transaction index is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({

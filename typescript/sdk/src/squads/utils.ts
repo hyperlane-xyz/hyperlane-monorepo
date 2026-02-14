@@ -350,10 +350,15 @@ function normalizeSafeIntegerValue(value: unknown): {
     return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
   }
 
-  const displayValue =
-    typeof rawStringValue === 'string'
-      ? rawStringValue
-      : String(rawStringValue);
+  let displayValue: string;
+  try {
+    displayValue =
+      typeof rawStringValue === 'string'
+        ? rawStringValue
+        : String(rawStringValue);
+  } catch {
+    return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
+  }
   if (!SAFE_INTEGER_DECIMAL_PATTERN.test(displayValue)) {
     return { parsedValue: Number.NaN, displayValue };
   }
