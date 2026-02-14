@@ -132,7 +132,7 @@ export function processGovernorReaderResult(
     rootLogger.info(chalk.green('✅✅✅✅✅ No fatal errors ✅✅✅✅✅'));
   }
 
-  const chainResults: Record<string, GovernTransaction> = {};
+  const chainResults = new Map<string, GovernTransaction>();
   for (let index = 0; index < resultCount; index += 1) {
     let resultEntry: [string, GovernTransaction];
     try {
@@ -189,9 +189,7 @@ export function processGovernorReaderResult(
       );
     }
     const normalizedResultKey = resultKey.trim();
-    if (
-      Object.prototype.hasOwnProperty.call(chainResults, normalizedResultKey)
-    ) {
+    if (chainResults.has(normalizedResultKey)) {
       throw new Error(
         `Governor reader result key at index ${index} is duplicated: ${normalizedResultKey}`,
       );
@@ -201,7 +199,7 @@ export function processGovernorReaderResult(
         `Governor reader transaction at index ${index} must be defined`,
       );
     }
-    chainResults[normalizedResultKey] = governTx;
+    chainResults.set(normalizedResultKey, governTx);
   }
   let timestampValue: unknown;
   try {
@@ -214,8 +212,12 @@ export function processGovernorReaderResult(
     'Governor reader timestamp',
   );
   const resultsPath = `${normalizedOutputFileName}-${timestamp}.yaml`;
+  const chainResultsObject = Object.fromEntries(chainResults) as Record<
+    string,
+    GovernTransaction
+  >;
   try {
-    writeYamlFn(resultsPath, chainResults);
+    writeYamlFn(resultsPath, chainResultsObject);
   } catch (error) {
     throw new Error(
       `Governor reader failed to write results file ${resultsPath}: ${stringifyValueForError(error)}`,

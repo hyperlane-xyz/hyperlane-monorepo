@@ -979,6 +979,31 @@ describe('processGovernorReaderResult', () => {
     });
   });
 
+  it('writes __proto__ result key without prototype pollution', () => {
+    let writtenValue: Record<string, unknown> | undefined;
+
+    processGovernorReaderResult(
+      [['__proto__', { status: 'ok' } as unknown as any]],
+      [],
+      'safe-tx-parse-results',
+      {
+        nowFn: () => 1700000000000,
+        writeYamlFn: (_, value) => {
+          writtenValue = value as Record<string, unknown>;
+        },
+      },
+    );
+
+    expect(writtenValue).to.not.equal(undefined);
+    expect(Object.getPrototypeOf(writtenValue!)).to.equal(Object.prototype);
+    expect(
+      Object.prototype.hasOwnProperty.call(writtenValue!, '__proto__'),
+    ).to.equal(true);
+    expect((writtenValue as Record<string, any>)['__proto__']).to.deep.equal({
+      status: 'ok',
+    });
+  });
+
   it('throws when writing result yaml fails', () => {
     expect(() =>
       processGovernorReaderResult(
