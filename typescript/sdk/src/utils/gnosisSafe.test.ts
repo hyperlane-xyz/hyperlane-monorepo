@@ -37,6 +37,14 @@ describe('gnosisSafe utils', () => {
         ),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired(
+          'https:////safe-transaction-mainnet.safe.global/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('http:///safe-transaction-mainnet.safe.global/api'),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired('HTTP://SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL/API'),
       ).to.equal(true);
     });
@@ -355,6 +363,15 @@ describe('gnosisSafe utils', () => {
       );
       expect(normalizeSafeServiceUrl('http://safe.global:8080/api')).to.equal(
         'http://safe.global:8080/api',
+      );
+    });
+
+    it('canonicalizes explicit http(s) urls with extra slashes', () => {
+      expect(
+        normalizeSafeServiceUrl('https:////safe.global/tx-service/eth'),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+      expect(normalizeSafeServiceUrl('http:///safe.global/api')).to.equal(
+        'http://safe.global/api',
       );
     });
 
