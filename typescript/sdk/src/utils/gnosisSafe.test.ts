@@ -3419,6 +3419,34 @@ describe('gnosisSafe utils', () => {
       ]);
     });
 
+    it('omits nonce options when nonce is undefined', async () => {
+      const createTransactionCalls: unknown[] = [];
+      const safeSdkMock = {
+        createTransaction: async (args: unknown) => {
+          createTransactionCalls.push(args);
+          return { data: { nonce: 0 } };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      await createSafeTransaction(
+        safeSdkMock,
+        [{ to: '0x00000000000000000000000000000000000000aa', data: '0x1234' }],
+        false,
+      );
+
+      expect(createTransactionCalls).to.deep.equal([
+        {
+          transactions: [
+            {
+              to: '0x00000000000000000000000000000000000000aa',
+              data: '0x1234',
+            },
+          ],
+          onlyCalls: false,
+        },
+      ]);
+    });
+
     it('throws when nonce is not a non-negative safe integer', async () => {
       const safeSdkMock = {
         createTransaction: async () => ({ data: { nonce: 1 } }),
@@ -3432,6 +3460,7 @@ describe('gnosisSafe utils', () => {
         1.5,
         Number.NaN,
         Number.POSITIVE_INFINITY,
+        Number.MAX_SAFE_INTEGER + 1,
       ]) {
         try {
           await createSafeTransaction(
