@@ -19,4 +19,12 @@ describe('squads provider bridge', () => {
       'Invalid Solana provider: missing getAccountInfo function',
     );
   });
+
+  it('throws when getAccountInfo exists but is not callable', () => {
+    expect(() =>
+      toSquadsProvider({
+        getAccountInfo: 'not-a-function',
+      } as unknown as SolanaProvider),
+    ).to.throw('Invalid Solana provider: missing getAccountInfo function');
+  });
 });
