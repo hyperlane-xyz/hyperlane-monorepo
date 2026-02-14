@@ -671,6 +671,66 @@ describe('hyperlane warp apply with submitters', async function () {
         /-gnosisSafeTxBuilder-\d+-receipts\.json/,
       );
     });
+
+    it('should prioritize selector-specific override with uppercase 0X selector prefix', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      await deployAndExportWarpRoute();
+
+      const chain3 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+      const chain3WarpAddress = evmWarpCommands.getDeployedWarpAddress(
+        chain3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      const timelock = await new TimelockController__factory()
+        .connect(chain3Signer)
+        .deploy(
+          0,
+          [initialOwnerAddress],
+          [initialOwnerAddress],
+          ethers.constants.AddressZero,
+        );
+
+      const strategyPath = `${TEMP_PATH}/warp-apply-submitter-selector-overrides-upper-prefix.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [chain3]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: chain3,
+          },
+          submitterOverrides: {
+            [chain3WarpAddress]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: chain3,
+              safeAddress,
+              version: '1.0',
+            },
+            [`${chain3WarpAddress}@0XF2FDE38B`]: {
+              type: TxSubmitterType.TIMELOCK_CONTROLLER,
+              chain: chain3,
+              timelockAddress: timelock.address,
+              proposerSubmitter: {
+                type: TxSubmitterType.JSON_RPC,
+                chain: chain3,
+              },
+            },
+          },
+        },
+      });
+
+      warpDeployConfig[chain3].owner = Wallet.createRandom().address;
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: strategyPath,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(result.text()).to.match(/-timelockController-\d+-receipts\.json/);
+      expect(result.text()).to.not.match(
+        /-gnosisSafeTxBuilder-\d+-receipts\.json/,
+      );
+    });
   });
 
   describe('auto inference', () => {
