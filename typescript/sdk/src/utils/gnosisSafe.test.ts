@@ -61,6 +61,12 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('safe-transaction-mainnet.5afe.dev')).to.equal(
         true,
       );
+      expect(
+        safeApiKeyRequired('  safe-transaction-mainnet.safe.global/api  '),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('safe-transaction-mainnet.safe.global:443/api'),
+      ).to.equal(true);
     });
 
     it('requires safe domains to match on label boundaries', () => {

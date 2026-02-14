@@ -154,16 +154,17 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   const hostMatchesDomain = (host: string, domain: string): boolean =>
     host === domain || host.endsWith(`.${domain}`);
 
-  const extractHostname = (value: string): string | undefined => {
+  const parseHostname = (value: string): string | undefined => {
     try {
-      return new URL(value).hostname.toLowerCase();
+      const parsed = new URL(value);
+      return parsed.hostname ? parsed.hostname.toLowerCase() : undefined;
     } catch {
-      try {
-        return new URL(`https://${value}`).hostname.toLowerCase();
-      } catch {
-        return undefined;
-      }
+      return undefined;
     }
+  };
+
+  const extractHostname = (value: string): string | undefined => {
+    return parseHostname(value) ?? parseHostname(`https://${value}`);
   };
 
   const hostname = extractHostname(txServiceUrl.trim());
