@@ -1,5 +1,7 @@
+import { existsSync } from 'fs';
 import { dirname, join } from 'path';
 import { fileURLToPath } from 'url';
+import { createRequire } from 'module';
 
 import {
   ChainAddresses,
@@ -31,11 +33,29 @@ import {
 } from './environments/test/chains.js';
 import { supportedChainNames as testnet4Chains } from './environments/testnet4/supportedChainNames.js';
 
-export const DEFAULT_REGISTRY_URI = join(
+const LOCAL_REGISTRY_URI = join(
   dirname(fileURLToPath(import.meta.url)),
   '../../../../',
   'hyperlane-registry',
 );
+
+function getPackagedRegistryUri(): string | null {
+  try {
+    const require = createRequire(import.meta.url);
+    const registryEntryPointPath = require.resolve('@hyperlane-xyz/registry');
+    const packagedRegistryUri = dirname(registryEntryPointPath);
+    return existsSync(packagedRegistryUri) ? packagedRegistryUri : null;
+  } catch {
+    return null;
+  }
+}
+
+function getDefaultRegistryUri(): string {
+  if (existsSync(LOCAL_REGISTRY_URI)) return LOCAL_REGISTRY_URI;
+  return getPackagedRegistryUri() ?? LOCAL_REGISTRY_URI;
+}
+
+export const DEFAULT_REGISTRY_URI = getDefaultRegistryUri();
 
 // A global Registry singleton
 // All uses of chain metadata or chain address artifacts should go through this registry.
