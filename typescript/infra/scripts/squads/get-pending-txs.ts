@@ -12,6 +12,7 @@ import {
 import {
   LogFormat,
   LogLevel,
+  assert,
   configureRootLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -24,6 +25,18 @@ import {
   resolveSquadsChainsFromArgv,
   withSquadsChains,
 } from './cli-helpers.js';
+
+function getSignerForChain(
+  signersByChain: ChainMap<SvmMultiProtocolSignerAdapter>,
+  chain: string,
+): SvmMultiProtocolSignerAdapter {
+  const signer = signersByChain[chain];
+  assert(
+    signer,
+    `Missing signer for chain ${chain} while executing Squads proposals`,
+  );
+  return signer;
+}
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -104,7 +117,13 @@ async function main() {
     executableProposals,
     (p) => p.shortTxHash,
     (p) => p.chain,
-    (p) => executeProposal(p.chain, mpp, p.nonce, signersByChain[p.chain]),
+    (p) =>
+      executeProposal(
+        p.chain,
+        mpp,
+        p.nonce,
+        getSignerForChain(signersByChain, p.chain),
+      ),
   );
 
   process.exit(0);
