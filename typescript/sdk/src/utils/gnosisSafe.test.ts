@@ -3447,6 +3447,99 @@ describe('gnosisSafe utils', () => {
       ]);
     });
 
+    it('throws when transaction list is non-array', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(
+          safeSdkMock,
+          123 as unknown as Parameters<typeof createSafeTransaction>[1],
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction list must be an array: 123',
+        );
+      }
+    });
+
+    it('throws when transaction list length access is inaccessible', async () => {
+      const transactionsWithThrowingLength = new Proxy(exampleTransactions, {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(
+          safeSdkMock,
+          transactionsWithThrowingLength as unknown as Parameters<
+            typeof createSafeTransaction
+          >[1],
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction list length is inaccessible',
+        );
+      }
+    });
+
+    it('throws when transaction list length is invalid', async () => {
+      const transactionsWithInvalidLength = new Proxy(exampleTransactions, {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return Number.POSITIVE_INFINITY;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      });
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(
+          safeSdkMock,
+          transactionsWithInvalidLength as unknown as Parameters<
+            typeof createSafeTransaction
+          >[1],
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction list length is invalid: Infinity',
+        );
+      }
+    });
+
+    it('throws when onlyCalls flag is not boolean', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(
+          safeSdkMock,
+          exampleTransactions,
+          1 as unknown as Parameters<typeof createSafeTransaction>[2],
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction onlyCalls flag must be a boolean: 1',
+        );
+      }
+    });
+
     it('throws when nonce is not a non-negative safe integer', async () => {
       const safeSdkMock = {
         createTransaction: async () => ({ data: { nonce: 1 } }),
@@ -3523,6 +3616,30 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.include(
           'Safe transaction nonce must be a non-negative safe integer:',
+        );
+      }
+
+      expect(createTransactionCallCount).to.equal(0);
+    });
+
+    it('fails fast before safe sdk call on invalid transaction list', async () => {
+      let createTransactionCallCount = 0;
+      const safeSdkMock = {
+        createTransaction: async () => {
+          createTransactionCallCount += 1;
+          return { data: { nonce: 1 } };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(
+          safeSdkMock,
+          'bad' as unknown as Parameters<typeof createSafeTransaction>[1],
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction list must be an array: bad',
         );
       }
 

@@ -975,6 +975,26 @@ export async function createSafeTransaction(
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
+  assert(
+    Array.isArray(transactions),
+    `Safe transaction list must be an array: ${stringifyValueForError(transactions)}`,
+  );
+  let transactionsCount = 0;
+  try {
+    transactionsCount = transactions.length;
+  } catch {
+    throw new Error('Safe transaction list length is inaccessible');
+  }
+  assert(
+    Number.isSafeInteger(transactionsCount) && transactionsCount >= 0,
+    `Safe transaction list length is invalid: ${stringifyValueForError(transactionsCount)}`,
+  );
+  if (onlyCalls !== undefined) {
+    assert(
+      typeof onlyCalls === 'boolean',
+      `Safe transaction onlyCalls flag must be a boolean: ${stringifyValueForError(onlyCalls)}`,
+    );
+  }
   if (nonce !== undefined) {
     assert(
       typeof nonce === 'number' && Number.isSafeInteger(nonce) && nonce >= 0,
