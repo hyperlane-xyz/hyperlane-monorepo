@@ -160,6 +160,14 @@ describe('squads utils', () => {
         }),
       ).to.equal(SquadsProposalVoteError.AlreadyRejected);
     });
+
+    it('ignores non-string logs in frozen arrays while still parsing known errors', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError({
+          transactionLogs: Object.freeze([123, 'custom program error: 0x177a']),
+        }),
+      ).to.equal(SquadsProposalVoteError.AlreadyApproved);
+    });
   });
 
   describe(getSquadAndProvider.name, () => {
