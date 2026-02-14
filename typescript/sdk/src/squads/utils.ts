@@ -206,26 +206,34 @@ function normalizeStringifiedUnknownError(
 function formatUnknownErrorForMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
-      if (typeof error.message === 'string' && error.message.length > 0) {
-        return error.message;
+      const normalizedMessage = normalizeStringifiedUnknownError(error.message);
+      if (normalizedMessage) {
+        return normalizedMessage;
       }
     } catch {}
   }
   if (typeof error === 'string') {
-    return error;
+    const normalizedError = normalizeStringifiedUnknownError(error);
+    return normalizedError ?? '[unstringifiable error]';
   }
   if (error && typeof error === 'object' && !(error instanceof Error)) {
     try {
       const stack = (error as { stack?: unknown }).stack;
-      if (typeof stack === 'string' && stack.length > 0) {
-        return stack;
+      if (typeof stack === 'string') {
+        const normalizedStack = normalizeStringifiedUnknownError(stack);
+        if (normalizedStack) {
+          return normalizedStack;
+        }
       }
     } catch {}
 
     try {
       const message = (error as { message?: unknown }).message;
-      if (typeof message === 'string' && message.length > 0) {
-        return message;
+      if (typeof message === 'string') {
+        const normalizedMessage = normalizeStringifiedUnknownError(message);
+        if (normalizedMessage) {
+          return normalizedMessage;
+        }
       }
     } catch {}
   }

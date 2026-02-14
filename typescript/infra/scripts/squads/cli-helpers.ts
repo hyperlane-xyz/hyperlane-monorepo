@@ -277,14 +277,20 @@ export function logProposals(
 export function formatScriptError(error: unknown): string {
   if (error instanceof Error) {
     try {
-      if (typeof error.stack === 'string' && error.stack.length > 0) {
-        return error.stack;
+      if (typeof error.stack === 'string') {
+        const normalizedStack = normalizeStringifiedError(error.stack);
+        if (normalizedStack) {
+          return normalizedStack;
+        }
       }
     } catch {}
 
     try {
-      if (typeof error.message === 'string' && error.message.length > 0) {
-        return error.message;
+      if (typeof error.message === 'string') {
+        const normalizedMessage = normalizeStringifiedError(error.message);
+        if (normalizedMessage) {
+          return normalizedMessage;
+        }
       }
     } catch {}
 
@@ -297,21 +303,28 @@ export function formatScriptError(error: unknown): string {
   }
 
   if (typeof error === 'string') {
-    return error;
+    const normalizedError = normalizeStringifiedError(error);
+    return normalizedError ?? '[unformattable error value]';
   }
 
   if (error && typeof error === 'object') {
     try {
       const stack = (error as { stack?: unknown }).stack;
-      if (typeof stack === 'string' && stack.length > 0) {
-        return stack;
+      if (typeof stack === 'string') {
+        const normalizedStack = normalizeStringifiedError(stack);
+        if (normalizedStack) {
+          return normalizedStack;
+        }
       }
     } catch {}
 
     try {
       const message = (error as { message?: unknown }).message;
-      if (typeof message === 'string' && message.length > 0) {
-        return message;
+      if (typeof message === 'string') {
+        const normalizedMessage = normalizeStringifiedError(message);
+        if (normalizedMessage) {
+          return normalizedMessage;
+        }
       }
     } catch {}
 

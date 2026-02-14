@@ -746,6 +746,18 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(error)).to.equal('boom');
   });
 
+  it('falls back to Error message when stack is whitespace-only', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return '   ';
+      },
+    });
+
+    expect(formatScriptError(error)).to.equal('boom');
+  });
+
   it('falls back to Error stringification when stack and message are empty', () => {
     const error = new Error('boom');
     Object.defineProperty(error, 'stack', {
@@ -788,6 +800,10 @@ describe('squads cli helpers', () => {
     expect(formatScriptError('oops')).to.equal('oops');
   });
 
+  it('uses placeholder for whitespace-only string errors', () => {
+    expect(formatScriptError('   ')).to.equal('[unformattable error value]');
+  });
+
   it('formats object errors via stable object stringification', () => {
     const formatted = formatScriptError({ foo: 'bar' });
 
@@ -808,6 +824,15 @@ describe('squads cli helpers', () => {
         message: 'rpc failed',
       }),
     ).to.equal('Error: rpc failed\n at sample.ts:1:1');
+  });
+
+  it('falls back to message when non-Error object stack is whitespace-only', () => {
+    expect(
+      formatScriptError({
+        stack: '   ',
+        message: 'rpc failed',
+      }),
+    ).to.equal('rpc failed');
   });
 
   it('falls back to message when non-Error object stack accessor throws', () => {
