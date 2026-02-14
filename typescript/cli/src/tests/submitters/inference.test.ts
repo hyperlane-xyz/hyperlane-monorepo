@@ -232,6 +232,45 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('matches explicit EVM override when transaction target has uppercase 0X prefix', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-overrides-target-upper-prefix-${Date.now()}.yaml`;
+    const overrideTarget = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const txOverride = { ...TX, to: '  0Xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa  ' };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txOverride as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('preserves transaction order by splitting non-contiguous explicit submitter matches', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-overrides-order-${Date.now()}.yaml`;
     const overrideTarget = '0x9999999999999999999999999999999999999999';
@@ -1412,7 +1451,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
-  it('trims transaction from before fallback inference when ownable read fails', async () => {
+  it('normalizes uppercase 0X transaction from before fallback inference', async () => {
     const fromSafe = '0x4444444444444444444444444444444444444444';
     const ownableStub = sinon
       .stub(Ownable__factory, 'connect')
@@ -1444,7 +1483,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [{ ...TX, from: `  ${fromSafe}  ` } as any],
+        transactions: [{ ...TX, from: '  0X4444444444444444444444444444444444444444  ' } as any],
         context,
       });
 
@@ -1458,7 +1497,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
-  it('trims transaction target before inference owner lookup', async () => {
+  it('normalizes uppercase 0X transaction target before inference owner lookup', async () => {
     const safeOwner = '0x2222222222222222222222222222222222222222';
     const targetAddress = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
     const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
@@ -1496,7 +1535,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [{ ...TX, to: ` ${targetAddress} ` } as any],
+        transactions: [{ ...TX, to: '  0Xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb  ' } as any],
         context,
       });
 

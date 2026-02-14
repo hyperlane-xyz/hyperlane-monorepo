@@ -82,8 +82,16 @@ export type ResolvedSubmitterBatch = {
   transactions: TypedAnnotatedTransaction[];
 };
 
+function normalizeEvmAddressFlexible(address: string): string {
+  const trimmed = address.trim();
+  const normalizedPrefix = trimmed.startsWith('0X')
+    ? `0x${trimmed.slice(2)}`
+    : trimmed;
+  return normalizeAddressEvm(normalizedPrefix);
+}
+
 function cacheKey(chain: ChainName, address: Address): string {
-  return `${chain}:${normalizeAddressEvm(address)}`;
+  return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
@@ -525,7 +533,7 @@ async function inferSubmitterFromTransaction({
     return defaultSubmitter;
   }
 
-  const normalizedTarget = normalizeAddressEvm(to.trim());
+  const normalizedTarget = normalizeEvmAddressFlexible(to);
   const provider = context.multiProvider.getProvider(chain);
 
   let ownerAddress: Address | null = null;
@@ -538,7 +546,7 @@ async function inferSubmitterFromTransaction({
   const addressToInferFrom =
     ownerAddress ??
     (typeof from === 'string'
-      ? normalizeAddressEvm(from.trim())
+      ? normalizeEvmAddressFlexible(from)
       : normalizedTarget);
 
   const inferredSubmitter = await inferSubmitterFromAddress({
@@ -587,7 +595,7 @@ function resolveExplicitSubmitterForTransaction({
 
   const tryNormalizeEvmAddress = (address: string): string | null => {
     try {
-      return normalizeAddressEvm(address);
+      return normalizeEvmAddressFlexible(address);
     } catch {
       return null;
     }
