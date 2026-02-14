@@ -124,6 +124,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('throws when unsupported-chain formatter receives empty configured list', () => {
+    expect(() =>
+      getUnsupportedSquadsChainsErrorMessage(['ethereum'], []),
+    ).to.throw('Expected at least one configured squads chain');
+  });
+
   it('deduplicates values in unsupported-chain error formatter', () => {
     expect(
       getUnsupportedSquadsChainsErrorMessage(
