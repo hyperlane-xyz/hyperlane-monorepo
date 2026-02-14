@@ -228,9 +228,28 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws for fractional approval counts', () => {
+      expect(() => getSquadTxStatus('Active', 1.5, 2, 1, 0)).to.throw(
+        'Expected approvals to be a non-negative safe integer, got 1.5',
+      );
+    });
+
+    it('throws for unsafe threshold values', () => {
+      const unsafeThreshold = Number.MAX_SAFE_INTEGER + 1;
+      expect(() => getSquadTxStatus('Active', 0, unsafeThreshold, 1, 0)).to.throw(
+        `Expected threshold to be a positive safe integer, got ${unsafeThreshold}`,
+      );
+    });
+
     it('throws for negative stale transaction index values', () => {
       expect(() => getSquadTxStatus('Active', 0, 1, 1, -1)).to.throw(
         'Expected stale transaction index to be a non-negative safe integer, got -1',
+      );
+    });
+
+    it('throws for fractional transaction index values', () => {
+      expect(() => getSquadTxStatus('Active', 0, 1, 1.5, 0)).to.throw(
+        'Expected transaction index to be a non-negative safe integer, got 1.5',
       );
     });
   });
