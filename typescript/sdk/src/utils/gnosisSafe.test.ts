@@ -3058,6 +3058,33 @@ describe('gnosisSafe utils', () => {
         clock.restore();
       }
     });
+
+    it('rethrows after max retries when failures persist', async () => {
+      const clock = sinon.useFakeTimers();
+      const randomStub = sinon.stub(Math, 'random').returns(0);
+      try {
+        let attempts = 0;
+        const unstringifiableError = {
+          [Symbol.toPrimitive]() {
+            throw new Error('to-primitive boom');
+          },
+        };
+
+        const resultPromise = retrySafeApi(async () => {
+          attempts += 1;
+          throw unstringifiableError;
+        }).catch((error) => error);
+
+        await clock.tickAsync(20_000);
+        const error = await resultPromise;
+        expect(error).to.equal(unstringifiableError);
+
+        expect(attempts).to.equal(10);
+      } finally {
+        randomStub.restore();
+        clock.restore();
+      }
+    });
   });
 
   describe(isLegacySafeApi.name, () => {
