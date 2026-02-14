@@ -33,12 +33,16 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /connect econnrefused .*docker\.sock/i,
   /connect econnrefused .*podman\.sock/i,
   /npipe:.*docker_engine/i,
+  /npipe:.*dockerdesktopengine/i,
   /npipe:.*dockerdesktoplinuxengine/i,
   /open \/\/\.\/pipe\/docker_engine/i,
+  /open \/\/\.\/pipe\/dockerdesktopengine/i,
   /open \/\/\.\/pipe\/dockerdesktoplinuxengine/i,
   /%2f%2f\.%2fpipe%2fdocker_engine/i,
+  /%2f%2f\.%2fpipe%2fdockerdesktopengine/i,
   /%2f%2f\.%2fpipe%2fdockerdesktoplinuxengine/i,
   /\\\\\.\\pipe\\docker_engine/i,
+  /\\\\\.\\pipe\\dockerdesktopengine/i,
   /\\\\\.\\pipe\\dockerdesktoplinuxengine/i,
 ];
 
