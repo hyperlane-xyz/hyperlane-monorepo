@@ -434,11 +434,11 @@ export async function getSafeAndService(
     safeSigner = multiProviderSigner.privateKey;
     if (!safeSigner) {
       const signerAddress = await multiProviderSigner.getAddress();
-      throw new Error(
-        `Failed to initialize Safe signer for chain ${chain}. ` +
-          `MultiProvider signer ${signerAddress} does not expose a private key. ` +
-          `Pass an explicit Safe signer to getSafeAndService.`,
+      rootLogger.debug(
+        `MultiProvider signer ${signerAddress} on ${chain} does not expose a private key. ` +
+          'Falling back to address-based signer configuration for protocol-kit.',
       );
+      safeSigner = signerAddress;
     }
   }
   let safeSdk: Safe.default;
