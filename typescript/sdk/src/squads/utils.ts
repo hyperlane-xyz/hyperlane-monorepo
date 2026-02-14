@@ -77,6 +77,30 @@ export type SquadAndProvider = {
   programId: PublicKey;
 };
 
+type SquadsProposalVoteErrorPattern = {
+  error: SquadsProposalVoteError;
+  patterns: readonly string[];
+};
+
+const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPattern[] =
+  [
+    {
+      // Error 6011 (0x177b)
+      error: SquadsProposalVoteError.AlreadyRejected,
+      patterns: ['alreadyrejected', '0x177b'],
+    },
+    {
+      // Error 6010 (0x177a)
+      error: SquadsProposalVoteError.AlreadyApproved,
+      patterns: ['alreadyapproved', '0x177a'],
+    },
+    {
+      // Error 6012 (0x177c)
+      error: SquadsProposalVoteError.AlreadyCancelled,
+      patterns: ['alreadycancelled', '0x177c'],
+    },
+  ];
+
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -86,19 +110,10 @@ export function parseSquadsProposalVoteError(
 ): SquadsProposalVoteError | undefined {
   const logs = transactionLogs.join('\n').toLowerCase();
 
-  // Error 6011 (0x177b): AlreadyRejected
-  if (logs.includes('alreadyrejected') || logs.includes('0x177b')) {
-    return SquadsProposalVoteError.AlreadyRejected;
-  }
-
-  // Error 6010 (0x177a): AlreadyApproved
-  if (logs.includes('alreadyapproved') || logs.includes('0x177a')) {
-    return SquadsProposalVoteError.AlreadyApproved;
-  }
-
-  // Error 6012 (0x177c): AlreadyCancelled
-  if (logs.includes('alreadycancelled') || logs.includes('0x177c')) {
-    return SquadsProposalVoteError.AlreadyCancelled;
+  for (const { error, patterns } of SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS) {
+    if (patterns.some((pattern) => logs.includes(pattern))) {
+      return error;
+    }
   }
 
   return undefined;

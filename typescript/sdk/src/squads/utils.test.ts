@@ -103,6 +103,16 @@ describe('squads utils', () => {
       ).to.equal(SquadsProposalVoteError.AlreadyCancelled);
     });
 
+    it('prioritizes rejection errors when multiple known errors are present', () => {
+      expect(
+        parseSquadsProposalVoteError([
+          'custom program error: 0x177a',
+          'custom program error: 0x177b',
+          'custom program error: 0x177c',
+        ]),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
+
     it('parses readonly frozen transaction logs', () => {
       const frozenLogs = Object.freeze([
         'Program log: AlreadyApproved',
