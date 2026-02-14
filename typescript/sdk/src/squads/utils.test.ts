@@ -2053,6 +2053,26 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('fails fast for unsafe transaction index before account lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const unsafeIndex = Number.MAX_SAFE_INTEGER + 1;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, unsafeIndex),
+      );
+
+      expect(thrownError?.message).to.equal(
+        `Expected transaction index to be a non-negative safe integer for solanamainnet, got ${unsafeIndex}`,
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
   });
 
   describe(executeProposal.name, () => {
@@ -2100,6 +2120,31 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got 1.5',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for unsafe transaction index before proposal execution setup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+      const unsafeIndex = Number.MAX_SAFE_INTEGER + 1;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          'solanamainnet',
+          mpp,
+          unsafeIndex,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        `Expected transaction index to be a non-negative safe integer for solanamainnet, got ${unsafeIndex}`,
       );
       expect(providerLookupCalled).to.equal(false);
     });
