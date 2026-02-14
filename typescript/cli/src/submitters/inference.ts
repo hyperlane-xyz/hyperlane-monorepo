@@ -18,6 +18,7 @@ import {
   ProtocolType,
   assert,
   eqAddress,
+  isValidAddressEvm,
   normalizeAddressEvm,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -93,6 +94,10 @@ function normalizeEvmAddressFlexible(address: string): string {
   const normalizedPrefix = trimmed.startsWith('0X')
     ? `0x${trimmed.slice(2)}`
     : trimmed;
+  assert(
+    isValidAddressEvm(normalizedPrefix),
+    `Invalid EVM address: ${normalizedPrefix}`,
+  );
   return normalizeAddressEvm(normalizedPrefix);
 }
 
