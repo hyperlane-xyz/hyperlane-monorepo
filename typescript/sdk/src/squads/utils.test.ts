@@ -252,6 +252,18 @@ describe('squads utils', () => {
         'Expected transaction index to be a non-negative safe integer, got 1.5',
       );
     });
+
+    it('throws for empty status strings', () => {
+      expect(() => getSquadTxStatus('   ', 0, 1, 1, 0)).to.throw(
+        'Expected status kind to be a non-empty string',
+      );
+    });
+
+    it('throws for non-string status values', () => {
+      expect(() =>
+        getSquadTxStatus(1 as unknown as string, 0, 1, 1, 0),
+      ).to.throw('Expected status kind to be a string, got number');
+    });
   });
 
   describe(parseSquadProposal.name, () => {

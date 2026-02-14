@@ -589,7 +589,15 @@ export function getSquadTxStatus(
   transactionIndex: number,
   staleTransactionIndex: number,
 ): SquadTxStatus {
+  assert(
+    typeof statusKind === 'string',
+    `Expected status kind to be a string, got ${typeof statusKind}`,
+  );
   const normalizedStatusKind = statusKind.trim();
+  assert(
+    normalizedStatusKind.length > 0,
+    'Expected status kind to be a non-empty string',
+  );
   assert(
     Number.isSafeInteger(approvals) && approvals >= 0,
     `Expected approvals to be a non-negative safe integer, got ${approvals}`,
