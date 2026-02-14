@@ -172,7 +172,35 @@ describe('executePendingTransactions', () => {
       expect.fail('Expected executePendingTransactions to throw');
     } catch (error) {
       expect((error as Error).message).to.equal(
-        'Failed to execute 1 transaction(s): <unknown>:<unknown>',
+        'Failed to execute 1 transaction(s): <unknown>:tx2',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1']);
+  });
+
+  it('records partial metadata when id is invalid but chain is present', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: '   ', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+
+    const confirmPrompt = async () => true;
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        confirmPrompt,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): chainB:<unknown>',
       );
     }
 

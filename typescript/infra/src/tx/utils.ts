@@ -79,20 +79,18 @@ export async function executePendingTransactions<T>(
       });
       continue;
     }
-    if (
-      typeof id !== 'string' ||
-      id.trim().length === 0 ||
-      typeof chain !== 'string' ||
-      chain.trim().length === 0
-    ) {
+    const normalizedId = typeof id === 'string' ? id.trim() : undefined;
+    const normalizedChain =
+      typeof chain === 'string' ? chain.trim() : undefined;
+    if (!normalizedId || !normalizedChain) {
       rootLogger.error(
         chalk.red(
           `Invalid pending transaction metadata: chain=${String(chain)} id=${String(id)}`,
         ),
       );
       failedTransactions.push({
-        id: '<unknown>',
-        chain: '<unknown>',
+        id: normalizedId || '<unknown>',
+        chain: normalizedChain || '<unknown>',
         error: new Error('Invalid pending transaction metadata'),
       });
       continue;
@@ -101,7 +99,7 @@ export async function executePendingTransactions<T>(
     const confirmExecuteTx =
       confirmExecuteAll ||
       (await confirmPrompt({
-        message: `Execute transaction ${id} on chain ${chain}?`,
+        message: `Execute transaction ${normalizedId} on chain ${normalizedChain}?`,
         default: false,
       }));
 
@@ -109,15 +107,23 @@ export async function executePendingTransactions<T>(
       continue;
     }
 
-    rootLogger.info(`Executing transaction ${id} on chain ${chain}`);
+    rootLogger.info(
+      `Executing transaction ${normalizedId} on chain ${normalizedChain}`,
+    );
     try {
       await executeTx(tx);
     } catch (error) {
       rootLogger.error(
-        chalk.red(`Error executing transaction ${id} on chain ${chain}:`),
+        chalk.red(
+          `Error executing transaction ${normalizedId} on chain ${normalizedChain}:`,
+        ),
         error,
       );
-      failedTransactions.push({ id, chain, error });
+      failedTransactions.push({
+        id: normalizedId,
+        chain: normalizedChain,
+        error,
+      });
       continue;
     }
   }
