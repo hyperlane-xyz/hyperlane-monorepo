@@ -386,4 +386,55 @@ describe('squads transaction reader', () => {
       },
     ]);
   });
+
+  it('does not require full proposal status shape when index is valid', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async () => ({
+      proposal: {
+        transactionIndex: 5,
+        status: 'malformed-status-shape',
+        approved: 'not-an-array',
+      },
+      proposalPda: new PublicKey('11111111111111111111111111111111'),
+      multisigPda: new PublicKey('11111111111111111111111111111111'),
+      programId: new PublicKey('11111111111111111111111111111111'),
+    });
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    readerAny.readConfigTransaction = async (_, transactionIndex) => ({
+      chain: 'solanamainnet',
+      transactionIndex,
+    });
+
+    const result = (await reader.read('solanamainnet', 5)) as {
+      transactionIndex?: number;
+    };
+
+    expect(result.transactionIndex).to.equal(5);
+    expect(reader.errors).to.deep.equal([]);
+  });
 });

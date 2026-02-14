@@ -51,7 +51,7 @@ import {
   getSquadProposal,
   isConfigTransaction,
   isVaultTransaction,
-  parseSquadProposal,
+  parseSquadProposalTransactionIndex,
 } from './utils.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
@@ -999,7 +999,7 @@ export class SquadsTransactionReader {
         chain,
         transactionIndex,
       );
-      const { transactionIndex: proposalTransactionIndex } = parseSquadProposal(
+      const proposalTransactionIndex = parseSquadProposalTransactionIndex(
         proposalData.proposal,
       );
       assert(

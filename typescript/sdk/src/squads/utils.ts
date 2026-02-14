@@ -653,11 +653,7 @@ export function parseSquadProposal(
   const cancellations = getProposalVoteCount(proposal, 'cancelled');
   const { statusKind, rawStatusTimestamp } =
     getProposalStatusMetadata(proposal);
-  const transactionIndex = toSafeInteger(
-    proposal.transactionIndex,
-    'transaction index',
-    { nonNegative: true },
-  );
+  const transactionIndex = parseSquadProposalTransactionIndex(proposal);
   const statusTimestampSeconds =
     typeof rawStatusTimestamp !== 'undefined'
       ? toSafeInteger(rawStatusTimestamp, 'status timestamp', {
@@ -675,6 +671,14 @@ export function parseSquadProposal(
   };
 
   return parsedProposal;
+}
+
+export function parseSquadProposalTransactionIndex(
+  proposal: accounts.Proposal,
+): number {
+  return toSafeInteger(proposal.transactionIndex, 'transaction index', {
+    nonNegative: true,
+  });
 }
 
 function getProposalStatusMetadata(proposal: accounts.Proposal): {

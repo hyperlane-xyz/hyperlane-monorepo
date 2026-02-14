@@ -21,6 +21,7 @@ import {
   parseSquadsProposalVoteErrorFromError,
   parseSquadMultisig,
   parseSquadProposal,
+  parseSquadProposalTransactionIndex,
   isVaultTransaction,
 } from './utils.js';
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -688,6 +689,52 @@ describe('squads utils', () => {
 
       expect(parseInvalidProposal).to.throw(
         'Squads proposal status kind must be a non-empty string',
+      );
+    });
+  });
+
+  describe(parseSquadProposalTransactionIndex.name, () => {
+    it('extracts non-negative transaction indices from valid proposals', () => {
+      const transactionIndex = parseSquadProposalTransactionIndex({
+        transactionIndex: 12n,
+      } as unknown as Parameters<typeof parseSquadProposalTransactionIndex>[0]);
+
+      expect(transactionIndex).to.equal(12);
+    });
+
+    it('accepts transaction index values that stringify via Symbol.toPrimitive', () => {
+      const transactionIndex = parseSquadProposalTransactionIndex({
+        transactionIndex: {
+          [Symbol.toPrimitive]: () => '13',
+        },
+      } as unknown as Parameters<typeof parseSquadProposalTransactionIndex>[0]);
+
+      expect(transactionIndex).to.equal(13);
+    });
+
+    it('throws when transaction index value is malformed', () => {
+      const parseInvalidIndex = () =>
+        parseSquadProposalTransactionIndex({
+          transactionIndex: true,
+        } as unknown as Parameters<
+          typeof parseSquadProposalTransactionIndex
+        >[0]);
+
+      expect(parseInvalidIndex).to.throw(
+        'Squads transaction index must be a JavaScript safe integer: true',
+      );
+    });
+
+    it('throws when transaction index value is negative', () => {
+      const parseNegativeIndex = () =>
+        parseSquadProposalTransactionIndex({
+          transactionIndex: -1,
+        } as unknown as Parameters<
+          typeof parseSquadProposalTransactionIndex
+        >[0]);
+
+      expect(parseNegativeIndex).to.throw(
+        'Squads transaction index must be a non-negative JavaScript safe integer: -1',
       );
     });
   });
