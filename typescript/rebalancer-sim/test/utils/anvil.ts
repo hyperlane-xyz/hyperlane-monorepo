@@ -15,6 +15,8 @@ const DEFAULT_CHAIN_ID = 31337;
 const LOCAL_ANVIL_HOST = '127.0.0.1';
 const LOCAL_ANVIL_STARTUP_TIMEOUT_MS = 30_000;
 const LOCAL_ANVIL_STOP_TIMEOUT_MS = 5_000;
+const MAX_EXTRACTED_ERROR_NODES = 500;
+const MAX_NESTED_ITERABLE_VALUES = 500;
 const WINDOWS_DOCKER_PIPE_ENGINES = [
   'docker_engine',
   'dockerdesktopengine',
@@ -130,19 +132,23 @@ function extractErrorMessages(error: unknown): string[] {
   const messages: string[] = [];
   const queue: unknown[] = [error];
   const seen = new Set<unknown>();
+  const enqueue = (value: unknown) => {
+    if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return;
+    queue.push(value);
+  };
   const enqueueNestedErrors = (nestedErrors: unknown) => {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
 
     if (nestedErrors instanceof Map) {
       for (const nestedError of nestedErrors.values()) {
-        queue.push(nestedError);
+        enqueue(nestedError);
       }
       return;
     }
 
     if (Array.isArray(nestedErrors)) {
       for (const nestedError of nestedErrors) {
-        queue.push(nestedError);
+        enqueue(nestedError);
       }
       return;
     }
@@ -153,8 +159,11 @@ function extractErrorMessages(error: unknown): string[] {
       ];
       if (typeof iterator === 'function') {
         try {
+          let valuesRead = 0;
           for (const nestedError of nestedErrors as Iterable<unknown>) {
-            queue.push(nestedError);
+            enqueue(nestedError);
+            valuesRead += 1;
+            if (valuesRead >= MAX_NESTED_ITERABLE_VALUES) break;
           }
           return;
         } catch {
@@ -169,12 +178,12 @@ function extractErrorMessages(error: unknown): string[] {
       !('message' in nestedErrors)
     ) {
       for (const nestedError of Object.values(nestedErrors)) {
-        queue.push(nestedError);
+        enqueue(nestedError);
       }
     }
   };
 
-  while (queue.length > 0) {
+  while (queue.length > 0 && seen.size < MAX_EXTRACTED_ERROR_NODES) {
     const current = queue.shift();
     if (current === undefined || seen.has(current)) continue;
     seen.add(current);
@@ -183,7 +192,7 @@ function extractErrorMessages(error: unknown): string[] {
       messages.push(current.message);
 
       const cause = (current as { cause?: unknown }).cause;
-      if (cause !== undefined) queue.push(cause);
+      if (cause !== undefined) enqueue(cause);
 
       if (current instanceof AggregateError) {
         enqueueNestedErrors(current.errors);
@@ -203,7 +212,7 @@ function extractErrorMessages(error: unknown): string[] {
       }
 
       const cause = (current as { cause?: unknown }).cause;
-      if (cause !== undefined) queue.push(cause);
+      if (cause !== undefined) enqueue(cause);
 
       enqueueNestedErrors((current as { errors?: unknown }).errors);
 

@@ -349,6 +349,20 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('handles unbounded iterable error collections safely', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: {
+            [Symbol.iterator]: function* infiniteErrors() {
+              while (true) {
+                yield { message: 'non-matching runtime warning' };
+              }
+            },
+          },
+        }),
+      ).to.equal(false);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(
