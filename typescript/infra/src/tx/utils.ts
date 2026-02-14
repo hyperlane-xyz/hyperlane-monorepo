@@ -173,10 +173,24 @@ export function processGovernorReaderResult(
         `Governor reader result entry at index ${index} must include key and transaction`,
       );
     }
-    const [resultKey, governTx] = resultEntry;
+    let resultKey: unknown;
+    let governTx: GovernTransaction;
+    try {
+      resultKey = resultEntry[0];
+      governTx = resultEntry[1];
+    } catch {
+      throw new Error(
+        `Governor reader result entry values at index ${index} are inaccessible`,
+      );
+    }
     if (typeof resultKey !== 'string' || resultKey.trim().length === 0) {
       throw new Error(
         `Governor reader result key at index ${index} must be a non-empty string: ${stringifyValueForError(resultKey)}`,
+      );
+    }
+    if (Object.prototype.hasOwnProperty.call(chainResults, resultKey)) {
+      throw new Error(
+        `Governor reader result key at index ${index} is duplicated: ${resultKey}`,
       );
     }
     chainResults[resultKey] = governTx;

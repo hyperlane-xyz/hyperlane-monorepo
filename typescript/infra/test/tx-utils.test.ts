@@ -805,6 +805,45 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when result entry values are inaccessible', () => {
+    const resultEntry = new Proxy(
+      ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+      {
+        get(target, property, receiver) {
+          if (property === '0') {
+            throw new Error('entry value boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() =>
+      processGovernorReaderResult(
+        [resultEntry as unknown as [string, any]],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result entry values at index 0 are inaccessible',
+    );
+  });
+
+  it('throws when result keys are duplicated', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [
+          ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+          ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
+        ],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result key at index 1 is duplicated: chainA-1-0xabc',
+    );
+  });
+
   it('writes result yaml and does not exit when there are no fatal errors', () => {
     let writtenPath: string | undefined;
     let writtenValue: Record<string, unknown> | undefined;
