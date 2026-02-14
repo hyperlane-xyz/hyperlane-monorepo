@@ -53,6 +53,22 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('https://example.com/path/safe.global/api'),
       ).to.equal(false);
     });
+
+    it('supports host-only service URLs without protocol', () => {
+      expect(
+        safeApiKeyRequired('safe-transaction-mainnet.safe.global'),
+      ).to.equal(true);
+      expect(safeApiKeyRequired('safe-transaction-mainnet.5afe.dev')).to.equal(
+        true,
+      );
+    });
+
+    it('does not match hostless strings containing safe domains', () => {
+      expect(safeApiKeyRequired('example.com/path/safe.global/api')).to.equal(
+        false,
+      );
+      expect(safeApiKeyRequired('not a url safe.global')).to.equal(false);
+    });
   });
 
   describe(normalizeSafeServiceUrl.name, () => {
