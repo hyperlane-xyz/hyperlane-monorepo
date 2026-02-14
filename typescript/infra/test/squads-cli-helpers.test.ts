@@ -795,6 +795,23 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('falls back to object stringification when message accessor throws', () => {
+    const objectWithThrowingMessageGetter = { foo: 'bar' } as {
+      foo: string;
+      message?: string;
+    };
+    Object.defineProperty(objectWithThrowingMessageGetter, 'message', {
+      configurable: true,
+      get() {
+        throw new Error('message unavailable');
+      },
+    });
+
+    const formatted = formatScriptError(objectWithThrowingMessageGetter);
+    expect(formatted).to.include('foo');
+    expect(formatted).to.include('bar');
+  });
+
   it('falls back for unformattable object errors', () => {
     const unformattableError = {
       toJSON() {
