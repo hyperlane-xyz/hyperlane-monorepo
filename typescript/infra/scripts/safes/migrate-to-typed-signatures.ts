@@ -143,11 +143,7 @@ async function main() {
         // Delete the pending transaction
         await deleteSafeTx(tx.chain, multiProvider, safeAddress, tx.fullTxHash);
 
-        const safeTransactionData = createSafeTransactionData({
-          to: safeTx.to,
-          data: safeTx.data,
-          value: safeTx.value,
-        });
+        const safeTransactionData = createSafeTransactionData(safeTx);
         const safeTransaction = await createSafeTransaction(
           safeSdk,
           [safeTransactionData],
