@@ -59,6 +59,7 @@
   "devDependencies": {
     "@ethersproject/constants": "*",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/express": "^5.0.3",
     "@types/mocha": "catalog:",

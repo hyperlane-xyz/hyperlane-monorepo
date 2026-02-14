@@ -35,6 +35,8 @@
   "devDependencies": {
     "@eslint/js": "catalog:",
     "@hyperlane-xyz/tsconfig": "workspace:^",
+    "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "eslint": "catalog:",

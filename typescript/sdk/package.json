@@ -81,6 +81,7 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@nomiclabs/hardhat-ethers": "catalog:",
     "@nomiclabs/hardhat-waffle": "catalog:",
+    "@types/chai": "catalog:",
     "@types/chai-as-promised": "catalog:",
     "@types/mocha": "catalog:",
     "@types/node": "catalog:",

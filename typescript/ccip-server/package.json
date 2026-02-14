@@ -50,6 +50,7 @@
     "@jest/globals": "^29.7.0",
     "@types/cors": "^2",
     "@types/express": "^4.17.1",
+    "@types/mocha": "catalog:",
     "@types/node": "catalog:",
     "@types/pg": "^8.16.0",
     "@types/pino-http": "^5.8.4",

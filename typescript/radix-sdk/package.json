@@ -54,6 +54,7 @@
     "@hyperlane-xyz/tsconfig": "workspace:^",
     "@types/chai": "catalog:",
     "@types/mocha": "catalog:",
+    "@types/node": "catalog:",
     "@typescript-eslint/eslint-plugin": "catalog:",
     "@typescript-eslint/parser": "catalog:",
     "chai": "catalog:",
