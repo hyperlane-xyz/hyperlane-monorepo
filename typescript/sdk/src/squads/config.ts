@@ -40,8 +40,12 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
   },
 };
 
+const SQUADS_CHAINS = Object.freeze(
+  Object.keys(squadsConfigs),
+) as readonly ChainName[];
+
 export function getSquadsChains(): ChainName[] {
-  return Object.keys(squadsConfigs);
+  return [...SQUADS_CHAINS];
 }
 
 export function isSquadsChain(chainName: string): chainName is ChainName {

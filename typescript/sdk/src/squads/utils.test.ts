@@ -114,6 +114,12 @@ describe('squads utils', () => {
     expect(chains.length).to.be.greaterThan(0);
   });
 
+  it('returns a defensive copy of squads chains', () => {
+    const chains = getSquadsChains();
+    chains.pop();
+    expect(getSquadsChains()).to.include('solanamainnet');
+  });
+
   it('detects whether a chain has squads config', () => {
     expect(isSquadsChain('solanamainnet')).to.equal(true);
     expect(isSquadsChain('not-a-squads-chain')).to.equal(false);
