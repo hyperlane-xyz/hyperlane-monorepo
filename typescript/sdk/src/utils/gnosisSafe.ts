@@ -74,6 +74,11 @@ function hasExplicitUrlScheme(value: string): boolean {
   );
 }
 
+function getUrlScheme(value: string): string | undefined {
+  const schemeMatch = value.match(/^([a-zA-Z][a-zA-Z\d+.-]*):/);
+  return schemeMatch?.[1]?.toLowerCase();
+}
+
 function parseHttpUrl(value: string): URL | undefined {
   try {
     const parsed = new URL(value);
@@ -241,9 +246,11 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
     parseHttpUrl(trimmedUrl) ??
     (!hasScheme ? parseHttpUrl(`https://${trimmedUrl}`) : undefined);
   if (!parsed && hasScheme) {
-    throw new Error(
-      `Safe tx service URL must use http(s): ${txServiceUrl.trim()}`,
-    );
+    const scheme = getUrlScheme(trimmedUrl);
+    if (scheme === 'http' || scheme === 'https') {
+      throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+    }
+    throw new Error(`Safe tx service URL must use http(s): ${trimmedUrl}`);
   }
   if (parsed) {
     parsed.search = '';

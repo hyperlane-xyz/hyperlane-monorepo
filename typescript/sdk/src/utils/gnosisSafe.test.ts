@@ -221,6 +221,15 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws when explicit http(s) url is malformed', () => {
+      expect(() => normalizeSafeServiceUrl('https://')).to.throw(
+        'Safe tx service URL is invalid: https://',
+      );
+      expect(() => normalizeSafeServiceUrl('http://:443')).to.throw(
+        'Safe tx service URL is invalid: http://:443',
+      );
+    });
+
     it('drops query and hash components during normalization', () => {
       expect(
         normalizeSafeServiceUrl(
