@@ -209,6 +209,30 @@ describe('squads utils', () => {
         ),
       ).to.equal(SquadTxStatus.UNKNOWN);
     });
+
+    it('normalizes surrounding whitespace on known statuses', () => {
+      expect(getSquadTxStatus(' Active ', 1, 3, 12, 10)).to.equal(
+        SquadTxStatus.ACTIVE,
+      );
+    });
+
+    it('throws for zero threshold values', () => {
+      expect(() => getSquadTxStatus('Active', 0, 0, 1, 0)).to.throw(
+        'Expected threshold to be a positive safe integer, got 0',
+      );
+    });
+
+    it('throws for negative approval counts', () => {
+      expect(() => getSquadTxStatus('Active', -1, 1, 1, 0)).to.throw(
+        'Expected approvals to be a non-negative safe integer, got -1',
+      );
+    });
+
+    it('throws for negative stale transaction index values', () => {
+      expect(() => getSquadTxStatus('Active', 0, 1, 1, -1)).to.throw(
+        'Expected stale transaction index to be a non-negative safe integer, got -1',
+      );
+    });
   });
 
   describe(parseSquadProposal.name, () => {

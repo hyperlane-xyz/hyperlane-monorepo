@@ -589,16 +589,34 @@ export function getSquadTxStatus(
   transactionIndex: number,
   staleTransactionIndex: number,
 ): SquadTxStatus {
+  const normalizedStatusKind = statusKind.trim();
+  assert(
+    Number.isSafeInteger(approvals) && approvals >= 0,
+    `Expected approvals to be a non-negative safe integer, got ${approvals}`,
+  );
+  assert(
+    Number.isSafeInteger(threshold) && threshold > 0,
+    `Expected threshold to be a positive safe integer, got ${threshold}`,
+  );
+  assert(
+    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
+    `Expected transaction index to be a non-negative safe integer, got ${transactionIndex}`,
+  );
+  assert(
+    Number.isSafeInteger(staleTransactionIndex) && staleTransactionIndex >= 0,
+    `Expected stale transaction index to be a non-negative safe integer, got ${staleTransactionIndex}`,
+  );
+
   if (
     transactionIndex < staleTransactionIndex &&
-    statusKind !== SquadsProposalStatus.Executed &&
-    statusKind !== SquadsProposalStatus.Rejected &&
-    statusKind !== SquadsProposalStatus.Cancelled
+    normalizedStatusKind !== SquadsProposalStatus.Executed &&
+    normalizedStatusKind !== SquadsProposalStatus.Rejected &&
+    normalizedStatusKind !== SquadsProposalStatus.Cancelled
   ) {
     return SquadTxStatus.STALE;
   }
 
-  switch (statusKind) {
+  switch (normalizedStatusKind) {
     case SquadsProposalStatus.Draft:
       return SquadTxStatus.DRAFT;
     case SquadsProposalStatus.Active:
