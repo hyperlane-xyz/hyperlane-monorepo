@@ -152,10 +152,14 @@ function extractErrorMessages(error: unknown): string[] {
         Symbol.iterator
       ];
       if (typeof iterator === 'function') {
-        for (const nestedError of nestedErrors as Iterable<unknown>) {
-          queue.push(nestedError);
+        try {
+          for (const nestedError of nestedErrors as Iterable<unknown>) {
+            queue.push(nestedError);
+          }
+          return;
+        } catch {
+          // Fall through to object-value traversal for malformed iterables.
         }
-        return;
       }
     }
 
