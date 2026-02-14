@@ -1,0 +1,104 @@
+import { expect } from 'chai';
+
+import { executePendingTransactions } from '../src/tx/utils.js';
+
+interface PendingTxFixture {
+  id: string;
+  chain: string;
+  shouldFail?: boolean;
+}
+
+describe('executePendingTransactions', () => {
+  it('continues executing transactions after individual failures', async () => {
+    const txs: PendingTxFixture[] = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB', shouldFail: true },
+      { id: 'tx3', chain: 'chainC' },
+    ];
+    const executed: string[] = [];
+
+    const confirmPrompt = async () => true;
+    const executeTx = async (tx: PendingTxFixture) => {
+      executed.push(tx.id);
+      if (tx.shouldFail) {
+        throw new Error(`boom-${tx.id}`);
+      }
+    };
+
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        executeTx,
+        confirmPrompt,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): chainB:tx2',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1', 'tx2', 'tx3']);
+  });
+
+  it('respects per-transaction confirmations when execute-all is declined', async () => {
+    const txs: PendingTxFixture[] = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+      { id: 'tx3', chain: 'chainC' },
+    ];
+    const executed: string[] = [];
+    const responses = [false, true, false, true];
+
+    const confirmPrompt = async () => {
+      const response = responses.shift();
+      if (response === undefined) {
+        throw new Error('Unexpected prompt invocation');
+      }
+      return response;
+    };
+
+    await executePendingTransactions(
+      txs,
+      (tx) => tx.id,
+      (tx) => tx.chain,
+      async (tx) => {
+        executed.push(tx.id);
+      },
+      confirmPrompt,
+    );
+
+    expect(executed).to.deep.equal(['tx1', 'tx3']);
+    expect(responses).to.deep.equal([]);
+  });
+
+  it('summarizes multiple failed transactions in thrown error', async () => {
+    const txs: PendingTxFixture[] = [
+      { id: 'tx1', chain: 'chainA', shouldFail: true },
+      { id: 'tx2', chain: 'chainB' },
+      { id: 'tx3', chain: 'chainC', shouldFail: true },
+    ];
+
+    const confirmPrompt = async () => true;
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          if (tx.shouldFail) {
+            throw new Error(`boom-${tx.id}`);
+          }
+        },
+        confirmPrompt,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 2 transaction(s): chainA:tx1, chainC:tx3',
+      );
+    }
+  });
+});

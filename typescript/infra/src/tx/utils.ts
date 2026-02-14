@@ -6,6 +6,11 @@ import { writeYaml } from '@hyperlane-xyz/utils/fs';
 
 import { GovernTransaction } from './govern-transaction-reader.js';
 
+type ConfirmPrompt = (options: {
+  message: string;
+  default: boolean;
+}) => Promise<boolean>;
+
 export function processGovernorReaderResult(
   result: [string, GovernTransaction][],
   errors: any[],
@@ -38,9 +43,10 @@ export async function executePendingTransactions<T>(
   txId: (tx: T) => string,
   txChain: (tx: T) => string,
   executeTx: (tx: T) => Promise<any>,
+  confirmPrompt: ConfirmPrompt = (options) => confirm(options),
 ) {
   // Ask if user wants to execute all transactions at once
-  const confirmExecuteAll = await confirm({
+  const confirmExecuteAll = await confirmPrompt({
     message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
     default: false,
   });
@@ -57,7 +63,7 @@ export async function executePendingTransactions<T>(
 
     const confirmExecuteTx =
       confirmExecuteAll ||
-      (await confirm({
+      (await confirmPrompt({
         message: `Execute transaction ${id} on chain ${chain}?`,
         default: false,
       }));
