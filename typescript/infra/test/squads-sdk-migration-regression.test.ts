@@ -20,6 +20,13 @@ const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/cancel-proposal.ts',
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
+const SQUADS_ERROR_FORMATTING_SCRIPT_PATHS = Object.freeze([
+  'scripts/squads/get-pending-txs.ts',
+  'scripts/squads/parse-txs.ts',
+  'scripts/squads/read-proposal.ts',
+  'scripts/squads/cancel-proposal.ts',
+  'scripts/sealevel-helpers/update-multisig-ism-config.ts',
+]);
 
 const LEGACY_SQUADS_SPECIFIER =
   '(?:(?:\\.\\.\\/)+src\\/|src\\/|@hyperlane-xyz\\/infra\\/src\\/)(?:config|utils|tx)\\/squads(?:-transaction-reader)?(?:\\.[cm]?[jt]sx?|\\.js)?';
@@ -30,6 +37,9 @@ const SQDS_MULTISIG_REFERENCE_PATTERN =
   /(?:from\s+['"]@sqds\/multisig['"]|import\(\s*['"]@sqds\/multisig['"]\s*\)|require\(\s*['"]@sqds\/multisig['"]\s*\))/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /from\s+['"]@hyperlane-xyz\/sdk['"]/;
+const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
+const DIRECT_ERROR_STRINGIFICATION_PATTERN =
+  /(?:String\(error\)|\$\{error\}|error\.message)/;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'cache', '.turbo']);
 
 function readInfraFile(relativePath: string): string {
@@ -131,6 +141,22 @@ describe('squads sdk migration regression', () => {
     for (const relativePath of typeScriptFiles) {
       const fileContents = readInfraFile(relativePath);
       assertNoForbiddenSquadsReferences(fileContents, relativePath);
+    }
+  });
+
+  it('keeps squads-related scripts using shared formatScriptError helper', () => {
+    for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
+      const scriptContents = readInfraFile(scriptPath);
+
+      expect(
+        FORMATTED_ERROR_USAGE_PATTERN.test(scriptContents),
+        `Expected script to use formatScriptError helper: ${scriptPath}`,
+      ).to.equal(true);
+
+      expect(
+        DIRECT_ERROR_STRINGIFICATION_PATTERN.test(scriptContents),
+        `Expected script to avoid direct error stringification: ${scriptPath}`,
+      ).to.equal(false);
     }
   });
 });
