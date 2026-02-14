@@ -59,11 +59,20 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
   }
 };
 
+const isBoxedString = (value: unknown): boolean => {
+  if (typeof value !== 'object' || value === null) return false;
+  try {
+    return Object.prototype.toString.call(value) === '[object String]';
+  } catch {
+    return false;
+  }
+};
+
 const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
   const normalized =
     typeof value === 'string'
       ? value
-      : value instanceof String
+      : isBoxedString(value)
         ? String(value)
         : undefined;
   if (normalized === undefined) return undefined;
@@ -209,7 +218,7 @@ function extractErrorMessages(error: unknown): string[] {
       enqueue(nestedErrors);
       return;
     }
-    if (nestedErrors instanceof String) {
+    if (isBoxedString(nestedErrors)) {
       enqueue(String(nestedErrors));
       return;
     }
@@ -341,7 +350,7 @@ function extractErrorMessages(error: unknown): string[] {
       continue;
     }
 
-    if (current instanceof String) {
+    if (isBoxedString(current)) {
       messages.push(String(current));
       continue;
     }

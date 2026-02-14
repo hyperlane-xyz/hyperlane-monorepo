@@ -213,3 +213,7 @@ Regression coverage now also confirms set-wrapper `errors` payloads with self-re
 String normalization now also treats boxed-string (`String`) message/code payloads as first-class strings, preserving runtime-signal and ENOENT detection for wrapped scalar metadata.
 
 Regression coverage now also confirms boxed-string wrapper `message` fields remain detectable under non-informative serialization, boxed-string non-runtime messages stay ignored, and boxed-string `code` values still trigger ENOENT install hints.
+
+Boxed-string normalization now also handles cross-realm `String` objects (e.g., VM-context values), preventing character-wise iterable traversal from masking runtime-unavailable signals in wrapped scalar payloads.
+
+Regression coverage now also confirms cross-realm boxed-string throw values and nested `errors` payloads match runtime-unavailable signals while non-runtime cross-realm boxed strings remain ignored, and cross-realm boxed `code`/`message` metadata still produces ENOENT hints plus trimmed startup diagnostics.

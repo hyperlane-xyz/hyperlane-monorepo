@@ -1,3 +1,5 @@
+import { runInNewContext } from 'node:vm';
+
 import { expect } from 'chai';
 import type { StartedTestContainer } from 'testcontainers';
 
@@ -642,6 +644,22 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('matches runtime cross-realm boxed-string throw values', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          runInNewContext('new String("No Docker client strategy found")'),
+        ),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string throw values', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          runInNewContext('new String("unrelated nested warning")'),
+        ),
+      ).to.equal(false);
+    });
+
     it('matches boxed-string message fields when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const wrappedError = {
@@ -670,6 +688,26 @@ describe('Anvil utils', () => {
       };
 
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
+    it('matches docker runtime errors in cross-realm boxed-string-valued errors fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: runInNewContext(
+            'new String("No Docker client strategy found")',
+          ),
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime cross-realm boxed-string-valued errors fields', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: runInNewContext('new String("unrelated nested warning")'),
+        }),
+      ).to.equal(false);
     });
 
     it('matches docker runtime errors in iterable error collections', () => {
@@ -2158,6 +2196,17 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('treats cross-realm boxed-string code values as ENOENT', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: runInNewContext('new String("  EnOeNt  ")'),
+          message: 'spawn failed',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
+
     it('returns plain message for other startup errors', () => {
       const error = new Error('permission denied');
       expect(formatLocalAnvilStartError(error)).to.equal(
@@ -2169,6 +2218,14 @@ describe('Anvil utils', () => {
       expect(
         formatLocalAnvilStartError({
           message: new String('  custom object failure  '),
+        }),
+      ).to.equal('Failed to start local anvil: custom object failure');
+    });
+
+    it('uses cross-realm boxed-string message fields from non-Error objects', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: runInNewContext('new String("  custom object failure  ")'),
         }),
       ).to.equal('Failed to start local anvil: custom object failure');
     });
