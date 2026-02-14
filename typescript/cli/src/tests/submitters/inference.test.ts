@@ -65,6 +65,42 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('ignores explicit strategy on extended chains', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-extended-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: CHAIN,
+          safeAddress: '0x3333333333333333333333333333333333333333',
+          version: '1.0',
+        },
+      },
+    });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context,
+      strategyUrl: strategyPath,
+      isExtendedChain: true,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
   it('uses default jsonRpc for non-ethereum chains', async () => {
     const context = {
       multiProvider: {
