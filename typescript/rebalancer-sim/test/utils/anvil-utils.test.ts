@@ -1,0 +1,36 @@
+import { expect } from 'chai';
+import type { StartedTestContainer } from 'testcontainers';
+
+import { getAnvilRpcUrl, isContainerRuntimeUnavailable } from './anvil.js';
+
+describe('Anvil utils', () => {
+  describe('isContainerRuntimeUnavailable', () => {
+    it('returns true for testcontainers runtime-strategy errors', () => {
+      const error = new Error(
+        'Could not find a working container runtime strategy',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('returns true for docker client strategy errors', () => {
+      const error = new Error('No Docker client strategy found');
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('returns false for unrelated errors', () => {
+      const error = new Error('some unrelated test failure');
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+  });
+
+  describe('getAnvilRpcUrl', () => {
+    it('builds RPC url from container host and mapped port', () => {
+      const container = {
+        getHost: () => '127.0.0.1',
+        getMappedPort: () => 18545,
+      } as StartedTestContainer;
+
+      expect(getAnvilRpcUrl(container)).to.equal('http://127.0.0.1:18545');
+    });
+  });
+});

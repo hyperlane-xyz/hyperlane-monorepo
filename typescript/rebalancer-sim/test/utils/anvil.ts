@@ -60,7 +60,7 @@ interface StartedAnvil {
   stop: () => Promise<void>;
 }
 
-function isContainerRuntimeUnavailable(error: unknown): boolean {
+export function isContainerRuntimeUnavailable(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return (
     message.includes('Could not find a working container runtime strategy') ||
