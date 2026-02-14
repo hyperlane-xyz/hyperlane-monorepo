@@ -1413,26 +1413,47 @@ export async function deleteSafeTx(
     return;
   }
 
-  const txDetails = (await txDetailsResponse.json()) as SafeServiceTransaction;
-  const proposer = txDetails.proposer;
-  if (!proposer) {
-    rootLogger.error(
-      chalk.red(`No proposer found for transaction ${normalizedSafeTxHash}`),
-    );
-    return;
+  const txDetails = (await txDetailsResponse.json()) as unknown;
+  assert(
+    txDetails !== null && typeof txDetails === 'object',
+    `Safe transaction details payload must be an object: ${stringifyValueForError(txDetails)}`,
+  );
+  let proposer: unknown;
+  try {
+    proposer = (txDetails as SafeServiceTransaction).proposer;
+  } catch {
+    throw new Error('Safe transaction proposer is inaccessible');
   }
+  assert(
+    typeof proposer === 'string' && ethers.utils.isAddress(proposer),
+    `Safe transaction proposer must be valid address: ${stringifyValueForError(proposer)}`,
+  );
+  const normalizedProposer = getAddress(proposer);
 
-  const signerAddress = await signer.getAddress();
-  if (!eqAddress(proposer, signerAddress)) {
+  let signerAddress: unknown;
+  try {
+    signerAddress = await signer.getAddress();
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve Safe deletion signer address: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    typeof signerAddress === 'string' && ethers.utils.isAddress(signerAddress),
+    `Safe deletion signer address must be valid: ${stringifyValueForError(signerAddress)}`,
+  );
+  const normalizedSignerAddress = getAddress(signerAddress);
+
+  if (!eqAddress(normalizedProposer, normalizedSignerAddress)) {
     rootLogger.info(
       chalk.italic(
-        `Skipping deletion of transaction ${normalizedSafeTxHash} proposed by ${proposer}`,
+        `Skipping deletion of transaction ${normalizedSafeTxHash} proposed by ${normalizedProposer}`,
       ),
     );
     return;
   }
   rootLogger.info(
-    `Deleting transaction ${normalizedSafeTxHash} proposed by ${proposer}`,
+    `Deleting transaction ${normalizedSafeTxHash} proposed by ${normalizedProposer}`,
   );
 
   try {
