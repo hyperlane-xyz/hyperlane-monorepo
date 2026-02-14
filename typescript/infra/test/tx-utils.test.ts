@@ -206,4 +206,67 @@ describe('executePendingTransactions', () => {
 
     expect(executed).to.deep.equal(['tx1']);
   });
+
+  it('continues when per-transaction confirmation prompt throws', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+      { id: 'tx3', chain: 'chainC' },
+    ];
+    const executed: string[] = [];
+    const promptSteps = ['execute-all', 'tx1', 'tx2', 'tx3'] as const;
+    let promptIndex = 0;
+
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        async () => {
+          const step = promptSteps[promptIndex];
+          promptIndex += 1;
+          if (step === 'execute-all') return false;
+          if (step === 'tx2') throw new Error('prompt failed');
+          return true;
+        },
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): chainB:tx2',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1', 'tx3']);
+  });
+
+  it('falls back to per-transaction prompts when execute-all prompt fails', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+    const promptSteps = ['execute-all', 'tx1', 'tx2'] as const;
+    let promptIndex = 0;
+
+    await executePendingTransactions(
+      txs,
+      (tx) => tx.id,
+      (tx) => tx.chain,
+      async (tx) => {
+        executed.push(tx.id);
+      },
+      async () => {
+        const step = promptSteps[promptIndex];
+        promptIndex += 1;
+        if (step === 'execute-all') throw new Error('prompt init failed');
+        return true;
+      },
+    );
+
+    expect(executed).to.deep.equal(['tx1', 'tx2']);
+  });
 });

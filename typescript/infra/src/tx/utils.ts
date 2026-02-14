@@ -50,10 +50,18 @@ export async function executePendingTransactions<T>(
   }
 
   // Ask if user wants to execute all transactions at once
-  const confirmExecuteAll = await confirmPrompt({
-    message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
-    default: false,
-  });
+  let confirmExecuteAll = false;
+  try {
+    confirmExecuteAll = await confirmPrompt({
+      message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
+      default: false,
+    });
+  } catch (error) {
+    rootLogger.error(
+      chalk.red('Error prompting for execute-all confirmation:'),
+      error,
+    );
+  }
 
   const failedTransactions: Array<{
     id: string;
@@ -96,12 +104,28 @@ export async function executePendingTransactions<T>(
       continue;
     }
 
-    const confirmExecuteTx =
-      confirmExecuteAll ||
-      (await confirmPrompt({
-        message: `Execute transaction ${normalizedId} on chain ${normalizedChain}?`,
-        default: false,
-      }));
+    let confirmExecuteTx = confirmExecuteAll;
+    if (!confirmExecuteAll) {
+      try {
+        confirmExecuteTx = await confirmPrompt({
+          message: `Execute transaction ${normalizedId} on chain ${normalizedChain}?`,
+          default: false,
+        });
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Error prompting for transaction ${normalizedId} on chain ${normalizedChain}:`,
+          ),
+          error,
+        );
+        failedTransactions.push({
+          id: normalizedId,
+          chain: normalizedChain,
+          error,
+        });
+        continue;
+      }
+    }
 
     if (!confirmExecuteTx) {
       continue;
