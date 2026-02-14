@@ -1,4 +1,4 @@
-import { ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
+import { AccountInfo, ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
 import { accounts, getTransactionPda, types } from '@sqds/multisig';
 import { deserializeUnchecked } from 'borsh';
 
@@ -117,7 +117,7 @@ export interface SquadsTransactionReaderOptions {
   ) => SvmMultisigConfigMap | null;
 }
 
-export interface SquadsGovernTransaction extends Record<string, any> {
+export interface SquadsGovernTransaction extends Record<string, unknown> {
   chain: ChainName;
   nestedTx?: SquadsGovernTransaction;
 }
@@ -132,7 +132,7 @@ export interface ParsedInstruction {
   insight?: string;
 }
 
-export interface SquadsTransaction extends Record<string, any> {
+export interface SquadsTransaction extends Record<string, unknown> {
   chain: ChainName;
   proposalPda?: string;
   transactionIndex?: number;
@@ -165,7 +165,7 @@ interface WarpRouteMetadata {
 }
 
 export class SquadsTransactionReader {
-  errors: any[] = [];
+  errors: Array<Record<string, unknown>> = [];
   private multisigConfigs: Map<ChainName, SvmMultisigConfigMap | null> =
     new Map();
   readonly warpRouteIndex: Map<ChainName, Map<string, WarpRouteMetadata>> =
@@ -865,7 +865,7 @@ export class SquadsTransactionReader {
       proposalPda: PublicKey;
       multisigPda: PublicKey;
     },
-    accountInfo: any,
+    accountInfo: AccountInfo<Buffer>,
   ): Promise<SquadsTransaction> {
     const [configTx] = accounts.ConfigTransaction.fromAccountInfo(
       accountInfo,
@@ -1065,7 +1065,7 @@ export class SquadsTransactionReader {
     action: types.ConfigAction,
   ): SquadsGovernTransaction | null {
     let type: string;
-    let args: Record<string, any>;
+    let args: Record<string, unknown>;
     let insight: string;
 
     if (types.isConfigActionAddMember(action)) {
