@@ -123,6 +123,47 @@ describe('squads utils', () => {
       });
     });
 
+    const unsupportedPrimitiveInputCases: Array<{
+      title: string;
+      value: unknown;
+      expectedType: string;
+    }> = [
+      {
+        title: 'labels undefined values clearly when rejecting non-string primitives',
+        value: undefined,
+        expectedType: 'undefined',
+      },
+      {
+        title: 'labels boolean values clearly when rejecting non-string primitives',
+        value: false,
+        expectedType: 'boolean',
+      },
+      {
+        title: 'labels bigint values clearly when rejecting non-string primitives',
+        value: 1n,
+        expectedType: 'bigint',
+      },
+      {
+        title: 'labels symbol values clearly when rejecting non-string primitives',
+        value: Symbol('bad-address'),
+        expectedType: 'symbol',
+      },
+      {
+        title: 'labels function values clearly when rejecting non-string primitives',
+        value: () => '11111111111111111111111111111111',
+        expectedType: 'function',
+      },
+    ];
+
+    for (const { title, value, expectedType } of unsupportedPrimitiveInputCases) {
+      it(title, () => {
+        expect(normalizeSquadsAddressValue(value)).to.deep.equal({
+          address: undefined,
+          error: `expected string or object with toBase58(), got ${expectedType}`,
+        });
+      });
+    }
+
     it('rejects objects missing toBase58()', () => {
       expect(normalizeSquadsAddressValue({})).to.deep.equal({
         address: undefined,
