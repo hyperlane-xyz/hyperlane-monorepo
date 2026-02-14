@@ -45,11 +45,14 @@ export interface StringifyUnknownSquadsErrorOptions {
   placeholder?: string;
 }
 
+export const DEFAULT_SQUADS_ERROR_PLACEHOLDER = '[unstringifiable error]';
+
 export function stringifyUnknownSquadsError(
   error: unknown,
   options: StringifyUnknownSquadsErrorOptions = {},
 ): string {
-  const placeholder = options.placeholder ?? '[unstringifiable error]';
+  const placeholder =
+    options.placeholder ?? DEFAULT_SQUADS_ERROR_PLACEHOLDER;
   const preferErrorMessageForErrorInstances =
     options.preferErrorMessageForErrorInstances === true;
   const preferErrorStackForErrorInstances =

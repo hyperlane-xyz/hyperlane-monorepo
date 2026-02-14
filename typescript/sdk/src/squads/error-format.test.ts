@@ -2,6 +2,7 @@ import { expect } from 'chai';
 
 import {
   BUILTIN_SQUADS_ERROR_LABELS,
+  DEFAULT_SQUADS_ERROR_PLACEHOLDER,
   isGenericObjectStringifiedValue,
   normalizeStringifiedSquadsError,
   stringifyUnknownSquadsError,
@@ -219,6 +220,12 @@ describe('squads error-format', () => {
           placeholder: '[fallback]',
         }),
       ).to.equal('[fallback]');
+    });
+
+    it('uses exported default placeholder when option is omitted', () => {
+      expect(stringifyUnknownSquadsError('   ')).to.equal(
+        DEFAULT_SQUADS_ERROR_PLACEHOLDER,
+      );
     });
 
     it('supports object formatter callbacks for plain objects', () => {
