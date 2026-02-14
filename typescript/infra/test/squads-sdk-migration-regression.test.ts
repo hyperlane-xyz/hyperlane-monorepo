@@ -111,7 +111,10 @@ describe('squads sdk migration regression', () => {
   it('keeps infra package explicitly depending on sdk squads surface', () => {
     const infraPackageJson = readInfraPackageJson();
 
-    expect(infraPackageJson.dependencies?.['@hyperlane-xyz/sdk']).to.not.equal(
+    expect(infraPackageJson.dependencies?.['@hyperlane-xyz/sdk']).to.equal(
+      'workspace:*',
+    );
+    expect(infraPackageJson.devDependencies?.['@hyperlane-xyz/sdk']).to.equal(
       undefined,
     );
   });
