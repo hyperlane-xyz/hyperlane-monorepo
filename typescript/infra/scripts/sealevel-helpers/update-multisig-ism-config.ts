@@ -35,6 +35,7 @@ import {
   multisigIsmConfigPath,
   serializeMultisigIsmDifference,
 } from '../../src/utils/sealevel.js';
+import { withSquadsChains } from '../squads/cli-helpers.js';
 
 const DEPLOY_ENVIRONMENTS = ['test', 'testnet4', 'mainnet3'] as const;
 
@@ -428,19 +429,12 @@ async function main() {
     environment,
     chains: chainsArg,
     context = Contexts.Hyperlane,
-  } = await yargs(process.argv.slice(2))
+  } = await withSquadsChains(yargs(process.argv.slice(2)))
     .describe('environment', 'deploy environment')
     .choices('environment', DEPLOY_ENVIRONMENTS)
     .coerce('environment', assertDeployEnvironment)
     .demandOption('environment')
     .alias('e', 'environment')
-    .describe('chains', 'Set of chains to perform actions on.')
-    .array('chains')
-    .choices('chains', getSquadsChains())
-    .coerce('chains', (selectedChains: string[] = []) =>
-      Array.from(new Set(selectedChains)),
-    )
-    .alias('c', 'chains')
     .describe('context', 'MultisigIsm context to update')
     .choices('context', [Contexts.Hyperlane, Contexts.ReleaseCandidate])
     .alias('x', 'context').argv;
