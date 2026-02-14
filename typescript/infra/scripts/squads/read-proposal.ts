@@ -14,9 +14,11 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { withSquadsChain, withTransactionIndex } from './cli-helpers.js';
-
-const environment = 'mainnet3';
+import {
+  getSquadsMultiProtocolProvider,
+  withSquadsChain,
+  withTransactionIndex,
+} from './cli-helpers.js';
 
 function withVerbose<T>(args: Argv<T>) {
   return args
@@ -41,9 +43,7 @@ async function main() {
   try {
     const squadsKeys = getSquadsKeys(chain);
 
-    const { getEnvironmentConfig } = await import('../core-utils.js');
-    const envConfig = getEnvironmentConfig(environment);
-    const mpp = await envConfig.getMultiProtocolProvider();
+    const mpp = await getSquadsMultiProtocolProvider();
 
     rootLogger.info(chalk.gray('Fetching proposal data...'));
 

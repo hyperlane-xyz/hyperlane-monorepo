@@ -13,9 +13,12 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { withSquadsChain, withTransactionIndex } from './cli-helpers.js';
-
-const environment = 'mainnet3';
+import {
+  getSquadsMultiProtocolProvider,
+  getSquadsTurnkeySigner,
+  withSquadsChain,
+  withTransactionIndex,
+} from './cli-helpers.js';
 
 // CLI argument parsing
 async function main() {
@@ -23,14 +26,10 @@ async function main() {
     withSquadsChain(yargs(process.argv.slice(2))),
   ).demandOption('chain').argv;
 
-  const { getEnvironmentConfig } = await import('../core-utils.js');
   const { chainsToSkip } = await import('../../src/config/chain.js');
-  const { getTurnkeySealevelDeployerSigner } =
-    await import('../../src/utils/turnkey.js');
 
   // Get multi-protocol provider
-  const envConfig = getEnvironmentConfig(environment);
-  const mpp = await envConfig.getMultiProtocolProvider();
+  const mpp = await getSquadsMultiProtocolProvider();
 
   if (chainsToSkip.includes(chain)) {
     throw new Error(
@@ -113,7 +112,7 @@ async function main() {
 
   // Initialize Turnkey signer and create adapter
   rootLogger.info('Initializing Turnkey signer...');
-  const turnkeySigner = await getTurnkeySealevelDeployerSigner(environment);
+  const turnkeySigner = await getSquadsTurnkeySigner();
   const signerAdapter = new SvmMultiProtocolSignerAdapter(
     chain,
     turnkeySigner,

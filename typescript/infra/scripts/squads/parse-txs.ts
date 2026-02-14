@@ -19,21 +19,24 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { Contexts } from '../../config/contexts.js';
-import { logProposals, withSquadsChains } from './cli-helpers.js';
-
-const environment = 'mainnet3';
+import {
+  SQUADS_ENVIRONMENT,
+  getSquadsMultiProtocolProvider,
+  logProposals,
+  withSquadsChains,
+} from './cli-helpers.js';
 
 async function main() {
   const { chains } = await withSquadsChains(yargs(process.argv.slice(2))).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  const { getEnvironmentConfig } = await import('../core-utils.js');
   const { loadCoreProgramIds, multisigIsmConfigPath } =
     await import('../../src/utils/sealevel.js');
 
   // Get the multiprovider for the environment
-  const config = getEnvironmentConfig(environment);
-  const mpp = await config.getMultiProtocolProvider();
+  const mpp = await getSquadsMultiProtocolProvider();
+  const { getEnvironmentConfig } = await import('../core-utils.js');
+  const config = getEnvironmentConfig(SQUADS_ENVIRONMENT);
 
   // Load warp routes from registry
   const registry = await config.getRegistry();
@@ -41,10 +44,11 @@ async function main() {
 
   // Initialize the transaction reader
   const reader = new SquadsTransactionReader(mpp, {
-    resolveCoreProgramIds: (chain) => loadCoreProgramIds(environment, chain),
+    resolveCoreProgramIds: (chain) =>
+      loadCoreProgramIds(SQUADS_ENVIRONMENT, chain),
     resolveExpectedMultisigConfig: (chain) => {
       const configPath = multisigIsmConfigPath(
-        environment,
+        SQUADS_ENVIRONMENT,
         Contexts.Hyperlane,
         chain,
       );

@@ -18,9 +18,12 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { executePendingTransactions } from '../../src/tx/utils.js';
-import { logProposals, withSquadsChains } from './cli-helpers.js';
-
-const environment = 'mainnet3';
+import {
+  getSquadsMultiProtocolProvider,
+  getSquadsTurnkeySigner,
+  logProposals,
+  withSquadsChains,
+} from './cli-helpers.js';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
@@ -44,11 +47,7 @@ async function main() {
     ),
   );
 
-  const { getEnvironmentConfig } = await import('../core-utils.js');
-  const { getTurnkeySealevelDeployerSigner } =
-    await import('../../src/utils/turnkey.js');
-  const envConfig = getEnvironmentConfig(environment);
-  const mpp = await envConfig.getMultiProtocolProvider();
+  const mpp = await getSquadsMultiProtocolProvider();
 
   const pendingProposals = await getPendingProposalsForChains(
     chainsToCheck,
@@ -90,7 +89,7 @@ async function main() {
 
   // Initialize Turnkey signer once for all executions
   rootLogger.info('Initializing Turnkey signer...');
-  const turnkeySigner = await getTurnkeySealevelDeployerSigner(environment);
+  const turnkeySigner = await getSquadsTurnkeySigner();
 
   // Create signers for each chain (keyed by chain name)
   const signersByChain: ChainMap<SvmMultiProtocolSignerAdapter> = {};

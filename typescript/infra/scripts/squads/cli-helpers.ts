@@ -3,12 +3,15 @@ import { Argv } from 'yargs';
 
 import {
   ChainName,
+  MultiProtocolProvider,
   SquadProposalStatus,
   getSquadsChains,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { logTable } from '../../src/utils/log.js';
+
+export const SQUADS_ENVIRONMENT = 'mainnet3';
 
 export function withTransactionIndex<T>(args: Argv<T>) {
   return args
@@ -36,6 +39,18 @@ export function withSquadsChains<T>(args: Argv<T>) {
         Array.from(new Set(selectedChains)) as ChainName[],
     )
     .alias('c', 'chains');
+}
+
+export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolProvider> {
+  const { getEnvironmentConfig } = await import('../core-utils.js');
+  const envConfig = getEnvironmentConfig(SQUADS_ENVIRONMENT);
+  return envConfig.getMultiProtocolProvider();
+}
+
+export async function getSquadsTurnkeySigner() {
+  const { getTurnkeySealevelDeployerSigner } =
+    await import('../../src/utils/turnkey.js');
+  return getTurnkeySealevelDeployerSigner(SQUADS_ENVIRONMENT);
 }
 
 export function logProposals(pendingProposals: SquadProposalStatus[]) {
