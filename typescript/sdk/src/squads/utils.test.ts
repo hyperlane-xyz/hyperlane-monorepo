@@ -683,6 +683,23 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses caller-provided field prefix for positive threshold errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 0n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 0n,
+            timeLock: 0n,
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig threshold must be a positive JavaScript safe integer: 0',
+      );
+    });
+
     it('uses caller-provided field prefix in overflow errors', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig(
