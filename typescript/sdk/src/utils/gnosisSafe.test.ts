@@ -6147,6 +6147,38 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('deleteAllPendingSafeTxs throws when pending tx payload is inaccessible', async () => {
+      globalThis.fetch = (async () => {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => {
+            throw new Error('payload unavailable');
+          },
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteAllPendingSafeTxs>[1];
+
+      try {
+        await deleteAllPendingSafeTxs(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+        );
+        expect.fail('Expected deleteAllPendingSafeTxs to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Pending Safe transactions payload is inaccessible',
+        );
+      }
+    });
+
     it('deleteAllPendingSafeTxs throws when pending tx list length is inaccessible', async () => {
       const throwingLengthResults = new Proxy(
         [{ safeTxHash: `0x${'11'.repeat(32)}` }],

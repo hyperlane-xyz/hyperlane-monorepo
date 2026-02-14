@@ -1589,7 +1589,12 @@ export async function deleteAllPendingSafeTxs(
     return;
   }
 
-  const pendingTxs = (await pendingTxsResponse.json()) as unknown;
+  let pendingTxs: unknown;
+  try {
+    pendingTxs = (await pendingTxsResponse.json()) as unknown;
+  } catch {
+    throw new Error('Pending Safe transactions payload is inaccessible');
+  }
   assert(
     pendingTxs !== null && typeof pendingTxs === 'object',
     `Pending Safe transactions payload must be an object: ${stringifyValueForError(pendingTxs)}`,

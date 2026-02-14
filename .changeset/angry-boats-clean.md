@@ -65,3 +65,4 @@ Safe utility typing and robustness were improved by:
 - Avoiding repeated Safe tx-service retries on deterministic tx-detail JSON parsing failures.
 - Hardening Safe delete typed-data signer validation for inaccessible `_signTypedData` accessors.
 - Hardening Safe delete tx-detail JSON parsing with deterministic inaccessible-payload errors.
+- Hardening pending Safe tx deletion response JSON parsing with deterministic inaccessible-payload errors.
