@@ -330,6 +330,33 @@ describe('hyperlane submit', function () {
       expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
 
+    it('should still infer gnosisSafeTxBuilder when strategy file lacks chain config', async function () {
+      const mintAmount = randomInt(1, 1000);
+      const transactions = [
+        await getMintOnlyOwnerTransaction(
+          xerc20Chain3,
+          BOB,
+          mintAmount,
+          ANVIL3_CHAIN_ID,
+        ),
+      ];
+      const transactionsPath = `${TEMP_PATH}/strategy-test-transactions-safe-inference-missing-chain.yaml`;
+      writeYamlOrJson(transactionsPath, transactions);
+
+      const strategyPath = `${TEMP_PATH}/submit-missing-chain-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN_NAME_2,
+          },
+        },
+      });
+
+      const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+    });
+
     it('should fall back to jsonRpc when target owner cannot be inferred', async function () {
       const recipient = randomAddress();
       const sender = await xerc20Chain2.signer.getAddress();

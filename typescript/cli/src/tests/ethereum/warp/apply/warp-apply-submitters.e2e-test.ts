@@ -674,6 +674,37 @@ describe('hyperlane warp apply with submitters', async function () {
       expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
 
+    it('should still infer gnosisSafeTxBuilder when strategy file lacks chain config', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      const chain2 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_2;
+      const chain3 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+      warpDeployConfig[chain3].owner = safeAddress;
+      await deployAndExportWarpRoute();
+
+      warpDeployConfig[chain3].destinationGas = {
+        [chain2DomainId]: '654321',
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const strategyPath = `${TEMP_PATH}/warp-apply-missing-chain-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [chain2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: chain2,
+          },
+        },
+      });
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: strategyPath,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+    });
+
     it('should infer interchainAccount for ICA-owned warp routes', async () => {
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
