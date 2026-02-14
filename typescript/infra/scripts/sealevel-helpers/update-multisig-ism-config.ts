@@ -126,9 +126,9 @@ function analyzeConfigDifferences(
  */
 async function logAndSubmitMultisigIsmUpdateTransaction(
   chain: SquadsChainName,
-  instructions: TransactionInstruction[],
+  instructions: readonly TransactionInstruction[],
   owner: PublicKey,
-  batchChainNames: string[],
+  batchChainNames: readonly string[],
   configsToUpdate: SvmMultisigConfigMap,
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
