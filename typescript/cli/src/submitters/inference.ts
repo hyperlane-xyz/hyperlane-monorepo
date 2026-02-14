@@ -114,7 +114,11 @@ function hasSignerForChain(
     // the methods used by a specific test.
     return true;
   }
-  return !!maybeTryGetSigner.call(context.multiProvider, chain);
+  try {
+    return !!maybeTryGetSigner.call(context.multiProvider, chain);
+  } catch {
+    return false;
+  }
 }
 
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {

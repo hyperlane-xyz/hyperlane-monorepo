@@ -2,6 +2,7 @@ import { tmpdir } from 'os';
 
 import { expect } from 'chai';
 import sinon from 'sinon';
+import { constants as ethersConstants } from 'ethers';
 
 import {
   ISafe__factory,
@@ -2428,6 +2429,86 @@ describe('resolveSubmitterBatchesForTransactions', () => {
           throw new Error('unknown domain');
         },
         tryGetSigner: (chainName: string) => (chainName === CHAIN ? {} : null),
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+          anvil3: {
+            interchainAccountRouter: originRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('falls back to jsonRpc when origin signer probe throws during ICA inference', async () => {
+    const inferredIcaOwner = '0x7878787878787878787878787878787878787878';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+    const originRouterAddress = '0x9191919191919191919191919191919191919191';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
+          return {
+            ['getRemoteInterchainAccount(address,address,address)']: async () =>
+              inferredIcaOwner,
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        tryGetSigner: (chainName: string) => {
+          if (chainName === CHAIN) return {};
+          throw new Error(`No chain signer set for ${chainName}`);
+        },
       },
       registry: {
         getAddresses: async () => ({
