@@ -1925,6 +1925,52 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('treats whitespace-padded uppercase signer owner as jsonRpc inferable', async () => {
+    let ownerReads = 0;
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => {
+        ownerReads += 1;
+        return `  0X${SIGNER.slice(2).toUpperCase()}  `;
+      },
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => `  0X${SIGNER.slice(2).toUpperCase()}  `,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, { ...TX, data: '0xdeadbeef' } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].transactions).to.have.length(2);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownerReads).to.equal(1);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('caches owner reads for repeated transaction targets', async () => {
     const safeOwner = '0x4444444444444444444444444444444444444444';
     let ownerReads = 0;
