@@ -5,6 +5,7 @@ import { encodeFunctionData, getAddress, parseAbi } from 'viem';
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
   asHex,
+  createSafeTransaction,
   createSafeTransactionData,
   decodeMultiSendData,
   getKnownMultiSendAddresses,
@@ -3382,6 +3383,70 @@ describe('gnosisSafe utils', () => {
           value: true,
         }),
       ).to.throw('Safe call value must be an unsigned integer string: true');
+    });
+  });
+
+  describe(createSafeTransaction.name, () => {
+    it('forwards calls to Safe SDK createTransaction', async () => {
+      const createTransactionCalls: unknown[] = [];
+      const expectedSafeTx = { data: { nonce: 7 } } as unknown;
+      const safeSdkMock = {
+        createTransaction: async (args: unknown) => {
+          createTransactionCalls.push(args);
+          return expectedSafeTx;
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      const result = await createSafeTransaction(
+        safeSdkMock,
+        [{ to: '0x00000000000000000000000000000000000000aa', data: '0x1234' }],
+        true,
+        7,
+      );
+
+      expect(result).to.equal(expectedSafeTx);
+      expect(createTransactionCalls).to.deep.equal([
+        {
+          transactions: [
+            {
+              to: '0x00000000000000000000000000000000000000aa',
+              data: '0x1234',
+            },
+          ],
+          onlyCalls: true,
+          options: { nonce: 7 },
+        },
+      ]);
+    });
+
+    it('throws when nonce is not a non-negative safe integer', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+      const txs = [
+        { to: '0x00000000000000000000000000000000000000aa', data: '0x1234' },
+      ];
+
+      for (const invalidNonce of [
+        -1,
+        1.5,
+        Number.NaN,
+        Number.POSITIVE_INFINITY,
+      ]) {
+        try {
+          await createSafeTransaction(
+            safeSdkMock,
+            txs,
+            undefined,
+            invalidNonce,
+          );
+          expect.fail('Expected createSafeTransaction to throw');
+        } catch (error) {
+          expect((error as Error).message).to.include(
+            'Safe transaction nonce must be a non-negative safe integer:',
+          );
+        }
+      }
     });
   });
 

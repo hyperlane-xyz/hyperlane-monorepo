@@ -27,4 +27,5 @@ Safe utility typing and robustness were improved by:
 - Normalizing malformed multisend deployment-version lookup failures to deterministic "deployments not found" errors instead of leaking upstream parser exceptions.
 - Expanding safe transaction parser coverage across Safe methods (`execTransaction*`, `approveHash`, `setup`) and adding additional fail-fast assertions in deployment transaction utilities.
 - Hardening Safe call transaction-data construction with boundary validation for payload/object shape, target address validity, calldata hex normalization, and deterministic unsigned-integer value serialization errors for malformed runtime inputs.
+- Validating optional Safe transaction nonce inputs as non-negative safe integers before forwarding create-transaction requests to Safe SDK.
 - Requiring typed-data signer support before Safe tx deletion.

@@ -971,6 +971,12 @@ export async function createSafeTransaction(
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
+  if (nonce !== undefined) {
+    assert(
+      typeof nonce === 'number' && Number.isSafeInteger(nonce) && nonce >= 0,
+      `Safe transaction nonce must be a non-negative safe integer: ${stringifyValueForError(nonce)}`,
+    );
+  }
   return safeSdk.createTransaction({
     transactions,
     onlyCalls,
