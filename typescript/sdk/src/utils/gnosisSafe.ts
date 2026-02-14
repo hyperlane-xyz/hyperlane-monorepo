@@ -448,18 +448,22 @@ export function safeApiKeyRequired(txServiceUrl: unknown): boolean {
 }
 
 export function hasSafeServiceTransactionPayload(
-  transaction: SafeServiceTransaction | undefined,
+  transaction: unknown,
 ): transaction is SafeServiceTransactionWithPayload {
+  const payload =
+    transaction !== null && typeof transaction === 'object'
+      ? (transaction as SafeServiceTransaction)
+      : undefined;
   return (
-    typeof transaction?.to === 'string' &&
-    ethers.utils.isAddress(transaction.to) &&
-    transaction.to.length > 0 &&
-    typeof transaction.data === 'string' &&
-    ethers.utils.isHexString(transaction.data) &&
-    transaction.data.length > 0 &&
-    typeof transaction.value === 'string' &&
-    /^\d+$/.test(transaction.value) &&
-    transaction.value.length > 0
+    typeof payload?.to === 'string' &&
+    ethers.utils.isAddress(payload.to) &&
+    payload.to.length > 0 &&
+    typeof payload.data === 'string' &&
+    ethers.utils.isHexString(payload.data) &&
+    payload.data.length > 0 &&
+    typeof payload.value === 'string' &&
+    /^\d+$/.test(payload.value) &&
+    payload.value.length > 0
   );
 }
 

@@ -3180,6 +3180,8 @@ describe('gnosisSafe utils', () => {
 
     it('returns false when payload fields are missing', () => {
       expect(hasSafeServiceTransactionPayload(undefined)).to.equal(false);
+      expect(hasSafeServiceTransactionPayload(null)).to.equal(false);
+      expect(hasSafeServiceTransactionPayload(123)).to.equal(false);
       expect(
         hasSafeServiceTransactionPayload({
           to: '0x00000000000000000000000000000000000000aa',
