@@ -1,10 +1,6 @@
 import yargs from 'yargs';
 
-import {
-  SafeAndService,
-  getOwnerChanges,
-  getSafeAndService,
-} from '@hyperlane-xyz/sdk';
+import { getOwnerChanges, getSafe } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
@@ -50,13 +46,9 @@ async function main() {
 
   const chainViolations = await Promise.all(
     Object.entries(safes).map(async ([chain, safeAddress]) => {
-      let safeSdk: SafeAndService['safeSdk'];
+      let safeSdk: Awaited<ReturnType<typeof getSafe>>;
       try {
-        ({ safeSdk } = await getSafeAndService(
-          chain,
-          multiProvider,
-          safeAddress,
-        ));
+        safeSdk = await getSafe(chain, multiProvider, safeAddress);
       } catch (error) {
         rootLogger.error(`[${chain}] could not get safe: ${error}`);
         return [];

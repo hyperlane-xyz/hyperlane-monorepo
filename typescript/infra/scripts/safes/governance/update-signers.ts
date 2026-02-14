@@ -2,9 +2,8 @@ import yargs from 'yargs';
 
 import {
   ChainName,
-  SafeAndService,
   getOwnerChanges,
-  getSafeAndService,
+  getSafe,
   updateSafeOwner,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
@@ -48,13 +47,9 @@ async function main() {
       continue;
     }
 
-    let safeSdk: SafeAndService['safeSdk'];
+    let safeSdk: Awaited<ReturnType<typeof getSafe>>;
     try {
-      ({ safeSdk } = await getSafeAndService(
-        chain,
-        multiProvider,
-        safeAddress,
-      ));
+      safeSdk = await getSafe(chain, multiProvider, safeAddress);
     } catch (error) {
       rootLogger.error(`[${chain}] could not get safe: ${error}`);
       continue;
