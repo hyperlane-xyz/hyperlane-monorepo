@@ -21,6 +21,17 @@ describe('Anvil utils', () => {
       const error = new Error('some unrelated test failure');
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
     });
+
+    it('handles non-Error throw values safely', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          'No Docker client strategy found while bootstrapping tests',
+        ),
+      ).to.equal(true);
+      expect(
+        isContainerRuntimeUnavailable({ reason: 'random-object' }),
+      ).to.equal(false);
+    });
   });
 
   describe('getAnvilRpcUrl', () => {
