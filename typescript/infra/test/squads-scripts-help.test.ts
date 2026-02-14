@@ -5,8 +5,9 @@ import { fileURLToPath } from 'node:url';
 
 import { expect } from 'chai';
 
+import { NON_EXECUTABLE_SQUADS_SCRIPT_FILES } from './squads-test-constants.js';
+
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
-const NON_EXECUTABLE_SQUADS_SCRIPT_FILES = new Set(['cli-helpers.ts']);
 
 type HelpCase = {
   readonly scriptPath: string;
@@ -63,7 +64,7 @@ function listSquadsScripts(): string[] {
       (entry) =>
         entry.isFile() &&
         entry.name.endsWith('.ts') &&
-        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.has(entry.name),
+        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.includes(entry.name),
     )
     .map((entry) => path.join('scripts/squads', entry.name))
     .sort();
