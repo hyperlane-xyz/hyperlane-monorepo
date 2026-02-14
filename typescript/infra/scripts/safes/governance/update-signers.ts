@@ -68,11 +68,18 @@ async function main() {
     }
 
     // Check if owner changes are valid (1-to-1 swaps only)
-    const currentOwners = await safeSdk.getOwners();
-    const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
-      currentOwners,
-      signers,
-    );
+    let ownersToRemove: string[] = [];
+    let ownersToAdd: string[] = [];
+    try {
+      const currentOwners = await safeSdk.getOwners();
+      ({ ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        currentOwners,
+        signers,
+      ));
+    } catch (error) {
+      rootLogger.error(`[${chain}] could not read safe owners: ${error}`);
+      continue;
+    }
 
     if (ownersToRemove.length !== ownersToAdd.length) {
       rootLogger.error(

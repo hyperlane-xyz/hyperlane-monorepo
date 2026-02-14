@@ -54,10 +54,17 @@ async function main() {
         return [];
       }
 
-      const [currentOwners, currentThreshold] = await Promise.all([
-        safeSdk.getOwners(),
-        safeSdk.getThreshold(),
-      ]);
+      let currentOwners: Awaited<ReturnType<typeof safeSdk.getOwners>>;
+      let currentThreshold: Awaited<ReturnType<typeof safeSdk.getThreshold>>;
+      try {
+        [currentOwners, currentThreshold] = await Promise.all([
+          safeSdk.getOwners(),
+          safeSdk.getThreshold(),
+        ]);
+      } catch (error) {
+        rootLogger.error(`[${chain}] could not read safe config: ${error}`);
+        return [];
+      }
       const expectedOwners = signers;
       const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
         currentOwners,
