@@ -18,6 +18,7 @@ import {
   getSafeAndService,
   getSafeDelegates,
   getSafeService,
+  getPendingTxsForChains,
   getSafeTx,
   getKnownMultiSendAddresses,
   getOwnerChanges,
@@ -5569,6 +5570,161 @@ describe('gnosisSafe utils', () => {
           'Safe service info payload must be an object for chain test: null',
         );
       }
+    });
+  });
+
+  describe(getPendingTxsForChains.name, () => {
+    const safeModule = Safe as unknown as { init: unknown };
+    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSafeInit = safeModule.init;
+    const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
+    const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
+    const originalGetPendingTransactions =
+      safeApiPrototype.getPendingTransactions;
+
+    afterEach(() => {
+      safeModule.init = originalSafeInit;
+      safeApiPrototype.getServiceInfo = originalGetServiceInfo;
+      safeApiPrototype.getSafeInfo = originalGetSafeInfo;
+      safeApiPrototype.getPendingTransactions = originalGetPendingTransactions;
+    });
+
+    it('returns normalized pending tx statuses and skips malformed entries', async () => {
+      safeModule.init = (async () => ({
+        getThreshold: async () => 2,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0+L2',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [
+          {
+            nonce: '7',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0X${'AB'.repeat(32)}`,
+            confirmations: [{}, {}],
+          },
+          {
+            nonce: 'bad',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'cd'.repeat(32)}`,
+            confirmations: [],
+          },
+          {
+            nonce: '8',
+            submissionDate: 'not-a-date',
+            safeTxHash: `0x${'ef'.repeat(32)}`,
+            confirmations: [],
+          },
+          {
+            nonce: '9',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: 'bad-hash',
+            confirmations: [],
+          },
+        ],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.deep.equal([
+        {
+          chain: 'test',
+          nonce: 7,
+          submissionDate: new Date('2026-01-01T00:00:00Z').toDateString(),
+          shortTxHash: `0xabab...abab`,
+          fullTxHash: `0x${'ab'.repeat(32)}`,
+          confs: 2,
+          threshold: 2,
+          status: '🟢',
+          balance: '1.00000 ETH',
+        },
+      ]);
+    });
+
+    it('returns empty when pending transaction payload shape is invalid', async () => {
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from(1),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: 123,
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.deep.equal([]);
+    });
+
+    it('returns empty and avoids service calls when safe address is invalid', async () => {
+      let pendingCalls = 0;
+      safeApiPrototype.getPendingTransactions = (async () => {
+        pendingCalls += 1;
+        return { results: [] };
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: 'not-an-address' as Address },
+      );
+
+      expect(statuses).to.deep.equal([]);
+      expect(pendingCalls).to.equal(0);
     });
   });
 

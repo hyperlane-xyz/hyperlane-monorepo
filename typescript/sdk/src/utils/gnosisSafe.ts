@@ -2398,11 +2398,49 @@ export async function getPendingTxsForChains(
   multiProvider: MultiProvider,
   safes: Record<string, Address>,
 ): Promise<SafeStatus[]> {
+  assert(
+    Array.isArray(chains),
+    `Safe chain list must be an array: ${stringifyValueForError(chains)}`,
+  );
+  assert(
+    safes !== null && typeof safes === 'object',
+    `Safe map must be an object: ${stringifyValueForError(safes)}`,
+  );
+  let chainCount = 0;
+  try {
+    chainCount = chains.length;
+  } catch {
+    throw new Error('Safe chain list length is inaccessible');
+  }
+  assert(
+    Number.isSafeInteger(chainCount) && chainCount >= 0,
+    `Safe chain list length is invalid: ${stringifyValueForError(chainCount)}`,
+  );
   const txs: SafeStatus[] = [];
   await Promise.all(
     chains.map(async (chain) => {
-      if (!safes[chain]) {
+      let safeAddress: unknown;
+      try {
+        safeAddress = safes[chain];
+      } catch {
+        rootLogger.error(
+          chalk.red.bold(`Safe address is inaccessible for ${chain}`),
+        );
+        return;
+      }
+      if (!safeAddress) {
         rootLogger.error(chalk.red.bold(`No safe found for ${chain}`));
+        return;
+      }
+      let normalizedSafeAddress: Address;
+      try {
+        normalizedSafeAddress = normalizeSafeAddress(safeAddress);
+      } catch (error) {
+        rootLogger.error(
+          chalk.red.bold(
+            `Invalid safe configured for ${chain}: ${stringifyValueForError(error)}`,
+          ),
+        );
         return;
       }
 
@@ -2421,7 +2459,7 @@ export async function getPendingTxsForChains(
         ({ safeSdk, safeService } = await getSafeAndService(
           chain,
           multiProvider,
-          safes[chain],
+          normalizedSafeAddress,
         ));
       } catch (error) {
         rootLogger.warn(
@@ -2432,67 +2470,274 @@ export async function getPendingTxsForChains(
         return;
       }
 
-      const threshold = await safeSdk.getThreshold();
+      let thresholdRaw: unknown;
+      try {
+        thresholdRaw = await safeSdk.getThreshold();
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch threshold for safe ${normalizedSafeAddress} on ${chain}: ${error}`,
+          ),
+        );
+        return;
+      }
+      let threshold: number;
+      try {
+        threshold = parseNonNegativeSafeInteger(
+          thresholdRaw,
+          `Safe threshold must be a positive integer on ${chain}: ${stringifyValueForError(thresholdRaw)}`,
+        );
+      } catch (error) {
+        rootLogger.error(chalk.red(String(error)));
+        return;
+      }
+      if (threshold === 0) {
+        rootLogger.error(
+          chalk.red(
+            `Safe threshold must be a positive integer on ${chain}: ${stringifyValueForError(thresholdRaw)}`,
+          ),
+        );
+        return;
+      }
 
-      let pendingTxs: SafeMultisigTransactionListResponse;
+      let pendingTxs: unknown;
       rootLogger.info(
         chalk.gray.italic(
-          `Fetching pending transactions for safe ${safes[chain]} on ${chain}`,
+          `Fetching pending transactions for safe ${normalizedSafeAddress} on ${chain}`,
         ),
       );
       try {
         pendingTxs = await retrySafeApi(() =>
-          safeService.getPendingTransactions(safes[chain]),
+          safeService.getPendingTransactions(normalizedSafeAddress),
         );
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch pending transactions for safe ${safes[chain]} on ${chain} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+            `Failed to fetch pending transactions for safe ${normalizedSafeAddress} on ${chain} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
           ),
         );
         return;
       }
 
-      if (!pendingTxs || pendingTxs.results.length === 0) {
+      if (!pendingTxs || typeof pendingTxs !== 'object') {
+        rootLogger.error(
+          chalk.red(
+            `Pending Safe transaction payload must be an object on ${chain}: ${stringifyValueForError(pendingTxs)}`,
+          ),
+        );
+        return;
+      }
+      let pendingTxResults: unknown;
+      try {
+        pendingTxResults = (pendingTxs as SafeMultisigTransactionListResponse)
+          .results;
+      } catch {
+        rootLogger.error(
+          chalk.red(
+            `Pending Safe transaction list is inaccessible on ${chain}`,
+          ),
+        );
+        return;
+      }
+      if (!Array.isArray(pendingTxResults)) {
+        rootLogger.error(
+          chalk.red(
+            `Pending Safe transaction list must be an array on ${chain}: ${stringifyValueForError(pendingTxResults)}`,
+          ),
+        );
+        return;
+      }
+      let pendingTxCount = 0;
+      try {
+        pendingTxCount = pendingTxResults.length;
+      } catch {
+        rootLogger.error(
+          chalk.red(
+            `Pending Safe transaction list length is inaccessible on ${chain}`,
+          ),
+        );
+        return;
+      }
+      if (!Number.isSafeInteger(pendingTxCount) || pendingTxCount < 0) {
+        rootLogger.error(
+          chalk.red(
+            `Pending Safe transaction list length is invalid on ${chain}: ${stringifyValueForError(pendingTxCount)}`,
+          ),
+        );
+        return;
+      }
+      if (pendingTxCount === 0) {
         rootLogger.info(
           chalk.gray.italic(
-            `No pending transactions found for safe ${safes[chain]} on ${chain}`,
+            `No pending transactions found for safe ${normalizedSafeAddress} on ${chain}`,
           ),
         );
         return;
       }
 
-      const balance = await safeSdk.getBalance();
-      const nativeToken = await multiProvider.getNativeToken(chain);
-      const formattedBalance = formatUnits(balance, nativeToken.decimals);
-
-      pendingTxs.results.forEach(
-        ({ nonce, submissionDate, safeTxHash, confirmations }) => {
-          const confs = confirmations?.length ?? 0;
-          const status =
-            confs >= threshold
-              ? SafeTxStatus.READY_TO_EXECUTE
-              : confs === 0
-                ? SafeTxStatus.NO_CONFIRMATIONS
-                : threshold - confs === 1
-                  ? SafeTxStatus.ONE_AWAY
-                  : SafeTxStatus.PENDING;
-
-          txs.push({
-            chain,
-            nonce: Number(nonce),
-            submissionDate: new Date(submissionDate).toDateString(),
-            shortTxHash: `${safeTxHash.slice(0, 6)}...${safeTxHash.slice(-4)}`,
-            fullTxHash: safeTxHash,
-            confs,
-            threshold,
-            status,
-            balance: `${Number(formattedBalance).toFixed(5)} ${
-              nativeToken.symbol
-            }`,
+      let safeBalanceRaw: unknown;
+      try {
+        safeBalanceRaw = await safeSdk.getBalance();
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chain}: ${error}`,
+          ),
+        );
+        return;
+      }
+      let balance: BigNumber;
+      try {
+        balance = parseNonNegativeBigNumber(
+          safeBalanceRaw,
+          `Safe balance must be non-negative integer on ${chain}: ${stringifyValueForError(safeBalanceRaw)}`,
+        );
+      } catch (error) {
+        rootLogger.error(chalk.red(String(error)));
+        return;
+      }
+      let nativeToken: unknown;
+      try {
+        nativeToken = await multiProvider.getNativeToken(chain);
+      } catch (error) {
+        rootLogger.error(
+          chalk.red(
+            `Failed to fetch native token metadata for ${chain}: ${error}`,
+          ),
+        );
+        return;
+      }
+      if (nativeToken === null || typeof nativeToken !== 'object') {
+        rootLogger.error(
+          chalk.red(
+            `Native token metadata must be an object for ${chain}: ${stringifyValueForError(nativeToken)}`,
+          ),
+        );
+        return;
+      }
+      let nativeTokenSymbol: unknown;
+      let nativeTokenDecimals: unknown;
+      try {
+        ({ symbol: nativeTokenSymbol, decimals: nativeTokenDecimals } =
+          nativeToken as {
+            symbol?: unknown;
+            decimals?: unknown;
           });
-        },
-      );
+      } catch {
+        rootLogger.error(
+          chalk.red(
+            `Native token metadata fields are inaccessible for ${chain}`,
+          ),
+        );
+        return;
+      }
+      if (
+        typeof nativeTokenSymbol !== 'string' ||
+        nativeTokenSymbol.trim().length === 0
+      ) {
+        rootLogger.error(
+          chalk.red(
+            `Native token symbol must be non-empty string for ${chain}: ${stringifyValueForError(nativeTokenSymbol)}`,
+          ),
+        );
+        return;
+      }
+      if (
+        typeof nativeTokenDecimals !== 'number' ||
+        !Number.isSafeInteger(nativeTokenDecimals) ||
+        nativeTokenDecimals < 0
+      ) {
+        rootLogger.error(
+          chalk.red(
+            `Native token decimals must be non-negative integer for ${chain}: ${stringifyValueForError(nativeTokenDecimals)}`,
+          ),
+        );
+        return;
+      }
+      const formattedBalance = formatUnits(balance, nativeTokenDecimals);
+
+      pendingTxResults.forEach((pendingTx, index) => {
+        if (pendingTx === null || typeof pendingTx !== 'object') {
+          rootLogger.error(
+            chalk.red(
+              `Pending Safe transaction entry must be an object at index ${index} on ${chain}: ${stringifyValueForError(pendingTx)}`,
+            ),
+          );
+          return;
+        }
+        let nonce: unknown;
+        let submissionDate: unknown;
+        let safeTxHash: unknown;
+        let confirmations: unknown;
+        try {
+          ({ nonce, submissionDate, safeTxHash, confirmations } = pendingTx as {
+            nonce?: unknown;
+            submissionDate?: unknown;
+            safeTxHash?: unknown;
+            confirmations?: unknown;
+          });
+        } catch {
+          rootLogger.error(
+            chalk.red(
+              `Pending Safe transaction entry fields are inaccessible at index ${index} on ${chain}`,
+            ),
+          );
+          return;
+        }
+        let normalizedNonce: number;
+        try {
+          normalizedNonce = parseNonNegativeSafeInteger(
+            nonce,
+            `Pending Safe transaction nonce must be a non-negative integer at index ${index} on ${chain}: ${stringifyValueForError(nonce)}`,
+          );
+        } catch (error) {
+          rootLogger.error(chalk.red(String(error)));
+          return;
+        }
+        const normalizedSubmissionDate =
+          typeof submissionDate === 'string'
+            ? new Date(submissionDate)
+            : undefined;
+        if (
+          !normalizedSubmissionDate ||
+          Number.isNaN(normalizedSubmissionDate.getTime())
+        ) {
+          rootLogger.error(
+            chalk.red(
+              `Pending Safe transaction submission date must be valid at index ${index} on ${chain}: ${stringifyValueForError(submissionDate)}`,
+            ),
+          );
+          return;
+        }
+        let normalizedSafeTxHash: Hex;
+        try {
+          normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
+        } catch (error) {
+          rootLogger.error(chalk.red(String(error)));
+          return;
+        }
+        const confs = Array.isArray(confirmations) ? confirmations.length : 0;
+        const status =
+          confs >= threshold
+            ? SafeTxStatus.READY_TO_EXECUTE
+            : confs === 0
+              ? SafeTxStatus.NO_CONFIRMATIONS
+              : threshold - confs === 1
+                ? SafeTxStatus.ONE_AWAY
+                : SafeTxStatus.PENDING;
+
+        txs.push({
+          chain,
+          nonce: normalizedNonce,
+          submissionDate: normalizedSubmissionDate.toDateString(),
+          shortTxHash: `${normalizedSafeTxHash.slice(0, 6)}...${normalizedSafeTxHash.slice(-4)}`,
+          fullTxHash: normalizedSafeTxHash,
+          confs,
+          threshold,
+          status,
+          balance: `${Number(formattedBalance).toFixed(5)} ${nativeTokenSymbol.trim()}`,
+        });
+      });
     }),
   );
   return txs.sort(
@@ -2660,6 +2905,18 @@ function parseNonNegativeBigNumber(
   }
   assert(parsed.gte(0), errorMessage);
   return parsed;
+}
+
+function parseNonNegativeSafeInteger(
+  value: unknown,
+  errorMessage: string,
+): number {
+  const parsedBigNumber = parseNonNegativeBigNumber(value, errorMessage);
+  assert(
+    parsedBigNumber.lte(BigNumber.from(Number.MAX_SAFE_INTEGER.toString())),
+    errorMessage,
+  );
+  return parsedBigNumber.toNumber();
 }
 
 export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {
