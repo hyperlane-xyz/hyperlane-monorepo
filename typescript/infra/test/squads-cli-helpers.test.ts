@@ -52,6 +52,13 @@ describe('squads cli helpers', () => {
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
   });
 
+  it('returns a fresh default squads chains array reference per call', () => {
+    const firstResolvedChains = resolveSquadsChains(undefined);
+    const secondResolvedChains = resolveSquadsChains(undefined);
+
+    expect(firstResolvedChains).to.not.equal(secondResolvedChains);
+  });
+
   it('resolves argv chains from undefined input to configured squads chains', () => {
     expect(resolveSquadsChainsFromArgv(undefined)).to.deep.equal(
       getSquadsChains(),

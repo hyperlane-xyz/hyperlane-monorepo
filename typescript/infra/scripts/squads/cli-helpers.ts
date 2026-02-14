@@ -138,7 +138,7 @@ export function resolveSquadsChains(chains?: readonly unknown[]): ChainName[] {
     }
     return [...squadsChains];
   }
-  return configuredSquadsChains;
+  return [...configuredSquadsChains];
 }
 
 function getArgTypeName(value: unknown): string {
