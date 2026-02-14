@@ -1139,6 +1139,10 @@ export async function getOwnerChanges(
   ): void => {
     const seenOwners = new Set<string>();
     for (const owner of owners) {
+      assert(
+        ethers.utils.isAddress(owner),
+        `Invalid owner address found in ${ownerGroupName}: ${owner}`,
+      );
       const normalizedOwner = owner.toLowerCase();
       assert(
         !seenOwners.has(normalizedOwner),

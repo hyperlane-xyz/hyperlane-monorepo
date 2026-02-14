@@ -3370,6 +3370,22 @@ describe('gnosisSafe utils', () => {
         'Duplicate owner address found in expected owners: 0xABCD000000000000000000000000000000000002',
       );
     });
+
+    it('throws when current owners include invalid addresses', async () => {
+      await expectOwnerChangesError(
+        ['not-an-address'],
+        ['0x0000000000000000000000000000000000000002'],
+        'Invalid owner address found in current owners: not-an-address',
+      );
+    });
+
+    it('throws when expected owners include invalid addresses', async () => {
+      await expectOwnerChangesError(
+        ['0x0000000000000000000000000000000000000001'],
+        ['not-an-address'],
+        'Invalid owner address found in expected owners: not-an-address',
+      );
+    });
   });
 
   describe(parseSafeTx.name, () => {
