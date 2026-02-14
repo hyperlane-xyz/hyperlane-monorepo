@@ -153,6 +153,17 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('trims chain names in unsupported-chain formatter output', () => {
+    expect(
+      getUnsupportedSquadsChainsErrorMessage(
+        [' ethereum '],
+        [' solanamainnet '],
+      ),
+    ).to.equal(
+      'Squads configuration not found for chains: ethereum. Available Squads chains: solanamainnet',
+    );
+  });
+
   it('throws when unsupported-chain formatter receives empty chains list', () => {
     expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
       'Expected at least one unsupported squads chain to format error message',
