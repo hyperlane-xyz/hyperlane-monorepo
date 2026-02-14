@@ -83,3 +83,5 @@ If both message and name are blank on `Error` instances, formatter diagnostics n
 Regression coverage now includes hostile `Error` objects where constructor-name access throws after blank message/name values, ensuring non-crashing structural fallback output.
 
 Runtime-unavailable extraction now guards `Error.message` reads the same way as wrapper objects, preventing matcher crashes when hostile Error accessors throw.
+
+String non-emptiness checks in formatter/matcher extraction were consolidated, with regression coverage for whitespace-heavy `ENOENT` code normalization.

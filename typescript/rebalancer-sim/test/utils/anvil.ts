@@ -59,11 +59,14 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
   }
 };
 
+const isNonEmptyString = (value: unknown): value is string =>
+  typeof value === 'string' && value.trim().length > 0;
+
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
       const errorMessage = error.message;
-      if (errorMessage.trim().length > 0) {
+      if (isNonEmptyString(errorMessage)) {
         return errorMessage;
       }
     } catch {
@@ -71,16 +74,13 @@ function getErrorMessage(error: unknown): string {
     }
 
     const errorName = getObjectProperty(error, 'name');
-    if (typeof errorName === 'string' && errorName.trim().length > 0) {
+    if (isNonEmptyString(errorName)) {
       return errorName.trim();
     }
 
     try {
       const constructorName = error.constructor?.name;
-      if (
-        typeof constructorName === 'string' &&
-        constructorName.trim().length > 0
-      ) {
+      if (isNonEmptyString(constructorName)) {
         return constructorName.trim();
       }
     } catch {
@@ -90,7 +90,7 @@ function getErrorMessage(error: unknown): string {
 
   if (typeof error === 'object' && error !== null) {
     const message = getObjectProperty(error, 'message');
-    if (typeof message === 'string' && message.trim().length > 0) {
+    if (isNonEmptyString(message)) {
       return message;
     }
   }
@@ -162,7 +162,7 @@ interface StartedAnvil {
 export function formatLocalAnvilStartError(error: unknown): string {
   const errorCode = getObjectProperty(error, 'code');
   if (
-    typeof errorCode === 'string' &&
+    isNonEmptyString(errorCode) &&
     errorCode.trim().toUpperCase() === 'ENOENT'
   ) {
     return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
@@ -265,7 +265,7 @@ function extractErrorMessages(error: unknown): string[] {
 
     if (current instanceof Error) {
       const message = getObjectProperty(current, 'message');
-      if (typeof message === 'string' && message.trim().length > 0) {
+      if (isNonEmptyString(message)) {
         messages.push(message);
       } else {
         messages.push(getErrorMessage(current));
@@ -283,7 +283,7 @@ function extractErrorMessages(error: unknown): string[] {
 
     if (typeof current === 'object' && current !== null) {
       const message = getObjectProperty(current, 'message');
-      if (typeof message === 'string' && message.trim().length > 0) {
+      if (isNonEmptyString(message)) {
         messages.push(message);
       } else {
         messages.push(getErrorMessage(current));
