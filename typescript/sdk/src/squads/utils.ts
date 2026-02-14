@@ -1215,10 +1215,12 @@ export function decodePermissions(mask: number): string {
 async function getNextSquadsTransactionIndex(
   chain: SquadsChainName,
   mpp: MultiProtocolProvider,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<bigint> {
   const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
+    svmProviderOverride,
   );
   const squadsProvider = toSquadsProvider(svmProvider);
 
@@ -1309,6 +1311,7 @@ export async function buildSquadsVaultTransactionProposal(
   ixs: readonly TransactionInstruction[],
   creator: PublicKey,
   memo?: string,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<{
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
@@ -1316,9 +1319,14 @@ export async function buildSquadsVaultTransactionProposal(
   const { svmProvider, vault, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
+    svmProviderOverride,
   );
 
-  const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
+  const transactionIndex = await getNextSquadsTransactionIndex(
+    chain,
+    mpp,
+    svmProvider,
+  );
 
   const { blockhash } = await svmProvider.getLatestBlockhash();
   const transactionMessage = buildVaultTransactionMessage(
@@ -1413,6 +1421,7 @@ export async function submitProposalToSquads(
 ): Promise<void> {
   try {
     const creatorPublicKey = signerAdapter.publicKey();
+    const svmProvider = mpp.getSolanaWeb3Provider(chain);
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(
@@ -1421,6 +1430,7 @@ export async function submitProposalToSquads(
         vaultInstructions,
         creatorPublicKey,
         memo,
+        svmProvider,
       );
 
     const createSignature =

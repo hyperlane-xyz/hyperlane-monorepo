@@ -20,6 +20,7 @@ import {
   getSquadProposalAccount,
   getSquadProposal,
   getSquadTxStatus,
+  buildSquadsVaultTransactionProposal,
   isTerminalSquadsProposalStatus,
   canModifySquadsProposalStatus,
   deriveSquadsProposalModification,
@@ -2613,6 +2614,56 @@ describe('squads utils', () => {
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
       );
+      expect(providerLookupCalled).to.equal(false);
+    });
+  });
+
+  describe(buildSquadsVaultTransactionProposal.name, () => {
+    it('looks up provider once when proposal build fails during provider validation', async () => {
+      let providerLookupCount = 0;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCount += 1;
+          return {};
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include('Invalid Solana provider');
+      expect(providerLookupCount).to.equal(1);
+    });
+
+    it('uses provided provider override without multiprovider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          'solanamainnet',
+          mpp,
+          [],
+          PublicKey.default,
+          undefined,
+          {} as unknown as ReturnType<
+            MultiProtocolProvider['getSolanaWeb3Provider']
+          >,
+        ),
+      );
+
+      expect(thrownError?.message).to.include('Invalid Solana provider');
       expect(providerLookupCalled).to.equal(false);
     });
   });
