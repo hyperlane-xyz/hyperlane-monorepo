@@ -245,5 +245,11 @@ describe('gnosisSafe utils', () => {
       expect(deployments.multiSend.length).to.be.greaterThan(0);
       expect(deployments.multiSendCallOnly.length).to.be.greaterThan(0);
     });
+
+    it('throws for unknown safe deployment version', () => {
+      expect(() => getKnownMultiSendAddresses(['0.0.0'])).to.throw(
+        'MultiSend and MultiSendCallOnly deployments not found for version 0.0.0',
+      );
+    });
   });
 });
