@@ -164,6 +164,7 @@ export function parseSquadsProposalVoteErrorFromError(
       ? currentRecord.errors
       : [];
     traversalQueue.push(
+      currentRecord.error,
       currentRecord.cause,
       currentRecord.data,
       currentRecord.value,

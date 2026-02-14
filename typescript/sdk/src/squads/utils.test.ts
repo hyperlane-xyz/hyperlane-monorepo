@@ -215,6 +215,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from nested error field', () => {
+      const error = {
+        error: {
+          logs: ['custom program error: 0x177a'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('prefers top-level parsed errors over nested errors', () => {
       const error = {
         logs: ['custom program error: 0x177c'],
@@ -265,7 +276,8 @@ describe('squads utils', () => {
 
     it('ignores non-array aggregate errors values while parsing', () => {
       const error = {
-        errors: { logs: ['custom program error: 0x177b'] },
+        error: { logs: ['custom program error: 0x177b'] },
+        errors: { logs: ['custom program error: 0x177a'] },
         logs: ['custom program error: 0x177c'],
       };
 
