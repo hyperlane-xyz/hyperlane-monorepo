@@ -393,6 +393,30 @@ describe('executePendingTransactions', () => {
     expect(executed).to.deep.equal(['tx1']);
   });
 
+  it('continues when transaction entry is null', async () => {
+    const txsWithNullEntry = [{ id: 'tx1', chain: 'chainA' }, null];
+    const executed: string[] = [];
+
+    try {
+      await executePendingTransactions(
+        txsWithNullEntry as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        async () => true,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): <unknown>:<unknown>',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1']);
+  });
+
   it('records partial metadata when id is invalid but chain is present', async () => {
     const txs = [
       { id: 'tx1', chain: 'chainA' },

@@ -324,7 +324,9 @@ export async function executePendingTransactions<T>(
     }
     if (tx === undefined || tx === null) {
       rootLogger.error(
-        chalk.red(`Pending transaction at index ${index} is empty`),
+        chalk.red(
+          `Pending transaction at index ${index} is empty: ${stringifyValueForError(tx)}`,
+        ),
       );
       failedTransactions.push({
         id: '<unknown>',
