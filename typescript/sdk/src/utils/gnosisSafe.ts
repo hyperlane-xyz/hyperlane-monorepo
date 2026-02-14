@@ -1250,15 +1250,7 @@ export async function proposeSafeTransaction(
       `Failed to derive Safe transaction hash: ${stringifyValueForError(error)}`,
     );
   }
-  const safeTxHashValidationError = `Safe transaction hash must be 32-byte hex: ${stringifyValueForError(safeTxHash)}`;
-  const normalizedSafeTxHash = asHex(safeTxHash, {
-    required: safeTxHashValidationError,
-    invalid: safeTxHashValidationError,
-  });
-  assert(
-    ethers.utils.isHexString(normalizedSafeTxHash, 32),
-    safeTxHashValidationError,
-  );
+  const normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
   let senderSignature: unknown;
   try {
     senderSignature = await signTypedData.call(safeSdkObject, safeTransaction);
@@ -1366,11 +1358,12 @@ export async function executeTx(
 export async function getSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
-  safeTxHash: string,
+  safeTxHash: unknown,
 ): Promise<SafeServiceTransaction | undefined> {
+  const normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
   const headers = getSafeServiceHeaders(chain, multiProvider);
-  const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
+  const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${normalizedSafeTxHash}/`;
 
   try {
     return await retrySafeApi(async () => {
@@ -1386,7 +1379,7 @@ export async function getSafeTx(
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch transaction details for ${safeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+        `Failed to fetch transaction details for ${normalizedSafeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
       ),
     );
     return;
@@ -1397,8 +1390,14 @@ export async function deleteSafeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
-  safeTxHash: string,
+  safeTxHash: unknown,
 ): Promise<void> {
+  const normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
+  assert(
+    typeof safeAddress === 'string' && ethers.utils.isAddress(safeAddress),
+    `Safe address must be valid: ${stringifyValueForError(safeAddress)}`,
+  );
+  const normalizedSafeAddress = getAddress(safeAddress);
   const signer = multiProvider.getSigner(chain);
   const chainId = multiProvider.getEvmChainId(chain);
   if (!chainId) {
@@ -1407,7 +1406,7 @@ export async function deleteSafeTx(
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
   const headers = getSafeServiceHeaders(chain, multiProvider);
 
-  const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
+  const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${normalizedSafeTxHash}/`;
   const txDetailsResponse = await fetch(txDetailsUrl, {
     method: 'GET',
     headers,
@@ -1415,7 +1414,9 @@ export async function deleteSafeTx(
 
   if (!txDetailsResponse.ok) {
     rootLogger.error(
-      chalk.red(`Failed to fetch transaction details for ${safeTxHash}`),
+      chalk.red(
+        `Failed to fetch transaction details for ${normalizedSafeTxHash}`,
+      ),
     );
     return;
   }
@@ -1424,7 +1425,7 @@ export async function deleteSafeTx(
   const proposer = txDetails.proposer;
   if (!proposer) {
     rootLogger.error(
-      chalk.red(`No proposer found for transaction ${safeTxHash}`),
+      chalk.red(`No proposer found for transaction ${normalizedSafeTxHash}`),
     );
     return;
   }
@@ -1433,12 +1434,14 @@ export async function deleteSafeTx(
   if (!eqAddress(proposer, signerAddress)) {
     rootLogger.info(
       chalk.italic(
-        `Skipping deletion of transaction ${safeTxHash} proposed by ${proposer}`,
+        `Skipping deletion of transaction ${normalizedSafeTxHash} proposed by ${proposer}`,
       ),
     );
     return;
   }
-  rootLogger.info(`Deleting transaction ${safeTxHash} proposed by ${proposer}`);
+  rootLogger.info(
+    `Deleting transaction ${normalizedSafeTxHash} proposed by ${proposer}`,
+  );
 
   try {
     assertEip712Signer(signer);
@@ -1460,11 +1463,11 @@ export async function deleteSafeTx(
         name: 'Safe Transaction Service',
         version: '1.0',
         chainId,
-        verifyingContract: safeAddress,
+        verifyingContract: normalizedSafeAddress,
       },
       primaryType: 'DeleteRequest',
       message: {
-        safeTxHash,
+        safeTxHash: normalizedSafeTxHash,
         totp,
       },
     };
@@ -1475,17 +1478,17 @@ export async function deleteSafeTx(
       typedData.message,
     );
 
-    const deleteUrl = `${txServiceUrl}/v2/multisig-transactions/${safeTxHash}/`;
+    const deleteUrl = `${txServiceUrl}/v2/multisig-transactions/${normalizedSafeTxHash}/`;
     const res = await fetch(deleteUrl, {
       method: 'DELETE',
       headers,
-      body: JSON.stringify({ safeTxHash, signature }),
+      body: JSON.stringify({ safeTxHash: normalizedSafeTxHash, signature }),
     });
 
     if (res.status === 204) {
       rootLogger.info(
         chalk.green(
-          `Successfully deleted transaction ${safeTxHash} on ${chain}`,
+          `Successfully deleted transaction ${normalizedSafeTxHash} on ${chain}`,
         ),
       );
       return;
@@ -1494,12 +1497,14 @@ export async function deleteSafeTx(
     const errorBody = await res.text();
     rootLogger.error(
       chalk.red(
-        `Failed to delete transaction ${safeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
+        `Failed to delete transaction ${normalizedSafeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
       ),
     );
   } catch (error) {
     rootLogger.error(
-      chalk.red(`Failed to delete transaction ${safeTxHash} on ${chain}:`),
+      chalk.red(
+        `Failed to delete transaction ${normalizedSafeTxHash} on ${chain}:`,
+      ),
       error,
     );
   }
@@ -1947,6 +1952,19 @@ export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {
     : `0x${lowerCaseHex}`;
   assert(isHex(prefixedHex), normalizedInvalidErrorMessage);
   return prefixedHex as Hex;
+}
+
+function normalizeSafeTxHash(safeTxHash: unknown): Hex {
+  const safeTxHashValidationError = `Safe transaction hash must be 32-byte hex: ${stringifyValueForError(safeTxHash)}`;
+  const normalizedSafeTxHash = asHex(safeTxHash, {
+    required: safeTxHashValidationError,
+    invalid: safeTxHashValidationError,
+  });
+  assert(
+    ethers.utils.isHexString(normalizedSafeTxHash, 32),
+    safeTxHashValidationError,
+  );
+  return normalizedSafeTxHash;
 }
 
 export function decodeMultiSendData(

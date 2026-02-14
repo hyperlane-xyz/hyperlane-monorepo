@@ -53,3 +53,5 @@ Safe utility typing and robustness were improved by:
 - Trimming surrounding whitespace on explicit Safe signer string inputs before address/private-key validation.
 - Rejecting explicit non-string primitive signer inputs with deterministic runtime boundary errors.
 - Requiring typed-data signer support before Safe tx deletion.
+- Validating and canonicalizing Safe tx hashes for tx-service read/delete helper requests.
+- Canonicalizing Safe delete EIP-712 payload fields (`safeTxHash`, verifying Safe address) before signing/submission.

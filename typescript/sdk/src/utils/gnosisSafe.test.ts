@@ -7,7 +7,9 @@ import {
   asHex,
   createSafeTransaction,
   createSafeTransactionData,
+  deleteSafeTx,
   decodeMultiSendData,
+  getSafeTx,
   getKnownMultiSendAddresses,
   getOwnerChanges,
   hasSafeServiceTransactionPayload,
@@ -5121,6 +5123,195 @@ describe('gnosisSafe utils', () => {
           'Safe signer address must be valid: bad',
         );
       }
+    });
+  });
+
+  describe('safe tx service helpers', () => {
+    const originalFetch = globalThis.fetch;
+
+    afterEach(() => {
+      globalThis.fetch = originalFetch;
+    });
+
+    it('getSafeTx throws for invalid safe tx hash before network call', async () => {
+      let fetchCalled = false;
+      globalThis.fetch = (async () => {
+        fetchCalled = true;
+        throw new Error('fetch should not be called');
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof getSafeTx>[1];
+
+      try {
+        await getSafeTx('test', multiProviderMock, 'not-hex');
+        expect.fail('Expected getSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction hash must be 32-byte hex: not-hex',
+        );
+      }
+
+      expect(fetchCalled).to.equal(false);
+    });
+
+    it('getSafeTx canonicalizes hash casing in tx-service request URL', async () => {
+      const mixedCaseHash = `0X${'AB'.repeat(32)}`;
+      const normalizedHash = `0x${'ab'.repeat(32)}`;
+      let requestedUrl: string | undefined;
+
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        requestedUrl = typeof input === 'string' ? input : input.toString();
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ safeTxHash: normalizedHash }),
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof getSafeTx>[1];
+
+      const transaction = await getSafeTx(
+        'test',
+        multiProviderMock,
+        mixedCaseHash,
+      );
+
+      expect(requestedUrl).to.equal(
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+      );
+      expect(transaction?.safeTxHash).to.equal(normalizedHash);
+    });
+
+    it('deleteSafeTx throws for invalid safe tx hash before signer/network calls', async () => {
+      let fetchCalled = false;
+      let getSignerCalled = false;
+
+      globalThis.fetch = (async () => {
+        fetchCalled = true;
+        throw new Error('fetch should not be called');
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => {
+          getSignerCalled = true;
+          throw new Error('getSigner should not be called');
+        },
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          'bad-hash',
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction hash must be 32-byte hex: bad-hash',
+        );
+      }
+
+      expect(getSignerCalled).to.equal(false);
+      expect(fetchCalled).to.equal(false);
+    });
+
+    it('deleteSafeTx canonicalizes hash/address in signed payload and delete request', async () => {
+      const mixedCaseSafeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+      const normalizedSafeAddress = getAddress(mixedCaseSafeAddress);
+      const proposerAddress = '0x00000000000000000000000000000000000000AA';
+      const mixedCaseHash = `0X${'CD'.repeat(32)}`;
+      const normalizedHash = `0x${'cd'.repeat(32)}`;
+      let typedDataDomain: Record<string, unknown> | undefined;
+      let typedDataMessage: Record<string, unknown> | undefined;
+      let getUrl: string | undefined;
+      let deleteUrl: string | undefined;
+      let deleteBody: string | undefined;
+      let requestCount = 0;
+
+      const signerMock = {
+        getAddress: async () => proposerAddress,
+        _signTypedData: async (
+          domain: Record<string, unknown>,
+          _types: Record<string, unknown>,
+          message: Record<string, unknown>,
+        ) => {
+          typedDataDomain = domain;
+          typedDataMessage = message;
+          return `0x${'11'.repeat(65)}`;
+        },
+      };
+
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        requestCount += 1;
+        const url = typeof input === 'string' ? input : input.toString();
+        if (requestCount === 1) {
+          getUrl = url;
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ proposer: proposerAddress.toLowerCase() }),
+          } as unknown as Response;
+        }
+        deleteUrl = url;
+        deleteBody = init?.body as string | undefined;
+        return {
+          status: 204,
+          statusText: 'No Content',
+          text: async () => '',
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      await deleteSafeTx(
+        'test',
+        multiProviderMock,
+        mixedCaseSafeAddress,
+        mixedCaseHash,
+      );
+
+      expect(getUrl).to.equal(
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+      );
+      expect(deleteUrl).to.equal(
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+      );
+      expect(typedDataDomain?.verifyingContract).to.equal(
+        normalizedSafeAddress,
+      );
+      expect(typedDataMessage?.safeTxHash).to.equal(normalizedHash);
+      expect(deleteBody).to.equal(
+        JSON.stringify({
+          safeTxHash: normalizedHash,
+          signature: `0x${'11'.repeat(65)}`,
+        }),
+      );
     });
   });
 
