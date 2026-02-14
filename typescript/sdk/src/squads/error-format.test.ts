@@ -138,6 +138,24 @@ describe('squads error-format', () => {
       ).to.equal('boom');
     });
 
+    it('falls back to String(error) when preferred Error stack throws and message is low-signal', () => {
+      const error = new Error('');
+      Object.defineProperty(error, 'stack', {
+        configurable: true,
+        get() {
+          throw new Error('stack unavailable');
+        },
+      });
+      error.toString = () => 'custom string fallback';
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorStackForErrorInstances: true,
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('custom string fallback');
+    });
+
     it('falls back to String(error) when preferred Error message access throws', () => {
       const error = new Error('boom');
       Object.defineProperty(error, 'message', {
@@ -355,6 +373,39 @@ describe('squads error-format', () => {
       );
 
       expect(formatted).to.equal('custom object error');
+    });
+
+    it('returns placeholder when formatter throws and final String(error) fallback throws', () => {
+      const unstringifiableObject = {
+        toString() {
+          throw new Error('cannot stringify');
+        },
+      } as {
+        stack?: string;
+        message?: string;
+        toString: () => string;
+      };
+      Object.defineProperty(unstringifiableObject, 'stack', {
+        configurable: true,
+        get() {
+          return '   ';
+        },
+      });
+      Object.defineProperty(unstringifiableObject, 'message', {
+        configurable: true,
+        get() {
+          return '   ';
+        },
+      });
+
+      expect(
+        stringifyUnknownSquadsError(unstringifiableObject, {
+          placeholder: '[fallback]',
+          formatObject() {
+            throw new Error('cannot serialize');
+          },
+        }),
+      ).to.equal('[fallback]');
     });
 
     it('falls back to String(error) when object formatter returns low-signal text', () => {
