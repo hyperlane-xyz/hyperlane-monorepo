@@ -130,6 +130,11 @@ describe('squads cli helpers', () => {
       expectedType: 'array',
     },
     {
+      title: 'labels boolean argv chain values clearly in index-aware errors',
+      chainValue: false,
+      expectedType: 'boolean',
+    },
+    {
       title: 'labels bigint argv chain values clearly in index-aware errors',
       chainValue: 1n,
       expectedType: 'bigint',
@@ -235,6 +240,11 @@ describe('squads cli helpers', () => {
       title: 'labels array values in explicitly provided chains errors',
       chainValue: [],
       expectedType: 'array',
+    },
+    {
+      title: 'labels boolean values in explicitly provided chains errors',
+      chainValue: false,
+      expectedType: 'boolean',
     },
     {
       title: 'labels symbol values in explicitly provided chains errors',
