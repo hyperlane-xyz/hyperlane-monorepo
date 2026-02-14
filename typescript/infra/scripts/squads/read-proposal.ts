@@ -100,15 +100,18 @@ function formatSignerList(
   values: readonly unknown[],
   label: string,
   chain: string,
-): string[] {
+): { signers: string[]; skippedCount: number } {
   const signerList: string[] = [];
+  let skippedCount = 0;
   values.forEach((value, index) => {
     const formatted = toBase58IfPossible(value, label, chain, index);
     if (formatted) {
       signerList.push(formatted);
+    } else {
+      skippedCount++;
     }
   });
-  return signerList;
+  return { signers: signerList, skippedCount };
 }
 
 function formatMultisigMemberKey(
@@ -310,6 +313,28 @@ async function main() {
       cancellations,
       statusTimestampSeconds,
     } = parsedProposal;
+    if (approvedVoters.skippedCount > 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipped ${approvedVoters.skippedCount} malformed approver entries on ${chain}.`,
+        ),
+      );
+    }
+    if (rejectedVoters.skippedCount > 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipped ${rejectedVoters.skippedCount} malformed rejector entries on ${chain}.`,
+        ),
+      );
+    }
+    if (cancelledVoters.skippedCount > 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipped ${cancelledVoters.skippedCount} malformed canceller entries on ${chain}.`,
+        ),
+      );
+    }
+
     const derivedStatus = getSquadTxStatus(
       status,
       approvals,
@@ -358,25 +383,25 @@ async function main() {
     }
 
     // Display approvers
-    if (approvedVoters.length > 0) {
+    if (approvedVoters.signers.length > 0) {
       rootLogger.info(chalk.green.bold('\n✅ Approvers:'));
-      approvedVoters.forEach((approver, index) => {
+      approvedVoters.signers.forEach((approver, index) => {
         rootLogger.info(chalk.white(`  ${index + 1}. ${approver}`));
       });
     }
 
     // Display rejectors
-    if (rejectedVoters.length > 0) {
+    if (rejectedVoters.signers.length > 0) {
       rootLogger.info(chalk.red.bold('\n❌ Rejectors:'));
-      rejectedVoters.forEach((rejector, index) => {
+      rejectedVoters.signers.forEach((rejector, index) => {
         rootLogger.info(chalk.white(`  ${index + 1}. ${rejector}`));
       });
     }
 
     // Display cancellers
-    if (cancelledVoters.length > 0) {
+    if (cancelledVoters.signers.length > 0) {
       rootLogger.info(chalk.gray.bold('\n🚫 Cancellers:'));
-      cancelledVoters.forEach((canceller, index) => {
+      cancelledVoters.signers.forEach((canceller, index) => {
         rootLogger.info(chalk.white(`  ${index + 1}. ${canceller}`));
       });
     }
