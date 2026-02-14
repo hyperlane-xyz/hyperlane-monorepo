@@ -516,7 +516,10 @@ async function inferIcaSubmitterFromAccount({
   const normalizedDestinationRouterAddress = tryNormalizeEvmAddress(
     destinationRouterAddress,
   );
-  if (!normalizedDestinationRouterAddress) {
+  if (
+    !normalizedDestinationRouterAddress ||
+    eqAddress(normalizedDestinationRouterAddress, ethersConstants.AddressZero)
+  ) {
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
@@ -832,9 +835,14 @@ async function inferTimelockProposerSubmitter({
     (account) => !eqAddress(account, ethersConstants.AddressZero),
   );
   const registryAddresses = await getRegistryAddresses(context, cache);
-  const destinationRouterAddress = tryNormalizeEvmAddress(
+  const destinationRouterAddressCandidate = tryNormalizeEvmAddress(
     registryAddresses[chain]?.interchainAccountRouter ?? '',
   );
+  const destinationRouterAddress =
+    destinationRouterAddressCandidate &&
+    !eqAddress(destinationRouterAddressCandidate, ethersConstants.AddressZero)
+      ? destinationRouterAddressCandidate
+      : null;
 
   for (const proposer of proposers) {
     if (eqAddress(proposer, signerAddress)) {
