@@ -41,6 +41,17 @@ describe('Registry defaults', () => {
     ).to.equal(true);
   });
 
+  it('prefers local clone and otherwise falls back to packaged registry data', () => {
+    const localRegistryClone = join(process.cwd(), '../../hyperlane-registry');
+    if (existsSync(localRegistryClone)) {
+      expect(DEFAULT_REGISTRY_URI).to.equal(localRegistryClone);
+      return;
+    }
+
+    expect(DEFAULT_REGISTRY_URI).to.not.equal(localRegistryClone);
+    expect(DEFAULT_REGISTRY_URI).to.include('@hyperlane-xyz/registry');
+  });
+
   it('loads all configured mainnet3 chains from default registry', () => {
     const registry = getRegistry();
 
