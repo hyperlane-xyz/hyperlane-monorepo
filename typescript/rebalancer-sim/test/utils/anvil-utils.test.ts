@@ -111,6 +111,14 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in object causes without message', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          cause: { message: 'No Docker client strategy found' },
+        }),
+      ).to.equal(true);
+    });
+
     it('matches docker runtime errors nested in object error arrays', () => {
       expect(
         isContainerRuntimeUnavailable({
@@ -119,6 +127,14 @@ describe('Anvil utils', () => {
             { message: 'irrelevant startup warning' },
             { message: 'No Docker client strategy found' },
           ],
+        }),
+      ).to.equal(true);
+    });
+
+    it('matches docker runtime errors in object error arrays without message', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: [{ message: 'Cannot connect to the Docker daemon' }],
         }),
       ).to.equal(true);
     });

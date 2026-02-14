@@ -130,13 +130,15 @@ function extractErrorMessages(error: unknown): string[] {
       continue;
     }
 
-    if (
-      typeof current === 'object' &&
-      current !== null &&
-      'message' in current &&
-      typeof (current as { message?: unknown }).message === 'string'
-    ) {
-      messages.push((current as { message: string }).message);
+    if (typeof current === 'object' && current !== null) {
+      if (
+        'message' in current &&
+        typeof (current as { message?: unknown }).message === 'string'
+      ) {
+        messages.push((current as { message: string }).message);
+      } else {
+        messages.push(getErrorMessage(current));
+      }
 
       const cause = (current as { cause?: unknown }).cause;
       if (cause !== undefined) queue.push(cause);
