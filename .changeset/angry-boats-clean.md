@@ -69,3 +69,4 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe delete and pending-list fetch failures with deterministic network-boundary error messages.
 - Hardening Safe delete/pending non-OK response diagnostics with explicit status and resilient response-body reads.
 - Hardening Safe initialization and execution helpers with strict address/hash normalization, RPC metadata validation, and deterministic provider/service/estimate failures.
+- Hardening Safe deployment/delegate/proposal-capability helpers with strict config validation, service payload validation, and canonicalized address comparisons.

@@ -7,12 +7,16 @@ import Safe from '@safe-global/protocol-kit';
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
   asHex,
+  canProposeSafeTransactions,
+  createSafeDeploymentTransaction,
   createSafeTransaction,
   createSafeTransactionData,
   deleteAllPendingSafeTxs,
   deleteSafeTx,
   decodeMultiSendData,
   executeTx,
+  getSafeAndService,
+  getSafeDelegates,
   getSafeTx,
   getKnownMultiSendAddresses,
   getOwnerChanges,
@@ -5318,6 +5322,212 @@ describe('gnosisSafe utils', () => {
       }
 
       expect(executeTransactionCalled).to.equal(false);
+    });
+  });
+
+  describe(createSafeDeploymentTransaction.name, () => {
+    const safeModule = Safe as unknown as { init: unknown };
+    const originalSafeInit = safeModule.init;
+
+    afterEach(() => {
+      safeModule.init = originalSafeInit;
+    });
+
+    it('throws for invalid deployment threshold before sdk init call', async () => {
+      let safeInitCalled = false;
+      safeModule.init = (async () => {
+        safeInitCalled = true;
+        return {};
+      }) as unknown;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+        }),
+      } as unknown as Parameters<typeof createSafeDeploymentTransaction>[1];
+
+      try {
+        await createSafeDeploymentTransaction('test', multiProviderMock, {
+          owners: ['0x0000000000000000000000000000000000000001'],
+          threshold: 2,
+        });
+        expect.fail('Expected createSafeDeploymentTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe deployment threshold must be a positive safe integer <= owners length: 2',
+        );
+      }
+
+      expect(safeInitCalled).to.equal(false);
+    });
+
+    it('canonicalizes deployment transaction payload and predicted safe address', async () => {
+      let predictedSafeConfig: unknown;
+      safeModule.init = (async (initConfig: unknown) => {
+        predictedSafeConfig = (
+          initConfig as { predictedSafe?: { safeAccountConfig?: unknown } }
+        ).predictedSafe?.safeAccountConfig;
+        return {
+          createSafeDeploymentTransaction: async () => ({
+            to: '0x52908400098527886e0f7030069857d2e4169ee7',
+            data: 'ABCD',
+            value: '7',
+          }),
+          getAddress: async () => '0x8617e340b3d01fa5f11f306f4090fd50e238070d',
+        };
+      }) as unknown;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+        }),
+      } as unknown as Parameters<typeof createSafeDeploymentTransaction>[1];
+
+      const result = await createSafeDeploymentTransaction(
+        'test',
+        multiProviderMock,
+        {
+          owners: ['0x00000000000000000000000000000000000000aa'],
+          threshold: 1,
+        },
+      );
+
+      expect(
+        (predictedSafeConfig as { owners?: unknown[] })?.owners?.[0],
+      ).to.equal('0x00000000000000000000000000000000000000AA');
+      expect(result.safeAddress).to.equal(
+        '0x8617E340B3D01FA5F11F306F4090FD50E238070D',
+      );
+      expect(result.transaction).to.deep.equal({
+        to: '0x52908400098527886E0F7030069857D2E4169EE7',
+        data: '0xabcd',
+        value: '7',
+      });
+    });
+  });
+
+  describe(getSafeDelegates.name, () => {
+    it('canonicalizes delegate addresses from service response', async () => {
+      const delegates = await getSafeDelegates(
+        {
+          getSafeDelegates: async () => ({
+            results: [
+              { delegate: '0x00000000000000000000000000000000000000aa' },
+            ],
+          }),
+        } as unknown as Parameters<typeof getSafeDelegates>[0],
+        '0x52908400098527886e0f7030069857d2e4169ee7',
+      );
+
+      expect(delegates).to.deep.equal([
+        '0x00000000000000000000000000000000000000AA',
+      ]);
+    });
+
+    it('throws when delegate entry contains invalid address', async () => {
+      try {
+        await getSafeDelegates(
+          {
+            getSafeDelegates: async () => ({
+              results: [{ delegate: 'bad' }],
+            }),
+          } as unknown as Parameters<typeof getSafeDelegates>[0],
+          '0x52908400098527886e0f7030069857d2e4169ee7',
+        );
+        expect.fail('Expected getSafeDelegates to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe delegate address must be valid at index 0: bad',
+        );
+      }
+    });
+  });
+
+  describe(canProposeSafeTransactions.name, () => {
+    const safeModule = Safe as unknown as { init: unknown };
+    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSafeInit = safeModule.init;
+    const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
+    const originalGetSafeDelegates = safeApiPrototype.getSafeDelegates;
+
+    afterEach(() => {
+      safeModule.init = originalSafeInit;
+      safeApiPrototype.getSafeInfo = originalGetSafeInfo;
+      safeApiPrototype.getSafeDelegates = originalGetSafeDelegates;
+    });
+
+    it('matches proposer against owners/delegates case-insensitively', async () => {
+      safeModule.init = (async () => ({
+        getOwners: async () => ['0x00000000000000000000000000000000000000aa'],
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0+L2',
+      })) as unknown;
+      safeApiPrototype.getSafeDelegates = (async () => ({
+        results: [{ delegate: '0x00000000000000000000000000000000000000bb' }],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof canProposeSafeTransactions>[2];
+
+      const canPropose = await canProposeSafeTransactions(
+        '0x00000000000000000000000000000000000000bb',
+        'test',
+        multiProviderMock,
+        '0x52908400098527886e0f7030069857d2e4169ee7',
+      );
+
+      expect(canPropose).to.equal(true);
+    });
+  });
+
+  describe(getSafeAndService.name, () => {
+    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
+
+    afterEach(() => {
+      safeApiPrototype.getServiceInfo = originalGetServiceInfo;
+    });
+
+    it('throws when safe service info payload is non-object', async () => {
+      safeApiPrototype.getServiceInfo = (async () => null) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => {
+          throw new Error('should not be called');
+        },
+      } as unknown as Parameters<typeof getSafeAndService>[1];
+
+      try {
+        await getSafeAndService(
+          'test',
+          multiProviderMock,
+          '0x52908400098527886e0f7030069857d2e4169ee7',
+        );
+        expect.fail('Expected getSafeAndService to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe service info payload must be an object for chain test: null',
+        );
+      }
     });
   });
 

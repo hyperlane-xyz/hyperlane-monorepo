@@ -841,34 +841,134 @@ export async function createSafeDeploymentTransaction(
   safeAddress: Address;
   transaction: SafeDeploymentTransaction;
 }> {
+  const deploymentConfig =
+    config !== null && typeof config === 'object'
+      ? (config as { owners?: unknown; threshold?: unknown })
+      : undefined;
+  assert(
+    deploymentConfig,
+    `Safe deployment config must be an object: ${stringifyValueForError(config)}`,
+  );
+  let owners: unknown;
+  let threshold: unknown;
+  try {
+    ({ owners, threshold } = deploymentConfig);
+  } catch {
+    throw new Error('Safe deployment config fields are inaccessible');
+  }
+  assertValidUniqueOwners(owners, 'safe deployment');
+  const normalizedOwners = owners.map((owner) => getAddress(owner));
+  assert(
+    typeof threshold === 'number' &&
+      Number.isSafeInteger(threshold) &&
+      threshold > 0 &&
+      threshold <= normalizedOwners.length,
+    `Safe deployment threshold must be a positive safe integer <= owners length: ${stringifyValueForError(threshold)}`,
+  );
   const safeAccountConfig: SafeAccountConfig = {
-    owners: config.owners,
-    threshold: config.threshold,
+    owners: normalizedOwners,
+    threshold,
   };
 
-  // @ts-ignore
-  const safe = await Safe.init({
-    provider: getPrimaryRpcUrl(chain, multiProvider),
-    predictedSafe: {
-      safeAccountConfig,
-    },
-  });
-
-  const { to, data, value } = await safe.createSafeDeploymentTransaction();
-  assert(to, `Safe deployment tx for ${chain} has no to address`);
-  assert(data, `Safe deployment tx for ${chain} has no calldata`);
+  let safe: unknown;
+  try {
+    // @ts-ignore
+    safe = await Safe.init({
+      provider: getPrimaryRpcUrl(chain, multiProvider),
+      predictedSafe: {
+        safeAccountConfig,
+      },
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to initialize Safe SDK for deployment on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
   assert(
-    value !== undefined && value !== null,
-    'Safe deployment tx has no value',
+    safe !== null && typeof safe === 'object',
+    `Safe SDK deployment instance must be an object: ${stringifyValueForError(safe)}`,
   );
-  const safeAddress = await safe.getAddress();
+  let createDeploymentTx: unknown;
+  let getSafeAddress: unknown;
+  try {
+    ({
+      createSafeDeploymentTransaction: createDeploymentTx,
+      getAddress: getSafeAddress,
+    } = safe as {
+      createSafeDeploymentTransaction?: unknown;
+      getAddress?: unknown;
+    });
+  } catch {
+    throw new Error(
+      'Safe SDK deployment transaction/address accessors are inaccessible',
+    );
+  }
+  assert(
+    typeof createDeploymentTx === 'function',
+    `Safe SDK createSafeDeploymentTransaction must be a function: ${stringifyValueForError(createDeploymentTx)}`,
+  );
+  assert(
+    typeof getSafeAddress === 'function',
+    `Safe SDK getAddress must be a function: ${stringifyValueForError(getSafeAddress)}`,
+  );
+  let deploymentTransaction: unknown;
+  try {
+    deploymentTransaction = await createDeploymentTx.call(safe);
+  } catch (error) {
+    throw new Error(
+      `Failed to create Safe deployment transaction on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    deploymentTransaction !== null && typeof deploymentTransaction === 'object',
+    `Safe deployment transaction payload must be an object: ${stringifyValueForError(deploymentTransaction)}`,
+  );
+  let to: unknown;
+  let data: unknown;
+  let value: unknown;
+  try {
+    ({ to, data, value } = deploymentTransaction as {
+      to?: unknown;
+      data?: unknown;
+      value?: unknown;
+    });
+  } catch {
+    throw new Error(
+      'Safe deployment transaction payload fields are inaccessible',
+    );
+  }
+  assert(
+    typeof to === 'string' && ethers.utils.isAddress(to),
+    `Safe deployment tx target must be valid address for ${chain}: ${stringifyValueForError(to)}`,
+  );
+  const normalizedData = asHex(data, {
+    required: `Safe deployment tx calldata is required for ${chain}`,
+    invalid: `Safe deployment tx calldata must be hex for ${chain}: ${stringifyValueForError(data)}`,
+  });
+  const normalizedValue = parseNonNegativeBigNumber(
+    value,
+    `Safe deployment tx value must be a non-negative integer for ${chain}: ${stringifyValueForError(value)}`,
+  ).toString();
+  let safeAddress: unknown;
+  try {
+    safeAddress = await getSafeAddress.call(safe);
+  } catch (error) {
+    throw new Error(
+      `Failed to derive predicted Safe address for ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    typeof safeAddress === 'string' && ethers.utils.isAddress(safeAddress),
+    `Predicted Safe address must be valid for ${chain}: ${stringifyValueForError(safeAddress)}`,
+  );
+  const normalizedSafeAddress = getAddress(safeAddress);
 
   return {
-    safeAddress,
+    safeAddress: normalizedSafeAddress,
     transaction: {
-      to,
-      data,
-      value: value.toString(),
+      to: getAddress(to),
+      data: normalizedData,
+      value: normalizedValue,
     },
   };
 }
@@ -877,8 +977,87 @@ export async function getSafeDelegates(
   service: SafeApiKit.default,
   safeAddress: Address,
 ): Promise<string[]> {
-  const delegateResponse = await service.getSafeDelegates({ safeAddress });
-  return delegateResponse.results.map((r) => r.delegate);
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
+  const safeService =
+    service !== null && typeof service === 'object'
+      ? (service as { getSafeDelegates?: unknown })
+      : undefined;
+  assert(
+    safeService,
+    `Safe service instance must be an object: ${stringifyValueForError(service)}`,
+  );
+  let getSafeDelegatesMethod: unknown;
+  try {
+    ({ getSafeDelegates: getSafeDelegatesMethod } = safeService);
+  } catch {
+    throw new Error('Safe service getSafeDelegates accessor is inaccessible');
+  }
+  assert(
+    typeof getSafeDelegatesMethod === 'function',
+    `Safe service getSafeDelegates must be a function: ${stringifyValueForError(getSafeDelegatesMethod)}`,
+  );
+  let delegateResponse: unknown;
+  try {
+    delegateResponse = await getSafeDelegatesMethod.call(safeService, {
+      safeAddress: normalizedSafeAddress,
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch Safe delegates for ${normalizedSafeAddress}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    delegateResponse !== null && typeof delegateResponse === 'object',
+    `Safe delegates payload must be an object: ${stringifyValueForError(delegateResponse)}`,
+  );
+  let results: unknown;
+  try {
+    results = (delegateResponse as { results?: unknown }).results;
+  } catch {
+    throw new Error('Safe delegates list is inaccessible');
+  }
+  assert(
+    Array.isArray(results),
+    `Safe delegates list must be an array: ${stringifyValueForError(results)}`,
+  );
+  const delegates: string[] = [];
+  let delegateCount = 0;
+  try {
+    delegateCount = results.length;
+  } catch {
+    throw new Error('Safe delegates list length is inaccessible');
+  }
+  assert(
+    Number.isSafeInteger(delegateCount) && delegateCount >= 0,
+    `Safe delegates list length is invalid: ${stringifyValueForError(delegateCount)}`,
+  );
+  for (let index = 0; index < delegateCount; index += 1) {
+    let delegateEntry: unknown;
+    try {
+      delegateEntry = results[index];
+    } catch {
+      throw new Error(`Safe delegate entry is inaccessible at index ${index}`);
+    }
+    assert(
+      delegateEntry !== null && typeof delegateEntry === 'object',
+      `Safe delegate entry must be an object at index ${index}: ${stringifyValueForError(delegateEntry)}`,
+    );
+    let delegateAddress: unknown;
+    try {
+      delegateAddress = (delegateEntry as { delegate?: unknown }).delegate;
+    } catch {
+      throw new Error(
+        `Safe delegate address is inaccessible at index ${index}`,
+      );
+    }
+    assert(
+      typeof delegateAddress === 'string' &&
+        ethers.utils.isAddress(delegateAddress),
+      `Safe delegate address must be valid at index ${index}: ${stringifyValueForError(delegateAddress)}`,
+    );
+    delegates.push(getAddress(delegateAddress));
+  }
+  return delegates;
 }
 
 export async function canProposeSafeTransactions(
@@ -887,16 +1066,43 @@ export async function canProposeSafeTransactions(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<boolean> {
+  const normalizedProposer = normalizeSafeAddress(proposer);
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
   let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);
   } catch {
     return false;
   }
-  const safe = await getSafe(chain, multiProvider, safeAddress);
-  const delegates = await getSafeDelegates(safeService, safeAddress);
-  const owners = await safe.getOwners();
-  return delegates.includes(proposer) || owners.includes(proposer);
+  let safe: Safe.default;
+  try {
+    safe = await getSafe(chain, multiProvider, normalizedSafeAddress);
+  } catch {
+    return false;
+  }
+  let delegates: string[];
+  try {
+    delegates = await getSafeDelegates(safeService, normalizedSafeAddress);
+  } catch {
+    return false;
+  }
+  let ownersRaw: unknown;
+  try {
+    ownersRaw = await safe.getOwners();
+  } catch {
+    return false;
+  }
+  if (!Array.isArray(ownersRaw)) {
+    return false;
+  }
+  const owners = ownersRaw
+    .filter((owner): owner is string => typeof owner === 'string')
+    .filter((owner) => ethers.utils.isAddress(owner))
+    .map((owner) => getAddress(owner));
+  return (
+    delegates.some((delegate) => eqAddress(delegate, normalizedProposer)) ||
+    owners.some((owner) => eqAddress(owner, normalizedProposer))
+  );
 }
 
 /**
@@ -1052,6 +1258,7 @@ export async function getSafeAndService(
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
 ): Promise<SafeAndService> {
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
   let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);
@@ -1061,7 +1268,48 @@ export async function getSafeAndService(
     );
   }
 
-  const { version } = await retrySafeApi(() => safeService.getServiceInfo());
+  const safeServiceObject =
+    safeService !== null && typeof safeService === 'object'
+      ? (safeService as { getServiceInfo?: unknown })
+      : undefined;
+  assert(
+    safeServiceObject,
+    `Safe service instance must be an object: ${stringifyValueForError(safeService)}`,
+  );
+  let getServiceInfo: unknown;
+  try {
+    ({ getServiceInfo } = safeServiceObject);
+  } catch {
+    throw new Error('Safe service getServiceInfo accessor is inaccessible');
+  }
+  assert(
+    typeof getServiceInfo === 'function',
+    `Safe service getServiceInfo must be a function: ${stringifyValueForError(getServiceInfo)}`,
+  );
+  let serviceInfo: unknown;
+  try {
+    serviceInfo = await retrySafeApi(() =>
+      getServiceInfo.call(safeServiceObject),
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch Safe service info for chain ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    serviceInfo !== null && typeof serviceInfo === 'object',
+    `Safe service info payload must be an object for chain ${chain}: ${stringifyValueForError(serviceInfo)}`,
+  );
+  let version: unknown;
+  try {
+    version = (serviceInfo as { version?: unknown }).version;
+  } catch {
+    throw new Error(`Safe service version is inaccessible for chain ${chain}`);
+  }
+  assert(
+    typeof version === 'string' && version.trim().length > 0,
+    `Safe service version must be a non-empty string for chain ${chain}: ${stringifyValueForError(version)}`,
+  );
   const isLegacy = await isLegacySafeApi(version);
   if (isLegacy) {
     throw new Error(
@@ -1075,7 +1323,7 @@ export async function getSafeAndService(
   let safeSdk: Safe.default;
   try {
     safeSdk = await retrySafeApi(() =>
-      getSafe(chain, multiProvider, safeAddress, safeSigner),
+      getSafe(chain, multiProvider, normalizedSafeAddress, safeSigner),
     );
   } catch (error) {
     throw new Error(`Failed to initialize Safe for chain ${chain}: ${error}`);
