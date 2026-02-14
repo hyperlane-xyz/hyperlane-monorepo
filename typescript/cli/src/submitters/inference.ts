@@ -699,6 +699,8 @@ export async function resolveSubmitterBatchesForTransactions({
       });
       const fingerprint = getConfigFingerprint(selectedConfig);
 
+      // Preserve transaction execution order by only coalescing
+      // adjacent transactions that share the same submitter config.
       if (batches.length > 0 && lastBatchFingerprint === fingerprint) {
         batches[batches.length - 1].transactions.push(transaction);
       } else {
@@ -744,6 +746,8 @@ export async function resolveSubmitterBatchesForTransactions({
     }
 
     const fingerprint = getConfigFingerprint(inferred);
+    // Preserve transaction execution order by only coalescing
+    // adjacent transactions that share the same submitter config.
     if (batches.length > 0 && lastBatchFingerprint === fingerprint) {
       batches[batches.length - 1].transactions.push(transaction);
     } else {
