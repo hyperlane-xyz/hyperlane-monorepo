@@ -152,7 +152,7 @@ export async function executePendingTransactions<T>(
     } else {
       rootLogger.error(
         chalk.red(
-          `Execute-all confirmation must return boolean, got ${String(executeAllResponse)}`,
+          `Execute-all confirmation must return boolean, got ${stringifyValueForError(executeAllResponse)}`,
         ),
       );
     }
@@ -208,7 +208,7 @@ export async function executePendingTransactions<T>(
     if (!normalizedId || !normalizedChain) {
       rootLogger.error(
         chalk.red(
-          `Invalid pending transaction metadata: chain=${String(chain)} id=${String(id)}`,
+          `Invalid pending transaction metadata: chain=${stringifyValueForError(chain)} id=${stringifyValueForError(id)}`,
         ),
       );
       failedTransactions.push({
@@ -228,7 +228,7 @@ export async function executePendingTransactions<T>(
         });
         if (typeof executeTxResponse !== 'boolean') {
           throw new Error(
-            `Transaction confirmation must return boolean, got ${String(executeTxResponse)}`,
+            `Transaction confirmation must return boolean, got ${stringifyValueForError(executeTxResponse)}`,
           );
         }
         confirmExecuteTx = executeTxResponse;

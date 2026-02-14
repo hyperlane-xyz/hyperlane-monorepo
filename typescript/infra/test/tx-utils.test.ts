@@ -487,6 +487,40 @@ describe('executePendingTransactions', () => {
     expect(executed).to.deep.equal(['tx1', 'tx2']);
   });
 
+  it('falls back to per-transaction prompts when execute-all prompt is unstringifiable', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+    const promptSteps = ['execute-all', 'tx1', 'tx2'] as const;
+    let promptIndex = 0;
+    const unstringifiableResponse = {
+      [Symbol.toPrimitive]() {
+        throw new Error('to-primitive boom');
+      },
+    };
+
+    await executePendingTransactions(
+      txs,
+      (tx) => tx.id,
+      (tx) => tx.chain,
+      async (tx) => {
+        executed.push(tx.id);
+      },
+      async () => {
+        const step = promptSteps[promptIndex];
+        promptIndex += 1;
+        if (step === 'execute-all') {
+          return unstringifiableResponse as unknown as boolean;
+        }
+        return true;
+      },
+    );
+
+    expect(executed).to.deep.equal(['tx1', 'tx2']);
+  });
+
   it('records failure when execute-all prompt returns non-boolean and tx prompt also fails', async () => {
     const txs = [{ id: 'tx1', chain: 'chainA' }];
     let promptCalls = 0;
@@ -547,6 +581,39 @@ describe('executePendingTransactions', () => {
     }
 
     expect(executed).to.deep.equal(['tx1']);
+  });
+
+  it('continues when invalid metadata values are unstringifiable', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+    const unstringifiableId = {
+      [Symbol.toPrimitive]() {
+        throw new Error('metadata to-primitive boom');
+      },
+    };
+
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) =>
+          tx.id === 'tx1' ? (unstringifiableId as unknown as string) : tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        async () => true,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): chainA:<unknown>',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx2']);
   });
 });
 
