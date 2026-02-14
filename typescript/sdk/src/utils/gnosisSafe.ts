@@ -193,6 +193,14 @@ export function hasSafeServiceTransactionPayload(
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {
+  const parseUrl = (value: string): URL | undefined => {
+    try {
+      return new URL(value);
+    } catch {
+      return undefined;
+    }
+  };
+
   const canonicalizePath = (path: string): string => {
     let normalized = path.replace(/\/+$/, '');
 
@@ -210,16 +218,15 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  try {
-    const parsed = new URL(trimmedUrl);
+  const parsed = parseUrl(trimmedUrl) ?? parseUrl(`https://${trimmedUrl}`);
+  if (parsed) {
     parsed.search = '';
     parsed.hash = '';
     parsed.pathname = canonicalizePath(parsed.pathname);
     return parsed.toString();
-  } catch {
-    // Fall back to string normalization for non-URL inputs.
-    return canonicalizePath(trimmedUrl);
   }
+  // Fall back to string normalization for non-URL inputs.
+  return canonicalizePath(trimmedUrl);
 }
 
 function getSafeTxServiceUrl(
