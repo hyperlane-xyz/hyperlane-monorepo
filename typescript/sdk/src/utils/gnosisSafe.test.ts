@@ -353,6 +353,16 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'safe-transaction-mainnet.safe.global?note=user%255Chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'safe-transaction-mainnet.safe.global?note=user%25255Chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'safe-transaction-mainnet.safe.global#user@hyperlane.xyz',
         ),
       ).to.equal(true);
@@ -424,6 +434,16 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/path%255Cfoo',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/path%25255Cfoo',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/path%25252540foo',
         ),
       ).to.equal(true);
@@ -460,6 +480,16 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?note=user%255Chyperlane.xyz#note%255Chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?note=user%25255Chyperlane.xyz#note%25255Chyperlane.xyz',
         ),
       ).to.equal(true);
       expect(
@@ -838,6 +868,12 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('safe.global/path%5Cfoo')).to.equal(
         'https://safe.global/path%5Cfoo/api',
       );
+      expect(normalizeSafeServiceUrl('safe.global/path%255Cfoo')).to.equal(
+        'https://safe.global/path%255Cfoo/api',
+      );
+      expect(normalizeSafeServiceUrl('safe.global/path%25255Cfoo')).to.equal(
+        'https://safe.global/path%25255Cfoo/api',
+      );
       expect(normalizeSafeServiceUrl('safe.global/path%252540foo')).to.equal(
         'https://safe.global/path%252540foo/api',
       );
@@ -866,6 +902,12 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/api');
       expect(
         normalizeSafeServiceUrl('safe.global?note=user%5Chyperlane.xyz'),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl('safe.global?note=user%255Chyperlane.xyz'),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl('safe.global?note=user%25255Chyperlane.xyz'),
       ).to.equal('https://safe.global/api');
       expect(
         normalizeSafeServiceUrl('safe.global#user@hyperlane.xyz'),
@@ -961,6 +1003,12 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('//safe.global/path%5Cfoo')).to.equal(
         'https://safe.global/path%5Cfoo/api',
       );
+      expect(normalizeSafeServiceUrl('//safe.global/path%255Cfoo')).to.equal(
+        'https://safe.global/path%255Cfoo/api',
+      );
+      expect(normalizeSafeServiceUrl('//safe.global/path%25255Cfoo')).to.equal(
+        'https://safe.global/path%25255Cfoo/api',
+      );
       expect(normalizeSafeServiceUrl('//safe.global/path%252540foo')).to.equal(
         'https://safe.global/path%252540foo/api',
       );
@@ -998,6 +1046,16 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl(
           '//safe.global/api?note=user%5Chyperlane.xyz#note%5Chyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl(
+          '//safe.global/api?note=user%255Chyperlane.xyz#note%255Chyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl(
+          '//safe.global/api?note=user%25255Chyperlane.xyz#note%25255Chyperlane.xyz',
         ),
       ).to.equal('https://safe.global/api');
       expect(
