@@ -2236,12 +2236,20 @@ export async function getOwnerChanges(
 }> {
   assertValidUniqueOwners(currentOwners, 'current owners');
   assertValidUniqueOwners(expectedOwners, 'expected owners');
-
-  const ownersToRemove = currentOwners.filter(
-    (owner) => !expectedOwners.some((newOwner) => eqAddress(owner, newOwner)),
+  const normalizedCurrentOwners = currentOwners.map((owner) =>
+    getAddress(owner),
   );
-  const ownersToAdd = expectedOwners.filter(
-    (newOwner) => !currentOwners.some((owner) => eqAddress(newOwner, owner)),
+  const normalizedExpectedOwners = expectedOwners.map((owner) =>
+    getAddress(owner),
+  );
+
+  const ownersToRemove = normalizedCurrentOwners.filter(
+    (owner) =>
+      !normalizedExpectedOwners.some((newOwner) => eqAddress(owner, newOwner)),
+  );
+  const ownersToAdd = normalizedExpectedOwners.filter(
+    (newOwner) =>
+      !normalizedCurrentOwners.some((owner) => eqAddress(newOwner, owner)),
   );
 
   return { ownersToRemove, ownersToAdd };

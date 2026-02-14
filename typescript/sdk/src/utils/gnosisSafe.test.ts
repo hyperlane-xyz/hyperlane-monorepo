@@ -7010,6 +7010,29 @@ describe('gnosisSafe utils', () => {
       ]);
     });
 
+    it('returns checksum-canonical owner diffs', async () => {
+      const currentOwners = [
+        '0x52908400098527886e0f7030069857d2e4169ee7',
+        '0x0000000000000000000000000000000000000002',
+      ];
+      const expectedOwners = [
+        '0x52908400098527886e0f7030069857d2e4169ee7',
+        '0x8617e340b3d01fa5f11f306f4090fd50e238070d',
+      ];
+
+      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        currentOwners,
+        expectedOwners,
+      );
+
+      expect(ownersToRemove).to.deep.equal([
+        '0x0000000000000000000000000000000000000002',
+      ]);
+      expect(ownersToAdd).to.deep.equal([
+        '0x8617E340B3D01FA5F11F306F4090FD50E238070D',
+      ]);
+    });
+
     it('returns empty arrays when owners are unchanged', async () => {
       const owners = [
         '0x0000000000000000000000000000000000000001',
