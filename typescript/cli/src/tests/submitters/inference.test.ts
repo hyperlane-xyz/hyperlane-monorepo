@@ -23203,6 +23203,95 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('ignores zero proposer account addresses in timelock role logs', async () => {
+    const timelockOwner = '0x5757575757575757575757575757575757575757';
+    const safeProposer = '0x6868686868686868686868686868686868686868';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+
+    const checkedSafeAddresses: string[] = [];
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        checkedSafeAddresses.push(address.toLowerCase());
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const zeroAccountLog = { topics: ['0xzero-account'], data: '0x' };
+    const validGrantedLog = { topics: ['0xvalid-granted'], data: '0x' };
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [zeroAccountLog, validGrantedLog];
+        }
+        return [];
+      }),
+    };
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (log: any) => {
+            if (log === zeroAccountLog) {
+              return { args: { account: ethersConstants.AddressZero } };
+            }
+            return { args: { account: safeProposer } };
+          },
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
+        .to.equal(safeProposer);
+      expect(checkedSafeAddresses).to.deep.equal([
+        timelockOwner.toLowerCase(),
+        safeProposer.toLowerCase(),
+      ]);
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('falls back to default timelock proposer when registry lookup fails', async () => {
     const timelockOwner = '0x7777777777777777777777777777777777777777';
     const nonSafeProposer = '0x8888888888888888888888888888888888888888';

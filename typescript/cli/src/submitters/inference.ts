@@ -840,7 +840,10 @@ async function inferTimelockProposerSubmitter({
       const normalizedAccount = tryNormalizeEvmAddress(
         parsed.args.account as Address,
       );
-      if (normalizedAccount) {
+      if (
+        normalizedAccount &&
+        !eqAddress(normalizedAccount, ethersConstants.AddressZero)
+      ) {
         if (roleLog.isGrant) {
           granted.add(normalizedAccount as Address);
         } else {
