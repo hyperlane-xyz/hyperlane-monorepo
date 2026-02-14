@@ -13,7 +13,6 @@ import {
   SQUADS_PROPOSAL_OVERHEAD,
   SquadsChainName,
   SvmMultiProtocolSignerAdapter,
-  getSquadsChains,
   getSquadsKeys,
   partitionSquadsChains,
   submitProposalToSquads,
