@@ -31,6 +31,58 @@ function withVerbose<T>(args: Argv<T>) {
     .alias('v', 'verbose');
 }
 
+function toBase58IfPossible(
+  value: unknown,
+  label: string,
+  chain: string,
+  index: number,
+): string | undefined {
+  if (!value || typeof value !== 'object') {
+    rootLogger.warn(
+      chalk.yellow(
+        `Skipping ${label}[${index}] on ${chain}: expected object with toBase58(), got ${String(value)}`,
+      ),
+    );
+    return undefined;
+  }
+
+  const toBase58Candidate = (value as { toBase58?: unknown }).toBase58;
+  if (typeof toBase58Candidate !== 'function') {
+    rootLogger.warn(
+      chalk.yellow(
+        `Skipping ${label}[${index}] on ${chain}: missing toBase58() method`,
+      ),
+    );
+    return undefined;
+  }
+
+  try {
+    return toBase58Candidate.call(value);
+  } catch (error) {
+    rootLogger.warn(
+      chalk.yellow(
+        `Skipping ${label}[${index}] on ${chain}: failed to stringify key (${String(error)})`,
+      ),
+    );
+    return undefined;
+  }
+}
+
+function formatSignerList(
+  values: readonly unknown[],
+  label: string,
+  chain: string,
+): string[] {
+  const signerList: string[] = [];
+  values.forEach((value, index) => {
+    const formatted = toBase58IfPossible(value, label, chain, index);
+    if (formatted) {
+      signerList.push(formatted);
+    }
+  });
+  return signerList;
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -62,6 +114,21 @@ async function main() {
     const { proposal, multisig, proposalPda } = proposalData;
     const parsedProposal = parseSquadProposal(proposal);
     const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
+    const approvedVoters = formatSignerList(
+      proposal.approved,
+      'proposal.approved',
+      chain,
+    );
+    const rejectedVoters = formatSignerList(
+      proposal.rejected,
+      'proposal.rejected',
+      chain,
+    );
+    const cancelledVoters = formatSignerList(
+      proposal.cancelled,
+      'proposal.cancelled',
+      chain,
+    );
     const multisigMembers = Array.isArray(multisig.members)
       ? multisig.members
       : [];
@@ -164,26 +231,26 @@ async function main() {
     }
 
     // Display approvers
-    if (proposal.approved.length > 0) {
+    if (approvedVoters.length > 0) {
       rootLogger.info(chalk.green.bold('\n✅ Approvers:'));
-      proposal.approved.forEach((approver, index) => {
-        rootLogger.info(chalk.white(`  ${index + 1}. ${approver.toBase58()}`));
+      approvedVoters.forEach((approver, index) => {
+        rootLogger.info(chalk.white(`  ${index + 1}. ${approver}`));
       });
     }
 
     // Display rejectors
-    if (proposal.rejected.length > 0) {
+    if (rejectedVoters.length > 0) {
       rootLogger.info(chalk.red.bold('\n❌ Rejectors:'));
-      proposal.rejected.forEach((rejector, index) => {
-        rootLogger.info(chalk.white(`  ${index + 1}. ${rejector.toBase58()}`));
+      rejectedVoters.forEach((rejector, index) => {
+        rootLogger.info(chalk.white(`  ${index + 1}. ${rejector}`));
       });
     }
 
     // Display cancellers
-    if (proposal.cancelled.length > 0) {
+    if (cancelledVoters.length > 0) {
       rootLogger.info(chalk.gray.bold('\n🚫 Cancellers:'));
-      proposal.cancelled.forEach((canceller, index) => {
-        rootLogger.info(chalk.white(`  ${index + 1}. ${canceller.toBase58()}`));
+      cancelledVoters.forEach((canceller, index) => {
+        rootLogger.info(chalk.white(`  ${index + 1}. ${canceller}`));
       });
     }
 
