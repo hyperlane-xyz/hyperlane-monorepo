@@ -660,7 +660,10 @@ async function inferIcaSubmitterFromAccount({
         }
         const normalizedOriginRouterAddress =
           tryNormalizeEvmAddress(originRouterAddress);
-        if (!normalizedOriginRouterAddress) {
+        if (
+          !normalizedOriginRouterAddress ||
+          eqAddress(normalizedOriginRouterAddress, ethersConstants.AddressZero)
+        ) {
           continue;
         }
 
@@ -912,7 +915,10 @@ async function inferTimelockProposerSubmitter({
         }
         const normalizedOriginRouterAddress =
           tryNormalizeEvmAddress(originRouterAddress);
-        if (!normalizedOriginRouterAddress) {
+        if (
+          !normalizedOriginRouterAddress ||
+          eqAddress(normalizedOriginRouterAddress, ethersConstants.AddressZero)
+        ) {
           continue;
         }
 
@@ -996,7 +1002,10 @@ async function inferTimelockProposerSubmitter({
       }
       const normalizedOriginRouterAddress =
         tryNormalizeEvmAddress(originRouterAddress);
-      if (!normalizedOriginRouterAddress) {
+      if (
+        !normalizedOriginRouterAddress ||
+        eqAddress(normalizedOriginRouterAddress, ethersConstants.AddressZero)
+      ) {
         continue;
       }
 
