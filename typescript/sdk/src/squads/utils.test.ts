@@ -227,6 +227,29 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from nested value logs', () => {
+      const error = {
+        value: {
+          logs: ['custom program error: 0x177b'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
+    it('handles cyclic unknown error objects safely', () => {
+      const error = {
+        transactionLogs: ['Program log: unrelated'],
+      } as {
+        transactionLogs: readonly string[];
+        cause?: unknown;
+      };
+      error.cause = error;
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
+    });
+
     it('parses known vote error from frozen log arrays in unknown error shape', () => {
       const error = {
         transactionLogs: Object.freeze(['Program log: AlreadyRejected']),
