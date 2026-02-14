@@ -3164,13 +3164,13 @@ describe('gnosisSafe utils', () => {
     });
 
     it('falls back to signer address when private key is unavailable', async () => {
-      const signerAddress = '0x2222222222222222222222222222222222222222';
+      const signerAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
       const multiProviderMock: SignerProvider = {
         getSigner: () => new ethers.VoidSigner(signerAddress),
       };
 
       const signer = await resolveSafeSigner('test', multiProviderMock);
-      expect(signer).to.equal(signerAddress);
+      expect(signer).to.equal(getAddress(signerAddress));
     });
 
     it('throws when multiprovider signer lookup fails', async () => {
@@ -3247,10 +3247,18 @@ describe('gnosisSafe utils', () => {
       }
     });
 
-    it('throws when signer address resolver is missing or invalid', async () => {
+    it('throws when signer address resolver is missing, inaccessible, or invalid', async () => {
       const missingResolverProvider: SignerProvider = {
         getSigner: () =>
           ({ privateKey: undefined }) as unknown as ethers.Signer,
+      };
+      const inaccessibleResolverProvider: SignerProvider = {
+        getSigner: () =>
+          ({
+            get getAddress() {
+              throw new Error('boom');
+            },
+          }) as unknown as ethers.Signer,
       };
       const invalidAddressProvider: SignerProvider = {
         getSigner: () =>
@@ -3265,6 +3273,15 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Resolved MultiProvider signer getAddress must be a function: undefined',
+        );
+      }
+
+      try {
+        await resolveSafeSigner('test', inaccessibleResolverProvider);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved MultiProvider signer getAddress is inaccessible',
         );
       }
 

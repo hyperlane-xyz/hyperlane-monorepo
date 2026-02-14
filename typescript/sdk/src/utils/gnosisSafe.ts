@@ -911,15 +911,21 @@ export async function resolveSafeSigner(
     return privateKey;
   }
 
-  const getAddress = (multiProviderSigner as { getAddress?: unknown })
-    .getAddress;
+  let getSignerAddress: unknown;
+  try {
+    ({ getAddress: getSignerAddress } = multiProviderSigner as {
+      getAddress?: unknown;
+    });
+  } catch {
+    throw new Error('Resolved MultiProvider signer getAddress is inaccessible');
+  }
   assert(
-    typeof getAddress === 'function',
-    `Resolved MultiProvider signer getAddress must be a function: ${stringifyValueForError(getAddress)}`,
+    typeof getSignerAddress === 'function',
+    `Resolved MultiProvider signer getAddress must be a function: ${stringifyValueForError(getSignerAddress)}`,
   );
   let signerAddress: unknown;
   try {
-    signerAddress = await getAddress.call(multiProviderSigner);
+    signerAddress = await getSignerAddress.call(multiProviderSigner);
   } catch (error) {
     throw new Error(
       `Failed to resolve signer address from MultiProvider on ${chain}: ${stringifyValueForError(error)}`,
@@ -933,7 +939,7 @@ export async function resolveSafeSigner(
     `MultiProvider signer ${signerAddress} on ${chain} does not expose a private key. ` +
       'Falling back to address-based signer configuration for protocol-kit.',
   );
-  return signerAddress;
+  return getAddress(signerAddress);
 }
 
 export async function getSafeAndService(
