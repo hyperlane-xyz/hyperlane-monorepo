@@ -36,6 +36,8 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /npipe:.*dockerdesktoplinuxengine/i,
   /open \/\/\.\/pipe\/docker_engine/i,
   /open \/\/\.\/pipe\/dockerdesktoplinuxengine/i,
+  /%2f%2f\.%2fpipe%2fdocker_engine/i,
+  /%2f%2f\.%2fpipe%2fdockerdesktoplinuxengine/i,
   /\\\\\.\\pipe\\docker_engine/i,
   /\\\\\.\\pipe\\dockerdesktoplinuxengine/i,
 ];
