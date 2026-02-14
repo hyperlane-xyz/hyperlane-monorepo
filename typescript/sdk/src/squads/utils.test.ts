@@ -3091,6 +3091,12 @@ describe('squads utils', () => {
     ]);
   });
 
+  it('deduplicates explicit squads chain names after trimming', () => {
+    const [firstChain] = getSquadsChains();
+    expect(resolveSquadsChains([` ${firstChain}`, `${firstChain} `])).to.deep
+      .equal([firstChain]);
+  });
+
   it('does not mutate caller-provided explicit squads chains', () => {
     const [firstChain, secondChain] = getSquadsChains();
     const explicitChains = [firstChain, secondChain, firstChain];
@@ -3103,6 +3109,12 @@ describe('squads utils', () => {
   it('throws for explicit non-squads chains', () => {
     expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       'Squads configuration not found for chains: ethereum',
+    );
+  });
+
+  it('surfaces empty chain names as unsupported entries after trimming', () => {
+    expect(() => resolveSquadsChains(['   '])).to.throw(
+      'Squads configuration not found for chains: <empty>',
     );
   });
 
