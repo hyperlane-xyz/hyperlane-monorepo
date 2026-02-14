@@ -96,6 +96,9 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('//safe-transaction-mainnet.safe.global/api'),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired('  //safe-transaction-mainnet.safe.global/api  '),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/api?foo=bar#fragment',
         ),
