@@ -301,7 +301,7 @@ export function parseSquadsProposalVoteErrorFromError(
 function toSafeInteger(
   value: unknown,
   fieldLabel: string,
-  options?: { nonNegative?: boolean },
+  options?: { nonNegative?: boolean; positive?: boolean },
 ): number {
   const { parsedValue, displayValue } = normalizeSafeIntegerValue(value);
   assert(
@@ -312,6 +312,12 @@ function toSafeInteger(
     assert(
       parsedValue >= 0,
       `Squads ${fieldLabel} must be a non-negative JavaScript safe integer: ${displayValue}`,
+    );
+  }
+  if (options?.positive) {
+    assert(
+      parsedValue > 0,
+      `Squads ${fieldLabel} must be a positive JavaScript safe integer: ${displayValue}`,
     );
   }
   return parsedValue;
@@ -660,7 +666,7 @@ export function parseSquadMultisig(
     threshold: toSafeInteger(
       multisig.threshold,
       `${fieldPrefix} threshold`,
-      { nonNegative: true },
+      { positive: true },
     ),
     currentTransactionIndex: toSafeInteger(
       multisig.transactionIndex,
