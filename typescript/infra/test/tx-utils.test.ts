@@ -43,6 +43,31 @@ describe('executePendingTransactions', () => {
     expect(executed).to.deep.equal(['tx1', 'tx2', 'tx3']);
   });
 
+  it('uses execute-all confirmation to avoid per-transaction prompts', async () => {
+    const txs: PendingTxFixture[] = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+    let promptCalls = 0;
+
+    await executePendingTransactions(
+      txs,
+      (tx) => tx.id,
+      (tx) => tx.chain,
+      async (tx) => {
+        executed.push(tx.id);
+      },
+      async () => {
+        promptCalls += 1;
+        return true;
+      },
+    );
+
+    expect(executed).to.deep.equal(['tx1', 'tx2']);
+    expect(promptCalls).to.equal(1);
+  });
+
   it('respects per-transaction confirmations when execute-all is declined', async () => {
     const txs: PendingTxFixture[] = [
       { id: 'tx1', chain: 'chainA' },
@@ -295,6 +320,33 @@ describe('executePendingTransactions', () => {
     );
 
     expect(executed).to.deep.equal(['tx1', 'tx2']);
+  });
+
+  it('records failure when execute-all prompt returns non-boolean and tx prompt also fails', async () => {
+    const txs = [{ id: 'tx1', chain: 'chainA' }];
+    let promptCalls = 0;
+
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => {
+          throw new Error('executeTx should not be called');
+        },
+        async () => {
+          promptCalls += 1;
+          if (promptCalls === 1) return 'yes';
+          throw new Error('tx prompt failed');
+        },
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): chainA:tx1',
+      );
+    }
+    expect(promptCalls).to.equal(2);
   });
 
   it('records failure when per-transaction prompt returns non-boolean', async () => {
