@@ -32,6 +32,16 @@ function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
 }
 
+function readInfraPackageJson(): {
+  dependencies?: Record<string, string>;
+  devDependencies?: Record<string, string>;
+} {
+  return JSON.parse(readInfraFile('package.json')) as {
+    dependencies?: Record<string, string>;
+    devDependencies?: Record<string, string>;
+  };
+}
+
 function assertNoForbiddenSquadsReferences(
   fileContents: string,
   relativePath: string,
@@ -72,6 +82,17 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
 }
 
 describe('squads sdk migration regression', () => {
+  it('keeps infra package free of direct @sqds/multisig dependency', () => {
+    const infraPackageJson = readInfraPackageJson();
+
+    expect(infraPackageJson.dependencies?.['@sqds/multisig']).to.equal(
+      undefined,
+    );
+    expect(infraPackageJson.devDependencies?.['@sqds/multisig']).to.equal(
+      undefined,
+    );
+  });
+
   it('keeps removed infra squads modules deleted', () => {
     for (const removedModulePath of REMOVED_INFRA_SQUADS_MODULES) {
       const absolutePath = path.join(INFRA_ROOT, removedModulePath);
