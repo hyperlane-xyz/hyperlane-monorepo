@@ -118,6 +118,7 @@ const SQUADS_ERROR_NESTED_FIELDS = [
   'data',
   'value',
   'originalError',
+  'response',
 ] as const;
 
 function parseSquadsProposalVoteErrorText(

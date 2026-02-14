@@ -331,6 +331,19 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from nested response.data logs', () => {
+      const error = {
+        response: {
+          data: {
+            logs: ['custom program error: 0x177a'],
+          },
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from string originalError field', () => {
       const error = {
         originalError: 'Program log: AlreadyCancelled',
