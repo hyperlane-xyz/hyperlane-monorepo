@@ -3232,6 +3232,17 @@ describe('gnosisSafe utils', () => {
         }),
       ).to.equal(false);
     });
+
+    it('fails closed when payload access throws', () => {
+      const throwingPayload = {
+        get to() {
+          throw new Error('boom');
+        },
+        data: '0x1234',
+        value: '1',
+      };
+      expect(hasSafeServiceTransactionPayload(throwingPayload)).to.equal(false);
+    });
   });
 
   describe(createSafeTransactionData.name, () => {

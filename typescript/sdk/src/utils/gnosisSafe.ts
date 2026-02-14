@@ -454,17 +454,21 @@ export function hasSafeServiceTransactionPayload(
     transaction !== null && typeof transaction === 'object'
       ? (transaction as SafeServiceTransaction)
       : undefined;
-  return (
-    typeof payload?.to === 'string' &&
-    ethers.utils.isAddress(payload.to) &&
-    payload.to.length > 0 &&
-    typeof payload.data === 'string' &&
-    ethers.utils.isHexString(payload.data) &&
-    payload.data.length > 0 &&
-    typeof payload.value === 'string' &&
-    /^\d+$/.test(payload.value) &&
-    payload.value.length > 0
-  );
+  try {
+    return (
+      typeof payload?.to === 'string' &&
+      ethers.utils.isAddress(payload.to) &&
+      payload.to.length > 0 &&
+      typeof payload.data === 'string' &&
+      ethers.utils.isHexString(payload.data) &&
+      payload.data.length > 0 &&
+      typeof payload.value === 'string' &&
+      /^\d+$/.test(payload.value) &&
+      payload.value.length > 0
+    );
+  } catch {
+    return false;
+  }
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: unknown): string {
