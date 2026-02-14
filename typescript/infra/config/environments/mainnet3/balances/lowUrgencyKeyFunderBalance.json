@@ -1,6 +1,7 @@
 {
   "abstract": 0.0514,
   "adichain": 37.6,
+  "aleo": 900,
   "ancient8": 0.0304,
   "apechain": 215,
   "appchain": 0.186,
@@ -88,6 +89,7 @@
   "opbnb": 0.0634,
   "optimism": 0.46,
   "orderly": 0.0337,
+  "paradex": 3,
   "peaq": 1490,
   "plasma": 305,
   "plume": 2560,
@@ -96,6 +98,7 @@
   "polynomialfi": 0.033,
   "prom": 36,
   "pulsechain": 2760000,
+  "radix": 4500,
   "rarichain": 0.0442,
   "reactive": 1480,
   "redstone": 0.026,
