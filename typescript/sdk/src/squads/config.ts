@@ -49,7 +49,7 @@ export function getSquadsChains(): ChainName[] {
 }
 
 export function isSquadsChain(chainName: string): chainName is ChainName {
-  return chainName in squadsConfigs;
+  return Object.prototype.hasOwnProperty.call(squadsConfigs, chainName);
 }
 
 export function assertIsSquadsChain(

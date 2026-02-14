@@ -123,6 +123,7 @@ describe('squads utils', () => {
   it('detects whether a chain has squads config', () => {
     expect(isSquadsChain('solanamainnet')).to.equal(true);
     expect(isSquadsChain('not-a-squads-chain')).to.equal(false);
+    expect(isSquadsChain('__proto__')).to.equal(false);
   });
 
   it('asserts whether a chain has squads config', () => {
