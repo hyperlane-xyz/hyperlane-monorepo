@@ -2653,7 +2653,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.warn(
           chalk.yellow(
-            `Skipping chain ${chainName} as there was an error getting the safe service: ${error}`,
+            `Skipping chain ${chainName} as there was an error getting the safe service: ${stringifyValueForError(error)}`,
           ),
         );
         return chainTxs;
@@ -2665,7 +2665,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch threshold for safe ${normalizedSafeAddress} on ${chainName}: ${error}`,
+            `Failed to fetch threshold for safe ${normalizedSafeAddress} on ${chainName}: ${stringifyValueForError(error)}`,
           ),
         );
         return chainTxs;
@@ -2694,7 +2694,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch pending transactions for safe ${normalizedSafeAddress} on ${chainName} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+            `Failed to fetch pending transactions for safe ${normalizedSafeAddress} on ${chainName} after ${SAFE_API_MAX_RETRIES} attempts: ${stringifyValueForError(error)}`,
           ),
         );
         return chainTxs;
@@ -2762,7 +2762,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chainName}: ${error}`,
+            `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chainName}: ${stringifyValueForError(error)}`,
           ),
         );
         return chainTxs;
@@ -2783,7 +2783,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch native token metadata for ${chainName}: ${error}`,
+            `Failed to fetch native token metadata for ${chainName}: ${stringifyValueForError(error)}`,
           ),
         );
         return chainTxs;
