@@ -6,6 +6,7 @@ import { ChainName, getSquadsChains } from '@hyperlane-xyz/sdk';
 import {
   getUnsupportedSquadsChainsErrorMessage,
   resolveSquadsChains,
+  resolveSquadsChainsFromArgv,
   withRequiredSquadsChain,
   withSquadsChain,
   withSquadsChains,
@@ -29,6 +30,19 @@ describe('squads cli helpers', () => {
 
   it('resolves to configured squads chains when empty list', () => {
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
+  });
+
+  it('resolves argv chains from non-array input to configured squads chains', () => {
+    expect(resolveSquadsChainsFromArgv(undefined)).to.deep.equal(
+      getSquadsChains(),
+    );
+  });
+
+  it('resolves argv chains from array input and deduplicates', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    expect(
+      resolveSquadsChainsFromArgv([firstChain, secondChain, firstChain]),
+    ).to.deep.equal([firstChain, secondChain]);
   });
 
   it('accepts generic string arrays and validates squads support', () => {

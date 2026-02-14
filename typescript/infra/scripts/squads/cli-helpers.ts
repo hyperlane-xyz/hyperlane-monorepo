@@ -118,6 +118,13 @@ export function resolveSquadsChains(chains?: string[]): ChainName[] {
   return configuredSquadsChains;
 }
 
+export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
+  if (!Array.isArray(chains)) {
+    return resolveSquadsChains(undefined);
+  }
+  return resolveSquadsChains(chains.map((chain) => String(chain)));
+}
+
 export async function getEnvironmentConfigFor(
   environment: DeployEnvironment,
 ): Promise<EnvironmentConfig> {

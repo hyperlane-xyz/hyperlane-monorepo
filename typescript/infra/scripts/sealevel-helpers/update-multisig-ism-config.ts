@@ -38,8 +38,8 @@ import {
 import {
   getEnvironmentConfigFor,
   getMultiProtocolProviderFor,
+  resolveSquadsChainsFromArgv,
   getTurnkeySignerFor,
-  resolveSquadsChains,
   withSquadsChains,
 } from '../squads/cli-helpers.js';
 
@@ -450,16 +450,17 @@ async function main() {
   // Compute default chains based on environment
   const envConfig = await getEnvironmentConfigFor(environment);
   const mpp = await getMultiProtocolProviderFor(environment);
-  const hasExplicitChains = !!chainsArg && chainsArg.length > 0;
-  const chains = hasExplicitChains
-    ? resolveSquadsChains(chainsArg)
-    : partitionSquadsChains(
-        envConfig.supportedChainNames.filter(
-          (chain) =>
-            mpp.getProtocol(chain) === ProtocolType.Sealevel &&
-            !chainsToSkip.includes(chain),
-        ),
-      ).squadsChains;
+  const explicitChains = resolveSquadsChainsFromArgv(chainsArg);
+  const chains =
+    Array.isArray(chainsArg) && chainsArg.length > 0
+      ? explicitChains
+      : partitionSquadsChains(
+          envConfig.supportedChainNames.filter(
+            (chain) =>
+              mpp.getProtocol(chain) === ProtocolType.Sealevel &&
+              !chainsToSkip.includes(chain),
+          ),
+        ).squadsChains;
 
   // Initialize Turnkey signer
   rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');

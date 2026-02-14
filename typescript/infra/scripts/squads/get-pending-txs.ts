@@ -21,7 +21,7 @@ import {
   getSquadsMultiProtocolProvider,
   getSquadsTurnkeySigner,
   logProposals,
-  resolveSquadsChains,
+  resolveSquadsChainsFromArgv,
   withSquadsChains,
 } from './cli-helpers.js';
 
@@ -29,9 +29,7 @@ async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   const { chains } = await withSquadsChains(yargs(process.argv.slice(2))).argv;
-  const chainsToCheck = resolveSquadsChains(
-    Array.isArray(chains) ? chains : undefined,
-  );
+  const chainsToCheck = resolveSquadsChainsFromArgv(chains);
 
   if (chainsToCheck.length === 0) {
     rootLogger.error('No chains provided');

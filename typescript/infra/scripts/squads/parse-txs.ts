@@ -23,7 +23,7 @@ import {
   getSquadsRegistry,
   getSquadsMultiProtocolProvider,
   logProposals,
-  resolveSquadsChains,
+  resolveSquadsChainsFromArgv,
   withSquadsChains,
 } from './cli-helpers.js';
 
@@ -58,9 +58,7 @@ async function main() {
   await reader.init(warpRoutes);
 
   // Get the pending proposals for the relevant chains
-  const chainsToCheck = resolveSquadsChains(
-    Array.isArray(chains) ? chains : undefined,
-  );
+  const chainsToCheck = resolveSquadsChainsFromArgv(chains);
 
   const pendingProposals = await getPendingProposalsForChains(
     chainsToCheck,
