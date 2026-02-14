@@ -118,7 +118,12 @@ function cacheKey(chain: ChainName, address: Address): string {
 
 function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
   if (typeof value === 'number') {
-    if (!Number.isFinite(value) || value < 0 || !Number.isInteger(value)) {
+    if (
+      !Number.isFinite(value) ||
+      value < 0 ||
+      !Number.isInteger(value) ||
+      value > Number.MAX_SAFE_INTEGER
+    ) {
       return null;
     }
     return BigInt(value);
