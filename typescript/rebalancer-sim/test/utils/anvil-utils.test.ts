@@ -1,7 +1,11 @@
 import { expect } from 'chai';
 import type { StartedTestContainer } from 'testcontainers';
 
-import { getAnvilRpcUrl, isContainerRuntimeUnavailable } from './anvil.js';
+import {
+  formatLocalAnvilStartError,
+  getAnvilRpcUrl,
+  isContainerRuntimeUnavailable,
+} from './anvil.js';
 
 describe('Anvil utils', () => {
   describe('isContainerRuntimeUnavailable', () => {
@@ -54,6 +58,23 @@ describe('Anvil utils', () => {
       } as StartedTestContainer;
 
       expect(getAnvilRpcUrl(container)).to.equal('http://127.0.0.1:18545');
+    });
+  });
+
+  describe('formatLocalAnvilStartError', () => {
+    it('returns installation hint when anvil binary is missing', () => {
+      const error = new Error('spawn anvil ENOENT') as NodeJS.ErrnoException;
+      error.code = 'ENOENT';
+      expect(formatLocalAnvilStartError(error)).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
+
+    it('returns plain message for other startup errors', () => {
+      const error = new Error('permission denied');
+      expect(formatLocalAnvilStartError(error)).to.equal(
+        'Failed to start local anvil: permission denied',
+      );
     });
   });
 });

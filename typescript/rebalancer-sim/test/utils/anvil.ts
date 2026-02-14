@@ -60,6 +60,16 @@ interface StartedAnvil {
   stop: () => Promise<void>;
 }
 
+export function formatLocalAnvilStartError(error: unknown): string {
+  const nodeError = error as NodeJS.ErrnoException | undefined;
+  if (nodeError?.code === 'ENOENT') {
+    return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
+  }
+
+  const message = error instanceof Error ? error.message : String(error);
+  return `Failed to start local anvil: ${message}`;
+}
+
 export function isContainerRuntimeUnavailable(error: unknown): boolean {
   const message = error instanceof Error ? error.message : String(error);
   return [
@@ -154,7 +164,7 @@ async function startLocalAnvil(
 
     const onError = (error: Error) => {
       cleanupListeners();
-      reject(new Error(`Failed to start local anvil: ${error.message}`));
+      reject(new Error(formatLocalAnvilStartError(error)));
     };
 
     const onExitBeforeReady = (code: number | null, signal: string | null) => {
