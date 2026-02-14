@@ -154,6 +154,17 @@ describe('squads error-format', () => {
       ).to.equal('custom error fallback');
     });
 
+    it('falls back to String(error) when preferred Error message is low-signal', () => {
+      const error = new Error('');
+      error.toString = () => 'custom low-signal fallback';
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('custom low-signal fallback');
+    });
+
     it('falls back to message when preferred Error stack is low-signal', () => {
       const error = new Error('boom');
       error.stack = 'Error';
@@ -241,6 +252,23 @@ describe('squads error-format', () => {
       );
 
       expect(formatted).to.equal('custom object error');
+    });
+
+    it('falls back to String(error) when object formatter returns low-signal text', () => {
+      const formatted = stringifyUnknownSquadsError(
+        {
+          toString() {
+            return 'custom object fallback';
+          },
+        },
+        {
+          formatObject() {
+            return '   ';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('custom object fallback');
     });
   });
 });
