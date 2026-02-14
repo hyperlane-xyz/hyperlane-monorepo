@@ -483,6 +483,23 @@ describe('squads error-format', () => {
       expect(formatted).to.equal('custom object fallback');
     });
 
+    it('falls back to String(error) when object formatter returns low-signal labels with spacing/casing variants', () => {
+      const formatted = stringifyUnknownSquadsError(
+        {
+          toString() {
+            return 'custom object fallback';
+          },
+        },
+        {
+          formatObject() {
+            return '  typeerror :   ';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('custom object fallback');
+    });
+
     it('returns placeholder when final String(error) fallback throws', () => {
       const unstringifiableValue = (() => 'noop') as unknown as {
         toString: () => string;
