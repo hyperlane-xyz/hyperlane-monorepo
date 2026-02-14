@@ -152,7 +152,13 @@ function normalizeArgvChainValue(chain: unknown, index: number): string {
     typeof chain === 'string',
     `Expected --chains[${index}] to be a string, but received ${getArgTypeName(chain)}`,
   );
-  return chain;
+
+  const trimmedChain = chain.trim();
+  assert(
+    trimmedChain.length > 0,
+    `Expected --chains[${index}] to be a non-empty string`,
+  );
+  return trimmedChain;
 }
 
 function normalizeArgvChains(chains: unknown): string[] {

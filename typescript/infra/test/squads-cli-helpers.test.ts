@@ -76,9 +76,22 @@ describe('squads cli helpers', () => {
     ).to.deep.equal([firstChain]);
   });
 
+  it('trims argv chain string values before resolving', () => {
+    const [firstChain] = getSquadsChains();
+    expect(resolveSquadsChainsFromArgv([` ${firstChain} `])).to.deep.equal([
+      firstChain,
+    ]);
+  });
+
   it('rejects non-string argv chain values with index-aware errors', () => {
     expect(() => resolveSquadsChainsFromArgv([123])).to.throw(
       'Expected --chains[0] to be a string, but received number',
+    );
+  });
+
+  it('rejects empty argv chain string values with index-aware errors', () => {
+    expect(() => resolveSquadsChainsFromArgv(['   '])).to.throw(
+      'Expected --chains[0] to be a non-empty string',
     );
   });
 
