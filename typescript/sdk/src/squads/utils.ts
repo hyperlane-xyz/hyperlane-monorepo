@@ -102,7 +102,13 @@ const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPatte
   ];
 
 const SQUADS_ERROR_LOG_ARRAY_FIELDS = ['transactionLogs', 'logs'] as const;
-const SQUADS_ERROR_NESTED_FIELDS = ['error', 'cause', 'data', 'value'] as const;
+const SQUADS_ERROR_NESTED_FIELDS = [
+  'error',
+  'cause',
+  'data',
+  'value',
+  'originalError',
+] as const;
 
 function parseSquadsProposalVoteErrorText(
   logsText: string,

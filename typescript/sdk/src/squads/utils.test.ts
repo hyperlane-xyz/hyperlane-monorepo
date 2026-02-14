@@ -234,6 +234,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from nested originalError field', () => {
+      const error = {
+        originalError: {
+          transactionLogs: ['custom program error: 0x177b'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('parses known vote error from message field', () => {
       const error = {
         message: 'Squads transaction failed: custom program error: 0x177c',
