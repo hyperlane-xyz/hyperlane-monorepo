@@ -166,6 +166,20 @@ describe('gnosisSafe utils', () => {
           value: '',
         }),
       ).to.equal(false);
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: 'not-an-address',
+          data: '0x1234',
+          value: '1',
+        }),
+      ).to.equal(false);
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '1234',
+          value: '1',
+        }),
+      ).to.equal(false);
     });
   });
 

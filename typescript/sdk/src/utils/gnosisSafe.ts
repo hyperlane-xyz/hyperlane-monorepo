@@ -132,8 +132,10 @@ export function hasSafeServiceTransactionPayload(
 ): transaction is SafeServiceTransactionWithPayload {
   return (
     typeof transaction?.to === 'string' &&
+    ethers.utils.isAddress(transaction.to) &&
     transaction.to.length > 0 &&
     typeof transaction.data === 'string' &&
+    transaction.data.startsWith('0x') &&
     transaction.data.length > 0 &&
     typeof transaction.value === 'string' &&
     transaction.value.length > 0
