@@ -217,3 +217,7 @@ Regression coverage now also confirms boxed-string wrapper `message` fields rema
 Boxed-string normalization now also handles cross-realm `String` objects (e.g., VM-context values), preventing character-wise iterable traversal from masking runtime-unavailable signals in wrapped scalar payloads.
 
 Regression coverage now also confirms cross-realm boxed-string throw values and nested `errors` payloads match runtime-unavailable signals while non-runtime cross-realm boxed strings remain ignored, and cross-realm boxed `code`/`message` metadata still produces ENOENT hints plus trimmed startup diagnostics.
+
+Boxed-string normalization now also handles spoofed `[object String]` payloads that throw during coercion, preventing matcher/formatter crashes when hostile wrappers masquerade as boxed strings.
+
+Regression coverage now also confirms uncoercible spoofed boxed-string throw payloads and nested `errors` fields are handled safely, runtime causes remain detectable alongside spoofed nested payloads, spoofed boxed `code` values do not mis-trigger ENOENT hints, and spoofed boxed `message` values cleanly fall back to structured diagnostics.

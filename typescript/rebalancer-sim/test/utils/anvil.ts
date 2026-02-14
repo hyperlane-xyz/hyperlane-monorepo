@@ -68,13 +68,26 @@ const isBoxedString = (value: unknown): boolean => {
   }
 };
 
+const normalizeStringValue = (value: unknown): string | undefined => {
+  if (typeof value === 'string') return value;
+  if (!isBoxedString(value)) return undefined;
+
+  try {
+    const boxedValue = (value as { valueOf: () => unknown }).valueOf();
+    if (typeof boxedValue === 'string') return boxedValue;
+  } catch {
+    // Fall through to String coercion below.
+  }
+
+  try {
+    return String(value);
+  } catch {
+    return undefined;
+  }
+};
+
 const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
-  const normalized =
-    typeof value === 'string'
-      ? value
-      : isBoxedString(value)
-        ? String(value)
-        : undefined;
+  const normalized = normalizeStringValue(value);
   if (normalized === undefined) return undefined;
 
   const trimmed = normalized.trim();
@@ -214,12 +227,9 @@ function extractErrorMessages(error: unknown): string[] {
     }
   };
   const enqueueNestedErrors = (nestedErrors: unknown) => {
-    if (typeof nestedErrors === 'string') {
-      enqueue(nestedErrors);
-      return;
-    }
-    if (isBoxedString(nestedErrors)) {
-      enqueue(String(nestedErrors));
+    const nestedErrorString = normalizeStringValue(nestedErrors);
+    if (nestedErrorString !== undefined) {
+      enqueue(nestedErrorString);
       return;
     }
 
@@ -350,8 +360,10 @@ function extractErrorMessages(error: unknown): string[] {
       continue;
     }
 
-    if (isBoxedString(current)) {
-      messages.push(String(current));
+    const boxedStringMessage =
+      typeof current === 'object' ? normalizeStringValue(current) : undefined;
+    if (boxedStringMessage !== undefined) {
+      messages.push(boxedStringMessage);
       continue;
     }
 

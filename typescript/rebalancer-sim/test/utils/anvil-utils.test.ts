@@ -147,6 +147,15 @@ describe('Anvil utils', () => {
 
       return wrapper;
     };
+    const buildUncoercibleSpoofedBoxedString = () => ({
+      [Symbol.toStringTag]: 'String',
+      toString() {
+        throw new Error('blocked toString');
+      },
+      valueOf() {
+        throw new Error('blocked valueOf');
+      },
+    });
 
     it('returns true for testcontainers runtime-strategy errors', () => {
       const error = new Error(
@@ -660,6 +669,16 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('ignores spoofed boxed-string throw values when coercion fails', () => {
+      const spoofed = buildUncoercibleSpoofedBoxedString();
+      let result = false;
+
+      expect(() => {
+        result = isContainerRuntimeUnavailable(spoofed);
+      }).to.not.throw();
+      expect(result).to.equal(false);
+    });
+
     it('matches boxed-string message fields when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const wrappedError = {
@@ -708,6 +727,16 @@ describe('Anvil utils', () => {
           errors: runInNewContext('new String("unrelated nested warning")'),
         }),
       ).to.equal(false);
+    });
+
+    it('matches runtime causes when spoofed boxed-string errors payload coercion fails', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildUncoercibleSpoofedBoxedString(),
+          cause: { message: 'No Docker client strategy found' },
+        }),
+      ).to.equal(true);
     });
 
     it('matches docker runtime errors in iterable error collections', () => {
@@ -2144,6 +2173,16 @@ describe('Anvil utils', () => {
   });
 
   describe('formatLocalAnvilStartError', () => {
+    const buildUncoercibleSpoofedBoxedString = () => ({
+      [Symbol.toStringTag]: 'String',
+      toString() {
+        throw new Error('blocked toString');
+      },
+      valueOf() {
+        throw new Error('blocked valueOf');
+      },
+    });
+
     it('returns installation hint when anvil binary is missing', () => {
       const error = new Error('spawn anvil ENOENT') as NodeJS.ErrnoException;
       error.code = 'ENOENT';
@@ -2207,6 +2246,15 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('ignores spoofed boxed-string code values when coercion fails', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: buildUncoercibleSpoofedBoxedString(),
+          message: 'spawn failed',
+        }),
+      ).to.equal('Failed to start local anvil: spawn failed');
+    });
+
     it('returns plain message for other startup errors', () => {
       const error = new Error('permission denied');
       expect(formatLocalAnvilStartError(error)).to.equal(
@@ -2228,6 +2276,17 @@ describe('Anvil utils', () => {
           message: runInNewContext('new String("  custom object failure  ")'),
         }),
       ).to.equal('Failed to start local anvil: custom object failure');
+    });
+
+    it('falls back when spoofed boxed-string message coercion fails', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: buildUncoercibleSpoofedBoxedString(),
+          reason: 'spawn-failure',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: {"message":{},"reason":"spawn-failure"}',
+      );
     });
 
     it('uses message field from non-Error objects', () => {
