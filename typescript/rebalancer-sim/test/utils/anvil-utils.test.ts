@@ -800,6 +800,41 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('matches set wrappers when cause accessors throw but errors remain available', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const setWrapper = Object.assign(
+        new Set([{ message: 'non-matching wrapper noise' }]),
+        {
+          errors: { message: 'Cannot connect to the Docker daemon' },
+          toJSON() {
+            throw new Error('json blocked');
+          },
+          [inspectCustom]() {
+            return 'set wrapper without nested details';
+          },
+        },
+      );
+      Object.defineProperty(setWrapper, 'cause', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error('cause blocked');
+        },
+      });
+
+      const wrappedError = {
+        errors: setWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches docker runtime errors in generator-based error collections', () => {
       function* generateErrors() {
         yield { message: 'random warning' };
