@@ -172,8 +172,9 @@ So tests run if **either** docker runtime **or** local `anvil` is available.
 
 Runtime-unavailable detection is hardened for common daemon/connectivity failures
 across Linux/macOS (`docker.sock`) and Windows named pipes (`docker_engine`,
-`dockerDesktopLinuxEngine`, including URL-encoded pipe signatures), including
-Podman socket failures and nested/wrapped error payloads from container tooling.
+`dockerDesktopEngine`, `dockerDesktopLinuxEngine`, including URL-encoded pipe
+signatures), including Podman socket failures and nested/wrapped error payloads
+from container tooling.
 
 ### 3. Select Rebalancers
 
