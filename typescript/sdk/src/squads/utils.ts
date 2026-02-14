@@ -286,9 +286,15 @@ export async function getPendingProposalsForChains(
         const staleTransactionIndex = Number(multisig.staleTransactionIndex);
 
         const vaultBalance = await svmProvider.getBalance(vault);
-        const decimals = mpp.getChainMetadata(chain).nativeToken?.decimals;
+        const nativeToken = mpp.getChainMetadata(chain).nativeToken;
+        const decimals = nativeToken?.decimals;
         if (typeof decimals !== 'number') {
           rootLogger.error(`No decimals found for ${chain}`);
+          return;
+        }
+        const nativeTokenSymbol = nativeToken?.symbol;
+        if (!nativeTokenSymbol) {
+          rootLogger.error(`No native token symbol found for ${chain}`);
           return;
         }
         const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
@@ -356,7 +362,7 @@ export async function getPendingProposalsForChains(
               rejections,
               cancellations,
               threshold,
-              balance: `${balanceFormatted} SOL`,
+              balance: `${balanceFormatted} ${nativeTokenSymbol}`,
               submissionDate,
             });
           } catch (error) {
