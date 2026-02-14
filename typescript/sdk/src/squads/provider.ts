@@ -24,20 +24,20 @@ function formatValueType(value: unknown): string {
   return typeof value;
 }
 
-function getGetAccountInfo(value: unknown): unknown {
+function getProviderGetAccountInfo(value: unknown): unknown {
   return (value as ProviderWithOptionalGetAccountInfo)?.getAccountInfo;
 }
 
 function hasGetAccountInfoFunction(
   value: unknown,
 ): value is ProviderWithGetAccountInfo {
-  return typeof getGetAccountInfo(value) === 'function';
+  return typeof getProviderGetAccountInfo(value) === 'function';
 }
 
 export function toSquadsProvider(
   provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
 ): SquadsProvider {
-  const getAccountInfo = getGetAccountInfo(provider);
+  const getAccountInfo = getProviderGetAccountInfo(provider);
 
   assert(
     hasGetAccountInfoFunction(provider),

@@ -57,6 +57,11 @@ describe('squads provider bridge', () => {
       getAccountInfoType: 'string',
     },
     {
+      title: 'throws when inherited getAccountInfo is not callable',
+      provider: Object.create({ getAccountInfo: 'not-a-function' }),
+      getAccountInfoType: 'string',
+    },
+    {
       title: 'labels array getAccountInfo values in malformed provider errors',
       provider: { getAccountInfo: [] },
       getAccountInfoType: 'array',
