@@ -596,7 +596,7 @@ const chainOverrides: Record<
 export const DEFAULT_SAFE_DEPLOYMENT_VERSIONS = ['1.3.0', '1.4.1'] as const;
 
 export function getKnownMultiSendAddresses(
-  versions: string[] = [...DEFAULT_SAFE_DEPLOYMENT_VERSIONS],
+  versions: readonly unknown[] = [...DEFAULT_SAFE_DEPLOYMENT_VERSIONS],
 ): {
   multiSend: Address[];
   multiSendCallOnly: Address[];
@@ -605,6 +605,10 @@ export function getKnownMultiSendAddresses(
   const multiSendCallOnly: Address[] = [];
 
   for (const version of versions) {
+    assert(
+      typeof version === 'string',
+      `Safe deployment version must be a string: ${stringifyValueForError(version)}`,
+    );
     const normalizedVersion = version.trim();
     assert(normalizedVersion.length > 0, 'Safe deployment version is required');
     const multiSendCallOnlyDeployments = getMultiSendCallOnlyDeployments({
@@ -1451,7 +1455,7 @@ interface AsHexErrorMessages {
   invalid?: string;
 }
 
-function stringifyHexInputForError(value: unknown): string {
+function stringifyValueForError(value: unknown): string {
   try {
     return String(value);
   } catch {
@@ -1465,7 +1469,7 @@ export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {
   const invalidErrorMessage = errorMessages?.invalid;
   const resolvedInvalidErrorMessage =
     invalidErrorMessage ??
-    `Hex value must be valid hex: ${stringifyHexInputForError(hex)}`;
+    `Hex value must be valid hex: ${stringifyValueForError(hex)}`;
   assert(hex !== undefined && hex !== null, requiredErrorMessage);
   assert(typeof hex === 'string', resolvedInvalidErrorMessage);
   const normalizedHex = hex.trim();
