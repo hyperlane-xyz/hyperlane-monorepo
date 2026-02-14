@@ -70,9 +70,31 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws for non-integer current transaction index', () => {
+      expect(() => getMinimumProposalIndexToCheck(1.5)).to.throw(
+        'Expected current transaction index to be a non-negative safe integer, got 1.5',
+      );
+    });
+
+    it('throws for non-safe current transaction index', () => {
+      expect(() =>
+        getMinimumProposalIndexToCheck(Number.MAX_SAFE_INTEGER + 1),
+      ).to.throw(
+        `Expected current transaction index to be a non-negative safe integer, got ${
+          Number.MAX_SAFE_INTEGER + 1
+        }`,
+      );
+    });
+
     it('throws for negative lookback count', () => {
       expect(() => getMinimumProposalIndexToCheck(1, -1)).to.throw(
         'Expected lookback count to be a non-negative safe integer, got -1',
+      );
+    });
+
+    it('throws for non-integer lookback count', () => {
+      expect(() => getMinimumProposalIndexToCheck(1, 0.5)).to.throw(
+        'Expected lookback count to be a non-negative safe integer, got 0.5',
       );
     });
   });
