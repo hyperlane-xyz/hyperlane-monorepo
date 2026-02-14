@@ -271,6 +271,16 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('matches runtime causes when top-level Error message is whitespace', () => {
+      const wrappedError = new Error('hidden message');
+      wrappedError.message = ' ';
+      (wrappedError as Error & { cause?: unknown }).cause = new Error(
+        'No Docker client strategy found',
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('reads message from non-Error throw objects', () => {
       expect(
         isContainerRuntimeUnavailable({

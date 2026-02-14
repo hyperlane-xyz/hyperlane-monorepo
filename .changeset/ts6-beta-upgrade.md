@@ -85,3 +85,5 @@ Regression coverage now includes hostile `Error` objects where constructor-name 
 Runtime-unavailable extraction now guards `Error.message` reads the same way as wrapper objects, preventing matcher crashes when hostile Error accessors throw.
 
 String non-emptiness checks in formatter/matcher extraction were consolidated, with regression coverage for whitespace-heavy `ENOENT` code normalization.
+
+Matcher regression coverage now also confirms docker-runtime causes are still detected when top-level `Error` messages are whitespace-only.
