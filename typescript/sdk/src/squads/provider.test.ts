@@ -78,6 +78,24 @@ describe('squads provider bridge', () => {
     expect(() => toSquadsProvider(providerLike)).to.throw('getter failure');
   });
 
+  it('reads malformed getter-backed getAccountInfo once during validation', () => {
+    let getAccountInfoReadCount = 0;
+    const providerLike = Object.create(null, {
+      getAccountInfo: {
+        get: () => {
+          getAccountInfoReadCount += 1;
+          return 'not-a-function';
+        },
+        enumerable: true,
+      },
+    }) as SolanaProvider;
+
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: expected getAccountInfo function, got string (provider: object)',
+    );
+    expect(getAccountInfoReadCount).to.equal(1);
+  });
+
   const invalidGetAccountInfoCases: Array<{
     title: string;
     provider: unknown;
