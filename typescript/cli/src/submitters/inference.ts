@@ -410,13 +410,19 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  const internalSubmitter = await inferSubmitterFromAddress({
-    chain: originChain,
-    address: owner,
-    context,
-    cache,
-    depth: depth + 1,
-  });
+  let internalSubmitter: InferredSubmitter;
+  try {
+    internalSubmitter = await inferSubmitterFromAddress({
+      chain: originChain,
+      address: owner,
+      context,
+      cache,
+      depth: depth + 1,
+    });
+  } catch {
+    cache.icaByChainAndAddress.set(cacheId, null);
+    return null;
+  }
 
   const submitter = {
     type: TxSubmitterType.INTERCHAIN_ACCOUNT,
