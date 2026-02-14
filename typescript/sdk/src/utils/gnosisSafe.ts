@@ -195,7 +195,14 @@ export function hasSafeServiceTransactionPayload(
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   const parseUrl = (value: string): URL | undefined => {
     try {
-      return new URL(value);
+      const parsed = new URL(value);
+      if (!parsed.hostname) {
+        return undefined;
+      }
+      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+        return undefined;
+      }
+      return parsed;
     } catch {
       return undefined;
     }
