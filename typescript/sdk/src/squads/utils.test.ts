@@ -287,6 +287,10 @@ describe('squads utils', () => {
     expect(chains.length).to.be.greaterThan(0);
   });
 
+  it('returns chain list matching squads config keys', () => {
+    expect(getSquadsChains()).to.deep.equal(Object.keys(squadsConfigs));
+  });
+
   it('returns a defensive copy of squads chains', () => {
     const chains = getSquadsChains();
     chains.pop();
