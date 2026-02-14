@@ -135,6 +135,17 @@ function extractErrorMessages(error: unknown): string[] {
       for (const nestedError of nestedErrors as Iterable<unknown>) {
         queue.push(nestedError);
       }
+      return;
+    }
+
+    if (
+      typeof nestedErrors === 'object' &&
+      nestedErrors !== null &&
+      !('message' in nestedErrors)
+    ) {
+      for (const nestedError of Object.values(nestedErrors)) {
+        queue.push(nestedError);
+      }
     }
   };
 
