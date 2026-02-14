@@ -1356,6 +1356,59 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches wrapper errors fallbacks for noisy map/array/set/generator wrappers under extraction limits', () => {
+      const runtimeErrorsFallback = {
+        message: 'Cannot connect to the Docker daemon',
+      };
+
+      const noisyMap = Object.assign(
+        new Map(
+          Array.from({ length: 700 }, (_, index) => [
+            index,
+            { message: `noise-${index}` },
+          ]),
+        ),
+        { errors: runtimeErrorsFallback },
+      );
+
+      const noisyArray = Object.assign(
+        Array.from({ length: 700 }, (_, index) => ({
+          message: `noise-${index}`,
+        })),
+        { errors: runtimeErrorsFallback },
+      );
+
+      const noisySet = Object.assign(
+        new Set(
+          Array.from({ length: 700 }, (_, index) => ({
+            message: `noise-${index}`,
+          })),
+        ),
+        { errors: runtimeErrorsFallback },
+      );
+
+      const noisyGenerator = {
+        *[Symbol.iterator]() {
+          for (let index = 0; index < 700; index += 1) {
+            yield { message: `noise-${index}` };
+          }
+        },
+        errors: runtimeErrorsFallback,
+      };
+
+      for (const [wrapperName, errors] of [
+        ['map', noisyMap],
+        ['array', noisyArray],
+        ['set', noisySet],
+        ['generator', noisyGenerator],
+      ] as const) {
+        expect(
+          isContainerRuntimeUnavailable({ errors }),
+          `${wrapperName} wrapper should surface runtime errors fallback`,
+        ).to.equal(true);
+      }
+    });
+
     it('still matches cause-chain runtime signals before extraction cap', () => {
       expect(isContainerRuntimeUnavailable(buildCauseChain(550, 120))).to.equal(
         true,
