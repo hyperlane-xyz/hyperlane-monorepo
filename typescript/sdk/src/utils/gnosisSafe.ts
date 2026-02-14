@@ -883,7 +883,22 @@ export async function resolveSafeSigner(
   signerProvider: SafeSignerProvider,
   signer?: SafeProviderConfig['signer'],
 ): Promise<NonNullable<SafeProviderConfig['signer']>> {
-  if (signer) {
+  if (signer !== undefined && signer !== null) {
+    if (typeof signer === 'string') {
+      if (ethers.utils.isAddress(signer)) {
+        return getAddress(signer);
+      }
+      const explicitSignerValidationError = `Explicit Safe signer string must be a valid address or 32-byte hex private key: ${stringifyValueForError(signer)}`;
+      const normalizedSignerPrivateKey = asHex(signer, {
+        required: explicitSignerValidationError,
+        invalid: explicitSignerValidationError,
+      });
+      assert(
+        ethers.utils.isHexString(normalizedSignerPrivateKey, 32),
+        explicitSignerValidationError,
+      );
+      return normalizedSignerPrivateKey;
+    }
     return signer;
   }
 

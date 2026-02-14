@@ -3153,6 +3153,47 @@ describe('gnosisSafe utils', () => {
       expect(signer).to.equal(explicitSigner);
     });
 
+    it('canonicalizes explicit signer strings for address and private key', async () => {
+      const explicitAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+      const explicitPrivateKey = `0X${'AB'.repeat(32)}`;
+      const multiProviderMock: SignerProvider = {
+        getSigner: () => {
+          throw new Error('should not be called');
+        },
+      };
+
+      const resolvedAddressSigner = await resolveSafeSigner(
+        'test',
+        multiProviderMock,
+        explicitAddress,
+      );
+      expect(resolvedAddressSigner).to.equal(getAddress(explicitAddress));
+
+      const resolvedPrivateKeySigner = await resolveSafeSigner(
+        'test',
+        multiProviderMock,
+        explicitPrivateKey,
+      );
+      expect(resolvedPrivateKeySigner).to.equal(`0x${'ab'.repeat(32)}`);
+    });
+
+    it('throws when explicit signer string is not address or private key', async () => {
+      const multiProviderMock: SignerProvider = {
+        getSigner: () => {
+          throw new Error('should not be called');
+        },
+      };
+
+      try {
+        await resolveSafeSigner('test', multiProviderMock, 'bad-signer');
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Explicit Safe signer string must be a valid address or 32-byte hex private key: bad-signer',
+        );
+      }
+    });
+
     it('prefers multiprovider private key when signer is not provided', async () => {
       const wallet = ethers.Wallet.createRandom();
       const multiProviderMock: SignerProvider = {
