@@ -24,11 +24,17 @@ export interface SnapshotConfig {
  */
 export class WarpTestFixture {
   private deployConfig: WarpRouteDeployConfig;
+  private baselineDeployConfig: WarpRouteDeployConfig;
   private coreConfig?: WarpCoreConfig;
   private snapshots = new Map<string, string>();
 
   constructor(private readonly config: WarpTestFixtureConfig) {
-    this.deployConfig = config.initialDeployConfig;
+    this.baselineDeployConfig = this.cloneConfig(config.initialDeployConfig);
+    this.deployConfig = this.cloneConfig(config.initialDeployConfig);
+  }
+
+  private cloneConfig(config: WarpRouteDeployConfig): WarpRouteDeployConfig {
+    return JSON.parse(JSON.stringify(config));
   }
 
   writeConfigs(deployConfig?: WarpRouteDeployConfig): void {
@@ -41,15 +47,21 @@ export class WarpTestFixture {
   }
 
   restoreDeployConfig(): void {
+    this.deployConfig = this.cloneConfig(this.baselineDeployConfig);
     writeYamlOrJson(this.config.deployConfigPath, this.deployConfig);
   }
 
   restoreConfigs(): void {
-    this.writeConfigs();
+    this.restoreDeployConfig();
+
+    if (this.coreConfig) {
+      writeYamlOrJson(this.config.coreConfigPath, this.coreConfig);
+    }
   }
 
   updateDeployConfig(config: WarpRouteDeployConfig): void {
-    this.deployConfig = config;
+    this.baselineDeployConfig = this.cloneConfig(config);
+    this.deployConfig = this.cloneConfig(config);
   }
 
   loadCoreConfig(): void {
@@ -103,7 +115,8 @@ export class WarpTestFixture {
 
   reset(): void {
     this.snapshots.clear();
-    this.deployConfig = this.config.initialDeployConfig;
+    this.baselineDeployConfig = this.cloneConfig(this.config.initialDeployConfig);
+    this.deployConfig = this.cloneConfig(this.config.initialDeployConfig);
     this.coreConfig = undefined;
   }
 }

@@ -69,6 +69,40 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].transactions).to.have.length(2);
   });
 
+  it('handles bigint-like explicit submitter fields in fingerprinting', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-timelock-delay-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.TIMELOCK_CONTROLLER,
+          chain: CHAIN,
+          timelockAddress: '0x3333333333333333333333333333333333333333',
+          delay: 0,
+          proposerSubmitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN,
+          },
+        },
+      },
+    });
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.TIMELOCK_CONTROLLER,
+    );
+  });
+
   it('falls back to inference when strategy file has no config for chain', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-missing-chain-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {

@@ -64,7 +64,7 @@ describe('hyperlane core apply e2e tests', async function () {
   let initialOwnerAddress: Address;
   let chain2DomainId: Domain;
   let chain3DomainId: Domain;
-  let startedNodes: { stop: () => Promise<void> }[] = [];
+  let startedNodes: Awaited<ReturnType<typeof runEvmNode>>[] = [];
 
   async function isRpcReady(rpcUrl: string): Promise<boolean> {
     try {

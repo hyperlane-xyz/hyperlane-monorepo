@@ -191,12 +191,14 @@ describe('hyperlane warp apply with submitters', async function () {
         [initialOwnerAddress, chain3IcaAddress],
         ethers.constants.AddressZero,
       );
+    await timelockInstance.deployed();
 
     // Deploy a mock SAFE so that the SDK can check that a contract exists
     // at the provided address successfully
     const mockSafe = await new MockSafe__factory()
       .connect(chain3Signer)
       .deploy([initialOwnerAddress], 1);
+    await mockSafe.deployed();
     safeAddress = mockSafe.address;
 
     // Configure ICA connections by enrolling the ICAs with each other
@@ -644,6 +646,7 @@ describe('hyperlane warp apply with submitters', async function () {
           [initialOwnerAddress],
           ethers.constants.AddressZero,
         );
+      await timelock.deployed();
 
       const strategyPath = `${TEMP_PATH}/warp-apply-submitter-selector-overrides.yaml`;
       writeYamlOrJson(strategyPath, {
@@ -704,6 +707,7 @@ describe('hyperlane warp apply with submitters', async function () {
           [initialOwnerAddress],
           ethers.constants.AddressZero,
         );
+      await timelock.deployed();
 
       const strategyPath = `${TEMP_PATH}/warp-apply-submitter-selector-overrides-upper-prefix.yaml`;
       writeYamlOrJson(strategyPath, {
@@ -923,9 +927,10 @@ describe('hyperlane warp apply with submitters', async function () {
         .deploy(
           0,
           [chain3IcaAddress],
-          [chain3IcaAddress],
+          [initialOwnerAddress, chain3IcaAddress],
           ethers.constants.AddressZero,
         );
+      await icaOnlyTimelock.deployed();
 
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[

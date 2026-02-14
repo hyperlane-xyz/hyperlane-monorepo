@@ -403,6 +403,9 @@ async function inferTimelockProposerSubmitter({
   const proposers = Array.from(granted).filter(
     (account) => !eqAddress(account, ethersConstants.AddressZero),
   );
+  const registryAddresses = await context.registry.getAddresses();
+  const destinationRouterAddress =
+    registryAddresses[chain]?.interchainAccountRouter;
 
   for (const proposer of proposers) {
     if (eqAddress(proposer, signerAddress)) {
@@ -447,6 +450,151 @@ async function inferTimelockProposerSubmitter({
     if (inferredIca) {
       cache.timelockProposerByChainAndAddress.set(timelockKey, inferredIca);
       return inferredIca;
+    }
+
+    if (destinationRouterAddress) {
+      for (const [originChain, originAddresses] of Object.entries(
+        registryAddresses,
+      )) {
+        const originChainName = originChain as ChainName;
+        if (originChainName === chain) {
+          continue;
+        }
+        if (
+          context.multiProvider.getProtocol(originChainName) !==
+          ProtocolType.Ethereum
+        ) {
+          continue;
+        }
+
+        const originRouterAddress = originAddresses?.interchainAccountRouter;
+        if (!originRouterAddress) {
+          continue;
+        }
+
+        try {
+          const originRouter = InterchainAccountRouter__factory.connect(
+            originRouterAddress,
+            context.multiProvider.getProvider(originChainName),
+          );
+          const derivedIcaProposer = await originRouter[
+            'getRemoteInterchainAccount(address,address,address)'
+          ](
+            signerAddress,
+            destinationRouterAddress,
+            ethersConstants.AddressZero,
+          );
+
+          if (!eqAddress(derivedIcaProposer, proposer)) {
+            continue;
+          }
+
+          const internalSubmitter = await inferSubmitterFromAddress({
+            chain: originChainName,
+            address: signerAddress,
+            context,
+            cache,
+            depth: depth + 1,
+          });
+          const fallbackIcaSubmitter = {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: originChainName,
+            destinationChain: chain,
+            owner: signerAddress,
+            internalSubmitter,
+            originInterchainAccountRouter: originRouterAddress,
+            destinationInterchainAccountRouter: destinationRouterAddress,
+          } satisfies Extract<
+            InferredSubmitter,
+            { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+          >;
+          cache.timelockProposerByChainAndAddress.set(
+            timelockKey,
+            fallbackIcaSubmitter,
+          );
+          return fallbackIcaSubmitter;
+        } catch {
+          continue;
+        }
+      }
+    }
+  }
+
+  // Fallback path for nodes/environments where AccessControl role events
+  // may be incomplete: derive signer-owned ICA accounts and check proposer role.
+  if (destinationRouterAddress) {
+    for (const [originChain, originAddresses] of Object.entries(
+      registryAddresses,
+    )) {
+      const originChainName = originChain as ChainName;
+      if (originChainName === chain) {
+        continue;
+      }
+      if (
+        context.multiProvider.getProtocol(originChainName) !==
+        ProtocolType.Ethereum
+      ) {
+        continue;
+      }
+
+      const originRouterAddress = originAddresses?.interchainAccountRouter;
+      if (!originRouterAddress) {
+        continue;
+      }
+
+      try {
+        const originRouter = InterchainAccountRouter__factory.connect(
+          originRouterAddress,
+          context.multiProvider.getProvider(originChainName),
+        );
+        const derivedIcaProposer = await originRouter[
+          'getRemoteInterchainAccount(address,address,address)'
+        ](signerAddress, destinationRouterAddress, ethersConstants.AddressZero);
+
+        if (!(await timelock.hasRole(PROPOSER_ROLE, derivedIcaProposer))) {
+          continue;
+        }
+
+        const inferredIca = await inferIcaSubmitterFromAccount({
+          destinationChain: chain,
+          accountAddress: derivedIcaProposer,
+          context,
+          cache,
+          depth: depth + 1,
+        });
+
+        if (inferredIca) {
+          cache.timelockProposerByChainAndAddress.set(timelockKey, inferredIca);
+          return inferredIca;
+        }
+
+        const internalSubmitter = await inferSubmitterFromAddress({
+          chain: originChainName,
+          address: signerAddress,
+          context,
+          cache,
+          depth: depth + 1,
+        });
+        const fallbackIcaSubmitter = {
+          type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+          chain: originChainName,
+          destinationChain: chain,
+          owner: signerAddress,
+          internalSubmitter,
+          originInterchainAccountRouter: originRouterAddress,
+          destinationInterchainAccountRouter: destinationRouterAddress,
+        } satisfies Extract<
+          InferredSubmitter,
+          { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+        >;
+        cache.timelockProposerByChainAndAddress.set(
+          timelockKey,
+          fallbackIcaSubmitter,
+        );
+        return fallbackIcaSubmitter;
+      } catch {
+        continue;
+      }
     }
   }
 
@@ -603,7 +751,9 @@ async function inferSubmitterFromTransaction({
 }
 
 function getConfigFingerprint(config: ExtendedSubmissionStrategy): string {
-  return JSON.stringify(config.submitter);
+  return JSON.stringify(config.submitter, (_key, value) =>
+    typeof value === 'bigint' ? `${value.toString()}n` : value,
+  );
 }
 
 function parseOverrideKey(key: string): { target: string; selector?: string } {
