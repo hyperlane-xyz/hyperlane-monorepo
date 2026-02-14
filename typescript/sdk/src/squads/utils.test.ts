@@ -3015,6 +3015,10 @@ describe('squads utils', () => {
     expect(resolveSquadsChains()).to.deep.equal(getSquadsChains());
   });
 
+  it('resolves squads chains to configured defaults when input is empty array', () => {
+    expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
+  });
+
   it('returns a fresh default squads chain array per resolve call', () => {
     const firstResolvedChains = resolveSquadsChains();
     const secondResolvedChains = resolveSquadsChains();
@@ -3027,6 +3031,13 @@ describe('squads utils', () => {
     expect(
       resolveSquadsChains([firstChain, secondChain, firstChain]),
     ).to.deep.equal([firstChain, secondChain]);
+  });
+
+  it('trims explicit squads chain names before resolving', () => {
+    const [firstChain] = getSquadsChains();
+    expect(resolveSquadsChains([` ${firstChain} `])).to.deep.equal([
+      firstChain,
+    ]);
   });
 
   it('does not mutate caller-provided explicit squads chains', () => {

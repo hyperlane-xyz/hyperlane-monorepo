@@ -131,7 +131,9 @@ export function resolveSquadsChains(
     return getSquadsChains();
   }
 
-  const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
+  const normalizedChains = chains.map((chain) => chain.trim());
+  const { squadsChains, nonSquadsChains } =
+    partitionSquadsChains(normalizedChains);
   if (nonSquadsChains.length > 0) {
     throw new Error(getUnsupportedSquadsChainsErrorMessage(nonSquadsChains));
   }
