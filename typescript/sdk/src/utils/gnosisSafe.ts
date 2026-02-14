@@ -1452,7 +1452,7 @@ export async function deleteSafeTx(
   if (!txDetailsResponse.ok) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch transaction details for ${normalizedSafeTxHash}`,
+        `Failed to fetch transaction details for ${normalizedSafeTxHash}: Status ${txDetailsResponse.status} ${txDetailsResponse.statusText}`,
       ),
     );
     return;
@@ -1557,7 +1557,12 @@ export async function deleteSafeTx(
       return;
     }
 
-    const errorBody = await res.text();
+    let errorBody = '<unavailable>';
+    try {
+      errorBody = await res.text();
+    } catch (error) {
+      errorBody = `<unavailable: ${stringifyValueForError(error)}>`;
+    }
     rootLogger.error(
       chalk.red(
         `Failed to delete transaction ${normalizedSafeTxHash} on ${chain}: Status ${res.status} ${res.statusText}. Response body: ${errorBody}`,
@@ -1597,7 +1602,7 @@ export async function deleteAllPendingSafeTxs(
   if (!pendingTxsResponse.ok) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch pending transactions for ${normalizedSafeAddress}`,
+        `Failed to fetch pending transactions for ${normalizedSafeAddress}: Status ${pendingTxsResponse.status} ${pendingTxsResponse.statusText}`,
       ),
     );
     return;

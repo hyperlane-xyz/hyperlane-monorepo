@@ -67,3 +67,4 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe delete tx-detail JSON parsing with deterministic inaccessible-payload errors.
 - Hardening pending Safe tx deletion response JSON parsing with deterministic inaccessible-payload errors.
 - Hardening Safe delete and pending-list fetch failures with deterministic network-boundary error messages.
+- Hardening Safe delete/pending non-OK response diagnostics with explicit status and resilient response-body reads.
