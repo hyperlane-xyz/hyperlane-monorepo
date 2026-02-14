@@ -641,7 +641,12 @@ async function inferTimelockProposerSubmitter({
   for (const log of grantedLogs) {
     try {
       const parsed = timelock.interface.parseLog(log);
-      granted.add(parsed.args.account as Address);
+      const normalizedAccount = tryNormalizeEvmAddress(
+        parsed.args.account as Address,
+      );
+      if (normalizedAccount) {
+        granted.add(normalizedAccount as Address);
+      }
     } catch {
       continue;
     }
@@ -649,7 +654,12 @@ async function inferTimelockProposerSubmitter({
   for (const log of revokedLogs) {
     try {
       const parsed = timelock.interface.parseLog(log);
-      granted.delete(parsed.args.account as Address);
+      const normalizedAccount = tryNormalizeEvmAddress(
+        parsed.args.account as Address,
+      );
+      if (normalizedAccount) {
+        granted.delete(normalizedAccount as Address);
+      }
     } catch {
       continue;
     }
