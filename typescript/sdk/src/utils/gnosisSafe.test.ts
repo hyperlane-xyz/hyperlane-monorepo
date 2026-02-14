@@ -1200,6 +1200,24 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('rejects control or whitespace characters in authorities', () => {
+      const controlAuthorities = [
+        'safe.global\t',
+        'safe.global\n',
+        'safe.global\r',
+        'safe.\tglobal',
+        'safe.\nglobal',
+        'safe.global ',
+        'safe-transaction-mainnet.5afe.dev\t',
+      ];
+
+      for (const authority of controlAuthorities) {
+        expect(safeApiKeyRequired(`https://${authority}/api`)).to.equal(false);
+        expect(safeApiKeyRequired(`//${authority}/api`)).to.equal(false);
+        expect(safeApiKeyRequired(`${authority}:443`)).to.equal(false);
+      }
+    });
+
     it('accepts percent-encoded data outside the authority', () => {
       expect(
         safeApiKeyRequired('https://safe.global/path%2Esegment/api'),
@@ -2824,6 +2842,34 @@ describe('gnosisSafe utils', () => {
         );
         expect(() => normalizeSafeServiceUrl(schemeRelativePortUrl)).to.throw(
           `Safe tx service URL is invalid: ${schemeRelativePortUrl}`,
+        );
+        expect(() => normalizeSafeServiceUrl(hostOnlyPortUrl)).to.throw(
+          `Safe tx service URL is invalid: ${hostOnlyPortUrl}`,
+        );
+      }
+    });
+
+    it('throws when authority contains control or whitespace characters', () => {
+      const controlAuthorities = [
+        'safe.global\t',
+        'safe.global\n',
+        'safe.global\r',
+        'safe.\tglobal',
+        'safe.\nglobal',
+        'safe.global ',
+        'safe-transaction-mainnet.5afe.dev\t',
+      ];
+
+      for (const authority of controlAuthorities) {
+        const explicitUrl = `https://${authority}/api`;
+        const schemeRelativeUrl = `//${authority}/api`;
+        const hostOnlyPortUrl = `${authority}:443`;
+
+        expect(() => normalizeSafeServiceUrl(explicitUrl)).to.throw(
+          `Safe tx service URL is invalid: ${explicitUrl}`,
+        );
+        expect(() => normalizeSafeServiceUrl(schemeRelativeUrl)).to.throw(
+          `Safe tx service URL is invalid: ${schemeRelativeUrl}`,
         );
         expect(() => normalizeSafeServiceUrl(hostOnlyPortUrl)).to.throw(
           `Safe tx service URL is invalid: ${hostOnlyPortUrl}`,

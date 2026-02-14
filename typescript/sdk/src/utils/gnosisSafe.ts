@@ -174,6 +174,21 @@ function hasNonAsciiAuthority(value: string): boolean {
   );
 }
 
+function hasControlOrWhitespaceAuthority(value: string): boolean {
+  const explicitAuthority = extractExplicitAuthority(value);
+  if (
+    explicitAuthority !== undefined &&
+    /[\x00-\x20\x7F]/.test(explicitAuthority)
+  ) {
+    return true;
+  }
+
+  const hostlessAuthority = extractHostlessAuthority(value);
+  return (
+    hostlessAuthority !== undefined && /[\x00-\x20\x7F]/.test(hostlessAuthority)
+  );
+}
+
 function hasInvalidSafeServiceUrlInput(value: string): boolean {
   return (
     hasRawBackslash(value) ||
@@ -181,7 +196,8 @@ function hasInvalidSafeServiceUrlInput(value: string): boolean {
     hasExplicitUserinfoLikeAuthority(value) ||
     hasInvalidHostlessSafeServiceUrl(value) ||
     hasPercentEncodedAuthority(value) ||
-    hasNonAsciiAuthority(value)
+    hasNonAsciiAuthority(value) ||
+    hasControlOrWhitespaceAuthority(value)
   );
 }
 
