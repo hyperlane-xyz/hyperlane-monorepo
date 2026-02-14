@@ -93,6 +93,16 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'https://safe.global/api?note=user%255chyperlane.xyz#note%255chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'https://safe.global/api?note=user%25255chyperlane.xyz#note%25255chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'http://safe-transaction-mainnet.safe.global/api?email=user@hyperlane.xyz#user@hyperlane.xyz',
         ),
       ).to.equal(true);
@@ -498,6 +508,11 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/path%25255cfoo',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/path%25252540foo',
         ),
       ).to.equal(true);
@@ -544,6 +559,16 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/api?note=user%25255Chyperlane.xyz#note%25255Chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?note=user%255chyperlane.xyz#note%255chyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?note=user%25255chyperlane.xyz#note%25255chyperlane.xyz',
         ),
       ).to.equal(true);
       expect(
@@ -1001,6 +1026,12 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('safe.global?note=user%25255Chyperlane.xyz'),
       ).to.equal('https://safe.global/api');
       expect(
+        normalizeSafeServiceUrl('safe.global?note=user%255chyperlane.xyz'),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl('safe.global?note=user%25255chyperlane.xyz'),
+      ).to.equal('https://safe.global/api');
+      expect(
         normalizeSafeServiceUrl('safe.global#user@hyperlane.xyz'),
       ).to.equal('https://safe.global/api');
       expect(
@@ -1020,6 +1051,12 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/api');
       expect(
         normalizeSafeServiceUrl('safe.global#note%25255Chyperlane.xyz'),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl('safe.global#note%255chyperlane.xyz'),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl('safe.global#note%25255chyperlane.xyz'),
       ).to.equal('https://safe.global/api');
       expect(
         normalizeSafeServiceUrl(
@@ -1169,6 +1206,16 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl(
           '//safe.global/api?note=user%25255Chyperlane.xyz#note%25255Chyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl(
+          '//safe.global/api?note=user%255chyperlane.xyz#note%255chyperlane.xyz',
+        ),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl(
+          '//safe.global/api?note=user%25255chyperlane.xyz#note%25255chyperlane.xyz',
         ),
       ).to.equal('https://safe.global/api');
       expect(
@@ -1823,11 +1870,6 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl(
           'https://safe-transaction-mainnet.5afe.dev/api?note=user%25255chyperlane.xyz#note%25255chyperlane.xyz',
-        ),
-      ).to.equal('https://safe-transaction-mainnet.5afe.dev/api');
-      expect(
-        normalizeSafeServiceUrl(
-          'https://safe-transaction-mainnet.5afe.dev/api?note=user%255chyperlane.xyz#note%255chyperlane.xyz',
         ),
       ).to.equal('https://safe-transaction-mainnet.5afe.dev/api');
     });
