@@ -135,9 +135,10 @@ export function hasSafeServiceTransactionPayload(
     ethers.utils.isAddress(transaction.to) &&
     transaction.to.length > 0 &&
     typeof transaction.data === 'string' &&
-    transaction.data.startsWith('0x') &&
+    ethers.utils.isHexString(transaction.data) &&
     transaction.data.length > 0 &&
     typeof transaction.value === 'string' &&
+    /^\d+$/.test(transaction.value) &&
     transaction.value.length > 0
   );
 }
