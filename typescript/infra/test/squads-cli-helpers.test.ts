@@ -776,6 +776,25 @@ describe('squads cli helpers', () => {
     expect(formatted).to.include('bar');
   });
 
+  it('prefers message on non-Error object values', () => {
+    expect(formatScriptError({ message: 'rpc failed', code: 500 })).to.equal(
+      'rpc failed',
+    );
+  });
+
+  it('uses message when non-Error object stringification fails', () => {
+    const messageBackedUnformattableObject = {
+      message: 'rpc failed',
+      toJSON() {
+        throw new Error('cannot serialize');
+      },
+    };
+
+    expect(formatScriptError(messageBackedUnformattableObject)).to.equal(
+      'rpc failed',
+    );
+  });
+
   it('falls back for unformattable object errors', () => {
     const unformattableError = {
       toJSON() {

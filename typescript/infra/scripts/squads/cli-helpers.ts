@@ -289,6 +289,13 @@ export function formatScriptError(error: unknown): string {
 
   if (error && typeof error === 'object') {
     try {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string' && message.length > 0) {
+        return message;
+      }
+    } catch {}
+
+    try {
       return stringifyObject(error);
     } catch {
       return '[unformattable error object]';
