@@ -5,8 +5,10 @@ anvil2:
     chain: anvil2
 
   # Optional per-target submitter overrides.
-  # When a transaction `to` matches one of these addresses,
-  # the override submitter is used instead of the default above.
+  # Supported keys:
+  #  - "<targetAddress>"                  -> applies to any tx to target
+  #  - "<targetAddress>@<selector4bytes>" -> applies only to txs matching selector
+  # Selector-specific overrides take precedence over target-only overrides.
   submitterOverrides:
     # Example: route mailbox-owned txs through a Safe tx builder
     '0x1111111111111111111111111111111111111111':
@@ -30,3 +32,13 @@ anvil2:
           chain: anvil1
           safeAddress: '0x4444444444444444444444444444444444444444'
           version: '1.0'
+
+    # Example: only route specific function calls on a target through timelock
+    # Here selector 0xdeadbeef is an example placeholder.
+    '0x1111111111111111111111111111111111111111@0xdeadbeef':
+      type: timelockController
+      chain: anvil2
+      timelockAddress: '0x5555555555555555555555555555555555555555'
+      proposerSubmitter:
+        type: jsonRpc
+        chain: anvil2

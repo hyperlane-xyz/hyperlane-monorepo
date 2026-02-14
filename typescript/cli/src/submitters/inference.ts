@@ -567,6 +567,27 @@ function resolveExplicitSubmitterForTransaction({
   transaction: TypedAnnotatedTransaction;
   explicitSubmissionStrategy: ExtendedSubmissionStrategy;
 }): ExtendedSubmissionStrategy {
+  const parseOverrideKey = (
+    key: string,
+  ): { target: string; selector?: string } => {
+    const [target, maybeSelector] = key.split('@');
+    if (!maybeSelector) {
+      return { target: key };
+    }
+    if (/^0x[0-9a-fA-F]{8}$/.test(maybeSelector)) {
+      return { target, selector: maybeSelector.toLowerCase() };
+    }
+    return { target: key };
+  };
+
+  const getTxSelector = (tx: TypedAnnotatedTransaction): string | undefined => {
+    const data = (tx as any).data;
+    if (typeof data !== 'string' || !/^0x[0-9a-fA-F]{8}/.test(data)) {
+      return undefined;
+    }
+    return data.slice(0, 10).toLowerCase();
+  };
+
   const to = (transaction as any).to;
   const overrides = explicitSubmissionStrategy.submitterOverrides;
 
@@ -580,11 +601,33 @@ function resolveExplicitSubmitterForTransaction({
   const entries = Object.entries(overrides);
   if (protocol === ProtocolType.Ethereum) {
     const normalizedTarget = normalizeAddressEvm(to);
-    const match = entries.find(([target]) =>
-      normalizeAddressEvm(target) === normalizedTarget,
-    );
-    if (match) {
-      selectedSubmitter = match[1];
+    const selector = getTxSelector(transaction);
+
+    if (selector) {
+      const selectorMatch = entries.find(([overrideKey]) => {
+        const parsed = parseOverrideKey(overrideKey);
+        return (
+          !!parsed.selector &&
+          parsed.selector === selector &&
+          normalizeAddressEvm(parsed.target) === normalizedTarget
+        );
+      });
+      if (selectorMatch) {
+        selectedSubmitter = selectorMatch[1];
+      }
+    }
+
+    if (selectedSubmitter === explicitSubmissionStrategy.submitter) {
+      const targetMatch = entries.find(([overrideKey]) => {
+        const parsed = parseOverrideKey(overrideKey);
+        return (
+          !parsed.selector &&
+          normalizeAddressEvm(parsed.target) === normalizedTarget
+        );
+      });
+      if (targetMatch) {
+        selectedSubmitter = targetMatch[1];
+      }
     }
   } else {
     const match = overrides[to];
