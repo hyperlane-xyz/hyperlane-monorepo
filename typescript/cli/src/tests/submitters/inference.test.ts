@@ -2750,6 +2750,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       getLogs: sinon.stub().resolves([]),
     };
 
+    let registryReads = 0;
     const context = {
       multiProvider: {
         getProtocol: () => ProtocolType.Ethereum,
@@ -2758,6 +2759,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       },
       registry: {
         getAddresses: async () => {
+          registryReads += 1;
           throw new Error('registry unavailable');
         },
       },
@@ -2766,13 +2768,14 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [TX as any],
+        transactions: [TX as any, TX as any],
         context,
       });
 
       expect(batches).to.have.length(1);
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
       expect(provider.getLogs.callCount).to.equal(0);
+      expect(registryReads).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -3349,6 +3352,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         },
       } as any);
 
+    let registryReads = 0;
     const context = {
       multiProvider: {
         getProtocol: () => ProtocolType.Ethereum,
@@ -3357,6 +3361,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       },
       registry: {
         getAddresses: async () => {
+          registryReads += 1;
           throw new Error('registry unavailable');
         },
       },
@@ -3365,7 +3370,10 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [TX as any],
+        transactions: [
+          TX as any,
+          { ...TX, to: '0x9999999999999999999999999999999999999999' } as any,
+        ],
         context,
       });
 
@@ -3376,6 +3384,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(registryReads).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();

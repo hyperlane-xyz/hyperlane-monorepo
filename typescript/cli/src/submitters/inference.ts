@@ -165,9 +165,14 @@ async function getRegistryAddresses(
   if (cache.registryAddresses) {
     return cache.registryAddresses;
   }
-  const registryAddresses = await context.registry.getAddresses();
-  cache.registryAddresses = registryAddresses;
-  return registryAddresses;
+  try {
+    cache.registryAddresses = await context.registry.getAddresses();
+  } catch {
+    cache.registryAddresses = {} as Awaited<
+      ReturnType<WriteCommandContext['registry']['getAddresses']>
+    >;
+  }
+  return cache.registryAddresses;
 }
 
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
@@ -495,16 +500,7 @@ async function inferTimelockProposerSubmitter({
   const proposers = Array.from(granted).filter(
     (account) => !eqAddress(account, ethersConstants.AddressZero),
   );
-  let registryAddresses: Awaited<
-    ReturnType<WriteCommandContext['registry']['getAddresses']>
-  >;
-  try {
-    registryAddresses = await getRegistryAddresses(context, cache);
-  } catch {
-    registryAddresses = {} as Awaited<
-      ReturnType<WriteCommandContext['registry']['getAddresses']>
-    >;
-  }
+  const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationRouterAddress =
     registryAddresses[chain]?.interchainAccountRouter;
 
