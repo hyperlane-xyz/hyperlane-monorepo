@@ -76,12 +76,30 @@ function parseSemverPrefix(version: string): [number, number, number] {
   if (!match) {
     throw new Error(`Invalid Safe API version: ${version}`);
   }
-  const [majorPart, minorPart, patchPart] = [match[1], match[2], match[3]];
+  const [majorPart, minorPart, patchPart, prereleasePart] = [
+    match[1],
+    match[2],
+    match[3],
+    match[4],
+  ];
   const hasInvalidLeadingZero = [majorPart, minorPart, patchPart].some(
     (part) => part.length > 1 && part.startsWith('0'),
   );
   if (hasInvalidLeadingZero) {
     throw new Error(`Invalid Safe API version: ${version}`);
+  }
+  if (prereleasePart) {
+    const hasInvalidNumericPrereleaseIdentifier = prereleasePart
+      .split('.')
+      .some(
+        (identifier) =>
+          /^\d+$/.test(identifier) &&
+          identifier.length > 1 &&
+          identifier.startsWith('0'),
+      );
+    if (hasInvalidNumericPrereleaseIdentifier) {
+      throw new Error(`Invalid Safe API version: ${version}`);
+    }
   }
   const major = Number(majorPart);
   const minor = Number(minorPart);
