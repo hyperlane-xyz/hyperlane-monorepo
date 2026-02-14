@@ -13,7 +13,13 @@ import {
   getSquadProposal,
   parseSquadsProposalVoteErrorFromError,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import {
+  LogFormat,
+  LogLevel,
+  ProtocolType,
+  configureRootLogger,
+  rootLogger,
+} from '@hyperlane-xyz/utils';
 
 import {
   getSquadsMultiProtocolProvider,
@@ -24,6 +30,8 @@ import {
 
 // CLI argument parsing
 async function main() {
+  configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
   const { chain, transactionIndex } = await withTransactionIndex(
     withRequiredSquadsChain(yargs(process.argv.slice(2))),
   ).argv;
