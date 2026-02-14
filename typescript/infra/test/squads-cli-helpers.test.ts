@@ -16,6 +16,41 @@ import {
   withSquadsChains,
 } from '../scripts/squads/cli-helpers.js';
 
+const BUILTIN_ERROR_LABEL_CASES = [
+  {
+    label: 'Error',
+    createError: () => new Error(''),
+  },
+  {
+    label: 'TypeError',
+    createError: () => new TypeError(''),
+  },
+  {
+    label: 'RangeError',
+    createError: () => new RangeError(''),
+  },
+  {
+    label: 'ReferenceError',
+    createError: () => new ReferenceError(''),
+  },
+  {
+    label: 'SyntaxError',
+    createError: () => new SyntaxError(''),
+  },
+  {
+    label: 'URIError',
+    createError: () => new URIError(''),
+  },
+  {
+    label: 'EvalError',
+    createError: () => new EvalError(''),
+  },
+  {
+    label: 'AggregateError',
+    createError: () => new AggregateError([], ''),
+  },
+] as const;
+
 function parseArgs(args: Argv) {
   return args
     .exitProcess(false)
@@ -821,6 +856,21 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('uses placeholder for all bare built-in error-label string variants', () => {
+    for (const { label } of BUILTIN_ERROR_LABEL_CASES) {
+      expect(formatScriptError(label)).to.equal('[unformattable error value]');
+      expect(formatScriptError(`${label}:`)).to.equal(
+        '[unformattable error value]',
+      );
+      expect(formatScriptError(`  ${label} :   `)).to.equal(
+        '[unformattable error value]',
+      );
+      expect(formatScriptError(label.toLowerCase())).to.equal(
+        '[unformattable error value]',
+      );
+    }
+  });
+
   it('preserves custom Error-like string values', () => {
     expect(formatScriptError('RpcError')).to.equal('RpcError');
   });
@@ -973,6 +1023,28 @@ describe('squads cli helpers', () => {
     });
 
     expect(formatScriptError(error)).to.equal('[unformattable error instance]');
+  });
+
+  it('ignores bare built-in labels from Error stringification fallback', () => {
+    for (const { createError } of BUILTIN_ERROR_LABEL_CASES) {
+      const error = createError();
+      Object.defineProperty(error, 'stack', {
+        configurable: true,
+        get() {
+          return '';
+        },
+      });
+      Object.defineProperty(error, 'message', {
+        configurable: true,
+        get() {
+          return '';
+        },
+      });
+
+      expect(formatScriptError(error)).to.equal(
+        '[unformattable error instance]',
+      );
+    }
   });
 
   it('falls back for unformattable object errors', () => {
