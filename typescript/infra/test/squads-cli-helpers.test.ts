@@ -88,6 +88,23 @@ describe('squads cli helpers', () => {
     expect(parsedArgs.chains).to.deep.equal([chain]);
   });
 
+  it('deduplicates long-form chains while preserving first-seen order', async () => {
+    const [firstChain, secondChain] = getSquadsChains();
+
+    const parsedArgs = await withSquadsChains(
+      yargs([
+        '--chains',
+        firstChain,
+        '--chains',
+        secondChain,
+        '--chains',
+        firstChain,
+      ]),
+    ).parse();
+
+    expect(parsedArgs.chains).to.deep.equal([firstChain, secondChain]);
+  });
+
   it('parses chains from c alias and deduplicates', async () => {
     const [firstChain, secondChain] = getSquadsChains();
 
