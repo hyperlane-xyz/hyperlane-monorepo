@@ -424,11 +424,13 @@ describe('Anvil utils', () => {
         'kill ESRCH',
       ) as NodeJS.ErrnoException;
       missingProcessError.code = 'ESRCH';
+      let killCalled = false;
 
       const fakeProcess = {
         killed: false,
         exitCode: null,
         kill: () => {
+          killCalled = true;
           throw missingProcessError;
         },
         once: () => fakeProcess,
@@ -436,18 +438,24 @@ describe('Anvil utils', () => {
       } as unknown as NodeJS.Process;
 
       await stopLocalAnvilProcess(asChildProcess(fakeProcess));
+      expect(killCalled).to.equal(true);
     });
 
     it('treats an unsent signal as an already-stopped process', async () => {
+      let killCallCount = 0;
       const fakeProcess = {
         killed: false,
         exitCode: null,
-        kill: () => false,
+        kill: () => {
+          killCallCount += 1;
+          return false;
+        },
         once: () => fakeProcess,
         removeListener: () => fakeProcess,
       } as unknown as NodeJS.Process;
 
       await stopLocalAnvilProcess(asChildProcess(fakeProcess));
+      expect(killCallCount).to.equal(1);
     });
 
     it('resolves when process exits after SIGTERM', async () => {
