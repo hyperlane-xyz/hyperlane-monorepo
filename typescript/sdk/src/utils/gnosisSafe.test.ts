@@ -199,6 +199,15 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/tx-service/eth/api');
     });
 
+    it('preserves explicit non-default ports during normalization', () => {
+      expect(
+        normalizeSafeServiceUrl('https://safe.global:8443/tx-service/eth'),
+      ).to.equal('https://safe.global:8443/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl('safe.global:8443/tx-service/eth'),
+      ).to.equal('https://safe.global:8443/tx-service/eth/api');
+    });
+
     it('throws when a non-http scheme is provided explicitly', () => {
       expect(() => normalizeSafeServiceUrl('ftp://safe.global')).to.throw(
         'Safe tx service URL must use http(s): ftp://safe.global',
