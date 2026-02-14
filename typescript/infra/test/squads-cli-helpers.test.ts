@@ -814,8 +814,21 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('uses placeholder for spaced bare built-in error labels', () => {
+    expect(formatScriptError('Error :')).to.equal('[unformattable error value]');
+    expect(formatScriptError('TypeError :   ')).to.equal(
+      '[unformattable error value]',
+    );
+  });
+
   it('preserves custom Error-like string values', () => {
     expect(formatScriptError('RpcError')).to.equal('RpcError');
+  });
+
+  it('preserves detailed error messages with colons', () => {
+    expect(formatScriptError('Error : rpc failed')).to.equal(
+      'Error : rpc failed',
+    );
   });
 
   it('formats object errors via stable object stringification', () => {
