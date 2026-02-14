@@ -380,6 +380,51 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('records exactly one error when transaction account fetch fails', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<{ data: Buffer }>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => {
+      throw new Error(
+        'Transaction account not found at 11111111111111111111111111111111 on solanamainnet',
+      );
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Transaction account not found at 11111111111111111111111111111111 on solanamainnet',
+    );
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Transaction account not found at 11111111111111111111111111111111 on solanamainnet',
+      },
+    ]);
+  });
+
   it('looks up solana provider once per read attempt', async () => {
     let providerLookupCount = 0;
     const provider = {
