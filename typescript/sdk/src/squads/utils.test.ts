@@ -343,6 +343,19 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses placeholder when toBase58 throws generic-stringified Error values', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw createErrorWithGenericObjectStringification();
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal(
+        'failed to stringify key ([unstringifiable error])',
+      );
+    });
+
     it('rejects generic object identifiers returned by toBase58()', () => {
       expect(
         normalizeSquadsAddressValue({
