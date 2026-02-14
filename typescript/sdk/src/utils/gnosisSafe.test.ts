@@ -153,6 +153,17 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('  https://safe.global/tx-service/eth/api/  '),
       ).to.equal('https://safe.global/tx-service/eth/api');
     });
+
+    it('drops query and hash components during normalization', () => {
+      expect(
+        normalizeSafeServiceUrl(
+          'https://safe.global/tx-service/eth/api/?foo=bar#fragment',
+        ),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/tx-service/eth?foo=bar'),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+    });
   });
 
   describe(isLegacySafeApi.name, () => {

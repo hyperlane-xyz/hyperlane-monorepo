@@ -193,19 +193,33 @@ export function hasSafeServiceTransactionPayload(
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {
-  let normalized = txServiceUrl.trim().replace(/\/+$/, '');
+  const canonicalizePath = (path: string): string => {
+    let normalized = path.replace(/\/+$/, '');
 
-  // Normalize existing /api suffix regardless of case.
-  normalized = normalized.replace(/\/api$/i, '/api');
+    // Normalize existing /api suffix regardless of case.
+    normalized = normalized.replace(/\/api$/i, '/api');
 
-  // Some metadata may already point to a versioned API path (e.g. /api/v2).
-  // Canonicalize this to /api so downstream helpers can append /v2/... safely.
-  normalized = normalized.replace(/\/api\/v\d+$/i, '/api');
+    // Some metadata may already point to a versioned API path (e.g. /api/v2).
+    // Canonicalize this to /api so downstream helpers can append /v2/... safely.
+    normalized = normalized.replace(/\/api\/v\d+$/i, '/api');
 
-  if (normalized.endsWith('/api')) {
-    return normalized;
+    if (normalized.endsWith('/api')) {
+      return normalized;
+    }
+    return `${normalized}/api`;
+  };
+
+  const trimmedUrl = txServiceUrl.trim();
+  try {
+    const parsed = new URL(trimmedUrl);
+    parsed.search = '';
+    parsed.hash = '';
+    parsed.pathname = canonicalizePath(parsed.pathname);
+    return parsed.toString();
+  } catch {
+    // Fall back to string normalization for non-URL inputs.
+    return canonicalizePath(trimmedUrl);
   }
-  return `${normalized}/api`;
 }
 
 function getSafeTxServiceUrl(
