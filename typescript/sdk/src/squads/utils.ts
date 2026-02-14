@@ -119,6 +119,24 @@ const SQUADS_ERROR_LOG_ARRAY_FIELDS = [
 ] as const;
 const SQUADS_ERROR_STRING_ARRAY_FIELDS = ['errors'] as const;
 const SQUADS_ERROR_STRING_FIELDS = ['cause', 'error', 'originalError'] as const;
+const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
+  ...SQUADS_ERROR_LOG_ARRAY_FIELDS,
+  ...SQUADS_ERROR_STRING_ARRAY_FIELDS,
+]);
+
+function tokenizeFieldName(fieldName: string): string[] {
+  return fieldName
+    .replace(/([a-z])([A-Z])/g, '$1_$2')
+    .replace(/[^a-zA-Z0-9]+/g, '_')
+    .toLowerCase()
+    .split('_')
+    .filter((token) => token.length > 0);
+}
+
+function isLikelyLogArrayFieldName(fieldName: string): boolean {
+  const tokens = tokenizeFieldName(fieldName);
+  return tokens.includes('log') || tokens.includes('logs');
+}
 
 function parseSquadsProposalVoteErrorText(
   logsText: string,
@@ -235,10 +253,10 @@ export function parseSquadsProposalVoteErrorFromError(
     }
 
     for (const [key, nestedValue] of Object.entries(currentRecord)) {
-      const isKnownArrayField =
-        (SQUADS_ERROR_LOG_ARRAY_FIELDS as readonly string[]).includes(key) ||
-        (SQUADS_ERROR_STRING_ARRAY_FIELDS as readonly string[]).includes(key);
-      if (!isKnownArrayField && key.toLowerCase().includes('log')) {
+      if (
+        !SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES.has(key) &&
+        isLikelyLogArrayFieldName(key)
+      ) {
         const parsedError =
           parseSquadsProposalVoteErrorFromUnknownArray(nestedValue);
         if (parsedError) return parsedError;

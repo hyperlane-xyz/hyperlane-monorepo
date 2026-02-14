@@ -426,6 +426,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from snake_case log-like array keys', () => {
+      const error = {
+        payload: {
+          program_logs: ['custom program error: 0x177a'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from arbitrary nested wrapper keys', () => {
       const error = {
         metadata: {
@@ -445,6 +456,15 @@ describe('squads utils', () => {
       const error = {
         metadata: {
           note: 'diagnostic 0x177a identifier',
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
+    });
+
+    it('ignores non-log array keys that only contain log as substring', () => {
+      const error = {
+        metadata: {
+          catalog: ['custom program error: 0x177b'],
         },
       };
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
