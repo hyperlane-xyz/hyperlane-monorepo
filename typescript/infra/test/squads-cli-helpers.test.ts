@@ -145,6 +145,20 @@ describe('squads cli helpers', () => {
     ).to.deep.equal([firstChain, secondChain]);
   });
 
+  it('resolves frozen argv chains arrays without mutating input', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    const argvChains = Object.freeze([
+      firstChain,
+      secondChain,
+      firstChain,
+    ]) as readonly unknown[];
+
+    expect(resolveSquadsChainsFromArgv(argvChains)).to.deep.equal([
+      firstChain,
+      secondChain,
+    ]);
+  });
+
   it('normalizes duplicate argv chain string values before resolving', () => {
     const [firstChain] = getSquadsChains();
     expect(
