@@ -16,7 +16,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
 import { ChainName } from '../types.js';
 
-import { getSquadsKeys, squadsConfigs } from './config.js';
+import { getSquadsKeys } from './config.js';
 
 type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
@@ -132,11 +132,6 @@ export async function getPendingProposalsForChains(
 
   await Promise.all(
     chains.map(async (chain) => {
-      if (!squadsConfigs[chain]) {
-        rootLogger.error(`No squads config found for ${chain}`);
-        return;
-      }
-
       try {
         const { svmProvider, multisigPda } = await getSquadAndProvider(
           chain,

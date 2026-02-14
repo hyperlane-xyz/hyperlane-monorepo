@@ -6,7 +6,6 @@ import {
   SquadsProposalStatus,
   getSquadProposal,
   getSquadsKeys,
-  squadsConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -39,23 +38,14 @@ async function main() {
     .choices('chain', getSquadsChains())
     .demandOption('chain').argv;
 
-  if (!squadsConfigs[chain]) {
-    rootLogger.error(
-      chalk.red.bold(`No squads config found for chain: ${chain}`),
-    );
-    rootLogger.info(
-      chalk.gray('Available chains:'),
-      getSquadsChains().join(', '),
-    );
-    process.exit(1);
-  }
-
   rootLogger.info(chalk.blue.bold('🔍 Squads Proposal Reader'));
   rootLogger.info(
     chalk.blue(`Reading proposal ${transactionIndex} on chain: ${chain}`),
   );
 
   try {
+    getSquadsKeys(chain);
+
     const envConfig = getEnvironmentConfig(environment);
     const mpp = await envConfig.getMultiProtocolProvider();
 
@@ -237,6 +227,15 @@ async function main() {
     );
   } catch (error) {
     rootLogger.error(chalk.red.bold('❌ Error reading proposal:'));
+    if (
+      error instanceof Error &&
+      error.message.startsWith('Squads config not found on chain')
+    ) {
+      rootLogger.info(
+        chalk.gray('Available chains:'),
+        getSquadsChains().join(', '),
+      );
+    }
     rootLogger.error(chalk.red(error));
     process.exit(1);
   }
