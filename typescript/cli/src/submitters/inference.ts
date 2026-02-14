@@ -166,7 +166,10 @@ async function getRegistryAddresses(
     return cache.registryAddresses;
   }
   try {
-    cache.registryAddresses = await context.registry.getAddresses();
+    const registryAddresses = await context.registry.getAddresses();
+    cache.registryAddresses = (registryAddresses ?? {}) as Awaited<
+      ReturnType<WriteCommandContext['registry']['getAddresses']>
+    >;
   } catch {
     cache.registryAddresses = {} as Awaited<
       ReturnType<WriteCommandContext['registry']['getAddresses']>
