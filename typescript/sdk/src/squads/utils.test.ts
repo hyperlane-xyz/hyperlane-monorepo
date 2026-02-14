@@ -291,6 +291,21 @@ describe('squads utils', () => {
         ),
       ).to.equal(false);
     });
+
+    it('handles unstringifiable error objects safely', () => {
+      const unstringifiableError = {
+        [Symbol.toPrimitive]() {
+          throw new Error('cannot stringify');
+        },
+      };
+
+      expect(() =>
+        isLikelyMissingSquadsAccountError(unstringifiableError),
+      ).to.not.throw();
+      expect(isLikelyMissingSquadsAccountError(unstringifiableError)).to.equal(
+        false,
+      );
+    });
   });
 
   describe(assertValidTransactionIndexInput.name, () => {

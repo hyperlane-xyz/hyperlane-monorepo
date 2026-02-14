@@ -574,8 +574,9 @@ export async function getSquadProposal(
 
     return { ...proposalData, multisig };
   } catch (error) {
+    const errorText = formatUnknownErrorForMessage(error);
     rootLogger.warn(
-      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
+      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${errorText}`,
     );
     return undefined;
   }
@@ -615,7 +616,7 @@ export async function getSquadProposalAccount(
 
     return { proposal, proposalPda, multisigPda, programId };
   } catch (error) {
-    const errorText = String(error);
+    const errorText = formatUnknownErrorForMessage(error);
     if (isLikelyMissingSquadsAccountError(error)) {
       rootLogger.debug(
         `Proposal ${transactionIndex} on ${chain} was not found: ${errorText}`,
@@ -631,7 +632,7 @@ export async function getSquadProposalAccount(
 }
 
 export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
-  const normalizedErrorText = String(error).toLowerCase();
+  const normalizedErrorText = formatUnknownErrorForMessage(error).toLowerCase();
   return LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS.some((pattern) =>
     normalizedErrorText.includes(pattern),
   );
@@ -766,15 +767,17 @@ export async function getPendingProposalsForChains(
               submissionDate,
             });
           } catch (error) {
+            const errorText = formatUnknownErrorForMessage(error);
             rootLogger.debug(
-              `Skipping proposal ${i} on ${chain} due to error: ${String(error)}`,
+              `Skipping proposal ${i} on ${chain} due to error: ${errorText}`,
             );
             continue;
           }
         }
       } catch (error) {
+        const errorText = formatUnknownErrorForMessage(error);
         rootLogger.warn(
-          `Skipping chain ${chain} as there was an error getting the squads data: ${error}`,
+          `Skipping chain ${chain} as there was an error getting the squads data: ${errorText}`,
         );
         return;
       }
