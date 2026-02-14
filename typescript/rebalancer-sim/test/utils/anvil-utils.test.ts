@@ -562,6 +562,30 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('matches runtime errors in array wrappers with errors fallbacks when wrapper formatting is non-informative', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const arrayWrapper = Object.assign([{ message: 'noise-entry' }], {
+        errors: { message: 'Cannot connect to the Docker daemon' },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'array wrapper without nested details';
+        },
+      });
+      const wrappedError = {
+        errors: arrayWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches runtime errors in set wrappers with cause fallbacks when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const setWrapper = Object.assign(
