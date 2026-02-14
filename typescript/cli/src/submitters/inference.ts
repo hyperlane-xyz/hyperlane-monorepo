@@ -116,6 +116,23 @@ function cacheKey(chain: ChainName, address: Address): string {
   return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
+function compareLogsByPosition(
+  a: { blockNumber?: number; transactionIndex?: number; logIndex?: number },
+  b: { blockNumber?: number; transactionIndex?: number; logIndex?: number },
+): number {
+  const blockDiff = (a.blockNumber ?? -1) - (b.blockNumber ?? -1);
+  if (blockDiff !== 0) {
+    return blockDiff;
+  }
+
+  const txIndexDiff = (a.transactionIndex ?? -1) - (b.transactionIndex ?? -1);
+  if (txIndexDiff !== 0) {
+    return txIndexDiff;
+  }
+
+  return (a.logIndex ?? -1) - (b.logIndex ?? -1);
+}
+
 async function hasSignerForChain(
   context: WriteCommandContext,
   cache: Cache,
@@ -414,7 +431,7 @@ async function inferIcaSubmitterFromAccount({
     logs = [];
   }
 
-  const lastLog = logs[logs.length - 1];
+  const lastLog = [...logs].sort(compareLogsByPosition).at(-1);
   if (!lastLog) {
     // Fall back to deriving the ICA from signer owner and known routers,
     // to support routes where the ICA has not been deployed yet.
@@ -656,26 +673,7 @@ async function inferTimelockProposerSubmitter({
   const roleLogs = [
     ...grantedLogs.map((log) => ({ log, isGrant: true })),
     ...revokedLogs.map((log) => ({ log, isGrant: false })),
-  ].sort((a, b) => {
-    const blockDiff =
-      (a.log.blockNumber ?? Number.MAX_SAFE_INTEGER) -
-      (b.log.blockNumber ?? Number.MAX_SAFE_INTEGER);
-    if (blockDiff !== 0) {
-      return blockDiff;
-    }
-
-    const txIndexDiff =
-      (a.log.transactionIndex ?? Number.MAX_SAFE_INTEGER) -
-      (b.log.transactionIndex ?? Number.MAX_SAFE_INTEGER);
-    if (txIndexDiff !== 0) {
-      return txIndexDiff;
-    }
-
-    return (
-      (a.log.logIndex ?? Number.MAX_SAFE_INTEGER) -
-      (b.log.logIndex ?? Number.MAX_SAFE_INTEGER)
-    );
-  });
+  ].sort((a, b) => compareLogsByPosition(a.log, b.log));
 
   const granted = new Set<Address>();
   for (const roleLog of roleLogs) {
