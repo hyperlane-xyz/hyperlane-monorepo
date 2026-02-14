@@ -34,6 +34,32 @@ function withVerbose<T>(args: Argv<T>) {
     .alias('v', 'verbose');
 }
 
+function describeValueForLog(value: unknown): string {
+  if (value === null) {
+    return 'null';
+  }
+
+  switch (typeof value) {
+    case 'undefined':
+    case 'boolean':
+    case 'number':
+    case 'bigint':
+    case 'symbol':
+      return String(value);
+    case 'string':
+      return value.length > 80 ? `${value.slice(0, 77)}...` : value;
+    case 'function':
+      return '[function]';
+    case 'object':
+      if (Array.isArray(value)) {
+        return `[array(length=${value.length})]`;
+      }
+      return Object.prototype.toString.call(value);
+    default:
+      return String(value);
+  }
+}
+
 function toBase58IfPossible(
   value: unknown,
   label: string,
@@ -68,7 +94,7 @@ function toBase58IfPossible(
   if (!value || typeof value !== 'object') {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping ${labelWithIndex} on ${chain}: expected object with toBase58(), got ${String(value)}`,
+        `Skipping ${labelWithIndex} on ${chain}: expected object with toBase58(), got ${describeValueForLog(value)}`,
       ),
     );
     return undefined;
@@ -141,7 +167,7 @@ function formatMultisigMemberKey(
   if (!member || typeof member !== 'object') {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping multisig member[${index}] on ${chain}: expected object, got ${String(member)}`,
+        `Skipping multisig member[${index}] on ${chain}: expected object, got ${describeValueForLog(member)}`,
       ),
     );
     return undefined;
