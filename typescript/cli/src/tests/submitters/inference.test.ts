@@ -3643,6 +3643,123 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('handles ICA event logs with missing positional fields deterministically', async () => {
+    const inferredIcaOwner = '0x8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a8a';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+    const originRouterAddress = '0x9191919191919191919191919191919191919191';
+    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
+      2,
+    )}` as const;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const logWithMissingIndices = {
+      topics: ['0xmissing-indices'],
+      data: '0x',
+      blockNumber: undefined,
+      transactionIndex: undefined,
+      logIndex: undefined,
+    };
+    const fullyIndexedLog = {
+      topics: ['0xindexed'],
+      data: '0x',
+      blockNumber: 202,
+      transactionIndex: 1,
+      logIndex: 1,
+    };
+    const provider = {
+      // unsorted with partial data first
+      getLogs: sinon.stub().resolves([logWithMissingIndices, fullyIndexedLog]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== destinationRouterAddress.toLowerCase()) {
+          throw new Error('unexpected router');
+        }
+
+        return {
+          filters: {
+            InterchainAccountCreated: (_accountAddress: string) => ({}),
+          },
+          interface: {
+            parseLog: (log: any) => {
+              if (log === fullyIndexedLog) {
+                return {
+                  args: {
+                    origin: 31347,
+                    router: originRouterBytes32,
+                    owner: signerBytes32,
+                    ism: ethersConstants.AddressZero,
+                  },
+                };
+              }
+              return {
+                args: {
+                  origin: 999999,
+                  router: originRouterBytes32,
+                  owner: signerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              };
+            },
+          },
+        } as any;
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) {
+            return 'anvil3';
+          }
+          throw new Error(`unknown domain ${domainId}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('uses jsonRpc internal submitter when ICA event-derived origin signer lookup fails', async () => {
     const inferredIcaOwner = '0x6868686868686868686868686868686868686868';
     const destinationRouterAddress =
