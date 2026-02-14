@@ -1717,6 +1717,73 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches zero owner reads while still using from-based fallback inference', async () => {
+    const fromSafe = '0x4444444444444444444444444444444444444444';
+    let ownerReads = 0;
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => {
+        ownerReads += 1;
+        return ethersConstants.AddressZero;
+      },
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== fromSafe.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          {
+            ...TX,
+            from: fromSafe,
+          } as any,
+          {
+            ...TX,
+            from: fromSafe,
+            data: '0xdeadbeef',
+          } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownerReads).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('normalizes owner address from ownable read before submitter inference', async () => {
     const safeOwner = '0x4444444444444444444444444444444444444444';
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
