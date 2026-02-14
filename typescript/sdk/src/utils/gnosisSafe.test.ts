@@ -166,6 +166,7 @@ describe('gnosisSafe utils', () => {
           'https://safe-transaction-mainnet.safe.global/path%2Esegment/api',
         ),
       ).to.equal(true);
+      expect(safeApiKeyRequired('https://safe.global/路径/api')).to.equal(true);
       expect(
         safeApiKeyRequired(
           'http://safe-transaction-mainnet.safe.global/path@foo/api',
@@ -222,6 +223,9 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired(
           'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
         ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('https://safe-transaction-mainnet.5afe.dev/путь'),
       ).to.equal(true);
       expect(
         safeApiKeyRequired('safe-transaction-mainnet.5afe.dev/path%25255cfoo'),
@@ -1188,6 +1192,11 @@ describe('gnosisSafe utils', () => {
         expect(safeApiKeyRequired(`https://${authority}/api`)).to.equal(false);
         expect(safeApiKeyRequired(`//${authority}/api`)).to.equal(false);
         expect(safeApiKeyRequired(authority)).to.equal(false);
+        expect(safeApiKeyRequired(`https://${authority}:443/api`)).to.equal(
+          false,
+        );
+        expect(safeApiKeyRequired(`//${authority}:443/api`)).to.equal(false);
+        expect(safeApiKeyRequired(`${authority}:443`)).to.equal(false);
       }
     });
 
@@ -1294,6 +1303,16 @@ describe('gnosisSafe utils', () => {
         ),
       ).to.equal(
         'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
+      );
+      expect(normalizeSafeServiceUrl('https://safe.global/路径/api')).to.equal(
+        'https://safe.global/%E8%B7%AF%E5%BE%84/api',
+      );
+      expect(
+        normalizeSafeServiceUrl(
+          'https://safe-transaction-mainnet.5afe.dev/путь',
+        ),
+      ).to.equal(
+        'https://safe-transaction-mainnet.5afe.dev/%D0%BF%D1%83%D1%82%D1%8C/api',
       );
     });
 
@@ -2787,6 +2806,9 @@ describe('gnosisSafe utils', () => {
       for (const authority of unicodeDotAuthorities) {
         const explicitUrl = `https://${authority}/api`;
         const schemeRelativeUrl = `//${authority}/api`;
+        const explicitPortUrl = `https://${authority}:443/api`;
+        const schemeRelativePortUrl = `//${authority}:443/api`;
+        const hostOnlyPortUrl = `${authority}:443`;
 
         expect(() => normalizeSafeServiceUrl(explicitUrl)).to.throw(
           `Safe tx service URL is invalid: ${explicitUrl}`,
@@ -2796,6 +2818,15 @@ describe('gnosisSafe utils', () => {
         );
         expect(() => normalizeSafeServiceUrl(authority)).to.throw(
           `Safe tx service URL is invalid: ${authority}`,
+        );
+        expect(() => normalizeSafeServiceUrl(explicitPortUrl)).to.throw(
+          `Safe tx service URL is invalid: ${explicitPortUrl}`,
+        );
+        expect(() => normalizeSafeServiceUrl(schemeRelativePortUrl)).to.throw(
+          `Safe tx service URL is invalid: ${schemeRelativePortUrl}`,
+        );
+        expect(() => normalizeSafeServiceUrl(hostOnlyPortUrl)).to.throw(
+          `Safe tx service URL is invalid: ${hostOnlyPortUrl}`,
         );
       }
     });
