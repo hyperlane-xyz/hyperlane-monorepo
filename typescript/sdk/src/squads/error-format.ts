@@ -41,6 +41,7 @@ export function normalizeStringifiedSquadsError(
 export interface StringifyUnknownSquadsErrorOptions {
   preferErrorMessageForErrorInstances?: boolean;
   preferErrorStackForErrorInstances?: boolean;
+  formatObject?: (value: object) => string | undefined;
   placeholder?: string;
 }
 
@@ -53,6 +54,7 @@ export function stringifyUnknownSquadsError(
     options.preferErrorMessageForErrorInstances === true;
   const preferErrorStackForErrorInstances =
     options.preferErrorStackForErrorInstances === true;
+  const formatObject = options.formatObject;
 
   if (error instanceof Error) {
     if (preferErrorStackForErrorInstances) {
@@ -108,6 +110,19 @@ export function stringifyUnknownSquadsError(
         }
       }
     } catch {}
+
+    if (typeof formatObject === 'function') {
+      try {
+        const formattedObject = formatObject(error);
+        if (typeof formattedObject === 'string') {
+          const normalizedFormattedObject =
+            normalizeStringifiedSquadsError(formattedObject);
+          if (normalizedFormattedObject) {
+            return normalizedFormattedObject;
+          }
+        }
+      } catch {}
+    }
   }
 
   try {

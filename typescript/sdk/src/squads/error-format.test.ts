@@ -142,5 +142,32 @@ describe('squads error-format', () => {
         }),
       ).to.equal('[fallback]');
     });
+
+    it('supports object formatter callbacks for plain objects', () => {
+      expect(
+        stringifyUnknownSquadsError({ foo: 'bar' }, {
+          formatObject(value) {
+            return JSON.stringify(value);
+          },
+        }),
+      ).to.equal('{"foo":"bar"}');
+    });
+
+    it('falls back when object formatter throws', () => {
+      const formatted = stringifyUnknownSquadsError(
+        {
+          toString() {
+            return 'custom object error';
+          },
+        },
+        {
+          formatObject() {
+            throw new Error('cannot serialize');
+          },
+        },
+      );
+
+      expect(formatted).to.equal('custom object error');
+    });
   });
 });

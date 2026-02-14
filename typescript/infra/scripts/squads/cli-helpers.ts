@@ -7,7 +7,6 @@ import {
   SquadProposalStatus,
   SquadsChainName,
   getSquadsChains,
-  normalizeStringifiedSquadsError,
   resolveSquadsChains as resolveSquadsChainsFromSdk,
   stringifyUnknownSquadsError,
 } from '@hyperlane-xyz/sdk';
@@ -271,48 +270,25 @@ export function formatScriptError(error: unknown): string {
   }
 
   if (typeof error === 'string') {
-    const normalizedError = normalizeStringifiedSquadsError(error);
-    return normalizedError ?? '[unformattable error value]';
+    return stringifyUnknownSquadsError(error, {
+      placeholder: '[unformattable error value]',
+    });
   }
 
   if (error && typeof error === 'object') {
-    try {
-      const stack = (error as { stack?: unknown }).stack;
-      if (typeof stack === 'string') {
-        const normalizedStack = normalizeStringifiedSquadsError(stack);
-        if (normalizedStack) {
-          return normalizedStack;
+    return stringifyUnknownSquadsError(error, {
+      placeholder: '[unformattable error object]',
+      formatObject(value) {
+        try {
+          return stringifyObject(value);
+        } catch {
+          return undefined;
         }
-      }
-    } catch {}
-
-    try {
-      const message = (error as { message?: unknown }).message;
-      if (typeof message === 'string') {
-        const normalizedMessage = normalizeStringifiedSquadsError(message);
-        if (normalizedMessage) {
-          return normalizedMessage;
-        }
-      }
-    } catch {}
-
-    try {
-      return stringifyObject(error);
-    } catch {}
-
-    try {
-      const normalizedError = normalizeStringifiedSquadsError(String(error));
-      if (normalizedError) return normalizedError;
-    } catch {}
-
-    return '[unformattable error object]';
+      },
+    });
   }
 
-  try {
-    const normalizedError = normalizeStringifiedSquadsError(String(error));
-    if (normalizedError) return normalizedError;
-    return '[unformattable error value]';
-  } catch {
-    return '[unformattable error value]';
-  }
+  return stringifyUnknownSquadsError(error, {
+    placeholder: '[unformattable error value]',
+  });
 }
