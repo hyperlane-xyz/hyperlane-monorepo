@@ -261,7 +261,19 @@ export function logProposals(
 
 export function formatScriptError(error: unknown): string {
   if (error instanceof Error) {
-    return error.stack ?? error.message;
+    try {
+      if (typeof error.stack === 'string' && error.stack.length > 0) {
+        return error.stack;
+      }
+    } catch {}
+
+    try {
+      if (typeof error.message === 'string' && error.message.length > 0) {
+        return error.message;
+      }
+    } catch {}
+
+    return '[unformattable error instance]';
   }
 
   if (typeof error === 'string') {

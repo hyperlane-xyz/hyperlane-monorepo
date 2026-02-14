@@ -704,6 +704,24 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(error)).to.equal('boom');
   });
 
+  it('falls back for Error values with unformattable stack and message', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        throw new Error('stack unavailable');
+      },
+    });
+    Object.defineProperty(error, 'message', {
+      configurable: true,
+      get() {
+        throw new Error('message unavailable');
+      },
+    });
+
+    expect(formatScriptError(error)).to.equal('[unformattable error instance]');
+  });
+
   it('formats string errors unchanged', () => {
     expect(formatScriptError('oops')).to.equal('oops');
   });
