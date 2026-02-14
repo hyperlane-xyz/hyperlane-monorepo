@@ -3465,6 +3465,58 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when safe sdk instance is non-object', async () => {
+      try {
+        await createSafeTransaction(
+          123 as unknown as Parameters<typeof createSafeTransaction>[0],
+          exampleTransactions,
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK instance must be an object: 123',
+        );
+      }
+    });
+
+    it('throws when safe sdk createTransaction accessor is inaccessible', async () => {
+      const safeSdkWithThrowingAccessor = {
+        get createTransaction() {
+          throw new Error('boom');
+        },
+      };
+
+      try {
+        await createSafeTransaction(
+          safeSdkWithThrowingAccessor as unknown as Parameters<
+            typeof createSafeTransaction
+          >[0],
+          exampleTransactions,
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK createTransaction accessor is inaccessible',
+        );
+      }
+    });
+
+    it('throws when safe sdk createTransaction is not a function', async () => {
+      try {
+        await createSafeTransaction(
+          {
+            createTransaction: 'bad',
+          } as unknown as Parameters<typeof createSafeTransaction>[0],
+          exampleTransactions,
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK createTransaction must be a function: bad',
+        );
+      }
+    });
+
     it('throws when transaction list length access is inaccessible', async () => {
       const transactionsWithThrowingLength = new Proxy(exampleTransactions, {
         get(target, property, receiver) {

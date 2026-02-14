@@ -975,6 +975,24 @@ export async function createSafeTransaction(
   onlyCalls?: boolean,
   nonce?: number,
 ): Promise<SafeTransaction> {
+  const safeSdkObject =
+    safeSdk !== null && typeof safeSdk === 'object'
+      ? (safeSdk as { createTransaction?: unknown })
+      : undefined;
+  assert(
+    safeSdkObject,
+    `Safe SDK instance must be an object: ${stringifyValueForError(safeSdk)}`,
+  );
+  let createTransaction: unknown;
+  try {
+    ({ createTransaction } = safeSdkObject);
+  } catch {
+    throw new Error('Safe SDK createTransaction accessor is inaccessible');
+  }
+  assert(
+    typeof createTransaction === 'function',
+    `Safe SDK createTransaction must be a function: ${stringifyValueForError(createTransaction)}`,
+  );
   assert(
     Array.isArray(transactions),
     `Safe transaction list must be an array: ${stringifyValueForError(transactions)}`,
@@ -1001,7 +1019,7 @@ export async function createSafeTransaction(
       `Safe transaction nonce must be a non-negative safe integer: ${stringifyValueForError(nonce)}`,
     );
   }
-  return safeSdk.createTransaction({
+  return createTransaction.call(safeSdkObject, {
     transactions,
     onlyCalls,
     ...(nonce !== undefined ? { options: { nonce: Number(nonce) } } : {}),
