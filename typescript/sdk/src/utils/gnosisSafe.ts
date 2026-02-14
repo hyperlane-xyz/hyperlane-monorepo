@@ -1149,11 +1149,7 @@ export async function proposeSafeTransaction(
   safeAddress: Address,
   signer: ethers.Signer,
 ): Promise<void> {
-  assert(
-    ethers.utils.isAddress(safeAddress),
-    `Safe address must be valid: ${stringifyValueForError(safeAddress)}`,
-  );
-  const normalizedSafeAddress = getAddress(safeAddress);
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
   const safeSdkObject =
     safeSdk !== null && typeof safeSdk === 'object'
       ? (safeSdk as {
@@ -1393,11 +1389,7 @@ export async function deleteSafeTx(
   safeTxHash: unknown,
 ): Promise<void> {
   const normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
-  assert(
-    typeof safeAddress === 'string' && ethers.utils.isAddress(safeAddress),
-    `Safe address must be valid: ${stringifyValueForError(safeAddress)}`,
-  );
-  const normalizedSafeAddress = getAddress(safeAddress);
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
   const signer = multiProvider.getSigner(chain);
   const chainId = multiProvider.getEvmChainId(chain);
   if (!chainId) {
@@ -1515,9 +1507,10 @@ export async function deleteAllPendingSafeTxs(
   multiProvider: MultiProvider,
   safeAddress: Address,
 ): Promise<void> {
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
   const headers = getSafeServiceHeaders(chain, multiProvider);
-  const pendingTxsUrl = `${txServiceUrl}/v2/safes/${safeAddress}/multisig-transactions/?executed=false&limit=100`;
+  const pendingTxsUrl = `${txServiceUrl}/v2/safes/${normalizedSafeAddress}/multisig-transactions/?executed=false&limit=100`;
   const pendingTxsResponse = await fetch(pendingTxsUrl, {
     method: 'GET',
     headers,
@@ -1525,19 +1518,74 @@ export async function deleteAllPendingSafeTxs(
 
   if (!pendingTxsResponse.ok) {
     rootLogger.error(
-      chalk.red(`Failed to fetch pending transactions for ${safeAddress}`),
+      chalk.red(
+        `Failed to fetch pending transactions for ${normalizedSafeAddress}`,
+      ),
     );
     return;
   }
 
-  const pendingTxs =
-    (await pendingTxsResponse.json()) as SafeServicePendingTransactionsResponse;
-  for (const tx of pendingTxs.results) {
-    await deleteSafeTx(chain, multiProvider, safeAddress, tx.safeTxHash);
+  const pendingTxs = (await pendingTxsResponse.json()) as unknown;
+  assert(
+    pendingTxs !== null && typeof pendingTxs === 'object',
+    `Pending Safe transactions payload must be an object: ${stringifyValueForError(pendingTxs)}`,
+  );
+  let pendingTxResults: unknown;
+  try {
+    pendingTxResults = (pendingTxs as SafeServicePendingTransactionsResponse)
+      .results;
+  } catch {
+    throw new Error('Pending Safe transactions list is inaccessible');
+  }
+  assert(
+    Array.isArray(pendingTxResults),
+    `Pending Safe transactions list must be an array: ${stringifyValueForError(pendingTxResults)}`,
+  );
+
+  for (let index = 0; index < pendingTxResults.length; index += 1) {
+    let pendingTxEntry: unknown;
+    try {
+      pendingTxEntry = pendingTxResults[index];
+    } catch {
+      throw new Error(
+        `Pending Safe transaction entry is inaccessible at index ${index}`,
+      );
+    }
+    assert(
+      pendingTxEntry !== null && typeof pendingTxEntry === 'object',
+      `Pending Safe transaction entry must be an object at index ${index}: ${stringifyValueForError(pendingTxEntry)}`,
+    );
+    let pendingTxHash: unknown;
+    try {
+      pendingTxHash = (pendingTxEntry as { safeTxHash?: unknown }).safeTxHash;
+    } catch {
+      throw new Error(
+        `Pending Safe transaction hash is inaccessible at index ${index}`,
+      );
+    }
+    assert(
+      typeof pendingTxHash === 'string',
+      `Pending Safe transaction hash must be a string at index ${index}: ${stringifyValueForError(pendingTxHash)}`,
+    );
+    try {
+      await deleteSafeTx(
+        chain,
+        multiProvider,
+        normalizedSafeAddress,
+        pendingTxHash,
+      );
+    } catch (error) {
+      rootLogger.error(
+        chalk.red(
+          `Failed to delete pending transaction ${pendingTxHash} on ${chain}`,
+        ),
+        error,
+      );
+    }
   }
 
   rootLogger.info(
-    `Deleted all pending transactions on ${chain} for ${safeAddress}\n`,
+    `Deleted all pending transactions on ${chain} for ${normalizedSafeAddress}\n`,
   );
 }
 
@@ -1952,6 +2000,14 @@ export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {
     : `0x${lowerCaseHex}`;
   assert(isHex(prefixedHex), normalizedInvalidErrorMessage);
   return prefixedHex as Hex;
+}
+
+function normalizeSafeAddress(safeAddress: unknown): Address {
+  assert(
+    typeof safeAddress === 'string' && ethers.utils.isAddress(safeAddress),
+    `Safe address must be valid: ${stringifyValueForError(safeAddress)}`,
+  );
+  return getAddress(safeAddress);
 }
 
 function normalizeSafeTxHash(safeTxHash: unknown): Hex {

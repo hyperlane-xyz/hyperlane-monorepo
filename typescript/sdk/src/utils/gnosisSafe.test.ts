@@ -7,6 +7,7 @@ import {
   asHex,
   createSafeTransaction,
   createSafeTransactionData,
+  deleteAllPendingSafeTxs,
   deleteSafeTx,
   decodeMultiSendData,
   getSafeTx,
@@ -5312,6 +5313,160 @@ describe('gnosisSafe utils', () => {
           signature: `0x${'11'.repeat(65)}`,
         }),
       );
+    });
+
+    it('deleteAllPendingSafeTxs throws for invalid safe address before metadata/network calls', async () => {
+      let fetchCalled = false;
+      let getChainMetadataCalled = false;
+      globalThis.fetch = (async () => {
+        fetchCalled = true;
+        throw new Error('fetch should not be called');
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => {
+          getChainMetadataCalled = true;
+          return {
+            gnosisSafeTransactionServiceUrl:
+              'https://safe-transaction-mainnet.safe.global/api',
+          };
+        },
+      } as unknown as Parameters<typeof deleteAllPendingSafeTxs>[1];
+
+      try {
+        await deleteAllPendingSafeTxs(
+          'test',
+          multiProviderMock,
+          'bad' as unknown as Parameters<typeof deleteAllPendingSafeTxs>[2],
+        );
+        expect.fail('Expected deleteAllPendingSafeTxs to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe address must be valid: bad',
+        );
+      }
+
+      expect(getChainMetadataCalled).to.equal(false);
+      expect(fetchCalled).to.equal(false);
+    });
+
+    it('deleteAllPendingSafeTxs canonicalizes safe address and continues on invalid pending hashes', async () => {
+      const mixedCaseSafeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+      const normalizedSafeAddress = getAddress(mixedCaseSafeAddress);
+      const mixedCaseHash = `0X${'AA'.repeat(32)}`;
+      const normalizedHash = `0x${'aa'.repeat(32)}`;
+      const proposerAddress = '0x00000000000000000000000000000000000000AA';
+      let typedDataDomain: Record<string, unknown> | undefined;
+      let typedDataMessage: Record<string, unknown> | undefined;
+      let deleteBody: string | undefined;
+      const requestUrls: string[] = [];
+
+      const signerMock = {
+        getAddress: async () => proposerAddress,
+        _signTypedData: async (
+          domain: Record<string, unknown>,
+          _types: Record<string, unknown>,
+          message: Record<string, unknown>,
+        ) => {
+          typedDataDomain = domain;
+          typedDataMessage = message;
+          return `0x${'22'.repeat(65)}`;
+        },
+      };
+
+      globalThis.fetch = (async (
+        input: RequestInfo | URL,
+        init?: RequestInit,
+      ) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        requestUrls.push(url);
+        if (requestUrls.length === 1) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({
+              results: [
+                { safeTxHash: 'bad-hash' },
+                { safeTxHash: mixedCaseHash },
+              ],
+            }),
+          } as unknown as Response;
+        }
+        if (requestUrls.length === 2) {
+          return {
+            ok: true,
+            status: 200,
+            json: async () => ({ proposer: proposerAddress.toLowerCase() }),
+          } as unknown as Response;
+        }
+        deleteBody = init?.body as string | undefined;
+        return {
+          status: 204,
+          statusText: 'No Content',
+          text: async () => '',
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteAllPendingSafeTxs>[1];
+
+      await deleteAllPendingSafeTxs(
+        'test',
+        multiProviderMock,
+        mixedCaseSafeAddress as Parameters<typeof deleteAllPendingSafeTxs>[2],
+      );
+
+      expect(requestUrls).to.deep.equal([
+        `https://safe-transaction-mainnet.safe.global/api/v2/safes/${normalizedSafeAddress}/multisig-transactions/?executed=false&limit=100`,
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/${normalizedHash}/`,
+      ]);
+      expect(typedDataDomain?.verifyingContract).to.equal(
+        normalizedSafeAddress,
+      );
+      expect(typedDataMessage?.safeTxHash).to.equal(normalizedHash);
+      expect(deleteBody).to.equal(
+        JSON.stringify({
+          safeTxHash: normalizedHash,
+          signature: `0x${'22'.repeat(65)}`,
+        }),
+      );
+    });
+
+    it('deleteAllPendingSafeTxs throws when pending tx list payload is invalid', async () => {
+      globalThis.fetch = (async () => {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ results: 'not-array' }),
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteAllPendingSafeTxs>[1];
+
+      try {
+        await deleteAllPendingSafeTxs(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+        );
+        expect.fail('Expected deleteAllPendingSafeTxs to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Pending Safe transactions list must be an array: not-array',
+        );
+      }
     });
   });
 
