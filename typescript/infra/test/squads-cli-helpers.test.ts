@@ -79,6 +79,10 @@ describe('squads cli helpers', () => {
     expect(firstResolvedChains).to.not.equal(secondResolvedChains);
   });
 
+  it('resolves argv chains from empty array input to configured squads chains', () => {
+    expect(resolveSquadsChainsFromArgv([])).to.deep.equal(getSquadsChains());
+  });
+
   const invalidArgvChainsContainerCases: Array<{
     title: string;
     chainsValue: unknown;
