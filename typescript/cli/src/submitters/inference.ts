@@ -118,6 +118,8 @@ function cacheKey(chain: ChainName, address: Address): string {
 
 const MAX_LOG_POSITION_STRING_LENGTH = 256;
 const MAX_LOG_POSITION_RAW_STRING_LENGTH = 4096;
+const LOG_POSITION_HEX_STRING_REGEX = /^0x[0-9a-f]+$/i;
+const LOG_POSITION_DECIMAL_STRING_REGEX = /^[0-9]+$/;
 
 function normalizeNumericStringForBigInt(
   value: string,
@@ -165,11 +167,11 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
       return null;
     }
     const trimmed = value.trim();
-    if (!trimmed || trimmed.length > MAX_LOG_POSITION_RAW_STRING_LENGTH) {
+    if (!trimmed) {
       return null;
     }
-    const isHex = /^0x[0-9a-f]+$/i.test(trimmed);
-    const isDecimal = /^[0-9]+$/.test(trimmed);
+    const isHex = LOG_POSITION_HEX_STRING_REGEX.test(trimmed);
+    const isDecimal = LOG_POSITION_DECIMAL_STRING_REGEX.test(trimmed);
     if (!isHex && !isDecimal) {
       return null;
     }
