@@ -678,9 +678,7 @@ export async function deleteSafeTx(
       },
     };
 
-    const signature = await (
-      signer as ethers.providers.JsonRpcSigner
-    )._signTypedData(
+    const signature = await signer._signTypedData(
       typedData.domain,
       { DeleteRequest: typedData.types.DeleteRequest },
       typedData.message,
