@@ -551,6 +551,52 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('matches selector-specific override when tx data selector is uppercase', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-selector-uppercase-data-${Date.now()}.yaml`;
+    const overrideTarget = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [`${overrideTarget}@0xdeadbeef`]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x6666666666666666666666666666666666666666',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const txWithUppercaseSelector = {
+      ...TX,
+      to: overrideTarget,
+      data: '0xDEADBEEF0000',
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txWithUppercaseSelector as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.TIMELOCK_CONTROLLER,
+    );
+  });
+
   it('ignores invalid override keys and falls back to default explicit submitter', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-invalid-overrides-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {
@@ -1261,6 +1307,52 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
         transactions: [{ ...TX, from: fromSafe } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
+  it('trims transaction from before fallback inference when ownable read fails', async () => {
+    const fromSafe = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon
+      .stub(Ownable__factory, 'connect')
+      .throws(new Error('not ownable'));
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== fromSafe.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [{ ...TX, from: `  ${fromSafe}  ` } as any],
         context,
       });
 
