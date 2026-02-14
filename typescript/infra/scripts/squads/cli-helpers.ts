@@ -269,12 +269,6 @@ export function formatScriptError(error: unknown): string {
     });
   }
 
-  if (typeof error === 'string') {
-    return stringifyUnknownSquadsError(error, {
-      placeholder: '[unformattable error value]',
-    });
-  }
-
   if (error && typeof error === 'object') {
     return stringifyUnknownSquadsError(error, {
       placeholder: '[unformattable error object]',
