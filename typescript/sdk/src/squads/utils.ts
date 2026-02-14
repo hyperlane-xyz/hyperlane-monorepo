@@ -52,6 +52,15 @@ export type SquadProposalStatus = {
   submissionDate: string;
 };
 
+export type ParsedSquadProposal = {
+  status: SquadsProposalStatus;
+  approvals: number;
+  rejections: number;
+  cancellations: number;
+  transactionIndex: number;
+  statusTimestampSeconds: number | undefined;
+};
+
 export enum SquadTxStatus {
   DRAFT = '📝',
   ACTIVE = '🟡',
@@ -449,7 +458,9 @@ export function getSquadTxStatus(
   }
 }
 
-export function parseSquadProposal(proposal: accounts.Proposal) {
+export function parseSquadProposal(
+  proposal: accounts.Proposal,
+): ParsedSquadProposal {
   const transactionIndex = Number(proposal.transactionIndex);
   assert(
     Number.isSafeInteger(transactionIndex),
@@ -468,7 +479,7 @@ export function parseSquadProposal(proposal: accounts.Proposal) {
     );
   }
 
-  return {
+  const parsedProposal: ParsedSquadProposal = {
     status: proposal.status.__kind,
     approvals: proposal.approved.length,
     rejections: proposal.rejected.length,
@@ -476,6 +487,8 @@ export function parseSquadProposal(proposal: accounts.Proposal) {
     transactionIndex,
     statusTimestampSeconds,
   };
+
+  return parsedProposal;
 }
 
 /**
