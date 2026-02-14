@@ -393,8 +393,12 @@ async function getOwnerForTarget(
   try {
     const ownerAddress = await Ownable__factory.connect(target, provider).owner();
     const normalizedOwner = tryNormalizeEvmAddress(ownerAddress);
-    cache.ownerByChainAndAddress.set(ownerKey, normalizedOwner);
-    return normalizedOwner;
+    const resolvedOwner =
+      normalizedOwner && !eqAddress(normalizedOwner, ethersConstants.AddressZero)
+        ? normalizedOwner
+        : null;
+    cache.ownerByChainAndAddress.set(ownerKey, resolvedOwner);
+    return resolvedOwner;
   } catch {
     cache.ownerByChainAndAddress.set(ownerKey, null);
     return null;

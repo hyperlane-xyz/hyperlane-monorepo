@@ -1597,6 +1597,59 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('uses transaction from fallback when owner read returns zero address', async () => {
+    const fromSafe = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => ethersConstants.AddressZero,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== fromSafe.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          {
+            ...TX,
+            to: '0x1111111111111111111111111111111111111111',
+            from: fromSafe,
+          } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
   it('caches failed owner reads while still using from-based fallback inference', async () => {
     const fromSafe = '0x4444444444444444444444444444444444444444';
     let ownerReads = 0;
