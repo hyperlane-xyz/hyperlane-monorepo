@@ -32,6 +32,12 @@ const SDK_ROOT_INDEX_PATH = path.resolve(
   '..',
   'index.ts',
 );
+const SDK_PACKAGE_JSON_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  '..',
+  'package.json',
+);
 
 describe('squads barrel exports', () => {
   it('re-exports squads config/constants', () => {
@@ -61,5 +67,17 @@ describe('squads barrel exports', () => {
   it('keeps squads barrel wired through sdk root index source', () => {
     const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
     expect(rootIndexSource).to.include("export * from './squads/index.js';");
+  });
+
+  it('keeps sdk package explicitly depending on @sqds/multisig', () => {
+    const sdkPackageJson = JSON.parse(
+      fs.readFileSync(SDK_PACKAGE_JSON_PATH, 'utf8'),
+    ) as {
+      dependencies?: Record<string, string>;
+    };
+
+    expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.not.equal(
+      undefined,
+    );
   });
 });
