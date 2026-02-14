@@ -11,6 +11,14 @@ type ConfirmPrompt = (options: {
   default: boolean;
 }) => Promise<unknown>;
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export function processGovernorReaderResult(
   result: [string, GovernTransaction][],
   errors: any[],
@@ -45,6 +53,30 @@ export async function executePendingTransactions<T>(
   executeTx: (tx: T) => Promise<any>,
   confirmPrompt: ConfirmPrompt = (options) => confirm(options),
 ) {
+  if (!Array.isArray(executableTxs)) {
+    throw new Error(
+      `Executable transactions must be an array: ${stringifyValueForError(executableTxs)}`,
+    );
+  }
+  if (typeof txId !== 'function') {
+    throw new Error(`txId must be a function: ${stringifyValueForError(txId)}`);
+  }
+  if (typeof txChain !== 'function') {
+    throw new Error(
+      `txChain must be a function: ${stringifyValueForError(txChain)}`,
+    );
+  }
+  if (typeof executeTx !== 'function') {
+    throw new Error(
+      `executeTx must be a function: ${stringifyValueForError(executeTx)}`,
+    );
+  }
+  if (typeof confirmPrompt !== 'function') {
+    throw new Error(
+      `confirmPrompt must be a function: ${stringifyValueForError(confirmPrompt)}`,
+    );
+  }
+
   if (executableTxs.length === 0) {
     return;
   }

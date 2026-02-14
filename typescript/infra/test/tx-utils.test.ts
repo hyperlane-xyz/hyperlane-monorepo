@@ -9,6 +9,86 @@ interface PendingTxFixture {
 }
 
 describe('executePendingTransactions', () => {
+  it('throws when executable transactions input is not an array', async () => {
+    try {
+      await executePendingTransactions(
+        123 as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Executable transactions must be an array: 123',
+      );
+    }
+  });
+
+  it('throws when callback inputs are invalid', async () => {
+    try {
+      await executePendingTransactions(
+        [],
+        null as unknown as (tx: PendingTxFixture) => string,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'txId must be a function: null',
+      );
+    }
+
+    try {
+      await executePendingTransactions(
+        [],
+        (tx) => tx.id,
+        null as unknown as (tx: PendingTxFixture) => string,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'txChain must be a function: null',
+      );
+    }
+
+    try {
+      await executePendingTransactions(
+        [],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        null as unknown as (tx: PendingTxFixture) => Promise<void>,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'executeTx must be a function: null',
+      );
+    }
+  });
+
+  it('throws when confirmPrompt input is invalid', async () => {
+    try {
+      await executePendingTransactions(
+        [],
+        (tx: PendingTxFixture) => tx.id,
+        (tx: PendingTxFixture) => tx.chain,
+        async () => undefined,
+        null as unknown as (options: {
+          message: string;
+          default: boolean;
+        }) => Promise<boolean>,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'confirmPrompt must be a function: null',
+      );
+    }
+  });
+
   it('continues executing transactions after individual failures', async () => {
     const txs: PendingTxFixture[] = [
       { id: 'tx1', chain: 'chainA' },
