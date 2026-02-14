@@ -227,6 +227,19 @@ describe('squads utils', () => {
     ]);
   });
 
+  it('supports readonly frozen chain arrays while partitioning', () => {
+    const chains = Object.freeze([
+      'solanamainnet',
+      'unknown-chain',
+      'solanamainnet',
+    ]) as readonly string[];
+
+    const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
+
+    expect(squadsChains).to.deep.equal(['solanamainnet']);
+    expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
+  });
+
   it('exports canonical proposal statuses', () => {
     expect(SquadsProposalStatus.Active).to.equal('Active');
   });
