@@ -192,6 +192,9 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('safe.global')).to.equal(
         'https://safe.global/api',
       );
+      expect(normalizeSafeServiceUrl('//safe.global')).to.equal(
+        'https://safe.global/api',
+      );
       expect(normalizeSafeServiceUrl('safe.global/')).to.equal(
         'https://safe.global/api',
       );
