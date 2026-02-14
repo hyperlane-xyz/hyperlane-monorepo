@@ -21,7 +21,7 @@ const SQUADS_SCRIPT_PATHS = Object.freeze([
 ]);
 
 const LEGACY_SQUADS_IMPORT_PATTERN =
-  /from\s+['"]\.\.\/\.\.\/src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]/;
+  /from\s+['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]/;
 const SQDS_MULTISIG_IMPORT_PATTERN = /from\s+['"]@sqds\/multisig['"]/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /from\s+['"]@hyperlane-xyz\/sdk['"]/;
