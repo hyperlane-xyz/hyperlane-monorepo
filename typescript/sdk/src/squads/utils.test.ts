@@ -24,6 +24,7 @@ import {
   canModifySquadsProposalStatus,
   deriveSquadsProposalModification,
   isStaleSquadsProposal,
+  shouldTrackPendingSquadsProposal,
   getTransactionType,
   isConfigTransaction,
   parseSquadsProposalVoteError,
@@ -3090,5 +3091,34 @@ describe('squads utils', () => {
     expect(() => isStaleSquadsProposal('   ', 0, 0)).to.throw(
       'Expected status kind to be a non-empty string',
     );
+  });
+
+  it('tracks pending squads proposals only when status is pending, non-stale, and unrejected', () => {
+    expect(
+      shouldTrackPendingSquadsProposal(SquadsProposalStatus.Active, 5, 4, 0),
+    ).to.equal(true);
+    expect(
+      shouldTrackPendingSquadsProposal(SquadsProposalStatus.Approved, 5, 4, 1),
+    ).to.equal(false);
+    expect(
+      shouldTrackPendingSquadsProposal(SquadsProposalStatus.Executed, 5, 4, 0),
+    ).to.equal(false);
+    expect(
+      shouldTrackPendingSquadsProposal(SquadsProposalStatus.Active, 3, 4, 0),
+    ).to.equal(false);
+  });
+
+  it('fails fast for invalid pending-proposal rejection counts', () => {
+    expect(() =>
+      shouldTrackPendingSquadsProposal(
+        SquadsProposalStatus.Active,
+        5,
+        4,
+        Number.NaN,
+      ),
+    ).to.throw('Expected rejections to be a non-negative safe integer, got NaN');
+    expect(() =>
+      shouldTrackPendingSquadsProposal(SquadsProposalStatus.Active, 5, 4, -1),
+    ).to.throw('Expected rejections to be a non-negative safe integer, got -1');
   });
 });

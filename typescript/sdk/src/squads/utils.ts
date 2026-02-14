@@ -717,21 +717,16 @@ export async function getPendingProposalsForChains(
             }
             const proposalIndex = transactionIndex;
 
-            if (isTerminalSquadsProposalStatus(proposalStatus)) {
-              continue;
-            }
-
             if (
-              isStaleSquadsProposal(
+              !shouldTrackPendingSquadsProposal(
                 proposalStatus,
                 proposalIndex,
                 staleTransactionIndex,
+                rejections,
               )
             ) {
               continue;
             }
-
-            if (rejections > 0) continue;
 
             const status = getSquadTxStatus(
               proposalStatus,
@@ -866,6 +861,23 @@ export function isStaleSquadsProposal(
   return (
     transactionIndex < staleTransactionIndex &&
     !isTerminalSquadsProposalStatus(normalizedStatusKind)
+  );
+}
+
+export function shouldTrackPendingSquadsProposal(
+  statusKind: string,
+  transactionIndex: number,
+  staleTransactionIndex: number,
+  rejections: number,
+): boolean {
+  assert(
+    Number.isSafeInteger(rejections) && rejections >= 0,
+    `Expected rejections to be a non-negative safe integer, got ${rejections}`,
+  );
+  return (
+    rejections === 0 &&
+    !isTerminalSquadsProposalStatus(statusKind) &&
+    !isStaleSquadsProposal(statusKind, transactionIndex, staleTransactionIndex)
   );
 }
 
