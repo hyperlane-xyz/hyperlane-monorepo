@@ -93,6 +93,21 @@ describe('squads utils', () => {
         transactionIndex: 42,
       });
     });
+
+    it('throws when transaction index exceeds JavaScript safe integer range', () => {
+      const parseUnsafeProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseUnsafeProposal).to.throw(
+        'Squads transaction index exceeds JavaScript safe integer range',
+      );
+    });
   });
 
   describe(decodePermissions.name, () => {

@@ -10,7 +10,7 @@ import {
   instructions,
 } from '@sqds/multisig';
 
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
@@ -449,12 +449,18 @@ export function getSquadTxStatus(
 }
 
 export function parseSquadProposal(proposal: accounts.Proposal) {
+  const transactionIndex = Number(proposal.transactionIndex);
+  assert(
+    Number.isSafeInteger(transactionIndex),
+    `Squads transaction index exceeds JavaScript safe integer range: ${proposal.transactionIndex.toString()}`,
+  );
+
   return {
     status: proposal.status.__kind,
     approvals: proposal.approved.length,
     rejections: proposal.rejected.length,
     cancellations: proposal.cancelled.length,
-    transactionIndex: Number(proposal.transactionIndex),
+    transactionIndex,
   };
 }
 
