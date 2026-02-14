@@ -2726,6 +2726,9 @@ describe('gnosisSafe utils', () => {
     it('supports semver prefixes/suffixes used by services', async () => {
       expect(await isLegacySafeApi('v5.18.0')).to.equal(false);
       expect(await isLegacySafeApi('5.18.0+L2')).to.equal(false);
+      expect(await isLegacySafeApi('5.18.0-rc.1')).to.equal(false);
+      expect(await isLegacySafeApi('v5.17.9-hotfix.2')).to.equal(true);
+      expect(await isLegacySafeApi('  v5.18.1-build.11  ')).to.equal(false);
     });
 
     it('throws on invalid versions', async () => {
@@ -2735,6 +2738,15 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Invalid Safe API version: invalid',
+        );
+      }
+
+      try {
+        await isLegacySafeApi('5.18');
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Invalid Safe API version: 5.18',
         );
       }
     });
