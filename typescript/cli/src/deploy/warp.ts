@@ -997,6 +997,9 @@ async function submitChainTransactions(
           context: params.context,
           submissionStrategy: resolvedBatch.config,
         });
+        logGray(
+          `Submitting ${resolvedBatch.transactions.length} warp apply transaction(s) on ${chain} with submitter ${submitter.txSubmitterType}`,
+        );
         const transactionReceipts = await submitter.submit(
           ...(resolvedBatch.transactions as any[]),
         );
