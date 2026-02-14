@@ -266,3 +266,4 @@ jobs:
           claude_args: |
             --model ${{ env.CLAUDE_SONNET_MODEL }}
             --max-turns 20
+            --allowedTools "mcp__github_inline_comment__create_inline_comment,mcp__github_comment__update_claude_comment"

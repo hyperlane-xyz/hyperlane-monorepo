@@ -50,16 +50,18 @@ When you discover issues in code NOT changed by the PR:
 3. **Be actionable** - Include file:line references so author can follow up
 4. **Don't block** - These are informational; don't use `REQUEST_CHANGES` for non-diff issues
 
-Example structure:
+Example: update the sticky comment to include non-diff findings:
 
-```json
-{
-  "event": "COMMENT",
-  "body": "## Review Summary\n[inline feedback summary]\n\n## Observations Outside This PR\nWhile reviewing, I noticed:\n- `src/utils/foo.ts:142`: Pre-existing null check missing\n- `src/core/bar.ts:78-82`: Similar pattern to line 45 issue - consider deduping",
-  "comments": [
-    // Only lines IN the diff
-  ]
-}
+```
+mcp__github_comment__update_claude_comment with body:
+
+## Review Summary
+[inline feedback summary]
+
+## Observations Outside This PR
+While reviewing, I noticed:
+- `src/utils/foo.ts:142`: Pre-existing null check missing
+- `src/core/bar.ts:78-82`: Similar pattern to line 45 issue - consider deduping
 ```
 
 ### Feedback Guidelines
@@ -71,6 +73,6 @@ Example structure:
 | Related issue found           | ❌ No    | Summary body under "Observations Outside This PR"         |
 | Pre-existing bug discovered   | ❌ No    | Summary body (consider separate issue if critical)        |
 | Overall architecture concern  | N/A      | Summary body                                              |
-| Approval/changes requested    | N/A      | Use `event: "APPROVE"` or `event: "REQUEST_CHANGES"`      |
+| Approval/changes requested    | N/A      | Sticky comment via `update_claude_comment`                |
 
 Be concise. Group minor style issues together.
