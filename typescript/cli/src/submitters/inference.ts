@@ -39,6 +39,10 @@ type Cache = {
   safeByChainAndAddress: Map<string, boolean>;
   timelockByChainAndAddress: Map<string, boolean>;
   icaByChainAndAddress: Map<string, ExtendedSubmissionStrategy['submitter']>;
+  timelockProposerByChainAndAddress: Map<
+    string,
+    ExtendedSubmissionStrategy['submitter']
+  >;
 };
 
 type InferSubmitterFromAddressParams = {
@@ -314,12 +318,19 @@ async function inferTimelockProposerSubmitter({
   cache,
   depth,
 }: InferTimelockProposerParams): Promise<ExtendedSubmissionStrategy['submitter']> {
+  const timelockKey = cacheKey(chain, timelockAddress);
+  const cached = cache.timelockProposerByChainAndAddress.get(timelockKey);
+  if (cached) {
+    return cached;
+  }
+
   const defaultSubmitter: ExtendedSubmissionStrategy['submitter'] = {
     chain,
     type: TxSubmitterType.JSON_RPC,
   };
 
   if (depth >= MAX_INFERENCE_DEPTH) {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
     return defaultSubmitter;
   }
 
@@ -333,6 +344,7 @@ async function inferTimelockProposerSubmitter({
   ]);
 
   if (isOpenProposerRole || signerHasRole) {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
     return defaultSubmitter;
   }
 
@@ -370,6 +382,10 @@ async function inferTimelockProposerSubmitter({
 
   for (const proposer of proposers) {
     if (eqAddress(proposer, signerAddress)) {
+      cache.timelockProposerByChainAndAddress.set(
+        timelockKey,
+        defaultSubmitter,
+      );
       return defaultSubmitter;
     }
 
@@ -381,12 +397,17 @@ async function inferTimelockProposerSubmitter({
         cache,
       })
     ) {
-      return {
+      const proposerSubmitter = {
         chain,
         type: TxSubmitterType.GNOSIS_TX_BUILDER,
         safeAddress: proposer,
         version: '1.0',
       };
+      cache.timelockProposerByChainAndAddress.set(
+        timelockKey,
+        proposerSubmitter,
+      );
+      return proposerSubmitter;
     }
 
     const inferredIca = await inferIcaSubmitterFromAccount({
@@ -397,10 +418,12 @@ async function inferTimelockProposerSubmitter({
       depth: depth + 1,
     });
     if (inferredIca) {
+      cache.timelockProposerByChainAndAddress.set(timelockKey, inferredIca);
       return inferredIca;
     }
   }
 
+  cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
   return defaultSubmitter;
 }
 
@@ -538,6 +561,7 @@ function createCache(): Cache {
     safeByChainAndAddress: new Map(),
     timelockByChainAndAddress: new Map(),
     icaByChainAndAddress: new Map(),
+    timelockProposerByChainAndAddress: new Map(),
   };
 }
 
