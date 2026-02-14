@@ -55,7 +55,10 @@ async function main() {
     true,
     chainsToCheck,
   );
-  const safeContextByChain = new Map<string, SafeAndService>();
+  const safeContextByChain = new Map<
+    string,
+    SafeAndService & { signer: ReturnType<typeof multiProvider.getSigner> }
+  >();
 
   const pendingTxs = await getPendingTxsForChains(
     chainsToCheck,
@@ -109,14 +112,16 @@ async function main() {
         );
         let safeContext = safeContextByChain.get(tx.chain);
         if (!safeContext) {
-          safeContext = await getSafeAndService(
+          const { safeSdk, safeService } = await getSafeAndService(
             tx.chain,
             multiProvider,
             safeAddress,
           );
+          const signer = multiProvider.getSigner(tx.chain);
+          safeContext = { safeSdk, safeService, signer };
           safeContextByChain.set(tx.chain, safeContext);
         }
-        const { safeSdk, safeService } = safeContext;
+        const { safeSdk, safeService, signer } = safeContext;
 
         const safeTx = await getSafeTx(tx.chain, multiProvider, tx.fullTxHash);
         assert(
@@ -150,7 +155,6 @@ async function main() {
           tx.nonce,
         );
 
-        const signer = multiProvider.getSigner(tx.chain);
         await proposeSafeTransaction(
           tx.chain,
           safeSdk,
