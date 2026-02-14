@@ -116,6 +116,8 @@ function cacheKey(chain: ChainName, address: Address): string {
   return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
+const MAX_LOG_POSITION_STRING_LENGTH = 256;
+
 // Normalizes provider log position fields into exact non-negative integers.
 // Accepts numbers (only safe integers), bigint, decimal/hex strings, and
 // BigNumber-like objects with string `toString()`. Rejects malformed/unsafe
@@ -139,7 +141,7 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed) {
+    if (!trimmed || trimmed.length > MAX_LOG_POSITION_STRING_LENGTH) {
       return null;
     }
     const isHex = /^0x[0-9a-f]+$/i.test(trimmed);
