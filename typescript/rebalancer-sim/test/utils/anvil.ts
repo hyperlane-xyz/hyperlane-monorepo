@@ -109,8 +109,22 @@ async function stopLocalAnvilProcess(
   if (process.killed || process.exitCode !== null) return;
 
   await new Promise<void>((resolve) => {
+    const killSafely = (signal: NodeJS.Signals) => {
+      try {
+        process.kill(signal);
+      } catch (error) {
+        const nodeError = error as NodeJS.ErrnoException | undefined;
+        if (nodeError?.code === 'ESRCH') {
+          // Process already exited between checks; treat as stopped.
+          resolve();
+          return;
+        }
+        throw error;
+      }
+    };
+
     const timeout = setTimeout(() => {
-      process.kill('SIGKILL');
+      killSafely('SIGKILL');
       resolve();
     }, LOCAL_ANVIL_STOP_TIMEOUT_MS);
 
@@ -119,7 +133,7 @@ async function stopLocalAnvilProcess(
       resolve();
     });
 
-    process.kill('SIGTERM');
+    killSafely('SIGTERM');
   });
 }
 
