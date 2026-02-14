@@ -476,12 +476,20 @@ async function inferTimelockProposerSubmitter({
 
   const granted = new Set<Address>();
   for (const log of grantedLogs) {
-    const parsed = timelock.interface.parseLog(log);
-    granted.add(parsed.args.account as Address);
+    try {
+      const parsed = timelock.interface.parseLog(log);
+      granted.add(parsed.args.account as Address);
+    } catch {
+      continue;
+    }
   }
   for (const log of revokedLogs) {
-    const parsed = timelock.interface.parseLog(log);
-    granted.delete(parsed.args.account as Address);
+    try {
+      const parsed = timelock.interface.parseLog(log);
+      granted.delete(parsed.args.account as Address);
+    } catch {
+      continue;
+    }
   }
 
   const proposers = Array.from(granted).filter(
