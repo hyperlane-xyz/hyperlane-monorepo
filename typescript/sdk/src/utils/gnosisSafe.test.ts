@@ -3660,6 +3660,22 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args._threshold.toNumber()).to.equal(2);
     });
 
+    it('accepts transaction data without 0x prefix in uppercase', () => {
+      const data = safeInterface
+        .encodeFunctionData('changeThreshold', [2])
+        .slice(2)
+        .toUpperCase();
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+    });
+
     it('accepts transaction data with surrounding whitespace', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
