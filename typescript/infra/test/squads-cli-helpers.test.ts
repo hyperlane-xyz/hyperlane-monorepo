@@ -808,6 +808,10 @@ describe('squads cli helpers', () => {
     expect(formatScriptError('Error:')).to.equal('[unformattable error value]');
   });
 
+  it('preserves custom Error-like string values', () => {
+    expect(formatScriptError('RpcError')).to.equal('RpcError');
+  });
+
   it('formats object errors via stable object stringification', () => {
     const formatted = formatScriptError({ foo: 'bar' });
 

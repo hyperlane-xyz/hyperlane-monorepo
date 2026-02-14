@@ -37,7 +37,16 @@ const turnkeySignerPromises = new Map<
 >();
 const registryPromises = new Map<DeployEnvironment, Promise<IRegistry>>();
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
-const GENERIC_ERROR_LABEL_PATTERN = /^[a-z]*error:?$/i;
+const GENERIC_ERROR_LABELS = new Set([
+  'error',
+  'typeerror',
+  'rangeerror',
+  'referenceerror',
+  'syntaxerror',
+  'urierror',
+  'evalerror',
+  'aggregateerror',
+]);
 
 function memoizeByEnvironment<T>(
   cache: Map<DeployEnvironment, Promise<T>>,
@@ -113,10 +122,13 @@ function normalizeStringifiedError(
   formattedError: string,
 ): string | undefined {
   const trimmedFormattedError = formattedError.trim();
+  const normalizedErrorLabel = trimmedFormattedError
+    .replace(/:$/, '')
+    .toLowerCase();
   if (
     trimmedFormattedError.length === 0 ||
     GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError) ||
-    GENERIC_ERROR_LABEL_PATTERN.test(trimmedFormattedError)
+    GENERIC_ERROR_LABELS.has(normalizedErrorLabel)
   ) {
     return undefined;
   }

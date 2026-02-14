@@ -388,6 +388,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('preserves custom Error-like labels when toBase58 throws string errors', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw 'RpcError';
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal('failed to stringify key (RpcError)');
+    });
+
     it('uses placeholder when toBase58 throws generic object errors', () => {
       const result = normalizeSquadsAddressValue({
         toBase58() {

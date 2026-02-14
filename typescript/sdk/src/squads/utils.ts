@@ -165,7 +165,16 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
 const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
-const GENERIC_ERROR_LABEL_PATTERN = /^[a-z]*error:?$/i;
+const GENERIC_ERROR_LABELS = new Set([
+  'error',
+  'typeerror',
+  'rangeerror',
+  'referenceerror',
+  'syntaxerror',
+  'urierror',
+  'evalerror',
+  'aggregateerror',
+]);
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
   'account not found',
@@ -194,10 +203,13 @@ function normalizeStringifiedUnknownError(
   formattedError: string,
 ): string | undefined {
   const trimmedFormattedError = formattedError.trim();
+  const normalizedErrorLabel = trimmedFormattedError
+    .replace(/:$/, '')
+    .toLowerCase();
   if (
     trimmedFormattedError.length === 0 ||
     GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError) ||
-    GENERIC_ERROR_LABEL_PATTERN.test(trimmedFormattedError)
+    GENERIC_ERROR_LABELS.has(normalizedErrorLabel)
   ) {
     return undefined;
   }
