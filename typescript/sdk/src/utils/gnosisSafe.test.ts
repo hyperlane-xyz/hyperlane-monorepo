@@ -32,6 +32,11 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('http://safe-transaction-mainnet.safe.global/api'),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired(
+          'http://safe-transaction-mainnet.safe.global:80/api',
+        ),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired('HTTP://SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL/API'),
       ).to.equal(true);
     });
@@ -345,6 +350,12 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl('http://safe.global/api?foo=bar#frag'),
       ).to.equal('http://safe.global/api');
+      expect(normalizeSafeServiceUrl('http://safe.global:80/api')).to.equal(
+        'http://safe.global/api',
+      );
+      expect(normalizeSafeServiceUrl('http://safe.global:8080/api')).to.equal(
+        'http://safe.global:8080/api',
+      );
     });
 
     it('throws when a non-http scheme is provided explicitly', () => {
