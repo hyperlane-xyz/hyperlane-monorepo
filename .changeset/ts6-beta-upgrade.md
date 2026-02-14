@@ -55,3 +55,5 @@ Bounded traversal semantics were regression-tested to ensure late iterable runti
 Runtime-fallback docs were updated to explicitly describe the bounded nested-error traversal behavior and its safety trade-off.
 
 Map-iterator fallback handling was corrected to avoid false positives from map keys when values iterators fail.
+
+Error-message extraction was hardened for proxy wrappers that throw on `message`/`cause` access, preventing matcher crashes.
