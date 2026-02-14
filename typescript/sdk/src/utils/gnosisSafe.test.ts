@@ -3636,6 +3636,13 @@ describe('gnosisSafe utils', () => {
           value: BigNumber.from(0),
         }),
       ).to.throw('Safe transaction data must be hex');
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: 123 as unknown as string,
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must be hex');
     });
 
     it('throws when transaction data does not include selector', () => {
@@ -3817,6 +3824,9 @@ describe('gnosisSafe utils', () => {
         'Hex value must be valid hex: 0x123',
       );
       expect(() => asHex('123')).to.throw('Hex value must be valid hex: 123');
+      expect(() => asHex(123 as unknown as string)).to.throw(
+        'Hex value must be valid hex: 123',
+      );
     });
 
     it('supports custom error messages', () => {
@@ -4074,6 +4084,9 @@ describe('gnosisSafe utils', () => {
         'Hex value must be valid hex: 0x123',
       );
       expect(() => decodeMultiSendData('123')).to.throw(
+        'Hex value must be valid hex: 123',
+      );
+      expect(() => decodeMultiSendData(123 as unknown as string)).to.throw(
         'Hex value must be valid hex: 123',
       );
     });

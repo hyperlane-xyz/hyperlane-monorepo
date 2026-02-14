@@ -1445,7 +1445,11 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
   const requiredErrorMessage =
     errorMessages?.required ?? 'Hex value is required';
   const invalidErrorMessage = errorMessages?.invalid;
-  assert(hex, requiredErrorMessage);
+  assert(hex !== undefined && hex !== null, requiredErrorMessage);
+  assert(
+    typeof hex === 'string',
+    invalidErrorMessage ?? `Hex value must be valid hex: ${String(hex)}`,
+  );
   const normalizedHex = hex.trim();
   assert(normalizedHex.length > 0, requiredErrorMessage);
   const lowerCaseHex = normalizedHex.toLowerCase();
