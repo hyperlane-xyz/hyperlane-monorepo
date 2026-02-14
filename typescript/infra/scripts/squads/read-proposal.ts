@@ -83,6 +83,47 @@ function formatSignerList(
   return signerList;
 }
 
+function formatMultisigMemberKey(
+  member: unknown,
+  chain: string,
+  index: number,
+): string | undefined {
+  if (!member || typeof member !== 'object') {
+    rootLogger.warn(
+      chalk.yellow(
+        `Skipping multisig member[${index}] on ${chain}: expected object, got ${String(member)}`,
+      ),
+    );
+    return undefined;
+  }
+
+  const memberRecord = member as { key?: unknown };
+  const memberKey = memberRecord.key;
+  const base58Key = toBase58IfPossible(
+    memberKey,
+    'multisig.members',
+    chain,
+    index,
+  );
+  if (base58Key) {
+    return base58Key;
+  }
+
+  if (typeof memberKey === 'string') {
+    const trimmedKey = memberKey.trim();
+    if (trimmedKey.length > 0) {
+      return trimmedKey;
+    }
+  }
+
+  rootLogger.warn(
+    chalk.yellow(
+      `Skipping multisig member[${index}] on ${chain}: missing usable key value`,
+    ),
+  );
+  return undefined;
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -132,6 +173,9 @@ async function main() {
     const multisigMembers = Array.isArray(multisig.members)
       ? multisig.members
       : [];
+    const formattedMultisigMembers = multisigMembers
+      .map((member, index) => formatMultisigMemberKey(member, chain, index))
+      .filter((value): value is string => typeof value === 'string');
     if (!Array.isArray(multisig.members)) {
       rootLogger.warn(
         chalk.yellow(
@@ -289,7 +333,9 @@ async function main() {
     // Display multisig information
     rootLogger.info(chalk.green.bold('\n🏛️  Multisig Information:'));
     rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
-    rootLogger.info(chalk.white(`  Members: ${multisigMembers.length}`));
+    rootLogger.info(
+      chalk.white(`  Members: ${formattedMultisigMembers.length}`),
+    );
     rootLogger.info(
       chalk.white(`  Current Transaction Index: ${currentTransactionIndex}`),
     );
@@ -306,8 +352,8 @@ async function main() {
 
     // Display members
     rootLogger.info(chalk.green.bold('\n👥 Multisig Members:'));
-    multisigMembers.forEach((member, index) => {
-      rootLogger.info(chalk.white(`  ${index + 1}. ${member.key.toBase58()}`));
+    formattedMultisigMembers.forEach((memberKey, index) => {
+      rootLogger.info(chalk.white(`  ${index + 1}. ${memberKey}`));
     });
 
     // Verbose output with raw data
@@ -327,10 +373,7 @@ async function main() {
             staleTransactionIndex: staleTransactionIndex,
             rentCollector: multisig.rentCollector?.toBase58() || 'null',
             bump: multisig.bump,
-            members: multisigMembers.map((m) => ({
-              key: m.key.toBase58(),
-              permissions: m.permissions,
-            })),
+            members: formattedMultisigMembers,
           }),
         ),
       );
