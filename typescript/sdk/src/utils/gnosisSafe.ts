@@ -383,9 +383,16 @@ type Eip712Signer = ethers.Signer & {
 function assertEip712Signer(
   signer: ethers.Signer,
 ): asserts signer is Eip712Signer {
+  let signTypedData: unknown;
+  try {
+    signTypedData = (signer as { _signTypedData?: unknown })._signTypedData;
+  } catch {
+    throw new Error(
+      'Signer _signTypedData accessor is inaccessible for Safe transaction deletion',
+    );
+  }
   assert(
-    typeof (signer as { _signTypedData?: unknown })._signTypedData ===
-      'function',
+    typeof signTypedData === 'function',
     'Signer must support _signTypedData for Safe transaction deletion',
   );
 }

@@ -5620,6 +5620,54 @@ describe('gnosisSafe utils', () => {
       expect(signTypedDataCalled).to.equal(false);
     });
 
+    it('deleteSafeTx skips delete request when signer _signTypedData accessor is inaccessible', async () => {
+      const proposerAddress = '0x00000000000000000000000000000000000000AA';
+      const requestUrls: string[] = [];
+      const signerWithThrowingTypedDataAccessor = new Proxy(
+        {
+          getAddress: async () => proposerAddress,
+        },
+        {
+          get(target, prop, receiver) {
+            if (prop === '_signTypedData') {
+              throw new Error('typed data accessor unavailable');
+            }
+            return Reflect.get(target, prop, receiver);
+          },
+        },
+      );
+
+      globalThis.fetch = (async (input: RequestInfo | URL) => {
+        const url = typeof input === 'string' ? input : input.toString();
+        requestUrls.push(url);
+        return {
+          ok: true,
+          status: 200,
+          json: async () => ({ proposer: proposerAddress.toLowerCase() }),
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerWithThrowingTypedDataAccessor,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      await deleteSafeTx(
+        'test',
+        multiProviderMock,
+        '0x0000000000000000000000000000000000000001',
+        `0x${'66'.repeat(32)}`,
+      );
+
+      expect(requestUrls).to.deep.equal([
+        `https://safe-transaction-mainnet.safe.global/api/v2/multisig-transactions/0x${'66'.repeat(32)}/`,
+      ]);
+    });
+
     it('deleteSafeTx canonicalizes hash/address in signed payload and delete request', async () => {
       const mixedCaseSafeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
       const normalizedSafeAddress = getAddress(mixedCaseSafeAddress);
