@@ -5317,6 +5317,47 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('deleteSafeTx throws when deletion signer getAddress accessor is inaccessible', async () => {
+      globalThis.fetch = (async () => {
+        throw new Error('fetch should not be called');
+      }) as typeof fetch;
+
+      const signerWithThrowingAccessor = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            if (prop === 'getAddress') {
+              throw new Error('no accessor');
+            }
+            return undefined;
+          },
+        },
+      );
+
+      const multiProviderMock = {
+        getSigner: () => signerWithThrowingAccessor,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'13'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe deletion signer getAddress accessor is inaccessible',
+        );
+      }
+    });
+
     it('deleteSafeTx throws when tx details payload is non-object', async () => {
       let signTypedDataCalled = false;
       const signerMock = {
@@ -5490,6 +5531,60 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe transaction proposer must be valid address: bad',
+        );
+      }
+      expect(signTypedDataCalled).to.equal(false);
+    });
+
+    it('deleteSafeTx throws when tx proposer accessor is inaccessible', async () => {
+      let signTypedDataCalled = false;
+      const signerMock = {
+        getAddress: async () => '0x00000000000000000000000000000000000000AA',
+        _signTypedData: async () => {
+          signTypedDataCalled = true;
+          return `0x${'11'.repeat(65)}`;
+        },
+      };
+      const txDetailsWithThrowingProposer = new Proxy(
+        {},
+        {
+          get(_target, prop) {
+            if (prop === 'proposer') {
+              throw new Error('hidden proposer');
+            }
+            return undefined;
+          },
+        },
+      );
+
+      globalThis.fetch = (async () => {
+        return {
+          ok: true,
+          status: 200,
+          json: async () => txDetailsWithThrowingProposer,
+        } as unknown as Response;
+      }) as typeof fetch;
+
+      const multiProviderMock = {
+        getSigner: () => signerMock,
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+      } as unknown as Parameters<typeof deleteSafeTx>[1];
+
+      try {
+        await deleteSafeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'34'.repeat(32)}`,
+        );
+        expect.fail('Expected deleteSafeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction proposer is inaccessible',
         );
       }
       expect(signTypedDataCalled).to.equal(false);
