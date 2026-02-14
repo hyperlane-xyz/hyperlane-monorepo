@@ -80,6 +80,51 @@ describe('Anvil utils', () => {
         ['generator', noisyGenerator],
       ] as const;
     };
+    const buildNoisyWrappersWithMessage = (
+      message: string,
+    ): ReadonlyArray<readonly [string, unknown]> => {
+      const noisyMap = Object.assign(
+        new Map(
+          Array.from({ length: noisyWrapperEntryCount }, (_, index) => [
+            index,
+            { message: `noise-${index}` },
+          ]),
+        ),
+        { message },
+      );
+
+      const noisyArray = Object.assign(
+        Array.from({ length: noisyWrapperEntryCount }, (_, index) => ({
+          message: `noise-${index}`,
+        })),
+        { message },
+      );
+
+      const noisySet = Object.assign(
+        new Set(
+          Array.from({ length: noisyWrapperEntryCount }, (_, index) => ({
+            message: `noise-${index}`,
+          })),
+        ),
+        { message },
+      );
+
+      const noisyGenerator = {
+        *[Symbol.iterator]() {
+          for (let index = 0; index < noisyWrapperEntryCount; index += 1) {
+            yield { message: `noise-${index}` };
+          }
+        },
+        message,
+      };
+
+      return [
+        ['map', noisyMap],
+        ['array', noisyArray],
+        ['set', noisySet],
+        ['generator', noisyGenerator],
+      ] as const;
+    };
 
     const buildNoisyObjectWrapperWithFallback = (
       fallbackField: 'cause' | 'errors',
@@ -1515,6 +1560,36 @@ describe('Anvil utils', () => {
         get() {
           throw new Error('blocked errors accessor');
         },
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
+    it('matches wrapper message fallbacks for noisy map/array/set/generator wrappers under extraction limits', () => {
+      for (const [wrapperName, errors] of buildNoisyWrappersWithMessage(
+        'No Docker client strategy found',
+      )) {
+        expect(
+          isContainerRuntimeUnavailable({ errors }),
+          `${wrapperName} wrapper should surface runtime message fallback`,
+        ).to.equal(true);
+      }
+    });
+
+    it('matches plain-object wrapper message fallback under extraction limits', () => {
+      const errors = buildNoisyObjectWrapperWithFallback(
+        'cause',
+        'non-runtime-noise',
+      );
+      Object.defineProperty(errors, 'cause', {
+        value: undefined,
+        enumerable: false,
+        configurable: true,
+      });
+      Object.defineProperty(errors, 'message', {
+        value: 'No Docker client strategy found',
+        enumerable: false,
+        configurable: true,
       });
 
       expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);

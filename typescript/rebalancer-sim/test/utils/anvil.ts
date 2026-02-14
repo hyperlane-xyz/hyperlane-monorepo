@@ -188,6 +188,10 @@ function extractErrorMessages(error: unknown): string[] {
     if (wrapperErrors !== undefined && wrapperErrors !== value) {
       enqueue(wrapperErrors);
     }
+
+    if (getTrimmedNonEmptyString(getObjectProperty(value, 'message'))) {
+      enqueue(value);
+    }
   };
   const enqueueNestedErrors = (nestedErrors: unknown) => {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
