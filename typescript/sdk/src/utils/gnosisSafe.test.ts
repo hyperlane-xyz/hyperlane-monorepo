@@ -3428,6 +3428,15 @@ describe('gnosisSafe utils', () => {
         }),
       ).to.throw();
     });
+
+    it('throws when transaction data is missing', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw();
+    });
   });
 
   describe(decodeMultiSendData.name, () => {
@@ -3577,6 +3586,25 @@ describe('gnosisSafe utils', () => {
 
       expect(() => decodeMultiSendData(encoded)).to.throw(
         'Invalid multisend payload: truncated to',
+      );
+    });
+
+    it('throws when multisend tx data length overflows safe integer bounds', () => {
+      const overflowHeader = [
+        '00',
+        '00000000000000000000000000000000000000aa',
+        '0000000000000000000000000000000000000000000000000000000000000000',
+        'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff',
+      ].join('');
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [`0x${overflowHeader}`],
+      });
+
+      expect(() => decodeMultiSendData(encoded)).to.throw(
+        'Invalid multisend payload: malformed data length',
       );
     });
   });
