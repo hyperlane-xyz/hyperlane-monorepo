@@ -20,11 +20,10 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
+import yargs from 'yargs';
 
 import { Contexts } from '../../config/contexts.js';
-import { getChain } from '../../config/registry.js';
-import { chainsToSkip } from '../../src/config/chain.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import type { DeployEnvironment } from '../../src/config/environment.js';
 import {
   SvmMultisigConfigMap,
   batchInstructionsBySize,
@@ -36,10 +35,17 @@ import {
   multisigIsmConfigPath,
   serializeMultisigIsmDifference,
 } from '../../src/utils/sealevel.js';
-import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
-import { chainIsProtocol } from '../../src/utils/utils.js';
-import { getArgs, withChains } from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
+
+const DEPLOY_ENVIRONMENTS = ['test', 'testnet4', 'mainnet3'] as const;
+
+function assertDeployEnvironment(env: string): DeployEnvironment {
+  if ((DEPLOY_ENVIRONMENTS as readonly string[]).includes(env)) {
+    return env as DeployEnvironment;
+  }
+  throw new Error(
+    `Invalid environment ${env}, must be one of ${DEPLOY_ENVIRONMENTS.join(', ')}`,
+  );
+}
 
 /**
  * Fetch on-chain MultisigIsm state for all configured domains
@@ -54,8 +60,7 @@ async function fetchAllMultisigIsmStates(
   const states: SvmMultisigConfigMap = {};
 
   for (const [remoteChainName] of Object.entries(config)) {
-    const remoteMeta = getChain(remoteChainName);
-    const remoteDomain = remoteMeta.domainId;
+    const remoteDomain = mpp.getDomainId(remoteChainName);
 
     const state = await fetchMultisigIsmState(
       connection,
@@ -423,20 +428,38 @@ async function main() {
     environment,
     chains: chainsArg,
     context = Contexts.Hyperlane,
-  } = await withChains(getArgs())
+  } = await yargs(process.argv.slice(2))
+    .describe('environment', 'deploy environment')
+    .choices('environment', DEPLOY_ENVIRONMENTS)
+    .coerce('environment', assertDeployEnvironment)
+    .demandOption('environment')
+    .alias('e', 'environment')
+    .describe('chains', 'Set of chains to perform actions on.')
+    .array('chains')
+    .choices('chains', getSquadsChains())
+    .coerce('chains', (selectedChains: string[] = []) =>
+      Array.from(new Set(selectedChains)),
+    )
+    .alias('c', 'chains')
     .describe('context', 'MultisigIsm context to update')
     .choices('context', [Contexts.Hyperlane, Contexts.ReleaseCandidate])
     .alias('x', 'context').argv;
 
+  const { chainsToSkip } = await import('../../src/config/chain.js');
+  const { getTurnkeySealevelDeployerSigner } =
+    await import('../../src/utils/turnkey.js');
+  const { getEnvironmentConfig } = await import('../core-utils.js');
+
   // Compute default chains based on environment
   const envConfig = getEnvironmentConfig(environment);
+  const mpp = await envConfig.getMultiProtocolProvider();
   const configuredSquadsChains = getSquadsChains();
   const hasExplicitChains = !!chainsArg && chainsArg.length > 0;
   const selectedChains = hasExplicitChains
     ? chainsArg
     : envConfig.supportedChainNames.filter(
         (chain) =>
-          chainIsProtocol(chain, ProtocolType.Sealevel) &&
+          mpp.getProtocol(chain) === ProtocolType.Sealevel &&
           !chainsToSkip.includes(chain),
       );
 
@@ -465,7 +488,6 @@ async function main() {
   );
 
   // Process all chains sequentially (to avoid overwhelming the user with prompts)
-  const mpp = await envConfig.getMultiProtocolProvider();
   const results: Array<{ chain: string; updated: number; matched: number }> =
     [];
 
