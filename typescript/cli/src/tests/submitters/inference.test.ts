@@ -5198,8 +5198,17 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedUppercasePlusHexLog = {
+      topics: ['0xmalformed-uppercase-plus-hex'],
+      data: '0x',
+      blockNumber: '+0X270f',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const provider = {
-      getLogs: sinon.stub().resolves([validLog, malformedPlusHexLog]),
+      getLogs: sinon
+        .stub()
+        .resolves([validLog, malformedPlusHexLog, malformedUppercasePlusHexLog]),
     };
 
     const icaRouterStub = sinon
@@ -5314,8 +5323,17 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedUppercaseMinusHexLog = {
+      topics: ['0xmalformed-uppercase-minus-hex'],
+      data: '0x',
+      blockNumber: '-0X270f',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const provider = {
-      getLogs: sinon.stub().resolves([validLog, malformedMinusHexLog]),
+      getLogs: sinon
+        .stub()
+        .resolves([validLog, malformedMinusHexLog, malformedUppercaseMinusHexLog]),
     };
 
     const icaRouterStub = sinon
@@ -12936,6 +12954,13 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedUppercasePlusHexGrant = {
+      topics: ['0xgrant-malformed-uppercase-plus-hex'],
+      data: '0x',
+      blockNumber: '+0X270f',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -12947,7 +12972,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (filter.topics?.[0] === 'RoleGranted') {
-          return [validGrant, malformedPlusHexGrant];
+          return [validGrant, malformedPlusHexGrant, malformedUppercasePlusHexGrant];
         }
         return [revoke];
       }),
@@ -13037,6 +13062,13 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedUppercaseMinusHexGrant = {
+      topics: ['0xgrant-malformed-uppercase-minus-hex'],
+      data: '0x',
+      blockNumber: '-0X270f',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -13048,7 +13080,11 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (filter.topics?.[0] === 'RoleGranted') {
-          return [validGrant, malformedMinusHexGrant];
+          return [
+            validGrant,
+            malformedMinusHexGrant,
+            malformedUppercaseMinusHexGrant,
+          ];
         }
         return [revoke];
       }),
