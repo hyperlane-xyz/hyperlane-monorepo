@@ -83,6 +83,17 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('handles cyclic cause chains safely', () => {
+      const first = new Error('outer startup error');
+      const second = new Error(
+        'Cannot connect to the Docker daemon at unix:///var/run/docker.sock',
+      );
+      (first as Error & { cause?: unknown }).cause = second;
+      (second as Error & { cause?: unknown }).cause = first;
+
+      expect(isContainerRuntimeUnavailable(first)).to.equal(true);
+    });
+
     it('reads message from non-Error throw objects', () => {
       expect(
         isContainerRuntimeUnavailable({
