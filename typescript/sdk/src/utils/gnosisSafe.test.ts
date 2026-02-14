@@ -40,6 +40,9 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired('https://transaction.safe.somechain.com/api'),
       ).to.equal(false);
+      expect(
+        safeApiKeyRequired('//transaction.safe.somechain.com/api'),
+      ).to.equal(false);
     });
 
     it('returns false for non-http schemes even on safe hosts', () => {
