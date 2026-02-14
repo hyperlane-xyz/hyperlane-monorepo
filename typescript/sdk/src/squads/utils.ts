@@ -118,7 +118,13 @@ const SQUADS_ERROR_LOG_ARRAY_FIELDS = [
   'transactionLogMessages',
 ] as const;
 const SQUADS_ERROR_STRING_ARRAY_FIELDS = ['errors'] as const;
-const SQUADS_ERROR_STRING_FIELDS = ['cause', 'error', 'originalError'] as const;
+const SQUADS_ERROR_STRING_FIELDS = [
+  'cause',
+  'error',
+  'originalError',
+  'shortMessage',
+  'details',
+] as const;
 const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
   ...SQUADS_ERROR_LOG_ARRAY_FIELDS,
   ...SQUADS_ERROR_STRING_ARRAY_FIELDS,
@@ -198,7 +204,7 @@ export function parseSquadsProposalVoteError(
  * nested wrapper objects to scan known log array fields
  * (`transactionLogs`, `logs`, `logMessages`, `transactionLogMessages`),
  * log-like array keys, `message`, and common string wrapper fields (`cause`,
- * `error`, `originalError`).
+ * `error`, `originalError`, `shortMessage`, `details`).
  */
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,

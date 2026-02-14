@@ -518,6 +518,24 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from shortMessage field', () => {
+      const error = {
+        shortMessage: 'custom program error: 0x177a',
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('parses known vote error from details field', () => {
+      const error = {
+        details: 'Program log: AlreadyRejected',
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('parses known vote error from message field', () => {
       const error = {
         message: 'Squads transaction failed: custom program error: 0x177c',
