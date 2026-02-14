@@ -116,11 +116,11 @@ function cacheKey(chain: ChainName, address: Address): string {
   return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
-function hasSignerForChain(
+async function hasSignerForChain(
   context: WriteCommandContext,
   cache: Cache,
   chain: ChainName,
-): boolean {
+): Promise<boolean> {
   const cached = cache.signerByChain.get(chain);
   if (cached !== undefined) {
     return cached;
@@ -128,10 +128,10 @@ function hasSignerForChain(
 
   const maybeTryGetSigner = (context.multiProvider as any).tryGetSigner;
   if (typeof maybeTryGetSigner !== 'function') {
-    // Preserve compatibility with lightweight test contexts that only mock
-    // the methods used by a specific test.
-    cache.signerByChain.set(chain, true);
-    return true;
+    const signerAddress = await getSignerAddressForChain(context, cache, chain);
+    const hasSigner = !!signerAddress;
+    cache.signerByChain.set(chain, hasSigner);
+    return hasSigner;
   }
   try {
     const hasSigner = !!maybeTryGetSigner.call(context.multiProvider, chain);
@@ -440,7 +440,7 @@ async function inferIcaSubmitterFromAccount({
         }
 
         try {
-          if (!hasSignerForChain(context, cache, originChain)) {
+          if (!(await hasSignerForChain(context, cache, originChain))) {
             continue;
           }
           const originProvider = getProviderForChain(context, cache, originChain);
@@ -514,7 +514,7 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  if (!hasSignerForChain(context, cache, originChain)) {
+  if (!(await hasSignerForChain(context, cache, originChain))) {
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
@@ -730,7 +730,7 @@ async function inferTimelockProposerSubmitter({
         }
 
         try {
-          if (!hasSignerForChain(context, cache, originChainName)) {
+          if (!(await hasSignerForChain(context, cache, originChainName))) {
             continue;
           }
           const originProvider = getProviderForChain(
@@ -809,7 +809,7 @@ async function inferTimelockProposerSubmitter({
       }
 
       try {
-        if (!hasSignerForChain(context, cache, originChainName)) {
+        if (!(await hasSignerForChain(context, cache, originChainName))) {
           continue;
         }
         const originProvider = getProviderForChain(
