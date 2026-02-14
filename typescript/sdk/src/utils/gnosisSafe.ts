@@ -159,6 +159,16 @@ function hasPercentEncodedAuthority(value: string): boolean {
   return hostlessAuthority !== undefined && hostlessAuthority.includes('%');
 }
 
+function hasInvalidSafeServiceUrlInput(value: string): boolean {
+  return (
+    hasRawBackslash(value) ||
+    hasMalformedHttpSchemeDelimiter(value) ||
+    hasExplicitUserinfoLikeAuthority(value) ||
+    hasInvalidHostlessSafeServiceUrl(value) ||
+    hasPercentEncodedAuthority(value)
+  );
+}
+
 function hasInvalidHostlessSafeServiceUrl(value: string): boolean {
   return (
     isSlashPrefixedRelativePath(value) ||
@@ -345,19 +355,7 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  if (hasRawBackslash(trimmedUrl)) {
-    return false;
-  }
-  if (hasMalformedHttpSchemeDelimiter(trimmedUrl)) {
-    return false;
-  }
-  if (hasExplicitUserinfoLikeAuthority(trimmedUrl)) {
-    return false;
-  }
-  if (hasInvalidHostlessSafeServiceUrl(trimmedUrl)) {
-    return false;
-  }
-  if (hasPercentEncodedAuthority(trimmedUrl)) {
+  if (hasInvalidSafeServiceUrlInput(trimmedUrl)) {
     return false;
   }
 
@@ -406,19 +404,7 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
-  if (hasRawBackslash(trimmedUrl)) {
-    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
-  }
-  if (hasMalformedHttpSchemeDelimiter(trimmedUrl)) {
-    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
-  }
-  if (hasExplicitUserinfoLikeAuthority(trimmedUrl)) {
-    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
-  }
-  if (hasInvalidHostlessSafeServiceUrl(trimmedUrl)) {
-    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
-  }
-  if (hasPercentEncodedAuthority(trimmedUrl)) {
+  if (hasInvalidSafeServiceUrlInput(trimmedUrl)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);
