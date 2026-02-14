@@ -154,6 +154,25 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from fallback logs field', () => {
+      const error = {
+        logs: ['Program log: AlreadyRejected'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
+    it('falls back to logs when transactionLogs has no known errors', () => {
+      const error = {
+        transactionLogs: ['Program log: unrelated'],
+        logs: ['custom program error: 0x177a'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from frozen log arrays in unknown error shape', () => {
       const error = {
         transactionLogs: Object.freeze(['Program log: AlreadyRejected']),

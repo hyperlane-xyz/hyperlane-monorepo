@@ -121,18 +121,28 @@ export function parseSquadsProposalVoteError(
 
 /**
  * Parse known Squads proposal vote/cancel errors from an unknown error object.
- * Expects optional `transactionLogs` string array shape from Solana RPC failures.
+ * Expects optional `transactionLogs` or `logs` string array shape from Solana RPC failures.
  */
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
 ): SquadsProposalVoteError | undefined {
   if (!error || typeof error !== 'object') return undefined;
-  if (!('transactionLogs' in error)) return undefined;
-  const maybeLogs = (error as { transactionLogs?: unknown }).transactionLogs;
-  if (!Array.isArray(maybeLogs)) return undefined;
-  const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
-  if (logs.length === 0) return undefined;
-  return parseSquadsProposalVoteError(logs);
+
+  const errorWithLogs = error as {
+    transactionLogs?: unknown;
+    logs?: unknown;
+  };
+  const possibleLogs = [errorWithLogs.transactionLogs, errorWithLogs.logs];
+
+  for (const maybeLogs of possibleLogs) {
+    if (!Array.isArray(maybeLogs)) continue;
+    const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
+    if (logs.length === 0) continue;
+    const parsedError = parseSquadsProposalVoteError(logs);
+    if (parsedError) return parsedError;
+  }
+
+  return undefined;
 }
 
 export function getSquadAndProvider(
