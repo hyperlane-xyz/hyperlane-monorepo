@@ -290,11 +290,16 @@ async function inferIcaSubmitterFromAccount({
   const eventFilter = destinationRouter.filters.InterchainAccountCreated(
     accountAddress,
   );
-  const logs = await provider.getLogs({
-    ...eventFilter,
-    fromBlock: 0,
-    toBlock: 'latest',
-  });
+  let logs: Awaited<ReturnType<typeof provider.getLogs>>;
+  try {
+    logs = await provider.getLogs({
+      ...eventFilter,
+      fromBlock: 0,
+      toBlock: 'latest',
+    });
+  } catch {
+    logs = [];
+  }
 
   const lastLog = logs[logs.length - 1];
   if (!lastLog) {
