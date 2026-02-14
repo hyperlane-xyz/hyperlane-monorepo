@@ -6301,6 +6301,62 @@ describe('gnosisSafe utils', () => {
       expect(statuses).to.have.lengthOf(1);
       expect(statuses[0].fullTxHash).to.equal(`0x${'cc'.repeat(32)}`);
     });
+
+    it('skips entries when pending transaction entry access is inaccessible', async () => {
+      const pendingEntriesWithThrowingAccessor = [
+        {
+          nonce: '1',
+          submissionDate: '2026-01-01T00:00:00Z',
+          safeTxHash: `0x${'aa'.repeat(32)}`,
+          confirmations: [],
+        },
+        {
+          nonce: '2',
+          submissionDate: '2026-01-01T00:00:00Z',
+          safeTxHash: `0x${'dd'.repeat(32)}`,
+          confirmations: [],
+        },
+      ];
+      Object.defineProperty(pendingEntriesWithThrowingAccessor, '0', {
+        get() {
+          throw new Error('entry unavailable');
+        },
+      });
+
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: pendingEntriesWithThrowingAccessor,
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.have.lengthOf(1);
+      expect(statuses[0].fullTxHash).to.equal(`0x${'dd'.repeat(32)}`);
+    });
   });
 
   describe('safe tx service helpers', () => {

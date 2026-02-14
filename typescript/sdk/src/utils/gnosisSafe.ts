@@ -2837,14 +2837,25 @@ export async function getPendingTxsForChains(
       }
       const formattedBalance = formatUnits(balance, nativeTokenDecimals);
 
-      pendingTxResults.forEach((pendingTx, index) => {
+      for (let index = 0; index < pendingTxCount; index += 1) {
+        let pendingTx: unknown;
+        try {
+          pendingTx = pendingTxResults[index];
+        } catch {
+          rootLogger.error(
+            chalk.red(
+              `Pending Safe transaction entry is inaccessible at index ${index} on ${chainName}`,
+            ),
+          );
+          continue;
+        }
         if (pendingTx === null || typeof pendingTx !== 'object') {
           rootLogger.error(
             chalk.red(
               `Pending Safe transaction entry must be an object at index ${index} on ${chainName}: ${stringifyValueForError(pendingTx)}`,
             ),
           );
-          return;
+          continue;
         }
         let nonce: unknown;
         let submissionDate: unknown;
@@ -2863,7 +2874,7 @@ export async function getPendingTxsForChains(
               `Pending Safe transaction entry fields are inaccessible at index ${index} on ${chainName}`,
             ),
           );
-          return;
+          continue;
         }
         let normalizedNonce: number;
         try {
@@ -2873,7 +2884,7 @@ export async function getPendingTxsForChains(
           );
         } catch (error) {
           rootLogger.error(chalk.red(stringifyValueForError(error)));
-          return;
+          continue;
         }
         const normalizedSubmissionDate =
           typeof submissionDate === 'string'
@@ -2888,14 +2899,14 @@ export async function getPendingTxsForChains(
               `Pending Safe transaction submission date must be valid at index ${index} on ${chainName}: ${stringifyValueForError(submissionDate)}`,
             ),
           );
-          return;
+          continue;
         }
         let normalizedSafeTxHash: Hex;
         try {
           normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
         } catch (error) {
           rootLogger.error(chalk.red(stringifyValueForError(error)));
-          return;
+          continue;
         }
         let confs = 0;
         if (Array.isArray(confirmations)) {
@@ -2907,7 +2918,7 @@ export async function getPendingTxsForChains(
                 `Pending Safe transaction confirmations length is inaccessible at index ${index} on ${chainName}: ${stringifyValueForError(confirmations)}`,
               ),
             );
-            return;
+            continue;
           }
           if (!Number.isSafeInteger(confs) || confs < 0) {
             rootLogger.error(
@@ -2915,7 +2926,7 @@ export async function getPendingTxsForChains(
                 `Pending Safe transaction confirmations length is invalid at index ${index} on ${chainName}: ${stringifyValueForError(confs)}`,
               ),
             );
-            return;
+            continue;
           }
         }
         const status =
@@ -2938,7 +2949,7 @@ export async function getPendingTxsForChains(
           status,
           balance: `${Number(formattedBalance).toFixed(5)} ${nativeTokenSymbol.trim()}`,
         });
-      });
+      }
       return chainTxs;
     }),
   );
