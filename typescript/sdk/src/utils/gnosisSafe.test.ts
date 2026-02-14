@@ -3480,6 +3480,16 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data is required');
     });
 
+    it('throws when transaction data is not hex', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: 'not-hex',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must be hex');
+    });
+
     it('parses safe tx calldata when value is omitted', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
