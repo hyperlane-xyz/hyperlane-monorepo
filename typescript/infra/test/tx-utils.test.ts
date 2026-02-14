@@ -724,6 +724,34 @@ describe('processGovernorReaderResult', () => {
     ).to.throw('Governor reader exitFn must be a function: null');
   });
 
+  it('throws when nowFn throws while generating timestamp', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => {
+            throw new Error('clock boom');
+          },
+        },
+      ),
+    ).to.throw('Governor reader timestamp generation failed');
+  });
+
+  it('throws when nowFn returns invalid timestamp', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => Number.POSITIVE_INFINITY,
+        },
+      ),
+    ).to.throw('Governor reader timestamp is invalid: Infinity');
+  });
+
   it('throws when result entry access is inaccessible', () => {
     const resultWithThrowingEntry = [
       ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
@@ -870,6 +898,24 @@ describe('processGovernorReaderResult', () => {
       'chainA-1-0xabc': { status: 'ok' },
     });
     expect(exitCode).to.equal(undefined);
+  });
+
+  it('throws when writing result yaml fails', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => 1700000000000,
+          writeYamlFn: () => {
+            throw new Error('disk failed');
+          },
+        },
+      ),
+    ).to.throw(
+      'Governor reader failed to write results file safe-tx-parse-results-1700000000000.yaml: Error: disk failed',
+    );
   });
 
   it('exits with code 1 when fatal errors are present', () => {

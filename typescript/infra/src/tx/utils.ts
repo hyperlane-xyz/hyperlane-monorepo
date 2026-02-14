@@ -195,8 +195,24 @@ export function processGovernorReaderResult(
     }
     chainResults[resultKey] = governTx;
   }
-  const resultsPath = `${normalizedOutputFileName}-${nowFn()}.yaml`;
-  writeYamlFn(resultsPath, chainResults);
+  let timestampValue: unknown;
+  try {
+    timestampValue = nowFn();
+  } catch {
+    throw new Error('Governor reader timestamp generation failed');
+  }
+  const timestamp = parseNonNegativeSafeLength(
+    timestampValue,
+    'Governor reader timestamp',
+  );
+  const resultsPath = `${normalizedOutputFileName}-${timestamp}.yaml`;
+  try {
+    writeYamlFn(resultsPath, chainResults);
+  } catch (error) {
+    throw new Error(
+      `Governor reader failed to write results file ${resultsPath}: ${stringifyValueForError(error)}`,
+    );
+  }
   rootLogger.info(`Results written to ${resultsPath}`);
 
   if (errorCount > 0) {
