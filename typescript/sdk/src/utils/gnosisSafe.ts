@@ -252,6 +252,9 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
     }
     throw new Error(`Safe tx service URL must use http(s): ${trimmedUrl}`);
   }
+  if (!parsed && trimmedUrl.includes(':') && !trimmedUrl.startsWith('/')) {
+    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+  }
   if (parsed) {
     parsed.search = '';
     parsed.hash = '';

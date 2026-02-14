@@ -228,6 +228,9 @@ describe('gnosisSafe utils', () => {
       expect(() => normalizeSafeServiceUrl('http://:443')).to.throw(
         'Safe tx service URL is invalid: http://:443',
       );
+      expect(() => normalizeSafeServiceUrl('foo:bar')).to.throw(
+        'Safe tx service URL is invalid: foo:bar',
+      );
     });
 
     it('drops query and hash components during normalization', () => {
