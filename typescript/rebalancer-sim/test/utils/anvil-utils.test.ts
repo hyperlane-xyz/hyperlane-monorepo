@@ -62,6 +62,13 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches windows docker named-pipe backslash path failures', () => {
+      const error = new Error(
+        'open \\\\.\\pipe\\docker_engine: The system cannot find the file specified.',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches docker runtime errors nested in error causes', () => {
       const error = new Error('container startup failed');
       (error as Error & { cause?: unknown }).cause = new Error(

@@ -25,6 +25,7 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /connect econnrefused .*docker\.sock/i,
   /npipe:.*docker_engine/i,
   /open \/\/\.\/pipe\/docker_engine/i,
+  /\\\\\.\\pipe\\docker_engine/i,
 ];
 
 function getErrorMessage(error: unknown): string {
