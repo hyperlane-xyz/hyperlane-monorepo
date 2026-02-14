@@ -101,3 +101,5 @@ Matcher regression coverage now also confirms docker-runtime signals are still d
 Matcher regression coverage now also covers `errors` payloads shaped as single error-like objects (not just arrays/maps/iterables), ensuring direct wrapper objects still trigger runtime-unavailable detection.
 
 Nested extraction now also enqueues error-shaped `errors` wrapper objects directly, so runtime-unavailable signals in their nested `cause` chains are detected even when wrapper serialization is non-informative.
+
+Regression coverage now also confirms error-shaped `errors` wrappers with blank top-level messages still detect runtime-unavailable signals via nested `cause` chains.
