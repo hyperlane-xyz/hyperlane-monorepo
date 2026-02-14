@@ -893,6 +893,18 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when output file name contains invalid characters', () => {
+    expect(() => processGovernorReaderResult([], [], 'safe tx parse')).to.throw(
+      'Governor reader output file name contains invalid characters: safe tx parse',
+    );
+
+    expect(() =>
+      processGovernorReaderResult([], [], 'safe-tx-parse-results\nnext-line'),
+    ).to.throw(
+      'Governor reader output file name contains invalid characters: safe-tx-parse-results\nnext-line',
+    );
+  });
+
   it('throws when injected dependency functions are invalid', () => {
     expect(() =>
       processGovernorReaderResult([], [], 'safe-tx-parse-results', {
