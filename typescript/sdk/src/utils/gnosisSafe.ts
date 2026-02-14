@@ -1177,9 +1177,10 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
         Math.floor(
           Math.random() * (SAFE_API_MAX_DELAY_MS - SAFE_API_MIN_DELAY_MS),
         ) + SAFE_API_MIN_DELAY_MS;
+      const errorDetails = stringifyValueForError(error);
 
       const warningMessage = chalk.yellow(
-        `Safe API call failed (attempt ${attempt}/${SAFE_API_MAX_RETRIES}), retrying in ${delayMs}ms: ${error}`,
+        `Safe API call failed (attempt ${attempt}/${SAFE_API_MAX_RETRIES}), retrying in ${delayMs}ms: ${errorDetails}`,
       );
       if (attempt > SAFE_API_MAX_RETRIES - 3) {
         rootLogger.warn(warningMessage);
@@ -1875,7 +1876,7 @@ export async function getSafeTx(
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch transaction details for ${normalizedSafeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+        `Failed to fetch transaction details for ${normalizedSafeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${stringifyValueForError(error)}`,
       ),
     );
     return;
@@ -1891,7 +1892,7 @@ export async function getSafeTx(
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to parse transaction details for ${normalizedSafeTxHash}: ${error}`,
+        `Failed to parse transaction details for ${normalizedSafeTxHash}: ${stringifyValueForError(error)}`,
       ),
     );
     return;

@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import { type Address, encodeFunctionData, getAddress, parseAbi } from 'viem';
 import SafeApiKit from '@safe-global/api-kit';
 import Safe from '@safe-global/protocol-kit';
+import sinon from 'sinon';
 
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
@@ -27,6 +28,7 @@ import {
   normalizeSafeServiceUrl,
   parseSafeTx,
   proposeSafeTransaction,
+  retrySafeApi,
   resolveSafeSigner,
   safeApiKeyRequired,
   updateSafeOwner,
@@ -3024,6 +3026,36 @@ describe('gnosisSafe utils', () => {
             `Safe tx service URL is invalid: ${authority}`,
           );
         }
+      }
+    });
+  });
+
+  describe(retrySafeApi.name, () => {
+    it('retries when runner throws unstringifiable errors before succeeding', async () => {
+      const clock = sinon.useFakeTimers();
+      try {
+        let attempts = 0;
+        const unstringifiableError = {
+          [Symbol.toPrimitive]() {
+            throw new Error('to-primitive boom');
+          },
+        };
+
+        const resultPromise = retrySafeApi(async () => {
+          attempts += 1;
+          if (attempts === 1) {
+            throw unstringifiableError;
+          }
+          return 'ok';
+        });
+
+        await clock.tickAsync(10_000);
+        const result = await resultPromise;
+
+        expect(result).to.equal('ok');
+        expect(attempts).to.equal(2);
+      } finally {
+        clock.restore();
       }
     });
   });
