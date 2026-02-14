@@ -45,6 +45,7 @@ const GENERIC_URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const HOST_WITH_PORT_PREFIX_REGEX = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
 const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
 const SCHEME_RELATIVE_AUTHORITY_WITH_USERINFO_REGEX = /^\/\/[^/?#]*@/;
+const SCHEME_RELATIVE_AUTHORITY_WITH_ENCODED_AT_REGEX = /^\/\/[^/?#]*%40/i;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -106,7 +107,8 @@ function hasMalformedSchemeRelativeAuthority(value: string): boolean {
   return (
     value.startsWith('//@') ||
     value.startsWith('//:') ||
-    SCHEME_RELATIVE_AUTHORITY_WITH_USERINFO_REGEX.test(value)
+    SCHEME_RELATIVE_AUTHORITY_WITH_USERINFO_REGEX.test(value) ||
+    SCHEME_RELATIVE_AUTHORITY_WITH_ENCODED_AT_REGEX.test(value)
   );
 }
 

@@ -174,8 +174,16 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('//safe-transaction-mainnet.safe.global/path@foo'),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired('//safe-transaction-mainnet.safe.global/path%40foo'),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/api?label=@safe',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.safe.global/api?email=user%40hyperlane.xyz',
         ),
       ).to.equal(true);
       expect(
@@ -249,6 +257,7 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('//safe.global%40evil.com:443/api')).to.equal(
         false,
       );
+      expect(safeApiKeyRequired('//safe.global%40evil.com')).to.equal(false);
       expect(safeApiKeyRequired('safe.global%40evil.com:443/api')).to.equal(
         false,
       );
@@ -426,7 +435,15 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('//safe.global/tx-service/path@foo'),
       ).to.equal('https://safe.global/tx-service/path@foo/api');
       expect(
+        normalizeSafeServiceUrl('//safe.global/tx-service/path%40foo'),
+      ).to.equal('https://safe.global/tx-service/path%40foo/api');
+      expect(
         normalizeSafeServiceUrl('//safe.global/api?label=@safe#fragment'),
+      ).to.equal('https://safe.global/api');
+      expect(
+        normalizeSafeServiceUrl(
+          '//safe.global/api?email=user%40hyperlane.xyz#fragment',
+        ),
       ).to.equal('https://safe.global/api');
     });
 
@@ -573,6 +590,9 @@ describe('gnosisSafe utils', () => {
       ).to.throw(
         'Safe tx service URL is invalid: //safe.global%40evil.com:443/api',
       );
+      expect(() =>
+        normalizeSafeServiceUrl('//safe.global%40evil.com'),
+      ).to.throw('Safe tx service URL is invalid: //safe.global%40evil.com');
       expect(() =>
         normalizeSafeServiceUrl('safe.global%40evil.com:443/api'),
       ).to.throw(
