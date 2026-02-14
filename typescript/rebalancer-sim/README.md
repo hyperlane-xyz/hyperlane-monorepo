@@ -177,6 +177,8 @@ forward/backslash pipe signatures), including Podman socket failures and
 nested/wrapped error payloads from container tooling.
 Unknown Windows pipe engine names are intentionally ignored to avoid
 false-positive fallback activation.
+Nested error traversal is intentionally bounded for safety; very deep or
+unbounded wrapper payloads beyond traversal caps are treated as non-matches.
 
 ### 3. Select Rebalancers
 
