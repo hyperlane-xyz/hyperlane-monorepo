@@ -130,7 +130,14 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
 export function hasSafeServiceTransactionPayload(
   transaction: SafeServiceTransaction | undefined,
 ): transaction is SafeServiceTransactionWithPayload {
-  return !!transaction?.to && !!transaction?.data && !!transaction?.value;
+  return (
+    typeof transaction?.to === 'string' &&
+    transaction.to.length > 0 &&
+    typeof transaction.data === 'string' &&
+    transaction.data.length > 0 &&
+    typeof transaction.value === 'string' &&
+    transaction.value.length > 0
+  );
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {

@@ -159,6 +159,13 @@ describe('gnosisSafe utils', () => {
           value: '1',
         }),
       ).to.equal(false);
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: '',
+        }),
+      ).to.equal(false);
     });
   });
 
