@@ -30,6 +30,17 @@ function createReaderWithLookupCounter(): {
   };
 }
 
+function createNoopMpp(): MultiProtocolProvider {
+  return {
+    getSolanaWeb3Provider: () =>
+      ({
+        getAccountInfo: async () => null,
+      }) as unknown as ReturnType<
+        MultiProtocolProvider['getSolanaWeb3Provider']
+      >,
+  } as unknown as MultiProtocolProvider;
+}
+
 async function captureAsyncError(
   fn: () => Promise<unknown>,
 ): Promise<Error | undefined> {
@@ -115,15 +126,12 @@ describe('squads transaction reader', () => {
   }
 
   it('uses requested transaction index when reading config transaction', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,
@@ -166,15 +174,12 @@ describe('squads transaction reader', () => {
   });
 
   it('fails before account lookup when proposal index mismatches request', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,
@@ -214,15 +219,12 @@ describe('squads transaction reader', () => {
   });
 
   it('fails before account lookup when proposal index is invalid', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,
@@ -263,15 +265,12 @@ describe('squads transaction reader', () => {
   });
 
   it('records exactly one error when vault transaction read fails', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,
@@ -307,15 +306,12 @@ describe('squads transaction reader', () => {
   });
 
   it('records exactly one error when config transaction read fails', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,
@@ -351,15 +347,12 @@ describe('squads transaction reader', () => {
   });
 
   it('records exactly one error when proposal data lookup fails', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
-      },
-    );
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,
@@ -387,16 +380,75 @@ describe('squads transaction reader', () => {
     ]);
   });
 
-  it('does not require full proposal status shape when index is valid', async () => {
-    const reader = new SquadsTransactionReader(
-      {} as unknown as MultiProtocolProvider,
-      {
-        resolveCoreProgramIds: () => ({
-          mailbox: 'mailbox-program-id',
-          multisig_ism_message_id: 'multisig-ism-program-id',
-        }),
+  it('looks up solana provider once per read attempt', async () => {
+    let providerLookupCount = 0;
+    const provider = {
+      getAccountInfo: async () => null,
+    };
+    const mpp = {
+      getSolanaWeb3Provider: () => {
+        providerLookupCount += 1;
+        return provider;
       },
-    );
+    } as unknown as MultiProtocolProvider;
+
+    const reader = new SquadsTransactionReader(mpp, {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+        svmProvider: unknown,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: (
+        chain: string,
+        transactionIndex: number,
+        transactionPda: unknown,
+        svmProvider: unknown,
+      ) => Promise<{ data: Buffer }>;
+      readConfigTransaction: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+    };
+
+    readerAny.fetchProposalData = async (_, __, svmProvider) => {
+      expect(svmProvider).to.equal(provider);
+      return createMockProposalData(5);
+    };
+    readerAny.fetchTransactionAccount = async (_, __, ___, svmProvider) => {
+      expect(svmProvider).to.equal(provider);
+      return {
+        data: Buffer.from([
+          ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+          1,
+        ]),
+      };
+    };
+    readerAny.readConfigTransaction = async (_, transactionIndex) => ({
+      chain: 'solanamainnet',
+      transactionIndex,
+    });
+
+    const result = (await reader.read('solanamainnet', 5)) as {
+      transactionIndex?: number;
+    };
+
+    expect(result.transactionIndex).to.equal(5);
+    expect(providerLookupCount).to.equal(1);
+  });
+
+  it('does not require full proposal status shape when index is valid', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
     const readerAny = reader as unknown as {
       fetchProposalData: (
         chain: string,

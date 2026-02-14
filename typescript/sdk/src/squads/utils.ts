@@ -97,6 +97,10 @@ export type SquadAndProvider = {
   programId: PublicKey;
 };
 
+type SolanaWeb3Provider = ReturnType<
+  MultiProtocolProvider['getSolanaWeb3Provider']
+>;
+
 type SquadsProposalVoteErrorPattern = {
   error: SquadsProposalVoteError;
   patterns: readonly string[];
@@ -416,6 +420,7 @@ export async function getSquadProposalAccount(
   chain: ChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
+  svmProviderOverride?: SolanaWeb3Provider,
 ): Promise<
   | {
       proposal: accounts.Proposal;
@@ -427,7 +432,7 @@ export async function getSquadProposalAccount(
   assertValidTransactionIndexInput(transactionIndex, chain);
 
   try {
-    const svmProvider = mpp.getSolanaWeb3Provider(chain);
+    const svmProvider = svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const [proposalPda] = getProposalPda({

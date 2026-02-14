@@ -48,7 +48,6 @@ import {
   SquadsInstructionName,
   SquadsInstructionType,
   decodePermissions,
-  getSquadAndProvider,
   getSquadProposalAccount,
   isConfigTransaction,
   isVaultTransaction,
@@ -144,6 +143,10 @@ export interface SquadsTransaction extends Record<string, unknown> {
   multisig?: string;
   instructions?: SquadsGovernTransaction[];
 }
+
+type SolanaWeb3Provider = ReturnType<
+  MultiProtocolProvider['getSolanaWeb3Provider']
+>;
 
 function formatValidatorsWithAliases(
   chain: ChainName,
@@ -666,6 +669,7 @@ export class SquadsTransactionReader {
   private async fetchProposalData(
     chain: ChainName,
     transactionIndex: number,
+    svmProvider: SolanaWeb3Provider,
   ): Promise<{
     proposal: accounts.Proposal;
     proposalPda: PublicKey;
@@ -676,6 +680,7 @@ export class SquadsTransactionReader {
       chain,
       this.mpp,
       transactionIndex,
+      svmProvider,
     );
     if (!proposalData) {
       const error = `Proposal ${transactionIndex} not found on ${chain}`;
@@ -692,13 +697,13 @@ export class SquadsTransactionReader {
     chain: ChainName,
     transactionIndex: number,
     transactionPda: PublicKey,
+    svmProvider: SolanaWeb3Provider,
   ) {
-    const { svmProvider } = getSquadAndProvider(chain, this.mpp);
     const accountInfo = await svmProvider.getAccountInfo(transactionPda);
 
     if (!accountInfo) {
       throw new Error(
-        `Transaction account not found at ${transactionPda.toBase58()}`,
+        `Transaction account not found at ${transactionPda.toBase58()} on ${chain}`,
       );
     }
 
@@ -714,8 +719,8 @@ export class SquadsTransactionReader {
   private async resolveAddressLookupTables(
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
+    svmProvider: SolanaWeb3Provider,
   ): Promise<PublicKey[]> {
-    const { svmProvider } = getSquadAndProvider(chain, this.mpp);
     const accountKeys = [...vaultTransaction.message.accountKeys];
     const lookups = vaultTransaction.message.addressTableLookups;
 
@@ -747,7 +752,7 @@ export class SquadsTransactionReader {
         }
       } catch (error) {
         rootLogger.warn(
-          `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${error}`,
+          `Failed to resolve address lookup table ${lookup.accountKey.toBase58()} on ${chain}: ${error}`,
         );
       }
     }
@@ -758,6 +763,7 @@ export class SquadsTransactionReader {
   private async parseVaultInstructions(
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
+    svmProvider: SolanaWeb3Provider,
   ): Promise<{ instructions: ParsedInstruction[]; warnings: string[] }> {
     const coreProgramIds = this.options.resolveCoreProgramIds(chain);
     const corePrograms = {
@@ -772,6 +778,7 @@ export class SquadsTransactionReader {
     const accountKeys = await this.resolveAddressLookupTables(
       chain,
       vaultTransaction,
+      svmProvider,
     );
     const computeBudgetProgramId = ComputeBudgetProgram.programId;
 
@@ -950,6 +957,7 @@ export class SquadsTransactionReader {
   private async readVaultTransaction(
     chain: ChainName,
     transactionIndex: number,
+    svmProvider: SolanaWeb3Provider,
     proposalData: {
       proposal: accounts.Proposal;
       proposalPda: PublicKey;
@@ -957,7 +965,6 @@ export class SquadsTransactionReader {
     },
     transactionPda: PublicKey,
   ): Promise<SquadsTransaction> {
-    const { svmProvider } = getSquadAndProvider(chain, this.mpp);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     let vaultTransaction: accounts.VaultTransaction;
@@ -972,7 +979,7 @@ export class SquadsTransactionReader {
     }
 
     const { instructions: parsedInstructions, warnings } =
-      await this.parseVaultInstructions(chain, vaultTransaction);
+      await this.parseVaultInstructions(chain, vaultTransaction, svmProvider);
 
     if (warnings.length > 0) {
       this.errors.push({ chain, transactionIndex, warnings });
@@ -996,9 +1003,11 @@ export class SquadsTransactionReader {
     assertValidTransactionIndexInput(transactionIndex, chain);
 
     try {
+      const svmProvider = this.mpp.getSolanaWeb3Provider(chain);
       const proposalData = await this.fetchProposalData(
         chain,
         transactionIndex,
+        svmProvider,
       );
       const proposalTransactionIndex = parseSquadProposalTransactionIndex(
         proposalData.proposal,
@@ -1018,6 +1027,7 @@ export class SquadsTransactionReader {
         chain,
         transactionIndex,
         transactionPda,
+        svmProvider,
       );
 
       if (isConfigTransaction(accountInfo.data)) {
@@ -1042,6 +1052,7 @@ export class SquadsTransactionReader {
       return await this.readVaultTransaction(
         chain,
         transactionIndex,
+        svmProvider,
         proposalData,
         transactionPda,
       );
