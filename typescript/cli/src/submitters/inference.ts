@@ -1094,7 +1094,16 @@ export async function resolveSubmitterBatchesForTransactions({
   if (transactions.length === 0) {
     return [];
   }
-  const protocol = context.multiProvider.getProtocol(chain);
+  let protocol: ProtocolType | undefined;
+  try {
+    protocol = context.multiProvider.getProtocol(chain);
+  } catch (error) {
+    logger.debug(
+      `Falling back to default protocol handling for ${chain}`,
+      error,
+    );
+    protocol = undefined;
+  }
 
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =
     strategyUrl && !isExtendedChain
@@ -1102,6 +1111,17 @@ export async function resolveSubmitterBatchesForTransactions({
       : undefined;
 
   if (explicitSubmissionStrategy) {
+    if (!protocol) {
+      return [
+        {
+          config: ExtendedSubmissionStrategySchema.parse({
+            submitter: explicitSubmissionStrategy.submitter,
+          }),
+          transactions,
+        },
+      ];
+    }
+
     const explicitOverrideIndexes = buildExplicitOverrideIndexes({
       protocol,
       overrides: explicitSubmissionStrategy.submitterOverrides,
