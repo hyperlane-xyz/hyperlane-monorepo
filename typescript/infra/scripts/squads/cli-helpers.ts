@@ -3,9 +3,9 @@ import { Argv } from 'yargs';
 
 import type { IRegistry } from '@hyperlane-xyz/registry';
 import {
-  ChainName,
   MultiProtocolProvider,
   SquadProposalStatus,
+  SquadsChainName,
   getSquadsChains,
   partitionSquadsChains,
 } from '@hyperlane-xyz/sdk';
@@ -121,7 +121,9 @@ function formatChainNameForDisplay(chain: string): string {
   return trimmedChain.length > 0 ? trimmedChain : '<empty>';
 }
 
-export function resolveSquadsChains(chains?: readonly unknown[]): ChainName[] {
+export function resolveSquadsChains(
+  chains?: readonly unknown[],
+): SquadsChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
     const normalizedChains = normalizeProvidedChains(chains);
@@ -194,7 +196,9 @@ function normalizeProvidedChains(chains: readonly unknown[]): string[] {
   return normalizeChainValues(chains, 'chains');
 }
 
-export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
+export function resolveSquadsChainsFromArgv(
+  chains: unknown,
+): SquadsChainName[] {
   return resolveSquadsChains(normalizeArgvChains(chains));
 }
 
