@@ -36,6 +36,7 @@ const turnkeySignerPromises = new Map<
   Promise<TurnkeySealevelDeployerSigner>
 >();
 const registryPromises = new Map<DeployEnvironment, Promise<IRegistry>>();
+const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 
 function memoizeByEnvironment<T>(
   cache: Map<DeployEnvironment, Promise<T>>,
@@ -275,7 +276,11 @@ export function formatScriptError(error: unknown): string {
 
     try {
       const formattedError = String(error);
-      if (formattedError.length > 0) {
+      const trimmedFormattedError = formattedError.trim();
+      if (
+        trimmedFormattedError.length > 0 &&
+        !GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+      ) {
         return formattedError;
       }
     } catch {}
@@ -304,9 +309,20 @@ export function formatScriptError(error: unknown): string {
 
     try {
       return stringifyObject(error);
-    } catch {
-      return '[unformattable error object]';
-    }
+    } catch {}
+
+    try {
+      const formattedError = String(error);
+      const trimmedFormattedError = formattedError.trim();
+      if (
+        trimmedFormattedError.length > 0 &&
+        !GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+      ) {
+        return formattedError;
+      }
+    } catch {}
+
+    return '[unformattable error object]';
   }
 
   try {

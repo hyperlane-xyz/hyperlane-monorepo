@@ -838,6 +838,21 @@ describe('squads cli helpers', () => {
     expect(formatted).to.include('bar');
   });
 
+  it('falls back to custom String(error) when object JSON serialization fails', () => {
+    const objectWithCustomToString = {
+      toJSON() {
+        throw new Error('cannot serialize');
+      },
+      toString() {
+        return 'custom error object';
+      },
+    };
+
+    expect(formatScriptError(objectWithCustomToString)).to.equal(
+      'custom error object',
+    );
+  });
+
   it('falls back for unformattable object errors', () => {
     const unformattableError = {
       toJSON() {
