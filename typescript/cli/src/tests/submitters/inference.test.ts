@@ -1329,6 +1329,53 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('normalizes owner address from ownable read before submitter inference', async () => {
+    const safeOwner = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => '  0X4444444444444444444444444444444444444444  ',
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeOwner.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownableStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when owner is unknown submitter type', async () => {
     const unknownOwner = '0x5555555555555555555555555555555555555555';
     const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
