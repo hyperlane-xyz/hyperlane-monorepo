@@ -1413,7 +1413,11 @@ export function decodeMultiSendData(
   };
 
   while (index < transactionBytes.length) {
-    const operation = `0x${readSegment(2, 'operation')}`;
+    const operation = Number(`0x${readSegment(2, 'operation')}`);
+    assert(
+      operation === 0 || operation === 1,
+      `Invalid multisend payload: unsupported operation ${operation}`,
+    );
     const to = `0x${readSegment(40, 'to')}`;
     const value = `0x${readSegment(64, 'value')}`;
     const dataLengthHex = readSegment(64, 'data length');
@@ -1425,7 +1429,7 @@ export function decodeMultiSendData(
     const data = `0x${readSegment(dataLength, 'data')}`;
 
     txs.push({
-      operation: Number(operation) as OperationType,
+      operation: operation as OperationType,
       to: getAddress(to),
       value: BigInt(value).toString(),
       data,

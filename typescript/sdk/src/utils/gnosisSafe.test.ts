@@ -3607,6 +3607,25 @@ describe('gnosisSafe utils', () => {
         'Invalid multisend payload: malformed data length',
       );
     });
+
+    it('throws when multisend tx operation is unsupported', () => {
+      const invalidOperationTxBytes = `0x${[
+        '02',
+        '00000000000000000000000000000000000000aa',
+        '0000000000000000000000000000000000000000000000000000000000000000',
+        '0000000000000000000000000000000000000000000000000000000000000000',
+      ].join('')}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [invalidOperationTxBytes],
+      });
+
+      expect(() => decodeMultiSendData(encoded)).to.throw(
+        'Invalid multisend payload: unsupported operation 2',
+      );
+    });
   });
 
   describe(getKnownMultiSendAddresses.name, () => {
