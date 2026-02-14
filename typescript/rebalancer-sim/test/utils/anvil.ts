@@ -33,8 +33,11 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /connect econnrefused .*docker\.sock/i,
   /connect econnrefused .*podman\.sock/i,
   /npipe:.*docker_engine/i,
+  /npipe:.*dockerdesktoplinuxengine/i,
   /open \/\/\.\/pipe\/docker_engine/i,
+  /open \/\/\.\/pipe\/dockerdesktoplinuxengine/i,
   /\\\\\.\\pipe\\docker_engine/i,
+  /\\\\\.\\pipe\\dockerdesktoplinuxengine/i,
 ];
 
 function getErrorMessage(error: unknown): string {
