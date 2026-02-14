@@ -1,3 +1,6 @@
+import { spawn, type ChildProcessWithoutNullStreams } from 'child_process';
+import { createServer } from 'net';
+
 import {
   GenericContainer,
   type StartedTestContainer,
@@ -8,6 +11,11 @@ import { retryAsync } from '@hyperlane-xyz/utils';
 
 const CONTAINER_PORT = 8545; // Port inside the container (fixed)
 const DEFAULT_CHAIN_ID = 31337;
+const LOCAL_ANVIL_HOST = '127.0.0.1';
+const LOCAL_ANVIL_STARTUP_TIMEOUT_MS = 30_000;
+const LOCAL_ANVIL_STOP_TIMEOUT_MS = 5_000;
+
+let hasLoggedLocalFallback = false;
 
 /**
  * Start an Anvil container using testcontainers.
@@ -47,6 +55,155 @@ export function getAnvilRpcUrl(container: StartedTestContainer): string {
   return `http://${host}:${port}`;
 }
 
+interface StartedAnvil {
+  rpc: string;
+  stop: () => Promise<void>;
+}
+
+function isContainerRuntimeUnavailable(error: unknown): boolean {
+  const message = error instanceof Error ? error.message : String(error);
+  return (
+    message.includes('Could not find a working container runtime strategy') ||
+    message.includes('No Docker client strategy found')
+  );
+}
+
+async function getAvailablePort(): Promise<number> {
+  return new Promise((resolve, reject) => {
+    const server = createServer();
+    server.once('error', reject);
+
+    server.listen(0, LOCAL_ANVIL_HOST, () => {
+      const address = server.address();
+      if (!address || typeof address === 'string') {
+        server.close(() => reject(new Error('Failed to allocate local port')));
+        return;
+      }
+
+      server.close((closeError) => {
+        if (closeError) {
+          reject(closeError);
+          return;
+        }
+        resolve(address.port);
+      });
+    });
+  });
+}
+
+async function stopLocalAnvilProcess(
+  process: ChildProcessWithoutNullStreams,
+): Promise<void> {
+  if (process.killed || process.exitCode !== null) return;
+
+  await new Promise<void>((resolve) => {
+    const timeout = setTimeout(() => {
+      process.kill('SIGKILL');
+      resolve();
+    }, LOCAL_ANVIL_STOP_TIMEOUT_MS);
+
+    process.once('exit', () => {
+      clearTimeout(timeout);
+      resolve();
+    });
+
+    process.kill('SIGTERM');
+  });
+}
+
+async function startLocalAnvil(
+  chainId: number = DEFAULT_CHAIN_ID,
+): Promise<StartedAnvil> {
+  const port = await getAvailablePort();
+  const process = spawn(
+    'anvil',
+    [
+      '--host',
+      LOCAL_ANVIL_HOST,
+      '-p',
+      port.toString(),
+      '--chain-id',
+      chainId.toString(),
+    ],
+    { stdio: ['ignore', 'pipe', 'pipe'] },
+  );
+
+  return new Promise<StartedAnvil>((resolve, reject) => {
+    let output = '';
+
+    const cleanupListeners = () => {
+      clearTimeout(startupTimeout);
+      process.stdout.removeListener('data', onData);
+      process.stderr.removeListener('data', onData);
+      process.removeListener('error', onError);
+      process.removeListener('exit', onExitBeforeReady);
+    };
+
+    const onData = (chunk: Buffer) => {
+      output += chunk.toString();
+      if (!output.includes('Listening on')) return;
+
+      cleanupListeners();
+      resolve({
+        rpc: `http://${LOCAL_ANVIL_HOST}:${port}`,
+        stop: () => stopLocalAnvilProcess(process),
+      });
+    };
+
+    const onError = (error: Error) => {
+      cleanupListeners();
+      reject(new Error(`Failed to start local anvil: ${error.message}`));
+    };
+
+    const onExitBeforeReady = (code: number | null, signal: string | null) => {
+      cleanupListeners();
+      reject(
+        new Error(
+          `Local anvil exited before startup (code=${code}, signal=${signal}). Output: ${output.trim()}`,
+        ),
+      );
+    };
+
+    const startupTimeout = setTimeout(() => {
+      cleanupListeners();
+      void stopLocalAnvilProcess(process);
+      reject(
+        new Error(
+          `Timed out waiting for local anvil startup after ${LOCAL_ANVIL_STARTUP_TIMEOUT_MS}ms`,
+        ),
+      );
+    }, LOCAL_ANVIL_STARTUP_TIMEOUT_MS);
+
+    process.stdout.on('data', onData);
+    process.stderr.on('data', onData);
+    process.once('error', onError);
+    process.once('exit', onExitBeforeReady);
+  });
+}
+
+async function startAnvil(
+  chainId: number = DEFAULT_CHAIN_ID,
+): Promise<StartedAnvil> {
+  try {
+    const container = await startAnvilContainer(chainId);
+    return {
+      rpc: getAnvilRpcUrl(container),
+      stop: () => container.stop(),
+    };
+  } catch (error) {
+    if (!isContainerRuntimeUnavailable(error)) throw error;
+
+    if (!hasLoggedLocalFallback) {
+      console.warn(
+        'Container runtime unavailable; falling back to local anvil process.',
+      );
+      hasLoggedLocalFallback = true;
+    }
+
+    return startLocalAnvil(chainId);
+  }
+}
+
 /**
  * Setup function for Mocha tests that require Anvil.
  * Starts a fresh Anvil container for EACH TEST to ensure complete isolation.
@@ -75,10 +232,10 @@ export function setupAnvilTestSuite(
 ): { rpc: string } {
   // Use a getter pattern so rpc is always current after container starts
   const state: {
-    container: StartedTestContainer | null;
+    anvil: StartedAnvil | null;
     rpc: string;
   } = {
-    container: null,
+    anvil: null,
     rpc: '', // Will be set after container starts
   };
 
@@ -87,20 +244,20 @@ export function setupAnvilTestSuite(
   // Start fresh anvil container before EACH test
   suite.beforeEach(async function () {
     // Stop any existing container
-    if (state.container) {
-      await state.container.stop();
-      state.container = null;
+    if (state.anvil) {
+      await state.anvil.stop();
+      state.anvil = null;
     }
 
-    state.container = await startAnvilContainer(chainId);
-    state.rpc = getAnvilRpcUrl(state.container);
+    state.anvil = await startAnvil(chainId);
+    state.rpc = state.anvil.rpc;
   });
 
   // Stop container after EACH test for clean slate
   suite.afterEach(async function () {
-    if (state.container) {
-      await state.container.stop();
-      state.container = null;
+    if (state.anvil) {
+      await state.anvil.stop();
+      state.anvil = null;
     }
   });
 
