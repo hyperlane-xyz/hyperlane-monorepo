@@ -31,6 +31,12 @@ describe('squads cli helpers', () => {
     expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
   });
 
+  it('accepts generic string arrays and validates squads support', () => {
+    expect(() => resolveSquadsChains(['ethereum'])).to.throw(
+      'Squads configuration not found for chains: ethereum',
+    );
+  });
+
   it('resolves to provided chains when explicitly set', () => {
     const squadsChains = getSquadsChains();
     const selectedChains = [squadsChains[0]];

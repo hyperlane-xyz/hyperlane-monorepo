@@ -101,7 +101,7 @@ export function getUnsupportedSquadsChainsErrorMessage(
   );
 }
 
-export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
+export function resolveSquadsChains(chains?: string[]): ChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
     const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);

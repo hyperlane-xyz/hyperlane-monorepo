@@ -452,7 +452,7 @@ async function main() {
   const mpp = await getMultiProtocolProviderFor(environment);
   const hasExplicitChains = !!chainsArg && chainsArg.length > 0;
   const chains = hasExplicitChains
-    ? resolveSquadsChains(chainsArg as ChainName[])
+    ? resolveSquadsChains(chainsArg)
     : partitionSquadsChains(
         envConfig.supportedChainNames.filter(
           (chain) =>
