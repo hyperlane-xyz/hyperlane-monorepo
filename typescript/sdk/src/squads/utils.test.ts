@@ -266,6 +266,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from string originalError field', () => {
+      const error = {
+        originalError: 'Program log: AlreadyCancelled',
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
     it('parses known vote error from message field', () => {
       const error = {
         message: 'Squads transaction failed: custom program error: 0x177c',
