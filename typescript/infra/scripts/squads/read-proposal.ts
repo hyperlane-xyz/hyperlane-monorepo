@@ -74,7 +74,18 @@ function toBase58IfPossible(
   }
 
   try {
-    return toBase58Candidate.call(value);
+    const rawValue = toBase58Candidate.call(value);
+    const normalizedValue =
+      typeof rawValue === 'string' ? rawValue.trim() : String(rawValue).trim();
+    if (normalizedValue.length === 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipping ${labelWithIndex} on ${chain}: toBase58() returned an empty value`,
+        ),
+      );
+      return undefined;
+    }
+    return normalizedValue;
   } catch (error) {
     rootLogger.warn(
       chalk.yellow(
