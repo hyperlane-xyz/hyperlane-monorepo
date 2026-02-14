@@ -17,7 +17,7 @@ import {
   partitionSquadsChains,
   submitProposalToSquads,
 } from '@hyperlane-xyz/sdk';
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 import { readJson } from '@hyperlane-xyz/utils/fs';
 import yargs from 'yargs';
 
@@ -182,6 +182,10 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
       // MultisigIsm instruction
       const remoteChain = batchChainNames[multisigInstructionIndex];
       const config = configsToUpdate[remoteChain];
+      assert(
+        config,
+        `Missing config for batch chain ${remoteChain} while building MultisigIsm proposal on ${chain}`,
+      );
       rootLogger.info(
         chalk.gray(
           `Instruction ${idx}: Set validators and threshold for ${remoteChain} (${config.validators.length} validators, threshold ${config.threshold})`,
