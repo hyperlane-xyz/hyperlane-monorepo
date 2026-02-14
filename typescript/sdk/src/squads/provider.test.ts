@@ -83,4 +83,10 @@ describe('squads provider bridge', () => {
       'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: undefined)',
     );
   });
+
+  it('labels array provider containers in malformed provider errors', () => {
+    expect(() => toSquadsProvider([] as unknown as SolanaProvider)).to.throw(
+      'Invalid Solana provider: expected getAccountInfo function, got undefined (provider: array)',
+    );
+  });
 });
