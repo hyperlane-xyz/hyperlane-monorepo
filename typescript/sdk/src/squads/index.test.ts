@@ -32,6 +32,10 @@ const SDK_ROOT_INDEX_PATH = path.resolve(
   '..',
   'index.ts',
 );
+const SQUADS_BARREL_INDEX_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  'index.ts',
+);
 const SDK_PACKAGE_JSON_PATH = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
@@ -67,6 +71,19 @@ describe('squads barrel exports', () => {
   it('keeps squads barrel wired through sdk root index source', () => {
     const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
     expect(rootIndexSource).to.include("export * from './squads/index.js';");
+  });
+
+  it('keeps expected squads submodule exports in squads barrel source', () => {
+    const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
+
+    expect(squadsBarrelSource).to.include("export * from './config.js';");
+    expect(squadsBarrelSource).to.include("export * from './utils.js';");
+    expect(squadsBarrelSource).to.include(
+      "export * from './transaction-reader.js';",
+    );
+    expect(squadsBarrelSource).to.include(
+      "export * from './error-format.js';",
+    );
   });
 
   it('keeps sdk package explicitly depending on @sqds/multisig', () => {
