@@ -704,6 +704,29 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: Error',
       );
     });
+
+    it('formats safely when message, name, and constructor access all fail', () => {
+      const problematicError = new Error('hidden');
+      Object.defineProperty(problematicError, 'message', {
+        value: ' ',
+        configurable: true,
+        enumerable: false,
+      });
+      Object.defineProperty(problematicError, 'name', {
+        value: ' ',
+        configurable: true,
+        enumerable: false,
+      });
+      Object.defineProperty(problematicError, 'constructor', {
+        get() {
+          throw new Error('blocked constructor getter');
+        },
+      });
+
+      expect(formatLocalAnvilStartError(problematicError)).to.equal(
+        'Failed to start local anvil: {}',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {

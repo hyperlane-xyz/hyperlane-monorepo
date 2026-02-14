@@ -79,3 +79,5 @@ When `Error.message` access fails, startup formatting now falls back to the erro
 Blank-string `message` payloads are now treated as non-informative so formatter output can fall back to richer name/structured diagnostics.
 
 If both message and name are blank on `Error` instances, formatter diagnostics now fall back to constructor names before structural serialization.
+
+Regression coverage now includes hostile `Error` objects where constructor-name access throws after blank message/name values, ensuring non-crashing structural fallback output.
