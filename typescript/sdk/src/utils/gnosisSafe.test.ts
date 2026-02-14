@@ -48,6 +48,7 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('ws://safe-transaction-mainnet.5afe.dev'),
       ).to.equal(false);
       expect(safeApiKeyRequired('mailto:safe.global')).to.equal(false);
+      expect(safeApiKeyRequired('data:text/plain,safe.global')).to.equal(false);
     });
 
     it('handles uppercase hosts and safe subdomains', () => {
@@ -218,6 +219,11 @@ describe('gnosisSafe utils', () => {
       );
       expect(() => normalizeSafeServiceUrl('mailto:safe.global')).to.throw(
         'Safe tx service URL must use http(s): mailto:safe.global',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('data:text/plain,safe.global'),
+      ).to.throw(
+        'Safe tx service URL must use http(s): data:text/plain,safe.global',
       );
     });
 
