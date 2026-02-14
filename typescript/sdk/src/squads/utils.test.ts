@@ -407,6 +407,7 @@ describe('squads utils', () => {
         transactionIndex: 7n,
         staleTransactionIndex: 7n,
         timeLock: 0n,
+        members: [{ key: 'member-1' }],
       } as unknown as Parameters<typeof parseSquadMultisig>[0]);
 
       expect(parsed).to.deep.equal({
@@ -666,6 +667,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when threshold exceeds multisig member count', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 3n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: 'member-1' }, { key: 'member-2' }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be less than or equal to member count: 3 > 2',
+      );
+    });
+
     it('uses caller-provided field prefix for stale index invariant errors', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig(
@@ -680,6 +696,24 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads solanamainnet multisig stale transaction index must be less than or equal to transaction index: 2 > 1',
+      );
+    });
+
+    it('uses caller-provided field prefix for threshold/member-count invariant errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 3n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 1n,
+            timeLock: 0n,
+            members: [{ key: 'member-1' }, { key: 'member-2' }],
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig threshold must be less than or equal to member count: 3 > 2',
       );
     });
 

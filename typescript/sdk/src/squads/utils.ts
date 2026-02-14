@@ -692,6 +692,15 @@ export function parseSquadMultisig(
     staleTransactionIndex <= currentTransactionIndex,
     `Squads ${fieldPrefix} stale transaction index must be less than or equal to transaction index: ${staleTransactionIndex} > ${currentTransactionIndex}`,
   );
+  const memberCount = Array.isArray(multisig.members)
+    ? multisig.members.length
+    : undefined;
+  if (typeof memberCount === 'number') {
+    assert(
+      threshold <= memberCount,
+      `Squads ${fieldPrefix} threshold must be less than or equal to member count: ${threshold} > ${memberCount}`,
+    );
+  }
 
   return {
     threshold,
