@@ -118,7 +118,7 @@ function cacheKey(chain: ChainName, address: Address): string {
 
 function normalizeLogPositionIndex(value: unknown): number {
   if (typeof value === 'number') {
-    return Number.isFinite(value) ? Math.trunc(value) : -1;
+    return Number.isFinite(value) && value >= 0 ? Math.trunc(value) : -1;
   }
   if (typeof value === 'bigint') {
     if (value < 0n) {
@@ -128,8 +128,23 @@ function normalizeLogPositionIndex(value: unknown): number {
     return Number(value > max ? max : value);
   }
   if (typeof value === 'string') {
-    const numeric = Number(value);
-    return Number.isFinite(numeric) ? Math.trunc(numeric) : -1;
+    const trimmed = value.trim();
+    if (!trimmed) {
+      return -1;
+    }
+    const numeric = Number(trimmed);
+    return Number.isFinite(numeric) && numeric >= 0 ? Math.trunc(numeric) : -1;
+  }
+  if (
+    typeof value === 'object' &&
+    value !== null &&
+    typeof (value as { toString?: unknown }).toString === 'function'
+  ) {
+    const stringified = (value as { toString: () => string }).toString();
+    if (!stringified || stringified === '[object Object]') {
+      return -1;
+    }
+    return normalizeLogPositionIndex(stringified);
   }
   return -1;
 }

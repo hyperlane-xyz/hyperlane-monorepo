@@ -3876,6 +3876,127 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('handles BigNumber-like ICA event positional fields deterministically', async () => {
+    const inferredIcaOwner = '0x8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c8c';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+    const originRouterAddress = '0x9191919191919191919191919191919191919191';
+    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
+      2,
+    )}` as const;
+    const asBigNumberLike = (value: string) =>
+      ({
+        toString: () => value,
+      }) as any;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const olderLog = {
+      topics: ['0xolder'],
+      data: '0x',
+      blockNumber: asBigNumberLike('700'),
+      transactionIndex: asBigNumberLike('2'),
+      logIndex: asBigNumberLike('4'),
+    };
+    const newerLog = {
+      topics: ['0xnewer'],
+      data: '0x',
+      blockNumber: asBigNumberLike('701'),
+      transactionIndex: asBigNumberLike('0'),
+      logIndex: asBigNumberLike('0'),
+    };
+    const provider = {
+      // intentionally unsorted newest-last/first should not matter
+      getLogs: sinon.stub().resolves([olderLog, newerLog]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== destinationRouterAddress.toLowerCase()) {
+          throw new Error('unexpected router');
+        }
+
+        return {
+          filters: {
+            InterchainAccountCreated: (_accountAddress: string) => ({}),
+          },
+          interface: {
+            parseLog: (log: any) => {
+              if (log === newerLog) {
+                return {
+                  args: {
+                    origin: 31347,
+                    router: originRouterBytes32,
+                    owner: signerBytes32,
+                    ism: ethersConstants.AddressZero,
+                  },
+                };
+              }
+              return {
+                args: {
+                  origin: 999999,
+                  router: originRouterBytes32,
+                  owner: signerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              };
+            },
+          },
+        } as any;
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) {
+            return 'anvil3';
+          }
+          throw new Error(`unknown domain ${domainId}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('uses jsonRpc internal submitter when ICA event-derived origin signer lookup fails', async () => {
     const inferredIcaOwner = '0x6868686868686868686868686868686868686868';
     const destinationRouterAddress =
@@ -6473,6 +6594,111 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       blockNumber: 600n,
       transactionIndex: 2n,
       logIndex: 0n,
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [olderGrant, newerGrant];
+        }
+        return [revoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('handles BigNumber-like timelock role positional fields deterministically', async () => {
+    const timelockOwner = '0x5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d5d';
+    const safeProposer = '0x6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e6e';
+    const asBigNumberLike = (value: string) =>
+      ({
+        toString: () => value,
+      }) as any;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const olderGrant = {
+      topics: ['0xgrant-older'],
+      data: '0x',
+      blockNumber: asBigNumberLike('800'),
+      transactionIndex: asBigNumberLike('1'),
+      logIndex: asBigNumberLike('1'),
+    };
+    const newerGrant = {
+      topics: ['0xgrant-newer'],
+      data: '0x',
+      blockNumber: asBigNumberLike('801'),
+      transactionIndex: asBigNumberLike('0'),
+      logIndex: asBigNumberLike('0'),
+    };
+    const revoke = {
+      topics: ['0xrevoke'],
+      data: '0x',
+      blockNumber: asBigNumberLike('800'),
+      transactionIndex: asBigNumberLike('2'),
+      logIndex: asBigNumberLike('0'),
     };
 
     const provider = {
