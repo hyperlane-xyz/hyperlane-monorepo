@@ -80,4 +80,8 @@ describe('squads provider bridge', () => {
   it('labels array provider containers in malformed provider errors', () => {
     expectInvalidProvider([], 'undefined', 'array');
   });
+
+  it('labels numeric provider containers in malformed provider errors', () => {
+    expectInvalidProvider(1, 'undefined', 'number');
+  });
 });
