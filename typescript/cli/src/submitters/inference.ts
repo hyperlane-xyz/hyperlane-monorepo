@@ -327,8 +327,14 @@ async function getSignerAddressForChain(
 
   try {
     const signerAddress = await context.multiProvider.getSignerAddress(chain);
-    cache.signerAddressByChain.set(chain, signerAddress);
-    return signerAddress;
+    const normalizedSignerAddress = tryNormalizeEvmAddress(signerAddress);
+    const resolvedSignerAddress =
+      normalizedSignerAddress &&
+      !eqAddress(normalizedSignerAddress, ethersConstants.AddressZero)
+        ? (normalizedSignerAddress as Address)
+        : null;
+    cache.signerAddressByChain.set(chain, resolvedSignerAddress);
+    return resolvedSignerAddress;
   } catch {
     cache.signerAddressByChain.set(chain, null);
     return null;
