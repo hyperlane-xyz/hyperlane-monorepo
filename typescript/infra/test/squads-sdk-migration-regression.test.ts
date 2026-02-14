@@ -110,6 +110,29 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
 }
 
 describe('squads sdk migration regression', () => {
+  it('keeps guarded squads script path lists valid and deduplicated', () => {
+    expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(SQUADS_SCRIPT_PATHS.length);
+    expect(new Set(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS).size).to.equal(
+      SQUADS_ERROR_FORMATTING_SCRIPT_PATHS.length,
+    );
+
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      const absolutePath = path.join(INFRA_ROOT, scriptPath);
+      expect(
+        fs.existsSync(absolutePath),
+        `Expected guarded script path to exist: ${scriptPath}`,
+      ).to.equal(true);
+    }
+
+    const squadsScriptSet = new Set(SQUADS_SCRIPT_PATHS);
+    for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
+      expect(
+        squadsScriptSet.has(scriptPath),
+        `Expected formatting-guarded script to be in primary squads script list: ${scriptPath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps infra squads regression script stable', () => {
     const infraPackageJson = readInfraPackageJson();
 
