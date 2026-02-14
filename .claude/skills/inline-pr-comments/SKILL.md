@@ -52,16 +52,17 @@ When you discover issues in code NOT changed by the PR:
 
 Example: update the sticky comment to include non-diff findings:
 
-```
-mcp__github_comment__update_claude_comment with body:
+```yaml
+tool: mcp__github_comment__update_claude_comment
+args:
+  body: |
+    ## Review Summary
+    [inline feedback summary]
 
-## Review Summary
-[inline feedback summary]
-
-## Observations Outside This PR
-While reviewing, I noticed:
-- `src/utils/foo.ts:142`: Pre-existing null check missing
-- `src/core/bar.ts:78-82`: Similar pattern to line 45 issue - consider deduping
+    ## Observations Outside This PR
+    While reviewing, I noticed:
+    - `src/utils/foo.ts:142`: Pre-existing null check missing
+    - `src/core/bar.ts:78-82`: Similar pattern to line 45 issue - consider deduping
 ```
 
 ### Feedback Guidelines
