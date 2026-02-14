@@ -46,6 +46,7 @@ const GENERIC_URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const HOST_WITH_PORT_PREFIX_REGEX = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
 const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
 const USERINFO_LIKE_AUTHORITY_REGEX = /@|%(?:25)*40/i;
+const RAW_BACKSLASH_REGEX = /\\/;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -190,6 +191,10 @@ function hasMalformedHttpSchemeDelimiter(value: string): boolean {
   return MALFORMED_HTTP_SCHEME_DELIMITER_REGEX.test(value);
 }
 
+function hasRawBackslash(value: string): boolean {
+  return RAW_BACKSLASH_REGEX.test(value);
+}
+
 function hasUrlUserinfo(parsed: URL): boolean {
   return parsed.username.length > 0 || parsed.password.length > 0;
 }
@@ -313,6 +318,9 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const trimmedUrl = txServiceUrl.trim();
+  if (hasRawBackslash(trimmedUrl)) {
+    return false;
+  }
   if (hasMalformedHttpSchemeDelimiter(trimmedUrl)) {
     return false;
   }
@@ -368,6 +376,9 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
+  if (hasRawBackslash(trimmedUrl)) {
+    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+  }
   if (hasMalformedHttpSchemeDelimiter(trimmedUrl)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
