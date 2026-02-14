@@ -184,4 +184,8 @@ Error extraction now deduplicates repeated object references while traversing ne
 
 Regression coverage now also confirms repeated-reference wrapper payloads still detect runtime-unavailable signals that appear after large duplicate object sequences.
 
+Error extraction now also deduplicates repeated primitive values while traversing nested wrapper payloads, preventing extraction-budget starvation from duplicate scalar entries that can mask later runtime-unavailable signals.
+
+Regression coverage now also confirms repeated-primitive wrapper payloads still detect runtime-unavailable signals that appear after large duplicate scalar sequences.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
