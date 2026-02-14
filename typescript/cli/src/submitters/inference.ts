@@ -497,6 +497,7 @@ async function inferSubmitterFromTransaction({
   }
 
   const to = (transaction as any).to;
+  const from = (transaction as any).from;
   if (!to || typeof to !== 'string') {
     return defaultSubmitter;
   }
@@ -511,9 +512,13 @@ async function inferSubmitterFromTransaction({
     ownerAddress = null;
   }
 
+  const addressToInferFrom =
+    ownerAddress ??
+    (typeof from === 'string' ? normalizeAddressEvm(from) : normalizedTarget);
+
   const inferredSubmitter = await inferSubmitterFromAddress({
     chain,
-    address: ownerAddress ?? normalizedTarget,
+    address: addressToInferFrom,
     context,
     cache,
     depth: 0,
