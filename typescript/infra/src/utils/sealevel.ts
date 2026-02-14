@@ -17,7 +17,7 @@ import {
   IsmType,
   MultiProtocolProvider,
   MultisigIsmConfig,
-  SealevelMultisigIsmInstructionType as SdkMultisigIsmInstructionType,
+  SealevelMultisigIsmInstructionType,
   SealevelDomainData,
   SealevelDomainDataSchema,
   SealevelInstructionWrapper,
@@ -731,7 +731,8 @@ export function buildMultisigIsmInstructions(
     ];
 
     const value = new SealevelInstructionWrapper({
-      instruction: SdkMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD,
+      instruction:
+        SealevelMultisigIsmInstructionType.SET_VALIDATORS_AND_THRESHOLD,
       data: new SealevelMultisigIsmSetValidatorsInstruction({
         domain,
         validators,
