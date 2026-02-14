@@ -2981,6 +2981,15 @@ describe('squads utils', () => {
     );
   });
 
+  it('fails fast for invalid terminal-status helper inputs', () => {
+    expect(() => isTerminalSquadsProposalStatus('   ')).to.throw(
+      'Expected status kind to be a non-empty string',
+    );
+    expect(() =>
+      isTerminalSquadsProposalStatus(1 as unknown as string),
+    ).to.throw('Expected status kind to be a string, got number');
+  });
+
   it('detects modifiable squads proposal statuses', () => {
     expect(canModifySquadsProposalStatus(SquadsProposalStatus.Active)).to.eq(
       true,
@@ -2992,6 +3001,14 @@ describe('squads utils', () => {
       false,
     );
     expect(canModifySquadsProposalStatus(' Draft ')).to.eq(false);
+  });
+
+  it('fails fast for invalid modifiable-status helper inputs', () => {
+    expect(() => canModifySquadsProposalStatus('')).to.throw(
+      'Expected status kind to be a non-empty string',
+    );
+    expect(() => canModifySquadsProposalStatus(null as unknown as string)).to
+      .throw('Expected status kind to be a string, got object');
   });
 
   it('detects stale squads proposals only for non-terminal statuses', () => {
@@ -3019,6 +3036,9 @@ describe('squads utils', () => {
       isStaleSquadsProposal(SquadsProposalStatus.Active, 0, Number.NaN),
     ).to.throw(
       'Expected stale transaction index to be a non-negative safe integer, got NaN',
+    );
+    expect(() => isStaleSquadsProposal('   ', 0, 0)).to.throw(
+      'Expected status kind to be a non-empty string',
     );
   });
 });
