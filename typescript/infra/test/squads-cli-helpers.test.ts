@@ -109,41 +109,50 @@ describe('squads cli helpers', () => {
     );
   });
 
-  it('labels null argv chain values clearly in index-aware errors', () => {
-    expect(() => resolveSquadsChainsFromArgv([null])).to.throw(
-      'Expected --chains[0] to be a string, but received null',
-    );
-  });
+  const invalidArgvChainTypeCases: Array<{
+    title: string;
+    chainValue: unknown;
+    expectedType: string;
+  }> = [
+    {
+      title: 'labels null argv chain values clearly in index-aware errors',
+      chainValue: null,
+      expectedType: 'null',
+    },
+    {
+      title: 'labels object argv chain values clearly in index-aware errors',
+      chainValue: {},
+      expectedType: 'object',
+    },
+    {
+      title: 'labels array argv chain values clearly in index-aware errors',
+      chainValue: [],
+      expectedType: 'array',
+    },
+    {
+      title: 'labels bigint argv chain values clearly in index-aware errors',
+      chainValue: 1n,
+      expectedType: 'bigint',
+    },
+    {
+      title: 'labels symbol argv chain values clearly in index-aware errors',
+      chainValue: Symbol('invalid-chain'),
+      expectedType: 'symbol',
+    },
+    {
+      title: 'labels function argv chain values clearly in index-aware errors',
+      chainValue: () => 'invalid-chain',
+      expectedType: 'function',
+    },
+  ];
 
-  it('labels object argv chain values clearly in index-aware errors', () => {
-    expect(() => resolveSquadsChainsFromArgv([{}])).to.throw(
-      'Expected --chains[0] to be a string, but received object',
-    );
-  });
-
-  it('labels array argv chain values clearly in index-aware errors', () => {
-    expect(() => resolveSquadsChainsFromArgv([[]])).to.throw(
-      'Expected --chains[0] to be a string, but received array',
-    );
-  });
-
-  it('labels bigint argv chain values clearly in index-aware errors', () => {
-    expect(() => resolveSquadsChainsFromArgv([1n])).to.throw(
-      'Expected --chains[0] to be a string, but received bigint',
-    );
-  });
-
-  it('labels symbol argv chain values clearly in index-aware errors', () => {
-    expect(() => resolveSquadsChainsFromArgv([Symbol('invalid-chain')])).to.throw(
-      'Expected --chains[0] to be a string, but received symbol',
-    );
-  });
-
-  it('labels function argv chain values clearly in index-aware errors', () => {
-    expect(() => resolveSquadsChainsFromArgv([() => 'invalid-chain'])).to.throw(
-      'Expected --chains[0] to be a string, but received function',
-    );
-  });
+  for (const { title, chainValue, expectedType } of invalidArgvChainTypeCases) {
+    it(title, () => {
+      expect(() => resolveSquadsChainsFromArgv([chainValue])).to.throw(
+        `Expected --chains[0] to be a string, but received ${expectedType}`,
+      );
+    });
+  }
 
   it('rejects empty argv chain string values with index-aware errors', () => {
     expect(() => resolveSquadsChainsFromArgv(['   '])).to.throw(
@@ -207,41 +216,50 @@ describe('squads cli helpers', () => {
     );
   });
 
-  it('labels null values in explicitly provided chains errors', () => {
-    expect(() => resolveSquadsChains([null])).to.throw(
-      'Expected chains[0] to be a string, but received null',
-    );
-  });
+  const invalidProvidedChainTypeCases: Array<{
+    title: string;
+    chainValue: unknown;
+    expectedType: string;
+  }> = [
+    {
+      title: 'labels null values in explicitly provided chains errors',
+      chainValue: null,
+      expectedType: 'null',
+    },
+    {
+      title: 'labels object values in explicitly provided chains errors',
+      chainValue: {},
+      expectedType: 'object',
+    },
+    {
+      title: 'labels array values in explicitly provided chains errors',
+      chainValue: [],
+      expectedType: 'array',
+    },
+    {
+      title: 'labels symbol values in explicitly provided chains errors',
+      chainValue: Symbol('invalid-chain'),
+      expectedType: 'symbol',
+    },
+    {
+      title: 'labels function values in explicitly provided chains errors',
+      chainValue: () => 'invalid-chain',
+      expectedType: 'function',
+    },
+    {
+      title: 'labels bigint values in explicitly provided chains errors',
+      chainValue: 1n,
+      expectedType: 'bigint',
+    },
+  ];
 
-  it('labels object values in explicitly provided chains errors', () => {
-    expect(() => resolveSquadsChains([{}])).to.throw(
-      'Expected chains[0] to be a string, but received object',
-    );
-  });
-
-  it('labels array values in explicitly provided chains errors', () => {
-    expect(() => resolveSquadsChains([[]])).to.throw(
-      'Expected chains[0] to be a string, but received array',
-    );
-  });
-
-  it('labels symbol values in explicitly provided chains errors', () => {
-    expect(() => resolveSquadsChains([Symbol('invalid-chain')])).to.throw(
-      'Expected chains[0] to be a string, but received symbol',
-    );
-  });
-
-  it('labels function values in explicitly provided chains errors', () => {
-    expect(() => resolveSquadsChains([() => 'invalid-chain'])).to.throw(
-      'Expected chains[0] to be a string, but received function',
-    );
-  });
-
-  it('labels bigint values in explicitly provided chains errors', () => {
-    expect(() => resolveSquadsChains([1n])).to.throw(
-      'Expected chains[0] to be a string, but received bigint',
-    );
-  });
+  for (const { title, chainValue, expectedType } of invalidProvidedChainTypeCases) {
+    it(title, () => {
+      expect(() => resolveSquadsChains([chainValue])).to.throw(
+        `Expected chains[0] to be a string, but received ${expectedType}`,
+      );
+    });
+  }
 
   it('reports exact index for explicitly provided non-string chain values', () => {
     const [chain] = getSquadsChains();
