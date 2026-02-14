@@ -1250,6 +1250,51 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('handles array wrappers with throwing iterators and non-enumerable message fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const arrayWrapper = Object.assign([{ message: 'noise-entry' }], {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'array wrapper without nested details';
+        },
+      });
+      Object.defineProperty(arrayWrapper, Symbol.iterator, {
+        value() {
+          throw new Error('broken array iterator');
+        },
+      });
+      Object.defineProperty(arrayWrapper, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+      Object.defineProperty(arrayWrapper, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
+      });
+      Object.defineProperty(arrayWrapper, 'message', {
+        value: 'No Docker client strategy found',
+        enumerable: false,
+      });
+
+      const wrappedError = {
+        errors: arrayWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('handles set wrappers with throwing iterators and non-enumerable errors fallbacks', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const setWrapper = Object.assign(new Set([{ message: 'noise-entry' }]), {
@@ -1267,6 +1312,51 @@ describe('Anvil utils', () => {
       });
       Object.defineProperty(setWrapper, 'errors', {
         value: { message: 'Cannot connect to the Docker daemon' },
+        enumerable: false,
+      });
+
+      const wrappedError = {
+        errors: setWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('handles set wrappers with throwing iterators and non-enumerable message fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const setWrapper = Object.assign(new Set([{ message: 'noise-entry' }]), {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'set wrapper without nested details';
+        },
+      });
+      Object.defineProperty(setWrapper, Symbol.iterator, {
+        value() {
+          throw new Error('broken set iterator');
+        },
+      });
+      Object.defineProperty(setWrapper, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+      Object.defineProperty(setWrapper, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
+      });
+      Object.defineProperty(setWrapper, 'message', {
+        value: 'No Docker client strategy found',
         enumerable: false,
       });
 
@@ -1303,6 +1393,54 @@ describe('Anvil utils', () => {
       });
       Object.defineProperty(generatorWrapper, 'errors', {
         value: { message: 'Cannot connect to the Docker daemon' },
+        enumerable: false,
+      });
+
+      const wrappedError = {
+        errors: generatorWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('handles generator wrappers with throwing iterators and non-enumerable message fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const generatorWrapper = {
+        *[Symbol.iterator]() {
+          yield { message: 'noise-entry' };
+        },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'generator wrapper without nested details';
+        },
+      };
+      Object.defineProperty(generatorWrapper, Symbol.iterator, {
+        value() {
+          throw new Error('broken generator iterator');
+        },
+      });
+      Object.defineProperty(generatorWrapper, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+      Object.defineProperty(generatorWrapper, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
+      });
+      Object.defineProperty(generatorWrapper, 'message', {
+        value: 'No Docker client strategy found',
         enumerable: false,
       });
 
