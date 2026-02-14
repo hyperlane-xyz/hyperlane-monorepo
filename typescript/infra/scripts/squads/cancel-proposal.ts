@@ -10,7 +10,9 @@ import {
   SvmMultiProtocolSignerAdapter,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
+  canModifySquadsProposalStatus,
   getSquadProposal,
+  isTerminalSquadsProposalStatus,
   parseSquadsProposalVoteErrorFromError,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -97,24 +99,17 @@ async function main() {
   }
 
   // Check if proposal is already executed, cancelled, or rejected
-  if (status === SquadsProposalStatus.Executed) {
-    throw new Error(
-      `Proposal ${proposalTransactionIndex} has already been executed and cannot be modified.`,
-    );
-  }
+  if (isTerminalSquadsProposalStatus(status)) {
+    if (status === SquadsProposalStatus.Executed) {
+      throw new Error(
+        `Proposal ${proposalTransactionIndex} has already been executed and cannot be modified.`,
+      );
+    }
 
-  if (status === SquadsProposalStatus.Cancelled) {
     rootLogger.warn(
       chalk.yellow(
-        `Proposal ${proposalTransactionIndex} is already cancelled.`,
+        `Proposal ${proposalTransactionIndex} is already ${status.toLowerCase()}.`,
       ),
-    );
-    return;
-  }
-
-  if (status === SquadsProposalStatus.Rejected) {
-    rootLogger.warn(
-      chalk.yellow(`Proposal ${proposalTransactionIndex} is already rejected.`),
     );
     return;
   }
@@ -122,10 +117,7 @@ async function main() {
   // Determine the appropriate action based on proposal status
   // - Active proposals: Use Reject (vote against)
   // - Approved proposals: Use Cancel (prevent execution)
-  if (
-    status !== SquadsProposalStatus.Active &&
-    status !== SquadsProposalStatus.Approved
-  ) {
+  if (!canModifySquadsProposalStatus(status)) {
     throw new Error(
       `Proposal ${proposalTransactionIndex} is ${status} and cannot be modified by this script. Expected ${SquadsProposalStatus.Active} or ${SquadsProposalStatus.Approved}.`,
     );

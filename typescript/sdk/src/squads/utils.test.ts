@@ -20,6 +20,8 @@ import {
   getSquadProposalAccount,
   getSquadProposal,
   getSquadTxStatus,
+  isTerminalSquadsProposalStatus,
+  canModifySquadsProposalStatus,
   getTransactionType,
   isConfigTransaction,
   parseSquadsProposalVoteError,
@@ -2961,5 +2963,33 @@ describe('squads utils', () => {
 
   it('exports canonical proposal statuses', () => {
     expect(SquadsProposalStatus.Active).to.equal('Active');
+  });
+
+  it('detects terminal squads proposal statuses', () => {
+    expect(isTerminalSquadsProposalStatus(SquadsProposalStatus.Executed)).to.eq(
+      true,
+    );
+    expect(isTerminalSquadsProposalStatus(SquadsProposalStatus.Rejected)).to.eq(
+      true,
+    );
+    expect(
+      isTerminalSquadsProposalStatus(` ${SquadsProposalStatus.Cancelled} `),
+    ).to.eq(true);
+    expect(isTerminalSquadsProposalStatus(SquadsProposalStatus.Active)).to.eq(
+      false,
+    );
+  });
+
+  it('detects modifiable squads proposal statuses', () => {
+    expect(canModifySquadsProposalStatus(SquadsProposalStatus.Active)).to.eq(
+      true,
+    );
+    expect(canModifySquadsProposalStatus(SquadsProposalStatus.Approved)).to.eq(
+      true,
+    );
+    expect(canModifySquadsProposalStatus(SquadsProposalStatus.Executed)).to.eq(
+      false,
+    );
+    expect(canModifySquadsProposalStatus(' Draft ')).to.eq(false);
   });
 });

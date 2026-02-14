@@ -716,11 +716,7 @@ export async function getPendingProposalsForChains(
             }
             const proposalIndex = transactionIndex;
 
-            if (
-              proposalStatus === SquadsProposalStatus.Executed ||
-              proposalStatus === SquadsProposalStatus.Rejected ||
-              proposalStatus === SquadsProposalStatus.Cancelled
-            ) {
+            if (isTerminalSquadsProposalStatus(proposalStatus)) {
               continue;
             }
 
@@ -800,6 +796,23 @@ export const SquadsProposalStatus = {
 } as const satisfies Record<accounts.Proposal['status']['__kind'], string>;
 export type SquadsProposalStatus =
   (typeof SquadsProposalStatus)[keyof typeof SquadsProposalStatus];
+
+export function isTerminalSquadsProposalStatus(statusKind: string): boolean {
+  const normalizedStatusKind = normalizeStatusKind(statusKind);
+  return (
+    normalizedStatusKind === SquadsProposalStatus.Executed ||
+    normalizedStatusKind === SquadsProposalStatus.Rejected ||
+    normalizedStatusKind === SquadsProposalStatus.Cancelled
+  );
+}
+
+export function canModifySquadsProposalStatus(statusKind: string): boolean {
+  const normalizedStatusKind = normalizeStatusKind(statusKind);
+  return (
+    normalizedStatusKind === SquadsProposalStatus.Active ||
+    normalizedStatusKind === SquadsProposalStatus.Approved
+  );
+}
 
 export function getSquadTxStatus(
   statusKind: string,
