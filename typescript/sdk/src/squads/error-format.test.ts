@@ -231,6 +231,63 @@ describe('squads error-format', () => {
       ).to.equal('{"foo":"bar"}');
     });
 
+    it('does not call object formatter when object stack is usable', () => {
+      let formatterCallCount = 0;
+      const formatted = stringifyUnknownSquadsError(
+        {
+          stack: 'Error: boom\n at sample.ts:1:1',
+          message: 'boom',
+        },
+        {
+          formatObject() {
+            formatterCallCount += 1;
+            return 'formatted object';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('Error: boom\n at sample.ts:1:1');
+      expect(formatterCallCount).to.equal(0);
+    });
+
+    it('does not call object formatter when object message is usable', () => {
+      let formatterCallCount = 0;
+      const formatted = stringifyUnknownSquadsError(
+        {
+          stack: 'Error',
+          message: 'boom',
+        },
+        {
+          formatObject() {
+            formatterCallCount += 1;
+            return 'formatted object';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('boom');
+      expect(formatterCallCount).to.equal(0);
+    });
+
+    it('calls object formatter when object stack/message are low-signal', () => {
+      let formatterCallCount = 0;
+      const formatted = stringifyUnknownSquadsError(
+        {
+          stack: 'Error',
+          message: '   ',
+        },
+        {
+          formatObject() {
+            formatterCallCount += 1;
+            return 'formatted object';
+          },
+        },
+      );
+
+      expect(formatted).to.equal('formatted object');
+      expect(formatterCallCount).to.equal(1);
+    });
+
     it('ignores low-signal object formatter outputs and falls back', () => {
       const formatted = stringifyUnknownSquadsError(
         {
