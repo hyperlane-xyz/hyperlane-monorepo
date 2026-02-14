@@ -7,6 +7,8 @@ import {
   SvmMultiProtocolSignerAdapter,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
+  getSquadsChains,
+  getSquadsKeys,
   getSquadProposal,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -24,7 +26,9 @@ const environment = 'mainnet3';
 async function main() {
   const { chain, transactionIndex } = await withTransactionIndex(
     withChain(yargs(process.argv.slice(2))),
-  ).demandOption('chain').argv;
+  )
+    .choices('chain', getSquadsChains())
+    .demandOption('chain').argv;
 
   // Validate chain is Sealevel
   if (!chainIsProtocol(chain, ProtocolType.Sealevel)) {
@@ -49,17 +53,21 @@ async function main() {
     ),
   );
 
-  // Fetch the proposal to verify it exists
-  const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
-  if (!proposalData) {
-    throw new Error(
-      `Proposal ${transactionIndex} not found on ${chain}. Please check the transaction index.`,
-    );
-  }
+  const { proposal, multisig, status } = await (async () => {
+    getSquadsKeys(chain);
 
-  const { proposal, multisig } = proposalData;
-  const status = proposal.status.__kind;
-  rootLogger.info(chalk.gray(`Found proposal with status: ${status}`));
+    const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+    if (!proposalData) {
+      throw new Error(
+        `Proposal ${transactionIndex} not found on ${chain}. Please check the transaction index.`,
+      );
+    }
+
+    const { proposal, multisig } = proposalData;
+    const status = proposal.status.__kind;
+    rootLogger.info(chalk.gray(`Found proposal with status: ${status}`));
+    return { proposal, multisig, status };
+  })();
 
   // Check if proposal is stale
   const staleTransactionIndex = Number(multisig.staleTransactionIndex);
@@ -208,6 +216,15 @@ async function main() {
 }
 
 main().catch((err) => {
+  if (
+    err instanceof Error &&
+    err.message.startsWith('Squads config not found on chain')
+  ) {
+    rootLogger.info(
+      chalk.gray('Available chains:'),
+      getSquadsChains().join(', '),
+    );
+  }
   rootLogger.error('Error processing Squads proposal:', err);
   process.exit(1);
 });
