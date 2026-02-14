@@ -54,6 +54,12 @@ const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
 const USERINFO_LIKE_AUTHORITY_REGEX = /@|%(?:25)*40/i;
 const RAW_BACKSLASH_REGEX = /\\/;
 const FUNCTION_SELECTOR_HEX_LENGTH = 10;
+const SAFE_TX_DATA_REQUIRED_ERROR = 'Safe transaction data is required';
+const SAFE_TX_DATA_INVALID_HEX_ERROR = 'Safe transaction data must be hex';
+const SAFE_TX_SELECTOR_REQUIRED_ERROR =
+  'Safe transaction data must include function selector';
+const MULTISEND_SELECTOR_REQUIRED_ERROR =
+  'Invalid multisend payload: missing multisend selector';
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -1423,12 +1429,12 @@ export async function getPendingTxsForChains(
 
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   const normalizedData = asHex(tx.data, {
-    required: 'Safe transaction data is required',
-    invalid: 'Safe transaction data must be hex',
+    required: SAFE_TX_DATA_REQUIRED_ERROR,
+    invalid: SAFE_TX_DATA_INVALID_HEX_ERROR,
   });
   assert(
     normalizedData.length >= FUNCTION_SELECTOR_HEX_LENGTH,
-    'Safe transaction data must include function selector',
+    SAFE_TX_SELECTOR_REQUIRED_ERROR,
   );
   return SAFE_INTERFACE.parseTransaction({
     data: normalizedData,
@@ -1476,7 +1482,7 @@ export function decodeMultiSendData(
   const normalizedData = asHex(encodedData);
   assert(
     normalizedData.length >= FUNCTION_SELECTOR_HEX_LENGTH,
-    'Invalid multisend payload: missing multisend selector',
+    MULTISEND_SELECTOR_REQUIRED_ERROR,
   );
   const decodedData = decodeFunctionData({
     abi: parseAbi([
