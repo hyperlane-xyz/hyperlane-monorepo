@@ -124,7 +124,12 @@ export enum SafeTxStatus {
 }
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
-  return /safe\.global|5afe\.dev/.test(txServiceUrl);
+  try {
+    const hostname = new URL(txServiceUrl).hostname.toLowerCase();
+    return hostname.endsWith('safe.global') || hostname.endsWith('5afe.dev');
+  } catch {
+    return /safe\.global|5afe\.dev/i.test(txServiceUrl);
+  }
 }
 
 export function hasSafeServiceTransactionPayload(

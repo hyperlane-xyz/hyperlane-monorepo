@@ -41,6 +41,18 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('https://transaction.safe.somechain.com/api'),
       ).to.equal(false);
     });
+
+    it('handles uppercase hosts and safe subdomains', () => {
+      expect(
+        safeApiKeyRequired('HTTPS://SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL/API'),
+      ).to.equal(true);
+    });
+
+    it('does not match safe domain strings outside hostname', () => {
+      expect(
+        safeApiKeyRequired('https://example.com/path/safe.global/api'),
+      ).to.equal(false);
+    });
   });
 
   describe(normalizeSafeServiceUrl.name, () => {
