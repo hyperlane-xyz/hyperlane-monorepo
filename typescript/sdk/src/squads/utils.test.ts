@@ -597,6 +597,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from singular log string keys', () => {
+      const error = {
+        payload: {
+          log: 'Program log: AlreadyApproved',
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from snake_case log-like array keys', () => {
       const error = {
         payload: {
@@ -647,6 +658,15 @@ describe('squads utils', () => {
       const error = {
         metadata: {
           catalog: ['custom program error: 0x177b'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
+    });
+
+    it('ignores non-log string keys that only contain log as substring', () => {
+      const error = {
+        metadata: {
+          logical: 'custom program error: 0x177c',
         },
       };
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
