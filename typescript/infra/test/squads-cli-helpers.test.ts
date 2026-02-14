@@ -24,6 +24,11 @@ function parseArgs(args: Argv) {
 }
 
 async function expectParseError(args: Argv, expectedMessage: string) {
+  const parserError = await getParseError(args);
+  expect(parserError.message).to.include(expectedMessage);
+}
+
+async function getParseError(args: Argv): Promise<Error> {
   let parserError: Error | undefined;
   try {
     await parseArgs(args);
@@ -32,7 +37,7 @@ async function expectParseError(args: Argv, expectedMessage: string) {
   }
 
   expect(parserError).to.not.be.undefined;
-  expect(parserError?.message).to.include(expectedMessage);
+  return parserError!;
 }
 
 describe('squads cli helpers', () => {
@@ -496,14 +501,11 @@ describe('squads cli helpers', () => {
 
   it('rejects mixed squads and non-squads chains via parser choices', async () => {
     const chain = getSquadsChains()[0];
-    await expectParseError(
+    const parserError = await getParseError(
       withSquadsChains(yargs(['--chains', chain, '--chains', 'ethereum'])),
-      'Invalid values',
     );
-    await expectParseError(
-      withSquadsChains(yargs(['--chains', chain, '--chains', 'ethereum'])),
-      'ethereum',
-    );
+    expect(parserError.message).to.include('Invalid values');
+    expect(parserError.message).to.include('ethereum');
   });
 
   it('rejects empty chains values via parser coercion', async () => {
