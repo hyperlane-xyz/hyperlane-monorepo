@@ -75,3 +75,4 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe owner-update transaction generation with strict threshold/owner validation and deterministic swap/threshold tx payload checks.
 - Canonicalizing owner-diff helper output addresses to checksum format after validation.
 - Hardening pending-status chain input handling by validating non-string/empty entries and trimming chain names before safe lookup/provider calls.
+- Hardening pending-status confirmation parsing by rejecting inaccessible or invalid confirmation-array lengths per entry.

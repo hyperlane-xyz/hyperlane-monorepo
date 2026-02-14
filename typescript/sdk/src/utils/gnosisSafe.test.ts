@@ -5798,6 +5798,120 @@ describe('gnosisSafe utils', () => {
       expect(statuses).to.have.lengthOf(1);
       expect(statuses[0].chain).to.equal('test');
     });
+
+    it('skips entries when confirmations length accessor is inaccessible', async () => {
+      const confirmationsWithThrowingLength = new Proxy([{}], {
+        get(target, prop, receiver) {
+          if (prop === 'length') {
+            throw new Error('length unavailable');
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [
+          {
+            nonce: '1',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'aa'.repeat(32)}`,
+            confirmations: confirmationsWithThrowingLength,
+          },
+          {
+            nonce: '2',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'bb'.repeat(32)}`,
+            confirmations: [],
+          },
+        ],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.have.lengthOf(1);
+      expect(statuses[0].fullTxHash).to.equal(`0x${'bb'.repeat(32)}`);
+    });
+
+    it('skips entries when confirmations length is invalid', async () => {
+      const confirmationsWithInvalidLength = new Proxy([{}], {
+        get(target, prop, receiver) {
+          if (prop === 'length') {
+            return Number.NaN;
+          }
+          return Reflect.get(target, prop, receiver);
+        },
+      });
+      safeModule.init = (async () => ({
+        getThreshold: async () => 1,
+        getBalance: async () => BigNumber.from('1000000000000000000'),
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getPendingTransactions = (async () => ({
+        results: [
+          {
+            nonce: '1',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'aa'.repeat(32)}`,
+            confirmations: confirmationsWithInvalidLength,
+          },
+          {
+            nonce: '2',
+            submissionDate: '2026-01-01T00:00:00Z',
+            safeTxHash: `0x${'cc'.repeat(32)}`,
+            confirmations: [],
+          },
+        ],
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        ['test'],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.have.lengthOf(1);
+      expect(statuses[0].fullTxHash).to.equal(`0x${'cc'.repeat(32)}`);
+    });
   });
 
   describe('safe tx service helpers', () => {

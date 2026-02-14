@@ -2882,7 +2882,27 @@ export async function getPendingTxsForChains(
           rootLogger.error(chalk.red(String(error)));
           return;
         }
-        const confs = Array.isArray(confirmations) ? confirmations.length : 0;
+        let confs = 0;
+        if (Array.isArray(confirmations)) {
+          try {
+            confs = confirmations.length;
+          } catch {
+            rootLogger.error(
+              chalk.red(
+                `Pending Safe transaction confirmations length is inaccessible at index ${index} on ${chain}: ${stringifyValueForError(confirmations)}`,
+              ),
+            );
+            return;
+          }
+          if (!Number.isSafeInteger(confs) || confs < 0) {
+            rootLogger.error(
+              chalk.red(
+                `Pending Safe transaction confirmations length is invalid at index ${index} on ${chain}: ${stringifyValueForError(confs)}`,
+              ),
+            );
+            return;
+          }
+        }
         const status =
           confs >= threshold
             ? SafeTxStatus.READY_TO_EXECUTE
