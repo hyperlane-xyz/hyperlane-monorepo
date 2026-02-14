@@ -5,6 +5,7 @@ import { fileURLToPath } from 'node:url';
 import { expect } from 'chai';
 
 import {
+  NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
   SQUADS_ERROR_FORMATTING_SCRIPT_PATHS,
   SQUADS_SCRIPT_PATHS,
 } from './squads-test-constants.js';
@@ -130,6 +131,24 @@ describe('squads sdk migration regression', () => {
     ).sort();
 
     expect(configuredSquadsScripts).to.deep.equal(discoveredSquadsScripts);
+  });
+
+  it('keeps non-executable squads script allowlist synchronized with scripts/squads', () => {
+    const configuredNonExecutableSquadsScripts =
+      NON_EXECUTABLE_SQUADS_SCRIPT_FILES.map((fileName) =>
+        path.join('scripts/squads', fileName),
+      ).sort();
+    const discoveredSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+    const discoveredNonExecutableSquadsScripts = discoveredSquadsScripts.filter(
+      (scriptPath) =>
+        NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+          scriptPath.endsWith(`/${fileName}`),
+        ),
+    );
+
+    expect(configuredNonExecutableSquadsScripts).to.deep.equal(
+      discoveredNonExecutableSquadsScripts,
+    );
   });
 
   it('keeps infra squads regression script stable', () => {
