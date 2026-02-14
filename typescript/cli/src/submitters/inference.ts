@@ -201,9 +201,6 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
     if (typeof stringified !== 'string') {
       return null;
     }
-    if (!stringified || stringified === '[object Object]') {
-      return null;
-    }
     return toNonNegativeIntegerBigInt(stringified);
   }
 
