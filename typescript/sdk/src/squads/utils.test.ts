@@ -251,6 +251,48 @@ describe('squads utils', () => {
         'Squads multisig threshold exceeds JavaScript safe integer range',
       );
     });
+
+    it('throws when multisig transaction index exceeds JavaScript safe integer range', () => {
+      const parseUnsafeMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseUnsafeMultisig).to.throw(
+        'Squads multisig transaction index exceeds JavaScript safe integer range',
+      );
+    });
+
+    it('throws when multisig stale transaction index exceeds JavaScript safe integer range', () => {
+      const parseUnsafeMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseUnsafeMultisig).to.throw(
+        'Squads multisig stale transaction index exceeds JavaScript safe integer range',
+      );
+    });
+
+    it('throws when multisig timelock exceeds JavaScript safe integer range', () => {
+      const parseUnsafeMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseUnsafeMultisig).to.throw(
+        'Squads multisig timelock exceeds JavaScript safe integer range',
+      );
+    });
   });
 
   describe(decodePermissions.name, () => {
