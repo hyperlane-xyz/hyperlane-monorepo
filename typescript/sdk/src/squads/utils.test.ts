@@ -187,6 +187,28 @@ describe('squads utils', () => {
       });
     });
 
+    it('accepts bignum-like proposal indexes and timestamps', () => {
+      const parsed = parseSquadProposal({
+        status: {
+          __kind: SquadsProposalStatus.Active,
+          timestamp: { toString: () => '1700000000' },
+        },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex: { toString: () => '7' },
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed).to.deep.equal({
+        status: SquadsProposalStatus.Active,
+        approvals: 0,
+        rejections: 0,
+        cancellations: 0,
+        transactionIndex: 7,
+        statusTimestampSeconds: 1700000000,
+      });
+    });
+
     it('throws when transaction index is not a safe integer', () => {
       const parseUnsafeProposal = () =>
         parseSquadProposal({
