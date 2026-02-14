@@ -967,11 +967,17 @@ async function inferTimelockProposerSubmitter({
             destinationRouterAddress,
             ethersConstants.AddressZero,
           );
-          if (eqAddress(derivedIcaProposer, ethersConstants.AddressZero)) {
+          const normalizedDerivedIcaProposer = tryNormalizeEvmAddress(
+            derivedIcaProposer,
+          );
+          if (
+            !normalizedDerivedIcaProposer ||
+            eqAddress(normalizedDerivedIcaProposer, ethersConstants.AddressZero)
+          ) {
             continue;
           }
 
-          if (!eqAddress(derivedIcaProposer, proposer)) {
+          if (!eqAddress(normalizedDerivedIcaProposer, proposer)) {
             continue;
           }
 
@@ -1053,17 +1059,25 @@ async function inferTimelockProposerSubmitter({
         const derivedIcaProposer = await originRouter[
           'getRemoteInterchainAccount(address,address,address)'
         ](signerAddress, destinationRouterAddress, ethersConstants.AddressZero);
-        if (eqAddress(derivedIcaProposer, ethersConstants.AddressZero)) {
+        const normalizedDerivedIcaProposer = tryNormalizeEvmAddress(
+          derivedIcaProposer,
+        );
+        if (
+          !normalizedDerivedIcaProposer ||
+          eqAddress(normalizedDerivedIcaProposer, ethersConstants.AddressZero)
+        ) {
           continue;
         }
 
-        if (!(await timelock.hasRole(PROPOSER_ROLE, derivedIcaProposer))) {
+        if (
+          !(await timelock.hasRole(PROPOSER_ROLE, normalizedDerivedIcaProposer))
+        ) {
           continue;
         }
 
         const inferredIca = await inferIcaSubmitterFromAccount({
           destinationChain: chain,
-          accountAddress: derivedIcaProposer,
+          accountAddress: normalizedDerivedIcaProposer,
           context,
           cache,
           depth: depth + 1,
