@@ -1,0 +1,32 @@
+anvil2:
+  # Default submitter for this chain
+  submitter:
+    type: jsonRpc
+    chain: anvil2
+
+  # Optional per-target submitter overrides.
+  # When a transaction `to` matches one of these addresses,
+  # the override submitter is used instead of the default above.
+  submitterOverrides:
+    # Example: route mailbox-owned txs through a Safe tx builder
+    '0x1111111111111111111111111111111111111111':
+      type: gnosisSafeTxBuilder
+      chain: anvil2
+      safeAddress: '0x2222222222222222222222222222222222222222'
+      version: '1.0'
+
+    # Example: route timelock-owned txs through a timelock submitter
+    '0x3333333333333333333333333333333333333333':
+      type: timelockController
+      chain: anvil2
+      timelockAddress: '0x3333333333333333333333333333333333333333'
+      proposerSubmitter:
+        type: interchainAccount
+        chain: anvil1
+        destinationChain: anvil2
+        owner: '0x4444444444444444444444444444444444444444'
+        internalSubmitter:
+          type: gnosisSafeTxBuilder
+          chain: anvil1
+          safeAddress: '0x4444444444444444444444444444444444444444'
+          version: '1.0'
