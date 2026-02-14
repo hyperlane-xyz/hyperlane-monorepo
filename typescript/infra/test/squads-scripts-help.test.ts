@@ -4,10 +4,7 @@ import { fileURLToPath } from 'node:url';
 
 import { expect } from 'chai';
 
-import {
-  NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
-  SQUADS_SCRIPT_PATHS,
-} from './squads-test-constants.js';
+import { EXECUTABLE_SQUADS_SCRIPT_PATHS } from './squads-test-constants.js';
 import { listExecutableSquadsDirectoryScripts } from './squads-test-utils.js';
 
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
@@ -77,12 +74,9 @@ describe('squads scripts --help smoke', function () {
       listExecutableSquadsDirectoryScripts(INFRA_ROOT),
     );
 
-    const executableScriptPathsFromConstants = SQUADS_SCRIPT_PATHS.filter(
-      (scriptPath) =>
-        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
-          scriptPath.endsWith(`/${fileName}`),
-        ),
-    ).sort();
+    const executableScriptPathsFromConstants = [
+      ...EXECUTABLE_SQUADS_SCRIPT_PATHS,
+    ].sort();
     expect(configuredScriptPaths.sort()).to.deep.equal(
       executableScriptPathsFromConstants,
     );
