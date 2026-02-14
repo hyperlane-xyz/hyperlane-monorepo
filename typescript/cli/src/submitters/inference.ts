@@ -118,6 +118,26 @@ function cacheKey(chain: ChainName, address: Address): string {
 
 const MAX_LOG_POSITION_STRING_LENGTH = 256;
 
+function normalizeNumericStringForBigInt(
+  value: string,
+  isHex: boolean,
+): string | null {
+  if (isHex) {
+    const normalizedBody = value.slice(2).replace(/^0+/, '');
+    const normalizedHex = `0x${normalizedBody || '0'}`;
+    if (normalizedHex.length > MAX_LOG_POSITION_STRING_LENGTH) {
+      return null;
+    }
+    return normalizedHex;
+  }
+
+  const normalizedDecimal = value.replace(/^0+/, '') || '0';
+  if (normalizedDecimal.length > MAX_LOG_POSITION_STRING_LENGTH) {
+    return null;
+  }
+  return normalizedDecimal;
+}
+
 // Normalizes provider log position fields into exact non-negative integers.
 // Accepts numbers (only safe integers), bigint, decimal/hex strings, and
 // BigNumber-like objects with string `toString()`. Rejects malformed/unsafe
@@ -141,7 +161,7 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
 
   if (typeof value === 'string') {
     const trimmed = value.trim();
-    if (!trimmed || trimmed.length > MAX_LOG_POSITION_STRING_LENGTH) {
+    if (!trimmed) {
       return null;
     }
     const isHex = /^0x[0-9a-f]+$/i.test(trimmed);
@@ -149,8 +169,12 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
     if (!isHex && !isDecimal) {
       return null;
     }
+    const normalized = normalizeNumericStringForBigInt(trimmed, isHex);
+    if (!normalized) {
+      return null;
+    }
     try {
-      const parsed = BigInt(trimmed);
+      const parsed = BigInt(normalized);
       return parsed >= 0n ? parsed : null;
     } catch {
       return null;
