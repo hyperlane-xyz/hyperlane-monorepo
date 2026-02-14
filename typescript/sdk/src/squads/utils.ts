@@ -17,7 +17,6 @@ import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
 import { ChainName } from '../types.js';
 
 import {
-  assertIsSquadsChain,
   getSquadsKeys,
   partitionSquadsChains,
   SquadsChainName,
@@ -118,9 +117,8 @@ export function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
 ) {
-  assertIsSquadsChain(chain);
-  const svmProvider = mpp.getSolanaWeb3Provider(chain);
   const { vault, multisigPda, programId } = getSquadsKeys(chain);
+  const svmProvider = mpp.getSolanaWeb3Provider(chain);
 
   return { svmProvider, vault, multisigPda, programId };
 }
@@ -137,11 +135,10 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  assertIsSquadsChain(chain);
+  const { multisigPda, programId } = getSquadsKeys(chain);
 
   try {
     const svmProvider = mpp.getSolanaWeb3Provider(chain);
-    const { multisigPda, programId } = getSquadsKeys(chain);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const multisig = await accounts.Multisig.fromAccountAddress(
