@@ -91,10 +91,14 @@ describe('squads barrel exports', () => {
       fs.readFileSync(SDK_PACKAGE_JSON_PATH, 'utf8'),
     ) as {
       dependencies?: Record<string, string>;
+      scripts?: Record<string, string>;
     };
 
     expect(sdkPackageJson.dependencies?.['@sqds/multisig']).to.not.equal(
       undefined,
+    );
+    expect(sdkPackageJson.scripts?.['test:squads']).to.equal(
+      "mocha --config .mocharc.json 'src/squads/*.test.ts'",
     );
   });
 });
