@@ -506,7 +506,12 @@ export async function getPendingProposalsForChains(
 
         for (let i = currentTransactionIndex; i >= minIndexToCheck; i--) {
           try {
-            const proposalData = await getSquadProposal(chain, mpp, i);
+            const proposalData = await getSquadProposalAccount(
+              chain,
+              mpp,
+              i,
+              svmProvider,
+            );
             if (!proposalData) continue;
 
             const { proposal } = proposalData;
