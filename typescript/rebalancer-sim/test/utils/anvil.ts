@@ -113,6 +113,13 @@ function extractErrorMessages(error: unknown): string[] {
   const enqueueNestedErrors = (nestedErrors: unknown) => {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
 
+    if (nestedErrors instanceof Map) {
+      for (const nestedError of nestedErrors.values()) {
+        queue.push(nestedError);
+      }
+      return;
+    }
+
     if (Array.isArray(nestedErrors)) {
       for (const nestedError of nestedErrors) {
         queue.push(nestedError);

@@ -157,6 +157,17 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in map-based error collections', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: new Map([
+            ['first', { message: 'random warning' }],
+            ['second', { message: 'Cannot connect to the Docker daemon' }],
+          ]),
+        }),
+      ).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(
