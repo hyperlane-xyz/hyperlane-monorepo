@@ -943,6 +943,44 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('uses placeholder when thrown TypeError values stringify to bare labels', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: () => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    readerAny.readConfigTransaction = async () => {
+      throw new TypeError('');
+    };
+
+    await captureAsyncError(() => reader.read('solanamainnet', 5));
+
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: '[unstringifiable error]',
+      },
+    ]);
+  });
+
   it('preserves custom Error-like thrown string labels', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -1780,6 +1818,63 @@ describe('squads transaction reader', () => {
 
     readerAny.isMailboxInstruction = () => {
       throw new Error('');
+    };
+
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction,
+      {
+        getAccountInfo: async () => null,
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      'Failed to parse instruction: Instruction 0: [unstringifiable error]',
+    ]);
+    expect(parsed.instructions).to.have.lengthOf(1);
+    expect(parsed.instructions[0]?.data).to.deep.equal({
+      error: '[unstringifiable error]',
+    });
+    expect(parsed.instructions[0]?.warnings).to.deep.equal([
+      'Failed to parse: [unstringifiable error]',
+    ]);
+  });
+
+  it('uses placeholder when parse failures throw bare TypeError labels', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+      isMailboxInstruction: () => boolean;
+    };
+
+    readerAny.isMailboxInstruction = () => {
+      throw new TypeError('');
     };
 
     const vaultTransaction = {

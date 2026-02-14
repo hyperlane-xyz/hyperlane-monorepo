@@ -388,6 +388,19 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses placeholder when toBase58 throws bare TypeError labels', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw new TypeError('');
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal(
+        'failed to stringify key ([unstringifiable error])',
+      );
+    });
+
     it('preserves custom Error-like labels when toBase58 throws string errors', () => {
       const result = normalizeSquadsAddressValue({
         toBase58() {
