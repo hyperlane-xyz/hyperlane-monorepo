@@ -467,7 +467,13 @@ async function inferTimelockProposerSubmitter({
     return defaultSubmitter;
   }
 
-  const signerAddress = await context.multiProvider.getSignerAddress(chain);
+  let signerAddress: Address;
+  try {
+    signerAddress = await context.multiProvider.getSignerAddress(chain);
+  } catch {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
+    return defaultSubmitter;
+  }
   const provider = context.multiProvider.getProvider(chain);
   const timelock = TimelockController__factory.connect(timelockAddress, provider);
 

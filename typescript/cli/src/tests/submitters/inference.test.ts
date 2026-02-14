@@ -3532,6 +3532,80 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('falls back to default timelock proposer when signer lookup fails', async () => {
+    const timelockOwner = '0x5555555555555555555555555555555555555555';
+    const tx1 = { ...TX, to: '0xabababababababababababababababababababab' };
+    const tx2 = { ...TX, to: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd' };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+    const hasRoleStub = sinon.stub().resolves(false);
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: hasRoleStub,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
+        },
+      } as any);
+
+    let signerAddressCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => {
+          signerAddressCalls += 1;
+          if (signerAddressCalls === 2) {
+            throw new Error('signer lookup failed');
+          }
+          return SIGNER;
+        },
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [tx1 as any, tx2 as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(0);
+      expect(hasRoleStub.callCount).to.equal(0);
+      // tx1: signer lookup in inferSubmitter + failing lookup in timelock proposer
+      // tx2: signer lookup in inferSubmitter only (proposer cached)
+      expect(signerAddressCalls).to.equal(3);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('falls back to default timelock proposer when role log queries fail', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
     const tx1 = { ...TX, to: '0xabababababababababababababababababababab' };
