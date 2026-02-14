@@ -3799,6 +3799,20 @@ describe('gnosisSafe utils', () => {
         }),
       ).to.throw('custom invalid message');
     });
+
+    it('uses default message when only one override is provided', () => {
+      expect(() =>
+        asHex(' ', {
+          invalid: 'custom invalid message',
+        }),
+      ).to.throw('Hex value is required');
+
+      expect(() =>
+        asHex('0xxyz', {
+          required: 'custom required message',
+        }),
+      ).to.throw('Hex value must be valid hex: 0xxyz');
+    });
   });
 
   describe(decodeMultiSendData.name, () => {
