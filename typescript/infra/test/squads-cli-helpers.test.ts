@@ -41,6 +41,16 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('reports unsupported chains once when duplicates are provided', () => {
+    expect(() =>
+      resolveSquadsChains([
+        'ethereum' as ChainName,
+        'ethereum' as ChainName,
+        'arbitrum' as ChainName,
+      ]),
+    ).to.throw('Squads configuration not found for chains: ethereum, arbitrum');
+  });
+
   it('returns a defensive copy for explicit chains', () => {
     const [firstChain, secondChain] = getSquadsChains();
     const selectedChains = [firstChain, secondChain];
