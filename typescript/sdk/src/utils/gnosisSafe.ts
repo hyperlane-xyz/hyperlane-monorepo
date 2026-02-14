@@ -844,7 +844,12 @@ export async function retrySafeApi<T>(runner: () => Promise<T>): Promise<T> {
 }
 
 export async function isLegacySafeApi(version?: unknown): Promise<boolean> {
-  if (version === undefined || version === null || version === '') {
+  if (
+    version === undefined ||
+    version === null ||
+    version === '' ||
+    (typeof version === 'string' && version.trim().length === 0)
+  ) {
     throw new Error('Version is required');
   }
   const minVersion = parseSemverPrefix(MIN_SAFE_API_VERSION);

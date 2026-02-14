@@ -3081,6 +3081,18 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when version is missing', async () => {
+      const missingVersions = [undefined, null, '', '   '];
+      for (const version of missingVersions) {
+        try {
+          await isLegacySafeApi(version);
+          expect.fail('Expected isLegacySafeApi to throw for missing version');
+        } catch (error) {
+          expect((error as Error).message).to.equal('Version is required');
+        }
+      }
+    });
+
     it('throws on invalid versions', async () => {
       const invalidVersions = [
         'invalid',
