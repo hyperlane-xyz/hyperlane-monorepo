@@ -201,12 +201,13 @@ export class HyperlaneE2ECoreTestCommands {
   /**
    * Updates a Hyperlane core deployment on the specified chain using the provided config.
    */
-  public apply(privateKey: string): ProcessPromise {
+  public apply(privateKey: string, strategyPath?: string): ProcessPromise {
     return $`${this.cmdPrefix} hyperlane core apply \
         --registry ${this.registryPath} \
         --config ${this.coreOutputPath} \
         --chain ${this.chain} \
         ${this.privateKeyFlag} ${privateKey} \
+        ${strategyPath ? ['--strategy', strategyPath] : []} \
         --verbosity debug \
         --yes`;
   }
