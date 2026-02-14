@@ -298,12 +298,22 @@ export function parseSquadsProposalVoteErrorFromError(
   return undefined;
 }
 
-function toSafeInteger(value: unknown, fieldLabel: string): number {
+function toSafeInteger(
+  value: unknown,
+  fieldLabel: string,
+  options?: { nonNegative?: boolean },
+): number {
   const { parsedValue, displayValue } = normalizeSafeIntegerValue(value);
   assert(
     Number.isSafeInteger(parsedValue),
     `Squads ${fieldLabel} must be a JavaScript safe integer: ${displayValue}`,
   );
+  if (options?.nonNegative) {
+    assert(
+      parsedValue >= 0,
+      `Squads ${fieldLabel} must be a non-negative JavaScript safe integer: ${displayValue}`,
+    );
+  }
   return parsedValue;
 }
 
@@ -619,12 +629,15 @@ export function parseSquadProposal(
   const transactionIndex = toSafeInteger(
     proposal.transactionIndex,
     'transaction index',
+    { nonNegative: true },
   );
   const rawStatusTimestamp =
     'timestamp' in proposal.status ? proposal.status.timestamp : undefined;
   const statusTimestampSeconds =
     typeof rawStatusTimestamp !== 'undefined'
-      ? toSafeInteger(rawStatusTimestamp, 'status timestamp')
+      ? toSafeInteger(rawStatusTimestamp, 'status timestamp', {
+          nonNegative: true,
+        })
       : undefined;
 
   const parsedProposal: ParsedSquadProposal = {
@@ -644,16 +657,26 @@ export function parseSquadMultisig(
   fieldPrefix = 'multisig',
 ): ParsedSquadMultisig {
   return {
-    threshold: toSafeInteger(multisig.threshold, `${fieldPrefix} threshold`),
+    threshold: toSafeInteger(
+      multisig.threshold,
+      `${fieldPrefix} threshold`,
+      { nonNegative: true },
+    ),
     currentTransactionIndex: toSafeInteger(
       multisig.transactionIndex,
       `${fieldPrefix} transaction index`,
+      { nonNegative: true },
     ),
     staleTransactionIndex: toSafeInteger(
       multisig.staleTransactionIndex,
       `${fieldPrefix} stale transaction index`,
+      { nonNegative: true },
     ),
-    timeLock: toSafeInteger(multisig.timeLock, `${fieldPrefix} timelock`),
+    timeLock: toSafeInteger(
+      multisig.timeLock,
+      `${fieldPrefix} timelock`,
+      { nonNegative: true },
+    ),
   };
 }
 

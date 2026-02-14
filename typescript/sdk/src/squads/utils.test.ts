@@ -303,6 +303,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when transaction index is negative', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: -1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads transaction index must be a non-negative JavaScript safe integer: -1',
+      );
+    });
+
     it('throws when status timestamp is not a safe integer', () => {
       const parseUnsafeTimestampProposal = () =>
         parseSquadProposal({
@@ -318,6 +333,24 @@ describe('squads utils', () => {
 
       expect(parseUnsafeTimestampProposal).to.throw(
         'Squads status timestamp must be a JavaScript safe integer',
+      );
+    });
+
+    it('throws when status timestamp is negative', () => {
+      const parseInvalidTimestampProposal = () =>
+        parseSquadProposal({
+          status: {
+            __kind: SquadsProposalStatus.Active,
+            timestamp: -1,
+          },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 9n,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidTimestampProposal).to.throw(
+        'Squads status timestamp must be a non-negative JavaScript safe integer: -1',
       );
     });
   });
@@ -395,6 +428,20 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: 42',
+      );
+    });
+
+    it('throws when multisig threshold is negative', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: -1,
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be a non-negative JavaScript safe integer: -1',
       );
     });
 
