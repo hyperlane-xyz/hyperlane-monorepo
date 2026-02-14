@@ -61,7 +61,7 @@ async function main() {
 
   const { proposal, multisig } = proposalData;
   const parsedProposal = parseSquadProposal(proposal);
-  const parsedMultisig = parseSquadMultisig(multisig);
+  const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
   const { status, transactionIndex: proposalTransactionIndex } = parsedProposal;
   if (proposalTransactionIndex !== transactionIndex) {
     rootLogger.warn(

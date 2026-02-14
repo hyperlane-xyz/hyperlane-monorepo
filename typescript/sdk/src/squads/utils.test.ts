@@ -293,6 +293,23 @@ describe('squads utils', () => {
         'Squads multisig timelock exceeds JavaScript safe integer range',
       );
     });
+
+    it('uses caller-provided field prefix in overflow errors', () => {
+      const parseUnsafeMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: BigInt(Number.MAX_SAFE_INTEGER) + 1n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 0n,
+            timeLock: 0n,
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseUnsafeMultisig).to.throw(
+        'Squads solanamainnet multisig threshold exceeds JavaScript safe integer range',
+      );
+    });
   });
 
   describe(decodePermissions.name, () => {

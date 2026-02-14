@@ -386,7 +386,7 @@ export async function getPendingProposalsForChains(
           threshold,
           currentTransactionIndex,
           staleTransactionIndex,
-        } = parseSquadMultisig(multisig);
+        } = parseSquadMultisig(multisig, `${chain} multisig`);
 
         const vaultBalance = await svmProvider.getBalance(vault);
         const nativeToken = mpp.getChainMetadata(chain).nativeToken;
@@ -583,18 +583,19 @@ export function parseSquadProposal(
 
 export function parseSquadMultisig(
   multisig: accounts.Multisig,
+  fieldPrefix = 'multisig',
 ): ParsedSquadMultisig {
   return {
-    threshold: toSafeInteger(multisig.threshold, 'multisig threshold'),
+    threshold: toSafeInteger(multisig.threshold, `${fieldPrefix} threshold`),
     currentTransactionIndex: toSafeInteger(
       multisig.transactionIndex,
-      'multisig transaction index',
+      `${fieldPrefix} transaction index`,
     ),
     staleTransactionIndex: toSafeInteger(
       multisig.staleTransactionIndex,
-      'multisig stale transaction index',
+      `${fieldPrefix} stale transaction index`,
     ),
-    timeLock: toSafeInteger(multisig.timeLock, 'multisig timelock'),
+    timeLock: toSafeInteger(multisig.timeLock, `${fieldPrefix} timelock`),
   };
 }
 

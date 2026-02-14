@@ -61,7 +61,7 @@ async function main() {
 
     const { proposal, multisig, proposalPda } = proposalData;
     const parsedProposal = parseSquadProposal(proposal);
-    const parsedMultisig = parseSquadMultisig(multisig);
+    const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
     const proposalTransactionIndex = parsedProposal.transactionIndex;
     const isIndexMismatch = proposalTransactionIndex !== transactionIndex;
     if (isIndexMismatch) {
