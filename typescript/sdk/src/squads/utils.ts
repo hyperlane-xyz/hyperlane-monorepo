@@ -21,6 +21,10 @@ import {
   partitionSquadsChains,
   SquadsChainName,
 } from './config.js';
+import {
+  isGenericObjectStringifiedValue,
+  normalizeStringifiedSquadsError,
+} from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 export { assertValidTransactionIndexInput } from './validation.js';
@@ -164,17 +168,6 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
 ]);
 const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
-const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
-const GENERIC_ERROR_LABELS = new Set([
-  'error',
-  'typeerror',
-  'rangeerror',
-  'referenceerror',
-  'syntaxerror',
-  'urierror',
-  'evalerror',
-  'aggregateerror',
-]);
 const LIKELY_MISSING_SQUADS_ACCOUNT_ERROR_PATTERNS = [
   'account does not exist',
   'account not found',
@@ -202,19 +195,7 @@ function getUnknownValueTypeName(value: unknown): string {
 function normalizeStringifiedUnknownError(
   formattedError: string,
 ): string | undefined {
-  const trimmedFormattedError = formattedError.trim();
-  const normalizedErrorLabel = trimmedFormattedError
-    .replace(/:$/, '')
-    .toLowerCase();
-  if (
-    trimmedFormattedError.length === 0 ||
-    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError) ||
-    GENERIC_ERROR_LABELS.has(normalizedErrorLabel)
-  ) {
-    return undefined;
-  }
-
-  return formattedError;
+  return normalizeStringifiedSquadsError(formattedError);
 }
 
 function formatUnknownErrorForMessage(error: unknown): string {
@@ -305,7 +286,7 @@ export function normalizeSquadsAddressValue(
     };
   }
 
-  if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedAddressValue)) {
+  if (isGenericObjectStringifiedValue(trimmedAddressValue)) {
     return {
       address: undefined,
       error: 'address value is not a meaningful identifier',
@@ -1189,7 +1170,7 @@ function getMultisigMemberCount(
       );
       const trimmedMemberKey = normalizedMemberKey.trim();
       assert(
-        !GENERIC_OBJECT_STRING_PATTERN.test(trimmedMemberKey),
+        !isGenericObjectStringifiedValue(trimmedMemberKey),
         `Squads ${fieldPrefix} members[${index}] key must stringify to a meaningful identifier`,
       );
       assert(
