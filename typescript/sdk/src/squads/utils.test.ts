@@ -667,6 +667,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when members field is present but not an array', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: 'not-an-array',
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members must be an array when provided',
+      );
+    });
+
     it('throws when threshold exceeds multisig member count', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({

@@ -687,14 +687,19 @@ export function parseSquadMultisig(
   const timeLock = toSafeInteger(multisig.timeLock, `${fieldPrefix} timelock`, {
     nonNegative: true,
   });
+  const members = (multisig as { members?: unknown }).members;
+  if (typeof members !== 'undefined') {
+    assert(
+      Array.isArray(members),
+      `Squads ${fieldPrefix} members must be an array when provided`,
+    );
+  }
 
   assert(
     staleTransactionIndex <= currentTransactionIndex,
     `Squads ${fieldPrefix} stale transaction index must be less than or equal to transaction index: ${staleTransactionIndex} > ${currentTransactionIndex}`,
   );
-  const memberCount = Array.isArray(multisig.members)
-    ? multisig.members.length
-    : undefined;
+  const memberCount = Array.isArray(members) ? members.length : undefined;
   if (typeof memberCount === 'number') {
     assert(
       threshold <= memberCount,
