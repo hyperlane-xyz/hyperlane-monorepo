@@ -1816,6 +1816,12 @@ export class GovernTransactionReader {
         insight: `${baseResult.insight} (transaction not found)`,
       };
     }
+    if (!approvedTx.to || !approvedTx.data || !approvedTx.value) {
+      return {
+        ...baseResult,
+        insight: `${baseResult.insight} (transaction data incomplete)`,
+      };
+    }
 
     const reader = await GovernTransactionReader.create(
       this.environment,

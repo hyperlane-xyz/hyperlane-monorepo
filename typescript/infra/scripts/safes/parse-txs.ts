@@ -84,6 +84,18 @@ async function main() {
           safeTx,
           `Failed to fetch Safe transaction ${fullTxHash} on chain ${chain}`,
         );
+        assert(
+          safeTx.to,
+          `Safe transaction ${fullTxHash} on ${chain} has no to address`,
+        );
+        assert(
+          safeTx.data,
+          `Safe transaction ${fullTxHash} on ${chain} has no data`,
+        );
+        assert(
+          safeTx.value,
+          `Safe transaction ${fullTxHash} on ${chain} has no value`,
+        );
         const tx: AnnotatedEV5Transaction = {
           to: safeTx.to,
           data: safeTx.data,

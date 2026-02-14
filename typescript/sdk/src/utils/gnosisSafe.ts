@@ -81,10 +81,10 @@ export type SafeStatus = {
 };
 
 export type SafeServiceTransaction = {
-  to: Address;
-  data: string;
-  value: string;
-  proposer?: Address;
+  to?: Address | null;
+  data?: string | null;
+  value?: string | null;
+  proposer?: Address | null;
   safeTxHash?: string;
   [key: string]: unknown;
 };
