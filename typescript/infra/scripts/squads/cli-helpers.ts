@@ -7,6 +7,7 @@ import {
   MultiProtocolProvider,
   SquadProposalStatus,
   getSquadsChains,
+  partitionSquadsChains,
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
@@ -103,10 +104,7 @@ export function getUnsupportedSquadsChainsErrorMessage(
 export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
-    const uniqueChains = Array.from(new Set(chains));
-    const nonSquadsChains = uniqueChains.filter(
-      (chain) => !configuredSquadsChains.includes(chain),
-    );
+    const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
     if (nonSquadsChains.length > 0) {
       throw new Error(
         getUnsupportedSquadsChainsErrorMessage(
@@ -115,7 +113,7 @@ export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
         ),
       );
     }
-    return uniqueChains;
+    return squadsChains;
   }
   return configuredSquadsChains;
 }
