@@ -1,3 +1,7 @@
+import fs from 'node:fs';
+import path from 'node:path';
+import { fileURLToPath } from 'node:url';
+
 import { expect } from 'chai';
 
 import {
@@ -23,6 +27,12 @@ import {
   squadsConfigs as directSquadsConfigs,
 } from './config.js';
 
+const SDK_ROOT_INDEX_PATH = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+  'index.ts',
+);
+
 describe('squads barrel exports', () => {
   it('re-exports squads config/constants', () => {
     expect(squadsConfigs).to.equal(directSquadsConfigs);
@@ -46,5 +56,10 @@ describe('squads barrel exports', () => {
     expect(DEFAULT_SQUADS_ERROR_PLACEHOLDER).to.equal(
       directDefaultSquadsErrorPlaceholder,
     );
+  });
+
+  it('keeps squads barrel wired through sdk root index source', () => {
+    const rootIndexSource = fs.readFileSync(SDK_ROOT_INDEX_PATH, 'utf8');
+    expect(rootIndexSource).to.include("export * from './squads/index.js';");
   });
 });
