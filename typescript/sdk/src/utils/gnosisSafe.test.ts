@@ -3,6 +3,7 @@ import { BigNumber, ethers } from 'ethers';
 import { encodeFunctionData, getAddress, parseAbi } from 'viem';
 
 import {
+  createSafeTransactionData,
   decodeMultiSendData,
   getKnownMultiSendAddresses,
   getOwnerChanges,
@@ -115,6 +116,29 @@ describe('gnosisSafe utils', () => {
 
       const signer = await resolveSafeSigner('test', multiProviderMock as any);
       expect(signer).to.equal(signerAddress);
+    });
+  });
+
+  describe(createSafeTransactionData.name, () => {
+    it('defaults value to zero when omitted', () => {
+      const callData = createSafeTransactionData({
+        to: '0x00000000000000000000000000000000000000aa',
+        data: '0x1234',
+      });
+
+      expect(callData.value).to.equal('0');
+    });
+
+    it('serializes BigNumber-like values via toString', () => {
+      const callData = createSafeTransactionData({
+        to: '0x00000000000000000000000000000000000000aa',
+        data: '0x1234',
+        value: {
+          toString: () => '42',
+        },
+      });
+
+      expect(callData.value).to.equal('42');
     });
   });
 
