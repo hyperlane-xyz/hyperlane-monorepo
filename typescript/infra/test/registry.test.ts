@@ -1,4 +1,6 @@
-import { existsSync } from 'fs';
+import { existsSync, mkdtempSync, rmSync } from 'fs';
+import { tmpdir } from 'os';
+import { join } from 'path';
 
 import { expect } from 'chai';
 
@@ -11,6 +13,7 @@ import {
 
 describe('Registry defaults', () => {
   const originalRegistryUri = process.env.REGISTRY_URI;
+  let tempRegistryDir: string | undefined;
 
   beforeEach(() => {
     delete process.env.REGISTRY_URI;
@@ -18,6 +21,11 @@ describe('Registry defaults', () => {
   });
 
   afterEach(() => {
+    if (tempRegistryDir) {
+      rmSync(tempRegistryDir, { recursive: true, force: true });
+      tempRegistryDir = undefined;
+    }
+
     if (originalRegistryUri) {
       process.env.REGISTRY_URI = originalRegistryUri;
     } else {
@@ -42,5 +50,14 @@ describe('Registry defaults', () => {
         `Missing chain metadata for ${chainName}`,
       ).to.not.be.undefined;
     }
+  });
+
+  it('prefers REGISTRY_URI when explicitly provided', () => {
+    tempRegistryDir = mkdtempSync(join(tmpdir(), 'hyperlane-registry-test-'));
+    process.env.REGISTRY_URI = tempRegistryDir;
+    resetRegistry();
+
+    const registry = getRegistry();
+    expect(registry.getUri()).to.equal(tempRegistryDir);
   });
 });
