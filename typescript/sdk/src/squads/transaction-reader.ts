@@ -97,12 +97,14 @@ export function formatUnknownInstructionWarning(
   return `Unknown ${programName} instruction (discriminator: ${discriminator})`;
 }
 
-export type SvmMultisigConfigMap = Record<
-  ChainName,
-  {
-    threshold: number;
-    validators: readonly string[];
-  }
+export type SvmMultisigConfigMap = Partial<
+  Record<
+    ChainName,
+    {
+      threshold: number;
+      validators: readonly string[];
+    }
+  >
 >;
 
 export interface SquadsCoreProgramIds {
