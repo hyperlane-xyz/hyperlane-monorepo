@@ -69,6 +69,21 @@ function hasExplicitUrlScheme(value: string): boolean {
   return URL_SCHEME_PREFIX_REGEX.test(value);
 }
 
+function parseHttpUrl(value: string): URL | undefined {
+  try {
+    const parsed = new URL(value);
+    if (!parsed.hostname) {
+      return undefined;
+    }
+    if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
+      return undefined;
+    }
+    return parsed;
+  } catch {
+    return undefined;
+  }
+}
+
 export type SafeCallData = {
   to: Address;
   data: string;
@@ -162,15 +177,7 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const parseHostname = (value: string): string | undefined => {
-    try {
-      const parsed = new URL(value);
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return undefined;
-      }
-      return parsed.hostname ? parsed.hostname.toLowerCase() : undefined;
-    } catch {
-      return undefined;
-    }
+    return parseHttpUrl(value)?.hostname.toLowerCase();
   };
 
   const extractHostname = (value: string): string | undefined => {
@@ -206,21 +213,6 @@ export function hasSafeServiceTransactionPayload(
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {
-  const parseUrl = (value: string): URL | undefined => {
-    try {
-      const parsed = new URL(value);
-      if (!parsed.hostname) {
-        return undefined;
-      }
-      if (parsed.protocol !== 'http:' && parsed.protocol !== 'https:') {
-        return undefined;
-      }
-      return parsed;
-    } catch {
-      return undefined;
-    }
-  };
-
   const canonicalizePath = (path: string): string => {
     let normalized = path.replace(/\/+$/, '');
 
@@ -241,8 +233,8 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);
   const parsed =
-    parseUrl(trimmedUrl) ??
-    (!hasScheme ? parseUrl(`https://${trimmedUrl}`) : undefined);
+    parseHttpUrl(trimmedUrl) ??
+    (!hasScheme ? parseHttpUrl(`https://${trimmedUrl}`) : undefined);
   if (!parsed && hasScheme) {
     throw new Error(
       `Safe tx service URL must use http(s): ${txServiceUrl.trim()}`,
