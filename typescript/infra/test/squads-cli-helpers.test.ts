@@ -23,6 +23,18 @@ function parseArgs(args: Argv) {
     .parse();
 }
 
+async function expectParseError(args: Argv, expectedMessage: string) {
+  let parserError: Error | undefined;
+  try {
+    await parseArgs(args);
+  } catch (error) {
+    parserError = error as Error;
+  }
+
+  expect(parserError).to.not.be.undefined;
+  expect(parserError?.message).to.include(expectedMessage);
+}
+
 describe('squads cli helpers', () => {
   it('resolves to configured squads chains when undefined', () => {
     expect(resolveSquadsChains(undefined)).to.deep.equal(getSquadsChains());
@@ -384,41 +396,24 @@ describe('squads cli helpers', () => {
   });
 
   it('rejects non-squads chain via chain parser choices', async () => {
-    let parserError: Error | undefined;
-    try {
-      await parseArgs(withSquadsChain(yargs(['--chain', 'ethereum'])));
-    } catch (error) {
-      parserError = error as Error;
-    }
-
-    expect(parserError).to.not.be.undefined;
-    expect(parserError?.message).to.include('Invalid values');
+    await expectParseError(
+      withSquadsChain(yargs(['--chain', 'ethereum'])),
+      'Invalid values',
+    );
   });
 
   it('rejects empty chain parser values with clear error', async () => {
-    let parserError: Error | undefined;
-    try {
-      await parseArgs(withSquadsChain(yargs(['--chain', '   '])));
-    } catch (error) {
-      parserError = error as Error;
-    }
-
-    expect(parserError).to.not.be.undefined;
-    expect(parserError?.message).to.include(
+    await expectParseError(
+      withSquadsChain(yargs(['--chain', '   '])),
       'Expected --chain to be a non-empty string',
     );
   });
 
   it('requires chain when using required chain parser helper', async () => {
-    let parserError: Error | undefined;
-    try {
-      await parseArgs(withRequiredSquadsChain(yargs([])));
-    } catch (error) {
-      parserError = error as Error;
-    }
-
-    expect(parserError).to.not.be.undefined;
-    expect(parserError?.message).to.include('Missing required argument: chain');
+    await expectParseError(
+      withRequiredSquadsChain(yargs([])),
+      'Missing required argument: chain',
+    );
   });
 
   it('parses chain when using required chain parser helper', async () => {
@@ -493,43 +488,27 @@ describe('squads cli helpers', () => {
   });
 
   it('rejects non-squads chain via chains parser choices', async () => {
-    let parserError: Error | undefined;
-    try {
-      await parseArgs(withSquadsChains(yargs(['--chains', 'ethereum'])));
-    } catch (error) {
-      parserError = error as Error;
-    }
-
-    expect(parserError).to.not.be.undefined;
-    expect(parserError?.message).to.include('Invalid values');
+    await expectParseError(
+      withSquadsChains(yargs(['--chains', 'ethereum'])),
+      'Invalid values',
+    );
   });
 
   it('rejects mixed squads and non-squads chains via parser choices', async () => {
     const chain = getSquadsChains()[0];
-    let parserError: Error | undefined;
-    try {
-      await parseArgs(
-        withSquadsChains(yargs(['--chains', chain, '--chains', 'ethereum'])),
-      );
-    } catch (error) {
-      parserError = error as Error;
-    }
-
-    expect(parserError).to.not.be.undefined;
-    expect(parserError?.message).to.include('Invalid values');
-    expect(parserError?.message).to.include('ethereum');
+    await expectParseError(
+      withSquadsChains(yargs(['--chains', chain, '--chains', 'ethereum'])),
+      'Invalid values',
+    );
+    await expectParseError(
+      withSquadsChains(yargs(['--chains', chain, '--chains', 'ethereum'])),
+      'ethereum',
+    );
   });
 
   it('rejects empty chains values via parser coercion', async () => {
-    let parserError: Error | undefined;
-    try {
-      await parseArgs(withSquadsChains(yargs(['--chains', '   '])));
-    } catch (error) {
-      parserError = error as Error;
-    }
-
-    expect(parserError).to.not.be.undefined;
-    expect(parserError?.message).to.include(
+    await expectParseError(
+      withSquadsChains(yargs(['--chains', '   '])),
       'Expected --chains[0] to be a non-empty string',
     );
   });
