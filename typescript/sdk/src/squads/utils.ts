@@ -202,6 +202,13 @@ function formatUnknownErrorForMessage(error: unknown): string {
   }
   if (error && typeof error === 'object') {
     try {
+      const stack = (error as { stack?: unknown }).stack;
+      if (typeof stack === 'string' && stack.length > 0) {
+        return stack;
+      }
+    } catch {}
+
+    try {
       const message = (error as { message?: unknown }).message;
       if (typeof message === 'string' && message.length > 0) {
         return message;

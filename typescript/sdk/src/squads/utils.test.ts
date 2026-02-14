@@ -89,6 +89,37 @@ function createUnstringifiableObjectErrorWithMessage(
   };
 }
 
+function createUnstringifiableObjectErrorWithStackAndMessage(
+  stack: string,
+  message: string,
+): { stack: string; message: string; toString: () => string } {
+  return {
+    stack,
+    message,
+    toString: () => {
+      throw new Error('unable to stringify');
+    },
+  };
+}
+
+function createUnstringifiableObjectErrorWithThrowingStackGetter(
+  message: string,
+): { message: string; toString: () => string; stack?: string } {
+  const errorLikeObject = {
+    message,
+    toString: () => {
+      throw new Error('unable to stringify');
+    },
+  } as { message: string; toString: () => string; stack?: string };
+  Object.defineProperty(errorLikeObject, 'stack', {
+    configurable: true,
+    get() {
+      throw new Error('stack unavailable');
+    },
+  });
+  return errorLikeObject;
+}
+
 describe('squads utils', () => {
   describe(normalizeSquadsAddressValue.name, () => {
     it('normalizes valid Solana address strings', () => {
@@ -217,6 +248,35 @@ describe('squads utils', () => {
       const result = normalizeSquadsAddressValue({
         toBase58() {
           throw createUnstringifiableObjectErrorWithMessage('boom');
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal('failed to stringify key (boom)');
+    });
+
+    it('uses stack fields when toBase58 throws unstringifiable objects with stack', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw createUnstringifiableObjectErrorWithStackAndMessage(
+            'Error: boom\n at sample.ts:1:1',
+            'boom',
+          );
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal(
+        'failed to stringify key (Error: boom\n at sample.ts:1:1)',
+      );
+    });
+
+    it('falls back to message when stack accessor throws during toBase58 failures', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw createUnstringifiableObjectErrorWithThrowingStackGetter(
+            'boom',
+          );
         },
       });
 
