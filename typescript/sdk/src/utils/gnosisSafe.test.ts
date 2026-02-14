@@ -63,6 +63,15 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('requires safe domains to match on label boundaries', () => {
+      expect(safeApiKeyRequired('https://notsafe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('https://safe.global/api')).to.equal(true);
+      expect(safeApiKeyRequired('https://not5afe.dev/api')).to.equal(false);
+      expect(
+        safeApiKeyRequired('https://safe-transaction.5afe.dev/api'),
+      ).to.equal(true);
+    });
+
     it('does not match hostless strings containing safe domains', () => {
       expect(safeApiKeyRequired('example.com/path/safe.global/api')).to.equal(
         false,

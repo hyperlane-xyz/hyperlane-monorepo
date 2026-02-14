@@ -151,6 +151,9 @@ export enum SafeTxStatus {
 }
 
 export function safeApiKeyRequired(txServiceUrl: string): boolean {
+  const hostMatchesDomain = (host: string, domain: string): boolean =>
+    host === domain || host.endsWith(`.${domain}`);
+
   const extractHostname = (value: string): string | undefined => {
     try {
       return new URL(value).hostname.toLowerCase();
@@ -165,8 +168,8 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
 
   const hostname = extractHostname(txServiceUrl.trim());
   return (
-    hostname?.endsWith('safe.global') === true ||
-    hostname?.endsWith('5afe.dev') === true
+    (hostname !== undefined && hostMatchesDomain(hostname, 'safe.global')) ||
+    (hostname !== undefined && hostMatchesDomain(hostname, '5afe.dev'))
   );
 }
 
