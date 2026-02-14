@@ -40,6 +40,20 @@ function toBase58IfPossible(
   const labelWithIndex =
     typeof index === 'number' ? `${label}[${index}]` : label;
 
+  if (typeof value === 'string') {
+    const trimmedValue = value.trim();
+    if (trimmedValue.length > 0) {
+      return trimmedValue;
+    }
+
+    rootLogger.warn(
+      chalk.yellow(
+        `Skipping ${labelWithIndex} on ${chain}: string value is empty`,
+      ),
+    );
+    return undefined;
+  }
+
   if (!value || typeof value !== 'object') {
     rootLogger.warn(
       chalk.yellow(
