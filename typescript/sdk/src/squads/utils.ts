@@ -192,30 +192,24 @@ function getUnknownValueTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
-function normalizeStringifiedUnknownError(
-  formattedError: string,
-): string | undefined {
-  return normalizeStringifiedSquadsError(formattedError);
-}
-
 function formatUnknownErrorForMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
-      const normalizedMessage = normalizeStringifiedUnknownError(error.message);
+      const normalizedMessage = normalizeStringifiedSquadsError(error.message);
       if (normalizedMessage) {
         return normalizedMessage;
       }
     } catch {}
   }
   if (typeof error === 'string') {
-    const normalizedError = normalizeStringifiedUnknownError(error);
+    const normalizedError = normalizeStringifiedSquadsError(error);
     return normalizedError ?? '[unstringifiable error]';
   }
   if (error && typeof error === 'object' && !(error instanceof Error)) {
     try {
       const stack = (error as { stack?: unknown }).stack;
       if (typeof stack === 'string') {
-        const normalizedStack = normalizeStringifiedUnknownError(stack);
+        const normalizedStack = normalizeStringifiedSquadsError(stack);
         if (normalizedStack) {
           return normalizedStack;
         }
@@ -225,7 +219,7 @@ function formatUnknownErrorForMessage(error: unknown): string {
     try {
       const message = (error as { message?: unknown }).message;
       if (typeof message === 'string') {
-        const normalizedMessage = normalizeStringifiedUnknownError(message);
+        const normalizedMessage = normalizeStringifiedSquadsError(message);
         if (normalizedMessage) {
           return normalizedMessage;
         }
@@ -234,7 +228,7 @@ function formatUnknownErrorForMessage(error: unknown): string {
   }
 
   try {
-    const normalizedError = normalizeStringifiedUnknownError(String(error));
+    const normalizedError = normalizeStringifiedSquadsError(String(error));
     return normalizedError ?? '[unstringifiable error]';
   } catch {
     return '[unstringifiable error]';

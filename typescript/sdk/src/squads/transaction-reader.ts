@@ -148,14 +148,10 @@ type SolanaWeb3Provider = ReturnType<
   MultiProtocolProvider['getSolanaWeb3Provider']
 >;
 
-function normalizeStringifiedError(formattedError: string): string | undefined {
-  return normalizeStringifiedSquadsError(formattedError);
-}
-
 function stringifyUnknownError(error: unknown): string {
   if (error instanceof Error) {
     try {
-      const normalizedError = normalizeStringifiedError(String(error));
+      const normalizedError = normalizeStringifiedSquadsError(String(error));
       return normalizedError ?? '[unstringifiable error]';
     } catch {
       return '[unstringifiable error]';
@@ -163,7 +159,7 @@ function stringifyUnknownError(error: unknown): string {
   }
 
   if (typeof error === 'string') {
-    const normalizedError = normalizeStringifiedError(error);
+    const normalizedError = normalizeStringifiedSquadsError(error);
     return normalizedError ?? '[unstringifiable error]';
   }
 
@@ -171,7 +167,7 @@ function stringifyUnknownError(error: unknown): string {
     try {
       const stack = (error as { stack?: unknown }).stack;
       if (typeof stack === 'string') {
-        const normalizedStack = normalizeStringifiedError(stack);
+        const normalizedStack = normalizeStringifiedSquadsError(stack);
         if (normalizedStack) {
           return normalizedStack;
         }
@@ -181,7 +177,7 @@ function stringifyUnknownError(error: unknown): string {
     try {
       const message = (error as { message?: unknown }).message;
       if (typeof message === 'string') {
-        const normalizedMessage = normalizeStringifiedError(message);
+        const normalizedMessage = normalizeStringifiedSquadsError(message);
         if (normalizedMessage) {
           return normalizedMessage;
         }
@@ -190,7 +186,7 @@ function stringifyUnknownError(error: unknown): string {
   }
 
   try {
-    const normalizedError = normalizeStringifiedError(String(error));
+    const normalizedError = normalizeStringifiedSquadsError(String(error));
     return normalizedError ?? '[unstringifiable error]';
   } catch {
     return '[unstringifiable error]';
