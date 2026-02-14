@@ -89,6 +89,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('labels null argv chain values clearly in index-aware errors', () => {
+    expect(() => resolveSquadsChainsFromArgv([null])).to.throw(
+      'Expected --chains[0] to be a string, but received null',
+    );
+  });
+
   it('rejects empty argv chain string values with index-aware errors', () => {
     expect(() => resolveSquadsChainsFromArgv(['   '])).to.throw(
       'Expected --chains[0] to be a non-empty string',
