@@ -1451,12 +1451,21 @@ interface AsHexErrorMessages {
   invalid?: string;
 }
 
+function stringifyHexInputForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {
   const requiredErrorMessage =
     errorMessages?.required ?? 'Hex value is required';
   const invalidErrorMessage = errorMessages?.invalid;
   const resolvedInvalidErrorMessage =
-    invalidErrorMessage ?? `Hex value must be valid hex: ${String(hex)}`;
+    invalidErrorMessage ??
+    `Hex value must be valid hex: ${stringifyHexInputForError(hex)}`;
   assert(hex !== undefined && hex !== null, requiredErrorMessage);
   assert(typeof hex === 'string', resolvedInvalidErrorMessage);
   const normalizedHex = hex.trim();

@@ -3845,6 +3845,23 @@ describe('gnosisSafe utils', () => {
       expect(() => asHex(123)).to.throw('Hex value must be valid hex: 123');
     });
 
+    it('throws deterministic error for unstringifiable non-string inputs', () => {
+      const unstringifiableInput = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+
+      expect(() => asHex(unstringifiableInput)).to.throw(
+        'Hex value must be valid hex: <unstringifiable>',
+      );
+      expect(() =>
+        asHex(unstringifiableInput, {
+          invalid: 'custom invalid message',
+        }),
+      ).to.throw('custom invalid message');
+    });
+
     it('supports custom error messages', () => {
       expect(() =>
         asHex(' ', {
