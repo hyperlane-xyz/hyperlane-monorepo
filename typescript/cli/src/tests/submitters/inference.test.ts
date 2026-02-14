@@ -13293,7 +13293,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
-  it('uses jsonRpc internal submitter when ICA event-derived origin signer lookup fails', async () => {
+  it('falls back to jsonRpc when ICA event-derived origin signer lookup fails with tryGetSigner', async () => {
     const inferredIcaOwner = '0x6868686868686868686868686868686868686868';
     const destinationRouterAddress =
       '0x9090909090909090909090909090909090909090';
@@ -13377,15 +13377,12 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
       expect(batches).to.have.length(1);
-      expect(batches[0].config.submitter.type).to.equal(
-        TxSubmitterType.INTERCHAIN_ACCOUNT,
-      );
-      expect((batches[0].config.submitter as any).internalSubmitter.type).to.equal(
-        TxSubmitterType.JSON_RPC,
-      );
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
       expect(provider.getLogs.callCount).to.equal(1);
-      // tx1: destination owner inference + origin signer lookup for internal submitter
-      // tx2: both signer resolutions are cache hits
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(1);
+      // tx1: destination owner inference + origin signer availability probe
+      // tx2: both signer resolutions are cache hits.
       expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
       expect(signerAddressCallsByChain.anvil3).to.equal(1);
     } finally {
