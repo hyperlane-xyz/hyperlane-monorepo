@@ -7,7 +7,6 @@ import {
   createSafeTransactionData,
   getSafeAndService,
   proposeSafeTransaction,
-  retrySafeApi,
 } from '@hyperlane-xyz/sdk';
 import {
   Address,
@@ -74,8 +73,10 @@ export class SafeMultiSend extends MultiSend {
     chain: ChainName,
     safeAddress: Address,
   ) {
-    const { safeSdk, safeService } = await retrySafeApi(() =>
-      getSafeAndService(chain, multiProvider, safeAddress),
+    const { safeSdk, safeService } = await getSafeAndService(
+      chain,
+      multiProvider,
+      safeAddress,
     );
     return new SafeMultiSend(
       multiProvider,
