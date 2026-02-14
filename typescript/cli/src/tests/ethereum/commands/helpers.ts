@@ -475,11 +475,15 @@ export async function createMockSafeApi(
     serviceUrl,
     `Safe service url is required for running mock SAFE service for chain ${metadata.name}`,
   );
-  const port = new URL(serviceUrl).port;
+  const safeServiceUrl = new URL(serviceUrl);
+  const port = parseInt(safeServiceUrl.port, 10);
+  const hostname = safeServiceUrl.hostname || '127.0.0.1';
 
   const server = http.createServer((req, res) => {
     const url = req.url || '';
     console.info('Mock safe API received request', req.method, url);
+    const requestedSafeAddress = url.match(/\/safes\/([^/]+)/)?.[1];
+    const responseSafeAddress = requestedSafeAddress || safeAddress;
 
     if (url.includes('/safes/') && url.includes('multisig-transactions')) {
       // Mock GET /v2/safes/${address}/multisig-transactions/`
@@ -491,11 +495,11 @@ export async function createMockSafeApi(
       res.writeHead(200, { 'Content-Type': 'application/json' });
       res.end(
         JSON.stringify({
-          address: safeAddress,
+          address: responseSafeAddress,
           nonce,
           threshold: 1,
           owners: [safeOwner],
-          masterCopy: safeAddress,
+          masterCopy: responseSafeAddress,
           modules: [],
           version: '1.3.0',
         }),
@@ -519,7 +523,7 @@ export async function createMockSafeApi(
     }
   });
 
-  await new Promise<void>((resolve) => server.listen(port, resolve));
+  await new Promise<void>((resolve) => server.listen(port, hostname, resolve));
 
   return {
     server,

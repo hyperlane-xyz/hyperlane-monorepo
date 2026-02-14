@@ -24,6 +24,20 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     chainId: 31338,
   };
 
+  it('returns no batches when no transactions are provided', async () => {
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+    });
+
+    expect(batches).to.deep.equal([]);
+  });
+
   it('uses explicit strategy when provided', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-${Date.now()}.yaml`;
     writeYamlOrJson(strategyPath, {

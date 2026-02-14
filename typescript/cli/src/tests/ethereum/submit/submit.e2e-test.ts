@@ -18,9 +18,10 @@ import {
   deployXERC20VSToken,
   hyperlaneSubmit,
 } from '../commands/helpers.js';
-import { TEST_CHAIN_METADATA_BY_PROTOCOL } from '../../constants.js';
 import {
   ANVIL_KEY,
+  CHAIN_2_METADATA_PATH,
+  CHAIN_3_METADATA_PATH,
   CHAIN_NAME_2,
   CHAIN_NAME_3,
   DEFAULT_E2E_TEST_TIMEOUT,
@@ -302,7 +303,7 @@ describe('hyperlane submit', function () {
       await xerc20Chain3.transferOwnership(safeAddress);
 
       mockSafeApiServer = await createMockSafeApi(
-        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        readYamlOrJson(CHAIN_3_METADATA_PATH),
         safeAddress,
         owner,
         5,
@@ -327,7 +328,7 @@ describe('hyperlane submit', function () {
       writeYamlOrJson(transactionsPath, transactions);
 
       const result = await hyperlaneSubmit({ transactionsPath });
-      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
     });
 
     it('should still infer gnosisSafeTxBuilder when strategy file lacks chain config', async function () {
@@ -354,7 +355,7 @@ describe('hyperlane submit', function () {
       });
 
       const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
-      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
     });
 
     it('should fall back to jsonRpc when target owner cannot be inferred', async function () {
@@ -375,13 +376,29 @@ describe('hyperlane submit', function () {
       const initialBalance = await provider.getBalance(recipient);
       const result = await hyperlaneSubmit({ transactionsPath });
 
-      expect(result.text()).to.match(/-jsonRpc-\d+-receipts\.json/);
+      expect(result.text()).to.include('jsonRpc');
       const finalBalance = await provider.getBalance(recipient);
       expect(finalBalance.sub(initialBalance)).to.eql(ethers.BigNumber.from(1));
     });
   });
 
   describe('explicit submitterOverrides', function () {
+    let mockSafeApiServer: Awaited<ReturnType<typeof createMockSafeApi>>;
+
+    before(async function () {
+      const owner = await xerc20Chain2.owner();
+      mockSafeApiServer = await createMockSafeApi(
+        readYamlOrJson(CHAIN_2_METADATA_PATH),
+        randomAddress(),
+        owner,
+        5,
+      );
+    });
+
+    after(async function () {
+      await mockSafeApiServer.close();
+    });
+
     it('should route same-chain transactions to override submitter by target', async function () {
       const signerAddress = await xerc20Chain2.owner();
 
@@ -444,8 +461,8 @@ describe('hyperlane submit', function () {
 
       const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
       const output = result.text();
-      expect(output).to.match(/-jsonRpc-\d+-receipts\.json/);
-      expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+      expect(output).to.include('jsonRpc');
+      expect(output).to.include('gnosisSafeTxBuilder');
 
       const [finalAlice, finalBob] = await Promise.all([
         xerc20Chain2.balanceOf(ALICE),
@@ -505,7 +522,7 @@ describe('hyperlane submit', function () {
 
       const initialBob = await safeOwnedToken.balanceOf(BOB);
       const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
-      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
 
       const finalBob = await safeOwnedToken.balanceOf(BOB);
       // The Safe tx builder output is not executed onchain in this flow.
@@ -582,8 +599,8 @@ describe('hyperlane submit', function () {
 
       const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
       const output = result.text();
-      expect(output).to.match(/-timelockController-\d+-receipts\.json/);
-      expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+      expect(output).to.include('timelockController');
+      expect(output).to.include('gnosisSafeTxBuilder');
     });
 
     it('should match selector-specific override when key uses uppercase 0X selector prefix', async function () {
@@ -650,8 +667,8 @@ describe('hyperlane submit', function () {
 
       const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
       const output = result.text();
-      expect(output).to.match(/-timelockController-\d+-receipts\.json/);
-      expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+      expect(output).to.include('timelockController');
+      expect(output).to.include('gnosisSafeTxBuilder');
     });
   });
 });

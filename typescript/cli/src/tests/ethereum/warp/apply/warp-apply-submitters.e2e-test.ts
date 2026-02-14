@@ -734,6 +734,21 @@ describe('hyperlane warp apply with submitters', async function () {
   });
 
   describe('auto inference', () => {
+    let mockSafeApiServer: Awaited<ReturnType<typeof createMockSafeApi>>;
+
+    before(async function () {
+      mockSafeApiServer = await createMockSafeApi(
+        TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        safeAddress,
+        initialOwnerAddress,
+        5,
+      );
+    });
+
+    after(async function () {
+      await mockSafeApiServer.close();
+    });
+
     it('should infer jsonRpc for signer-owned warp routes', async () => {
       const warpDeployConfig = fixture.getDeployConfig();
       await deployAndExportWarpRoute();

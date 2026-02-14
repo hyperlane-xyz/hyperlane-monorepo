@@ -24,7 +24,6 @@ import {
 import { readYamlOrJson, writeYamlOrJson } from '../../../utils/files.js';
 import { HyperlaneE2ECoreTestCommands } from '../../commands/core.js';
 import { createMockSafeApi } from '../commands/helpers.js';
-import { TEST_CHAIN_METADATA_BY_PROTOCOL } from '../../constants.js';
 import {
   ANVIL_KEY,
   CHAIN_2_METADATA_PATH,
@@ -282,7 +281,7 @@ describe('hyperlane core apply e2e tests', async function () {
     const safeAddress = mockSafe.address;
 
     const mockSafeApiServer = await createMockSafeApi(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      readYamlOrJson(CHAIN_2_METADATA_PATH),
       safeAddress,
       initialOwnerAddress,
       5,
@@ -356,7 +355,7 @@ describe('hyperlane core apply e2e tests', async function () {
     ]);
 
     const mockSafeApiServer = await createMockSafeApi(
-      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      readYamlOrJson(CHAIN_2_METADATA_PATH),
       mockSafe.address,
       initialOwnerAddress,
       5,

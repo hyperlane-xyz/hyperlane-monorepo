@@ -778,7 +778,9 @@ export async function resolveSubmitterBatchesForTransactions({
   strategyUrl,
   isExtendedChain,
 }: ResolveSubmitterBatchesParams): Promise<ResolvedSubmitterBatch[]> {
-  assert(transactions.length > 0, `No transactions provided for chain ${chain}`);
+  if (transactions.length === 0) {
+    return [];
+  }
   const protocol = context.multiProvider.getProtocol(chain);
 
   const explicitSubmissionStrategy: ExtendedSubmissionStrategy | undefined =

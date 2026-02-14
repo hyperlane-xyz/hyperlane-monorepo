@@ -8,6 +8,7 @@ name: anvil2
 protocol: ethereum
 rpcUrls:
   - http: http://127.0.0.1:8555
+gnosisSafeTransactionServiceUrl: http://127.0.0.1:18555
 blockExplorers: # Array: List of BlockExplorer configs
   # Required fields:
   - name: My Chain Explorer # String: Human-readable name for the explorer
