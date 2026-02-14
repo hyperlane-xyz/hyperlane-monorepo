@@ -77,6 +77,12 @@ type ResolveSubmitterBatchesParams = {
   isExtendedChain?: boolean;
 };
 
+type ExplicitOverrideIndexes = {
+  evmTargetOverrides: Map<string, ExtendedSubmissionStrategy['submitter']>;
+  evmSelectorOverrides: Map<string, ExtendedSubmissionStrategy['submitter']>;
+  nonEvmTargetOverrides: Map<string, ExtendedSubmissionStrategy['submitter']>;
+};
+
 export type ResolvedSubmitterBatch = {
   config: ExtendedSubmissionStrategy;
   transactions: TypedAnnotatedTransaction[];
@@ -566,55 +572,98 @@ function getConfigFingerprint(config: ExtendedSubmissionStrategy): string {
   return JSON.stringify(config.submitter);
 }
 
+function parseOverrideKey(key: string): { target: string; selector?: string } {
+  const trimmedKey = key.trim();
+  const parts = trimmedKey.split('@');
+  if (parts.length !== 2) {
+    return { target: trimmedKey };
+  }
+
+  const [target, maybeSelector] = parts.map((part) => part.trim());
+  const normalizedSelector = maybeSelector.toLowerCase();
+  if (/^0x[0-9a-f]{8}$/.test(normalizedSelector)) {
+    return { target, selector: normalizedSelector };
+  }
+  return { target: trimmedKey };
+}
+
+function tryNormalizeEvmAddress(address: string): string | null {
+  try {
+    return normalizeEvmAddressFlexible(address);
+  } catch {
+    return null;
+  }
+}
+
+function getTxSelector(tx: TypedAnnotatedTransaction): string | undefined {
+  const data = (tx as any).data;
+  if (typeof data !== 'string') {
+    return undefined;
+  }
+
+  const normalizedData = data.trim().toLowerCase();
+  if (!/^0x[0-9a-f]{8}/.test(normalizedData)) {
+    return undefined;
+  }
+  return normalizedData.slice(0, 10).toLowerCase();
+}
+
+function buildExplicitOverrideIndexes({
+  protocol,
+  overrides,
+}: {
+  protocol: ProtocolType;
+  overrides?: ExtendedSubmissionStrategy['submitterOverrides'];
+}): ExplicitOverrideIndexes {
+  const indexes: ExplicitOverrideIndexes = {
+    evmTargetOverrides: new Map(),
+    evmSelectorOverrides: new Map(),
+    nonEvmTargetOverrides: new Map(),
+  };
+
+  if (!overrides) {
+    return indexes;
+  }
+
+  for (const [overrideKey, submitter] of Object.entries(overrides)) {
+    if (protocol === ProtocolType.Ethereum) {
+      const parsed = parseOverrideKey(overrideKey);
+      const normalizedTarget = tryNormalizeEvmAddress(parsed.target);
+      if (!normalizedTarget) {
+        continue;
+      }
+
+      if (parsed.selector) {
+        const selectorKey = `${normalizedTarget}@${parsed.selector}`;
+        if (!indexes.evmSelectorOverrides.has(selectorKey)) {
+          indexes.evmSelectorOverrides.set(selectorKey, submitter);
+        }
+      } else if (!indexes.evmTargetOverrides.has(normalizedTarget)) {
+        indexes.evmTargetOverrides.set(normalizedTarget, submitter);
+      }
+      continue;
+    }
+
+    const normalizedTarget = overrideKey.trim();
+    if (!indexes.nonEvmTargetOverrides.has(normalizedTarget)) {
+      indexes.nonEvmTargetOverrides.set(normalizedTarget, submitter);
+    }
+  }
+
+  return indexes;
+}
+
 function resolveExplicitSubmitterForTransaction({
-  chain,
   protocol,
   transaction,
   explicitSubmissionStrategy,
+  explicitOverrideIndexes,
 }: {
-  chain: ChainName;
   protocol: ProtocolType;
   transaction: TypedAnnotatedTransaction;
   explicitSubmissionStrategy: ExtendedSubmissionStrategy;
+  explicitOverrideIndexes: ExplicitOverrideIndexes;
 }): ExtendedSubmissionStrategy {
-  const parseOverrideKey = (
-    key: string,
-  ): { target: string; selector?: string } => {
-    const trimmedKey = key.trim();
-    const parts = trimmedKey.split('@');
-    if (parts.length !== 2) {
-      return { target: trimmedKey };
-    }
-
-    const [target, maybeSelector] = parts.map((part) => part.trim());
-    const normalizedSelector = maybeSelector.toLowerCase();
-    if (/^0x[0-9a-f]{8}$/.test(normalizedSelector)) {
-      return { target, selector: normalizedSelector };
-    }
-    return { target: trimmedKey };
-  };
-
-  const tryNormalizeEvmAddress = (address: string): string | null => {
-    try {
-      return normalizeEvmAddressFlexible(address);
-    } catch {
-      return null;
-    }
-  };
-
-  const getTxSelector = (tx: TypedAnnotatedTransaction): string | undefined => {
-    const data = (tx as any).data;
-    if (typeof data !== 'string') {
-      return undefined;
-    }
-
-    const normalizedData = data.trim().toLowerCase();
-    if (!/^0x[0-9a-f]{8}/.test(normalizedData)) {
-      return undefined;
-    }
-    return normalizedData.slice(0, 10).toLowerCase();
-  };
-
   const to = (transaction as any).to;
   const overrides = explicitSubmissionStrategy.submitterOverrides;
 
@@ -636,46 +685,27 @@ function resolveExplicitSubmitterForTransaction({
     const selector = getTxSelector(transaction);
 
     if (selector) {
-      const selectorMatch = entries.find(([overrideKey]) => {
-        const parsed = parseOverrideKey(overrideKey);
-        const normalizedOverrideTarget = tryNormalizeEvmAddress(parsed.target);
-        if (!normalizedOverrideTarget) {
-          return false;
-        }
-        return (
-          !!parsed.selector &&
-          parsed.selector === selector &&
-          normalizedOverrideTarget === normalizedTarget
-        );
-      });
+      const selectorMatch = explicitOverrideIndexes.evmSelectorOverrides.get(
+        `${normalizedTarget}@${selector}`,
+      );
       if (selectorMatch) {
-        selectedSubmitter = selectorMatch[1];
+        selectedSubmitter = selectorMatch;
       }
     }
 
     if (selectedSubmitter === explicitSubmissionStrategy.submitter) {
-      const targetMatch = entries.find(([overrideKey]) => {
-        const parsed = parseOverrideKey(overrideKey);
-        const normalizedOverrideTarget = tryNormalizeEvmAddress(parsed.target);
-        if (!normalizedOverrideTarget) {
-          return false;
-        }
-        return (
-          !parsed.selector &&
-          normalizedOverrideTarget === normalizedTarget
-        );
-      });
+      const targetMatch =
+        explicitOverrideIndexes.evmTargetOverrides.get(normalizedTarget);
       if (targetMatch) {
-        selectedSubmitter = targetMatch[1];
+        selectedSubmitter = targetMatch;
       }
     }
   } else {
     const normalizedTarget = to.trim();
-    const targetMatch = entries.find(
-      ([overrideKey]) => overrideKey.trim() === normalizedTarget,
-    );
+    const targetMatch =
+      explicitOverrideIndexes.nonEvmTargetOverrides.get(normalizedTarget);
     if (targetMatch) {
-      selectedSubmitter = targetMatch[1];
+      selectedSubmitter = targetMatch;
     }
   }
 
@@ -709,15 +739,19 @@ export async function resolveSubmitterBatchesForTransactions({
       : undefined;
 
   if (explicitSubmissionStrategy) {
+    const explicitOverrideIndexes = buildExplicitOverrideIndexes({
+      protocol,
+      overrides: explicitSubmissionStrategy.submitterOverrides,
+    });
     const batches: ResolvedSubmitterBatch[] = [];
     let lastBatchFingerprint: string | null = null;
 
     for (const transaction of transactions) {
       const selectedConfig = resolveExplicitSubmitterForTransaction({
-        chain,
         protocol,
         transaction,
         explicitSubmissionStrategy,
+        explicitOverrideIndexes,
       });
       const fingerprint = getConfigFingerprint(selectedConfig);
 
