@@ -108,6 +108,20 @@ function getArgTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
+function normalizeStringifiedError(
+  formattedError: string,
+): string | undefined {
+  const trimmedFormattedError = formattedError.trim();
+  if (
+    trimmedFormattedError.length === 0 ||
+    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+  ) {
+    return undefined;
+  }
+
+  return formattedError;
+}
+
 function normalizeArgvSingleChain(chain: unknown): string {
   assert(
     typeof chain === 'string',
@@ -275,14 +289,8 @@ export function formatScriptError(error: unknown): string {
     } catch {}
 
     try {
-      const formattedError = String(error);
-      const trimmedFormattedError = formattedError.trim();
-      if (
-        trimmedFormattedError.length > 0 &&
-        !GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
-      ) {
-        return formattedError;
-      }
+      const normalizedError = normalizeStringifiedError(String(error));
+      if (normalizedError) return normalizedError;
     } catch {}
 
     return '[unformattable error instance]';
@@ -312,21 +320,17 @@ export function formatScriptError(error: unknown): string {
     } catch {}
 
     try {
-      const formattedError = String(error);
-      const trimmedFormattedError = formattedError.trim();
-      if (
-        trimmedFormattedError.length > 0 &&
-        !GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
-      ) {
-        return formattedError;
-      }
+      const normalizedError = normalizeStringifiedError(String(error));
+      if (normalizedError) return normalizedError;
     } catch {}
 
     return '[unformattable error object]';
   }
 
   try {
-    return String(error);
+    const normalizedError = normalizeStringifiedError(String(error));
+    if (normalizedError) return normalizedError;
+    return '[unformattable error value]';
   } catch {
     return '[unformattable error value]';
   }
