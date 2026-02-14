@@ -391,7 +391,10 @@ export enum SafeTxStatus {
   READY_TO_EXECUTE = '🟢',
 }
 
-export function safeApiKeyRequired(txServiceUrl: string): boolean {
+export function safeApiKeyRequired(txServiceUrl: unknown): boolean {
+  if (typeof txServiceUrl !== 'string') {
+    return false;
+  }
   const hostMatchesDomain = (host: string, domain: string): boolean => {
     const normalizedHost = host.replace(/\.+$/, '');
     return normalizedHost === domain || normalizedHost.endsWith(`.${domain}`);
@@ -454,7 +457,11 @@ export function hasSafeServiceTransactionPayload(
   );
 }
 
-export function normalizeSafeServiceUrl(txServiceUrl: string): string {
+export function normalizeSafeServiceUrl(txServiceUrl: unknown): string {
+  assert(
+    typeof txServiceUrl === 'string',
+    `Safe tx service URL must be a string: ${stringifyValueForError(txServiceUrl)}`,
+  );
   const canonicalizePath = (path: string): string => {
     let normalized = path.replace(/\/+$/, '');
 

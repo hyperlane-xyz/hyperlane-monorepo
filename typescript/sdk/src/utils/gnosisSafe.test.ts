@@ -1157,6 +1157,18 @@ describe('gnosisSafe utils', () => {
       ).to.equal(false);
     });
 
+    it('returns false for non-string url inputs', () => {
+      expect(safeApiKeyRequired(123)).to.equal(false);
+      expect(safeApiKeyRequired(null)).to.equal(false);
+
+      const unstringifiableUrl = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+      expect(safeApiKeyRequired(unstringifiableUrl)).to.equal(false);
+    });
+
     it('rejects percent-encoded authorities', () => {
       const encodedDots = ['%2E', '%2e', '%252E', '%252e'];
 
@@ -2787,6 +2799,24 @@ describe('gnosisSafe utils', () => {
       );
       expect(() => normalizeSafeServiceUrl('   ')).to.throw(
         'Safe tx service URL is empty',
+      );
+    });
+
+    it('throws when service url input is non-string', () => {
+      expect(() => normalizeSafeServiceUrl(123)).to.throw(
+        'Safe tx service URL must be a string: 123',
+      );
+      expect(() => normalizeSafeServiceUrl(null)).to.throw(
+        'Safe tx service URL must be a string: null',
+      );
+
+      const unstringifiableUrl = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+      expect(() => normalizeSafeServiceUrl(unstringifiableUrl)).to.throw(
+        'Safe tx service URL must be a string: <unstringifiable>',
       );
     });
 
