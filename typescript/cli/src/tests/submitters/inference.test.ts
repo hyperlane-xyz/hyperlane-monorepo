@@ -3226,6 +3226,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
   it('falls back to default timelock proposer when hasRole checks fail', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
+    const tx1 = { ...TX, to: '0xabababababababababababababababababababab' };
+    const tx2 = { ...TX, to: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd' };
 
     const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
       () =>
@@ -3240,13 +3242,14 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().resolves([]),
     };
+    const hasRoleStub = sinon.stub().callsFake(async () => {
+      throw new Error('role lookup failed');
+    });
     const timelockStub = sinon
       .stub(TimelockController__factory, 'connect')
       .returns({
         getMinDelay: async () => 0,
-        hasRole: async () => {
-          throw new Error('role lookup failed');
-        },
+        hasRole: hasRoleStub,
         interface: {
           getEventTopic: (name: string) => name,
           parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
@@ -3267,7 +3270,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     try {
       const batches = await resolveSubmitterBatchesForTransactions({
         chain: CHAIN,
-        transactions: [TX as any],
+        transactions: [tx1 as any, tx2 as any],
         context,
       });
 
@@ -3279,6 +3282,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         (batches[0].config.submitter as any).proposerSubmitter.type,
       ).to.equal(TxSubmitterType.JSON_RPC);
       expect(provider.getLogs.callCount).to.equal(0);
+      // first inference performs open-role and signer-role checks; second tx reuses cache
+      expect(hasRoleStub.callCount).to.equal(2);
     } finally {
       ownableStub.restore();
       safeStub.restore();
