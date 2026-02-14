@@ -23,7 +23,7 @@ import {
 } from './config.js';
 import {
   isGenericObjectStringifiedValue,
-  normalizeStringifiedSquadsError,
+  stringifyUnknownSquadsError,
 } from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
@@ -193,46 +193,9 @@ function getUnknownValueTypeName(value: unknown): string {
 }
 
 function formatUnknownErrorForMessage(error: unknown): string {
-  if (error instanceof Error) {
-    try {
-      const normalizedMessage = normalizeStringifiedSquadsError(error.message);
-      if (normalizedMessage) {
-        return normalizedMessage;
-      }
-    } catch {}
-  }
-  if (typeof error === 'string') {
-    const normalizedError = normalizeStringifiedSquadsError(error);
-    return normalizedError ?? '[unstringifiable error]';
-  }
-  if (error && typeof error === 'object' && !(error instanceof Error)) {
-    try {
-      const stack = (error as { stack?: unknown }).stack;
-      if (typeof stack === 'string') {
-        const normalizedStack = normalizeStringifiedSquadsError(stack);
-        if (normalizedStack) {
-          return normalizedStack;
-        }
-      }
-    } catch {}
-
-    try {
-      const message = (error as { message?: unknown }).message;
-      if (typeof message === 'string') {
-        const normalizedMessage = normalizeStringifiedSquadsError(message);
-        if (normalizedMessage) {
-          return normalizedMessage;
-        }
-      }
-    } catch {}
-  }
-
-  try {
-    const normalizedError = normalizeStringifiedSquadsError(String(error));
-    return normalizedError ?? '[unstringifiable error]';
-  } catch {
-    return '[unstringifiable error]';
-  }
+  return stringifyUnknownSquadsError(error, {
+    preferErrorMessageForErrorInstances: true,
+  });
 }
 
 export function normalizeSquadsAddressValue(

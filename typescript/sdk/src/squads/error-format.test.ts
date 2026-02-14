@@ -4,6 +4,7 @@ import {
   BUILTIN_SQUADS_ERROR_LABELS,
   isGenericObjectStringifiedValue,
   normalizeStringifiedSquadsError,
+  stringifyUnknownSquadsError,
 } from './error-format.js';
 
 describe('squads error-format', () => {
@@ -89,6 +90,45 @@ describe('squads error-format', () => {
       expect(isGenericObjectStringifiedValue('[objectObject]')).to.equal(false);
       expect(isGenericObjectStringifiedValue('object Object')).to.equal(false);
       expect(isGenericObjectStringifiedValue('Error: boom')).to.equal(false);
+    });
+  });
+
+  describe(stringifyUnknownSquadsError.name, () => {
+    it('stringifies Error instances with default Error prefix', () => {
+      expect(stringifyUnknownSquadsError(new Error('boom'))).to.equal(
+        'Error: boom',
+      );
+    });
+
+    it('supports message-first formatting for Error instances', () => {
+      expect(
+        stringifyUnknownSquadsError(new Error('boom'), {
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('boom');
+    });
+
+    it('prefers object stack then message before final fallback', () => {
+      expect(
+        stringifyUnknownSquadsError({
+          stack: 'Error: boom\n at sample.ts:1:1',
+          message: 'boom',
+        }),
+      ).to.equal('Error: boom\n at sample.ts:1:1');
+      expect(
+        stringifyUnknownSquadsError({
+          stack: '   ',
+          message: 'boom',
+        }),
+      ).to.equal('boom');
+    });
+
+    it('supports placeholder overrides', () => {
+      expect(
+        stringifyUnknownSquadsError('   ', {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
     });
   });
 });

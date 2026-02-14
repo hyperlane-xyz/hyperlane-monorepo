@@ -52,7 +52,7 @@ import {
   isVaultTransaction,
   parseSquadProposalTransactionIndex,
 } from './utils.js';
-import { normalizeStringifiedSquadsError } from './error-format.js';
+import { stringifyUnknownSquadsError } from './error-format.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
 
@@ -149,48 +149,7 @@ type SolanaWeb3Provider = ReturnType<
 >;
 
 function stringifyUnknownError(error: unknown): string {
-  if (error instanceof Error) {
-    try {
-      const normalizedError = normalizeStringifiedSquadsError(String(error));
-      return normalizedError ?? '[unstringifiable error]';
-    } catch {
-      return '[unstringifiable error]';
-    }
-  }
-
-  if (typeof error === 'string') {
-    const normalizedError = normalizeStringifiedSquadsError(error);
-    return normalizedError ?? '[unstringifiable error]';
-  }
-
-  if (error && typeof error === 'object') {
-    try {
-      const stack = (error as { stack?: unknown }).stack;
-      if (typeof stack === 'string') {
-        const normalizedStack = normalizeStringifiedSquadsError(stack);
-        if (normalizedStack) {
-          return normalizedStack;
-        }
-      }
-    } catch {}
-
-    try {
-      const message = (error as { message?: unknown }).message;
-      if (typeof message === 'string') {
-        const normalizedMessage = normalizeStringifiedSquadsError(message);
-        if (normalizedMessage) {
-          return normalizedMessage;
-        }
-      }
-    } catch {}
-  }
-
-  try {
-    const normalizedError = normalizeStringifiedSquadsError(String(error));
-    return normalizedError ?? '[unstringifiable error]';
-  } catch {
-    return '[unstringifiable error]';
-  }
+  return stringifyUnknownSquadsError(error);
 }
 
 function formatValidatorsWithAliases(

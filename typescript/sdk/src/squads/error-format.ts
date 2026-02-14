@@ -37,3 +37,69 @@ export function normalizeStringifiedSquadsError(
 
   return formattedError;
 }
+
+export interface StringifyUnknownSquadsErrorOptions {
+  preferErrorMessageForErrorInstances?: boolean;
+  placeholder?: string;
+}
+
+export function stringifyUnknownSquadsError(
+  error: unknown,
+  options: StringifyUnknownSquadsErrorOptions = {},
+): string {
+  const placeholder = options.placeholder ?? '[unstringifiable error]';
+  const preferErrorMessageForErrorInstances =
+    options.preferErrorMessageForErrorInstances === true;
+
+  if (error instanceof Error) {
+    if (preferErrorMessageForErrorInstances) {
+      try {
+        const normalizedMessage = normalizeStringifiedSquadsError(error.message);
+        if (normalizedMessage) {
+          return normalizedMessage;
+        }
+      } catch {}
+    }
+
+    try {
+      const normalizedError = normalizeStringifiedSquadsError(String(error));
+      return normalizedError ?? placeholder;
+    } catch {
+      return placeholder;
+    }
+  }
+
+  if (typeof error === 'string') {
+    const normalizedError = normalizeStringifiedSquadsError(error);
+    return normalizedError ?? placeholder;
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      const stack = (error as { stack?: unknown }).stack;
+      if (typeof stack === 'string') {
+        const normalizedStack = normalizeStringifiedSquadsError(stack);
+        if (normalizedStack) {
+          return normalizedStack;
+        }
+      }
+    } catch {}
+
+    try {
+      const message = (error as { message?: unknown }).message;
+      if (typeof message === 'string') {
+        const normalizedMessage = normalizeStringifiedSquadsError(message);
+        if (normalizedMessage) {
+          return normalizedMessage;
+        }
+      }
+    } catch {}
+  }
+
+  try {
+    const normalizedError = normalizeStringifiedSquadsError(String(error));
+    return normalizedError ?? placeholder;
+  } catch {
+    return placeholder;
+  }
+}
