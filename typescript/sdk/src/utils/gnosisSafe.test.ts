@@ -3673,6 +3673,24 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args._threshold.toNumber()).to.equal(2);
     });
 
+    it('accepts mixed-case transaction data payload with 0x prefix', () => {
+      const data = safeInterface
+        .encodeFunctionData('changeThreshold', [2])
+        .slice(2)
+        .replace(/a/g, 'A')
+        .replace(/c/g, 'C')
+        .replace(/e/g, 'E');
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data: `0x${data}`,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+    });
+
     it('accepts transaction data without 0x prefix', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
@@ -3736,6 +3754,10 @@ describe('gnosisSafe utils', () => {
     it('normalizes uppercase 0X prefixes', () => {
       expect(asHex('0X1234')).to.equal('0x1234');
       expect(asHex('0XABCD')).to.equal('0xabcd');
+    });
+
+    it('normalizes mixed-case prefixed hex payloads', () => {
+      expect(asHex('0xaBcD')).to.equal('0xabcd');
     });
 
     it('prefixes unprefixed hex values', () => {
