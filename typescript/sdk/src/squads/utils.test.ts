@@ -10,6 +10,7 @@ import {
   SQUADS_ACCOUNT_DISCRIMINATORS,
   decodePermissions,
   executeProposal,
+  assertValidTransactionIndexInput,
   getSquadAndProvider,
   getMinimumProposalIndexToCheck,
   getSquadProposal,
@@ -53,6 +54,30 @@ async function captureAsyncError(
 }
 
 describe('squads utils', () => {
+  describe(assertValidTransactionIndexInput.name, () => {
+    it('accepts non-negative safe integer transaction indices', () => {
+      expect(() =>
+        assertValidTransactionIndexInput(0, 'solanamainnet'),
+      ).to.not.throw();
+      expect(() =>
+        assertValidTransactionIndexInput(42, 'solanamainnet'),
+      ).to.not.throw();
+    });
+
+    it('throws for invalid transaction indices', () => {
+      expect(() =>
+        assertValidTransactionIndexInput(-1, 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got -1',
+      );
+      expect(() =>
+        assertValidTransactionIndexInput(Number.NaN, 'solanamainnet'),
+      ).to.throw(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
+      );
+    });
+  });
+
   describe(getMinimumProposalIndexToCheck.name, () => {
     it('includes transaction index zero in search range', () => {
       expect(getMinimumProposalIndexToCheck(0)).to.equal(0);

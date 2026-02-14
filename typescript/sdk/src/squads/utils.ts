@@ -23,6 +23,7 @@ import {
 } from './config.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
+export { assertValidTransactionIndexInput } from './validation.js';
 
 /**
  * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
