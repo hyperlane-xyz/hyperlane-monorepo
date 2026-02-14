@@ -32,6 +32,7 @@ Safe utility typing and robustness were improved by:
 - Canonicalizing Safe call target addresses to checksum format during shared call transaction-data normalization for deterministic downstream payloads.
 - Validating optional Safe transaction nonce inputs as non-negative safe integers before forwarding create-transaction requests to Safe SDK.
 - Validating Safe transaction-create inputs at runtime, including list shape/length metadata and `onlyCalls` flag type, to fail fast on hostile payloads before Safe SDK invocation.
+- Requiring non-empty Safe transaction-create call lists to fail fast before Safe SDK invocation on empty payload batches.
 - Hardening Safe transaction-create helper to validate Safe SDK shape and `createTransaction` accessibility/type before invocation, with deterministic boundary errors.
 - Validating Safe transaction-create list entries (inaccessible/non-object) to fail fast on hostile transaction arrays before Safe SDK invocation.
 - Normalizing Safe transaction-create call failures and validating returned Safe transaction object shape for deterministic boundary behavior.

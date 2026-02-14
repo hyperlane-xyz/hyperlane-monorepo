@@ -3641,6 +3641,21 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when transaction list is empty', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, []);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction list must include at least one call',
+        );
+      }
+    });
+
     it('throws when safe sdk instance is non-object', async () => {
       try {
         await createSafeTransaction(
@@ -3976,6 +3991,27 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe transaction list must be an array: bad',
+        );
+      }
+
+      expect(createTransactionCallCount).to.equal(0);
+    });
+
+    it('fails fast before safe sdk call on empty transaction list', async () => {
+      let createTransactionCallCount = 0;
+      const safeSdkMock = {
+        createTransaction: async () => {
+          createTransactionCallCount += 1;
+          return { data: { nonce: 1 } };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, []);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction list must include at least one call',
         );
       }
 

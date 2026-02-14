@@ -1041,6 +1041,10 @@ export async function createSafeTransaction(
     Number.isSafeInteger(transactionsCount) && transactionsCount >= 0,
     `Safe transaction list length is invalid: ${stringifyValueForError(transactionsCount)}`,
   );
+  assert(
+    transactionsCount > 0,
+    'Safe transaction list must include at least one call',
+  );
   const normalizedTransactions: MetaTransactionData[] = [];
   for (let index = 0; index < transactionsCount; index += 1) {
     let transaction: unknown;
