@@ -112,6 +112,8 @@ const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPatte
   ];
 
 const SQUADS_ERROR_LOG_ARRAY_FIELDS = ['transactionLogs', 'logs'] as const;
+const SQUADS_ERROR_STRING_FIELDS = ['cause', 'error', 'originalError'] as const;
+const SQUADS_ERROR_STRING_ARRAY_FIELDS = ['errors'] as const;
 
 function parseSquadsProposalVoteErrorText(
   logsText: string,
@@ -161,12 +163,6 @@ export function parseSquadsProposalVoteErrorFromError(
     const current = traversalQueue[queueIndex];
     queueIndex++;
 
-    if (typeof current === 'string') {
-      const parsedError = parseSquadsProposalVoteErrorText(current);
-      if (parsedError) return parsedError;
-      continue;
-    }
-
     if (!current || typeof current !== 'object') {
       continue;
     }
@@ -193,7 +189,29 @@ export function parseSquadsProposalVoteErrorFromError(
       if (parsedError) return parsedError;
     }
 
-    traversalQueue.push(...Object.values(currentRecord));
+    for (const field of SQUADS_ERROR_STRING_FIELDS) {
+      const value = currentRecord[field];
+      if (typeof value !== 'string') continue;
+      const parsedError = parseSquadsProposalVoteErrorText(value);
+      if (parsedError) return parsedError;
+    }
+
+    for (const field of SQUADS_ERROR_STRING_ARRAY_FIELDS) {
+      const value = currentRecord[field];
+      if (!Array.isArray(value)) continue;
+      const stringValues = value.filter(
+        (item): item is string => typeof item === 'string',
+      );
+      if (stringValues.length === 0) continue;
+      const parsedError = parseSquadsProposalVoteError(stringValues);
+      if (parsedError) return parsedError;
+    }
+
+    for (const nestedValue of Object.values(currentRecord)) {
+      if (nestedValue && typeof nestedValue === 'object') {
+        traversalQueue.push(nestedValue);
+      }
+    }
   }
 
   return undefined;

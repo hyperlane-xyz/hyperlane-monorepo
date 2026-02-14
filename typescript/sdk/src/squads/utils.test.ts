@@ -359,6 +359,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('ignores arbitrary non-error string fields', () => {
+      const error = {
+        metadata: {
+          note: 'diagnostic 0x177a identifier',
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
+    });
+
     it('parses known vote error from string originalError field', () => {
       const error = {
         originalError: 'Program log: AlreadyCancelled',
