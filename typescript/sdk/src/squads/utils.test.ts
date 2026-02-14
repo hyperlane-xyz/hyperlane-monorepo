@@ -2067,6 +2067,25 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('fails fast for NaN transaction index before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposal('solanamainnet', mpp, Number.NaN),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
   });
 
   describe(getTransactionType.name, () => {
@@ -2124,6 +2143,25 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         `Expected transaction index to be a non-negative safe integer for solanamainnet, got ${unsafeIndex}`,
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for NaN transaction index before account lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType('solanamainnet', mpp, Number.NaN),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
       );
       expect(providerLookupCalled).to.equal(false);
     });
@@ -2199,6 +2237,30 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         `Expected transaction index to be a non-negative safe integer for solanamainnet, got ${unsafeIndex}`,
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for NaN transaction index before proposal execution setup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          'solanamainnet',
+          mpp,
+          Number.NaN,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
       );
       expect(providerLookupCalled).to.equal(false);
     });

@@ -1254,7 +1254,7 @@ export async function executeProposal(
   }
 }
 
-function assertValidTransactionIndexInput(
+export function assertValidTransactionIndexInput(
   transactionIndex: number,
   chain: ChainName,
 ): void {

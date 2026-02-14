@@ -64,6 +64,18 @@ describe('squads transaction reader', () => {
         Number.MAX_SAFE_INTEGER + 1
       }`,
     },
+    {
+      title: 'fails fast for NaN transaction index',
+      transactionIndex: Number.NaN,
+      expectedMessage:
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
+    },
+    {
+      title: 'fails fast for infinite transaction index',
+      transactionIndex: Number.POSITIVE_INFINITY,
+      expectedMessage:
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got Infinity',
+    },
   ];
 
   for (const {
