@@ -239,6 +239,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when transaction index is numeric string input', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: '7',
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads transaction index must be a JavaScript safe integer: 7',
+      );
+    });
+
     it('throws when status timestamp is not a safe integer', () => {
       const parseUnsafeTimestampProposal = () =>
         parseSquadProposal({
