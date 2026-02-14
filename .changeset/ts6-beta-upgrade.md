@@ -21,3 +21,5 @@ Shared TypeScript configs were updated to explicitly include `node` and `mocha` 
 TS6 compatibility fixes were applied in lint configuration and tron-sdk test imports to keep build and lint pipelines green.
 
 Test execution ergonomics were also improved by adding a local-Anvil fallback for rebalancer simulation tests (when Docker is unavailable), and by making infra registry resolution fallback to the packaged registry data when no local registry clone is present.
+
+The root lint command was also hardened to retry turbo lint serially only on OOM (exit code 137), while preserving normal failure behavior for real lint errors.
