@@ -71,3 +71,5 @@ Safe object-property access for formatter and matcher helpers was centralized to
 Local-anvil startup formatting now treats case-variant `ENOENT` code values equivalently, preserving missing-binary install guidance for wrapper-normalized error codes.
 
 Formatter fallback handling was also hardened for `Error` instances whose `message` accessors throw, preserving non-crashing startup diagnostics.
+
+Regression coverage was expanded for case-and-whitespace normalized `ENOENT` codes so missing-binary hints remain stable across wrapper-transformed error metadata.

@@ -540,6 +540,17 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('treats trimmed mixed-case code values as ENOENT', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: '  EnOeNt  ',
+          message: 'spawn failed',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
+
     it('returns plain message for other startup errors', () => {
       const error = new Error('permission denied');
       expect(formatLocalAnvilStartError(error)).to.equal(
