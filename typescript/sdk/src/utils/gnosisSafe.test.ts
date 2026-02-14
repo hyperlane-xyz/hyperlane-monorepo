@@ -401,7 +401,10 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('https://notsafe.global/api')).to.equal(false);
       expect(safeApiKeyRequired('https://safe.global/api')).to.equal(true);
       expect(safeApiKeyRequired('https://user:pass@safe.global/api')).to.equal(
-        true,
+        false,
+      );
+      expect(safeApiKeyRequired('http://user:pass@safe.global/api')).to.equal(
+        false,
       );
       expect(safeApiKeyRequired('https://safe.global.evil.com/api')).to.equal(
         false,

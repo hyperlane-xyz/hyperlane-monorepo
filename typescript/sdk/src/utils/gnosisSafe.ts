@@ -266,7 +266,11 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const parseHostname = (value: string): string | undefined => {
-    return parseHttpUrl(value)?.hostname.toLowerCase();
+    const parsed = parseHttpUrl(value);
+    if (!parsed || hasUrlUserinfo(parsed)) {
+      return undefined;
+    }
+    return parsed.hostname.toLowerCase();
   };
 
   const extractHostname = (value: string): string | undefined => {
@@ -275,10 +279,9 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
       return hostname;
     }
 
-    const schemeRelativeHostname =
-      parseSchemeRelativeHttpUrl(value)?.hostname.toLowerCase();
-    if (schemeRelativeHostname !== undefined) {
-      return schemeRelativeHostname;
+    const schemeRelativeParsed = parseSchemeRelativeHttpUrl(value);
+    if (schemeRelativeParsed && !hasUrlUserinfo(schemeRelativeParsed)) {
+      return schemeRelativeParsed.hostname.toLowerCase();
     }
 
     if (hasExplicitUrlScheme(value) || isSchemeRelativeUrl(value)) {
