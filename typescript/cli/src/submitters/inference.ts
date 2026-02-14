@@ -705,8 +705,15 @@ async function inferIcaSubmitterFromAccount({
             normalizedDestinationRouterAddress,
             ethersConstants.AddressZero,
           );
+          const normalizedDerivedAccount = tryNormalizeEvmAddress(derivedAccount);
+          if (
+            !normalizedDerivedAccount ||
+            eqAddress(normalizedDerivedAccount, ethersConstants.AddressZero)
+          ) {
+            continue;
+          }
 
-          if (!eqAddress(derivedAccount, accountAddress)) {
+          if (!eqAddress(normalizedDerivedAccount, accountAddress)) {
             continue;
           }
 
