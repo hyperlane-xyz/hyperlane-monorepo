@@ -127,3 +127,5 @@ Regression coverage now also confirms array-wrapper `errors` payloads preserve w
 Regression coverage now also confirms set-wrapper `errors` payloads preserve wrapper-level nested `errors` fallbacks after set-entry scans, even when entries are non-matching and wrapper formatting is non-informative.
 
 Regression coverage now also confirms iterable-wrapper `errors` payloads preserve wrapper-level nested `errors` fallbacks after yielded-entry scans, even when yielded entries are non-matching and wrapper formatting is non-informative.
+
+Regression coverage now also confirms error-shaped wrapper `errors` payloads preserve nested `errors` fallbacks even when top-level wrapper messaging is non-informative.
