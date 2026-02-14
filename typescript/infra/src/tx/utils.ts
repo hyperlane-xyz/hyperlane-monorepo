@@ -107,27 +107,49 @@ export function processGovernorReaderResult(
       `Governor reader output file name contains invalid characters: ${normalizedOutputFileName}`,
     );
   }
-  if (
-    deps.writeYamlFn !== undefined &&
-    typeof deps.writeYamlFn !== 'function'
-  ) {
+  if (typeof deps !== 'object' || deps === null) {
     throw new Error(
-      `Governor reader writeYamlFn must be a function: ${stringifyValueForError(deps.writeYamlFn)}`,
+      `Governor reader deps must be an object: ${stringifyValueForError(deps)}`,
     );
   }
-  if (deps.nowFn !== undefined && typeof deps.nowFn !== 'function') {
+  let writeYamlFnDep: unknown;
+  try {
+    writeYamlFnDep = (deps as { writeYamlFn?: unknown }).writeYamlFn;
+  } catch {
+    throw new Error('Governor reader deps.writeYamlFn is inaccessible');
+  }
+  if (writeYamlFnDep !== undefined && typeof writeYamlFnDep !== 'function') {
     throw new Error(
-      `Governor reader nowFn must be a function: ${stringifyValueForError(deps.nowFn)}`,
+      `Governor reader writeYamlFn must be a function: ${stringifyValueForError(writeYamlFnDep)}`,
     );
   }
-  if (deps.exitFn !== undefined && typeof deps.exitFn !== 'function') {
+  let nowFnDep: unknown;
+  try {
+    nowFnDep = (deps as { nowFn?: unknown }).nowFn;
+  } catch {
+    throw new Error('Governor reader deps.nowFn is inaccessible');
+  }
+  if (nowFnDep !== undefined && typeof nowFnDep !== 'function') {
     throw new Error(
-      `Governor reader exitFn must be a function: ${stringifyValueForError(deps.exitFn)}`,
+      `Governor reader nowFn must be a function: ${stringifyValueForError(nowFnDep)}`,
     );
   }
-  const writeYamlFn = deps.writeYamlFn ?? writeYaml;
-  const nowFn = deps.nowFn ?? Date.now;
-  const exitFn = deps.exitFn ?? process.exit;
+  let exitFnDep: unknown;
+  try {
+    exitFnDep = (deps as { exitFn?: unknown }).exitFn;
+  } catch {
+    throw new Error('Governor reader deps.exitFn is inaccessible');
+  }
+  if (exitFnDep !== undefined && typeof exitFnDep !== 'function') {
+    throw new Error(
+      `Governor reader exitFn must be a function: ${stringifyValueForError(exitFnDep)}`,
+    );
+  }
+  const writeYamlFn =
+    (writeYamlFnDep as typeof writeYaml | undefined) ?? writeYaml;
+  const nowFn = (nowFnDep as (() => number) | undefined) ?? Date.now;
+  const exitFn =
+    (exitFnDep as ((code: number) => never | void) | undefined) ?? process.exit;
 
   if (errorCount > 0) {
     rootLogger.error(

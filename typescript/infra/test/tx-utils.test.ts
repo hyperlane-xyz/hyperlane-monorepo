@@ -905,6 +905,26 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when deps input is invalid', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [],
+        [],
+        'safe-tx-parse-results',
+        null as unknown as any,
+      ),
+    ).to.throw('Governor reader deps must be an object: null');
+
+    expect(() =>
+      processGovernorReaderResult(
+        [],
+        [],
+        'safe-tx-parse-results',
+        123 as unknown as any,
+      ),
+    ).to.throw('Governor reader deps must be an object: 123');
+  });
+
   it('throws when injected dependency functions are invalid', () => {
     expect(() =>
       processGovernorReaderResult([], [], 'safe-tx-parse-results', {
@@ -923,6 +943,68 @@ describe('processGovernorReaderResult', () => {
         exitFn: null as unknown as any,
       }),
     ).to.throw('Governor reader exitFn must be a function: null');
+  });
+
+  it('throws when injected dependency accessors are inaccessible', () => {
+    const depsWithThrowingWriteYamlFn = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'writeYamlFn') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    expect(() =>
+      processGovernorReaderResult(
+        [],
+        [],
+        'safe-tx-parse-results',
+        depsWithThrowingWriteYamlFn as unknown as any,
+      ),
+    ).to.throw('Governor reader deps.writeYamlFn is inaccessible');
+
+    const depsWithThrowingNowFn = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'nowFn') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    expect(() =>
+      processGovernorReaderResult(
+        [],
+        [],
+        'safe-tx-parse-results',
+        depsWithThrowingNowFn as unknown as any,
+      ),
+    ).to.throw('Governor reader deps.nowFn is inaccessible');
+
+    const depsWithThrowingExitFn = new Proxy(
+      {},
+      {
+        get(target, property, receiver) {
+          if (property === 'exitFn') {
+            throw new Error('boom');
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+    expect(() =>
+      processGovernorReaderResult(
+        [],
+        [],
+        'safe-tx-parse-results',
+        depsWithThrowingExitFn as unknown as any,
+      ),
+    ).to.throw('Governor reader deps.exitFn is inaccessible');
   });
 
   it('throws when nowFn throws while generating timestamp', () => {
