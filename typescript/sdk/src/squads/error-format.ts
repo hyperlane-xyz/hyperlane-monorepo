@@ -1,6 +1,6 @@
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
-export const BUILTIN_SQUADS_ERROR_LABELS = [
+export const BUILTIN_SQUADS_ERROR_LABELS = Object.freeze([
   'Error',
   'TypeError',
   'RangeError',
@@ -9,7 +9,7 @@ export const BUILTIN_SQUADS_ERROR_LABELS = [
   'URIError',
   'EvalError',
   'AggregateError',
-] as const;
+] as const);
 
 const GENERIC_ERROR_LABELS = new Set(
   BUILTIN_SQUADS_ERROR_LABELS.map((label) => label.toLowerCase()),

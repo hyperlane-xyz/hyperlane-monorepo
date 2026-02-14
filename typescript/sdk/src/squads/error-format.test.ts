@@ -20,6 +20,13 @@ describe('squads error-format', () => {
     ]);
   });
 
+  it('exports built-in squads error labels as immutable runtime data', () => {
+    expect(Object.isFrozen(BUILTIN_SQUADS_ERROR_LABELS)).to.equal(true);
+    expect(() =>
+      (BUILTIN_SQUADS_ERROR_LABELS as unknown as string[]).push('CustomError'),
+    ).to.throw(TypeError);
+  });
+
   describe(normalizeStringifiedSquadsError.name, () => {
     it('returns undefined for empty and whitespace-only strings', () => {
       expect(normalizeStringifiedSquadsError('')).to.equal(undefined);
