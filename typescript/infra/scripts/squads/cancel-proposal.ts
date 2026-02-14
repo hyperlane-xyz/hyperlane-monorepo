@@ -13,6 +13,7 @@ import {
   canModifySquadsProposalStatus,
   getSquadProposal,
   isTerminalSquadsProposalStatus,
+  isStaleSquadsProposal,
   parseSquadsProposalVoteErrorFromError,
 } from '@hyperlane-xyz/sdk';
 import {
@@ -85,7 +86,9 @@ async function main() {
 
   // Check if proposal is stale
   const staleTransactionIndex = parsedMultisig.staleTransactionIndex;
-  if (proposalTransactionIndex < staleTransactionIndex) {
+  if (
+    isStaleSquadsProposal(status, proposalTransactionIndex, staleTransactionIndex)
+  ) {
     rootLogger.warn(
       chalk.yellow(
         `⚠️  Proposal ${proposalTransactionIndex} is stale (current stale index: ${staleTransactionIndex})`,

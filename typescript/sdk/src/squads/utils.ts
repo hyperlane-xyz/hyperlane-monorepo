@@ -720,7 +720,15 @@ export async function getPendingProposalsForChains(
               continue;
             }
 
-            if (proposalIndex < staleTransactionIndex) continue;
+            if (
+              isStaleSquadsProposal(
+                proposalStatus,
+                proposalIndex,
+                staleTransactionIndex,
+              )
+            ) {
+              continue;
+            }
 
             if (rejections > 0) continue;
 
@@ -814,6 +822,27 @@ export function canModifySquadsProposalStatus(statusKind: string): boolean {
   );
 }
 
+export function isStaleSquadsProposal(
+  statusKind: string,
+  transactionIndex: number,
+  staleTransactionIndex: number,
+): boolean {
+  const normalizedStatusKind = normalizeStatusKind(statusKind);
+  assert(
+    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
+    `Expected transaction index to be a non-negative safe integer, got ${transactionIndex}`,
+  );
+  assert(
+    Number.isSafeInteger(staleTransactionIndex) && staleTransactionIndex >= 0,
+    `Expected stale transaction index to be a non-negative safe integer, got ${staleTransactionIndex}`,
+  );
+
+  return (
+    transactionIndex < staleTransactionIndex &&
+    !isTerminalSquadsProposalStatus(normalizedStatusKind)
+  );
+}
+
 export function getSquadTxStatus(
   statusKind: string,
   approvals: number,
@@ -840,10 +869,11 @@ export function getSquadTxStatus(
   );
 
   if (
-    transactionIndex < staleTransactionIndex &&
-    normalizedStatusKind !== SquadsProposalStatus.Executed &&
-    normalizedStatusKind !== SquadsProposalStatus.Rejected &&
-    normalizedStatusKind !== SquadsProposalStatus.Cancelled
+    isStaleSquadsProposal(
+      normalizedStatusKind,
+      transactionIndex,
+      staleTransactionIndex,
+    )
   ) {
     return SquadTxStatus.STALE;
   }

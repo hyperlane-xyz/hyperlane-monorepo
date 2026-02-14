@@ -22,6 +22,7 @@ import {
   getSquadTxStatus,
   isTerminalSquadsProposalStatus,
   canModifySquadsProposalStatus,
+  isStaleSquadsProposal,
   getTransactionType,
   isConfigTransaction,
   parseSquadsProposalVoteError,
@@ -2991,5 +2992,33 @@ describe('squads utils', () => {
       false,
     );
     expect(canModifySquadsProposalStatus(' Draft ')).to.eq(false);
+  });
+
+  it('detects stale squads proposals only for non-terminal statuses', () => {
+    expect(isStaleSquadsProposal(SquadsProposalStatus.Active, 3, 4)).to.equal(
+      true,
+    );
+    expect(isStaleSquadsProposal(SquadsProposalStatus.Executed, 3, 4)).to.equal(
+      false,
+    );
+    expect(
+      isStaleSquadsProposal(` ${SquadsProposalStatus.Cancelled} `, 3, 4),
+    ).to.equal(false);
+    expect(isStaleSquadsProposal(SquadsProposalStatus.Active, 4, 4)).to.equal(
+      false,
+    );
+  });
+
+  it('fails fast for invalid stale helper transaction indexes', () => {
+    expect(() =>
+      isStaleSquadsProposal(SquadsProposalStatus.Active, -1, 0),
+    ).to.throw(
+      'Expected transaction index to be a non-negative safe integer, got -1',
+    );
+    expect(() =>
+      isStaleSquadsProposal(SquadsProposalStatus.Active, 0, Number.NaN),
+    ).to.throw(
+      'Expected stale transaction index to be a non-negative safe integer, got NaN',
+    );
   });
 });
