@@ -44,6 +44,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('labels null argv chains input clearly in error output', () => {
+    expect(() => resolveSquadsChainsFromArgv(null)).to.throw(
+      'Expected --chains to resolve to an array, but received null',
+    );
+  });
+
   it('resolves argv chains from array input and deduplicates', () => {
     const [firstChain, secondChain] = getSquadsChains();
     expect(

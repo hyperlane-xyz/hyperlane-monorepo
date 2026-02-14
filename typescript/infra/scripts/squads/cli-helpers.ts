@@ -126,6 +126,14 @@ export function resolveSquadsChains(chains?: readonly string[]): ChainName[] {
   return configuredSquadsChains;
 }
 
+function getArgTypeName(value: unknown): string {
+  if (value === null) {
+    return 'null';
+  }
+
+  return Array.isArray(value) ? 'array' : typeof value;
+}
+
 export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
   if (typeof chains === 'undefined') {
     return resolveSquadsChains(undefined);
@@ -133,7 +141,7 @@ export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
 
   if (!Array.isArray(chains)) {
     throw new Error(
-      `Expected --chains to resolve to an array, but received ${typeof chains}`,
+      `Expected --chains to resolve to an array, but received ${getArgTypeName(chains)}`,
     );
   }
 
