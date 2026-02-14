@@ -3602,6 +3602,13 @@ describe('gnosisSafe utils', () => {
           value: BigNumber.from(0),
         }),
       ).to.throw('Safe transaction data is required');
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: null as unknown as string,
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data is required');
     });
 
     it('throws when transaction data is only whitespace', () => {
@@ -3823,6 +3830,9 @@ describe('gnosisSafe utils', () => {
       expect(() => asHex()).to.throw('Hex value is required');
       expect(() => asHex('')).to.throw('Hex value is required');
       expect(() => asHex('   ')).to.throw('Hex value is required');
+      expect(() => asHex(null as unknown as string)).to.throw(
+        'Hex value is required',
+      );
     });
 
     it('throws when hex value has invalid characters', () => {
@@ -4006,6 +4016,9 @@ describe('gnosisSafe utils', () => {
     it('throws when calldata is empty', () => {
       expect(() => decodeMultiSendData('')).to.throw('Hex value is required');
       expect(() => decodeMultiSendData('   ')).to.throw(
+        'Hex value is required',
+      );
+      expect(() => decodeMultiSendData(null as unknown as string)).to.throw(
         'Hex value is required',
       );
     });
