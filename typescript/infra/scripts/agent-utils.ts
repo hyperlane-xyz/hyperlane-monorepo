@@ -45,9 +45,9 @@ import { RootAgentConfig } from '../src/config/agent/agent.js';
 import {
   AgentEnvironment,
   DeployEnvironment,
-  EnvironmentConfig,
   assertEnvironment,
-} from '../src/config/environment.js';
+} from '../src/config/deploy-environment.js';
+import { EnvironmentConfig } from '../src/config/environment.js';
 import { BalanceThresholdType } from '../src/config/funding/balances.js';
 import { AlertType } from '../src/config/funding/grafanaAlerts.js';
 import { getEnvironmentDirectory } from '../src/paths.js';

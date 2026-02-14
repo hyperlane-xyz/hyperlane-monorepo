@@ -1,5 +1,5 @@
 import { MinimumRequiredGasByAction } from './mingas.js';
-import type { ProtocolType } from './protocol.js';
+import type { ProtocolType } from './protocolType.js';
 
 // ### QUERY BASE ###
 export type ReqGetBalance = { address: string; denom?: string };

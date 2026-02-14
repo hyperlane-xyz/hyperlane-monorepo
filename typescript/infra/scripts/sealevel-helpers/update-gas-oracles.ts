@@ -25,7 +25,7 @@ import { Domain, ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
 import { getChain } from '../../config/registry.js';
 import { chainsToSkip } from '../../src/config/chain.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import {
   type GasOracleConfigWithOverhead,
   loadAndValidateGasOracleConfig,

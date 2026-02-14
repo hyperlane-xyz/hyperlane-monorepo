@@ -14,7 +14,7 @@ import {
 
 import { Contexts } from '../../config/contexts.js';
 import { getChain } from '../../config/registry.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecret } from '../utils/gcloud.js';
 import { execCmd, include } from '../utils/utils.js';

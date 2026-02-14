@@ -1,6 +1,6 @@
 import { ChainId, Domain } from '@hyperlane-xyz/utils';
 
-import { ProtocolType } from './protocol.js';
+import { ProtocolType } from './protocolType.js';
 
 type ChainNameOrId = string | number;
 

@@ -72,7 +72,7 @@ import {
   getHyperlaneCore,
 } from '../../scripts/core-utils.js';
 import { legacyEthIcaRouter } from '../config/chain.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { tokens } from '../config/warp.js';
 import { Owner, determineGovernanceType } from '../governance.js';
 import { GovernanceType } from '../governanceTypes.js';

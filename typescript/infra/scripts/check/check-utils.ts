@@ -26,7 +26,7 @@ import { DEFAULT_OFFCHAIN_LOOKUP_ISM_URLS } from '../../config/environments/util
 import { getWarpAddressesFrom } from '../../config/registry.js';
 import { getWarpConfig } from '../../config/warp.js';
 import { chainsToSkip } from '../../src/config/chain.js';
-import { DeployEnvironment } from '../../src/config/environment.js';
+import { DeployEnvironment } from '../../src/config/deploy-environment.js';
 import { HyperlaneAppGovernor } from '../../src/govern/HyperlaneAppGovernor.js';
 import { HyperlaneCoreGovernor } from '../../src/govern/HyperlaneCoreGovernor.js';
 import { HyperlaneHaasGovernor } from '../../src/govern/HyperlaneHaasGovernor.js';
