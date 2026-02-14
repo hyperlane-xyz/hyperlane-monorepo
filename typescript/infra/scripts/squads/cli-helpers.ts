@@ -7,6 +7,7 @@ import {
   SquadProposalStatus,
   SquadsChainName,
   getSquadsChains,
+  normalizeStringifiedSquadsError,
   resolveSquadsChains as resolveSquadsChainsFromSdk,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
@@ -36,17 +37,6 @@ const turnkeySignerPromises = new Map<
   Promise<TurnkeySealevelDeployerSigner>
 >();
 const registryPromises = new Map<DeployEnvironment, Promise<IRegistry>>();
-const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
-const GENERIC_ERROR_LABELS = new Set([
-  'error',
-  'typeerror',
-  'rangeerror',
-  'referenceerror',
-  'syntaxerror',
-  'urierror',
-  'evalerror',
-  'aggregateerror',
-]);
 
 function memoizeByEnvironment<T>(
   cache: Map<DeployEnvironment, Promise<T>>,
@@ -121,19 +111,7 @@ function getArgTypeName(value: unknown): string {
 function normalizeStringifiedError(
   formattedError: string,
 ): string | undefined {
-  const trimmedFormattedError = formattedError.trim();
-  const normalizedErrorLabel = trimmedFormattedError
-    .replace(/:$/, '')
-    .toLowerCase();
-  if (
-    trimmedFormattedError.length === 0 ||
-    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError) ||
-    GENERIC_ERROR_LABELS.has(normalizedErrorLabel)
-  ) {
-    return undefined;
-  }
-
-  return formattedError;
+  return normalizeStringifiedSquadsError(formattedError);
 }
 
 function normalizeArgvSingleChain(chain: unknown): string {
