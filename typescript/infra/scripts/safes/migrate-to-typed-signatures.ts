@@ -167,7 +167,7 @@ async function main() {
         );
       } catch (error) {
         rootLogger.error(chalk.red(`Error reproposing transaction: ${error}`));
-        return;
+        continue;
       }
     }
   }
