@@ -388,6 +388,24 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('bounds iterable traversal and ignores late runtime signals', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: {
+            [Symbol.iterator]: function* mostlyNoiseErrors() {
+              for (let i = 0; i < 600; i += 1) {
+                if (i === 550) {
+                  yield { message: 'No Docker client strategy found' };
+                  continue;
+                }
+                yield { message: `noise-${i}` };
+              }
+            },
+          },
+        }),
+      ).to.equal(false);
+    });
+
     it('handles object error collections with throwing property accessors', () => {
       const errors: Record<string, unknown> = {
         nested: { message: 'No Docker client strategy found' },
