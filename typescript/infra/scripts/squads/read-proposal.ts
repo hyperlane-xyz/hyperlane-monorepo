@@ -44,7 +44,7 @@ async function main() {
   );
 
   try {
-    getSquadsKeys(chain);
+    const squadsKeys = getSquadsKeys(chain);
 
     const envConfig = getEnvironmentConfig(environment);
     const mpp = await envConfig.getMultiProtocolProvider();
@@ -158,7 +158,7 @@ async function main() {
     rootLogger.info(chalk.white(`  Bump: ${Number(proposal.bump)}`));
 
     // Display vault information
-    const { vault } = getSquadsKeys(chain);
+    const { vault } = squadsKeys;
     const vaultBalance = await mpp
       .getSolanaWeb3Provider(chain)
       .getBalance(vault);
@@ -227,15 +227,6 @@ async function main() {
     );
   } catch (error) {
     rootLogger.error(chalk.red.bold('❌ Error reading proposal:'));
-    if (
-      error instanceof Error &&
-      error.message.startsWith('Squads config not found on chain')
-    ) {
-      rootLogger.info(
-        chalk.gray('Available chains:'),
-        getSquadsChains().join(', '),
-      );
-    }
     rootLogger.error(chalk.red(error));
     process.exit(1);
   }

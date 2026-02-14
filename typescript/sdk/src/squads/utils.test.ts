@@ -11,7 +11,7 @@ import {
   isConfigTransaction,
   isVaultTransaction,
 } from './utils.js';
-import { getSquadsChains, getSquadsKeys } from './config.js';
+import { getSquadsChains, getSquadsKeys, isSquadsChain } from './config.js';
 
 describe('squads utils', () => {
   describe(getSquadTxStatus.name, () => {
@@ -93,6 +93,11 @@ describe('squads utils', () => {
     const chains = getSquadsChains();
     expect(chains).to.include('solanamainnet');
     expect(chains.length).to.be.greaterThan(0);
+  });
+
+  it('detects whether a chain has squads config', () => {
+    expect(isSquadsChain('solanamainnet')).to.equal(true);
+    expect(isSquadsChain('not-a-squads-chain')).to.equal(false);
   });
 
   it('exports canonical proposal statuses', () => {

@@ -8,7 +8,6 @@ import {
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
   getSquadsChains,
-  getSquadsKeys,
   getSquadProposal,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -21,6 +20,15 @@ import { getEnvironmentConfig } from '../core-utils.js';
 import { withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
+
+function getTransactionLogs(error: unknown): string[] | undefined {
+  if (!error || typeof error !== 'object') return undefined;
+  if (!('transactionLogs' in error)) return undefined;
+  const maybeLogs = (error as { transactionLogs?: unknown }).transactionLogs;
+  return Array.isArray(maybeLogs)
+    ? maybeLogs.filter((v): v is string => typeof v === 'string')
+    : undefined;
+}
 
 // CLI argument parsing
 async function main() {
@@ -53,21 +61,16 @@ async function main() {
     ),
   );
 
-  const { proposal, multisig, status } = await (async () => {
-    getSquadsKeys(chain);
+  const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
+  if (!proposalData) {
+    throw new Error(
+      `Proposal ${transactionIndex} not found on ${chain}. Please check the transaction index.`,
+    );
+  }
 
-    const proposalData = await getSquadProposal(chain, mpp, transactionIndex);
-    if (!proposalData) {
-      throw new Error(
-        `Proposal ${transactionIndex} not found on ${chain}. Please check the transaction index.`,
-      );
-    }
-
-    const { proposal, multisig } = proposalData;
-    const status = proposal.status.__kind;
-    rootLogger.info(chalk.gray(`Found proposal with status: ${status}`));
-    return { proposal, multisig, status };
-  })();
+  const { proposal, multisig } = proposalData;
+  const status = proposal.status.__kind;
+  rootLogger.info(chalk.gray(`Found proposal with status: ${status}`));
 
   // Check if proposal is stale
   const staleTransactionIndex = Number(multisig.staleTransactionIndex);
@@ -174,10 +177,11 @@ async function main() {
 
     const explorerUrl = mpp.getExplorerTxUrl(chain, { hash: signature });
     rootLogger.info(chalk.gray(`Transaction: ${explorerUrl}`));
-  } catch (error: any) {
+  } catch (error: unknown) {
     // Check for specific Squads error codes from squads-v4/programs/squads_multisig_program/src/errors.rs
-    if (error?.transactionLogs) {
-      const logs = error.transactionLogs.join('\n');
+    const transactionLogs = getTransactionLogs(error);
+    if (transactionLogs) {
+      const logs = transactionLogs.join('\n');
 
       // Error 6011 (0x177b): AlreadyRejected
       if (logs.includes('AlreadyRejected') || logs.includes('0x177b')) {
@@ -216,15 +220,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  if (
-    err instanceof Error &&
-    err.message.startsWith('Squads config not found on chain')
-  ) {
-    rootLogger.info(
-      chalk.gray('Available chains:'),
-      getSquadsChains().join(', '),
-    );
-  }
   rootLogger.error('Error processing Squads proposal:', err);
   process.exit(1);
 });

@@ -44,6 +44,10 @@ export function getSquadsChains(): ChainName[] {
   return Object.keys(squadsConfigs);
 }
 
+export function isSquadsChain(chainName: string): chainName is ChainName {
+  return chainName in squadsConfigs;
+}
+
 export function getSquadsKeys(chainName: ChainName): SquadsKeys {
   const config = squadsConfigs[chainName];
   if (!config) {
