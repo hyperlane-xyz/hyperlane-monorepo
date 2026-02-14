@@ -79,6 +79,12 @@ describe('squads utils', () => {
       ).to.equal(SquadsProposalVoteError.AlreadyApproved);
     });
 
+    it('parses AlreadyCancelled from hex error code', () => {
+      expect(
+        parseSquadsProposalVoteError(['custom program error: 0x177c']),
+      ).to.equal(SquadsProposalVoteError.AlreadyCancelled);
+    });
+
     it('returns undefined for unrelated logs', () => {
       expect(parseSquadsProposalVoteError(['some unrelated log'])).to.equal(
         undefined,
