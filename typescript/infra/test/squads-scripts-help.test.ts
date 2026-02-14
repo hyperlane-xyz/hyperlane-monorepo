@@ -1,10 +1,12 @@
 import { spawnSync } from 'node:child_process';
+import fs from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import { expect } from 'chai';
 
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const NON_EXECUTABLE_SQUADS_SCRIPT_FILES = new Set(['cli-helpers.ts']);
 
 type HelpCase = {
   readonly scriptPath: string;
@@ -53,8 +55,36 @@ function runScriptHelp(scriptPath: string) {
   });
 }
 
+function listSquadsScripts(): string[] {
+  const squadsScriptsDir = path.join(INFRA_ROOT, 'scripts/squads');
+  return fs
+    .readdirSync(squadsScriptsDir, { withFileTypes: true })
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.endsWith('.ts') &&
+        !NON_EXECUTABLE_SQUADS_SCRIPT_FILES.has(entry.name),
+    )
+    .map((entry) => path.join('scripts/squads', entry.name))
+    .sort();
+}
+
 describe('squads scripts --help smoke', function () {
   this.timeout(30_000);
+
+  it('keeps help smoke cases synchronized with squads scripts directory', () => {
+    const configuredScriptPaths = SQUADS_SCRIPT_HELP_CASES.map(
+      ({ scriptPath }) => scriptPath,
+    );
+    expect(new Set(configuredScriptPaths).size).to.equal(
+      configuredScriptPaths.length,
+    );
+
+    const configuredSquadsScripts = configuredScriptPaths
+      .filter((scriptPath) => scriptPath.startsWith('scripts/squads/'))
+      .sort();
+    expect(configuredSquadsScripts).to.deep.equal(listSquadsScripts());
+  });
 
   for (const { scriptPath, expectedOutput } of SQUADS_SCRIPT_HELP_CASES) {
     it(`prints help for ${scriptPath}`, () => {
