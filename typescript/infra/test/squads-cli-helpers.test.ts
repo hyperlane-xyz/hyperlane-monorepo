@@ -107,6 +107,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('labels bigint argv chain values clearly in index-aware errors', () => {
+    expect(() => resolveSquadsChainsFromArgv([1n])).to.throw(
+      'Expected --chains[0] to be a string, but received bigint',
+    );
+  });
+
   it('rejects empty argv chain string values with index-aware errors', () => {
     expect(() => resolveSquadsChainsFromArgv(['   '])).to.throw(
       'Expected --chains[0] to be a non-empty string',
@@ -184,6 +190,12 @@ describe('squads cli helpers', () => {
   it('labels array values in explicitly provided chains errors', () => {
     expect(() => resolveSquadsChains([[]])).to.throw(
       'Expected chains[0] to be a string, but received array',
+    );
+  });
+
+  it('labels symbol values in explicitly provided chains errors', () => {
+    expect(() => resolveSquadsChains([Symbol('invalid-chain')])).to.throw(
+      'Expected chains[0] to be a string, but received symbol',
     );
   });
 
