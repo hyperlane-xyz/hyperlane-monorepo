@@ -317,6 +317,17 @@ export async function executePendingTransactions<T>(
       });
       continue;
     }
+    if (tx === undefined || tx === null) {
+      rootLogger.error(
+        chalk.red(`Pending transaction at index ${index} is empty`),
+      );
+      failedTransactions.push({
+        id: '<unknown>',
+        chain: '<unknown>',
+        error: new Error('Pending transaction entry is empty'),
+      });
+      continue;
+    }
     let id: string;
     let chain: string;
     try {
