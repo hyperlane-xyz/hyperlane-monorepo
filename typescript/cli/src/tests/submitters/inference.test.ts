@@ -5455,10 +5455,28 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedUppercasePlusEmptyHexLog = {
+      topics: ['0xmalformed-uppercase-plus-empty-hex'],
+      data: '0x',
+      blockNumber: '+0X',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedUppercaseMinusEmptyHexLog = {
+      topics: ['0xmalformed-uppercase-minus-empty-hex'],
+      data: '0x',
+      blockNumber: '-0X',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const provider = {
-      getLogs: sinon
-        .stub()
-        .resolves([validLog, malformedPlusEmptyHexLog, malformedMinusEmptyHexLog]),
+      getLogs: sinon.stub().resolves([
+        validLog,
+        malformedPlusEmptyHexLog,
+        malformedMinusEmptyHexLog,
+        malformedUppercasePlusEmptyHexLog,
+        malformedUppercaseMinusEmptyHexLog,
+      ]),
     };
 
     const icaRouterStub = sinon
@@ -13181,6 +13199,20 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: '0',
       logIndex: '0',
     };
+    const malformedUppercasePlusEmptyHexGrant = {
+      topics: ['0xgrant-malformed-uppercase-plus-empty-hex'],
+      data: '0x',
+      blockNumber: '+0X',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedUppercaseMinusEmptyHexGrant = {
+      topics: ['0xgrant-malformed-uppercase-minus-empty-hex'],
+      data: '0x',
+      blockNumber: '-0X',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -13196,6 +13228,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
             validGrant,
             malformedPlusEmptyHexGrant,
             malformedMinusEmptyHexGrant,
+            malformedUppercasePlusEmptyHexGrant,
+            malformedUppercaseMinusEmptyHexGrant,
           ];
         }
         return [revoke];
