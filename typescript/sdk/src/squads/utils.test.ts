@@ -193,6 +193,21 @@ describe('squads utils', () => {
   });
 
   describe(getSquadProposal.name, () => {
+    it('returns undefined when provider lookup throws for supported chains', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('returns undefined when provider bridge validation fails', async () => {
       let providerLookupCalled = false;
       const mpp = {

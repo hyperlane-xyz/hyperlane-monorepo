@@ -137,12 +137,11 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
-    chain,
-    mpp,
-  );
+  assertIsSquadsChain(chain);
 
   try {
+    const svmProvider = mpp.getSolanaWeb3Provider(chain);
+    const { multisigPda, programId } = getSquadsKeys(chain);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const multisig = await accounts.Multisig.fromAccountAddress(
