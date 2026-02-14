@@ -3652,6 +3652,22 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data must be hex');
     });
 
+    it('throws deterministic error for unstringifiable transaction data inputs', () => {
+      const unstringifiableInput = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: unstringifiableInput,
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must be hex');
+    });
+
     it('throws when transaction data does not include selector', () => {
       expect(() =>
         parseSafeTx({
@@ -4132,6 +4148,18 @@ describe('gnosisSafe utils', () => {
       );
       expect(() => decodeMultiSendData(123)).to.throw(
         'Hex value must be valid hex: 123',
+      );
+    });
+
+    it('throws deterministic error for unstringifiable calldata inputs', () => {
+      const unstringifiableInput = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+
+      expect(() => decodeMultiSendData(unstringifiableInput)).to.throw(
+        'Hex value must be valid hex: <unstringifiable>',
       );
     });
 
