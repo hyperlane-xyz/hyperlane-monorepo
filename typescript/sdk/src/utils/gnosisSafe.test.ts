@@ -99,6 +99,9 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('  //safe-transaction-mainnet.safe.global/api  '),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired('//safe-transaction-mainnet.safe.global/path@foo'),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired(
           '//safe-transaction-mainnet.safe.global/api?foo=bar#fragment',
         ),
@@ -258,6 +261,9 @@ describe('gnosisSafe utils', () => {
           '//safe.global:8443/tx-service/eth?foo=bar#fragment',
         ),
       ).to.equal('https://safe.global:8443/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl('//safe.global/tx-service/path@foo'),
+      ).to.equal('https://safe.global/tx-service/path@foo/api');
     });
 
     it('preserves explicit non-default ports during normalization', () => {
