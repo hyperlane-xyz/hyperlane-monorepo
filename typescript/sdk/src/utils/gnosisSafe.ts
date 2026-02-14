@@ -2273,6 +2273,10 @@ async function createSwapOwnerTransactions(
   ownersToRemove: Address[],
   ownersToAdd: Address[],
 ): Promise<SafeOwnerUpdateCall[]> {
+  assert(
+    ownersToRemove.length === ownersToAdd.length,
+    `Owner swap inputs must have equal length: removals=${ownersToRemove.length}, additions=${ownersToAdd.length}`,
+  );
   rootLogger.info(
     chalk.magentaBright(
       `Using swapOwner for ${ownersToRemove.length} owner replacement(s)`,
@@ -2291,7 +2295,19 @@ async function createSwapOwnerTransactions(
 
   const effectiveOwners = [...currentOwners];
   const transactions: SafeOwnerUpdateCall[] = [];
-  const safeAddress = await safeSdk.getAddress();
+  let safeAddress: unknown;
+  try {
+    safeAddress = await safeSdk.getAddress();
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve Safe address while generating owner swap transactions: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    typeof safeAddress === 'string' && ethers.utils.isAddress(safeAddress),
+    `Safe address for owner swap transactions must be valid: ${stringifyValueForError(safeAddress)}`,
+  );
+  const normalizedSafeAddress = getAddress(safeAddress);
 
   for (let i = 0; i < sortedOwnersToRemove.length; i++) {
     const oldOwner = sortedOwnersToRemove[i];
@@ -2311,7 +2327,7 @@ async function createSwapOwnerTransactions(
     ]);
 
     transactions.push({
-      to: safeAddress,
+      to: normalizedSafeAddress,
       data,
       value: BigNumber.from(0),
       description: `Swap safe owner ${oldOwner} with ${newOwner} (prevOwner: ${prevOwner})`,
@@ -2331,12 +2347,56 @@ async function createThresholdTransaction(
       `Threshold change ${currentThreshold} => ${newThreshold}`,
     ),
   );
-  const { data: thresholdTxData } =
-    await safeSdk.createChangeThresholdTx(newThreshold);
+  let thresholdTransaction: unknown;
+  try {
+    thresholdTransaction = await safeSdk.createChangeThresholdTx(newThreshold);
+  } catch (error) {
+    throw new Error(
+      `Failed to create Safe threshold transaction: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    thresholdTransaction !== null && typeof thresholdTransaction === 'object',
+    `Safe threshold transaction payload must be an object: ${stringifyValueForError(thresholdTransaction)}`,
+  );
+  let thresholdTxData: unknown;
+  try {
+    thresholdTxData = (thresholdTransaction as { data?: unknown }).data;
+  } catch {
+    throw new Error('Safe threshold transaction data payload is inaccessible');
+  }
+  assert(
+    thresholdTxData !== null && typeof thresholdTxData === 'object',
+    `Safe threshold transaction data must be an object: ${stringifyValueForError(thresholdTxData)}`,
+  );
+  let to: unknown;
+  let data: unknown;
+  let value: unknown;
+  try {
+    ({ to, data, value } = thresholdTxData as {
+      to?: unknown;
+      data?: unknown;
+      value?: unknown;
+    });
+  } catch {
+    throw new Error('Safe threshold transaction fields are inaccessible');
+  }
+  assert(
+    typeof to === 'string' && ethers.utils.isAddress(to),
+    `Safe threshold transaction target must be valid address: ${stringifyValueForError(to)}`,
+  );
+  const normalizedData = asHex(data, {
+    required: 'Safe threshold transaction data is required',
+    invalid: `Safe threshold transaction data must be hex: ${stringifyValueForError(data)}`,
+  });
+  const normalizedValue = parseNonNegativeBigNumber(
+    value,
+    `Safe threshold transaction value must be a non-negative integer: ${stringifyValueForError(value)}`,
+  );
   return {
-    to: thresholdTxData.to,
-    data: thresholdTxData.data,
-    value: BigNumber.from(thresholdTxData.value),
+    to: getAddress(to),
+    data: normalizedData,
+    value: normalizedValue,
     description: `Change safe threshold to ${newThreshold}`,
   };
 }
@@ -2350,11 +2410,84 @@ export async function updateSafeOwner({
   owners?: Address[];
   threshold?: number;
 }): Promise<SafeOwnerUpdateCall[]> {
-  const currentThreshold = await safeSdk.getThreshold();
-  const newThreshold = threshold ?? currentThreshold;
+  const safeSdkObject =
+    safeSdk !== null && typeof safeSdk === 'object'
+      ? (safeSdk as {
+          getThreshold?: unknown;
+          getOwners?: unknown;
+          getAddress?: unknown;
+          createChangeThresholdTx?: unknown;
+        })
+      : undefined;
+  assert(
+    safeSdkObject,
+    `Safe SDK instance must be an object: ${stringifyValueForError(safeSdk)}`,
+  );
+  let getThreshold: unknown;
+  let getOwners: unknown;
+  let getSafeAddressMethod: unknown;
+  let createChangeThresholdTx: unknown;
+  try {
+    ({
+      getThreshold,
+      getOwners,
+      getAddress: getSafeAddressMethod,
+      createChangeThresholdTx,
+    } = safeSdkObject);
+  } catch {
+    throw new Error(
+      'Safe owner update accessors are inaccessible on Safe SDK instance',
+    );
+  }
+  assert(
+    typeof getThreshold === 'function',
+    `Safe SDK getThreshold must be a function: ${stringifyValueForError(getThreshold)}`,
+  );
+  assert(
+    typeof getOwners === 'function',
+    `Safe SDK getOwners must be a function: ${stringifyValueForError(getOwners)}`,
+  );
 
-  const currentOwners = await safeSdk.getOwners();
-  const expectedOwners = owners ?? currentOwners;
+  let currentThresholdRaw: unknown;
+  try {
+    currentThresholdRaw = await getThreshold.call(safeSdkObject);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch Safe threshold: ${stringifyValueForError(error)}`,
+    );
+  }
+  const currentThreshold = parsePositiveSafeInteger(
+    currentThresholdRaw,
+    `Safe threshold must be a positive integer: ${stringifyValueForError(currentThresholdRaw)}`,
+  );
+  let newThresholdRaw: unknown;
+  if (threshold !== undefined) {
+    newThresholdRaw = threshold;
+  } else {
+    newThresholdRaw = currentThreshold;
+  }
+  const newThreshold = parsePositiveSafeInteger(
+    newThresholdRaw,
+    `Safe threshold override must be a positive integer: ${stringifyValueForError(newThresholdRaw)}`,
+  );
+
+  let currentOwnersRaw: unknown;
+  try {
+    currentOwnersRaw = await getOwners.call(safeSdkObject);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch Safe owners: ${stringifyValueForError(error)}`,
+    );
+  }
+  assertValidUniqueOwners(currentOwnersRaw, 'current owners');
+  const currentOwners = currentOwnersRaw.map((owner) => getAddress(owner));
+  const expectedOwnersRaw = owners ?? currentOwners;
+  assertValidUniqueOwners(expectedOwnersRaw, 'expected owners');
+  const expectedOwners = expectedOwnersRaw.map((owner) => getAddress(owner));
+  assert(
+    newThreshold <= expectedOwners.length,
+    `Safe threshold ${newThreshold} exceeds owner count ${expectedOwners.length}`,
+  );
 
   const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
     currentOwners,
@@ -2372,6 +2505,10 @@ export async function updateSafeOwner({
 
   const transactions: SafeOwnerUpdateCall[] = [];
   if (ownersToRemove.length > 0) {
+    assert(
+      typeof getSafeAddressMethod === 'function',
+      `Safe SDK getAddress must be a function: ${stringifyValueForError(getSafeAddressMethod)}`,
+    );
     const swapTxs = await createSwapOwnerTransactions(
       safeSdk,
       currentOwners,
@@ -2382,6 +2519,10 @@ export async function updateSafeOwner({
   }
 
   if (currentThreshold !== newThreshold) {
+    assert(
+      typeof createChangeThresholdTx === 'function',
+      `Safe SDK createChangeThresholdTx must be a function: ${stringifyValueForError(createChangeThresholdTx)}`,
+    );
     const thresholdTx = await createThresholdTransaction(
       safeSdk,
       currentThreshold,
@@ -2917,6 +3058,15 @@ function parseNonNegativeSafeInteger(
     errorMessage,
   );
   return parsedBigNumber.toNumber();
+}
+
+function parsePositiveSafeInteger(
+  value: unknown,
+  errorMessage: string,
+): number {
+  const parsed = parseNonNegativeSafeInteger(value, errorMessage);
+  assert(parsed > 0, errorMessage);
+  return parsed;
 }
 
 export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {

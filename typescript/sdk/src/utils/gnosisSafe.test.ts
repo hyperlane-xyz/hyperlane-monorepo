@@ -29,6 +29,7 @@ import {
   proposeSafeTransaction,
   resolveSafeSigner,
   safeApiKeyRequired,
+  updateSafeOwner,
 } from './gnosisSafe.js';
 
 describe('gnosisSafe utils', () => {
@@ -7227,6 +7228,101 @@ describe('gnosisSafe utils', () => {
         ownersWithThrowingEntry,
         'Owner entry is inaccessible for expected owners at index 0',
       );
+    });
+  });
+
+  describe(updateSafeOwner.name, () => {
+    const safeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+    const ownerA = '0x00000000000000000000000000000000000000A1';
+    const ownerB = '0x00000000000000000000000000000000000000B2';
+    const ownerC = '0x00000000000000000000000000000000000000C3';
+
+    const expectUpdateSafeOwnerError = async (
+      params: Parameters<typeof updateSafeOwner>[0],
+      message: string,
+    ): Promise<void> => {
+      try {
+        await updateSafeOwner(params);
+        expect.fail('Expected updateSafeOwner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(message);
+      }
+    };
+
+    it('throws when safe sdk is not an object', async () => {
+      await expectUpdateSafeOwnerError(
+        {
+          safeSdk: 123 as unknown as Parameters<
+            typeof updateSafeOwner
+          >[0]['safeSdk'],
+        },
+        'Safe SDK instance must be an object: 123',
+      );
+    });
+
+    it('throws when threshold override is non-positive', async () => {
+      await expectUpdateSafeOwnerError(
+        {
+          safeSdk: {
+            getThreshold: async () => 2,
+            getOwners: async () => [ownerA, ownerB],
+          } as unknown as Parameters<typeof updateSafeOwner>[0]['safeSdk'],
+          threshold: 0,
+        },
+        'Safe threshold override must be a positive integer: 0',
+      );
+    });
+
+    it('throws when threshold exceeds expected owner count', async () => {
+      await expectUpdateSafeOwnerError(
+        {
+          safeSdk: {
+            getThreshold: async () => 2,
+            getOwners: async () => [ownerA, ownerB],
+          } as unknown as Parameters<typeof updateSafeOwner>[0]['safeSdk'],
+          owners: [ownerA],
+          threshold: 2,
+        },
+        'Safe threshold 2 exceeds owner count 1',
+      );
+    });
+
+    it('creates canonicalized swap and threshold transactions', async () => {
+      const transactions = await updateSafeOwner({
+        safeSdk: {
+          getThreshold: async () => 2,
+          getOwners: async () => [ownerA.toLowerCase(), ownerB],
+          getAddress: async () => safeAddress,
+          createChangeThresholdTx: async () => ({
+            data: {
+              to: safeAddress,
+              data: 'ABCD',
+              value: '5',
+            },
+          }),
+        } as unknown as Parameters<typeof updateSafeOwner>[0]['safeSdk'],
+        owners: [ownerA, ownerC],
+        threshold: 1,
+      });
+
+      expect(transactions).to.have.lengthOf(2);
+
+      const swapTx = transactions[0];
+      expect(swapTx.to).to.equal(getAddress(safeAddress));
+      expect(swapTx.value.eq(BigNumber.from(0))).to.equal(true);
+      const parsedSwap = safeInterface.parseTransaction({
+        data: swapTx.data,
+      });
+      expect(parsedSwap.name).to.equal('swapOwner');
+      expect(parsedSwap.args?.[0]).to.equal(getAddress(ownerA));
+      expect(parsedSwap.args?.[1]).to.equal(getAddress(ownerB));
+      expect(parsedSwap.args?.[2]).to.equal(getAddress(ownerC));
+
+      const thresholdTx = transactions[1];
+      expect(thresholdTx.to).to.equal(getAddress(safeAddress));
+      expect(thresholdTx.data).to.equal('0xabcd');
+      expect(thresholdTx.value.eq(BigNumber.from(5))).to.equal(true);
+      expect(thresholdTx.description).to.equal('Change safe threshold to 1');
     });
   });
 

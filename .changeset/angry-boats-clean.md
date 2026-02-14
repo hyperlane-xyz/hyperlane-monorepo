@@ -72,3 +72,4 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe deployment/delegate/proposal-capability helpers with strict config validation, service payload validation, and canonicalized address comparisons.
 - Hardening Safe service initialization/url/header boundaries with deterministic chain-metadata and chain-id validation.
 - Hardening pending Safe status aggregation with strict safe/threshold/hash/date/token validation and malformed-entry skipping.
+- Hardening Safe owner-update transaction generation with strict threshold/owner validation and deterministic swap/threshold tx payload checks.
