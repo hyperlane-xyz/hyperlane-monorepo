@@ -598,16 +598,17 @@ export function getKnownMultiSendAddresses(
   const multiSendCallOnly: Address[] = [];
 
   for (const version of versions) {
-    assert(version.trim().length > 0, 'Safe deployment version is required');
+    const normalizedVersion = version.trim();
+    assert(normalizedVersion.length > 0, 'Safe deployment version is required');
     const multiSendCallOnlyDeployments = getMultiSendCallOnlyDeployments({
-      version,
+      version: normalizedVersion,
     });
     const multiSendDeployments = getMultiSendDeployments({
-      version,
+      version: normalizedVersion,
     });
     if (!multiSendCallOnlyDeployments || !multiSendDeployments) {
       throw new Error(
-        `MultiSend and MultiSendCallOnly deployments not found for version ${version}`,
+        `MultiSend and MultiSendCallOnly deployments not found for version ${normalizedVersion}`,
       );
     }
 

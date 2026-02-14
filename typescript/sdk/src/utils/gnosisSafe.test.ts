@@ -3785,5 +3785,13 @@ describe('gnosisSafe utils', () => {
         'Safe deployment version is required',
       );
     });
+
+    it('accepts safe deployment versions with surrounding whitespace', () => {
+      const trimmed = getKnownMultiSendAddresses(['1.3.0']);
+      const spaced = getKnownMultiSendAddresses(['  1.3.0  ']);
+
+      expect(spaced.multiSend).to.deep.equal(trimmed.multiSend);
+      expect(spaced.multiSendCallOnly).to.deep.equal(trimmed.multiSendCallOnly);
+    });
   });
 });
