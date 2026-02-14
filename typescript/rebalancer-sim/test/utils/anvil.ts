@@ -70,9 +70,48 @@ export function formatLocalAnvilStartError(error: unknown): string {
   return `Failed to start local anvil: ${message}`;
 }
 
+function extractErrorMessages(error: unknown): string[] {
+  const messages: string[] = [];
+  const queue: unknown[] = [error];
+  const seen = new Set<unknown>();
+
+  while (queue.length > 0) {
+    const current = queue.shift();
+    if (current === undefined || seen.has(current)) continue;
+    seen.add(current);
+
+    if (current instanceof Error) {
+      messages.push(current.message);
+
+      const cause = (current as { cause?: unknown }).cause;
+      if (cause !== undefined) queue.push(cause);
+
+      if (current instanceof AggregateError) {
+        for (const nestedError of current.errors) {
+          queue.push(nestedError);
+        }
+      }
+
+      continue;
+    }
+
+    if (
+      typeof current === 'object' &&
+      current !== null &&
+      'message' in current &&
+      typeof (current as { message?: unknown }).message === 'string'
+    ) {
+      messages.push((current as { message: string }).message);
+    } else {
+      messages.push(String(current));
+    }
+  }
+
+  return messages;
+}
+
 export function isContainerRuntimeUnavailable(error: unknown): boolean {
-  const message = error instanceof Error ? error.message : String(error);
-  return [
+  const messagePatterns = [
     /could not find a working container runtime strategy/i,
     /no docker client strategy found/i,
     /cannot connect to the docker daemon/i,
@@ -82,7 +121,11 @@ export function isContainerRuntimeUnavailable(error: unknown): boolean {
     /connect econnrefused .*docker\.sock/i,
     /npipe:.*docker_engine/i,
     /open \/\/\.\/pipe\/docker_engine/i,
-  ].some((matcher) => matcher.test(message));
+  ];
+
+  return extractErrorMessages(error).some((message) =>
+    messagePatterns.some((matcher) => matcher.test(message)),
+  );
 }
 
 async function getAvailablePort(): Promise<number> {

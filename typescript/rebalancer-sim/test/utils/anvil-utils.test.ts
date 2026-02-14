@@ -62,6 +62,35 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker runtime errors nested in error causes', () => {
+      const error = new Error('container startup failed');
+      (error as Error & { cause?: unknown }).cause = new Error(
+        'No Docker client strategy found',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches docker runtime errors nested in AggregateError entries', () => {
+      const error = new AggregateError(
+        [
+          new Error('some unrelated startup issue'),
+          new Error(
+            'Cannot connect to the Docker daemon at unix:///var/run/docker.sock',
+          ),
+        ],
+        'failed to initialize runtime',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('reads message from non-Error throw objects', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'No Docker client strategy found in custom runtime adapter',
+        }),
+      ).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(
