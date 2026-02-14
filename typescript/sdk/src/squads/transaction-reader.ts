@@ -2,7 +2,7 @@ import { AccountInfo, ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
 import { accounts, getTransactionPda, types } from '@sqds/multisig';
 import { deserializeUnchecked } from 'borsh';
 
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { defaultMultisigConfigs } from '../consts/multisigIsm.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -991,6 +991,8 @@ export class SquadsTransactionReader {
     chain: ChainName,
     transactionIndex: number,
   ): Promise<SquadsTransaction> {
+    assertValidTransactionIndexForReader(transactionIndex, chain);
+
     try {
       const proposalData = await this.fetchProposalData(
         chain,
@@ -1331,4 +1333,14 @@ export class SquadsTransactionReader {
 
     return tx;
   }
+}
+
+function assertValidTransactionIndexForReader(
+  transactionIndex: number,
+  chain: ChainName,
+): void {
+  assert(
+    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
+    `Expected transaction index to be a non-negative safe integer for ${chain}, got ${transactionIndex}`,
+  );
 }
