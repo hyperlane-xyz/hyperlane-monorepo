@@ -250,6 +250,27 @@ describe('squads utils', () => {
       });
     });
 
+    it('preserves unknown status strings for forward compatibility', () => {
+      const parsed = parseSquadProposal({
+        status: { __kind: 'FutureStatus' },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex: 7n,
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed.status).to.equal('FutureStatus');
+      expect(
+        getSquadTxStatus(
+          parsed.status,
+          parsed.approvals,
+          1,
+          parsed.transactionIndex,
+          0,
+        ),
+      ).to.equal(SquadTxStatus.UNKNOWN);
+    });
+
     it('accepts bignum-like proposal indexes and timestamps', () => {
       const parsed = parseSquadProposal({
         status: {

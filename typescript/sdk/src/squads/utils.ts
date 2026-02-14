@@ -54,7 +54,7 @@ export type SquadProposalStatus = {
 };
 
 export type ParsedSquadProposal = Readonly<{
-  status: SquadsProposalStatus;
+  status: string;
   approvals: number;
   rejections: number;
   cancellations: number;
@@ -583,7 +583,7 @@ export type SquadsProposalStatus =
   (typeof SquadsProposalStatus)[keyof typeof SquadsProposalStatus];
 
 export function getSquadTxStatus(
-  statusKind: SquadsProposalStatus,
+  statusKind: string,
   approvals: number,
   threshold: number,
   transactionIndex: number,
@@ -670,7 +670,7 @@ export function parseSquadProposal(
 }
 
 function getProposalStatusMetadata(proposal: accounts.Proposal): {
-  statusKind: SquadsProposalStatus;
+  statusKind: string;
   rawStatusTimestamp: unknown;
 } {
   const status = (proposal as unknown as { status?: unknown }).status;
@@ -688,7 +688,7 @@ function getProposalStatusMetadata(proposal: accounts.Proposal): {
   );
 
   return {
-    statusKind: statusKind as SquadsProposalStatus,
+    statusKind,
     rawStatusTimestamp: statusRecord.timestamp,
   };
 }
