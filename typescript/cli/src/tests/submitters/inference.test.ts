@@ -1351,6 +1351,32 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('caches provider lookup failures across inferred transactions', async () => {
+    let providerCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getProvider: () => {
+          providerCalls += 1;
+          throw new Error('provider unavailable');
+        },
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any, TX as any],
+      context,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(providerCalls).to.equal(1);
+  });
+
   it('falls back to jsonRpc when inference throws on malformed transaction target', async () => {
     const context = {
       multiProvider: {

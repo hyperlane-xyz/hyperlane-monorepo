@@ -45,6 +45,10 @@ type Cache = {
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
   signerByChain: Map<ChainName, boolean>;
   signerAddressByChain: Map<ChainName, Address | null>;
+  providerByChain: Map<
+    ChainName,
+    ReturnType<WriteCommandContext['multiProvider']['getProvider']> | null
+  >;
   protocolIsEthereumByChain: Map<string, boolean>;
   chainNameByDomain: Map<number, ChainName | null>;
   registryAddresses?: Awaited<
@@ -218,6 +222,25 @@ function getChainNameForDomain(
   }
 }
 
+function getProviderForChain(
+  context: WriteCommandContext,
+  cache: Cache,
+  chain: ChainName,
+): ReturnType<WriteCommandContext['multiProvider']['getProvider']> | null {
+  if (cache.providerByChain.has(chain)) {
+    return cache.providerByChain.get(chain) ?? null;
+  }
+
+  try {
+    const provider = context.multiProvider.getProvider(chain);
+    cache.providerByChain.set(chain, provider);
+    return provider;
+  } catch {
+    cache.providerByChain.set(chain, null);
+    return null;
+  }
+}
+
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
   return {
     submitter: {
@@ -255,8 +278,13 @@ async function isSafeContract({
     return cached;
   }
 
+  const provider = getProviderForChain(context, cache, chain);
+  if (!provider) {
+    cache.safeByChainAndAddress.set(key, false);
+    return false;
+  }
+
   try {
-    const provider = context.multiProvider.getProvider(chain);
     const safe = ISafe__factory.connect(address, provider);
     await safe.getThreshold();
     cache.safeByChainAndAddress.set(key, true);
@@ -284,8 +312,13 @@ async function isTimelockContract({
     return cached;
   }
 
+  const provider = getProviderForChain(context, cache, chain);
+  if (!provider) {
+    cache.timelockByChainAndAddress.set(key, false);
+    return false;
+  }
+
   try {
-    const provider = context.multiProvider.getProvider(chain);
     const timelock = TimelockController__factory.connect(address, provider);
     await timelock.getMinDelay();
     cache.timelockByChainAndAddress.set(key, true);
@@ -321,7 +354,11 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  const provider = context.multiProvider.getProvider(destinationChain);
+  const provider = getProviderForChain(context, cache, destinationChain);
+  if (!provider) {
+    cache.icaByChainAndAddress.set(cacheId, null);
+    return null;
+  }
   const destinationRouter = InterchainAccountRouter__factory.connect(
     destinationRouterAddress,
     provider,
@@ -377,10 +414,14 @@ async function inferIcaSubmitterFromAccount({
           if (!hasSignerForChain(context, cache, originChain)) {
             continue;
           }
+          const originProvider = getProviderForChain(context, cache, originChain);
+          if (!originProvider) {
+            continue;
+          }
 
           const originRouter = InterchainAccountRouter__factory.connect(
             originRouterAddress,
-            context.multiProvider.getProvider(originChain),
+            originProvider,
           );
           const derivedAccount = await originRouter[
             'getRemoteInterchainAccount(address,address,address)'
@@ -511,7 +552,11 @@ async function inferTimelockProposerSubmitter({
     cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
     return defaultSubmitter;
   }
-  const provider = context.multiProvider.getProvider(chain);
+  const provider = getProviderForChain(context, cache, chain);
+  if (!provider) {
+    cache.timelockProposerByChainAndAddress.set(timelockKey, defaultSubmitter);
+    return defaultSubmitter;
+  }
   const timelock = TimelockController__factory.connect(timelockAddress, provider);
 
   let isOpenProposerRole = false;
@@ -659,10 +704,18 @@ async function inferTimelockProposerSubmitter({
           if (!hasSignerForChain(context, cache, originChainName)) {
             continue;
           }
+          const originProvider = getProviderForChain(
+            context,
+            cache,
+            originChainName,
+          );
+          if (!originProvider) {
+            continue;
+          }
 
           const originRouter = InterchainAccountRouter__factory.connect(
             originRouterAddress,
-            context.multiProvider.getProvider(originChainName),
+            originProvider,
           );
           const derivedIcaProposer = await originRouter[
             'getRemoteInterchainAccount(address,address,address)'
@@ -730,10 +783,18 @@ async function inferTimelockProposerSubmitter({
         if (!hasSignerForChain(context, cache, originChainName)) {
           continue;
         }
+        const originProvider = getProviderForChain(
+          context,
+          cache,
+          originChainName,
+        );
+        if (!originProvider) {
+          continue;
+        }
 
         const originRouter = InterchainAccountRouter__factory.connect(
           originRouterAddress,
-          context.multiProvider.getProvider(originChainName),
+          originProvider,
         );
         const derivedIcaProposer = await originRouter[
           'getRemoteInterchainAccount(address,address,address)'
@@ -911,7 +972,10 @@ async function inferSubmitterFromTransaction({
     return defaultSubmitter;
   }
 
-  const provider = context.multiProvider.getProvider(chain);
+  const provider = getProviderForChain(context, cache, chain);
+  if (!provider) {
+    return defaultSubmitter;
+  }
 
   let ownerAddress: Address | null = null;
   if (normalizedTarget) {
@@ -1118,6 +1182,7 @@ function createCache(): Cache {
     timelockProposerByChainAndAddress: new Map(),
     signerByChain: new Map(),
     signerAddressByChain: new Map(),
+    providerByChain: new Map(),
     protocolIsEthereumByChain: new Map(),
     chainNameByDomain: new Map(),
   };
