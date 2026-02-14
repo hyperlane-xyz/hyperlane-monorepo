@@ -138,6 +138,7 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('//safe.global')).to.equal(true);
       expect(safeApiKeyRequired('//safe.global:443/api')).to.equal(true);
       expect(safeApiKeyRequired('//SAFE.GLOBAL:443/API')).to.equal(true);
+      expect(safeApiKeyRequired('//safe.global./api')).to.equal(true);
     });
 
     it('requires safe domains to match on label boundaries', () => {
@@ -263,6 +264,9 @@ describe('gnosisSafe utils', () => {
       );
       expect(normalizeSafeServiceUrl('//SAFE.GLOBAL:443/API')).to.equal(
         'https://safe.global/api',
+      );
+      expect(normalizeSafeServiceUrl('//safe.global./api')).to.equal(
+        'https://safe.global./api',
       );
       expect(normalizeSafeServiceUrl('safe.global/')).to.equal(
         'https://safe.global/api',
