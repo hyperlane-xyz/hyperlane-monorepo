@@ -276,10 +276,18 @@ async function main() {
     const formattedMultisigMembers = formattedMultisigMemberRecords.map(
       (member) => member.key,
     );
+    const skippedMultisigMembersCount =
+      multisigMembers.length - formattedMultisigMemberRecords.length;
     if (!Array.isArray(multisig.members)) {
       rootLogger.warn(
         chalk.yellow(
           `Multisig members field is missing or malformed for ${chain}; continuing without member listing.`,
+        ),
+      );
+    } else if (skippedMultisigMembersCount > 0) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipped ${skippedMultisigMembersCount} malformed multisig member entries on ${chain}.`,
         ),
       );
     }
