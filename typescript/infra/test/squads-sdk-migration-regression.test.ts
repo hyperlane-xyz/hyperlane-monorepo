@@ -21,8 +21,11 @@ const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
 
-const LEGACY_SQUADS_REFERENCE_PATTERN =
-  /(?:from\s+['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]|import\(\s*['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]\s*\)|require\(\s*['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]\s*\))/;
+const LEGACY_SQUADS_SPECIFIER =
+  '(?:(?:\\.\\.\\/)+src\\/|src\\/|@hyperlane-xyz\\/infra\\/src\\/)(?:config|utils|tx)\\/squads(?:-transaction-reader)?(?:\\.[cm]?[jt]sx?|\\.js)?';
+const LEGACY_SQUADS_REFERENCE_PATTERN = new RegExp(
+  `(?:from\\s+['"]${LEGACY_SQUADS_SPECIFIER}['"]|import\\(\\s*['"]${LEGACY_SQUADS_SPECIFIER}['"]\\s*\\)|require\\(\\s*['"]${LEGACY_SQUADS_SPECIFIER}['"]\\s*\\))`,
+);
 const SQDS_MULTISIG_REFERENCE_PATTERN =
   /(?:from\s+['"]@sqds\/multisig['"]|import\(\s*['"]@sqds\/multisig['"]\s*\)|require\(\s*['"]@sqds\/multisig['"]\s*\))/;
 const SDK_SQUADS_IMPORT_PATTERN =
