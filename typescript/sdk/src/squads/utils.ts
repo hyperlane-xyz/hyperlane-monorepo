@@ -337,6 +337,7 @@ export async function getPendingProposalsForChains(
               );
               continue;
             }
+            const proposalIndex = transactionIndex;
 
             if (
               proposalStatus === SquadsProposalStatus.Executed ||
@@ -346,7 +347,7 @@ export async function getPendingProposalsForChains(
               continue;
             }
 
-            if (i < staleTransactionIndex) continue;
+            if (proposalIndex < staleTransactionIndex) continue;
 
             if (rejections > 0) continue;
 
@@ -354,7 +355,7 @@ export async function getPendingProposalsForChains(
               proposalStatus,
               approvals,
               threshold,
-              i,
+              proposalIndex,
               staleTransactionIndex,
             );
 
@@ -370,14 +371,14 @@ export async function getPendingProposalsForChains(
 
             const [transactionPda] = getTransactionPda({
               multisigPda,
-              index: BigInt(i),
+              index: BigInt(proposalIndex),
               programId,
             });
             const txHash = transactionPda.toBase58();
 
             proposals.push({
               chain,
-              nonce: i,
+              nonce: proposalIndex,
               status,
               shortTxHash: `${txHash.slice(0, 6)}...${txHash.slice(-4)}`,
               fullTxHash: txHash,

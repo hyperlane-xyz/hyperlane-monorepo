@@ -73,6 +73,18 @@ describe('squads utils', () => {
         SquadTxStatus.EXECUTED,
       );
     });
+
+    it('returns unknown for unexpected proposal status values', () => {
+      expect(
+        getSquadTxStatus(
+          'UnexpectedStatus' as unknown as SquadsProposalStatus,
+          0,
+          1,
+          1,
+          0,
+        ),
+      ).to.equal(SquadTxStatus.UNKNOWN);
+    });
   });
 
   describe(parseSquadProposal.name, () => {
