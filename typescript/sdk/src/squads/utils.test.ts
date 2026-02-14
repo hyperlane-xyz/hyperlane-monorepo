@@ -344,6 +344,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from arbitrary nested wrapper keys', () => {
+      const error = {
+        metadata: {
+          wrapped: {
+            deeplyNested: {
+              logs: ['custom program error: 0x177b'],
+            },
+          },
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('parses known vote error from string originalError field', () => {
       const error = {
         originalError: 'Program log: AlreadyCancelled',

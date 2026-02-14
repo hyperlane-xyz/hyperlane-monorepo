@@ -112,14 +112,6 @@ const SQUADS_PROPOSAL_VOTE_ERROR_PATTERNS: readonly SquadsProposalVoteErrorPatte
   ];
 
 const SQUADS_ERROR_LOG_ARRAY_FIELDS = ['transactionLogs', 'logs'] as const;
-const SQUADS_ERROR_NESTED_FIELDS = [
-  'error',
-  'cause',
-  'data',
-  'value',
-  'originalError',
-  'response',
-] as const;
 
 function parseSquadsProposalVoteErrorText(
   logsText: string,
@@ -147,9 +139,8 @@ export function parseSquadsProposalVoteError(
 
 /**
  * Parse known Squads proposal vote/cancel errors from an unknown error object.
- * Supports direct string errors and nested wrapper objects commonly returned by
- * Solana clients (`error`, `cause`, `data`, `value`, `errors[]`) and scans
- * their `transactionLogs`, `logs`, and `message` string fields.
+ * Supports direct string errors and recursively traverses nested wrapper
+ * objects to scan `transactionLogs`, `logs`, and `message` string fields.
  */
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
@@ -202,13 +193,7 @@ export function parseSquadsProposalVoteErrorFromError(
       if (parsedError) return parsedError;
     }
 
-    const nestedErrors = Array.isArray(currentRecord.errors)
-      ? currentRecord.errors
-      : [];
-    traversalQueue.push(
-      ...SQUADS_ERROR_NESTED_FIELDS.map((field) => currentRecord[field]),
-      ...nestedErrors,
-    );
+    traversalQueue.push(...Object.values(currentRecord));
   }
 
   return undefined;
