@@ -3657,6 +3657,22 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args._threshold.toNumber()).to.equal(2);
     });
 
+    it('accepts uppercase transaction data payload with 0X prefix', () => {
+      const data = safeInterface
+        .encodeFunctionData('changeThreshold', [2])
+        .slice(2)
+        .toUpperCase();
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data: `0X${data}`,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+    });
+
     it('accepts transaction data without 0x prefix', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
@@ -3920,7 +3936,9 @@ describe('gnosisSafe utils', () => {
         args: [txBytes],
       });
 
-      const decoded = decodeMultiSendData(`0X${encoded.slice(2)}`);
+      const decoded = decodeMultiSendData(
+        `0X${encoded.slice(2).toUpperCase()}`,
+      );
       expect(decoded).to.have.length(1);
       expect(decoded[0].to).to.equal(
         getAddress('0x00000000000000000000000000000000000000aa'),
