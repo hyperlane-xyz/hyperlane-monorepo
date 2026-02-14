@@ -267,6 +267,25 @@ describe('squads utils', () => {
       ).to.equal(SquadsProposalVoteError.AlreadyRejected);
     });
 
+    it('parses known vote error from direct arrays of wrapped objects', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError([
+          { note: 'unrelated' },
+          { response: { data: { logs: ['custom program error: 0x177c'] } } },
+        ]),
+      ).to.equal(SquadsProposalVoteError.AlreadyCancelled);
+    });
+
+    it('ignores arbitrary string arrays under unknown keys', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError({
+          metadata: {
+            notes: ['custom program error: 0x177a'],
+          },
+        }),
+      ).to.equal(undefined);
+    });
+
     it('parses known vote error from unknown error shape', () => {
       const error = {
         transactionLogs: ['Program log: AlreadyCancelled'],

@@ -159,8 +159,9 @@ export function parseSquadsProposalVoteError(
 
 /**
  * Parse known Squads proposal vote/cancel errors from an unknown error object.
- * Supports direct string errors and recursively traverses nested wrapper
- * objects to scan `transactionLogs`, `logs`, and `message` string fields.
+ * Supports direct string errors, direct log arrays, and recursively traverses
+ * nested wrapper objects to scan `transactionLogs`/`logs` arrays, `message`,
+ * and common string wrapper fields (`cause`, `error`, `originalError`).
  */
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
