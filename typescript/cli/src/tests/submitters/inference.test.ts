@@ -10724,10 +10724,20 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: 999,
       logIndex: 999,
     };
+    const malformedNegativeInfinityLog = {
+      topics: ['0xmalformed-negative-infinity'],
+      data: '0x',
+      blockNumber: Number.NEGATIVE_INFINITY,
+      transactionIndex: 999,
+      logIndex: 999,
+    };
     const provider = {
-      getLogs: sinon
-        .stub()
-        .resolves([malformedInfinityLog, malformedNaNLog, validLog]),
+      getLogs: sinon.stub().resolves([
+        malformedInfinityLog,
+        malformedNaNLog,
+        malformedNegativeInfinityLog,
+        validLog,
+      ]),
     };
 
     const icaRouterStub = sinon
@@ -19741,6 +19751,13 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       transactionIndex: 999,
       logIndex: 999,
     };
+    const malformedNegativeInfinityGrant = {
+      topics: ['0xgrant-malformed-negative-infinity'],
+      data: '0x',
+      blockNumber: Number.NEGATIVE_INFINITY,
+      transactionIndex: 999,
+      logIndex: 999,
+    };
     const revoke = {
       topics: ['0xrevoke'],
       data: '0x',
@@ -19752,7 +19769,12 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     const provider = {
       getLogs: sinon.stub().callsFake(async (filter: any) => {
         if (filter.topics?.[0] === 'RoleGranted') {
-          return [malformedInfinityGrant, malformedNaNGrant, validGrant];
+          return [
+            malformedInfinityGrant,
+            malformedNaNGrant,
+            malformedNegativeInfinityGrant,
+            validGrant,
+          ];
         }
         return [revoke];
       }),
