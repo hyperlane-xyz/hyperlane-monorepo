@@ -95,3 +95,5 @@ Matcher regression coverage also now confirms docker-runtime causes are still de
 Matcher regression coverage now also confirms docker-runtime causes are still detected when top-level wrapper-object `message` accessors throw.
 
 Matcher regression coverage now also confirms docker-runtime signals are still detected when wrapper-object `cause` accessors throw but nested `errors` collections remain available.
+
+Matcher regression coverage now also confirms docker-runtime signals are still detected when wrapper-object `errors` accessors throw but nested `cause` values remain available.
