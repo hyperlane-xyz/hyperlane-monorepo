@@ -7,6 +7,13 @@ export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
 >[0];
 
+type ProviderWithOptionalGetAccountInfo =
+  | {
+      getAccountInfo?: unknown;
+    }
+  | null
+  | undefined;
+
 type ProviderWithGetAccountInfo = {
   getAccountInfo: (...args: unknown[]) => unknown;
 };
@@ -17,21 +24,20 @@ function formatValueType(value: unknown): string {
   return typeof value;
 }
 
+function getGetAccountInfo(value: unknown): unknown {
+  return (value as ProviderWithOptionalGetAccountInfo)?.getAccountInfo;
+}
+
 function hasGetAccountInfoFunction(
   value: unknown,
 ): value is ProviderWithGetAccountInfo {
-  const getAccountInfo = (
-    value as { getAccountInfo?: unknown } | null | undefined
-  )?.getAccountInfo;
-  return typeof getAccountInfo === 'function';
+  return typeof getGetAccountInfo(value) === 'function';
 }
 
 export function toSquadsProvider(
   provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
 ): SquadsProvider {
-  const getAccountInfo = (
-    provider as { getAccountInfo?: unknown } | null | undefined
-  )?.getAccountInfo;
+  const getAccountInfo = getGetAccountInfo(provider);
 
   assert(
     hasGetAccountInfoFunction(provider),
