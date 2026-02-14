@@ -152,12 +152,6 @@ function formatMultisigMemberKey(
   if (base58Key) {
     return base58Key;
   }
-
-  rootLogger.warn(
-    chalk.yellow(
-      `Skipping multisig member[${index}] on ${chain}: missing usable key value`,
-    ),
-  );
   return undefined;
 }
 
