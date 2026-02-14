@@ -248,6 +248,20 @@ describe('squads cli helpers', () => {
     expect(resolveSquadsChains(selectedChains)).to.deep.equal(selectedChains);
   });
 
+  it('resolves readonly frozen explicit chains without mutating input', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    const selectedChains = Object.freeze([
+      firstChain,
+      secondChain,
+      firstChain,
+    ]) as readonly unknown[];
+
+    expect(resolveSquadsChains(selectedChains)).to.deep.equal([
+      firstChain,
+      secondChain,
+    ]);
+  });
+
   it('deduplicates explicitly provided chains while preserving order', () => {
     const [firstChain, secondChain] = getSquadsChains();
     const selectedChains = [firstChain, secondChain, firstChain];
