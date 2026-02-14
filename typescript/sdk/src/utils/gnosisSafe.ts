@@ -2672,20 +2672,12 @@ export async function getPendingTxsForChains(
       }
       let threshold: number;
       try {
-        threshold = parseNonNegativeSafeInteger(
+        threshold = parsePositiveSafeInteger(
           thresholdRaw,
           `Safe threshold must be a positive integer on ${chainName}: ${stringifyValueForError(thresholdRaw)}`,
         );
       } catch (error) {
-        rootLogger.error(chalk.red(String(error)));
-        return chainTxs;
-      }
-      if (threshold === 0) {
-        rootLogger.error(
-          chalk.red(
-            `Safe threshold must be a positive integer on ${chainName}: ${stringifyValueForError(thresholdRaw)}`,
-          ),
-        );
+        rootLogger.error(chalk.red(stringifyValueForError(error)));
         return chainTxs;
       }
 
@@ -2782,7 +2774,7 @@ export async function getPendingTxsForChains(
           `Safe balance must be non-negative integer on ${chainName}: ${stringifyValueForError(safeBalanceRaw)}`,
         );
       } catch (error) {
-        rootLogger.error(chalk.red(String(error)));
+        rootLogger.error(chalk.red(stringifyValueForError(error)));
         return chainTxs;
       }
       let nativeToken: unknown;
@@ -2880,7 +2872,7 @@ export async function getPendingTxsForChains(
             `Pending Safe transaction nonce must be a non-negative integer at index ${index} on ${chainName}: ${stringifyValueForError(nonce)}`,
           );
         } catch (error) {
-          rootLogger.error(chalk.red(String(error)));
+          rootLogger.error(chalk.red(stringifyValueForError(error)));
           return;
         }
         const normalizedSubmissionDate =
@@ -2902,7 +2894,7 @@ export async function getPendingTxsForChains(
         try {
           normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
         } catch (error) {
-          rootLogger.error(chalk.red(String(error)));
+          rootLogger.error(chalk.red(stringifyValueForError(error)));
           return;
         }
         let confs = 0;
