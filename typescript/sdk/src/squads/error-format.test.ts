@@ -298,5 +298,46 @@ describe('squads error-format', () => {
 
       expect(formatted).to.equal('custom object fallback');
     });
+
+    it('returns placeholder when final String(error) fallback throws', () => {
+      const unstringifiableValue = (() => 'noop') as unknown as {
+        toString: () => string;
+      };
+      unstringifiableValue.toString = () => {
+        throw new Error('cannot stringify');
+      };
+
+      expect(
+        stringifyUnknownSquadsError(unstringifiableValue, {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
+    });
+
+    it('returns placeholder when only generic object-string output is available', () => {
+      const errorLike = {
+        toString() {
+          return '[object CustomErrorLike]';
+        },
+      } as { toString: () => string; stack?: string; message?: string };
+      Object.defineProperty(errorLike, 'stack', {
+        configurable: true,
+        get() {
+          throw new Error('stack unavailable');
+        },
+      });
+      Object.defineProperty(errorLike, 'message', {
+        configurable: true,
+        get() {
+          throw new Error('message unavailable');
+        },
+      });
+
+      expect(
+        stringifyUnknownSquadsError(errorLike, {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
+    });
   });
 });
