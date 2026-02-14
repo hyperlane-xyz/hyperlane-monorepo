@@ -125,6 +125,11 @@ describe('gnosisSafe utils', () => {
         ),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired(
+          '//SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL?email=user@hyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired('https://safe-transaction-mainnet.safe.global:8443'),
       ).to.equal(true);
       expect(
