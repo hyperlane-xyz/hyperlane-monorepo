@@ -415,6 +415,17 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from unknown log-like array keys', () => {
+      const error = {
+        payload: {
+          programLogs: ['custom program error: 0x177c'],
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
     it('parses known vote error from arbitrary nested wrapper keys', () => {
       const error = {
         metadata: {

@@ -117,8 +117,8 @@ const SQUADS_ERROR_LOG_ARRAY_FIELDS = [
   'logMessages',
   'transactionLogMessages',
 ] as const;
-const SQUADS_ERROR_STRING_FIELDS = ['cause', 'error', 'originalError'] as const;
 const SQUADS_ERROR_STRING_ARRAY_FIELDS = ['errors'] as const;
+const SQUADS_ERROR_STRING_FIELDS = ['cause', 'error', 'originalError'] as const;
 
 function parseSquadsProposalVoteErrorText(
   logsText: string,
@@ -167,7 +167,8 @@ export function parseSquadsProposalVoteError(
  * Supports direct string errors, direct log arrays, and recursively traverses
  * nested wrapper objects to scan known log array fields
  * (`transactionLogs`, `logs`, `logMessages`, `transactionLogMessages`),
- * `message`, and common string wrapper fields (`cause`, `error`, `originalError`).
+ * log-like array keys, `message`, and common string wrapper fields (`cause`,
+ * `error`, `originalError`).
  */
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
@@ -233,7 +234,16 @@ export function parseSquadsProposalVoteErrorFromError(
       if (parsedError) return parsedError;
     }
 
-    for (const nestedValue of Object.values(currentRecord)) {
+    for (const [key, nestedValue] of Object.entries(currentRecord)) {
+      const isKnownArrayField =
+        (SQUADS_ERROR_LOG_ARRAY_FIELDS as readonly string[]).includes(key) ||
+        (SQUADS_ERROR_STRING_ARRAY_FIELDS as readonly string[]).includes(key);
+      if (!isKnownArrayField && key.toLowerCase().includes('log')) {
+        const parsedError =
+          parseSquadsProposalVoteErrorFromUnknownArray(nestedValue);
+        if (parsedError) return parsedError;
+      }
+
       if (nestedValue && typeof nestedValue === 'object') {
         traversalQueue.push(nestedValue);
       }
