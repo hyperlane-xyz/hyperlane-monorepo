@@ -205,7 +205,12 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
     );
   };
 
-  const hostname = extractHostname(txServiceUrl.trim());
+  const trimmedUrl = txServiceUrl.trim();
+  if (trimmedUrl.startsWith('/') && !trimmedUrl.startsWith('//')) {
+    return false;
+  }
+
+  const hostname = extractHostname(trimmedUrl);
   if (hostname === undefined) {
     return false;
   }
