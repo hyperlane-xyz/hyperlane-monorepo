@@ -160,7 +160,7 @@ async function main() {
       .getBalance(vault);
     const nativeToken = mpp.getChainMetadata(chain).nativeToken;
     const decimals = nativeToken?.decimals;
-    if (!decimals) {
+    if (typeof decimals !== 'number') {
       rootLogger.error(chalk.red.bold(`No decimals found for ${chain}`));
       process.exit(1);
     }

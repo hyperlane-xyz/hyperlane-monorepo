@@ -281,7 +281,7 @@ export async function getPendingProposalsForChains(
 
         const vaultBalance = await svmProvider.getBalance(vault);
         const decimals = mpp.getChainMetadata(chain).nativeToken?.decimals;
-        if (!decimals) {
+        if (typeof decimals !== 'number') {
           rootLogger.error(`No decimals found for ${chain}`);
           return;
         }
