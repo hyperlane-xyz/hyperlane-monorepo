@@ -191,7 +191,11 @@ function getUnknownValueTypeName(value: unknown): string {
 
 function formatUnknownErrorForMessage(error: unknown): string {
   if (error instanceof Error) {
-    return error.message;
+    try {
+      if (typeof error.message === 'string' && error.message.length > 0) {
+        return error.message;
+      }
+    } catch {}
   }
   if (typeof error === 'string') {
     return error;

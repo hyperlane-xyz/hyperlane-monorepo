@@ -67,6 +67,17 @@ async function captureAsyncError(
   }
 }
 
+function createErrorWithUnformattableMessage(): Error {
+  const error = new Error('boom');
+  Object.defineProperty(error, 'message', {
+    configurable: true,
+    get() {
+      throw new Error('message unavailable');
+    },
+  });
+  return error;
+}
+
 describe('squads utils', () => {
   describe(normalizeSquadsAddressValue.name, () => {
     it('normalizes valid Solana address strings', () => {
@@ -2362,6 +2373,21 @@ describe('squads utils', () => {
       expect(providerLookupCount).to.equal(1);
     });
 
+    it('returns undefined when provider lookup throws malformed Error values', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw createErrorWithUnformattableMessage();
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('returns undefined when provider bridge validation fails', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -2554,6 +2580,21 @@ describe('squads utils', () => {
         getSolanaWeb3Provider: () => {
           providerLookupCalled = true;
           throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('returns undefined when provider lookup throws malformed Error values', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw createErrorWithUnformattableMessage();
         },
       } as unknown as MultiProtocolProvider;
 
