@@ -482,6 +482,112 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
   });
 
+  it('routes non-ethereum explicit overrides by exact target key', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-overrides-${Date.now()}.yaml`;
+    const overrideTarget = 'cosmos1overrideaddress000000000000000000000000';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const txDefault = {
+      ...TX,
+      to: 'cosmos1defaultaddress0000000000000000000000000',
+    };
+    const txOverride = {
+      ...TX,
+      to: overrideTarget,
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txDefault as any, txOverride as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(2);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
+  it('splits non-ethereum explicit overrides when matches are non-contiguous', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-order-${Date.now()}.yaml`;
+    const overrideTarget = 'cosmos1overrideaddress000000000000000000000000';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const txDefaultFirst = {
+      ...TX,
+      to: 'cosmos1defaultfirst0000000000000000000000000',
+    };
+    const txOverride = {
+      ...TX,
+      to: overrideTarget,
+    };
+    const txDefaultLast = {
+      ...TX,
+      to: 'cosmos1defaultlast00000000000000000000000000',
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [
+        txDefaultFirst as any,
+        txOverride as any,
+        txDefaultLast as any,
+      ],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(3);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[2].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.deep.equal([txDefaultFirst as any]);
+    expect(batches[1].transactions).to.deep.equal([txOverride as any]);
+    expect(batches[2].transactions).to.deep.equal([txDefaultLast as any]);
+  });
+
   it('routes same-chain transactions to different inferred submitters', async () => {
     const safeOwner = '0x2222222222222222222222222222222222222222';
     const txSignerOwned = {
