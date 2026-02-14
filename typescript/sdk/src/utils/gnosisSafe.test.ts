@@ -3763,6 +3763,7 @@ describe('gnosisSafe utils', () => {
     it('prefixes unprefixed hex values', () => {
       expect(asHex('1234')).to.equal('0x1234');
       expect(asHex('ABCD')).to.equal('0xabcd');
+      expect(asHex('AbCd')).to.equal('0xabcd');
     });
 
     it('trims surrounding whitespace from hex values', () => {
