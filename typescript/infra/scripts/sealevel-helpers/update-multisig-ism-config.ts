@@ -334,6 +334,10 @@ async function printAndSubmitMultisigIsmUpdates(
       instructionOffset,
       instructionOffset + batchSize,
     );
+    assert(
+      batchChainNames.length === batchSize,
+      `Batch slicing mismatch for ${chain}: expected ${batchSize} chain name(s), got ${batchChainNames.length}`,
+    );
     instructionOffset += batchSize;
 
     await logAndSubmitMultisigIsmUpdateTransaction(
