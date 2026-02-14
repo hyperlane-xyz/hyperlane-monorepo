@@ -484,7 +484,7 @@ export async function getPendingProposalsForChains(
             });
           } catch (error) {
             rootLogger.debug(
-              `Skipping proposal due to error: ${String(error)}`,
+              `Skipping proposal ${i} on ${chain} due to error: ${String(error)}`,
             );
             continue;
           }
