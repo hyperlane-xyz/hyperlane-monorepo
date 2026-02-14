@@ -37,9 +37,9 @@ import {
 } from '../../src/utils/sealevel.js';
 import {
   getEnvironmentConfigFor,
-  getUnsupportedSquadsChainsErrorMessage,
   getMultiProtocolProviderFor,
   getTurnkeySignerFor,
+  resolveSquadsChains,
   withSquadsChains,
 } from '../squads/cli-helpers.js';
 
@@ -450,29 +450,16 @@ async function main() {
   // Compute default chains based on environment
   const envConfig = await getEnvironmentConfigFor(environment);
   const mpp = await getMultiProtocolProviderFor(environment);
-  const configuredSquadsChains = getSquadsChains();
   const hasExplicitChains = !!chainsArg && chainsArg.length > 0;
-  const selectedChains = hasExplicitChains
-    ? chainsArg
-    : envConfig.supportedChainNames.filter(
-        (chain) =>
-          mpp.getProtocol(chain) === ProtocolType.Sealevel &&
-          !chainsToSkip.includes(chain),
-      );
-
-  const { squadsChains, nonSquadsChains } =
-    partitionSquadsChains(selectedChains);
-
-  if (hasExplicitChains && nonSquadsChains.length > 0) {
-    throw new Error(
-      getUnsupportedSquadsChainsErrorMessage(
-        nonSquadsChains,
-        configuredSquadsChains,
-      ),
-    );
-  }
-
-  const chains = squadsChains;
+  const chains = hasExplicitChains
+    ? resolveSquadsChains(chainsArg as ChainName[])
+    : partitionSquadsChains(
+        envConfig.supportedChainNames.filter(
+          (chain) =>
+            mpp.getProtocol(chain) === ProtocolType.Sealevel &&
+            !chainsToSkip.includes(chain),
+        ),
+      ).squadsChains;
 
   // Initialize Turnkey signer
   rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');
