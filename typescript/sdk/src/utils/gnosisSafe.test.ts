@@ -3387,6 +3387,10 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(createSafeTransaction.name, () => {
+    const exampleTransactions = [
+      { to: '0x00000000000000000000000000000000000000aa', data: '0x1234' },
+    ];
+
     it('forwards calls to Safe SDK createTransaction', async () => {
       const createTransactionCalls: unknown[] = [];
       const expectedSafeTx = { data: { nonce: 7 } } as unknown;
@@ -3399,7 +3403,7 @@ describe('gnosisSafe utils', () => {
 
       const result = await createSafeTransaction(
         safeSdkMock,
-        [{ to: '0x00000000000000000000000000000000000000aa', data: '0x1234' }],
+        exampleTransactions,
         true,
         7,
       );
@@ -3428,11 +3432,7 @@ describe('gnosisSafe utils', () => {
         },
       } as unknown as Parameters<typeof createSafeTransaction>[0];
 
-      await createSafeTransaction(
-        safeSdkMock,
-        [{ to: '0x00000000000000000000000000000000000000aa', data: '0x1234' }],
-        false,
-      );
+      await createSafeTransaction(safeSdkMock, exampleTransactions, false);
 
       expect(createTransactionCalls).to.deep.equal([
         {
@@ -3451,9 +3451,6 @@ describe('gnosisSafe utils', () => {
       const safeSdkMock = {
         createTransaction: async () => ({ data: { nonce: 1 } }),
       } as unknown as Parameters<typeof createSafeTransaction>[0];
-      const txs = [
-        { to: '0x00000000000000000000000000000000000000aa', data: '0x1234' },
-      ];
 
       for (const invalidNonce of [
         -1,
@@ -3465,7 +3462,7 @@ describe('gnosisSafe utils', () => {
         try {
           await createSafeTransaction(
             safeSdkMock,
-            txs,
+            exampleTransactions,
             undefined,
             invalidNonce,
           );
@@ -3476,6 +3473,60 @@ describe('gnosisSafe utils', () => {
           );
         }
       }
+    });
+
+    it('accepts nonce boundaries at zero and max safe integer', async () => {
+      const createTransactionCalls: unknown[] = [];
+      const safeSdkMock = {
+        createTransaction: async (args: unknown) => {
+          createTransactionCalls.push(args);
+          return { data: { nonce: 0 } };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+      const acceptedNonces = [0, Number.MAX_SAFE_INTEGER];
+
+      for (const nonce of acceptedNonces) {
+        await createSafeTransaction(
+          safeSdkMock,
+          exampleTransactions,
+          undefined,
+          nonce,
+        );
+      }
+
+      expect(createTransactionCalls).to.deep.equal([
+        {
+          transactions: exampleTransactions,
+          onlyCalls: undefined,
+          options: { nonce: 0 },
+        },
+        {
+          transactions: exampleTransactions,
+          onlyCalls: undefined,
+          options: { nonce: Number.MAX_SAFE_INTEGER },
+        },
+      ]);
+    });
+
+    it('fails fast before safe sdk call on invalid nonce', async () => {
+      let createTransactionCallCount = 0;
+      const safeSdkMock = {
+        createTransaction: async () => {
+          createTransactionCallCount += 1;
+          return { data: { nonce: 1 } };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, exampleTransactions, true, -1);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.include(
+          'Safe transaction nonce must be a non-negative safe integer:',
+        );
+      }
+
+      expect(createTransactionCallCount).to.equal(0);
     });
   });
 
