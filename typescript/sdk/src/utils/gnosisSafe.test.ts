@@ -3830,9 +3830,7 @@ describe('gnosisSafe utils', () => {
       expect(() => asHex()).to.throw('Hex value is required');
       expect(() => asHex('')).to.throw('Hex value is required');
       expect(() => asHex('   ')).to.throw('Hex value is required');
-      expect(() => asHex(null as unknown as string)).to.throw(
-        'Hex value is required',
-      );
+      expect(() => asHex(null)).to.throw('Hex value is required');
     });
 
     it('throws when hex value has invalid characters', () => {
@@ -3844,9 +3842,7 @@ describe('gnosisSafe utils', () => {
         'Hex value must be valid hex: 0x123',
       );
       expect(() => asHex('123')).to.throw('Hex value must be valid hex: 123');
-      expect(() => asHex(123 as unknown as string)).to.throw(
-        'Hex value must be valid hex: 123',
-      );
+      expect(() => asHex(123)).to.throw('Hex value must be valid hex: 123');
     });
 
     it('supports custom error messages', () => {
@@ -3872,7 +3868,7 @@ describe('gnosisSafe utils', () => {
       ).to.throw('custom invalid message');
 
       expect(() =>
-        asHex(123 as unknown as string, {
+        asHex(123, {
           required: 'custom required message',
           invalid: 'custom invalid message',
         }),
@@ -4018,9 +4014,7 @@ describe('gnosisSafe utils', () => {
       expect(() => decodeMultiSendData('   ')).to.throw(
         'Hex value is required',
       );
-      expect(() => decodeMultiSendData(null as unknown as string)).to.throw(
-        'Hex value is required',
-      );
+      expect(() => decodeMultiSendData(null)).to.throw('Hex value is required');
     });
 
     it('throws when calldata does not include multisend selector', () => {
@@ -4119,7 +4113,7 @@ describe('gnosisSafe utils', () => {
       expect(() => decodeMultiSendData('123')).to.throw(
         'Hex value must be valid hex: 123',
       );
-      expect(() => decodeMultiSendData(123 as unknown as string)).to.throw(
+      expect(() => decodeMultiSendData(123)).to.throw(
         'Hex value must be valid hex: 123',
       );
     });

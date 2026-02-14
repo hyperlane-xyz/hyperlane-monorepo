@@ -1447,7 +1447,7 @@ interface AsHexErrorMessages {
   invalid?: string;
 }
 
-export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
+export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {
   const requiredErrorMessage =
     errorMessages?.required ?? 'Hex value is required';
   const invalidErrorMessage = errorMessages?.invalid;
@@ -1477,7 +1477,7 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
 }
 
 export function decodeMultiSendData(
-  encodedData: string,
+  encodedData: unknown,
 ): MetaTransactionData[] {
   const normalizedData = asHex(encodedData);
   assert(
