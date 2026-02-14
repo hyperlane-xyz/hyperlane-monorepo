@@ -78,6 +78,18 @@ function createErrorWithUnformattableMessage(): Error {
   return error;
 }
 
+function createErrorWithGenericObjectStringification(): Error {
+  const error = new Error('boom');
+  Object.defineProperty(error, 'message', {
+    configurable: true,
+    get() {
+      return '';
+    },
+  });
+  error.toString = () => '[object ErrorLike]';
+  return error;
+}
+
 function createUnstringifiableObjectErrorWithMessage(
   message: string,
 ): { message: string; toString: () => string } {
@@ -2517,6 +2529,21 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('returns undefined when provider lookup throws generic-stringified Error values', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw createErrorWithGenericObjectStringification();
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('returns undefined when provider lookup throws objects with message fields', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -2741,6 +2768,21 @@ describe('squads utils', () => {
         getSolanaWeb3Provider: () => {
           providerLookupCalled = true;
           throw createErrorWithUnformattableMessage();
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('returns undefined when provider lookup throws generic-stringified Error values', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw createErrorWithGenericObjectStringification();
         },
       } as unknown as MultiProtocolProvider;
 
