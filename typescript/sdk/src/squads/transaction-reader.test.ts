@@ -204,4 +204,45 @@ describe('squads transaction reader', () => {
     );
     expect(fetchTransactionAccountCalled).to.equal(false);
   });
+
+  it('fails before account lookup when proposal index is invalid', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(true);
+
+    let fetchTransactionAccountCalled = false;
+    readerAny.fetchTransactionAccount = async () => {
+      fetchTransactionAccountCalled = true;
+      return {
+        data: Buffer.from([
+          ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+          1,
+        ]),
+      };
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Squads transaction index must be a JavaScript safe integer: true',
+    );
+    expect(fetchTransactionAccountCalled).to.equal(false);
+  });
 });
