@@ -1,8 +1,6 @@
 import { expect } from 'chai';
-import { BigNumber } from 'ethers';
+import { BigNumber, ethers } from 'ethers';
 import { encodeFunctionData, getAddress, parseAbi } from 'viem';
-
-import { ISafe__factory } from '@hyperlane-xyz/core';
 
 import {
   decodeMultiSendData,
@@ -16,6 +14,12 @@ import {
 } from './gnosisSafe.js';
 
 describe('gnosisSafe utils', () => {
+  const safeInterface = new ethers.utils.Interface([
+    'function swapOwner(address prevOwner,address oldOwner,address newOwner)',
+    'function addOwnerWithThreshold(address owner,uint256 _threshold)',
+    'function changeThreshold(uint256 _threshold)',
+  ]);
+
   describe(safeApiKeyRequired.name, () => {
     it('returns true for safe.global urls', () => {
       expect(
@@ -185,7 +189,6 @@ describe('gnosisSafe utils', () => {
 
   describe(parseSafeTx.name, () => {
     it('parses swapOwner tx calldata', () => {
-      const safeInterface = ISafe__factory.createInterface();
       const prevOwner = '0x0000000000000000000000000000000000000001';
       const oldOwner = '0x0000000000000000000000000000000000000002';
       const newOwner = '0x0000000000000000000000000000000000000004';
@@ -208,7 +211,6 @@ describe('gnosisSafe utils', () => {
     });
 
     it('parses addOwnerWithThreshold tx calldata', () => {
-      const safeInterface = ISafe__factory.createInterface();
       const newOwner = '0x0000000000000000000000000000000000000005';
       const threshold = 2;
       const data = safeInterface.encodeFunctionData('addOwnerWithThreshold', [
@@ -228,7 +230,6 @@ describe('gnosisSafe utils', () => {
     });
 
     it('parses changeThreshold tx calldata', () => {
-      const safeInterface = ISafe__factory.createInterface();
       const newThreshold = 3;
       const data = safeInterface.encodeFunctionData('changeThreshold', [
         newThreshold,
