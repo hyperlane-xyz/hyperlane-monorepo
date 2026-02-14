@@ -229,3 +229,5 @@ Regression coverage now also confirms coercible spoofed boxed-string throw paylo
 Boxed-string normalization now no longer depends on `toStringTag` checks, and instead verifies true boxed-string identity through `String.prototype.valueOf.call(...)`, preserving detection when hostile wrappers override or throw from `Symbol.toStringTag`.
 
 Regression coverage now also confirms genuine boxed-string throw values plus boxed `code`/`message` metadata remain correctly normalized even when `Symbol.toStringTag` accessors throw.
+
+Regression coverage now also confirms boxed-string-valued `AggregateError.errors` payloads remain detectable when `Symbol.toStringTag` accessors throw, while coercible spoofed boxed-string `AggregateError.errors` payloads stay ignored.

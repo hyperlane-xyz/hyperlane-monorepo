@@ -408,6 +408,17 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker runtime errors in boxed-string-valued AggregateError entries when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: buildRealBoxedStringWithThrowingToStringTag(
+          'No Docker client strategy found',
+        ),
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('ignores non-runtime string-valued AggregateError entries', () => {
       const error = new AggregateError([], 'failed to initialize runtime');
       Object.defineProperty(error, 'errors', {
@@ -421,6 +432,28 @@ describe('Anvil utils', () => {
       const error = new AggregateError([], 'failed to initialize runtime');
       Object.defineProperty(error, 'errors', {
         value: new String('unrelated nested startup warning'),
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores non-runtime boxed-string-valued AggregateError entries when toStringTag accessor throws', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: buildRealBoxedStringWithThrowingToStringTag(
+          'unrelated nested startup warning',
+        ),
+      });
+
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
+    it('ignores coercible spoofed boxed-string-valued AggregateError entries', () => {
+      const error = new AggregateError([], 'failed to initialize runtime');
+      Object.defineProperty(error, 'errors', {
+        value: buildCoercibleSpoofedBoxedString(
+          'No Docker client strategy found',
+        ),
       });
 
       expect(isContainerRuntimeUnavailable(error)).to.equal(false);
