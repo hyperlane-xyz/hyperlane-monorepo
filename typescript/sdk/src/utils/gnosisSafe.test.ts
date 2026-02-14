@@ -400,8 +400,14 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('https://safe.global:8443/tx-service/eth'),
       ).to.equal('https://safe.global:8443/tx-service/eth/api');
       expect(
+        normalizeSafeServiceUrl('https://safe.global:80/tx-service/eth'),
+      ).to.equal('https://safe.global:80/tx-service/eth/api');
+      expect(
         normalizeSafeServiceUrl('safe.global:8443/tx-service/eth'),
       ).to.equal('https://safe.global:8443/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl('http://safe.global:443/tx-service/eth'),
+      ).to.equal('http://safe.global:443/tx-service/eth/api');
     });
 
     it('preserves explicit http scheme during normalization', () => {
