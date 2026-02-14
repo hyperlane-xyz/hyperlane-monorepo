@@ -66,9 +66,13 @@ export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
     rootLogger.debug({ registryUri }, 'Using registry URI');
+    const registryLogger =
+      rootLogger.child({ module: 'infra-registry' }) as unknown as NonNullable<
+        ConstructorParameters<typeof FileSystemRegistry>[0]['logger']
+      >;
     registry = new FileSystemRegistry({
       uri: registryUri,
-      logger: rootLogger.child({ module: 'infra-registry' }),
+      logger: registryLogger,
     });
   }
   return registry;

@@ -13,7 +13,10 @@ describe('Warp IDs', function () {
     const registry = getRegistry({
       registryUris: [DEFAULT_GITHUB_REGISTRY],
       enableProxy: true,
-      logger: rootLogger,
+      logger:
+        rootLogger as unknown as NonNullable<
+          Parameters<typeof getRegistry>[0]['logger']
+        >,
     });
     for (const warpId of Object.values(WarpRouteIds)) {
       // That's a long sentence!

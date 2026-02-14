@@ -82,7 +82,10 @@ async function main(): Promise<void> {
     const registry = getRegistry({
       registryUris: [],
       enableProxy: false,
-      logger: rootLogger,
+      logger:
+        rootLogger as unknown as NonNullable<
+          Parameters<typeof getRegistry>[0]['logger']
+        >,
     });
     logger.info('Initialized registry');
 

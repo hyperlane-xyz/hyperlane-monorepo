@@ -45,7 +45,10 @@ async function main(): Promise<void> {
     const registry = getRegistry({
       registryUris: [registryUri],
       enableProxy: true,
-      logger: rootLogger,
+      logger:
+        rootLogger as unknown as NonNullable<
+          Parameters<typeof getRegistry>[0]['logger']
+        >,
     });
     logger.info({ registryUri }, 'Initialized registry');
 

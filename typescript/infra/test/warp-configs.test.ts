@@ -29,7 +29,10 @@ async function getConfigsForBranch(branch: string) {
   return getRegistry({
     registryUris: [DEFAULT_GITHUB_REGISTRY],
     enableProxy: true,
-    logger: rootLogger,
+    logger:
+      rootLogger as unknown as NonNullable<
+        Parameters<typeof getRegistry>[0]['logger']
+      >,
     branch,
   }).getWarpDeployConfigs();
 }
