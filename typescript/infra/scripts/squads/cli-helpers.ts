@@ -38,6 +38,18 @@ const turnkeySignerPromises: Partial<
 const registryPromises: Partial<Record<DeployEnvironment, Promise<IRegistry>>> =
   {};
 
+function memoizeByEnvironment<T>(
+  cache: Partial<Record<DeployEnvironment, Promise<T>>>,
+  environment: DeployEnvironment,
+  factory: () => Promise<T>,
+): Promise<T> {
+  cache[environment] ??= factory().catch((error) => {
+    delete cache[environment];
+    throw error;
+  });
+  return cache[environment]!;
+}
+
 export function withTransactionIndex<T>(args: Argv<T>) {
   return args
     .describe('transactionIndex', 'Transaction index of the proposal')
@@ -76,10 +88,11 @@ export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
 export async function getEnvironmentConfigFor(
   environment: DeployEnvironment,
 ): Promise<EnvironmentConfig> {
-  environmentConfigPromises[environment] ??= import('../core-utils.js').then(
-    ({ getEnvironmentConfig }) => getEnvironmentConfig(environment),
+  return memoizeByEnvironment(environmentConfigPromises, environment, () =>
+    import('../core-utils.js').then(({ getEnvironmentConfig }) =>
+      getEnvironmentConfig(environment),
+    ),
   );
-  return environmentConfigPromises[environment]!;
 }
 
 export async function getSquadsEnvironmentConfig(): Promise<EnvironmentConfig> {
@@ -89,10 +102,11 @@ export async function getSquadsEnvironmentConfig(): Promise<EnvironmentConfig> {
 export async function getMultiProtocolProviderFor(
   environment: DeployEnvironment,
 ): Promise<MultiProtocolProvider> {
-  multiProtocolProviderPromises[environment] ??= getEnvironmentConfigFor(
-    environment,
-  ).then((envConfig) => envConfig.getMultiProtocolProvider());
-  return multiProtocolProviderPromises[environment]!;
+  return memoizeByEnvironment(multiProtocolProviderPromises, environment, () =>
+    getEnvironmentConfigFor(environment).then((envConfig) =>
+      envConfig.getMultiProtocolProvider(),
+    ),
+  );
 }
 
 export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolProvider> {
@@ -108,12 +122,12 @@ export async function getTurnkeySignerFor(
     >
   >
 > {
-  turnkeySignerPromises[environment] ??=
+  return memoizeByEnvironment(turnkeySignerPromises, environment, () =>
     import('../../src/utils/turnkey.js').then(
       ({ getTurnkeySealevelDeployerSigner }) =>
         getTurnkeySealevelDeployerSigner(environment),
-    );
-  return turnkeySignerPromises[environment]!;
+    ),
+  );
 }
 
 export async function getSquadsTurnkeySigner(): Promise<
@@ -129,10 +143,11 @@ export async function getSquadsTurnkeySigner(): Promise<
 export async function getRegistryFor(
   environment: DeployEnvironment,
 ): Promise<IRegistry> {
-  registryPromises[environment] ??= getEnvironmentConfigFor(environment).then(
-    (envConfig) => envConfig.getRegistry(),
+  return memoizeByEnvironment(registryPromises, environment, () =>
+    getEnvironmentConfigFor(environment).then((envConfig) =>
+      envConfig.getRegistry(),
+    ),
   );
-  return registryPromises[environment]!;
 }
 
 export async function getSquadsRegistry(): Promise<IRegistry> {
