@@ -79,8 +79,8 @@ export function withSquadsChains<T>(args: Argv<T>) {
     .describe('chains', 'Set of chains to perform actions on.')
     .array('chains')
     .choices('chains', getSquadsChains())
-    .coerce('chains', (selectedChains: unknown[] = []) =>
-      Array.from(new Set(selectedChains.map((chain) => String(chain)))),
+    .coerce('chains', (selectedChains: unknown) =>
+      Array.from(new Set(normalizeArgvChains(selectedChains))),
     )
     .alias('c', 'chains');
 }
@@ -134,18 +134,21 @@ function getArgTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
-export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
+function normalizeArgvChains(chains: unknown): string[] {
   if (typeof chains === 'undefined') {
-    return resolveSquadsChains(undefined);
+    return [];
   }
 
-  if (!Array.isArray(chains)) {
-    throw new Error(
-      `Expected --chains to resolve to an array, but received ${getArgTypeName(chains)}`,
-    );
-  }
+  assert(
+    Array.isArray(chains),
+    `Expected --chains to resolve to an array, but received ${getArgTypeName(chains)}`,
+  );
 
-  return resolveSquadsChains(chains.map((chain) => String(chain)));
+  return chains.map((chain) => String(chain));
+}
+
+export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
+  return resolveSquadsChains(normalizeArgvChains(chains));
 }
 
 export async function getEnvironmentConfigFor(

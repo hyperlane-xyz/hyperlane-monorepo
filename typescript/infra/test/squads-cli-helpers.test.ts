@@ -44,6 +44,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('labels numeric argv chains input clearly in error output', () => {
+    expect(() => resolveSquadsChainsFromArgv(1)).to.throw(
+      'Expected --chains to resolve to an array, but received number',
+    );
+  });
+
   it('labels null argv chains input clearly in error output', () => {
     expect(() => resolveSquadsChainsFromArgv(null)).to.throw(
       'Expected --chains to resolve to an array, but received null',
