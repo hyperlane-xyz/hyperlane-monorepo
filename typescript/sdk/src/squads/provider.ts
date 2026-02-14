@@ -10,9 +10,12 @@ export type SquadsProvider = Parameters<
 export function toSquadsProvider(
   provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
 ): SquadsProvider {
+  const getAccountInfo = (
+    provider as { getAccountInfo?: unknown } | null | undefined
+  )?.getAccountInfo;
+
   assert(
-    typeof (provider as { getAccountInfo?: unknown }).getAccountInfo ===
-      'function',
+    typeof getAccountInfo === 'function',
     'Invalid Solana provider: missing getAccountInfo function',
   );
 
