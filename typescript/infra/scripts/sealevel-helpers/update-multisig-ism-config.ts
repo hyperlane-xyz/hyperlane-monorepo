@@ -356,6 +356,10 @@ async function printAndSubmitMultisigIsmUpdates(
       totalBatches,
     );
   }
+  assert(
+    instructionOffset === sortedChainNames.length,
+    `Batch processing mismatch for ${chain}: processed ${instructionOffset} instruction-derived chain name(s), expected ${sortedChainNames.length}`,
+  );
 
   return updateCount;
 }
