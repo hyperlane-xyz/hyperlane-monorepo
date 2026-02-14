@@ -31,11 +31,29 @@ async function main() {
   const { chains } = await withSquadsChains(yargs(process.argv.slice(2))).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  const { loadCoreProgramIds, multisigIsmConfigPath } =
-    await import('../../src/utils/sealevel.js');
+  const chainsToCheck = resolveSquadsChainsFromArgv(chains);
+  if (chainsToCheck.length === 0) {
+    rootLogger.error('No chains provided');
+    process.exit(1);
+  }
 
   // Get the multiprovider for the environment
   const mpp = await getSquadsMultiProtocolProvider();
+
+  const pendingProposals = await getPendingProposalsForChains(
+    chainsToCheck,
+    mpp,
+  );
+
+  if (pendingProposals.length === 0) {
+    rootLogger.info(chalk.green('No pending proposals found!'));
+    process.exit(0);
+  }
+
+  logProposals(pendingProposals);
+
+  const { loadCoreProgramIds, multisigIsmConfigPath } =
+    await import('../../src/utils/sealevel.js');
 
   // Load warp routes from registry
   const registry = await getSquadsRegistry();
@@ -56,21 +74,6 @@ async function main() {
     },
   });
   await reader.init(warpRoutes);
-
-  // Get the pending proposals for the relevant chains
-  const chainsToCheck = resolveSquadsChainsFromArgv(chains);
-
-  const pendingProposals = await getPendingProposalsForChains(
-    chainsToCheck,
-    mpp,
-  );
-
-  if (pendingProposals.length === 0) {
-    rootLogger.info(chalk.green('No pending proposals found!'));
-    process.exit(0);
-  }
-
-  logProposals(pendingProposals);
 
   // Parse each proposal and collect results
   const chainResultEntries = await Promise.all(
