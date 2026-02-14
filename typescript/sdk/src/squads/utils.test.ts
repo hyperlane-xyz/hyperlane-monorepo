@@ -395,6 +395,22 @@ describe('squads utils', () => {
       });
     });
 
+    it('accepts threshold of one with equal stale and current indices', () => {
+      const parsed = parseSquadMultisig({
+        threshold: 1n,
+        transactionIndex: 7n,
+        staleTransactionIndex: 7n,
+        timeLock: 0n,
+      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parsed).to.deep.equal({
+        threshold: 1,
+        currentTransactionIndex: 7,
+        staleTransactionIndex: 7,
+        timeLock: 0,
+      });
+    });
+
     it('accepts bignum-like values with decimal toString output', () => {
       const decimalLikeValue = { toString: () => '42' };
       const parsed = parseSquadMultisig({
