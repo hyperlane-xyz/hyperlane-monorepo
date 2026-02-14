@@ -278,7 +278,7 @@ async function startLocalAnvil(
 
     const startupTimeout = setTimeout(() => {
       cleanupListeners();
-      void stopLocalAnvilProcess(process);
+      void stopLocalAnvilProcess(process).catch(() => undefined);
       reject(
         new Error(
           `Timed out waiting for local anvil startup after ${LOCAL_ANVIL_STARTUP_TIMEOUT_MS}ms`,
