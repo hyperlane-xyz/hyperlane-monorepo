@@ -397,33 +397,42 @@ describe('hyperlane core apply e2e tests', async function () {
   it('should still infer gnosisSafeTxBuilder when strategy file lacks chain config', async () => {
     await hyperlaneCore.deploy(ANVIL_KEY);
 
-    const mockSafe = await new MockSafe__factory()
-      .connect(signer)
-      .deploy([initialOwnerAddress], 1);
+    const mockSafe = await deployMockSafeOnly();
     const safeAddress = mockSafe.address;
 
-    const configOwnedBySigner: CoreConfig = await hyperlaneCore.readConfig();
-    configOwnedBySigner.owner = safeAddress;
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, configOwnedBySigner);
-    await hyperlaneCore.apply(ANVIL_KEY);
+    const mockSafeApiServer = await createMockSafeApi(
+      readYamlOrJson(CHAIN_2_METADATA_PATH),
+      safeAddress,
+      initialOwnerAddress,
+      5,
+    );
 
-    const configOwnedBySafe: CoreConfig = await hyperlaneCore.readConfig();
-    configOwnedBySafe.owner = randomAddress().toLowerCase();
-    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, configOwnedBySafe);
+    try {
+      const configOwnedBySigner: CoreConfig = await hyperlaneCore.readConfig();
+      configOwnedBySigner.owner = safeAddress;
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, configOwnedBySigner);
+      await hyperlaneCore.apply(ANVIL_KEY);
 
-    const strategyPath = `${TEMP_PATH}/core-apply-missing-chain-strategy.yaml`;
-    writeYamlOrJson(strategyPath, {
-      [CHAIN_NAME_3]: {
-        submitter: {
-          type: TxSubmitterType.JSON_RPC,
-          chain: CHAIN_NAME_3,
+      const configOwnedBySafe: CoreConfig = await hyperlaneCore.readConfig();
+      configOwnedBySafe.owner = randomAddress().toLowerCase();
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, configOwnedBySafe);
+
+      const strategyPath = `${TEMP_PATH}/core-apply-missing-chain-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_3]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN_NAME_3,
+          },
         },
-      },
-    });
+      });
 
-    const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
-    expect(result.exitCode).to.equal(0);
-    expect(result.text()).to.include('gnosisSafeTxBuilder');
+      const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
+      expect(result.exitCode).to.equal(0);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
+    } finally {
+      await mockSafeApiServer.close();
+    }
   });
 
   it('should route same-chain core txs to multiple inferred submitters', async () => {
