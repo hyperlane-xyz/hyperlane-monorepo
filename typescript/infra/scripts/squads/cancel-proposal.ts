@@ -100,6 +100,15 @@ async function main() {
   // Determine the appropriate action based on proposal status
   // - Active proposals: Use Reject (vote against)
   // - Approved proposals: Use Cancel (prevent execution)
+  if (
+    status !== SquadsProposalStatus.Active &&
+    status !== SquadsProposalStatus.Approved
+  ) {
+    throw new Error(
+      `Proposal ${transactionIndex} is ${status} and cannot be modified by this script. Expected ${SquadsProposalStatus.Active} or ${SquadsProposalStatus.Approved}.`,
+    );
+  }
+
   const isActive = status === SquadsProposalStatus.Active;
   const action = isActive ? 'reject' : 'cancel';
   const actionPastTense = isActive ? 'rejected' : 'cancelled';
