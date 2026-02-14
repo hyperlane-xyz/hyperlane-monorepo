@@ -24,6 +24,8 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /dial unix .*podman\.sock/i,
   /failed to connect to .*docker\.sock/i,
   /failed to connect to .*podman\.sock/i,
+  /connect enoent .*docker\.sock/i,
+  /connect enoent .*podman\.sock/i,
   /connect econnrefused .*docker\.sock/i,
   /connect econnrefused .*podman\.sock/i,
   /npipe:.*docker_engine/i,

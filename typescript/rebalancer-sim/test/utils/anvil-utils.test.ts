@@ -62,6 +62,20 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches docker socket ENOENT failures', () => {
+      const error = new Error(
+        'connect ENOENT /var/run/docker.sock while creating container',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches podman socket ENOENT failures', () => {
+      const error = new Error(
+        'connect ENOENT /run/user/1000/podman/podman.sock while creating container',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches docker socket permission-denied failures', () => {
       const error = new Error(
         'permission denied while trying to connect to the Docker daemon socket at unix:///var/run/docker.sock',
