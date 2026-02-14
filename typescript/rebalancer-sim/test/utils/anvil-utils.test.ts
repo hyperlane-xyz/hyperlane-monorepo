@@ -519,6 +519,35 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('handles iterable wrappers with self-referential errors fields and runtime causes', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const iterableWrapper = {
+        *[Symbol.iterator]() {
+          yield { message: 'non-matching wrapper noise' };
+        },
+        cause: { message: 'No Docker client strategy found' },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'iterable wrapper without nested details';
+        },
+      };
+      Object.assign(iterableWrapper, { errors: iterableWrapper });
+
+      const wrappedError = {
+        errors: iterableWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches docker runtime errors in map-based error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
