@@ -326,6 +326,27 @@ describe('squads utils', () => {
       ).to.equal(SquadTxStatus.UNKNOWN);
     });
 
+    it('normalizes unknown status strings by trimming whitespace', () => {
+      const parsed = parseSquadProposal({
+        status: { __kind: '  FutureStatus  ' },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex: 7n,
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed.status).to.equal('FutureStatus');
+      expect(
+        getSquadTxStatus(
+          parsed.status,
+          parsed.approvals,
+          1,
+          parsed.transactionIndex,
+          0,
+        ),
+      ).to.equal(SquadTxStatus.UNKNOWN);
+    });
+
     it('normalizes status kind by trimming surrounding whitespace', () => {
       const parsed = parseSquadProposal({
         status: { __kind: ` ${SquadsProposalStatus.Active} ` },
@@ -543,6 +564,21 @@ describe('squads utils', () => {
       const parseInvalidProposal = () =>
         parseSquadProposal({
           status: {},
+          approved: [],
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal status kind must be a string',
+      );
+    });
+
+    it('throws when proposal status kind is non-string', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: 123 },
           approved: [],
           rejected: [],
           cancelled: [],
