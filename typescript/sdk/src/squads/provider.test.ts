@@ -49,6 +49,22 @@ describe('squads provider bridge', () => {
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
 
+  it('reads getAccountInfo once during provider validation', () => {
+    let getAccountInfoReadCount = 0;
+    const providerLike = Object.create(null, {
+      getAccountInfo: {
+        get: () => {
+          getAccountInfoReadCount += 1;
+          return async () => null;
+        },
+        enumerable: true,
+      },
+    }) as SolanaProvider;
+
+    expect(toSquadsProvider(providerLike)).to.equal(providerLike);
+    expect(getAccountInfoReadCount).to.equal(1);
+  });
+
   const invalidGetAccountInfoCases: Array<{
     title: string;
     provider: unknown;

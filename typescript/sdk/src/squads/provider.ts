@@ -14,10 +14,6 @@ type ProviderWithOptionalGetAccountInfo =
   | null
   | undefined;
 
-type ProviderWithGetAccountInfo = {
-  getAccountInfo: (...args: unknown[]) => unknown;
-};
-
 function formatValueType(value: unknown): string {
   if (value === null) return 'null';
   if (Array.isArray(value)) return 'array';
@@ -28,10 +24,10 @@ function getProviderGetAccountInfo(value: unknown): unknown {
   return (value as ProviderWithOptionalGetAccountInfo)?.getAccountInfo;
 }
 
-function hasGetAccountInfoFunction(
+function isGetAccountInfoFunction(
   value: unknown,
-): value is ProviderWithGetAccountInfo {
-  return typeof getProviderGetAccountInfo(value) === 'function';
+): value is (...args: unknown[]) => unknown {
+  return typeof value === 'function';
 }
 
 export function toSquadsProvider(
@@ -40,7 +36,7 @@ export function toSquadsProvider(
   const getAccountInfo = getProviderGetAccountInfo(provider);
 
   assert(
-    hasGetAccountInfoFunction(provider),
+    isGetAccountInfoFunction(getAccountInfo),
     `Invalid Solana provider: expected getAccountInfo function, got ${formatValueType(
       getAccountInfo,
     )} (provider: ${formatValueType(provider)})`,
