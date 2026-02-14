@@ -3278,6 +3278,56 @@ describe('gnosisSafe utils', () => {
         '0x0000000000000000000000000000000000000006',
       ]);
     });
+
+    it('treats reordered owner sets as unchanged', async () => {
+      const currentOwners = [
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000002',
+        '0x0000000000000000000000000000000000000003',
+      ];
+      const expectedOwners = [
+        '0x0000000000000000000000000000000000000003',
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000002',
+      ];
+
+      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        currentOwners,
+        expectedOwners,
+      );
+
+      expect(ownersToRemove).to.deep.equal([]);
+      expect(ownersToAdd).to.deep.equal([]);
+    });
+
+    it('preserves current-order removals and expected-order additions', async () => {
+      const currentOwners = [
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000002',
+        '0x0000000000000000000000000000000000000003',
+        '0x0000000000000000000000000000000000000004',
+      ];
+      const expectedOwners = [
+        '0x0000000000000000000000000000000000000004',
+        '0x0000000000000000000000000000000000000006',
+        '0x0000000000000000000000000000000000000001',
+        '0x0000000000000000000000000000000000000005',
+      ];
+
+      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
+        currentOwners,
+        expectedOwners,
+      );
+
+      expect(ownersToRemove).to.deep.equal([
+        '0x0000000000000000000000000000000000000002',
+        '0x0000000000000000000000000000000000000003',
+      ]);
+      expect(ownersToAdd).to.deep.equal([
+        '0x0000000000000000000000000000000000000006',
+        '0x0000000000000000000000000000000000000005',
+      ]);
+    });
   });
 
   describe(parseSafeTx.name, () => {
@@ -3337,6 +3387,16 @@ describe('gnosisSafe utils', () => {
       expect(decoded.name).to.equal('changeThreshold');
       expect(decoded.args[0].toNumber()).to.equal(newThreshold);
     });
+
+    it('throws for calldata that does not match the safe interface', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: '0x12345678',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw();
+    });
   });
 
   describe(decodeMultiSendData.name, () => {
@@ -3375,6 +3435,65 @@ describe('gnosisSafe utils', () => {
       expect(decoded[0].to).to.equal(getAddress(to));
       expect(decoded[0].value).to.equal('7');
       expect(decoded[0].data).to.equal('0x1234');
+    });
+
+    it('decodes multisend payload with multiple operations', () => {
+      const txBytes = `0x${[
+        encodeMultiSendTx({
+          operation: 0,
+          to: '0x00000000000000000000000000000000000000aa',
+          value: 7n,
+          data: '0x1234',
+        }),
+        encodeMultiSendTx({
+          operation: 1,
+          to: '0x00000000000000000000000000000000000000bb',
+          value: 0n,
+          data: '0x',
+        }),
+      ].join('')}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [txBytes],
+      });
+
+      const decoded = decodeMultiSendData(encoded);
+      expect(decoded).to.have.length(2);
+      expect(decoded[0]).to.deep.include({
+        operation: 0,
+        to: getAddress('0x00000000000000000000000000000000000000aa'),
+        value: '7',
+        data: '0x1234',
+      });
+      expect(decoded[1]).to.deep.include({
+        operation: 1,
+        to: getAddress('0x00000000000000000000000000000000000000bb'),
+        value: '0',
+        data: '0x',
+      });
+    });
+
+    it('returns empty list when multisend payload has no inner txs', () => {
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: ['0x'],
+      });
+
+      const decoded = decodeMultiSendData(encoded);
+      expect(decoded).to.deep.equal([]);
+    });
+
+    it('throws when calldata is not a multisend invocation', () => {
+      const nonMultiSendData = encodeFunctionData({
+        abi: parseAbi(['function transfer(address to, uint256 amount)']),
+        functionName: 'transfer',
+        args: ['0x00000000000000000000000000000000000000aa', 1n],
+      });
+
+      expect(() => decodeMultiSendData(nonMultiSendData)).to.throw();
     });
   });
 
