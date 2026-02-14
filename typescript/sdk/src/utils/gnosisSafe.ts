@@ -53,6 +53,7 @@ const HOST_WITH_PORT_PREFIX_REGEX = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
 const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
 const USERINFO_LIKE_AUTHORITY_REGEX = /@|%(?:25)*40/i;
 const RAW_BACKSLASH_REGEX = /\\/;
+const FUNCTION_SELECTOR_HEX_LENGTH = 10;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -1426,7 +1427,7 @@ export function parseSafeTx(tx: AnnotatedEV5Transaction) {
     invalid: 'Safe transaction data must be hex',
   });
   assert(
-    normalizedData.length >= 10,
+    normalizedData.length >= FUNCTION_SELECTOR_HEX_LENGTH,
     'Safe transaction data must include function selector',
   );
   return SAFE_INTERFACE.parseTransaction({
@@ -1475,7 +1476,7 @@ export function decodeMultiSendData(
 ): MetaTransactionData[] {
   const normalizedData = asHex(encodedData);
   assert(
-    normalizedData.length >= 10,
+    normalizedData.length >= FUNCTION_SELECTOR_HEX_LENGTH,
     'Invalid multisend payload: missing multisend selector',
   );
   const decodedData = decodeFunctionData({
