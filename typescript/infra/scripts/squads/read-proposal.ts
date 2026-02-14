@@ -127,6 +127,27 @@ function formatMultisigMemberKey(
   return undefined;
 }
 
+function formatMultisigMember(
+  member: unknown,
+  chain: string,
+  index: number,
+): { key: string; permissions: unknown } | undefined {
+  const key = formatMultisigMemberKey(member, chain, index);
+  if (!key) {
+    return undefined;
+  }
+
+  if (!member || typeof member !== 'object') {
+    return undefined;
+  }
+
+  const memberRecord = member as { permissions?: unknown };
+  return {
+    key,
+    permissions: memberRecord.permissions ?? null,
+  };
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -196,9 +217,19 @@ async function main() {
     const multisigMembers = Array.isArray(multisig.members)
       ? multisig.members
       : [];
-    const formattedMultisigMembers = multisigMembers
-      .map((member, index) => formatMultisigMemberKey(member, chain, index))
-      .filter((value): value is string => typeof value === 'string');
+    const formattedMultisigMemberRecords = multisigMembers
+      .map((member, index) => formatMultisigMember(member, chain, index))
+      .filter(
+        (
+          value,
+        ): value is {
+          key: string;
+          permissions: unknown;
+        } => typeof value !== 'undefined',
+      );
+    const formattedMultisigMembers = formattedMultisigMemberRecords.map(
+      (member) => member.key,
+    );
     if (!Array.isArray(multisig.members)) {
       rootLogger.warn(
         chalk.yellow(
@@ -384,15 +415,15 @@ async function main() {
       rootLogger.info(
         chalk.gray(
           stringifyObject({
-            createKey: multisig.createKey.toBase58(),
-            configAuthority: multisig.configAuthority.toBase58(),
+            createKey: createKeyAddress,
+            configAuthority: configAuthorityAddress,
             threshold: threshold,
             timeLock: timeLock,
             transactionIndex: currentTransactionIndex,
             staleTransactionIndex: staleTransactionIndex,
             rentCollector: rentCollectorAddress,
             bump: multisig.bump,
-            members: formattedMultisigMembers,
+            members: formattedMultisigMemberRecords,
           }),
         ),
       );
