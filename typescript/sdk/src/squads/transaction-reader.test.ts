@@ -2,7 +2,10 @@ import { expect } from 'chai';
 import { PublicKey } from '@solana/web3.js';
 
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
-import { SquadsTransactionReader } from './transaction-reader.js';
+import {
+  SYSTEM_PROGRAM_ID,
+  SquadsTransactionReader,
+} from './transaction-reader.js';
 import { SquadsAccountType, SQUADS_ACCOUNT_DISCRIMINATORS } from './utils.js';
 
 function createReaderWithLookupCounter(): {
@@ -583,5 +586,64 @@ describe('squads transaction reader', () => {
 
     expect(result.transactionIndex).to.equal(5);
     expect(reader.errors).to.deep.equal([]);
+  });
+
+  it('formats unstringifiable instruction parse errors safely', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{ instructions: Array<Record<string, unknown>>; warnings: string[] }>;
+      isMailboxInstruction: () => boolean;
+    };
+
+    const unstringifiableError = createUnstringifiableError();
+    readerAny.isMailboxInstruction = () => {
+      throw unstringifiableError;
+    };
+
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction,
+      {
+        getAccountInfo: async () => null,
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      'Failed to parse instruction: Instruction 0: [unstringifiable error]',
+    ]);
+    expect(parsed.instructions).to.have.lengthOf(1);
+    expect(parsed.instructions[0]).to.include({
+      instructionType: 'Parse Failed',
+      programName: 'Unknown',
+    });
+    expect(parsed.instructions[0]?.data).to.deep.equal({
+      error: '[unstringifiable error]',
+    });
+    expect(parsed.instructions[0]?.warnings).to.deep.equal([
+      'Failed to parse: [unstringifiable error]',
+    ]);
   });
 });
