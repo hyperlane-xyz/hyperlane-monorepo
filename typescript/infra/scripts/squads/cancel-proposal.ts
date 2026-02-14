@@ -8,23 +8,19 @@ import {
   SvmMultiProtocolSignerAdapter,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
-  getSquadsChains,
   getSquadProposal,
   parseSquadsProposalVoteErrorFromError,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { withTransactionIndex } from './cli-helpers.js';
+import { withSquadsChain, withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
 // CLI argument parsing
 async function main() {
   const { chain, transactionIndex } = await withTransactionIndex(
-    yargs(process.argv.slice(2))
-      .describe('chain', 'chain name')
-      .choices('chain', getSquadsChains())
-      .alias('c', 'chain'),
+    withSquadsChain(yargs(process.argv.slice(2))),
   ).demandOption('chain').argv;
 
   const { getEnvironmentConfig } = await import('../core-utils.js');

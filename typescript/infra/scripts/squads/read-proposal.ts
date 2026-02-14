@@ -2,7 +2,6 @@ import chalk from 'chalk';
 import yargs, { Argv } from 'yargs';
 
 import {
-  getSquadsChains,
   SquadsProposalStatus,
   getSquadProposal,
   getSquadsKeys,
@@ -15,7 +14,7 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { withTransactionIndex } from './cli-helpers.js';
+import { withSquadsChain, withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
@@ -31,12 +30,7 @@ async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   const { chain, transactionIndex, verbose } = await withTransactionIndex(
-    withVerbose(
-      yargs(process.argv.slice(2))
-        .describe('chain', 'chain name')
-        .choices('chain', getSquadsChains())
-        .alias('c', 'chain'),
-    ),
+    withVerbose(withSquadsChain(yargs(process.argv.slice(2)))),
   ).demandOption('chain').argv;
 
   rootLogger.info(chalk.blue.bold('🔍 Squads Proposal Reader'));

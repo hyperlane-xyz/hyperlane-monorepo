@@ -3,7 +3,6 @@ import chalk from 'chalk';
 import yargs from 'yargs';
 
 import {
-  ChainName,
   ChainMap,
   SquadTxStatus,
   SvmMultiProtocolSignerAdapter,
@@ -19,24 +18,17 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { executePendingTransactions } from '../../src/tx/utils.js';
-import { logProposals } from './cli-helpers.js';
+import { logProposals, withSquadsChains } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  const { chains } = await yargs(process.argv.slice(2))
-    .describe('chains', 'Set of chains to perform actions on.')
-    .array('chains')
-    .choices('chains', getSquadsChains())
-    .coerce('chains', (selectedChains: string[] = []) =>
-      Array.from(new Set(selectedChains)),
-    )
-    .alias('c', 'chains').argv;
+  const { chains } = await withSquadsChains(yargs(process.argv.slice(2))).argv;
 
   const squadChains = getSquadsChains();
-  const selectedChains = (Array.isArray(chains) ? chains : []) as ChainName[];
+  const selectedChains = Array.isArray(chains) ? chains : [];
   const chainsToCheck =
     selectedChains.length > 0 ? selectedChains : squadChains;
 

@@ -19,19 +19,12 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { Contexts } from '../../config/contexts.js';
-import { logProposals } from './cli-helpers.js';
+import { logProposals, withSquadsChains } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
 async function main() {
-  const { chains } = await yargs(process.argv.slice(2))
-    .describe('chains', 'Set of chains to perform actions on.')
-    .array('chains')
-    .choices('chains', getSquadsChains())
-    .coerce('chains', (selectedChains: string[] = []) =>
-      Array.from(new Set(selectedChains)),
-    )
-    .alias('c', 'chains').argv;
+  const { chains } = await withSquadsChains(yargs(process.argv.slice(2))).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   const { getEnvironmentConfig } = await import('../core-utils.js');
