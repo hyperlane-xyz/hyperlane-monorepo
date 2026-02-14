@@ -1,7 +1,11 @@
 import { expect } from 'chai';
 import { type Signer, Wallet, ethers } from 'ethers';
 
-import { MockSafe__factory, ProxyAdmin__factory } from '@hyperlane-xyz/core';
+import {
+  MockSafe__factory,
+  ProxyAdmin__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 import {
   type ChainMetadata,
   type CoreConfig,
@@ -285,6 +289,57 @@ describe('hyperlane core apply e2e tests', async function () {
       const result = await hyperlaneCore.apply(ANVIL_KEY).nothrow();
       expect(result.exitCode).to.equal(0);
       expect(result.text()).to.include('gnosisSafeTxBuilder');
+    } finally {
+      await mockSafeApiServer.close();
+    }
+  });
+
+  it('should route same-chain core txs to multiple inferred submitters', async () => {
+    await hyperlaneCore.deploy(ANVIL_KEY);
+
+    const [mockSafe, timelock] = await Promise.all([
+      new MockSafe__factory()
+        .connect(signer)
+        .deploy([initialOwnerAddress], 1),
+      new TimelockController__factory()
+        .connect(signer)
+        .deploy(
+          0,
+          [initialOwnerAddress],
+          [initialOwnerAddress],
+          ethers.constants.AddressZero,
+        ),
+    ]);
+
+    const mockSafeApiServer = await createMockSafeApi(
+      TEST_CHAIN_METADATA_BY_PROTOCOL.ethereum.CHAIN_NAME_2,
+      mockSafe.address,
+      initialOwnerAddress,
+      5,
+    );
+
+    try {
+      const initialConfig: CoreConfig = await hyperlaneCore.readConfig();
+      initialConfig.owner = mockSafe.address;
+      initialConfig.proxyAdmin = {
+        ...initialConfig.proxyAdmin!,
+        owner: timelock.address,
+      };
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, initialConfig);
+      await hyperlaneCore.apply(ANVIL_KEY);
+
+      const mixedOwnerConfig: CoreConfig = await hyperlaneCore.readConfig();
+      mixedOwnerConfig.owner = randomAddress().toLowerCase();
+      mixedOwnerConfig.proxyAdmin = {
+        ...mixedOwnerConfig.proxyAdmin!,
+        owner: randomAddress().toLowerCase(),
+      };
+      writeYamlOrJson(CORE_READ_CONFIG_PATH_2, mixedOwnerConfig);
+
+      const result = await hyperlaneCore.apply(ANVIL_KEY).nothrow();
+      expect(result.exitCode).to.equal(0);
+      expect(result.text()).to.include('gnosisSafeTxBuilder');
+      expect(result.text()).to.include('timelockController');
     } finally {
       await mockSafeApiServer.close();
     }
