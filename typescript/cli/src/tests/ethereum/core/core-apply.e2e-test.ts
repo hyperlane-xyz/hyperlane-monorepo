@@ -447,6 +447,41 @@ describe('hyperlane core apply e2e tests', async function () {
     expect(result.text()).to.include('timelockController');
   });
 
+  it('should route core apply using uppercase 0X override target keys', async () => {
+    const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
+    const mailboxUpperPrefix = `0X${addresses.mailbox.slice(2)}`;
+
+    const mockSafe = await new MockSafe__factory()
+      .connect(signer)
+      .deploy([initialOwnerAddress], 1);
+
+    const strategyPath = `${TEMP_PATH}/core-apply-submitter-overrides-upper-prefix.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN_NAME_2]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN_NAME_2,
+        },
+        submitterOverrides: {
+          [mailboxUpperPrefix]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN_NAME_2,
+            safeAddress: mockSafe.address,
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const config: CoreConfig = await hyperlaneCore.readConfig();
+    config.owner = randomAddress().toLowerCase();
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, config);
+
+    const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
+    expect(result.exitCode).to.equal(0);
+    expect(result.text()).to.include('gnosisSafeTxBuilder');
+  });
+
   it('should prioritize selector-specific override over target-only override for core apply', async () => {
     const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
 

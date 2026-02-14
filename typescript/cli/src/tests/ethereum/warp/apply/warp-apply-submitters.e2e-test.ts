@@ -560,6 +560,58 @@ describe('hyperlane warp apply with submitters', async function () {
       ).to.not.equal(expectedUpdatedGasValue);
     });
 
+    it('should route warp apply txs using uppercase 0X override target keys', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      await deployAndExportWarpRoute();
+
+      const chain3 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+      const chain3WarpAddress = evmWarpCommands.getDeployedWarpAddress(
+        chain3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      const chain3WarpAddressUpperPrefix = `0X${chain3WarpAddress.slice(2)}`;
+
+      const strategyPath = `${TEMP_PATH}/warp-apply-submitter-overrides-upper-prefix.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [chain3]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: chain3,
+          },
+          submitterOverrides: {
+            [chain3WarpAddressUpperPrefix]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: chain3,
+              safeAddress,
+              version: '1.0',
+            },
+          },
+        },
+      });
+
+      const expectedUpdatedGasValue = '98766';
+      warpDeployConfig[chain3].destinationGas = {
+        [chain2DomainId]: expectedUpdatedGasValue,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: strategyPath,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        chain3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      expect(
+        updatedWarpDeployConfig_3_2[chain3].destinationGas?.[chain2DomainId],
+      ).to.not.equal(expectedUpdatedGasValue);
+    });
+
     it('should prioritize selector-specific override over target-only override', async () => {
       const warpDeployConfig = fixture.getDeployConfig();
       await deployAndExportWarpRoute();
