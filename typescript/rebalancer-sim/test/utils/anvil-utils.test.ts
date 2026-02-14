@@ -94,6 +94,11 @@ describe('Anvil utils', () => {
   });
 
   describe('stopLocalAnvilProcess', () => {
+    const asChildProcess = (
+      value: NodeJS.Process,
+    ): import('child_process').ChildProcessWithoutNullStreams =>
+      value as unknown as import('child_process').ChildProcessWithoutNullStreams;
+
     it('returns immediately when process already exited', async () => {
       let killCalled = false;
       const fakeProcess = {
@@ -107,9 +112,7 @@ describe('Anvil utils', () => {
         removeListener: () => fakeProcess,
       } as unknown as NodeJS.Process;
 
-      await stopLocalAnvilProcess(
-        fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
-      );
+      await stopLocalAnvilProcess(asChildProcess(fakeProcess));
       expect(killCalled).to.equal(false);
     });
 
@@ -129,9 +132,7 @@ describe('Anvil utils', () => {
         removeListener: () => fakeProcess,
       } as unknown as NodeJS.Process;
 
-      await stopLocalAnvilProcess(
-        fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
-      );
+      await stopLocalAnvilProcess(asChildProcess(fakeProcess));
     });
 
     it('treats an unsent signal as an already-stopped process', async () => {
@@ -143,9 +144,30 @@ describe('Anvil utils', () => {
         removeListener: () => fakeProcess,
       } as unknown as NodeJS.Process;
 
-      await stopLocalAnvilProcess(
-        fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
-      );
+      await stopLocalAnvilProcess(asChildProcess(fakeProcess));
+    });
+
+    it('resolves when process exits after SIGTERM', async () => {
+      let killSignal: NodeJS.Signals | undefined;
+      let onExit: (() => void) | undefined;
+
+      const fakeProcess = {
+        killed: false,
+        exitCode: null,
+        kill: (signal: NodeJS.Signals) => {
+          killSignal = signal;
+          queueMicrotask(() => onExit?.());
+          return true;
+        },
+        once: (event: string, handler: () => void) => {
+          if (event === 'exit') onExit = handler;
+          return fakeProcess;
+        },
+        removeListener: () => fakeProcess,
+      } as unknown as NodeJS.Process;
+
+      await stopLocalAnvilProcess(asChildProcess(fakeProcess));
+      expect(killSignal).to.equal('SIGTERM');
     });
 
     it('rejects when kill fails with non-ESRCH errors', async () => {
@@ -162,9 +184,7 @@ describe('Anvil utils', () => {
 
       let errorMessage = '';
       try {
-        await stopLocalAnvilProcess(
-          fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
-        );
+        await stopLocalAnvilProcess(asChildProcess(fakeProcess));
       } catch (error) {
         errorMessage = error instanceof Error ? error.message : String(error);
       }

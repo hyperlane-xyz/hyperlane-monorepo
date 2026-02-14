@@ -258,15 +258,17 @@ async function startAnvil(
 }
 
 /**
- * Setup function for Mocha tests that require Anvil.
- * Starts a fresh Anvil container for EACH TEST to ensure complete isolation.
+ * Setup function for Mocha tests that require Anvil RPC.
+ * Starts a fresh Anvil runtime for EACH TEST to ensure complete isolation.
  *
- * Uses testcontainers for:
- * - No local anvil installation required
- * - Automatic container cleanup (even on crashes)
+ * Runtime strategy:
+ * - Primary: testcontainers (`ghcr.io/foundry-rs/foundry`)
+ * - Fallback: local `anvil` binary when container runtime is unavailable
+ *
+ * Guarantees:
  * - Dynamic port assignment (no port conflicts)
- * - Retry logic for CI reliability
- * - Consistent behavior across local/CI environments
+ * - Fresh chain state per test
+ * - Graceful cleanup on both runtime strategies
  *
  * Usage:
  * ```typescript
