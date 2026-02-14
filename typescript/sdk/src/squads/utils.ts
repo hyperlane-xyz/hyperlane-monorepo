@@ -223,9 +223,8 @@ export function parseSquadsProposalVoteErrorFromError(
     return parseSquadsProposalVoteErrorText(error);
   }
 
-  const parsedFromDirectArray = parseSquadsProposalVoteErrorFromUnknownLogs(
-    error,
-  );
+  const parsedFromDirectArray =
+    parseSquadsProposalVoteErrorFromUnknownLogs(error);
   if (parsedFromDirectArray) {
     return parsedFromDirectArray;
   }
@@ -275,8 +274,7 @@ export function parseSquadsProposalVoteErrorFromError(
 
     for (const field of SQUADS_ERROR_STRING_ARRAY_FIELDS) {
       const value = currentRecord[field];
-      const parsedError =
-        parseSquadsProposalVoteErrorFromUnknownLogs(value);
+      const parsedError = parseSquadsProposalVoteErrorFromUnknownLogs(value);
       if (parsedError) return parsedError;
     }
 
@@ -445,11 +443,8 @@ export async function getPendingProposalsForChains(
           squadsProvider,
           multisigPda,
         );
-        const {
-          threshold,
-          currentTransactionIndex,
-          staleTransactionIndex,
-        } = parseSquadMultisig(multisig, `${chain} multisig`);
+        const { threshold, currentTransactionIndex, staleTransactionIndex } =
+          parseSquadMultisig(multisig, `${chain} multisig`);
 
         const vaultBalance = await svmProvider.getBalance(vault);
         const nativeToken = mpp.getChainMetadata(chain).nativeToken;
@@ -643,7 +638,8 @@ export function getMinimumProposalIndexToCheck(
   lookbackCount = SQUADS_PROPOSAL_LOOKBACK_COUNT,
 ): number {
   assert(
-    Number.isSafeInteger(currentTransactionIndex) && currentTransactionIndex >= 0,
+    Number.isSafeInteger(currentTransactionIndex) &&
+      currentTransactionIndex >= 0,
     `Expected current transaction index to be a non-negative safe integer, got ${currentTransactionIndex}`,
   );
   assert(
@@ -660,7 +656,8 @@ export function parseSquadProposal(
   const approvals = getProposalVoteCount(proposal, 'approved');
   const rejections = getProposalVoteCount(proposal, 'rejected');
   const cancellations = getProposalVoteCount(proposal, 'cancelled');
-  const { statusKind, rawStatusTimestamp } = getProposalStatusMetadata(proposal);
+  const { statusKind, rawStatusTimestamp } =
+    getProposalStatusMetadata(proposal);
   const transactionIndex = toSafeInteger(
     proposal.transactionIndex,
     'transaction index',
@@ -690,7 +687,10 @@ function getProposalStatusMetadata(proposal: accounts.Proposal): {
   rawStatusTimestamp: unknown;
 } {
   const status = (proposal as unknown as { status?: unknown }).status;
-  assert(status && typeof status === 'object', 'Squads proposal status must be an object');
+  assert(
+    status && typeof status === 'object',
+    'Squads proposal status must be an object',
+  );
 
   const statusRecord = status as Record<string, unknown>;
   const normalizedStatusKind = normalizeStatusKind(
@@ -720,7 +720,9 @@ function getProposalVoteCount(
   proposal: accounts.Proposal,
   fieldName: 'approved' | 'rejected' | 'cancelled',
 ): number {
-  const fieldValue = (proposal as unknown as Record<string, unknown>)[fieldName];
+  const fieldValue = (proposal as unknown as Record<string, unknown>)[
+    fieldName
+  ];
   assert(
     Array.isArray(fieldValue),
     `Squads proposal ${fieldName} votes must be an array`,
@@ -732,9 +734,13 @@ export function parseSquadMultisig(
   multisig: accounts.Multisig,
   fieldPrefix = 'multisig',
 ): ParsedSquadMultisig {
-  const threshold = toSafeInteger(multisig.threshold, `${fieldPrefix} threshold`, {
-    positive: true,
-  });
+  const threshold = toSafeInteger(
+    multisig.threshold,
+    `${fieldPrefix} threshold`,
+    {
+      positive: true,
+    },
+  );
   const currentTransactionIndex = toSafeInteger(
     multisig.transactionIndex,
     `${fieldPrefix} transaction index`,
@@ -814,12 +820,13 @@ function getMultisigMemberCount(
         typeof normalizedMemberKey === 'string',
         `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
       );
+      const trimmedMemberKey = normalizedMemberKey.trim();
       assert(
-        !GENERIC_OBJECT_STRING_PATTERN.test(normalizedMemberKey),
+        !GENERIC_OBJECT_STRING_PATTERN.test(trimmedMemberKey),
         `Squads ${fieldPrefix} members[${index}] key must stringify to a meaningful identifier`,
       );
       assert(
-        normalizedMemberKey.trim().length > 0,
+        trimmedMemberKey.length > 0,
         `Squads ${fieldPrefix} members[${index}] key must resolve to a non-empty string`,
       );
     }

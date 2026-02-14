@@ -238,7 +238,9 @@ describe('squads utils', () => {
 
     it('throws for unsafe threshold values', () => {
       const unsafeThreshold = Number.MAX_SAFE_INTEGER + 1;
-      expect(() => getSquadTxStatus('Active', 0, unsafeThreshold, 1, 0)).to.throw(
+      expect(() =>
+        getSquadTxStatus('Active', 0, unsafeThreshold, 1, 0),
+      ).to.throw(
         `Expected threshold to be a positive safe integer, got ${unsafeThreshold}`,
       );
     });
@@ -840,9 +842,11 @@ describe('squads utils', () => {
     it('throws safe-integer error when bignum-like toString throws', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
-          threshold: { toString: () => {
-            throw new Error('boom');
-          } },
+          threshold: {
+            toString: () => {
+              throw new Error('boom');
+            },
+          },
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
@@ -1141,6 +1145,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when object member key stringifies to padded generic object label', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: { toString: () => '  [object Object]  ' } }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must stringify to a meaningful identifier',
+      );
+    });
+
     it('uses caller-provided field prefix for empty normalized object keys', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig(
@@ -1384,9 +1403,7 @@ describe('squads utils', () => {
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
     it('parses known vote error from string error values', () => {
       expect(
-        parseSquadsProposalVoteErrorFromError(
-          'custom program error: 0x177b',
-        ),
+        parseSquadsProposalVoteErrorFromError('custom program error: 0x177b'),
       ).to.equal(SquadsProposalVoteError.AlreadyRejected);
     });
 
@@ -1401,10 +1418,7 @@ describe('squads utils', () => {
 
     it('returns undefined for direct log arrays without known errors', () => {
       expect(
-        parseSquadsProposalVoteErrorFromError([
-          'Program log: unrelated',
-          999,
-        ]),
+        parseSquadsProposalVoteErrorFromError(['Program log: unrelated', 999]),
       ).to.equal(undefined);
     });
 
@@ -1764,10 +1778,7 @@ describe('squads utils', () => {
 
     it('parses known vote error from aggregate errors array', () => {
       const error = {
-        errors: [
-          { message: 'unrelated' },
-          'custom program error: 0x177a',
-        ],
+        errors: [{ message: 'unrelated' }, 'custom program error: 0x177a'],
       };
 
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
@@ -1835,10 +1846,8 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      const { svmProvider, vault, multisigPda, programId } = getSquadAndProvider(
-        supportedChain,
-        mpp,
-      );
+      const { svmProvider, vault, multisigPda, programId } =
+        getSquadAndProvider(supportedChain, mpp);
 
       expect(providerLookupChain).to.equal(supportedChain);
       expect(svmProvider).to.equal(provider);
