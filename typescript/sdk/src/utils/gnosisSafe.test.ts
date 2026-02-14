@@ -1141,6 +1141,26 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('///safe-transaction-mainnet.safe.global/api'),
       ).to.equal(false);
     });
+
+    it('rejects encoded-backslash userinfo spoof patterns at deeper repeated-%25 depths', () => {
+      const safeHosts = ['safe.global', 'safe-transaction-mainnet.5afe.dev'];
+      const encodedBackslashes = ['%255c', '%255C'];
+
+      for (const host of safeHosts) {
+        for (const encodedBackslash of encodedBackslashes) {
+          for (let depth = 5; depth <= 8; depth += 1) {
+            const encodedAt = `%${'25'.repeat(depth)}40`;
+            const authority = `${host}${encodedBackslash}${encodedAt}evil.com`;
+
+            expect(safeApiKeyRequired(`https://${authority}/api`)).to.equal(
+              false,
+            );
+            expect(safeApiKeyRequired(`//${authority}/api`)).to.equal(false);
+            expect(safeApiKeyRequired(authority)).to.equal(false);
+          }
+        }
+      }
+    });
   });
 
   describe(normalizeSafeServiceUrl.name, () => {
@@ -2621,6 +2641,32 @@ describe('gnosisSafe utils', () => {
       expect(() => normalizeSafeServiceUrl('   ')).to.throw(
         'Safe tx service URL is empty',
       );
+    });
+
+    it('rejects encoded-backslash userinfo spoof patterns at deeper repeated-%25 depths', () => {
+      const safeHosts = ['safe.global', 'safe-transaction-mainnet.5afe.dev'];
+      const encodedBackslashes = ['%255c', '%255C'];
+
+      for (const host of safeHosts) {
+        for (const encodedBackslash of encodedBackslashes) {
+          for (let depth = 5; depth <= 8; depth += 1) {
+            const encodedAt = `%${'25'.repeat(depth)}40`;
+            const authority = `${host}${encodedBackslash}${encodedAt}evil.com`;
+            const explicitUrl = `https://${authority}/api`;
+            const schemeRelativeUrl = `//${authority}/api`;
+
+            expect(() => normalizeSafeServiceUrl(explicitUrl)).to.throw(
+              `Safe tx service URL is invalid: ${explicitUrl}`,
+            );
+            expect(() => normalizeSafeServiceUrl(schemeRelativeUrl)).to.throw(
+              `Safe tx service URL is invalid: ${schemeRelativeUrl}`,
+            );
+            expect(() => normalizeSafeServiceUrl(authority)).to.throw(
+              `Safe tx service URL is invalid: ${authority}`,
+            );
+          }
+        }
+      }
     });
   });
 
