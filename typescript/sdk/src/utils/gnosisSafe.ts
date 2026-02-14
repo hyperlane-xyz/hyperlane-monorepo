@@ -66,7 +66,7 @@ const SAFE_INTERFACE = new ethers.utils.Interface([
 ]);
 
 function parseSemverPrefix(version: string): [number, number, number] {
-  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/i);
+  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)(?:$|[-+])/i);
   if (!match) {
     throw new Error(`Invalid Safe API version: ${version}`);
   }
