@@ -18,6 +18,17 @@ import { ChainName } from '../types.js';
 
 import { getSquadsKeys, squadsConfigs } from './config.js';
 
+type SquadsProvider = Parameters<
+  typeof accounts.Multisig.fromAccountAddress
+>[0];
+
+function toSquadsProvider(
+  provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
+): SquadsProvider {
+  // Squads SDK expects a narrower connection type than sdk providers expose.
+  return provider as unknown as SquadsProvider;
+}
+
 /**
  * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
  */
@@ -86,10 +97,10 @@ export async function getSquadProposal(
       chain,
       mpp,
     );
+    const squadsProvider = toSquadsProvider(svmProvider);
 
     const multisig = await accounts.Multisig.fromAccountAddress(
-      // @ts-ignore squads sdk provider typing mismatch
-      svmProvider,
+      squadsProvider,
       multisigPda,
     );
 
@@ -100,8 +111,7 @@ export async function getSquadProposal(
     });
 
     const proposal = await accounts.Proposal.fromAccountAddress(
-      // @ts-ignore squads sdk provider typing mismatch
-      svmProvider,
+      squadsProvider,
       proposalPda,
     );
 
@@ -132,10 +142,10 @@ export async function getPendingProposalsForChains(
           chain,
           mpp,
         );
+        const squadsProvider = toSquadsProvider(svmProvider);
 
         const multisig = await accounts.Multisig.fromAccountAddress(
-          // @ts-ignore squads sdk provider typing mismatch
-          svmProvider,
+          squadsProvider,
           multisigPda,
         );
 
@@ -372,10 +382,10 @@ async function getNextSquadsTransactionIndex(
 ): Promise<bigint> {
   const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
   const { programId } = getSquadsKeys(chain);
+  const squadsProvider = toSquadsProvider(svmProvider);
 
   const multisig = await accounts.Multisig.fromAccountAddress(
-    // @ts-ignore squads sdk provider typing mismatch
-    svmProvider,
+    squadsProvider,
     multisigPda,
   );
 

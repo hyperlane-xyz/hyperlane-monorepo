@@ -53,6 +53,16 @@ import {
   isVaultTransaction,
 } from './utils.js';
 
+type SquadsProvider = Parameters<
+  typeof accounts.VaultTransaction.fromAccountAddress
+>[0];
+
+function toSquadsProvider(
+  provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
+): SquadsProvider {
+  return provider as unknown as SquadsProvider;
+}
+
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;
 export const MAX_SOLANA_ACCOUNTS = 256;
@@ -896,12 +906,12 @@ export class SquadsTransactionReader {
     transactionPda: PublicKey,
   ): Promise<SquadsTransaction> {
     const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const squadsProvider = toSquadsProvider(svmProvider);
 
     let vaultTransaction: accounts.VaultTransaction;
     try {
       vaultTransaction = await accounts.VaultTransaction.fromAccountAddress(
-        // @ts-ignore squads sdk provider typing mismatch
-        svmProvider,
+        squadsProvider,
         transactionPda,
       );
     } catch (error) {
