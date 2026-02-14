@@ -7,8 +7,8 @@ import {
   SquadTxStatus,
   SvmMultiProtocolSignerAdapter,
   executeProposal,
+  getSquadsChains,
   getPendingProposalsForChains,
-  squadsConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -30,10 +30,10 @@ async function main() {
 
   const { chains } = await withChains(
     yargs(process.argv.slice(2)),
-    Object.keys(squadsConfigs),
+    getSquadsChains(),
   ).argv;
 
-  const squadChains = Object.keys(squadsConfigs);
+  const squadChains = getSquadsChains();
   const chainsToCheck = chains || squadChains;
 
   if (chainsToCheck.length === 0) {

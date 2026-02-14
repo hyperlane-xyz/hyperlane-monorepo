@@ -11,7 +11,7 @@ import {
   isConfigTransaction,
   isVaultTransaction,
 } from './utils.js';
-import { getSquadsKeys } from './config.js';
+import { getSquadsChains, getSquadsKeys } from './config.js';
 
 describe('squads utils', () => {
   describe(getSquadTxStatus.name, () => {
@@ -87,6 +87,12 @@ describe('squads utils', () => {
         'Squads config not found on chain unknown-chain',
       );
     });
+  });
+
+  it('returns configured squads chains', () => {
+    const chains = getSquadsChains();
+    expect(chains).to.include('solanamainnet');
+    expect(chains.length).to.be.greaterThan(0);
   });
 
   it('exports canonical proposal statuses', () => {

@@ -40,6 +40,10 @@ export const squadsConfigs: ChainMap<SquadConfig> = {
   },
 };
 
+export function getSquadsChains(): ChainName[] {
+  return Object.keys(squadsConfigs);
+}
+
 export function getSquadsKeys(chainName: ChainName): SquadsKeys {
   const config = squadsConfigs[chainName];
   if (!config) {

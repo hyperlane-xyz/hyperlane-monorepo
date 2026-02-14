@@ -2,6 +2,7 @@ import chalk from 'chalk';
 import yargs, { Argv } from 'yargs';
 
 import {
+  getSquadsChains,
   SquadsProposalStatus,
   getSquadProposal,
   getSquadsKeys,
@@ -35,7 +36,7 @@ async function main() {
   const { chain, transactionIndex, verbose } = await withChain(
     withTransactionIndex(withVerbose(yargs(process.argv.slice(2)))),
   )
-    .choices('chain', Object.keys(squadsConfigs))
+    .choices('chain', getSquadsChains())
     .demandOption('chain').argv;
 
   if (!squadsConfigs[chain]) {
@@ -44,7 +45,7 @@ async function main() {
     );
     rootLogger.info(
       chalk.gray('Available chains:'),
-      Object.keys(squadsConfigs).join(', '),
+      getSquadsChains().join(', '),
     );
     process.exit(1);
   }

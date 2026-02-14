@@ -6,8 +6,8 @@ import {
   SquadsTransaction,
   SquadsTransactionReader,
   SvmMultisigConfigMap,
+  getSquadsChains,
   getPendingProposalsForChains,
-  squadsConfigs,
 } from '@hyperlane-xyz/sdk';
 import {
   LogFormat,
@@ -32,7 +32,7 @@ const environment = 'mainnet3';
 async function main() {
   const { chains } = await withChains(
     yargs(process.argv.slice(2)),
-    Object.keys(squadsConfigs),
+    getSquadsChains(),
   ).argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
@@ -61,7 +61,7 @@ async function main() {
 
   // Get the pending proposals for the relevant chains
   const chainsToCheck =
-    !chains || chains.length === 0 ? Object.keys(squadsConfigs) : chains;
+    !chains || chains.length === 0 ? getSquadsChains() : chains;
 
   const pendingProposals = await getPendingProposalsForChains(
     chainsToCheck,
