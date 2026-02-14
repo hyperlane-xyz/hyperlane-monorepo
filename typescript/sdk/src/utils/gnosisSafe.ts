@@ -100,6 +100,9 @@ function hasSchemeRelativeHostWithEmptyPort(value: string): boolean {
 }
 
 function hasMalformedSchemeRelativeAuthority(value: string): boolean {
+  // Treat scheme-relative authorities with missing host/userinfo as invalid
+  // host-only values. Without this guard, URL fallback parsing can reinterpret
+  // some malformed values (e.g. //:pass@safe.global) as valid safe hosts.
   return (
     value.startsWith('//@') ||
     value.startsWith('//:') ||
