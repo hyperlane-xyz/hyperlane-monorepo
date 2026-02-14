@@ -35,10 +35,11 @@ import {
   serializeMultisigIsmDifference,
 } from '../../src/utils/sealevel.js';
 import {
+  formatScriptError,
   getEnvironmentConfigFor,
   getMultiProtocolProviderFor,
-  resolveSquadsChainsFromArgv,
   getTurnkeySignerFor,
+  resolveSquadsChainsFromArgv,
   withSquadsChains,
 } from '../squads/cli-helpers.js';
 
@@ -260,7 +261,11 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
 
     await submitProposalToSquads(chain, instructions, mpp, signerAdapter, memo);
   } catch (error) {
-    rootLogger.error(chalk.red(`Failed to log/submit transaction: ${error}`));
+    rootLogger.error(
+      chalk.red(
+        `Failed to log/submit transaction: ${formatScriptError(error)}`,
+      ),
+    );
     throw error;
   }
 }
@@ -513,7 +518,9 @@ async function main() {
       );
       results.push(result);
     } catch (error) {
-      rootLogger.error(`Failed to process ${chain}:`, error);
+      rootLogger.error(
+        `Failed to process ${chain}: ${formatScriptError(error)}`,
+      );
       results.push({ chain, updated: 0, matched: 0 });
     }
   }
@@ -523,6 +530,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error configuring MultisigIsm:', err);
+  rootLogger.error(
+    `Error configuring MultisigIsm: ${formatScriptError(err)}`,
+  );
   process.exit(1);
 });
