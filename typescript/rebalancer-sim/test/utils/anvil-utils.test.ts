@@ -1174,6 +1174,49 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('handles iterable wrappers with throwing iterators and non-enumerable message fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const iterableWrapper = {
+        [Symbol.iterator]() {
+          throw new Error('broken iterator');
+        },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'iterable wrapper without nested details';
+        },
+      };
+      Object.defineProperty(iterableWrapper, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+      Object.defineProperty(iterableWrapper, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
+      });
+      Object.defineProperty(iterableWrapper, 'message', {
+        value: 'No Docker client strategy found',
+        enumerable: false,
+      });
+
+      const wrappedError = {
+        errors: iterableWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('handles array wrappers with throwing iterators and non-enumerable errors fallbacks', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const arrayWrapper = Object.assign([{ message: 'noise-entry' }], {
@@ -1321,6 +1364,62 @@ describe('Anvil utils', () => {
       ]);
       Object.defineProperty(mapWrapper, 'errors', {
         value: { message: 'Cannot connect to the Docker daemon' },
+        enumerable: false,
+      });
+      Object.assign(mapWrapper, {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'map wrapper without nested details';
+        },
+      });
+
+      const wrappedError = {
+        errors: mapWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('handles map wrappers with fully throwing iterators and non-enumerable message fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+
+      class ThrowingMap extends Map<string, { message: string }> {
+        public override values(): IterableIterator<{ message: string }> {
+          throw new Error('broken map values iterator');
+        }
+
+        public override [Symbol.iterator](): IterableIterator<
+          [string, { message: string }]
+        > {
+          throw new Error('broken map iterator');
+        }
+      }
+
+      const mapWrapper = new ThrowingMap([
+        ['noise', { message: 'non-matching wrapper noise' }],
+      ]);
+      Object.defineProperty(mapWrapper, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+      Object.defineProperty(mapWrapper, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
+      });
+      Object.defineProperty(mapWrapper, 'message', {
+        value: 'No Docker client strategy found',
         enumerable: false,
       });
       Object.assign(mapWrapper, {

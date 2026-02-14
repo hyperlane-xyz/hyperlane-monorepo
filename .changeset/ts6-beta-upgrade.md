@@ -188,4 +188,6 @@ Error extraction now also deduplicates repeated primitive values while traversin
 
 Regression coverage now also confirms repeated-primitive wrapper payloads still detect runtime-unavailable signals that appear after large duplicate scalar sequences.
 
+Regression coverage now also confirms malformed iterable and map wrappers with fully throwing iterators still detect runtime-unavailable non-enumerable wrapper-level `message` fallbacks, even when wrapper `cause` and `errors` accessors throw.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
