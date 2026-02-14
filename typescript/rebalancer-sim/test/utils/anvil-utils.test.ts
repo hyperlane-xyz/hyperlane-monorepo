@@ -1493,6 +1493,33 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
     });
 
+    it('matches plain-object wrapper cause fallbacks when errors field is self-referential', () => {
+      const errors = buildNoisyObjectWrapperWithFallback('cause', {
+        message: 'No Docker client strategy found',
+      });
+      Object.defineProperty(errors, 'errors', {
+        value: errors,
+        enumerable: false,
+        configurable: true,
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
+    it('matches plain-object wrapper cause fallbacks when errors accessor throws', () => {
+      const errors = buildNoisyObjectWrapperWithFallback('cause', {
+        message: 'No Docker client strategy found',
+      });
+      Object.defineProperty(errors, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
     it('still matches cause-chain runtime signals before extraction cap', () => {
       expect(isContainerRuntimeUnavailable(buildCauseChain(550, 120))).to.equal(
         true,

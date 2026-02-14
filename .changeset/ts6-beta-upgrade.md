@@ -172,4 +172,6 @@ Nested plain-object `errors` wrapper extraction now prioritizes wrapper-level fa
 
 Regression coverage now also confirms plain-object wrappers with large non-matching fields still detect runtime-unavailable wrapper-level `cause` and `errors` fallbacks under extraction pressure, including when wrapper `cause` accessors throw.
 
+Regression coverage now also confirms plain-object wrappers with large non-matching fields still detect runtime-unavailable wrapper-level `cause` fallbacks when wrapper `errors` fields are self-referential or wrapper `errors` accessors throw.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
