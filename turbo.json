@@ -1,5 +1,6 @@
 {
   "ui": "stream",
+  "globalEnv": ["REGISTRY_URI"],
   "tasks": {
     "build": {
       "dependsOn": ["^build"],
