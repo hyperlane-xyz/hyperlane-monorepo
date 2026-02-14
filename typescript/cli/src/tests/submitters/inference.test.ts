@@ -24833,6 +24833,119 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('infers timelock proposer ICA when origin signer probe throws but signer address lookup succeeds', async () => {
+    const timelockOwner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const derivedIcaProposer = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const destinationRouterAddress =
+      '0xcccccccccccccccccccccccccccccccccccccccc';
+    const originRouterAddress = '0xdddddddddddddddddddddddddddddddddddddddd';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => timelockOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async (_role: string, account: string) =>
+          account.toLowerCase() === derivedIcaProposer.toLowerCase(),
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
+        },
+      } as any);
+
+    let originDerivationCalls = 0;
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
+          return {
+            ['getRemoteInterchainAccount(address,address,address)']: async () => {
+              originDerivationCalls += 1;
+              return derivedIcaProposer;
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    let originSignerProbeCalls = 0;
+    let originSignerAddressLookups = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          if (chainName !== CHAIN) {
+            originSignerAddressLookups += 1;
+          }
+          return SIGNER;
+        },
+        getProvider: () => provider,
+        tryGetSigner: (chainName: string) => {
+          if (chainName === CHAIN) return {};
+          originSignerProbeCalls += 1;
+          throw new Error(`origin signer probe failed for ${chainName}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+          anvil3: {
+            interchainAccountRouter: originRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.INTERCHAIN_ACCOUNT);
+      expect((batches[0].config.submitter as any).proposerSubmitter.owner).to.equal(
+        SIGNER,
+      );
+      expect(originSignerProbeCalls).to.equal(1);
+      expect(originSignerAddressLookups).to.equal(1);
+      expect(originDerivationCalls).to.equal(2);
+      expect(provider.getLogs.callCount).to.equal(3);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to default timelock proposer when signer-derived ICA proposer is zero address', async () => {
     const timelockOwner = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
     const destinationRouterAddress =
