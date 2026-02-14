@@ -3526,6 +3526,65 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args.operation).to.equal(0);
     });
 
+    it('parses approveHash tx calldata', () => {
+      const approveHashInterface = new ethers.utils.Interface([
+        'function approveHash(bytes32 hashToApprove)',
+      ]);
+      const hashToApprove =
+        '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+      const data = approveHashInterface.encodeFunctionData('approveHash', [
+        hashToApprove,
+      ]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('approveHash');
+      expect(decoded.args.hashToApprove).to.equal(hashToApprove);
+    });
+
+    it('parses setup tx calldata', () => {
+      const setupInterface = new ethers.utils.Interface([
+        'function setup(address[] _owners,uint256 _threshold,address to,bytes data,address fallbackHandler,address paymentToken,uint256 payment,address payable paymentReceiver)',
+      ]);
+      const owners = [
+        '0x00000000000000000000000000000000000000aa',
+        '0x00000000000000000000000000000000000000bb',
+      ];
+      const data = setupInterface.encodeFunctionData('setup', [
+        owners,
+        2,
+        '0x00000000000000000000000000000000000000cc',
+        '0x1234',
+        '0x00000000000000000000000000000000000000dd',
+        '0x00000000000000000000000000000000000000ee',
+        0,
+        '0x00000000000000000000000000000000000000ff',
+      ]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('setup');
+      expect(
+        (decoded.args._owners as string[]).map((owner) => owner.toLowerCase()),
+      ).to.deep.equal(owners.map((owner) => owner.toLowerCase()));
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+      expect(decoded.args.to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000cc'),
+      );
+      expect(decoded.args.data).to.equal('0x1234');
+      expect(decoded.args.fallbackHandler).to.equal(
+        getAddress('0x00000000000000000000000000000000000000dd'),
+      );
+    });
+
     it('throws for calldata that does not match the safe interface', () => {
       expect(() =>
         parseSafeTx({
