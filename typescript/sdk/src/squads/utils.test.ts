@@ -1,4 +1,5 @@
 import { expect } from 'chai';
+import { PublicKey } from '@solana/web3.js';
 
 import {
   SquadTxStatus,
@@ -161,6 +162,9 @@ describe('squads utils', () => {
 
       expect(providerLookupChain).to.equal(supportedChain);
       expect(svmProvider).to.equal(provider);
+      expect(vault).to.be.instanceOf(PublicKey);
+      expect(multisigPda).to.be.instanceOf(PublicKey);
+      expect(programId).to.be.instanceOf(PublicKey);
       expect(vault.toBase58()).to.equal(squadsConfigs[supportedChain].vault);
       expect(multisigPda.toBase58()).to.equal(
         squadsConfigs[supportedChain].multisigPda,
