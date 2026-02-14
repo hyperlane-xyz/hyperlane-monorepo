@@ -122,6 +122,39 @@ describe('executePendingTransactions', () => {
     }
   });
 
+  it('throws when executable transaction length is unstringifiable', async () => {
+    const unstringifiableLength = {
+      [Symbol.toPrimitive]() {
+        throw new Error('length to-primitive boom');
+      },
+    };
+    const txsWithUnstringifiableLength = new Proxy(
+      [{ id: 'tx1', chain: 'chainA' }],
+      {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return unstringifiableLength;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    try {
+      await executePendingTransactions(
+        txsWithUnstringifiableLength as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Executable transactions length is invalid: <unstringifiable>',
+      );
+    }
+  });
+
   it('throws when confirmPrompt input is invalid', async () => {
     try {
       await executePendingTransactions(
@@ -798,6 +831,25 @@ describe('processGovernorReaderResult', () => {
         },
       ),
     ).to.throw('Governor reader timestamp is invalid: Infinity');
+  });
+
+  it('throws when nowFn returns unstringifiable timestamp', () => {
+    const unstringifiableTimestamp = {
+      [Symbol.toPrimitive]() {
+        throw new Error('timestamp to-primitive boom');
+      },
+    };
+
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => unstringifiableTimestamp as unknown as number,
+        },
+      ),
+    ).to.throw('Governor reader timestamp is invalid: <unstringifiable>');
   });
 
   it('throws when result entry access is inaccessible', () => {
