@@ -872,6 +872,26 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when result transaction is undefined', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', undefined as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader transaction at index 0 must be defined');
+  });
+
+  it('throws when result transaction is null', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', null as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader transaction at index 0 must be defined');
+  });
+
   it('writes result yaml and does not exit when there are no fatal errors', () => {
     let writtenPath: string | undefined;
     let writtenValue: Record<string, unknown> | undefined;

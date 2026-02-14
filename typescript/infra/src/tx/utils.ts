@@ -193,6 +193,11 @@ export function processGovernorReaderResult(
         `Governor reader result key at index ${index} is duplicated: ${resultKey}`,
       );
     }
+    if (governTx === undefined || governTx === null) {
+      throw new Error(
+        `Governor reader transaction at index ${index} must be defined`,
+      );
+    }
     chainResults[resultKey] = governTx;
   }
   let timestampValue: unknown;
