@@ -777,13 +777,18 @@ async function inferSubmitterFromAddress({
     >;
   }
 
-  const inferredIca = await inferIcaSubmitterFromAccount({
-    destinationChain: chain,
-    accountAddress: address,
-    context,
-    cache,
-    depth: depth + 1,
-  });
+  let inferredIca: InferredSubmitter | null = null;
+  try {
+    inferredIca = await inferIcaSubmitterFromAccount({
+      destinationChain: chain,
+      accountAddress: address,
+      context,
+      cache,
+      depth: depth + 1,
+    });
+  } catch {
+    inferredIca = null;
+  }
   if (inferredIca) {
     return inferredIca;
   }
