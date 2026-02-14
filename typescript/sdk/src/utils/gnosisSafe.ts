@@ -1242,7 +1242,8 @@ export async function proposeSafeTransaction(
     throw new Error('Safe sender signature data is inaccessible');
   }
   assert(
-    typeof senderSignatureData === 'string' && senderSignatureData.length > 0,
+    typeof senderSignatureData === 'string' &&
+      senderSignatureData.trim().length > 0,
     `Safe sender signature data must be a non-empty string: ${stringifyValueForError(senderSignatureData)}`,
   );
   const normalizedSenderSignatureData = asHex(senderSignatureData, {
