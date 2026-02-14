@@ -3188,6 +3188,87 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('uses valid timelock proposer role logs even when some logs are malformed', async () => {
+    const timelockOwner = '0x5555555555555555555555555555555555555555';
+    const safeProposer = '0x6666666666666666666666666666666666666666';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const malformedLog = { topics: ['0xmalformed'], data: '0x' };
+    const validGrantedLog = { topics: ['0xvalid-granted'], data: '0x' };
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [malformedLog, validGrantedLog];
+        }
+        return [];
+      }),
+    };
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (log: any) => {
+            if (log === malformedLog) {
+              throw new Error('malformed role event');
+            }
+            return { args: { account: safeProposer } };
+          },
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
+        .to.equal(safeProposer);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('infers timelock proposer ICA from proposer role account derivation', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
     const proposerIca = '0x6666666666666666666666666666666666666666';
