@@ -577,6 +577,27 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: [object Object]',
       );
     });
+
+    it('returns stable placeholder when all formatting fallbacks throw', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const unprintable = {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          throw new Error('inspect blocked');
+        },
+      };
+      Object.defineProperty(unprintable, Symbol.toStringTag, {
+        get() {
+          throw new Error('tag blocked');
+        },
+      });
+
+      expect(formatLocalAnvilStartError(unprintable)).to.equal(
+        'Failed to start local anvil: Unprintable error value',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {

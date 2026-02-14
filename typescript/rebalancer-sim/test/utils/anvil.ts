@@ -73,7 +73,11 @@ function getErrorMessage(error: unknown): string {
       try {
         return inspect(error);
       } catch {
-        return Object.prototype.toString.call(error);
+        try {
+          return Object.prototype.toString.call(error);
+        } catch {
+          return 'Unprintable error value';
+        }
       }
     }
   }
@@ -127,8 +131,14 @@ interface StartedAnvil {
 }
 
 export function formatLocalAnvilStartError(error: unknown): string {
-  const nodeError = error as NodeJS.ErrnoException | undefined;
-  if (nodeError?.code === 'ENOENT') {
+  let errorCode: string | undefined;
+  try {
+    errorCode = (error as NodeJS.ErrnoException | undefined)?.code;
+  } catch {
+    errorCode = undefined;
+  }
+
+  if (errorCode === 'ENOENT') {
     return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
   }
 
