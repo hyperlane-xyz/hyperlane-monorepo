@@ -4143,7 +4143,7 @@ describe('gnosisSafe utils', () => {
       } as unknown as Parameters<typeof proposeSafeTransaction>[3];
       const safeSdkMock = {
         getTransactionHash: async () => safeTxHash,
-        signTypedData: async () => ({ data: '0xabcdef' }),
+        signTypedData: async () => ({ data: '0XABCDEF' }),
       } as unknown as Parameters<typeof proposeSafeTransaction>[1];
       const safeServiceMock = {
         proposeTransaction: async (payload: unknown) => {
@@ -4772,6 +4772,27 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe sender signature data must be a non-empty string: ',
+        );
+      }
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          {
+            getTransactionHash: async () => safeTxHash,
+            signTypedData: async () => ({ data: 'not-hex' }),
+          } as unknown as Parameters<typeof proposeSafeTransaction>[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          {
+            getAddress: async () => senderAddress,
+          } as unknown as Parameters<typeof proposeSafeTransaction>[5],
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe sender signature data must be hex: not-hex',
         );
       }
 

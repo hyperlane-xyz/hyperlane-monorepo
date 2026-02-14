@@ -1210,6 +1210,9 @@ export async function proposeSafeTransaction(
     typeof senderSignatureData === 'string' && senderSignatureData.length > 0,
     `Safe sender signature data must be a non-empty string: ${stringifyValueForError(senderSignatureData)}`,
   );
+  const normalizedSenderSignatureData = asHex(senderSignatureData, {
+    invalid: `Safe sender signature data must be hex: ${stringifyValueForError(senderSignatureData)}`,
+  });
   let senderAddress: unknown;
   try {
     senderAddress = await signer.getAddress();
@@ -1231,7 +1234,7 @@ export async function proposeSafeTransaction(
         safeTransactionData: normalizedSafeTransactionData,
         safeTxHash,
         senderAddress: normalizedSenderAddress,
-        senderSignature: senderSignatureData,
+        senderSignature: normalizedSenderSignatureData,
       }),
     );
   } catch (error) {

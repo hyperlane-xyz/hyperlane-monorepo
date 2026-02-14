@@ -40,5 +40,6 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe transaction proposal helper boundaries (Safe SDK/service/signer object shape, Safe tx hash/signature/address validation, inaccessible payload guards, and deterministic proposal failure messaging).
 - Validating Safe proposal payload transaction data shape (`to`/`data`/`value`) before service submission with deterministic invalid-payload errors.
 - Canonicalizing Safe proposal submission addresses (`safeAddress`, transaction `to`, signer address) and transaction calldata casing before service submission.
+- Validating and canonicalizing Safe proposal sender signatures as hex before service submission.
 - Hardening Safe signer resolution boundaries by validating signer-provider lookup/runtime shape, inaccessible private-key accessors, and deterministic signer-address resolution failures.
 - Requiring typed-data signer support before Safe tx deletion.
