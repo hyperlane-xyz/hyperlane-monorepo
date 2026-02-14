@@ -161,6 +161,9 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
   }
 
   if (typeof value === 'string') {
+    if (value.length > MAX_LOG_POSITION_RAW_STRING_LENGTH) {
+      return null;
+    }
     const trimmed = value.trim();
     if (!trimmed || trimmed.length > MAX_LOG_POSITION_RAW_STRING_LENGTH) {
       return null;
