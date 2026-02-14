@@ -59,6 +59,29 @@ function runScriptHelp(scriptPath: string) {
 describe('squads scripts --help smoke', function () {
   this.timeout(30_000);
 
+  it('keeps help expectation lists non-empty and deduplicated', () => {
+    for (const { scriptPath, expectedOutput } of SQUADS_SCRIPT_HELP_CASES) {
+      expect(
+        expectedOutput.length,
+        `Expected help expectation list to be non-empty: ${scriptPath}`,
+      ).to.be.greaterThan(0);
+
+      expect(
+        new Set(expectedOutput).size,
+        `Expected help expectation list to be deduplicated: ${scriptPath}`,
+      ).to.equal(expectedOutput.length);
+
+      expect(
+        expectedOutput.includes('--help'),
+        `Expected help expectation list to include --help: ${scriptPath}`,
+      ).to.equal(true);
+      expect(
+        expectedOutput.includes('--version'),
+        `Expected help expectation list to include --version: ${scriptPath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps help smoke cases synchronized with squads scripts directory', () => {
     const configuredScriptPaths = SQUADS_SCRIPT_HELP_CASES.map(
       ({ scriptPath }) => scriptPath,
