@@ -85,6 +85,10 @@ function getUrlScheme(value: string): string | undefined {
   return schemeMatch?.[1]?.toLowerCase();
 }
 
+function isSlashPrefixedRelativePath(value: string): boolean {
+  return value.startsWith('/') && !value.startsWith('//');
+}
+
 function parseHttpUrl(value: string): URL | undefined {
   try {
     const parsed = new URL(value);
@@ -206,7 +210,7 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const trimmedUrl = txServiceUrl.trim();
-  if (trimmedUrl.startsWith('/') && !trimmedUrl.startsWith('//')) {
+  if (isSlashPrefixedRelativePath(trimmedUrl)) {
     return false;
   }
 
@@ -255,7 +259,7 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
-  if (trimmedUrl.startsWith('/') && !trimmedUrl.startsWith('//')) {
+  if (isSlashPrefixedRelativePath(trimmedUrl)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);
