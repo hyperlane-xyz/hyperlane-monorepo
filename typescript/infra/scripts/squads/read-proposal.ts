@@ -2,7 +2,9 @@ import chalk from 'chalk';
 import yargs, { Argv } from 'yargs';
 
 import {
+  SquadTxStatus,
   SquadsProposalStatus,
+  getSquadTxStatus,
   getSquadProposal,
   getSquadsKeys,
 } from '@hyperlane-xyz/sdk';
@@ -101,23 +103,31 @@ async function main() {
 
     const status = proposal.status.__kind;
     const approvals = proposal.approved.length;
+    const derivedStatus = getSquadTxStatus(
+      status,
+      approvals,
+      threshold,
+      transactionIndex,
+      staleTransactionIndex,
+    );
 
-    if (status === SquadsProposalStatus.Active && approvals >= threshold) {
+    rootLogger.info(chalk.white(`  Derived Status: ${derivedStatus}`));
+
+    if (derivedStatus === SquadTxStatus.APPROVED) {
       rootLogger.info(
         chalk.green(
           `  Status: Ready to execute (${approvals}/${threshold} approvals)`,
         ),
       );
-    } else if (status === SquadsProposalStatus.Active) {
-      if (transactionIndex < staleTransactionIndex) {
-        rootLogger.info(chalk.red(`  Status: Stale`));
-      } else {
-        rootLogger.info(
-          chalk.yellow(
-            `  Status: Pending (${approvals}/${threshold} approvals)`,
-          ),
-        );
-      }
+    } else if (
+      derivedStatus === SquadTxStatus.ACTIVE ||
+      derivedStatus === SquadTxStatus.ONE_AWAY
+    ) {
+      rootLogger.info(
+        chalk.yellow(`  Status: Pending (${approvals}/${threshold} approvals)`),
+      );
+    } else if (derivedStatus === SquadTxStatus.STALE) {
+      rootLogger.info(chalk.red(`  Status: Stale`));
     } else {
       rootLogger.info(chalk.blue(`  Status: ${status}`));
     }
