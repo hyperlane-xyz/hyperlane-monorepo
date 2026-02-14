@@ -148,10 +148,23 @@ type SolanaWeb3Provider = ReturnType<
   MultiProtocolProvider['getSolanaWeb3Provider']
 >;
 
+function normalizeStringifiedError(formattedError: string): string | undefined {
+  const trimmedFormattedError = formattedError.trim();
+  if (
+    trimmedFormattedError.length === 0 ||
+    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+  ) {
+    return undefined;
+  }
+
+  return formattedError;
+}
+
 function stringifyUnknownError(error: unknown): string {
   if (error instanceof Error) {
     try {
-      return String(error);
+      const normalizedError = normalizeStringifiedError(String(error));
+      return normalizedError ?? '[unstringifiable error]';
     } catch {
       return '[unstringifiable error]';
     }
@@ -178,15 +191,8 @@ function stringifyUnknownError(error: unknown): string {
   }
 
   try {
-    const formattedError = String(error);
-    const trimmedFormattedError = formattedError.trim();
-    if (
-      trimmedFormattedError.length === 0 ||
-      GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
-    ) {
-      return '[unstringifiable error]';
-    }
-    return formattedError;
+    const normalizedError = normalizeStringifiedError(String(error));
+    return normalizedError ?? '[unstringifiable error]';
   } catch {
     return '[unstringifiable error]';
   }
