@@ -292,6 +292,9 @@ describe('gnosisSafe utils', () => {
       expect(() => normalizeSafeServiceUrl('/tx-service/eth')).to.throw(
         'Safe tx service URL is invalid: /tx-service/eth',
       );
+      expect(() =>
+        normalizeSafeServiceUrl('  /tx-service/eth?foo=bar  '),
+      ).to.throw('Safe tx service URL is invalid: /tx-service/eth?foo=bar');
       expect(() => normalizeSafeServiceUrl('not a url')).to.throw(
         'Safe tx service URL is invalid: not a url',
       );
