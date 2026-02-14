@@ -869,6 +869,36 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when result entry length is less than required tuple size', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc'] as unknown as [string, any]],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result entry at index 0 must include exactly key and transaction',
+    );
+  });
+
+  it('throws when result entry length is greater than required tuple size', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [
+          [
+            'chainA-1-0xabc',
+            { status: 'ok' } as unknown as any,
+            'extra',
+          ] as unknown as [string, any],
+        ],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result entry at index 0 must include exactly key and transaction',
+    );
+  });
+
   it('throws when result entry key is invalid', () => {
     expect(() =>
       processGovernorReaderResult(

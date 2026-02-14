@@ -168,9 +168,9 @@ export function processGovernorReaderResult(
           : `Governor reader result entry length at index ${index} is invalid`,
       );
     }
-    if (entryLength < 2) {
+    if (entryLength !== 2) {
       throw new Error(
-        `Governor reader result entry at index ${index} must include key and transaction`,
+        `Governor reader result entry at index ${index} must include exactly key and transaction`,
       );
     }
     let resultKey: unknown;
