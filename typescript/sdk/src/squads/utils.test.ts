@@ -356,6 +356,19 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from transactionLogMessages fields', () => {
+      const error = {
+        response: {
+          data: {
+            transactionLogMessages: ['Program log: AlreadyApproved'],
+          },
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from nested cause transaction logs', () => {
       const error = {
         cause: {
