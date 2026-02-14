@@ -71,6 +71,11 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired('https://example.com/path/safe.global/api'),
       ).to.equal(false);
+      expect(
+        safeApiKeyRequired(
+          '//example.com/path/safe.global/api?host=safe.global',
+        ),
+      ).to.equal(false);
     });
 
     it('supports host-only service URLs without protocol', () => {
