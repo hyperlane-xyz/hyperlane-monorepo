@@ -116,21 +116,46 @@ function cacheKey(chain: ChainName, address: Address): string {
   return `${chain}:${normalizeEvmAddressFlexible(address)}`;
 }
 
+function normalizeLogPositionIndex(value: unknown): number {
+  if (typeof value === 'number') {
+    return Number.isFinite(value) ? Math.trunc(value) : -1;
+  }
+  if (typeof value === 'bigint') {
+    if (value < 0n) {
+      return -1;
+    }
+    const max = BigInt(Number.MAX_SAFE_INTEGER);
+    return Number(value > max ? max : value);
+  }
+  if (typeof value === 'string') {
+    const numeric = Number(value);
+    return Number.isFinite(numeric) ? Math.trunc(numeric) : -1;
+  }
+  return -1;
+}
+
 function compareLogsByPosition(
-  a: { blockNumber?: number; transactionIndex?: number; logIndex?: number },
-  b: { blockNumber?: number; transactionIndex?: number; logIndex?: number },
+  a: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
+  b: { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
 ): number {
-  const blockDiff = (a.blockNumber ?? -1) - (b.blockNumber ?? -1);
+  const blockDiff =
+    normalizeLogPositionIndex(a.blockNumber) -
+    normalizeLogPositionIndex(b.blockNumber);
   if (blockDiff !== 0) {
     return blockDiff;
   }
 
-  const txIndexDiff = (a.transactionIndex ?? -1) - (b.transactionIndex ?? -1);
+  const txIndexDiff =
+    normalizeLogPositionIndex(a.transactionIndex) -
+    normalizeLogPositionIndex(b.transactionIndex);
   if (txIndexDiff !== 0) {
     return txIndexDiff;
   }
 
-  return (a.logIndex ?? -1) - (b.logIndex ?? -1);
+  return (
+    normalizeLogPositionIndex(a.logIndex) -
+    normalizeLogPositionIndex(b.logIndex)
+  );
 }
 
 async function hasSignerForChain(
