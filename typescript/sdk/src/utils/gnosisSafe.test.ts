@@ -1176,6 +1176,21 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('rejects non-ascii authorities', () => {
+      const unicodeDotAuthorities = [
+        'safe。global',
+        'safe．global',
+        'safe｡global',
+        'safe-transaction-mainnet。5afe.dev',
+      ];
+
+      for (const authority of unicodeDotAuthorities) {
+        expect(safeApiKeyRequired(`https://${authority}/api`)).to.equal(false);
+        expect(safeApiKeyRequired(`//${authority}/api`)).to.equal(false);
+        expect(safeApiKeyRequired(authority)).to.equal(false);
+      }
+    });
+
     it('accepts percent-encoded data outside the authority', () => {
       expect(
         safeApiKeyRequired('https://safe.global/path%2Esegment/api'),
@@ -2758,6 +2773,30 @@ describe('gnosisSafe utils', () => {
             `Safe tx service URL is invalid: ${hostOnlyPortUrl}`,
           );
         }
+      }
+    });
+
+    it('throws when authority contains non-ascii host characters', () => {
+      const unicodeDotAuthorities = [
+        'safe。global',
+        'safe．global',
+        'safe｡global',
+        'safe-transaction-mainnet。5afe.dev',
+      ];
+
+      for (const authority of unicodeDotAuthorities) {
+        const explicitUrl = `https://${authority}/api`;
+        const schemeRelativeUrl = `//${authority}/api`;
+
+        expect(() => normalizeSafeServiceUrl(explicitUrl)).to.throw(
+          `Safe tx service URL is invalid: ${explicitUrl}`,
+        );
+        expect(() => normalizeSafeServiceUrl(schemeRelativeUrl)).to.throw(
+          `Safe tx service URL is invalid: ${schemeRelativeUrl}`,
+        );
+        expect(() => normalizeSafeServiceUrl(authority)).to.throw(
+          `Safe tx service URL is invalid: ${authority}`,
+        );
       }
     });
 

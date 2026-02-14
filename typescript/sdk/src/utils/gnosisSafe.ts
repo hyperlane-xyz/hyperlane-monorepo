@@ -159,13 +159,29 @@ function hasPercentEncodedAuthority(value: string): boolean {
   return hostlessAuthority !== undefined && hostlessAuthority.includes('%');
 }
 
+function hasNonAsciiAuthority(value: string): boolean {
+  const explicitAuthority = extractExplicitAuthority(value);
+  if (
+    explicitAuthority !== undefined &&
+    /[^\x00-\x7F]/.test(explicitAuthority)
+  ) {
+    return true;
+  }
+
+  const hostlessAuthority = extractHostlessAuthority(value);
+  return (
+    hostlessAuthority !== undefined && /[^\x00-\x7F]/.test(hostlessAuthority)
+  );
+}
+
 function hasInvalidSafeServiceUrlInput(value: string): boolean {
   return (
     hasRawBackslash(value) ||
     hasMalformedHttpSchemeDelimiter(value) ||
     hasExplicitUserinfoLikeAuthority(value) ||
     hasInvalidHostlessSafeServiceUrl(value) ||
-    hasPercentEncodedAuthority(value)
+    hasPercentEncodedAuthority(value) ||
+    hasNonAsciiAuthority(value)
   );
 }
 
