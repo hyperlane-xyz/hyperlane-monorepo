@@ -29,6 +29,16 @@ const buildCoercibleSpoofedBoxedString = (value: string) => ({
     return value;
   },
 });
+const buildRealBoxedStringWithThrowingToStringTag = (value: string) => {
+  const boxed = new String(value);
+  Object.defineProperty(boxed, Symbol.toStringTag, {
+    configurable: true,
+    get() {
+      throw new Error('blocked toStringTag');
+    },
+  });
+  return boxed;
+};
 
 describe('Anvil utils', () => {
   describe('isContainerRuntimeUnavailable', () => {
@@ -660,6 +670,26 @@ describe('Anvil utils', () => {
     it('ignores non-runtime boxed-string throw values', () => {
       expect(
         isContainerRuntimeUnavailable(new String('unrelated nested warning')),
+      ).to.equal(false);
+    });
+
+    it('matches runtime boxed-string throw values when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          buildRealBoxedStringWithThrowingToStringTag(
+            'No Docker client strategy found',
+          ),
+        ),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string throw values when toStringTag accessor throws', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          buildRealBoxedStringWithThrowingToStringTag(
+            'unrelated nested warning',
+          ),
+        ),
       ).to.equal(false);
     });
 
@@ -2266,6 +2296,17 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('treats boxed-string code values with throwing toStringTag as ENOENT', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: buildRealBoxedStringWithThrowingToStringTag('  EnOeNt  '),
+          message: 'spawn failed',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
+
     it('treats cross-realm boxed-string code values as ENOENT', () => {
       expect(
         formatLocalAnvilStartError({
@@ -2306,6 +2347,16 @@ describe('Anvil utils', () => {
       expect(
         formatLocalAnvilStartError({
           message: new String('  custom object failure  '),
+        }),
+      ).to.equal('Failed to start local anvil: custom object failure');
+    });
+
+    it('uses boxed-string message fields with throwing toStringTag from non-Error objects', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: buildRealBoxedStringWithThrowingToStringTag(
+            '  custom object failure  ',
+          ),
         }),
       ).to.equal('Failed to start local anvil: custom object failure');
     });

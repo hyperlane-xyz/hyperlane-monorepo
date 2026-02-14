@@ -59,21 +59,13 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
   }
 };
 
-const isBoxedString = (value: unknown): boolean => {
-  if (typeof value !== 'object' || value === null) return false;
-  try {
-    return Object.prototype.toString.call(value) === '[object String]';
-  } catch {
-    return false;
-  }
-};
-
 const normalizeStringValue = (value: unknown): string | undefined => {
   if (typeof value === 'string') return value;
-  if (!isBoxedString(value)) return undefined;
+  if (typeof value !== 'object' || value === null) return undefined;
 
   try {
-    return String.prototype.valueOf.call(value);
+    const boxedValue = String.prototype.valueOf.call(value);
+    return typeof boxedValue === 'string' ? boxedValue : undefined;
   } catch {
     return undefined;
   }
