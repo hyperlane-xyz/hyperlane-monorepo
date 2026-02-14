@@ -170,7 +170,7 @@ export async function getSquadProposal(
 }
 
 export async function getPendingProposalsForChains(
-  chains: string[],
+  chains: readonly string[],
   mpp: MultiProtocolProvider,
 ): Promise<SquadProposalStatus[]> {
   const proposals: SquadProposalStatus[] = [];
