@@ -329,4 +329,81 @@ describe('hyperlane submit', function () {
       expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
   });
+
+  describe('explicit submitterOverrides', function () {
+    it('should route same-chain transactions to override submitter by target', async function () {
+      const signerAddress = await xerc20Chain2.owner();
+
+      const mockSafe = await new MockSafe__factory()
+        .connect(xerc20Chain2.signer)
+        .deploy([signerAddress], 1);
+      const safeAddress = mockSafe.address;
+
+      const safeOwnedToken = await deployXERC20VSToken(
+        ANVIL_KEY,
+        CHAIN_NAME_2,
+        9,
+        'TOKEN.OVERRIDE',
+      );
+      await safeOwnedToken.transferOwnership(safeAddress);
+
+      const strategyPath = `${TEMP_PATH}/submitter-overrides-strategy.yaml`;
+      const strategyConfig = {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN_NAME_2,
+          },
+          submitterOverrides: {
+            [safeOwnedToken.address]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: CHAIN_NAME_2,
+              safeAddress,
+              version: '1.0',
+            },
+          },
+        },
+      };
+      writeYamlOrJson(strategyPath, strategyConfig);
+
+      const mintAmountDirect = randomInt(1, 1000);
+      const mintAmountSafe = randomInt(1, 1000);
+      const [txDirect, txSafeOwned] = await Promise.all([
+        getMintOnlyOwnerTransaction(
+          xerc20Chain2,
+          ALICE,
+          mintAmountDirect,
+          ANVIL2_CHAIN_ID,
+        ),
+        getMintOnlyOwnerTransaction(
+          safeOwnedToken,
+          BOB,
+          mintAmountSafe,
+          ANVIL2_CHAIN_ID,
+        ),
+      ]);
+
+      const transactionsPath = `${TEMP_PATH}/submitter-overrides-transactions.yaml`;
+      writeYamlOrJson(transactionsPath, [txDirect, txSafeOwned]);
+
+      const [initialAlice, initialBob] = await Promise.all([
+        xerc20Chain2.balanceOf(ALICE),
+        safeOwnedToken.balanceOf(BOB),
+      ]);
+
+      const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
+      const output = result.text();
+      expect(output).to.match(/-jsonRpc-\d+-receipts\.json/);
+      expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+
+      const [finalAlice, finalBob] = await Promise.all([
+        xerc20Chain2.balanceOf(ALICE),
+        safeOwnedToken.balanceOf(BOB),
+      ]);
+
+      expect(finalAlice).to.eql(initialAlice.add(mintAmountDirect));
+      // The Safe tx builder output is not executed onchain in this flow.
+      expect(finalBob).to.eql(initialBob);
+    });
+  });
 });
