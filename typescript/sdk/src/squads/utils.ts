@@ -382,8 +382,17 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  const { multisigPda, programId } = getSquadsKeys(chain);
+  const { multisigPda } = getSquadsKeys(chain);
   assertValidTransactionIndexInput(transactionIndex, chain);
+
+  const proposalData = await getSquadProposalAccount(
+    chain,
+    mpp,
+    transactionIndex,
+  );
+  if (!proposalData) {
+    return undefined;
+  }
 
   try {
     const svmProvider = mpp.getSolanaWeb3Provider(chain);
@@ -393,6 +402,33 @@ export async function getSquadProposal(
       squadsProvider,
       multisigPda,
     );
+
+    return { ...proposalData, multisig };
+  } catch (error) {
+    rootLogger.warn(
+      `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,
+    );
+    return undefined;
+  }
+}
+
+export async function getSquadProposalAccount(
+  chain: ChainName,
+  mpp: MultiProtocolProvider,
+  transactionIndex: number,
+): Promise<
+  | {
+      proposal: accounts.Proposal;
+      proposalPda: PublicKey;
+    }
+  | undefined
+> {
+  const { multisigPda, programId } = getSquadsKeys(chain);
+  assertValidTransactionIndexInput(transactionIndex, chain);
+
+  try {
+    const svmProvider = mpp.getSolanaWeb3Provider(chain);
+    const squadsProvider = toSquadsProvider(svmProvider);
 
     const [proposalPda] = getProposalPda({
       multisigPda,
@@ -405,7 +441,7 @@ export async function getSquadProposal(
       proposalPda,
     );
 
-    return { proposal, multisig, proposalPda };
+    return { proposal, proposalPda };
   } catch (error) {
     rootLogger.warn(
       `Failed to fetch proposal ${transactionIndex} on ${chain}: ${error}`,

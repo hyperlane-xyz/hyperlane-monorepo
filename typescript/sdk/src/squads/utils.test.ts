@@ -13,6 +13,7 @@ import {
   assertValidTransactionIndexInput,
   getSquadAndProvider,
   getMinimumProposalIndexToCheck,
+  getSquadProposalAccount,
   getSquadProposal,
   getSquadTxStatus,
   getTransactionType,
@@ -2190,6 +2191,61 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Expected transaction index to be a non-negative safe integer for solanamainnet, got Infinity',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+  });
+
+  describe(getSquadProposalAccount.name, () => {
+    it('allows zero transaction index and still attempts provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 0);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('fails fast for unsupported chains before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposalAccount('unsupported-chain', mpp, 1),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for invalid transaction index before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposalAccount('solanamainnet', mpp, Number.NaN),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected transaction index to be a non-negative safe integer for solanamainnet, got NaN',
       );
       expect(providerLookupCalled).to.equal(false);
     });

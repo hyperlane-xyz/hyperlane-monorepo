@@ -49,7 +49,7 @@ import {
   SquadsInstructionType,
   decodePermissions,
   getSquadAndProvider,
-  getSquadProposal,
+  getSquadProposalAccount,
   isConfigTransaction,
   isVaultTransaction,
   parseSquadProposalTransactionIndex,
@@ -672,7 +672,7 @@ export class SquadsTransactionReader {
     multisigPda: PublicKey;
     programId: PublicKey;
   }> {
-    const proposalData = await getSquadProposal(
+    const proposalData = await getSquadProposalAccount(
       chain,
       this.mpp,
       transactionIndex,
