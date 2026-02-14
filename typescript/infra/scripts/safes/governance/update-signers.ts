@@ -2,6 +2,7 @@ import yargs from 'yargs';
 
 import {
   ChainName,
+  SafeAndService,
   getOwnerChanges,
   getSafeAndService,
   updateSafeOwner,
@@ -47,7 +48,7 @@ async function main() {
       continue;
     }
 
-    let safeSdk: Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
+    let safeSdk: SafeAndService['safeSdk'];
     try {
       ({ safeSdk } = await getSafeAndService(
         chain,

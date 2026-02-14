@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import {
   ChainName,
   MultiProvider,
+  SafeAndService,
   createSafeTransaction,
   createSafeTransactionData,
   getSafeAndService,
@@ -15,8 +16,8 @@ import {
   eqAddress,
 } from '@hyperlane-xyz/utils';
 
-type SafeSdk = Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
-type SafeService = Awaited<ReturnType<typeof getSafeAndService>>['safeService'];
+type SafeSdk = SafeAndService['safeSdk'];
+type SafeService = SafeAndService['safeService'];
 type SafeTx = Awaited<ReturnType<typeof createSafeTransaction>>;
 
 export abstract class MultiSend {

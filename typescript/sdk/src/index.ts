@@ -870,6 +870,7 @@ export {
   retrySafeApi,
   resolveSafeSigner,
   SafeCallData,
+  SafeAndService,
   SafeDeploymentConfig,
   SafeOwnerUpdateCall,
   SafeServiceTransaction,

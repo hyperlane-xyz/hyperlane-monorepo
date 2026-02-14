@@ -1,6 +1,10 @@
 import yargs from 'yargs';
 
-import { getOwnerChanges, getSafeAndService } from '@hyperlane-xyz/sdk';
+import {
+  SafeAndService,
+  getOwnerChanges,
+  getSafeAndService,
+} from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../../config/contexts.js';
@@ -46,7 +50,7 @@ async function main() {
 
   const chainViolations = await Promise.all(
     Object.entries(safes).map(async ([chain, safeAddress]) => {
-      let safeSdk: Awaited<ReturnType<typeof getSafeAndService>>['safeSdk'];
+      let safeSdk: SafeAndService['safeSdk'];
       try {
         ({ safeSdk } = await getSafeAndService(
           chain,

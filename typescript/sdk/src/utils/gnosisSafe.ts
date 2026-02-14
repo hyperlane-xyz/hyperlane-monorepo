@@ -89,6 +89,11 @@ export type SafeServiceTransaction = {
   [key: string]: unknown;
 };
 
+export type SafeAndService = {
+  safeSdk: Safe.default;
+  safeService: SafeApiKit.default;
+};
+
 type SafeServicePendingTransactionsResponse = {
   results: Array<{
     safeTxHash: string;
@@ -446,7 +451,7 @@ export async function getSafeAndService(
   multiProvider: MultiProvider,
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
-) {
+): Promise<SafeAndService> {
   let safeService: SafeApiKit.default;
   try {
     safeService = getSafeService(chain, multiProvider);
