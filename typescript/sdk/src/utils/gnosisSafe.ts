@@ -1422,9 +1422,14 @@ export async function getPendingTxsForChains(
 
 export function parseSafeTx(tx: AnnotatedEV5Transaction) {
   assert(tx.data, 'Safe transaction data is required');
-  const normalizedData = tx.data.startsWith('0X')
-    ? `0x${tx.data.slice(2)}`
-    : tx.data;
+  const trimmedData = tx.data.trim();
+  assert(trimmedData.length > 0, 'Safe transaction data is required');
+  const canonicalPrefixData = trimmedData.startsWith('0X')
+    ? `0x${trimmedData.slice(2)}`
+    : trimmedData;
+  const normalizedData = canonicalPrefixData.startsWith('0x')
+    ? canonicalPrefixData
+    : `0x${canonicalPrefixData}`;
   assert(isHex(normalizedData), 'Safe transaction data must be hex');
   assert(
     normalizedData.length >= 10,

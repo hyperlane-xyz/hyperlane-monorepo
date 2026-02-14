@@ -3604,6 +3604,16 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data is required');
     });
 
+    it('throws when transaction data is only whitespace', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: '   ',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data is required');
+    });
+
     it('throws when transaction data is not hex', () => {
       expect(() =>
         parseSafeTx({
@@ -3630,6 +3640,32 @@ describe('gnosisSafe utils', () => {
       const decoded = parseSafeTx({
         to: '0x1234567890123456789012345678901234567890',
         data: `0X${data.slice(2)}`,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+    });
+
+    it('accepts transaction data without 0x prefix', () => {
+      const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data: data.slice(2),
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('changeThreshold');
+      expect(decoded.args._threshold.toNumber()).to.equal(2);
+    });
+
+    it('accepts transaction data with surrounding whitespace', () => {
+      const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data: `  ${data}  `,
         value: BigNumber.from(0),
       });
 
