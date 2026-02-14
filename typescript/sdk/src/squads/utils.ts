@@ -16,7 +16,7 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
 import { ChainName } from '../types.js';
 
-import { getSquadsKeys, isSquadsChain } from './config.js';
+import { assertIsSquadsChain, getSquadsKeys, isSquadsChain } from './config.js';
 import { toSquadsProvider } from './provider.js';
 
 /**
@@ -82,6 +82,8 @@ export async function getSquadProposal(
     }
   | undefined
 > {
+  assertIsSquadsChain(chain);
+
   try {
     const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
       chain,

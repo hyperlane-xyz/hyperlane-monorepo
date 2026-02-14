@@ -12,6 +12,7 @@ import {
   isVaultTransaction,
 } from './utils.js';
 import {
+  assertIsSquadsChain,
   getSquadsChains,
   getSquadsKeys,
   isSquadsChain,
@@ -116,6 +117,13 @@ describe('squads utils', () => {
   it('detects whether a chain has squads config', () => {
     expect(isSquadsChain('solanamainnet')).to.equal(true);
     expect(isSquadsChain('not-a-squads-chain')).to.equal(false);
+  });
+
+  it('asserts whether a chain has squads config', () => {
+    expect(() => assertIsSquadsChain('solanamainnet')).to.not.throw();
+    expect(() => assertIsSquadsChain('not-a-squads-chain')).to.throw(
+      'Squads config not found on chain not-a-squads-chain',
+    );
   });
 
   it('exports canonical proposal statuses', () => {

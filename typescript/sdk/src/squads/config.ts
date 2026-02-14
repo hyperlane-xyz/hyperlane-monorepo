@@ -48,11 +48,19 @@ export function isSquadsChain(chainName: string): chainName is ChainName {
   return chainName in squadsConfigs;
 }
 
+export function assertIsSquadsChain(
+  chainName: string,
+): asserts chainName is ChainName {
+  if (isSquadsChain(chainName)) return;
+
+  throw new Error(
+    `Squads config not found on chain ${chainName}. Available Squads chains: ${getSquadsChains().join(', ')}`,
+  );
+}
+
 export function getSquadsKeys(chainName: ChainName): SquadsKeys {
+  assertIsSquadsChain(chainName);
   const config = squadsConfigs[chainName];
-  if (!config) {
-    throw new Error(`Squads config not found on chain ${chainName}`);
-  }
 
   return {
     multisigPda: new PublicKey(config.multisigPda),
