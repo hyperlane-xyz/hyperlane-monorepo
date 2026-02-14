@@ -4,6 +4,7 @@ import { encodeFunctionData, getAddress, parseAbi } from 'viem';
 
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
+  asHex,
   createSafeTransactionData,
   decodeMultiSendData,
   getKnownMultiSendAddresses,
@@ -3519,6 +3520,21 @@ describe('gnosisSafe utils', () => {
     });
   });
 
+  describe(asHex.name, () => {
+    it('returns prefixed hex values unchanged', () => {
+      expect(asHex('0x1234')).to.equal('0x1234');
+    });
+
+    it('prefixes unprefixed hex values', () => {
+      expect(asHex('1234')).to.equal('0x1234');
+    });
+
+    it('throws when hex value is missing', () => {
+      expect(() => asHex()).to.throw('Hex value is required');
+      expect(() => asHex('')).to.throw('Hex value is required');
+    });
+  });
+
   describe(decodeMultiSendData.name, () => {
     function encodeMultiSendTx(params: {
       operation: number;
@@ -3636,6 +3652,10 @@ describe('gnosisSafe utils', () => {
       });
 
       expect(() => decodeMultiSendData(nonMultiSendData)).to.throw();
+    });
+
+    it('throws when calldata is empty', () => {
+      expect(() => decodeMultiSendData('')).to.throw('Hex value is required');
     });
 
     it('throws when an inner multisend tx payload is truncated', () => {

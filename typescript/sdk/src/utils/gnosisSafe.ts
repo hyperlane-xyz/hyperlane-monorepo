@@ -1428,6 +1428,7 @@ export function parseSafeTx(tx: AnnotatedEV5Transaction) {
 }
 
 export function asHex(hex?: string): Hex {
+  assert(hex, 'Hex value is required');
   return isHex(hex) ? (hex as Hex) : (`0x${hex}` as Hex);
 }
 
