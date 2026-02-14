@@ -782,6 +782,15 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('prefers stack on non-Error object values when present', () => {
+    expect(
+      formatScriptError({
+        stack: 'Error: rpc failed\n at sample.ts:1:1',
+        message: 'rpc failed',
+      }),
+    ).to.equal('Error: rpc failed\n at sample.ts:1:1');
+  });
+
   it('uses message when non-Error object stringification fails', () => {
     const messageBackedUnformattableObject = {
       message: 'rpc failed',
