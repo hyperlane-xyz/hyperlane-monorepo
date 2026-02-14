@@ -3,12 +3,14 @@ import { expect } from 'chai';
 import {
   SquadTxStatus,
   SquadsAccountType,
+  SquadsProposalVoteError,
   SquadsPermission,
   SquadsProposalStatus,
   SQUADS_ACCOUNT_DISCRIMINATORS,
   decodePermissions,
   getSquadTxStatus,
   isConfigTransaction,
+  parseSquadsProposalVoteError,
   isVaultTransaction,
 } from './utils.js';
 import {
@@ -56,6 +58,26 @@ describe('squads utils', () => {
 
     it('returns none for empty mask', () => {
       expect(decodePermissions(0)).to.equal('None');
+    });
+  });
+
+  describe(parseSquadsProposalVoteError.name, () => {
+    it('parses AlreadyRejected from named error', () => {
+      expect(
+        parseSquadsProposalVoteError(['Program log: AlreadyRejected']),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
+
+    it('parses AlreadyApproved from hex error code', () => {
+      expect(
+        parseSquadsProposalVoteError(['custom program error: 0x177a']),
+      ).to.equal(SquadsProposalVoteError.AlreadyApproved);
+    });
+
+    it('returns undefined for unrelated logs', () => {
+      expect(parseSquadsProposalVoteError(['some unrelated log'])).to.equal(
+        undefined,
+      );
     });
   });
 

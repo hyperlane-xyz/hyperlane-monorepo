@@ -3,12 +3,14 @@ import chalk from 'chalk';
 import yargs from 'yargs';
 
 import {
+  SquadsProposalVoteError,
   SquadsProposalStatus,
   SvmMultiProtocolSignerAdapter,
   buildSquadsProposalCancellation,
   buildSquadsProposalRejection,
   getSquadsChains,
   getSquadProposal,
+  parseSquadsProposalVoteError,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
@@ -178,39 +180,31 @@ async function main() {
     const explorerUrl = mpp.getExplorerTxUrl(chain, { hash: signature });
     rootLogger.info(chalk.gray(`Transaction: ${explorerUrl}`));
   } catch (error: unknown) {
-    // Check for specific Squads error codes from squads-v4/programs/squads_multisig_program/src/errors.rs
     const transactionLogs = getTransactionLogs(error);
     if (transactionLogs) {
-      const logs = transactionLogs.join('\n');
-
-      // Error 6011 (0x177b): AlreadyRejected
-      if (logs.includes('AlreadyRejected') || logs.includes('0x177b')) {
-        rootLogger.warn(
-          chalk.yellow(
-            `Member has already rejected proposal ${transactionIndex}.`,
-          ),
-        );
-        return;
-      }
-
-      // Error 6010 (0x177a): AlreadyApproved
-      if (logs.includes('AlreadyApproved') || logs.includes('0x177a')) {
-        rootLogger.warn(
-          chalk.yellow(
-            `Member has already approved proposal ${transactionIndex}.`,
-          ),
-        );
-        return;
-      }
-
-      // Error 6012 (0x177c): AlreadyCancelled
-      if (logs.includes('AlreadyCancelled') || logs.includes('0x177c')) {
-        rootLogger.warn(
-          chalk.yellow(
-            `Proposal ${transactionIndex} has already been cancelled.`,
-          ),
-        );
-        return;
+      const parsedError = parseSquadsProposalVoteError(transactionLogs);
+      switch (parsedError) {
+        case SquadsProposalVoteError.AlreadyRejected:
+          rootLogger.warn(
+            chalk.yellow(
+              `Member has already rejected proposal ${transactionIndex}.`,
+            ),
+          );
+          return;
+        case SquadsProposalVoteError.AlreadyApproved:
+          rootLogger.warn(
+            chalk.yellow(
+              `Member has already approved proposal ${transactionIndex}.`,
+            ),
+          );
+          return;
+        case SquadsProposalVoteError.AlreadyCancelled:
+          rootLogger.warn(
+            chalk.yellow(
+              `Proposal ${transactionIndex} has already been cancelled.`,
+            ),
+          );
+          return;
       }
     }
 

@@ -64,6 +64,39 @@ export enum SquadTxStatus {
   STALE = '💩',
 }
 
+export enum SquadsProposalVoteError {
+  AlreadyRejected = 'alreadyRejected',
+  AlreadyApproved = 'alreadyApproved',
+  AlreadyCancelled = 'alreadyCancelled',
+}
+
+/**
+ * Parse known Squads proposal vote/cancel errors from transaction logs.
+ * Matches both named errors and their hex error codes.
+ */
+export function parseSquadsProposalVoteError(
+  transactionLogs: string[],
+): SquadsProposalVoteError | undefined {
+  const logs = transactionLogs.join('\n');
+
+  // Error 6011 (0x177b): AlreadyRejected
+  if (logs.includes('AlreadyRejected') || logs.includes('0x177b')) {
+    return SquadsProposalVoteError.AlreadyRejected;
+  }
+
+  // Error 6010 (0x177a): AlreadyApproved
+  if (logs.includes('AlreadyApproved') || logs.includes('0x177a')) {
+    return SquadsProposalVoteError.AlreadyApproved;
+  }
+
+  // Error 6012 (0x177c): AlreadyCancelled
+  if (logs.includes('AlreadyCancelled') || logs.includes('0x177c')) {
+    return SquadsProposalVoteError.AlreadyCancelled;
+  }
+
+  return undefined;
+}
+
 export async function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
