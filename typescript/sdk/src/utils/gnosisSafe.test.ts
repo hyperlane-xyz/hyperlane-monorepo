@@ -91,6 +91,9 @@ describe('gnosisSafe utils', () => {
           '//safe-transaction-mainnet.safe.global/api?foo=bar#fragment',
         ),
       ).to.equal(true);
+      expect(
+        safeApiKeyRequired('https://safe-transaction-mainnet.safe.global:8443'),
+      ).to.equal(true);
     });
 
     it('requires safe domains to match on label boundaries', () => {
