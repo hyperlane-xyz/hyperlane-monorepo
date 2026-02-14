@@ -5396,6 +5396,238 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('ignores raw-length-boundary minus-prefixed ICA event positions during ordering', async () => {
+    const inferredIcaOwner = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const destinationRouterAddress =
+      '0xbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbcbc';
+    const originRouterAddress = '0xbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbdbd';
+    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
+      2,
+    )}` as const;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const validLog = {
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: '1020',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedRawBoundaryLog = {
+      topics: ['0xmalformed-raw-boundary-minus'],
+      data: '0x',
+      blockNumber: `-${'0'.repeat(4095)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const provider = {
+      getLogs: sinon.stub().resolves([validLog, malformedRawBoundaryLog]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== destinationRouterAddress.toLowerCase()) {
+          throw new Error('unexpected router');
+        }
+
+        return {
+          filters: {
+            InterchainAccountCreated: (_accountAddress: string) => ({}),
+          },
+          interface: {
+            parseLog: (log: any) => {
+              if (log === validLog) {
+                return {
+                  args: {
+                    origin: 31347,
+                    router: originRouterBytes32,
+                    owner: signerBytes32,
+                    ism: ethersConstants.AddressZero,
+                  },
+                };
+              }
+              return {
+                args: {
+                  origin: 999999,
+                  router: originRouterBytes32,
+                  owner: signerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              };
+            },
+          },
+        } as any;
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) {
+            return 'anvil3';
+          }
+          throw new Error(`unknown domain ${domainId}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('ignores raw-length-plus-one minus-prefixed ICA event positions during ordering', async () => {
+    const inferredIcaOwner = '0xbebebebebebebebebebebebebebebebebebebebe';
+    const destinationRouterAddress =
+      '0xbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbfbf';
+    const originRouterAddress = '0xc0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0c0';
+    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
+      2,
+    )}` as const;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const validLog = {
+      topics: ['0xvalid'],
+      data: '0x',
+      blockNumber: '1021',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const malformedRawPlusOneLog = {
+      topics: ['0xmalformed-raw-plus-one-minus'],
+      data: '0x',
+      blockNumber: `-${'0'.repeat(4096)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const provider = {
+      getLogs: sinon.stub().resolves([validLog, malformedRawPlusOneLog]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() !== destinationRouterAddress.toLowerCase()) {
+          throw new Error('unexpected router');
+        }
+
+        return {
+          filters: {
+            InterchainAccountCreated: (_accountAddress: string) => ({}),
+          },
+          interface: {
+            parseLog: (log: any) => {
+              if (log === validLog) {
+                return {
+                  args: {
+                    origin: 31347,
+                    router: originRouterBytes32,
+                    owner: signerBytes32,
+                    ism: ethersConstants.AddressZero,
+                  },
+                };
+              }
+              return {
+                args: {
+                  origin: 999999,
+                  router: originRouterBytes32,
+                  owner: signerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              };
+            },
+          },
+        } as any;
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) {
+            return 'anvil3';
+          }
+          throw new Error(`unknown domain ${domainId}`);
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('ignores overlong hex-string ICA event positions during log ordering', async () => {
     const inferredIcaOwner = '0xacacacacacacacacacacacacacacacacacacacac';
     const destinationRouterAddress =
@@ -12452,6 +12684,208 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       topics: ['0xrevoke'],
       data: '0x',
       blockNumber: '1018',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [validGrant, malformedRawPlusOneGrant];
+        }
+        return [revoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('ignores raw-length-boundary minus-prefixed timelock role positions during ordering', async () => {
+    const timelockOwner = '0xc1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1c1';
+    const safeProposer = '0xc2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2c2';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const validGrant = {
+      topics: ['0xgrant-valid'],
+      data: '0x',
+      blockNumber: '1022',
+      transactionIndex: '1',
+      logIndex: '1',
+    };
+    const malformedRawBoundaryGrant = {
+      topics: ['0xgrant-malformed-raw-boundary-minus'],
+      data: '0x',
+      blockNumber: `-${'0'.repeat(4095)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const revoke = {
+      topics: ['0xrevoke'],
+      data: '0x',
+      blockNumber: '1021',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [validGrant, malformedRawBoundaryGrant];
+        }
+        return [revoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('ignores raw-length-plus-one minus-prefixed timelock role positions during ordering', async () => {
+    const timelockOwner = '0xc3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3c3';
+    const safeProposer = '0xc4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4c4';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const validGrant = {
+      topics: ['0xgrant-valid'],
+      data: '0x',
+      blockNumber: '1023',
+      transactionIndex: '1',
+      logIndex: '1',
+    };
+    const malformedRawPlusOneGrant = {
+      topics: ['0xgrant-malformed-raw-plus-one-minus'],
+      data: '0x',
+      blockNumber: `-${'0'.repeat(4096)}`,
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const revoke = {
+      topics: ['0xrevoke'],
+      data: '0x',
+      blockNumber: '1022',
       transactionIndex: '0',
       logIndex: '0',
     };
