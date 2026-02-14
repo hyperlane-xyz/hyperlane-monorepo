@@ -84,6 +84,33 @@ describe('hyperlane core apply e2e tests', async function () {
     }
   }
 
+  async function ensureLegacyNodesRunning() {
+    const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
+    const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
+    const chain2RpcUrl = chain2Metadata.rpcUrls[0].http;
+    const chain3RpcUrl = chain3Metadata.rpcUrls[0].http;
+
+    if (!(await isRpcReady(chain2RpcUrl))) {
+      const chain2RpcPort = parseInt(new URL(chain2RpcUrl).port, 10);
+      startedNodes.push(
+        await runEvmNode({
+          rpcPort: chain2RpcPort,
+          chainId: chain2Metadata.chainId,
+        } as any),
+      );
+    }
+
+    if (!(await isRpcReady(chain3RpcUrl))) {
+      const chain3RpcPort = parseInt(new URL(chain3RpcUrl).port, 10);
+      startedNodes.push(
+        await runEvmNode({
+          rpcPort: chain3RpcPort,
+          chainId: chain3Metadata.chainId,
+        } as any),
+      );
+    }
+  }
+
   async function deployMockSafeAndTimelock() {
     const provider = signer.provider!;
     const deploySigner = new Wallet(ANVIL_SECONDARY_KEY, provider);
@@ -128,29 +155,10 @@ describe('hyperlane core apply e2e tests', async function () {
   }
 
   before(async () => {
+    await ensureLegacyNodesRunning();
+
     const chain2Metadata: ChainMetadata = readYamlOrJson(CHAIN_2_METADATA_PATH);
     const chain3Metadata: ChainMetadata = readYamlOrJson(CHAIN_3_METADATA_PATH);
-    const chain2RpcUrl = chain2Metadata.rpcUrls[0].http;
-    const chain3RpcUrl = chain3Metadata.rpcUrls[0].http;
-    if (!(await isRpcReady(chain2RpcUrl))) {
-      const chain2RpcPort = parseInt(new URL(chain2RpcUrl).port, 10);
-      startedNodes.push(
-        await runEvmNode({
-          rpcPort: chain2RpcPort,
-          chainId: chain2Metadata.chainId,
-        } as any),
-      );
-    }
-    if (!(await isRpcReady(chain3RpcUrl))) {
-      const chain3RpcPort = parseInt(new URL(chain3RpcUrl).port, 10);
-      startedNodes.push(
-        await runEvmNode({
-          rpcPort: chain3RpcPort,
-          chainId: chain3Metadata.chainId,
-        } as any),
-      );
-    }
-
     const provider = new ethers.providers.JsonRpcProvider(
       chain2Metadata.rpcUrls[0].http,
     );
@@ -161,6 +169,11 @@ describe('hyperlane core apply e2e tests', async function () {
     signer = wallet.connect(provider);
 
     initialOwnerAddress = await signer.getAddress();
+  });
+
+  beforeEach(async function () {
+    this.timeout(DEFAULT_E2E_TEST_TIMEOUT);
+    await ensureLegacyNodesRunning();
   });
 
   after(async () => {
