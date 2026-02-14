@@ -247,6 +247,9 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
 
   const trimmedUrl = txServiceUrl.trim();
   assert(trimmedUrl.length > 0, 'Safe tx service URL is empty');
+  if (trimmedUrl.startsWith('/') && !trimmedUrl.startsWith('//')) {
+    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+  }
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);
   const parsed =
     parseHttpUrl(trimmedUrl) ??
@@ -258,17 +261,13 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
     }
     throw new Error(`Safe tx service URL must use http(s): ${trimmedUrl}`);
   }
-  if (!parsed && trimmedUrl.includes(':') && !trimmedUrl.startsWith('/')) {
+  if (!parsed) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
-  if (parsed) {
-    parsed.search = '';
-    parsed.hash = '';
-    parsed.pathname = canonicalizePath(parsed.pathname);
-    return parsed.toString();
-  }
-  // Fall back to string normalization for non-URL inputs.
-  return canonicalizePath(trimmedUrl);
+  parsed.search = '';
+  parsed.hash = '';
+  parsed.pathname = canonicalizePath(parsed.pathname);
+  return parsed.toString();
 }
 
 function getSafeTxServiceUrl(
