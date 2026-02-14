@@ -35,6 +35,25 @@ describe('squads cli helpers', () => {
     ]);
   });
 
+  it('returns a defensive copy for explicit chains', () => {
+    const [firstChain, secondChain] = getSquadsChains();
+    const selectedChains = [firstChain, secondChain];
+    const resolvedChains = resolveSquadsChains(selectedChains);
+
+    resolvedChains.push(firstChain);
+
+    expect(selectedChains).to.deep.equal([firstChain, secondChain]);
+  });
+
+  it('returns a defensive copy for default squads chains', () => {
+    const resolvedChains = resolveSquadsChains(undefined);
+    const firstChain = resolvedChains[0];
+
+    resolvedChains.splice(0, 1);
+
+    expect(resolveSquadsChains(undefined)).to.include(firstChain);
+  });
+
   it('parses chain from c alias', async () => {
     const chain = getSquadsChains()[0];
 
