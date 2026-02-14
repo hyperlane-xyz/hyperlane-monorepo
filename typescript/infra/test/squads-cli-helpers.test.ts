@@ -853,6 +853,21 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('ignores generic object labels from String(error) fallback', () => {
+    const objectWithGenericToString = {
+      toJSON() {
+        throw new Error('cannot serialize');
+      },
+      toString() {
+        return '[object CustomErrorLike]';
+      },
+    };
+
+    expect(formatScriptError(objectWithGenericToString)).to.equal(
+      '[unformattable error object]',
+    );
+  });
+
   it('falls back for unformattable object errors', () => {
     const unformattableError = {
       toJSON() {
