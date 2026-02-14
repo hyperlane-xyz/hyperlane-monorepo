@@ -120,6 +120,20 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('treats an unsent signal as an already-stopped process', async () => {
+      const fakeProcess = {
+        killed: false,
+        exitCode: null,
+        kill: () => false,
+        once: () => fakeProcess,
+        removeListener: () => fakeProcess,
+      } as unknown as NodeJS.Process;
+
+      await stopLocalAnvilProcess(
+        fakeProcess as unknown as import('child_process').ChildProcessWithoutNullStreams,
+      );
+    });
+
     it('rejects when kill fails with non-ESRCH errors', async () => {
       const permissionError = new Error('operation not permitted');
       const fakeProcess = {

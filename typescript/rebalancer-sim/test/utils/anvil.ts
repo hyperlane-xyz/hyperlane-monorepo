@@ -129,7 +129,11 @@ export async function stopLocalAnvilProcess(
 
     const killSafely = (signal: NodeJS.Signals) => {
       try {
-        process.kill(signal);
+        const signalSent = process.kill(signal);
+        if (!signalSent) {
+          // Child process already exited; treat as stopped.
+          resolveOnce();
+        }
       } catch (error) {
         const nodeError = error as NodeJS.ErrnoException | undefined;
         if (nodeError?.code === 'ESRCH') {
