@@ -1431,12 +1431,15 @@ export function parseSafeTx(tx: AnnotatedEV5Transaction) {
 
 export function asHex(hex?: string): Hex {
   assert(hex, 'Hex value is required');
-  if (isHex(hex)) {
-    return hex as Hex;
+  const normalizedHex = hex.trim();
+  assert(normalizedHex.length > 0, 'Hex value is required');
+
+  if (isHex(normalizedHex)) {
+    return normalizedHex as Hex;
   }
 
-  const prefixedHex = `0x${hex}`;
-  assert(isHex(prefixedHex), `Hex value must be valid hex: ${hex}`);
+  const prefixedHex = `0x${normalizedHex}`;
+  assert(isHex(prefixedHex), `Hex value must be valid hex: ${normalizedHex}`);
   return prefixedHex as Hex;
 }
 

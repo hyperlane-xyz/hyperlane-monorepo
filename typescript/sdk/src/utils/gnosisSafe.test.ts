@@ -3529,9 +3529,15 @@ describe('gnosisSafe utils', () => {
       expect(asHex('1234')).to.equal('0x1234');
     });
 
+    it('trims surrounding whitespace from hex values', () => {
+      expect(asHex('  0x1234  ')).to.equal('0x1234');
+      expect(asHex('  1234  ')).to.equal('0x1234');
+    });
+
     it('throws when hex value is missing', () => {
       expect(() => asHex()).to.throw('Hex value is required');
       expect(() => asHex('')).to.throw('Hex value is required');
+      expect(() => asHex('   ')).to.throw('Hex value is required');
     });
 
     it('throws when hex value has invalid characters', () => {
@@ -3663,6 +3669,27 @@ describe('gnosisSafe utils', () => {
 
     it('throws when calldata is empty', () => {
       expect(() => decodeMultiSendData('')).to.throw('Hex value is required');
+    });
+
+    it('accepts calldata with surrounding whitespace', () => {
+      const txBytes = `0x${encodeMultiSendTx({
+        operation: 0,
+        to: '0x00000000000000000000000000000000000000aa',
+        value: 1n,
+        data: '0x',
+      })}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [txBytes],
+      });
+
+      const decoded = decodeMultiSendData(`  ${encoded}  `);
+      expect(decoded).to.have.length(1);
+      expect(decoded[0].to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000aa'),
+      );
     });
 
     it('throws when calldata is not valid hex', () => {
