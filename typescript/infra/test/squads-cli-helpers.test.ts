@@ -113,6 +113,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('labels symbol argv chain values clearly in index-aware errors', () => {
+    expect(() => resolveSquadsChainsFromArgv([Symbol('invalid-chain')])).to.throw(
+      'Expected --chains[0] to be a string, but received symbol',
+    );
+  });
+
   it('rejects empty argv chain string values with index-aware errors', () => {
     expect(() => resolveSquadsChainsFromArgv(['   '])).to.throw(
       'Expected --chains[0] to be a non-empty string',
@@ -196,6 +202,12 @@ describe('squads cli helpers', () => {
   it('labels symbol values in explicitly provided chains errors', () => {
     expect(() => resolveSquadsChains([Symbol('invalid-chain')])).to.throw(
       'Expected chains[0] to be a string, but received symbol',
+    );
+  });
+
+  it('labels function values in explicitly provided chains errors', () => {
+    expect(() => resolveSquadsChains([() => 'invalid-chain'])).to.throw(
+      'Expected chains[0] to be a string, but received function',
     );
   });
 
