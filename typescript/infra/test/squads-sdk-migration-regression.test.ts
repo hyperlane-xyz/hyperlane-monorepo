@@ -46,7 +46,7 @@ const SDK_SQUADS_IMPORT_PATTERN =
   /from\s+['"]@hyperlane-xyz\/sdk['"]/;
 const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
 const DIRECT_ERROR_STRINGIFICATION_PATTERN =
-  /(?:String\(error\)|\$\{error\}|error\.message)/;
+  /(?:String\((?:error|err|e)\)|\$\{(?:error|err|e)\}|(?:error|err|e)\.message)/;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'cache', '.turbo']);
 
 function readInfraFile(relativePath: string): string {
