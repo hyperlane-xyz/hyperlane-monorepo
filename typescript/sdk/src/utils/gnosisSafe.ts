@@ -1104,6 +1104,7 @@ export async function proposeSafeTransaction(
     ethers.utils.isAddress(safeAddress),
     `Safe address must be valid: ${stringifyValueForError(safeAddress)}`,
   );
+  const normalizedSafeAddress = getAddress(safeAddress);
   const safeSdkObject =
     safeSdk !== null && typeof safeSdk === 'object'
       ? (safeSdk as {
@@ -1174,6 +1175,10 @@ export async function proposeSafeTransaction(
     hasSafeServiceTransactionPayload(safeTransactionData),
     `Safe transaction data payload is invalid: ${stringifyValueForError(safeTransactionData)}`,
   );
+  const normalizedSafeTransactionData = {
+    ...(safeTransactionData as Record<string, unknown>),
+    ...createSafeTransactionData(safeTransactionData),
+  };
 
   let safeTxHash: unknown;
   try {
@@ -1217,14 +1222,15 @@ export async function proposeSafeTransaction(
     typeof senderAddress === 'string' && ethers.utils.isAddress(senderAddress),
     `Safe signer address must be valid: ${stringifyValueForError(senderAddress)}`,
   );
+  const normalizedSenderAddress = getAddress(senderAddress);
 
   try {
     await retrySafeApi(() =>
       proposeTransaction.call(safeServiceObject, {
-        safeAddress,
-        safeTransactionData,
+        safeAddress: normalizedSafeAddress,
+        safeTransactionData: normalizedSafeTransactionData,
         safeTxHash,
-        senderAddress,
+        senderAddress: normalizedSenderAddress,
         senderSignature: senderSignatureData,
       }),
     );
