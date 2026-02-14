@@ -15,8 +15,6 @@ import {
   stringifyObject,
 } from '@hyperlane-xyz/utils';
 
-import { withChain } from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
 import { withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
@@ -32,11 +30,14 @@ function withVerbose<T>(args: Argv<T>) {
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  const { chain, transactionIndex, verbose } = await withChain(
-    withTransactionIndex(withVerbose(yargs(process.argv.slice(2)))),
-  )
-    .choices('chain', getSquadsChains())
-    .demandOption('chain').argv;
+  const { chain, transactionIndex, verbose } = await withTransactionIndex(
+    withVerbose(
+      yargs(process.argv.slice(2))
+        .describe('chain', 'chain name')
+        .choices('chain', getSquadsChains())
+        .alias('c', 'chain'),
+    ),
+  ).demandOption('chain').argv;
 
   rootLogger.info(chalk.blue.bold('🔍 Squads Proposal Reader'));
   rootLogger.info(
@@ -46,6 +47,7 @@ async function main() {
   try {
     const squadsKeys = getSquadsKeys(chain);
 
+    const { getEnvironmentConfig } = await import('../core-utils.js');
     const envConfig = getEnvironmentConfig(environment);
     const mpp = await envConfig.getMultiProtocolProvider();
 

@@ -19,22 +19,24 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 
 import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { Contexts } from '../../config/contexts.js';
-import {
-  loadCoreProgramIds,
-  multisigIsmConfigPath,
-} from '../../src/utils/sealevel.js';
-import { withChains } from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
 import { logProposals } from './cli-helpers.js';
 
 const environment = 'mainnet3';
 
 async function main() {
-  const { chains } = await withChains(
-    yargs(process.argv.slice(2)),
-    getSquadsChains(),
-  ).argv;
+  const { chains } = await yargs(process.argv.slice(2))
+    .describe('chains', 'Set of chains to perform actions on.')
+    .array('chains')
+    .choices('chains', getSquadsChains())
+    .coerce('chains', (selectedChains: string[] = []) =>
+      Array.from(new Set(selectedChains)),
+    )
+    .alias('c', 'chains').argv;
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
+
+  const { getEnvironmentConfig } = await import('../core-utils.js');
+  const { loadCoreProgramIds, multisigIsmConfigPath } =
+    await import('../../src/utils/sealevel.js');
 
   // Get the multiprovider for the environment
   const config = getEnvironmentConfig(environment);

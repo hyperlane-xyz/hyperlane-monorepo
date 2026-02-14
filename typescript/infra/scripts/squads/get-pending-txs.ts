@@ -3,6 +3,7 @@ import chalk from 'chalk';
 import yargs from 'yargs';
 
 import {
+  ChainName,
   ChainMap,
   SquadTxStatus,
   SvmMultiProtocolSignerAdapter,
@@ -18,9 +19,6 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import { executePendingTransactions } from '../../src/tx/utils.js';
-import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
-import { withChains } from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
 import { logProposals } from './cli-helpers.js';
 
 const environment = 'mainnet3';
@@ -28,13 +26,19 @@ const environment = 'mainnet3';
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
-  const { chains } = await withChains(
-    yargs(process.argv.slice(2)),
-    getSquadsChains(),
-  ).argv;
+  const { chains } = await yargs(process.argv.slice(2))
+    .describe('chains', 'Set of chains to perform actions on.')
+    .array('chains')
+    .choices('chains', getSquadsChains())
+    .coerce('chains', (selectedChains: string[] = []) =>
+      Array.from(new Set(selectedChains)),
+    )
+    .alias('c', 'chains').argv;
 
   const squadChains = getSquadsChains();
-  const chainsToCheck = chains || squadChains;
+  const selectedChains = (Array.isArray(chains) ? chains : []) as ChainName[];
+  const chainsToCheck =
+    selectedChains.length > 0 ? selectedChains : squadChains;
 
   if (chainsToCheck.length === 0) {
     rootLogger.error('No chains provided');
@@ -48,6 +52,9 @@ async function main() {
     ),
   );
 
+  const { getEnvironmentConfig } = await import('../core-utils.js');
+  const { getTurnkeySealevelDeployerSigner } =
+    await import('../../src/utils/turnkey.js');
   const envConfig = getEnvironmentConfig(environment);
   const mpp = await envConfig.getMultiProtocolProvider();
 

@@ -14,11 +14,6 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 
-import { chainsToSkip } from '../../src/config/chain.js';
-import { getTurnkeySealevelDeployerSigner } from '../../src/utils/turnkey.js';
-import { chainIsProtocol } from '../../src/utils/utils.js';
-import { withChain } from '../agent-utils.js';
-import { getEnvironmentConfig } from '../core-utils.js';
 import { withTransactionIndex } from './cli-helpers.js';
 
 const environment = 'mainnet3';
@@ -26,17 +21,20 @@ const environment = 'mainnet3';
 // CLI argument parsing
 async function main() {
   const { chain, transactionIndex } = await withTransactionIndex(
-    withChain(yargs(process.argv.slice(2))),
-  )
-    .choices('chain', getSquadsChains())
-    .demandOption('chain').argv;
+    yargs(process.argv.slice(2))
+      .describe('chain', 'chain name')
+      .choices('chain', getSquadsChains())
+      .alias('c', 'chain'),
+  ).demandOption('chain').argv;
 
-  // Validate chain is Sealevel
-  if (!chainIsProtocol(chain, ProtocolType.Sealevel)) {
-    throw new Error(
-      `Chain ${chain} is not a Sealevel chain. This script only works with Solana/SVM chains.`,
-    );
-  }
+  const { getEnvironmentConfig } = await import('../core-utils.js');
+  const { chainsToSkip } = await import('../../src/config/chain.js');
+  const { getTurnkeySealevelDeployerSigner } =
+    await import('../../src/utils/turnkey.js');
+
+  // Get multi-protocol provider
+  const envConfig = getEnvironmentConfig(environment);
+  const mpp = await envConfig.getMultiProtocolProvider();
 
   if (chainsToSkip.includes(chain)) {
     throw new Error(
@@ -44,9 +42,12 @@ async function main() {
     );
   }
 
-  // Get multi-protocol provider
-  const envConfig = getEnvironmentConfig(environment);
-  const mpp = await envConfig.getMultiProtocolProvider();
+  // Validate chain is Sealevel
+  if (mpp.getProtocol(chain) !== ProtocolType.Sealevel) {
+    throw new Error(
+      `Chain ${chain} is not a Sealevel chain. This script only works with Solana/SVM chains.`,
+    );
+  }
 
   rootLogger.info(
     chalk.cyan(
