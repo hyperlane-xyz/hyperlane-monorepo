@@ -9,6 +9,7 @@ import {
   SQUADS_ACCOUNT_DISCRIMINATORS,
   decodePermissions,
   getSquadAndProvider,
+  getSquadProposal,
   getSquadTxStatus,
   isConfigTransaction,
   parseSquadsProposalVoteError,
@@ -180,6 +181,30 @@ describe('squads utils', () => {
       let thrownError: Error | undefined;
       try {
         await getSquadAndProvider('unsupported-chain', mpp);
+      } catch (error) {
+        thrownError = error as Error;
+      }
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+  });
+
+  describe(getSquadProposal.name, () => {
+    it('fails fast for unsupported chains before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      let thrownError: Error | undefined;
+      try {
+        await getSquadProposal('unsupported-chain', mpp, 1);
       } catch (error) {
         thrownError = error as Error;
       }
