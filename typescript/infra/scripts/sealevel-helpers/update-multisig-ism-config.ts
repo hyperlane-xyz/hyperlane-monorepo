@@ -181,6 +181,10 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
     } else {
       // MultisigIsm instruction
       const remoteChain = batchChainNames[multisigInstructionIndex];
+      assert(
+        typeof remoteChain === 'string' && remoteChain.length > 0,
+        `Missing batch chain at instruction index ${multisigInstructionIndex} while building MultisigIsm proposal on ${chain}`,
+      );
       const config = configsToUpdate[remoteChain];
       assert(
         config,
