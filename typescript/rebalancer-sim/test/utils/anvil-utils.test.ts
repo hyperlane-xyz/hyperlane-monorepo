@@ -81,6 +81,26 @@ describe('Anvil utils', () => {
       ] as const;
     };
 
+    const buildNoisyObjectWrapperWithFallback = (
+      fallbackField: 'cause' | 'errors',
+      fallbackValue: unknown,
+    ): Record<string, unknown> => {
+      const wrapper = Object.fromEntries(
+        Array.from({ length: noisyWrapperEntryCount }, (_, index) => [
+          `noise-${index}`,
+          { message: `noise-${index}` },
+        ]),
+      );
+
+      Object.defineProperty(wrapper, fallbackField, {
+        value: fallbackValue,
+        enumerable: false,
+        configurable: true,
+      });
+
+      return wrapper;
+    };
+
     it('returns true for testcontainers runtime-strategy errors', () => {
       const error = new Error(
         'Could not find a working container runtime strategy',
@@ -1449,6 +1469,28 @@ describe('Anvil utils', () => {
           `${wrapperName} wrapper should surface runtime cause despite throwing errors accessor`,
         ).to.equal(true);
       }
+    });
+
+    it('matches plain-object wrapper cause fallbacks under extraction limits', () => {
+      const errors = buildNoisyObjectWrapperWithFallback('cause', {
+        message: 'No Docker client strategy found',
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
+    it('matches plain-object wrapper errors fallbacks under extraction limits when cause accessor throws', () => {
+      const errors = buildNoisyObjectWrapperWithFallback('errors', {
+        message: 'Cannot connect to the Docker daemon',
+      });
+      Object.defineProperty(errors, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
     });
 
     it('still matches cause-chain runtime signals before extraction cap', () => {
