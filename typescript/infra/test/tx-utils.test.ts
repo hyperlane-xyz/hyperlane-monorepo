@@ -122,6 +122,59 @@ describe('executePendingTransactions', () => {
     }
   });
 
+  it('throws when executable transaction length is negative', async () => {
+    const txsWithNegativeLength = new Proxy([{ id: 'tx1', chain: 'chainA' }], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return -1;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    try {
+      await executePendingTransactions(
+        txsWithNegativeLength as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Executable transactions length is invalid: -1',
+      );
+    }
+  });
+
+  it('throws when executable transaction length is non-integer', async () => {
+    const txsWithFractionalLength = new Proxy(
+      [{ id: 'tx1', chain: 'chainA' }],
+      {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return 1.5;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    try {
+      await executePendingTransactions(
+        txsWithFractionalLength as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Executable transactions length is invalid: 1.5',
+      );
+    }
+  });
+
   it('throws when executable transaction length is unstringifiable', async () => {
     const unstringifiableLength = {
       [Symbol.toPrimitive]() {
@@ -760,6 +813,47 @@ describe('processGovernorReaderResult', () => {
     ).to.throw('Governor reader errors length is invalid: Infinity');
   });
 
+  it('throws when result length is negative', () => {
+    const resultWithNegativeLength = new Proxy(
+      [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+      {
+        get(target, property, receiver) {
+          if (property === 'length') {
+            return -1;
+          }
+          return Reflect.get(target, property, receiver);
+        },
+      },
+    );
+
+    expect(() =>
+      processGovernorReaderResult(
+        resultWithNegativeLength as unknown as [string, any][],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader result length is invalid: -1');
+  });
+
+  it('throws when errors length is non-integer', () => {
+    const errorsWithFractionalLength = new Proxy([{ message: 'fatal' }], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return 1.5;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        errorsWithFractionalLength as unknown as any[],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader errors length is invalid: 1.5');
+  });
+
   it('throws when errors length is inaccessible', () => {
     const errorsWithThrowingLength = new Proxy([{ message: 'fatal' }], {
       get(target, property, receiver) {
@@ -850,6 +944,32 @@ describe('processGovernorReaderResult', () => {
         },
       ),
     ).to.throw('Governor reader timestamp is invalid: <unstringifiable>');
+  });
+
+  it('throws when nowFn returns negative timestamp', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => -1,
+        },
+      ),
+    ).to.throw('Governor reader timestamp is invalid: -1');
+  });
+
+  it('throws when nowFn returns non-integer timestamp', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+        [],
+        'safe-tx-parse-results',
+        {
+          nowFn: () => 1.5,
+        },
+      ),
+    ).to.throw('Governor reader timestamp is invalid: 1.5');
   });
 
   it('throws when result entry access is inaccessible', () => {
