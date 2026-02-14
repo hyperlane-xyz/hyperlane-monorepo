@@ -495,7 +495,16 @@ async function inferTimelockProposerSubmitter({
   const proposers = Array.from(granted).filter(
     (account) => !eqAddress(account, ethersConstants.AddressZero),
   );
-  const registryAddresses = await getRegistryAddresses(context, cache);
+  let registryAddresses: Awaited<
+    ReturnType<WriteCommandContext['registry']['getAddresses']>
+  >;
+  try {
+    registryAddresses = await getRegistryAddresses(context, cache);
+  } catch {
+    registryAddresses = {} as Awaited<
+      ReturnType<WriteCommandContext['registry']['getAddresses']>
+    >;
+  }
   const destinationRouterAddress =
     registryAddresses[chain]?.interchainAccountRouter;
 
@@ -532,13 +541,18 @@ async function inferTimelockProposerSubmitter({
       return proposerSubmitter;
     }
 
-    const inferredIca = await inferIcaSubmitterFromAccount({
-      destinationChain: chain,
-      accountAddress: proposer,
-      context,
-      cache,
-      depth: depth + 1,
-    });
+    let inferredIca: InferredSubmitter | null = null;
+    try {
+      inferredIca = await inferIcaSubmitterFromAccount({
+        destinationChain: chain,
+        accountAddress: proposer,
+        context,
+        cache,
+        depth: depth + 1,
+      });
+    } catch {
+      inferredIca = null;
+    }
     if (inferredIca) {
       cache.timelockProposerByChainAndAddress.set(timelockKey, inferredIca);
       return inferredIca;

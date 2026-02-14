@@ -3269,6 +3269,73 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('falls back to default timelock proposer when registry lookup fails', async () => {
+    const timelockOwner = '0x7777777777777777777777777777777777777777';
+    const nonSafeProposer = '0x8888888888888888888888888888888888888888';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          return [{ topics: ['0xvalid-granted'], data: '0x' }];
+        }
+        return [];
+      }),
+    };
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: nonSafeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => {
+          throw new Error('registry unavailable');
+        },
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.JSON_RPC);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('infers timelock proposer ICA from proposer role account derivation', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
     const proposerIca = '0x6666666666666666666666666666666666666666';
