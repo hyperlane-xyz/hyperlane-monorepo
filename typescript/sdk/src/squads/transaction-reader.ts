@@ -148,10 +148,6 @@ type SolanaWeb3Provider = ReturnType<
   MultiProtocolProvider['getSolanaWeb3Provider']
 >;
 
-function stringifyUnknownError(error: unknown): string {
-  return stringifyUnknownSquadsError(error);
-}
-
 function formatValidatorsWithAliases(
   chain: ChainName,
   validators: readonly string[],
@@ -470,7 +466,7 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
-      const formattedError = stringifyUnknownError(error);
+      const formattedError = stringifyUnknownSquadsError(error);
       return {
         instructionType: 'WarpRouteInstruction',
         data: {
@@ -559,7 +555,7 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
-      const formattedError = stringifyUnknownError(error);
+      const formattedError = stringifyUnknownSquadsError(error);
       return {
         instructionType: InstructionType.UNKNOWN,
         data: {
@@ -661,7 +657,7 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
-      const formattedError = stringifyUnknownError(error);
+      const formattedError = stringifyUnknownSquadsError(error);
       return {
         instructionType: InstructionType.UNKNOWN,
         data: {
@@ -757,7 +753,7 @@ export class SquadsTransactionReader {
           if (idx < addresses.length) accountKeys.push(addresses[idx]);
         }
       } catch (error) {
-        const formattedError = stringifyUnknownError(error);
+        const formattedError = stringifyUnknownSquadsError(error);
         rootLogger.warn(
           `Failed to resolve address lookup table ${lookup.accountKey.toBase58()} on ${chain}: ${formattedError}`,
         );
@@ -916,7 +912,7 @@ export class SquadsTransactionReader {
         });
         warnings.push(...unknownWarnings);
       } catch (error) {
-        const formattedError = stringifyUnknownError(error);
+        const formattedError = stringifyUnknownSquadsError(error);
         const errorMsg = `Instruction ${idx}: ${formattedError}`;
         warnings.push(`Failed to parse instruction: ${errorMsg}`);
         parsedInstructions.push({
@@ -982,7 +978,7 @@ export class SquadsTransactionReader {
         transactionPda,
       );
     } catch (error) {
-      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${stringifyUnknownError(error)}`;
+      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${stringifyUnknownSquadsError(error)}`;
       throw new Error(errorMsg);
     }
 
@@ -1068,7 +1064,7 @@ export class SquadsTransactionReader {
       this.errors.push({
         chain,
         transactionIndex,
-        error: stringifyUnknownError(error),
+        error: stringifyUnknownSquadsError(error),
       });
       throw error;
     }
@@ -1090,7 +1086,7 @@ export class SquadsTransactionReader {
       return config;
     } catch (error) {
       rootLogger.warn(
-        `Failed to load multisig config for ${chain}: ${stringifyUnknownError(error)}`,
+        `Failed to load multisig config for ${chain}: ${stringifyUnknownSquadsError(error)}`,
       );
       this.multisigConfigs.set(chain, null);
       return null;
