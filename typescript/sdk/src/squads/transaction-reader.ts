@@ -42,6 +42,7 @@ import {
 import { SealevelInstructionWrapper } from '../utils/sealevelSerialization.js';
 import { WarpCoreConfig } from '../warp/types.js';
 
+import { getSquadsKeys } from './config.js';
 import {
   SQUADS_ACCOUNT_DISCRIMINATOR_SIZE,
   SquadsInstructionName,
@@ -682,7 +683,7 @@ export class SquadsTransactionReader {
     }
 
     const { proposal, proposalPda } = proposalData;
-    const { multisigPda, programId } = getSquadAndProvider(chain, this.mpp);
+    const { multisigPda, programId } = getSquadsKeys(chain);
 
     return { proposal, proposalPda, multisigPda, programId };
   }
