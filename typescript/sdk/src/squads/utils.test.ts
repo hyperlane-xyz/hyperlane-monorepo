@@ -1050,6 +1050,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when object member key stringifies to generic object label', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: {} }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must stringify to a meaningful identifier',
+      );
+    });
+
     it('uses caller-provided field prefix for empty normalized object keys', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig(
@@ -1065,6 +1080,24 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads solanamainnet multisig members[0] key must resolve to a non-empty string',
+      );
+    });
+
+    it('uses caller-provided field prefix for generic object key stringification errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 1n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 1n,
+            timeLock: 0n,
+            members: [{ key: {} }],
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig members[0] key must stringify to a meaningful identifier',
       );
     });
 

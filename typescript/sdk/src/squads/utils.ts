@@ -823,6 +823,10 @@ function getMultisigMemberCount(
         `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
       );
       assert(
+        normalizedMemberKey !== '[object Object]',
+        `Squads ${fieldPrefix} members[${index}] key must stringify to a meaningful identifier`,
+      );
+      assert(
         normalizedMemberKey.trim().length > 0,
         `Squads ${fieldPrefix} members[${index}] key must resolve to a non-empty string`,
       );
