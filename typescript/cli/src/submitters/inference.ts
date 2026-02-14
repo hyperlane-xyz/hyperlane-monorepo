@@ -595,10 +595,15 @@ function resolveExplicitSubmitterForTransaction({
 
   const getTxSelector = (tx: TypedAnnotatedTransaction): string | undefined => {
     const data = (tx as any).data;
-    if (typeof data !== 'string' || !/^0x[0-9a-fA-F]{8}/.test(data)) {
+    if (typeof data !== 'string') {
       return undefined;
     }
-    return data.slice(0, 10).toLowerCase();
+
+    const normalizedData = data.trim();
+    if (!/^0x[0-9a-fA-F]{8}/.test(normalizedData)) {
+      return undefined;
+    }
+    return normalizedData.slice(0, 10).toLowerCase();
   };
 
   const to = (transaction as any).to;
