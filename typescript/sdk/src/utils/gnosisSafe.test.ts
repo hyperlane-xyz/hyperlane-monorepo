@@ -2725,10 +2725,14 @@ describe('gnosisSafe utils', () => {
 
     it('supports semver prefixes/suffixes used by services', async () => {
       expect(await isLegacySafeApi('v5.18.0')).to.equal(false);
+      expect(await isLegacySafeApi('V5.18.0')).to.equal(false);
       expect(await isLegacySafeApi('5.18.0+L2')).to.equal(false);
+      expect(await isLegacySafeApi('V5.18.0+L2')).to.equal(false);
       expect(await isLegacySafeApi('5.18.0-rc.1')).to.equal(false);
       expect(await isLegacySafeApi('v5.17.9-hotfix.2')).to.equal(true);
+      expect(await isLegacySafeApi('V5.17.9-hotfix.2')).to.equal(true);
       expect(await isLegacySafeApi('  v5.18.1-build.11  ')).to.equal(false);
+      expect(await isLegacySafeApi('  V5.18.1-build.11  ')).to.equal(false);
     });
 
     it('throws on invalid versions', async () => {
