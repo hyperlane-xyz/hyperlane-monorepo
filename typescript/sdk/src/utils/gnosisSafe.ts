@@ -245,15 +245,22 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const extractHostname = (value: string): string | undefined => {
-    return (
-      parseHostname(value) ??
-      parseSchemeRelativeHttpUrl(value)?.hostname.toLowerCase() ??
-      (!hasExplicitUrlScheme(value)
-        ? !isSchemeRelativeUrl(value)
-          ? parseHostname(`https://${value}`)
-          : undefined
-        : undefined)
-    );
+    const hostname = parseHostname(value);
+    if (hostname !== undefined) {
+      return hostname;
+    }
+
+    const schemeRelativeHostname =
+      parseSchemeRelativeHttpUrl(value)?.hostname.toLowerCase();
+    if (schemeRelativeHostname !== undefined) {
+      return schemeRelativeHostname;
+    }
+
+    if (hasExplicitUrlScheme(value) || isSchemeRelativeUrl(value)) {
+      return undefined;
+    }
+
+    return parseHostname(`https://${value}`);
   };
 
   const trimmedUrl = txServiceUrl.trim();
