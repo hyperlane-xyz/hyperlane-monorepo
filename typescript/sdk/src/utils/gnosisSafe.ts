@@ -1464,11 +1464,16 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
 export function decodeMultiSendData(
   encodedData: string,
 ): MetaTransactionData[] {
+  const normalizedData = asHex(encodedData);
+  assert(
+    normalizedData.length >= 10,
+    'Invalid multisend payload: missing multisend selector',
+  );
   const decodedData = decodeFunctionData({
     abi: parseAbi([
       'function multiSend(bytes memory transactions) public payable',
     ]),
-    data: asHex(encodedData),
+    data: normalizedData,
   });
 
   const args = decodedData.args;

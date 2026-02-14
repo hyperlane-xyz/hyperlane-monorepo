@@ -3936,6 +3936,21 @@ describe('gnosisSafe utils', () => {
 
     it('throws when calldata is empty', () => {
       expect(() => decodeMultiSendData('')).to.throw('Hex value is required');
+      expect(() => decodeMultiSendData('   ')).to.throw(
+        'Hex value is required',
+      );
+    });
+
+    it('throws when calldata does not include multisend selector', () => {
+      expect(() => decodeMultiSendData('0x')).to.throw(
+        'Invalid multisend payload: missing multisend selector',
+      );
+      expect(() => decodeMultiSendData('0X')).to.throw(
+        'Invalid multisend payload: missing multisend selector',
+      );
+      expect(() => decodeMultiSendData('12')).to.throw(
+        'Invalid multisend payload: missing multisend selector',
+      );
     });
 
     it('accepts calldata with surrounding whitespace', () => {
