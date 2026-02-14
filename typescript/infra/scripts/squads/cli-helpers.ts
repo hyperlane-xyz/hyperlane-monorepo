@@ -59,6 +59,9 @@ export function withTransactionIndex<T>(args: Argv<T>) {
   return args
     .describe('transactionIndex', 'Transaction index of the proposal')
     .number('transactionIndex')
+    .coerce('transactionIndex', (transactionIndex: unknown) =>
+      normalizeTransactionIndex(transactionIndex),
+    )
     .demandOption('transactionIndex')
     .alias('t', 'transactionIndex');
 }
@@ -194,6 +197,26 @@ function normalizeArgvChains(chains: unknown): string[] {
 
 function normalizeProvidedChains(chains: readonly unknown[]): string[] {
   return normalizeChainValues(chains, 'chains');
+}
+
+function normalizeTransactionIndex(transactionIndex: unknown): number {
+  assert(
+    typeof transactionIndex === 'number',
+    `Expected --transactionIndex to be a number, but received ${getArgTypeName(transactionIndex)}`,
+  );
+  assert(
+    Number.isFinite(transactionIndex),
+    `Expected --transactionIndex to be a finite number, but received ${String(transactionIndex)}`,
+  );
+  assert(
+    Number.isSafeInteger(transactionIndex),
+    `Expected --transactionIndex to be a safe integer, but received ${transactionIndex}`,
+  );
+  assert(
+    transactionIndex >= 0,
+    `Expected --transactionIndex to be a non-negative integer, but received ${transactionIndex}`,
+  );
+  return transactionIndex;
 }
 
 export function resolveSquadsChainsFromArgv(

@@ -8,6 +8,7 @@ import {
   resolveSquadsChains,
   resolveSquadsChainsFromArgv,
   withRequiredSquadsChain,
+  withTransactionIndex,
   withSquadsChain,
   withSquadsChains,
 } from '../scripts/squads/cli-helpers.js';
@@ -554,6 +555,48 @@ describe('squads cli helpers', () => {
     );
 
     expect(parsedArgs.chain).to.equal(chain);
+  });
+
+  it('requires transaction index when using transaction index parser helper', async () => {
+    await expectParseError(
+      withTransactionIndex(yargs([])),
+      'Missing required argument: transactionIndex',
+    );
+  });
+
+  it('parses transaction index when using transaction index parser helper', async () => {
+    const parsedArgs = await parseArgs(
+      withTransactionIndex(yargs(['--transactionIndex', '5'])),
+    );
+
+    expect(parsedArgs.transactionIndex).to.equal(5);
+  });
+
+  it('parses transaction index from t alias', async () => {
+    const parsedArgs = await parseArgs(withTransactionIndex(yargs(['-t', '7'])));
+
+    expect(parsedArgs.transactionIndex).to.equal(7);
+  });
+
+  it('rejects non-finite transaction index values', async () => {
+    await expectParseError(
+      withTransactionIndex(yargs(['--transactionIndex', 'abc'])),
+      'Expected --transactionIndex to be a finite number, but received NaN',
+    );
+  });
+
+  it('rejects non-integer transaction index values', async () => {
+    await expectParseError(
+      withTransactionIndex(yargs(['--transactionIndex', '1.5'])),
+      'Expected --transactionIndex to be a safe integer, but received 1.5',
+    );
+  });
+
+  it('rejects negative transaction index values', async () => {
+    await expectParseError(
+      withTransactionIndex(yargs(['--transactionIndex', '-1'])),
+      'Expected --transactionIndex to be a non-negative integer, but received -1',
+    );
   });
 
   it('deduplicates chains parsed from repeated args', async () => {
