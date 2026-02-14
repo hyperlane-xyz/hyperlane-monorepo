@@ -189,6 +189,20 @@ function getUnknownValueTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
+function normalizeStringifiedUnknownError(
+  formattedError: string,
+): string | undefined {
+  const trimmedFormattedError = formattedError.trim();
+  if (
+    trimmedFormattedError.length === 0 ||
+    GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+  ) {
+    return undefined;
+  }
+
+  return formattedError;
+}
+
 function formatUnknownErrorForMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
@@ -217,15 +231,8 @@ function formatUnknownErrorForMessage(error: unknown): string {
   }
 
   try {
-    const formattedError = String(error);
-    const trimmedFormattedError = formattedError.trim();
-    if (
-      trimmedFormattedError.length === 0 ||
-      GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
-    ) {
-      return '[unstringifiable error]';
-    }
-    return formattedError;
+    const normalizedError = normalizeStringifiedUnknownError(String(error));
+    return normalizedError ?? '[unstringifiable error]';
   } catch {
     return '[unstringifiable error]';
   }

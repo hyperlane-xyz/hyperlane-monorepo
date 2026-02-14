@@ -330,6 +330,21 @@ describe('squads utils', () => {
       expect(result.error).to.equal('failed to stringify key (custom error)');
     });
 
+    it('uses placeholder when String(error) fallback normalizes to empty text', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw createStringifiableObjectErrorWithThrowingStackAndMessageGetters(
+            '   ',
+          );
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal(
+        'failed to stringify key ([unstringifiable error])',
+      );
+    });
+
     it('uses placeholder when toBase58 throws generic object errors', () => {
       const result = normalizeSquadsAddressValue({
         toBase58() {
