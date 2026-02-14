@@ -66,10 +66,19 @@ async function main() {
         return [];
       }
       const expectedOwners = signers;
-      const { ownersToRemove, ownersToAdd } = await getOwnerChanges(
-        currentOwners,
-        expectedOwners,
-      );
+      let ownersToRemove: string[] = [];
+      let ownersToAdd: string[] = [];
+      try {
+        ({ ownersToRemove, ownersToAdd } = await getOwnerChanges(
+          currentOwners,
+          expectedOwners,
+        ));
+      } catch (error) {
+        rootLogger.error(
+          `[${chain}] could not diff safe owners against expected signers: ${error}`,
+        );
+        return [];
+      }
 
       const chainViolations: SafeConfigViolation[] = [];
 
