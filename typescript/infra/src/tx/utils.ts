@@ -10,6 +10,11 @@ type ConfirmPrompt = (options: {
   message: string;
   default: boolean;
 }) => Promise<unknown>;
+type ProcessGovernorReaderResultDeps = {
+  writeYamlFn?: typeof writeYaml;
+  nowFn?: () => number;
+  exitFn?: (code: number) => never | void;
+};
 
 function stringifyValueForError(value: unknown): string {
   try {
@@ -23,7 +28,30 @@ export function processGovernorReaderResult(
   result: [string, GovernTransaction][],
   errors: any[],
   outputFileName: string,
+  deps: ProcessGovernorReaderResultDeps = {},
 ) {
+  if (!Array.isArray(result)) {
+    throw new Error(
+      `Governor reader result must be an array: ${stringifyValueForError(result)}`,
+    );
+  }
+  if (!Array.isArray(errors)) {
+    throw new Error(
+      `Governor reader errors must be an array: ${stringifyValueForError(errors)}`,
+    );
+  }
+  if (
+    typeof outputFileName !== 'string' ||
+    outputFileName.trim().length === 0
+  ) {
+    throw new Error(
+      `Governor reader output file name must be a non-empty string: ${stringifyValueForError(outputFileName)}`,
+    );
+  }
+  const writeYamlFn = deps.writeYamlFn ?? writeYaml;
+  const nowFn = deps.nowFn ?? Date.now;
+  const exitFn = deps.exitFn ?? process.exit;
+
   if (errors.length) {
     rootLogger.error(
       chalk.red('❌❌❌❌❌ Encountered fatal errors ❌❌❌❌❌'),
@@ -37,12 +65,12 @@ export function processGovernorReaderResult(
   }
 
   const chainResults = Object.fromEntries(result);
-  const resultsPath = `${outputFileName}-${Date.now()}.yaml`;
-  writeYaml(resultsPath, chainResults);
+  const resultsPath = `${outputFileName}-${nowFn()}.yaml`;
+  writeYamlFn(resultsPath, chainResults);
   rootLogger.info(`Results written to ${resultsPath}`);
 
   if (errors.length) {
-    process.exit(1);
+    exitFn(1);
   }
 }
 

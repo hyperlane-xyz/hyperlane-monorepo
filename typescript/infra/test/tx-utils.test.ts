@@ -1,6 +1,9 @@
 import { expect } from 'chai';
 
-import { executePendingTransactions } from '../src/tx/utils.js';
+import {
+  executePendingTransactions,
+  processGovernorReaderResult,
+} from '../src/tx/utils.js';
 
 interface PendingTxFixture {
   id: string;
@@ -462,5 +465,84 @@ describe('executePendingTransactions', () => {
     }
 
     expect(executed).to.deep.equal(['tx1']);
+  });
+});
+
+describe('processGovernorReaderResult', () => {
+  it('throws when result input is not an array', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        123 as unknown as [string, any][],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader result must be an array: 123');
+  });
+
+  it('throws when errors input is not an array', () => {
+    expect(() =>
+      processGovernorReaderResult(
+        [],
+        null as unknown as any[],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw('Governor reader errors must be an array: null');
+  });
+
+  it('throws when output file name is invalid', () => {
+    expect(() => processGovernorReaderResult([], [], '   ')).to.throw(
+      'Governor reader output file name must be a non-empty string:    ',
+    );
+  });
+
+  it('writes result yaml and does not exit when there are no fatal errors', () => {
+    let writtenPath: string | undefined;
+    let writtenValue: Record<string, unknown> | undefined;
+    let exitCode: number | undefined;
+
+    processGovernorReaderResult(
+      [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+      [],
+      'safe-tx-parse-results',
+      {
+        nowFn: () => 1700000000000,
+        writeYamlFn: (path, value) => {
+          writtenPath = path;
+          writtenValue = value as Record<string, unknown>;
+        },
+        exitFn: (code) => {
+          exitCode = code;
+        },
+      },
+    );
+
+    expect(writtenPath).to.equal('safe-tx-parse-results-1700000000000.yaml');
+    expect(writtenValue).to.deep.equal({
+      'chainA-1-0xabc': { status: 'ok' },
+    });
+    expect(exitCode).to.equal(undefined);
+  });
+
+  it('exits with code 1 when fatal errors are present', () => {
+    let writtenPath: string | undefined;
+    let exitCode: number | undefined;
+
+    processGovernorReaderResult(
+      [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+      [{ message: 'fatal' }],
+      'safe-tx-parse-results',
+      {
+        nowFn: () => 1700000000000,
+        writeYamlFn: (path) => {
+          writtenPath = path;
+        },
+        exitFn: (code) => {
+          exitCode = code;
+        },
+      },
+    );
+
+    expect(writtenPath).to.equal('safe-tx-parse-results-1700000000000.yaml');
+    expect(exitCode).to.equal(1);
   });
 });
