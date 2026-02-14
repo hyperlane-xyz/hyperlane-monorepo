@@ -271,6 +271,27 @@ describe('squads utils', () => {
       ).to.equal(SquadTxStatus.UNKNOWN);
     });
 
+    it('normalizes status kind by trimming surrounding whitespace', () => {
+      const parsed = parseSquadProposal({
+        status: { __kind: ` ${SquadsProposalStatus.Active} ` },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex: 7n,
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed.status).to.equal(SquadsProposalStatus.Active);
+      expect(
+        getSquadTxStatus(
+          parsed.status,
+          parsed.approvals,
+          2,
+          parsed.transactionIndex,
+          0,
+        ),
+      ).to.equal(SquadTxStatus.ACTIVE);
+    });
+
     it('accepts bignum-like proposal indexes and timestamps', () => {
       const parsed = parseSquadProposal({
         status: {

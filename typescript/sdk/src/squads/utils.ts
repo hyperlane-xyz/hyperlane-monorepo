@@ -682,13 +682,14 @@ function getProposalStatusMetadata(proposal: accounts.Proposal): {
     typeof statusKind === 'string',
     'Squads proposal status kind must be a string',
   );
+  const normalizedStatusKind = statusKind.trim();
   assert(
-    statusKind.trim().length > 0,
+    normalizedStatusKind.length > 0,
     'Squads proposal status kind must be a non-empty string',
   );
 
   return {
-    statusKind,
+    statusKind: normalizedStatusKind,
     rawStatusTimestamp: statusRecord.timestamp,
   };
 }
