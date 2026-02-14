@@ -9,7 +9,7 @@ import {
   getSquadsChains,
   partitionSquadsChains,
 } from '@hyperlane-xyz/sdk';
-import { assert, rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
 import type {
   DeployEnvironment,
@@ -308,6 +308,18 @@ export function logProposals(
 export function formatScriptError(error: unknown): string {
   if (error instanceof Error) {
     return error.stack ?? error.message;
+  }
+
+  if (typeof error === 'string') {
+    return error;
+  }
+
+  if (error && typeof error === 'object') {
+    try {
+      return stringifyObject(error);
+    } catch {
+      return '[unformattable error object]';
+    }
   }
 
   return String(error);
