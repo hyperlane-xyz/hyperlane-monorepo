@@ -317,6 +317,23 @@ describe('squads utils', () => {
       expect(result.error).to.equal('failed to stringify key (boom)');
     });
 
+    it('falls back to message when stack is whitespace-only during toBase58 failures', () => {
+      const result = normalizeSquadsAddressValue({
+        toBase58() {
+          throw {
+            stack: '   ',
+            message: 'boom',
+            toString() {
+              return 'should not be used';
+            },
+          };
+        },
+      });
+
+      expect(result.address).to.equal(undefined);
+      expect(result.error).to.equal('failed to stringify key (boom)');
+    });
+
     it('falls back to String(error) when stack/message accessors throw during toBase58 failures', () => {
       const result = normalizeSquadsAddressValue({
         toBase58() {
