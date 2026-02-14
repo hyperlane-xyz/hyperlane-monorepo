@@ -49,3 +49,5 @@ Nested iterable traversal is now also bounded to guard against unbounded iterato
 Nested error-collection traversal was further hardened to tolerate throwing map iterators and throwing object accessors without crashing matcher evaluation.
 
 Extracted-error queue traversal was also refactored to index-based iteration to avoid repeated queue shifting during nested error scans.
+
+Bounded traversal semantics were regression-tested to ensure late iterable runtime signals beyond the extraction cap are intentionally ignored for safety.
