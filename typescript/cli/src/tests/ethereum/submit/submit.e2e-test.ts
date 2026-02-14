@@ -3,6 +3,7 @@ import { type PopulatedTransaction as EV5Transaction, ethers } from 'ethers';
 
 import {
   MockSafe__factory,
+  TimelockController__factory,
   type XERC20VSTest,
   XERC20VSTest__factory,
 } from '@hyperlane-xyz/core';
@@ -427,6 +428,80 @@ describe('hyperlane submit', function () {
       expect(finalAlice).to.eql(initialAlice.add(mintAmountDirect));
       // The Safe tx builder output is not executed onchain in this flow.
       expect(finalBob).to.eql(initialBob);
+    });
+
+    it('should prioritize selector-specific override over target-only override', async function () {
+      const signerAddress = await xerc20Chain2.owner();
+      const mockSafe = await new MockSafe__factory()
+        .connect(xerc20Chain2.signer)
+        .deploy([signerAddress], 1);
+      const timelock = await new TimelockController__factory()
+        .connect(xerc20Chain2.signer)
+        .deploy(
+          0,
+          [signerAddress],
+          [signerAddress],
+          ethers.constants.AddressZero,
+        );
+
+      const txSelector = (
+        await getMintOnlyOwnerTransaction(
+          xerc20Chain2,
+          ALICE,
+          randomInt(1, 1000),
+          ANVIL2_CHAIN_ID,
+        )
+      ).data!.slice(0, 10);
+
+      const strategyPath = `${TEMP_PATH}/submitter-overrides-selector-strategy.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [CHAIN_NAME_2]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: CHAIN_NAME_2,
+          },
+          submitterOverrides: {
+            [xerc20Chain2.address]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: CHAIN_NAME_2,
+              safeAddress: mockSafe.address,
+              version: '1.0',
+            },
+            [`${xerc20Chain2.address}@${txSelector}`]: {
+              type: TxSubmitterType.TIMELOCK_CONTROLLER,
+              chain: CHAIN_NAME_2,
+              timelockAddress: timelock.address,
+              proposerSubmitter: {
+                type: TxSubmitterType.JSON_RPC,
+                chain: CHAIN_NAME_2,
+              },
+            },
+          },
+        },
+      });
+
+      const [selectorTx, targetOnlyTx] = await Promise.all([
+        getMintOnlyOwnerTransaction(
+          xerc20Chain2,
+          BOB,
+          randomInt(1, 1000),
+          ANVIL2_CHAIN_ID,
+        ),
+        Promise.resolve({
+          to: xerc20Chain2.address,
+          from: signerAddress,
+          data: '0x',
+          chainId: ANVIL2_CHAIN_ID,
+        }),
+      ]);
+
+      const transactionsPath = `${TEMP_PATH}/submitter-overrides-selector-transactions.yaml`;
+      writeYamlOrJson(transactionsPath, [selectorTx, targetOnlyTx]);
+
+      const result = await hyperlaneSubmit({ strategyPath, transactionsPath });
+      const output = result.text();
+      expect(output).to.match(/-timelockController-\d+-receipts\.json/);
+      expect(output).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
   });
 });
