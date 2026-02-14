@@ -107,6 +107,20 @@ describe('squads utils', () => {
       });
     });
 
+    it('labels array values clearly when rejecting non-string primitives', () => {
+      expect(normalizeSquadsAddressValue([])).to.deep.equal({
+        address: undefined,
+        error: 'expected string or object with toBase58(), got array',
+      });
+    });
+
+    it('labels null values clearly when rejecting non-string primitives', () => {
+      expect(normalizeSquadsAddressValue(null)).to.deep.equal({
+        address: undefined,
+        error: 'expected string or object with toBase58(), got null',
+      });
+    });
+
     it('rejects objects missing toBase58()', () => {
       expect(normalizeSquadsAddressValue({})).to.deep.equal({
         address: undefined,
@@ -124,6 +138,17 @@ describe('squads utils', () => {
       expect(result.address).to.equal(undefined);
       expect(result.error).to.include('failed to stringify key');
       expect(result.error).to.include('boom');
+    });
+
+    it('rejects generic object identifiers returned by toBase58()', () => {
+      expect(
+        normalizeSquadsAddressValue({
+          toBase58: () => ({}) as unknown,
+        }),
+      ).to.deep.equal({
+        address: undefined,
+        error: 'address value is not a meaningful identifier',
+      });
     });
   });
 

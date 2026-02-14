@@ -197,7 +197,7 @@ export function normalizeSquadsAddressValue(
   if (typeof value === 'string') {
     rawAddressValue = value;
   } else {
-    if (!value || typeof value !== 'object') {
+    if (!value || typeof value !== 'object' || Array.isArray(value)) {
       return {
         address: undefined,
         error: `expected string or object with toBase58(), got ${getUnknownValueTypeName(value)}`,
