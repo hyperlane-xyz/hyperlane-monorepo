@@ -52,7 +52,7 @@ async function main() {
         chain,
       );
       if (!fs.existsSync(configPath)) return null;
-      return readJson(configPath) as SvmMultisigConfigMap;
+      return readJson<SvmMultisigConfigMap>(configPath);
     },
   });
   await reader.init(warpRoutes);
