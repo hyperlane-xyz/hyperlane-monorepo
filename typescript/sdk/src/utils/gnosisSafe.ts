@@ -206,9 +206,12 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   };
 
   const hostname = extractHostname(txServiceUrl.trim());
+  if (hostname === undefined) {
+    return false;
+  }
   return (
-    (hostname !== undefined && hostMatchesDomain(hostname, 'safe.global')) ||
-    (hostname !== undefined && hostMatchesDomain(hostname, '5afe.dev'))
+    hostMatchesDomain(hostname, 'safe.global') ||
+    hostMatchesDomain(hostname, '5afe.dev')
   );
 }
 
