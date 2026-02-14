@@ -271,6 +271,23 @@ describe('squads error-format', () => {
       ).to.equal('{"foo":"bar"}');
     });
 
+    it('ignores non-string object formatter outputs and falls back', () => {
+      expect(
+        stringifyUnknownSquadsError(
+          {
+            toString() {
+              return 'custom object fallback';
+            },
+          },
+          {
+            formatObject() {
+              return 123 as unknown as string;
+            },
+          },
+        ),
+      ).to.equal('custom object fallback');
+    });
+
     it('does not call object formatter for Error instances', () => {
       let formatterCallCount = 0;
       const formatted = stringifyUnknownSquadsError(new Error('boom'), {
