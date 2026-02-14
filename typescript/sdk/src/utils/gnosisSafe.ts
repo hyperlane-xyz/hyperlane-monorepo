@@ -1169,10 +1169,18 @@ export async function proposeSafeTransaction(
     `Safe service proposeTransaction must be a function: ${stringifyValueForError(proposeTransaction)}`,
   );
   assert(
-    signer !== null &&
-      typeof signer === 'object' &&
-      typeof (signer as { getAddress?: unknown }).getAddress === 'function',
+    signer !== null && typeof signer === 'object',
     `Safe signer getAddress must be a function: ${stringifyValueForError(signer)}`,
+  );
+  let getSignerAddress: unknown;
+  try {
+    ({ getAddress: getSignerAddress } = signer as { getAddress?: unknown });
+  } catch {
+    throw new Error('Safe signer getAddress accessor is inaccessible');
+  }
+  assert(
+    typeof getSignerAddress === 'function',
+    `Safe signer getAddress must be a function: ${stringifyValueForError(getSignerAddress)}`,
   );
   assert(
     safeTransaction !== null && typeof safeTransaction === 'object',
@@ -1242,7 +1250,7 @@ export async function proposeSafeTransaction(
   });
   let senderAddress: unknown;
   try {
-    senderAddress = await signer.getAddress();
+    senderAddress = await getSignerAddress.call(signer);
   } catch (error) {
     throw new Error(
       `Failed to resolve Safe signer address: ${stringifyValueForError(error)}`,

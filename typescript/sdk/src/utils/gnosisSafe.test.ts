@@ -4661,6 +4661,26 @@ describe('gnosisSafe utils', () => {
           'Safe signer getAddress must be a function: 123',
         );
       }
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          {
+            get getAddress() {
+              throw new Error('boom');
+            },
+          } as unknown as Parameters<typeof proposeSafeTransaction>[5],
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe signer getAddress accessor is inaccessible',
+        );
+      }
     });
 
     it('throws when safe transaction payload shape is invalid', async () => {
