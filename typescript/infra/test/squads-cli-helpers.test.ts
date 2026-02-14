@@ -94,6 +94,22 @@ describe('squads cli helpers', () => {
     ).to.throw('Squads configuration not found for chains: ethereum, arbitrum');
   });
 
+  it('uses shared formatter output for unsupported explicit chains', () => {
+    const providedChains = [
+      'ethereum' as ChainName,
+      'ethereum' as ChainName,
+      'arbitrum' as ChainName,
+    ];
+    const expectedErrorMessage = getUnsupportedSquadsChainsErrorMessage(
+      ['ethereum' as ChainName, 'arbitrum' as ChainName],
+      getSquadsChains(),
+    );
+
+    expect(() => resolveSquadsChains(providedChains)).to.throw(
+      expectedErrorMessage,
+    );
+  });
+
   it('returns a defensive copy for explicit chains', () => {
     const [firstChain, secondChain] = getSquadsChains();
     const selectedChains = [firstChain, secondChain];
