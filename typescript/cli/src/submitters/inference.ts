@@ -648,8 +648,17 @@ function buildExplicitOverrideIndexes({
   for (const [overrideKey, submitter] of Object.entries(overrides)) {
     if (protocol === ProtocolType.Ethereum) {
       const parsed = parseOverrideKey(overrideKey);
+      if (!parsed.target.trim()) {
+        logger.debug(
+          `Skipping empty EVM submitter override key for ${submitter.chain}`,
+        );
+        continue;
+      }
       const normalizedTarget = tryNormalizeEvmAddress(parsed.target);
       if (!normalizedTarget) {
+        logger.debug(
+          `Skipping invalid EVM submitter override key '${overrideKey}' for ${submitter.chain}`,
+        );
         continue;
       }
 
@@ -665,6 +674,12 @@ function buildExplicitOverrideIndexes({
     }
 
     const normalizedTarget = overrideKey.trim();
+    if (!normalizedTarget) {
+      logger.debug(
+        `Skipping empty non-EVM submitter override key for ${submitter.chain}`,
+      );
+      continue;
+    }
     if (!indexes.nonEvmTargetOverrides.has(normalizedTarget)) {
       indexes.nonEvmTargetOverrides.set(normalizedTarget, submitter);
     }
