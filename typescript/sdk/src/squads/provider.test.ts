@@ -32,6 +32,15 @@ describe('squads provider bridge', () => {
     expect(toSquadsProvider(providerLike)).to.equal(providerLike);
   });
 
+  it('accepts provider-like objects inheriting callable getAccountInfo', () => {
+    const providerPrototype = {
+      getAccountInfo: async () => null,
+    };
+    const providerLike = Object.create(providerPrototype) as SolanaProvider;
+
+    expect(toSquadsProvider(providerLike)).to.equal(providerLike);
+  });
+
   it('throws for malformed provider values', () => {
     expectInvalidProvider({}, 'undefined', 'object');
   });

@@ -1,7 +1,7 @@
 import { accounts } from '@sqds/multisig';
 import { assert } from '@hyperlane-xyz/utils';
 
-import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
+import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 
 export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
