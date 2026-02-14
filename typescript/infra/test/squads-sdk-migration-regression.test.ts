@@ -25,9 +25,34 @@ const LEGACY_SQUADS_IMPORT_PATTERN =
 const SQDS_MULTISIG_IMPORT_PATTERN = /from\s+['"]@sqds\/multisig['"]/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /from\s+['"]@hyperlane-xyz\/sdk['"]/;
+const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'cache', '.turbo']);
 
 function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
+}
+
+function listTypeScriptFilesRecursively(relativeDir: string): string[] {
+  const absoluteDir = path.join(INFRA_ROOT, relativeDir);
+  const entries = fs.readdirSync(absoluteDir, { withFileTypes: true });
+  const files: string[] = [];
+
+  for (const entry of entries) {
+    if (SKIPPED_DIRECTORIES.has(entry.name)) {
+      continue;
+    }
+
+    const entryRelativePath = path.join(relativeDir, entry.name);
+    if (entry.isDirectory()) {
+      files.push(...listTypeScriptFilesRecursively(entryRelativePath));
+      continue;
+    }
+
+    if (entry.isFile() && entry.name.endsWith('.ts')) {
+      files.push(entryRelativePath);
+    }
+  }
+
+  return files;
 }
 
 describe('squads sdk migration regression', () => {
@@ -58,6 +83,24 @@ describe('squads sdk migration regression', () => {
       expect(
         SQDS_MULTISIG_IMPORT_PATTERN.test(scriptContents),
         `Expected script to avoid direct @sqds/multisig imports: ${scriptPath}`,
+      ).to.equal(false);
+    }
+  });
+
+  it('keeps all infra typescript files free of legacy squads imports', () => {
+    const typeScriptFiles = listTypeScriptFilesRecursively('.');
+
+    for (const relativePath of typeScriptFiles) {
+      const fileContents = readInfraFile(relativePath);
+
+      expect(
+        LEGACY_SQUADS_IMPORT_PATTERN.test(fileContents),
+        `Expected file to avoid legacy infra squads imports: ${relativePath}`,
+      ).to.equal(false);
+
+      expect(
+        SQDS_MULTISIG_IMPORT_PATTERN.test(fileContents),
+        `Expected file to avoid direct @sqds/multisig imports: ${relativePath}`,
       ).to.equal(false);
     }
   });
