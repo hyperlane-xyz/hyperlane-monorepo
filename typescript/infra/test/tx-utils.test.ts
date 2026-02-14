@@ -131,4 +131,51 @@ describe('executePendingTransactions', () => {
 
     expect(executed).to.deep.equal(['tx1', 'tx3']);
   });
+
+  it('returns immediately when there are no executable transactions', async () => {
+    let promptCalls = 0;
+
+    await executePendingTransactions(
+      [],
+      () => 'unused',
+      () => 'unused',
+      async () => {
+        throw new Error('executeTx should not be called');
+      },
+      async () => {
+        promptCalls += 1;
+        return true;
+      },
+    );
+
+    expect(promptCalls).to.equal(0);
+  });
+
+  it('continues when transaction metadata is invalid', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: '' },
+    ];
+    const executed: string[] = [];
+
+    const confirmPrompt = async () => true;
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        confirmPrompt,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): <unknown>:<unknown>',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1']);
+  });
 });

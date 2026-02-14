@@ -45,6 +45,10 @@ export async function executePendingTransactions<T>(
   executeTx: (tx: T) => Promise<any>,
   confirmPrompt: ConfirmPrompt = (options) => confirm(options),
 ) {
+  if (executableTxs.length === 0) {
+    return;
+  }
+
   // Ask if user wants to execute all transactions at once
   const confirmExecuteAll = await confirmPrompt({
     message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
@@ -72,6 +76,24 @@ export async function executePendingTransactions<T>(
         id: '<unknown>',
         chain: '<unknown>',
         error,
+      });
+      continue;
+    }
+    if (
+      typeof id !== 'string' ||
+      id.trim().length === 0 ||
+      typeof chain !== 'string' ||
+      chain.trim().length === 0
+    ) {
+      rootLogger.error(
+        chalk.red(
+          `Invalid pending transaction metadata: chain=${String(chain)} id=${String(id)}`,
+        ),
+      );
+      failedTransactions.push({
+        id: '<unknown>',
+        chain: '<unknown>',
+        error: new Error('Invalid pending transaction metadata'),
       });
       continue;
     }
