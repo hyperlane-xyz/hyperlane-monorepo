@@ -257,6 +257,16 @@ describe('squads utils', () => {
       ).to.equal(undefined);
     });
 
+    it('prioritizes rejection errors in direct log arrays with multiple matches', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError([
+          'custom program error: 0x177a',
+          'custom program error: 0x177b',
+          'custom program error: 0x177c',
+        ]),
+      ).to.equal(SquadsProposalVoteError.AlreadyRejected);
+    });
+
     it('parses known vote error from unknown error shape', () => {
       const error = {
         transactionLogs: ['Program log: AlreadyCancelled'],

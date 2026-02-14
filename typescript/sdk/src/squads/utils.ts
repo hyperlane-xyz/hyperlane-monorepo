@@ -129,6 +129,24 @@ function parseSquadsProposalVoteErrorText(
   return undefined;
 }
 
+function parseSquadsProposalVoteErrorFromUnknownArray(
+  value: unknown,
+): SquadsProposalVoteError | undefined {
+  if (!Array.isArray(value)) {
+    return undefined;
+  }
+
+  const logEntries = value.filter((entry): entry is string => {
+    return typeof entry === 'string';
+  });
+
+  if (logEntries.length === 0) {
+    return undefined;
+  }
+
+  return parseSquadsProposalVoteError(logEntries);
+}
+
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -151,13 +169,11 @@ export function parseSquadsProposalVoteErrorFromError(
     return parseSquadsProposalVoteErrorText(error);
   }
 
-  if (Array.isArray(error)) {
-    const logEntries = error.filter((value): value is string => {
-      return typeof value === 'string';
-    });
-    if (logEntries.length > 0) {
-      return parseSquadsProposalVoteError(logEntries);
-    }
+  const parsedFromDirectArray = parseSquadsProposalVoteErrorFromUnknownArray(
+    error,
+  );
+  if (parsedFromDirectArray) {
+    return parsedFromDirectArray;
   }
 
   if (!error || typeof error !== 'object') {
@@ -184,10 +200,8 @@ export function parseSquadsProposalVoteErrorFromError(
     const currentRecord = current as Record<string, unknown>;
     for (const logField of SQUADS_ERROR_LOG_ARRAY_FIELDS) {
       const maybeLogs = currentRecord[logField];
-      if (!Array.isArray(maybeLogs)) continue;
-      const logs = maybeLogs.filter((v): v is string => typeof v === 'string');
-      if (logs.length === 0) continue;
-      const parsedError = parseSquadsProposalVoteError(logs);
+      const parsedError =
+        parseSquadsProposalVoteErrorFromUnknownArray(maybeLogs);
       if (parsedError) return parsedError;
     }
 
@@ -207,12 +221,8 @@ export function parseSquadsProposalVoteErrorFromError(
 
     for (const field of SQUADS_ERROR_STRING_ARRAY_FIELDS) {
       const value = currentRecord[field];
-      if (!Array.isArray(value)) continue;
-      const stringValues = value.filter(
-        (item): item is string => typeof item === 'string',
-      );
-      if (stringValues.length === 0) continue;
-      const parsedError = parseSquadsProposalVoteError(stringValues);
+      const parsedError =
+        parseSquadsProposalVoteErrorFromUnknownArray(value);
       if (parsedError) return parsedError;
     }
 
