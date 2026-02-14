@@ -1,0 +1,21 @@
+---
+"@hyperlane-xyz/sdk": patch
+"@hyperlane-xyz/cli": patch
+"@hyperlane-xyz/utils": patch
+"@hyperlane-xyz/cosmos-sdk": patch
+"@hyperlane-xyz/aleo-sdk": patch
+"@hyperlane-xyz/radix-sdk": patch
+"@hyperlane-xyz/widgets": patch
+"@hyperlane-xyz/deploy-sdk": patch
+"@hyperlane-xyz/core": patch
+"@hyperlane-xyz/starknet-core": patch
+"@hyperlane-xyz/rebalancer": patch
+"@hyperlane-xyz/tron-sdk": patch
+"@hyperlane-xyz/cosmos-types": patch
+---
+
+The monorepo TypeScript toolchain was upgraded to 6.0.0-beta.
+
+Shared TypeScript configs were updated to explicitly include `node` and `mocha` ambient types for TS6 compatibility, and package type dependencies were aligned accordingly.
+
+TS6 compatibility fixes were applied in lint configuration and tron-sdk test imports to keep build and lint pipelines green.
