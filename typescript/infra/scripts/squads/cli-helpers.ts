@@ -189,6 +189,10 @@ function normalizeArgvChains(chains: unknown): string[] {
 
 function normalizeProvidedChains(chains: readonly string[]): string[] {
   return chains.map((chain, index) => {
+    assert(
+      typeof chain === 'string',
+      `Expected chains[${index}] to be a string, but received ${getArgTypeName(chain)}`,
+    );
     const trimmedChain = chain.trim();
     assert(
       trimmedChain.length > 0,

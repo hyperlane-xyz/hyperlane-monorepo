@@ -138,6 +138,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('throws for explicitly provided non-string chain values', () => {
+    expect(() => resolveSquadsChains([123 as unknown as string])).to.throw(
+      'Expected chains[0] to be a string, but received number',
+    );
+  });
+
   it('throws for explicitly provided non-squads chain', () => {
     expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       'Squads configuration not found for chains: ethereum',
@@ -388,6 +394,16 @@ describe('squads cli helpers', () => {
     );
 
     expect(parsedArgs.chains).to.deep.equal([firstChain, secondChain]);
+  });
+
+  it('trims chains parsed from repeated args before dedupe', async () => {
+    const chain = getSquadsChains()[0];
+
+    const parsedArgs = await parseArgs(
+      withSquadsChains(yargs(['--chains', ` ${chain} `, '--chains', chain])),
+    );
+
+    expect(parsedArgs.chains).to.deep.equal([chain]);
   });
 
   it('rejects non-squads chain via chains parser choices', async () => {
