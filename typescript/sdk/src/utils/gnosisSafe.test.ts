@@ -3375,8 +3375,8 @@ describe('gnosisSafe utils', () => {
 
   describe(getOwnerChanges.name, () => {
     const expectOwnerChangesError = async (
-      currentOwners: string[],
-      expectedOwners: string[],
+      currentOwners: unknown,
+      expectedOwners: unknown,
       message: string,
     ): Promise<void> => {
       try {
@@ -3539,6 +3539,37 @@ describe('gnosisSafe utils', () => {
         ['0x0000000000000000000000000000000000000001'],
         ['not-an-address'],
         'Invalid owner address found in expected owners: not-an-address',
+      );
+    });
+
+    it('throws when owner lists are not arrays', async () => {
+      await expectOwnerChangesError(
+        null,
+        ['0x0000000000000000000000000000000000000001'],
+        'Owner list for current owners must be an array: null',
+      );
+      await expectOwnerChangesError(
+        ['0x0000000000000000000000000000000000000001'],
+        123,
+        'Owner list for expected owners must be an array: 123',
+      );
+    });
+
+    it('throws when owner lists contain non-string entries', async () => {
+      await expectOwnerChangesError(
+        [123],
+        ['0x0000000000000000000000000000000000000001'],
+        'Invalid owner address found in current owners: 123',
+      );
+      const unstringifiableOwner = {
+        [Symbol.toPrimitive]: () => {
+          throw new Error('boom');
+        },
+      };
+      await expectOwnerChangesError(
+        ['0x0000000000000000000000000000000000000001'],
+        [unstringifiableOwner],
+        'Invalid owner address found in expected owners: <unstringifiable>',
       );
     });
   });

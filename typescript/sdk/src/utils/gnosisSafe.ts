@@ -1196,14 +1196,18 @@ export async function deleteAllPendingSafeTxs(
 }
 
 function assertValidUniqueOwners(
-  owners: Address[],
+  owners: unknown,
   ownerGroupName: string,
-): void {
+): asserts owners is Address[] {
+  assert(
+    Array.isArray(owners),
+    `Owner list for ${ownerGroupName} must be an array: ${stringifyValueForError(owners)}`,
+  );
   const seenOwners = new Set<string>();
   for (const owner of owners) {
     assert(
-      ethers.utils.isAddress(owner),
-      `Invalid owner address found in ${ownerGroupName}: ${owner}`,
+      typeof owner === 'string' && ethers.utils.isAddress(owner),
+      `Invalid owner address found in ${ownerGroupName}: ${stringifyValueForError(owner)}`,
     );
     const normalizedOwner = owner.toLowerCase();
     assert(
@@ -1215,8 +1219,8 @@ function assertValidUniqueOwners(
 }
 
 export async function getOwnerChanges(
-  currentOwners: Address[],
-  expectedOwners: Address[],
+  currentOwners: unknown,
+  expectedOwners: unknown,
 ): Promise<{
   ownersToRemove: Address[];
   ownersToAdd: Address[];
