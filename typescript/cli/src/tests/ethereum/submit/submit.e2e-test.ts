@@ -328,6 +328,29 @@ describe('hyperlane submit', function () {
       const result = await hyperlaneSubmit({ transactionsPath });
       expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
     });
+
+    it('should fall back to jsonRpc when target owner cannot be inferred', async function () {
+      const recipient = randomAddress();
+      const sender = await xerc20Chain2.signer.getAddress();
+      const provider = xerc20Chain2.provider;
+
+      const transactionsPath = `${TEMP_PATH}/strategy-test-transactions-jsonrpc-fallback.yaml`;
+      writeYamlOrJson(transactionsPath, [
+        {
+          to: recipient,
+          from: sender,
+          value: '0x1',
+          chainId: ANVIL2_CHAIN_ID,
+        },
+      ]);
+
+      const initialBalance = await provider.getBalance(recipient);
+      const result = await hyperlaneSubmit({ transactionsPath });
+
+      expect(result.text()).to.match(/-jsonRpc-\d+-receipts\.json/);
+      const finalBalance = await provider.getBalance(recipient);
+      expect(finalBalance.sub(initialBalance)).to.eql(ethers.BigNumber.from(1));
+    });
   });
 
   describe('explicit submitterOverrides', function () {

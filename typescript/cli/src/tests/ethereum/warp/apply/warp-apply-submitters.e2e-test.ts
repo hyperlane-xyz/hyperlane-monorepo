@@ -508,6 +508,59 @@ describe('hyperlane warp apply with submitters', async function () {
     });
   });
 
+  describe('explicit submitterOverrides', () => {
+    it('should route warp apply txs using explicit target override submitter', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      await deployAndExportWarpRoute();
+
+      const chain3 = TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3;
+      const chain3WarpAddress = evmWarpCommands.getDeployedWarpAddress(
+        chain3,
+        WARP_CORE_CONFIG_PATH,
+      );
+
+      const strategyPath = `${TEMP_PATH}/warp-apply-submitter-overrides.yaml`;
+      writeYamlOrJson(strategyPath, {
+        [chain3]: {
+          submitter: {
+            type: TxSubmitterType.JSON_RPC,
+            chain: chain3,
+          },
+          submitterOverrides: {
+            [chain3WarpAddress]: {
+              type: TxSubmitterType.GNOSIS_TX_BUILDER,
+              chain: chain3,
+              safeAddress,
+              version: '1.0',
+            },
+          },
+        },
+      });
+
+      const expectedUpdatedGasValue = '98765';
+      warpDeployConfig[chain3].destinationGas = {
+        [chain2DomainId]: expectedUpdatedGasValue,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        strategyUrl: strategyPath,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(result.text()).to.match(/-gnosisSafeTxBuilder-\d+-receipts\.json/);
+
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        chain3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      expect(
+        updatedWarpDeployConfig_3_2[chain3].destinationGas?.[chain2DomainId],
+      ).to.not.equal(expectedUpdatedGasValue);
+    });
+  });
+
   describe('auto inference', () => {
     it('should infer gnosisSafeTxBuilder for Safe-owned warp routes', async () => {
       const warpDeployConfig = fixture.getDeployConfig();
