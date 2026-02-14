@@ -1,9 +1,5 @@
 import { Result } from '@ethersproject/abi';
 import {
-  MetaTransactionData,
-  OperationType,
-} from '@safe-global/safe-core-sdk-types';
-import {
   getMultiSendCallOnlyDeployments,
   getMultiSendDeployments,
 } from '@safe-global/safe-deployments';
@@ -151,6 +147,18 @@ const icaInterfaceWithHookMetadata = new ethers.utils.Interface([
 // Function selector for callRemoteWithOverrides with hookMetadata (5 params)
 const CALL_REMOTE_WITH_HOOK_METADATA_SELECTOR =
   icaInterfaceWithHookMetadata.getSighash('callRemoteWithOverrides');
+
+type SafeMetaTransactionData = {
+  to: string;
+  data?: string;
+  value?: string;
+  operation?: number;
+};
+
+const SafeOperationType = {
+  Call: 0,
+  DelegateCall: 1,
+} as const;
 
 async function parseHookMetadataWithInsight(
   chain: ChainName,
@@ -1933,7 +1941,7 @@ export class GovernTransactionReader {
 }
 
 function metaTransactionDataToEV5Transaction(
-  metaTransactionData: MetaTransactionData,
+  metaTransactionData: SafeMetaTransactionData,
 ): AnnotatedEV5Transaction {
   return {
     to: metaTransactionData.to,
@@ -1953,11 +1961,11 @@ function formatFunctionFragmentArgs(
   }, accumulator);
 }
 
-function formatOperationType(operation: OperationType | undefined): string {
+function formatOperationType(operation: number | undefined): string {
   switch (operation) {
-    case OperationType.Call:
+    case SafeOperationType.Call:
       return 'Call';
-    case OperationType.DelegateCall:
+    case SafeOperationType.DelegateCall:
       return 'Delegate Call';
     default:
       return '⚠️ Unknown ⚠️';

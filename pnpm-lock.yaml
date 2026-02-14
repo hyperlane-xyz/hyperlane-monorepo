@@ -1496,9 +1496,6 @@ importers:
       '@safe-global/protocol-kit':
         specifier: 'catalog:'
         version: 6.1.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
-      '@safe-global/safe-core-sdk-types':
-        specifier: 'catalog:'
-        version: 5.1.0(typescript@5.8.3)(zod@3.25.76)
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
         version: 1.37.47

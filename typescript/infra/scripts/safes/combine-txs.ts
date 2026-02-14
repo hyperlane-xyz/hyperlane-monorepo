@@ -1,5 +1,4 @@
 // Import necessary modules
-import { SafeTransaction } from '@safe-global/safe-core-sdk-types';
 // eslint-disable-next-line
 import * as fs from 'fs';
 import * as path from 'path';
@@ -11,11 +10,18 @@ import { readJson } from '@hyperlane-xyz/utils/fs';
 import { writeAndFormatJsonAtPath } from '../../src/utils/utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+type SafeTransactionData = {
+  to: string;
+  data: string;
+  value: string;
+  operation?: number;
+};
+
 type TxFile = {
   version: string;
   chainId: string;
-  meta: any;
-  transactions: SafeTransaction[];
+  meta: Record<string, unknown>;
+  transactions: SafeTransactionData[];
 };
 
 // Function to read and parse JSON files

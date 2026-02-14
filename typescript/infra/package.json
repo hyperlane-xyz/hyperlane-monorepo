@@ -64,7 +64,6 @@
     "@inquirer/select": "catalog:",
     "@nomiclabs/hardhat-etherscan": "^3.0.3",
     "@safe-global/protocol-kit": "catalog:",
-    "@safe-global/safe-core-sdk-types": "catalog:",
     "@safe-global/safe-deployments": "catalog:",
     "@solana/web3.js": "catalog:",
     "@turnkey/api-key-stamper": "catalog:",
