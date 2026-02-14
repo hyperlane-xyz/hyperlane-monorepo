@@ -62,7 +62,9 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
-      return error.message;
+      if (error.message.trim().length > 0) {
+        return error.message;
+      }
     } catch {
       // Fall through to generic guarded extraction below.
     }
@@ -75,7 +77,7 @@ function getErrorMessage(error: unknown): string {
 
   if (typeof error === 'object' && error !== null) {
     const message = getObjectProperty(error, 'message');
-    if (typeof message === 'string') {
+    if (typeof message === 'string' && message.trim().length > 0) {
       return message;
     }
   }

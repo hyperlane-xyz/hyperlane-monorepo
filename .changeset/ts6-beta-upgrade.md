@@ -75,3 +75,5 @@ Formatter fallback handling was also hardened for `Error` instances whose `messa
 Regression coverage was expanded for case-and-whitespace normalized `ENOENT` codes so missing-binary hints remain stable across wrapper-transformed error metadata.
 
 When `Error.message` access fails, startup formatting now falls back to the error name before structural serialization, improving readability for hostile error wrappers.
+
+Blank-string `message` payloads are now treated as non-informative so formatter output can fall back to richer name/structured diagnostics.

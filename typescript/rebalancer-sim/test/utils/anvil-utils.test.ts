@@ -564,6 +564,17 @@ describe('Anvil utils', () => {
       ).to.equal('Failed to start local anvil: custom object failure');
     });
 
+    it('falls back when non-Error message field is empty', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: '   ',
+          reason: 'spawn-failure',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: {"message":"   ","reason":"spawn-failure"}',
+      );
+    });
+
     it('serializes non-Error objects without message fields', () => {
       expect(
         formatLocalAnvilStartError({
@@ -671,6 +682,15 @@ describe('Anvil utils', () => {
       });
 
       expect(formatLocalAnvilStartError(problematicError)).to.equal(
+        'Failed to start local anvil: Error',
+      );
+    });
+
+    it('falls back to Error name when message is empty', () => {
+      const emptyMessageError = new Error('hidden');
+      emptyMessageError.message = ' ';
+
+      expect(formatLocalAnvilStartError(emptyMessageError)).to.equal(
         'Failed to start local anvil: Error',
       );
     });
