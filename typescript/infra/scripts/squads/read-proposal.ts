@@ -35,12 +35,15 @@ function toBase58IfPossible(
   value: unknown,
   label: string,
   chain: string,
-  index: number,
+  index?: number,
 ): string | undefined {
+  const labelWithIndex =
+    typeof index === 'number' ? `${label}[${index}]` : label;
+
   if (!value || typeof value !== 'object') {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping ${label}[${index}] on ${chain}: expected object with toBase58(), got ${String(value)}`,
+        `Skipping ${labelWithIndex} on ${chain}: expected object with toBase58(), got ${String(value)}`,
       ),
     );
     return undefined;
@@ -50,7 +53,7 @@ function toBase58IfPossible(
   if (typeof toBase58Candidate !== 'function') {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping ${label}[${index}] on ${chain}: missing toBase58() method`,
+        `Skipping ${labelWithIndex} on ${chain}: missing toBase58() method`,
       ),
     );
     return undefined;
@@ -61,7 +64,7 @@ function toBase58IfPossible(
   } catch (error) {
     rootLogger.warn(
       chalk.yellow(
-        `Skipping ${label}[${index}] on ${chain}: failed to stringify key (${String(error)})`,
+        `Skipping ${labelWithIndex} on ${chain}: failed to stringify key (${String(error)})`,
       ),
     );
     return undefined;
@@ -153,6 +156,26 @@ async function main() {
     }
 
     const { proposal, multisig, proposalPda } = proposalData;
+    const proposalMultisigAddress =
+      toBase58IfPossible(proposal.multisig, 'proposal.multisig', chain) ??
+      '[unavailable]';
+    const createKeyAddress =
+      toBase58IfPossible(multisig.createKey, 'multisig.createKey', chain) ??
+      '[unavailable]';
+    const configAuthorityAddress =
+      toBase58IfPossible(
+        multisig.configAuthority,
+        'multisig.configAuthority',
+        chain,
+      ) ?? '[unavailable]';
+    const rentCollectorAddress = multisig.rentCollector
+      ? (toBase58IfPossible(
+          multisig.rentCollector,
+          'multisig.rentCollector',
+          chain,
+        ) ?? '[unavailable]')
+      : 'null';
+
     const parsedProposal = parseSquadProposal(proposal);
     const parsedMultisig = parseSquadMultisig(multisig, `${chain} multisig`);
     const approvedVoters = formatSignerList(
@@ -209,9 +232,7 @@ async function main() {
       rootLogger.info(chalk.white(`  Transaction Index: ${transactionIndex}`));
     }
     rootLogger.info(chalk.white(`  Proposal PDA: ${proposalPda.toBase58()}`));
-    rootLogger.info(
-      chalk.white(`  Multisig PDA: ${proposal.multisig.toBase58()}`),
-    );
+    rootLogger.info(chalk.white(`  Multisig PDA: ${proposalMultisigAddress}`));
 
     // Coerce all numeric fields to consistent types for safe comparison
     const {
@@ -343,11 +364,9 @@ async function main() {
     rootLogger.info(
       chalk.white(`  Stale Transaction Index: ${staleTransactionIndex}`),
     );
+    rootLogger.info(chalk.white(`  Create Key: ${createKeyAddress}`));
     rootLogger.info(
-      chalk.white(`  Create Key: ${multisig.createKey.toBase58()}`),
-    );
-    rootLogger.info(
-      chalk.white(`  Config Authority: ${multisig.configAuthority.toBase58()}`),
+      chalk.white(`  Config Authority: ${configAuthorityAddress}`),
     );
 
     // Display members
@@ -371,7 +390,7 @@ async function main() {
             timeLock: timeLock,
             transactionIndex: currentTransactionIndex,
             staleTransactionIndex: staleTransactionIndex,
-            rentCollector: multisig.rentCollector?.toBase58() || 'null',
+            rentCollector: rentCollectorAddress,
             bump: multisig.bump,
             members: formattedMultisigMembers,
           }),
