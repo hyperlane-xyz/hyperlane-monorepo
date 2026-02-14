@@ -5,6 +5,7 @@ import { ChainName, getSquadsChains } from '@hyperlane-xyz/sdk';
 
 import {
   resolveSquadsChains,
+  withRequiredSquadsChain,
   withSquadsChain,
   withSquadsChains,
 } from '../scripts/squads/cli-helpers.js';
@@ -90,6 +91,18 @@ describe('squads cli helpers', () => {
 
     expect(parserError).to.not.be.undefined;
     expect(parserError?.message).to.include('Invalid values');
+  });
+
+  it('requires chain when using required chain parser helper', async () => {
+    let parserError: Error | undefined;
+    try {
+      await withRequiredSquadsChain(yargs([]).exitProcess(false)).parse();
+    } catch (error) {
+      parserError = error as Error;
+    }
+
+    expect(parserError).to.not.be.undefined;
+    expect(parserError?.message).to.include('Missing required argument: chain');
   });
 
   it('deduplicates chains parsed from repeated args', async () => {

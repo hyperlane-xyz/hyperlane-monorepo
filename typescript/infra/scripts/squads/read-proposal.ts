@@ -16,7 +16,7 @@ import {
 
 import {
   getSquadsMultiProtocolProvider,
-  withSquadsChain,
+  withRequiredSquadsChain,
   withTransactionIndex,
 } from './cli-helpers.js';
 
@@ -32,8 +32,8 @@ async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
 
   const { chain, transactionIndex, verbose } = await withTransactionIndex(
-    withVerbose(withSquadsChain(yargs(process.argv.slice(2)))),
-  ).demandOption('chain').argv;
+    withVerbose(withRequiredSquadsChain(yargs(process.argv.slice(2)))),
+  ).argv;
 
   rootLogger.info(chalk.blue.bold('🔍 Squads Proposal Reader'));
   rootLogger.info(

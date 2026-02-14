@@ -69,6 +69,10 @@ export function withSquadsChain<T>(args: Argv<T>) {
     .alias('c', 'chain');
 }
 
+export function withRequiredSquadsChain<T>(args: Argv<T>) {
+  return withSquadsChain(args).demandOption('chain');
+}
+
 export function withSquadsChains<T>(args: Argv<T>) {
   return args
     .describe('chains', 'Set of chains to perform actions on.')

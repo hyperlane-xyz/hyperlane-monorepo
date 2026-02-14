@@ -16,15 +16,15 @@ import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
 import {
   getSquadsMultiProtocolProvider,
   getSquadsTurnkeySigner,
-  withSquadsChain,
+  withRequiredSquadsChain,
   withTransactionIndex,
 } from './cli-helpers.js';
 
 // CLI argument parsing
 async function main() {
   const { chain, transactionIndex } = await withTransactionIndex(
-    withSquadsChain(yargs(process.argv.slice(2))),
-  ).demandOption('chain').argv;
+    withRequiredSquadsChain(yargs(process.argv.slice(2))),
+  ).argv;
 
   const { chainsToSkip } = await import('../../src/config/chain.js');
 
