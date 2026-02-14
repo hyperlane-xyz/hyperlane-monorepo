@@ -849,6 +849,7 @@ export {
 export {
   asHex,
   canProposeSafeTransactions,
+  createSafeDeploymentTransaction,
   createSafeTransaction,
   createSafeTransactionData,
   decodeMultiSendData,
@@ -866,6 +867,7 @@ export {
   proposeSafeTransaction,
   retrySafeApi,
   SafeCallData,
+  SafeDeploymentConfig,
   SafeOwnerUpdateCall,
   SafeServiceTransaction,
   SafeStatus,

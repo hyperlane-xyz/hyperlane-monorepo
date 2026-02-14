@@ -1493,9 +1493,6 @@ importers:
       '@nomiclabs/hardhat-etherscan':
         specifier: ^3.0.3
         version: 3.1.8(hardhat@2.27.0(bufferutil@4.0.9)(ts-node@10.9.2(@types/node@24.10.9)(typescript@5.8.3))(typescript@5.8.3)(utf-8-validate@5.0.10))
-      '@safe-global/protocol-kit':
-        specifier: 'catalog:'
-        version: 6.1.1(bufferutil@4.0.9)(typescript@5.8.3)(utf-8-validate@5.0.10)(zod@3.25.76)
       '@safe-global/safe-deployments':
         specifier: 'catalog:'
         version: 1.37.47

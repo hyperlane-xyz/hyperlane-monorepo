@@ -1,6 +1,6 @@
-import Safe, { SafeAccountConfig } from '@safe-global/protocol-kit';
 import { BigNumber } from 'ethers';
 
+import { createSafeDeploymentTransaction } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
 import { Contexts } from '../../config/contexts.js';
@@ -31,27 +31,21 @@ async function main() {
 
   const { signers, threshold: defaultThreshold } =
     getGovernanceSigners(governanceType);
-  const safeAccountConfig: SafeAccountConfig = {
+  const safeDeploymentConfig = {
     owners: signers,
     threshold: threshold ?? defaultThreshold,
   };
 
-  // @ts-ignore
-  const safe = await Safe.init({
-    provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
-    predictedSafe: {
-      safeAccountConfig,
-    },
-  });
-
-  const { to, data, value } = await safe.createSafeDeploymentTransaction();
+  const { safeAddress, transaction } = await createSafeDeploymentTransaction(
+    chain,
+    multiProvider,
+    safeDeploymentConfig,
+  );
   await multiProvider.sendTransaction(chain, {
-    to,
-    data,
-    value: BigNumber.from(value),
+    to: transaction.to,
+    data: transaction.data,
+    value: BigNumber.from(transaction.value),
   });
-
-  const safeAddress = await safe.getAddress();
 
   rootLogger.info(`Safe address: ${safeAddress}`);
   rootLogger.info(`Safe url: ${safeHomeUrl}/home?safe=${chain}:${safeAddress}`);

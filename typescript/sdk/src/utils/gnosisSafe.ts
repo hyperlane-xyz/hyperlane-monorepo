@@ -1,7 +1,10 @@
 import SafeApiKit, {
   SafeMultisigTransactionListResponse,
 } from '@safe-global/api-kit';
-import Safe, { SafeProviderConfig } from '@safe-global/protocol-kit';
+import Safe, {
+  SafeAccountConfig,
+  SafeProviderConfig,
+} from '@safe-global/protocol-kit';
 import type {
   MetaTransactionData,
   OperationType,
@@ -33,6 +36,11 @@ export type SafeCallData = {
   to: Address;
   data: string;
   value?: string | number | bigint | { toString(): string };
+};
+
+export type SafeDeploymentConfig = {
+  owners: Address[];
+  threshold: number;
 };
 
 export type SafeOwnerUpdateCall = {
@@ -240,6 +248,40 @@ export async function getSafe(
       },
     },
   });
+}
+
+export async function createSafeDeploymentTransaction(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+  config: SafeDeploymentConfig,
+): Promise<{
+  safeAddress: Address;
+  transaction: { to: Address; data: string; value: string };
+}> {
+  const safeAccountConfig: SafeAccountConfig = {
+    owners: config.owners,
+    threshold: config.threshold,
+  };
+
+  // @ts-ignore
+  const safe = await Safe.init({
+    provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
+    predictedSafe: {
+      safeAccountConfig,
+    },
+  });
+
+  const { to, data, value } = await safe.createSafeDeploymentTransaction();
+  const safeAddress = await safe.getAddress();
+
+  return {
+    safeAddress,
+    transaction: {
+      to,
+      data,
+      value: value.toString(),
+    },
+  };
 }
 
 export async function getSafeDelegates(
