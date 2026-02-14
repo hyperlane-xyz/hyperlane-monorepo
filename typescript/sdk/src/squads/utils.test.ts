@@ -445,6 +445,48 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when multisig transaction index is negative', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1,
+          transactionIndex: -1,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig transaction index must be a non-negative JavaScript safe integer: -1',
+      );
+    });
+
+    it('throws when multisig stale transaction index is negative', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1,
+          transactionIndex: 1,
+          staleTransactionIndex: -1,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig stale transaction index must be a non-negative JavaScript safe integer: -1',
+      );
+    });
+
+    it('throws when multisig timelock is negative', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1,
+          transactionIndex: 1,
+          staleTransactionIndex: 0,
+          timeLock: -1,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig timelock must be a non-negative JavaScript safe integer: -1',
+      );
+    });
+
     it('throws when bignum-like value string is non-decimal', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
