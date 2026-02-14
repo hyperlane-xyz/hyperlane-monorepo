@@ -67,3 +67,5 @@ Regression coverage was expanded for wrapper errors with throwing `code` accesso
 Regression coverage was also added to guarantee the ENOENT install hint still wins when wrapper errors throw on `message` access.
 
 Safe object-property access for formatter and matcher helpers was centralized to keep hostile wrapper handling consistent across `message`/`code`/`cause`/`errors` reads.
+
+Local-anvil startup formatting now treats case-variant `ENOENT` code values equivalently, preserving missing-binary install guidance for wrapper-normalized error codes.

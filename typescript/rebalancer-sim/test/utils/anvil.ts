@@ -134,7 +134,11 @@ interface StartedAnvil {
 }
 
 export function formatLocalAnvilStartError(error: unknown): string {
-  if (getObjectProperty(error, 'code') === 'ENOENT') {
+  const errorCode = getObjectProperty(error, 'code');
+  if (
+    typeof errorCode === 'string' &&
+    errorCode.trim().toUpperCase() === 'ENOENT'
+  ) {
     return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
   }
 
