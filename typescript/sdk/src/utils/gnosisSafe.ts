@@ -598,6 +598,7 @@ export function getKnownMultiSendAddresses(
   const multiSendCallOnly: Address[] = [];
 
   for (const version of versions) {
+    assert(version.trim().length > 0, 'Safe deployment version is required');
     const multiSendCallOnlyDeployments = getMultiSendCallOnlyDeployments({
       version,
     });

@@ -3776,5 +3776,14 @@ describe('gnosisSafe utils', () => {
         'MultiSend and MultiSendCallOnly deployments not found for version 0.0.0',
       );
     });
+
+    it('throws for empty safe deployment version input', () => {
+      expect(() => getKnownMultiSendAddresses([''])).to.throw(
+        'Safe deployment version is required',
+      );
+      expect(() => getKnownMultiSendAddresses(['   '])).to.throw(
+        'Safe deployment version is required',
+      );
+    });
   });
 });
