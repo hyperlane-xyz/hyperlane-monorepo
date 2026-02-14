@@ -118,12 +118,6 @@ function parseSquadsProposalVoteErrorText(
   return undefined;
 }
 
-function parseSquadsVoteErrorFromString(
-  value: string,
-): SquadsProposalVoteError | undefined {
-  return parseSquadsProposalVoteErrorText(value);
-}
-
 /**
  * Parse known Squads proposal vote/cancel errors from transaction logs.
  * Matches both named errors and their hex error codes.
@@ -144,7 +138,7 @@ export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
 ): SquadsProposalVoteError | undefined {
   if (typeof error === 'string') {
-    return parseSquadsVoteErrorFromString(error);
+    return parseSquadsProposalVoteErrorText(error);
   }
 
   if (!error || typeof error !== 'object') {
@@ -160,7 +154,7 @@ export function parseSquadsProposalVoteErrorFromError(
     queueIndex++;
 
     if (typeof current === 'string') {
-      const parsedError = parseSquadsVoteErrorFromString(current);
+      const parsedError = parseSquadsProposalVoteErrorText(current);
       if (parsedError) return parsedError;
       continue;
     }
@@ -185,7 +179,9 @@ export function parseSquadsProposalVoteErrorFromError(
     }
 
     if (typeof currentRecord.message === 'string') {
-      const parsedError = parseSquadsVoteErrorFromString(currentRecord.message);
+      const parsedError = parseSquadsProposalVoteErrorText(
+        currentRecord.message,
+      );
       if (parsedError) return parsedError;
     }
 
