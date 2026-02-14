@@ -267,9 +267,9 @@ async function hasSignerForChain(
 
   try {
     const maybeSigner = maybeTryGetSigner.call(context.multiProvider, chain);
+    const thenableHandler = getThenableHandler(maybeSigner);
     const signer =
-      maybeSigner &&
-      typeof (maybeSigner as { then?: unknown }).then === 'function'
+      maybeSigner && typeof thenableHandler === 'function'
         ? await maybeSigner
         : maybeSigner;
     if (!signer) {
@@ -292,6 +292,18 @@ async function hasSignerForChain(
     const hasSigner = !!signerAddress;
     cache.signerByChain.set(chain, hasSigner);
     return hasSigner;
+  }
+}
+
+function getThenableHandler(value: unknown): unknown {
+  if (!value || (typeof value !== 'object' && typeof value !== 'function')) {
+    return null;
+  }
+
+  try {
+    return (value as { then?: unknown }).then;
+  } catch {
+    return null;
   }
 }
 
