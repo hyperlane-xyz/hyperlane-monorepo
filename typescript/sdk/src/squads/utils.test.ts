@@ -630,6 +630,20 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when stale transaction index exceeds transaction index', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 2n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig stale transaction index must be less than or equal to transaction index: 2 > 1',
+      );
+    });
+
     it('uses caller-provided field prefix in overflow errors', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig(

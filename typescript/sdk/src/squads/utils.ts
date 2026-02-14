@@ -671,27 +671,33 @@ export function parseSquadMultisig(
   multisig: accounts.Multisig,
   fieldPrefix = 'multisig',
 ): ParsedSquadMultisig {
+  const threshold = toSafeInteger(multisig.threshold, `${fieldPrefix} threshold`, {
+    positive: true,
+  });
+  const currentTransactionIndex = toSafeInteger(
+    multisig.transactionIndex,
+    `${fieldPrefix} transaction index`,
+    { nonNegative: true },
+  );
+  const staleTransactionIndex = toSafeInteger(
+    multisig.staleTransactionIndex,
+    `${fieldPrefix} stale transaction index`,
+    { nonNegative: true },
+  );
+  const timeLock = toSafeInteger(multisig.timeLock, `${fieldPrefix} timelock`, {
+    nonNegative: true,
+  });
+
+  assert(
+    staleTransactionIndex <= currentTransactionIndex,
+    `Squads ${fieldPrefix} stale transaction index must be less than or equal to transaction index: ${staleTransactionIndex} > ${currentTransactionIndex}`,
+  );
+
   return {
-    threshold: toSafeInteger(
-      multisig.threshold,
-      `${fieldPrefix} threshold`,
-      { positive: true },
-    ),
-    currentTransactionIndex: toSafeInteger(
-      multisig.transactionIndex,
-      `${fieldPrefix} transaction index`,
-      { nonNegative: true },
-    ),
-    staleTransactionIndex: toSafeInteger(
-      multisig.staleTransactionIndex,
-      `${fieldPrefix} stale transaction index`,
-      { nonNegative: true },
-    ),
-    timeLock: toSafeInteger(
-      multisig.timeLock,
-      `${fieldPrefix} timelock`,
-      { nonNegative: true },
-    ),
+    threshold,
+    currentTransactionIndex,
+    staleTransactionIndex,
+    timeLock,
   };
 }
 
