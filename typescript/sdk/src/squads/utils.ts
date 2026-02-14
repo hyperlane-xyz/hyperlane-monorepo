@@ -20,6 +20,7 @@ import {
   assertIsSquadsChain,
   getSquadsKeys,
   partitionSquadsChains,
+  SquadsChainName,
 } from './config.js';
 import { toSquadsProvider } from './provider.js';
 
@@ -39,7 +40,7 @@ export const SQUADS_DISCRIMINATOR_SIZE = 8;
 export const SQUADS_ACCOUNT_DISCRIMINATOR_SIZE = 8;
 
 export type SquadProposalStatus = {
-  chain: string;
+  chain: SquadsChainName;
   nonce: number;
   status: string;
   shortTxHash: string;
