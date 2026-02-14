@@ -231,6 +231,19 @@ describe('squads error-format', () => {
       ).to.equal('{"foo":"bar"}');
     });
 
+    it('does not call object formatter for Error instances', () => {
+      let formatterCallCount = 0;
+      const formatted = stringifyUnknownSquadsError(new Error('boom'), {
+        formatObject() {
+          formatterCallCount += 1;
+          return 'formatted object';
+        },
+      });
+
+      expect(formatted).to.equal('Error: boom');
+      expect(formatterCallCount).to.equal(0);
+    });
+
     it('does not call object formatter when object stack is usable', () => {
       let formatterCallCount = 0;
       const formatted = stringifyUnknownSquadsError(
