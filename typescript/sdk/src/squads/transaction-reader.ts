@@ -52,16 +52,7 @@ import {
   isConfigTransaction,
   isVaultTransaction,
 } from './utils.js';
-
-type SquadsProvider = Parameters<
-  typeof accounts.VaultTransaction.fromAccountAddress
->[0];
-
-function toSquadsProvider(
-  provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
-): SquadsProvider {
-  return provider as unknown as SquadsProvider;
-}
+import { toSquadsProvider } from './provider.js';
 
 export const HYPERLANE_PROGRAM_DISCRIMINATOR_SIZE = 8;
 export const MAILBOX_DISCRIMINATOR_SIZE = 1;

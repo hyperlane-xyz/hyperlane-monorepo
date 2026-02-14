@@ -17,17 +17,7 @@ import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
 import { ChainName } from '../types.js';
 
 import { getSquadsKeys, isSquadsChain } from './config.js';
-
-type SquadsProvider = Parameters<
-  typeof accounts.Multisig.fromAccountAddress
->[0];
-
-function toSquadsProvider(
-  provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
-): SquadsProvider {
-  // Squads SDK expects a narrower connection type than sdk providers expose.
-  return provider as unknown as SquadsProvider;
-}
+import { toSquadsProvider } from './provider.js';
 
 /**
  * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
