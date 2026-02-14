@@ -215,6 +215,18 @@ describe('squads utils', () => {
     expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
   });
 
+  it('does not mutate the caller-provided chains while partitioning', () => {
+    const chains = ['solanamainnet', 'unknown-chain', 'solanamainnet'];
+
+    void partitionSquadsChains(chains);
+
+    expect(chains).to.deep.equal([
+      'solanamainnet',
+      'unknown-chain',
+      'solanamainnet',
+    ]);
+  });
+
   it('exports canonical proposal statuses', () => {
     expect(SquadsProposalStatus.Active).to.equal('Active');
   });

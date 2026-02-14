@@ -52,7 +52,7 @@ export function isSquadsChain(chainName: string): chainName is ChainName {
   return Object.prototype.hasOwnProperty.call(squadsConfigs, chainName);
 }
 
-export function partitionSquadsChains(chains: string[]): {
+export function partitionSquadsChains(chains: readonly string[]): {
   squadsChains: ChainName[];
   nonSquadsChains: string[];
 } {

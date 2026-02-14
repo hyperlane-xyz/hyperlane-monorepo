@@ -125,9 +125,8 @@ export function resolveSquadsChains(chains?: readonly unknown[]): ChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
     const normalizedChains = normalizeProvidedChains(chains);
-    const { squadsChains, nonSquadsChains } = partitionSquadsChains([
-      ...normalizedChains,
-    ]);
+    const { squadsChains, nonSquadsChains } =
+      partitionSquadsChains(normalizedChains);
     if (nonSquadsChains.length > 0) {
       throw new Error(
         getUnsupportedSquadsChainsErrorMessage(
