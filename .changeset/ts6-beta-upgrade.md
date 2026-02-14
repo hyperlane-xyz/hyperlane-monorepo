@@ -57,3 +57,5 @@ Runtime-fallback docs were updated to explicitly describe the bounded nested-err
 Map-iterator fallback handling was corrected to avoid false positives from map keys when values iterators fail.
 
 Error-message extraction was hardened for proxy wrappers that throw on `message`/`cause` access, preventing matcher crashes.
+
+Regression coverage was added for the final formatting fallback path when both JSON serialization and object inspection throw.
