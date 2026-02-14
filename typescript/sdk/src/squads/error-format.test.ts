@@ -492,38 +492,32 @@ describe('squads error-format', () => {
       expect(formatted).to.equal('custom object fallback');
     });
 
-    it('falls back to String(error) when object formatter returns low-signal built-in labels', () => {
-      const formatted = stringifyUnknownSquadsError(
-        {
-          toString() {
-            return 'custom object fallback';
-          },
-        },
-        {
-          formatObject() {
-            return 'Error:';
-          },
-        },
-      );
+    it('falls back to String(error) when object formatter returns low-signal built-in labels and variants', () => {
+      for (const errorLabel of BUILTIN_SQUADS_ERROR_LABELS) {
+        const lowSignalFormatterOutputs = [
+          errorLabel,
+          `${errorLabel}:`,
+          `  ${errorLabel} :   `,
+          errorLabel.toLowerCase(),
+        ] as const;
 
-      expect(formatted).to.equal('custom object fallback');
-    });
+        for (const formatterOutput of lowSignalFormatterOutputs) {
+          const formatted = stringifyUnknownSquadsError(
+            {
+              toString() {
+                return 'custom object fallback';
+              },
+            },
+            {
+              formatObject() {
+                return formatterOutput;
+              },
+            },
+          );
 
-    it('falls back to String(error) when object formatter returns low-signal labels with spacing/casing variants', () => {
-      const formatted = stringifyUnknownSquadsError(
-        {
-          toString() {
-            return 'custom object fallback';
-          },
-        },
-        {
-          formatObject() {
-            return '  typeerror :   ';
-          },
-        },
-      );
-
-      expect(formatted).to.equal('custom object fallback');
+          expect(formatted).to.equal('custom object fallback');
+        }
+      }
     });
 
     it('returns placeholder when final String(error) fallback throws', () => {
