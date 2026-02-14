@@ -3156,6 +3156,8 @@ describe('gnosisSafe utils', () => {
     it('canonicalizes explicit signer strings for address and private key', async () => {
       const explicitAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
       const explicitPrivateKey = `0X${'AB'.repeat(32)}`;
+      const explicitAddressWithWhitespace = `  ${explicitAddress}  `;
+      const explicitPrivateKeyWithWhitespace = ` \n${explicitPrivateKey}\t`;
       const multiProviderMock: SignerProvider = {
         getSigner: () => {
           throw new Error('should not be called');
@@ -3175,6 +3177,24 @@ describe('gnosisSafe utils', () => {
         explicitPrivateKey,
       );
       expect(resolvedPrivateKeySigner).to.equal(`0x${'ab'.repeat(32)}`);
+
+      const resolvedWhitespaceAddressSigner = await resolveSafeSigner(
+        'test',
+        multiProviderMock,
+        explicitAddressWithWhitespace,
+      );
+      expect(resolvedWhitespaceAddressSigner).to.equal(
+        getAddress(explicitAddress),
+      );
+
+      const resolvedWhitespacePrivateKeySigner = await resolveSafeSigner(
+        'test',
+        multiProviderMock,
+        explicitPrivateKeyWithWhitespace,
+      );
+      expect(resolvedWhitespacePrivateKeySigner).to.equal(
+        `0x${'ab'.repeat(32)}`,
+      );
     });
 
     it('throws when explicit signer string is not address or private key', async () => {

@@ -50,4 +50,5 @@ Safe utility typing and robustness were improved by:
 - Hardening Safe signer resolution with inaccessible `getAddress` accessor guards and canonicalized fallback signer-address outputs.
 - Validating and canonicalizing Safe signer private-key fallbacks as 32-byte hex values.
 - Validating and canonicalizing explicit Safe signer string inputs (address/private-key forms) with deterministic invalid-signer errors.
+- Trimming surrounding whitespace on explicit Safe signer string inputs before address/private-key validation.
 - Requiring typed-data signer support before Safe tx deletion.
