@@ -2868,6 +2868,7 @@ describe('gnosisSafe utils', () => {
         '5.18.0+L2',
         'V5.18.0+L2',
         '5.18.0+build.1',
+        '5.18.9007199254740991',
         '5.18.0-rc.1',
         '5.18.0-rc.1+L2',
         '5.18.0-rc.1+build.7',
@@ -2907,6 +2908,7 @@ describe('gnosisSafe utils', () => {
         '5.18.0-rc.1 +build.7',
         '9007199254740993.18.0',
         '5.9007199254740993.0',
+        '5.18.9007199254740993',
       ];
       for (const version of invalidVersions) {
         await expectInvalidSafeApiVersion(version);
