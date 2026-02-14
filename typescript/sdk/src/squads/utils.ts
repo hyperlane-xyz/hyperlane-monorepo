@@ -384,6 +384,10 @@ export async function getSquadProposal(
   | undefined
 > {
   const { multisigPda, programId } = getSquadsKeys(chain);
+  assert(
+    Number.isSafeInteger(transactionIndex) && transactionIndex >= 0,
+    `Expected transaction index to be a non-negative safe integer for ${chain}, got ${transactionIndex}`,
+  );
 
   try {
     const svmProvider = mpp.getSolanaWeb3Provider(chain);
