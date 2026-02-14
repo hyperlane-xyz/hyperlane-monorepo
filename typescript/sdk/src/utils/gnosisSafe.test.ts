@@ -1161,6 +1161,23 @@ describe('gnosisSafe utils', () => {
         }
       }
     });
+
+    it('rejects userinfo spoof patterns at deeper repeated-%25 depths', () => {
+      const safeHosts = ['safe.global', 'safe-transaction-mainnet.5afe.dev'];
+
+      for (const host of safeHosts) {
+        for (let depth = 4; depth <= 8; depth += 1) {
+          const encodedAt = `%${'25'.repeat(depth)}40`;
+          const authority = `${host}${encodedAt}evil.com`;
+
+          expect(safeApiKeyRequired(`https://${authority}/api`)).to.equal(
+            false,
+          );
+          expect(safeApiKeyRequired(`//${authority}/api`)).to.equal(false);
+          expect(safeApiKeyRequired(authority)).to.equal(false);
+        }
+      }
+    });
   });
 
   describe(normalizeSafeServiceUrl.name, () => {
@@ -2665,6 +2682,29 @@ describe('gnosisSafe utils', () => {
               `Safe tx service URL is invalid: ${authority}`,
             );
           }
+        }
+      }
+    });
+
+    it('rejects userinfo spoof patterns at deeper repeated-%25 depths', () => {
+      const safeHosts = ['safe.global', 'safe-transaction-mainnet.5afe.dev'];
+
+      for (const host of safeHosts) {
+        for (let depth = 4; depth <= 8; depth += 1) {
+          const encodedAt = `%${'25'.repeat(depth)}40`;
+          const authority = `${host}${encodedAt}evil.com`;
+          const explicitUrl = `https://${authority}/api`;
+          const schemeRelativeUrl = `//${authority}/api`;
+
+          expect(() => normalizeSafeServiceUrl(explicitUrl)).to.throw(
+            `Safe tx service URL is invalid: ${explicitUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(schemeRelativeUrl)).to.throw(
+            `Safe tx service URL is invalid: ${schemeRelativeUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(authority)).to.throw(
+            `Safe tx service URL is invalid: ${authority}`,
+          );
         }
       }
     });
