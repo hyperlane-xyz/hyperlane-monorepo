@@ -77,6 +77,8 @@ export function isContainerRuntimeUnavailable(error: unknown): boolean {
     /no docker client strategy found/i,
     /cannot connect to the docker daemon/i,
     /dial unix .*docker\.sock/i,
+    /failed to connect to .*docker\.sock/i,
+    /connect econnrefused .*docker\.sock/i,
   ].some((matcher) => matcher.test(message));
 }
 

@@ -34,6 +34,20 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches generic docker socket connection failures', () => {
+      const error = new Error(
+        'Failed to connect to /var/run/docker.sock: no such file or directory',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches docker socket ECONNREFUSED failures', () => {
+      const error = new Error(
+        'connect ECONNREFUSED /var/run/docker.sock while creating container',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(
