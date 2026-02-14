@@ -78,6 +78,17 @@ function createErrorWithUnformattableMessage(): Error {
   return error;
 }
 
+function createUnstringifiableObjectErrorWithMessage(
+  message: string,
+): { message: string; toString: () => string } {
+  return {
+    message,
+    toString: () => {
+      throw new Error('unable to stringify');
+    },
+  };
+}
+
 describe('squads utils', () => {
   describe(normalizeSquadsAddressValue.name, () => {
     it('normalizes valid Solana address strings', () => {
@@ -2388,6 +2399,23 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(true);
     });
 
+    it('returns undefined when provider lookup throws objects with message fields', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw createUnstringifiableObjectErrorWithMessage(
+            'provider lookup failed',
+          );
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposal('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('returns undefined when provider bridge validation fails', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -2595,6 +2623,23 @@ describe('squads utils', () => {
         getSolanaWeb3Provider: () => {
           providerLookupCalled = true;
           throw createErrorWithUnformattableMessage();
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('returns undefined when provider lookup throws objects with message fields', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw createUnstringifiableObjectErrorWithMessage(
+            'provider lookup failed',
+          );
         },
       } as unknown as MultiProtocolProvider;
 
