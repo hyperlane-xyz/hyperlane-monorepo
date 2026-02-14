@@ -58,6 +58,16 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'https://safe-transaction-mainnet.safe.global/path@foo/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
+          'http://safe-transaction-mainnet.safe.global/path@foo/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'HTTPS://SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL:443/API',
         ),
       ).to.equal(true);
@@ -265,6 +275,12 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl('https://safe.global/tx-service/eth'),
       ).to.equal('https://safe.global/tx-service/eth/api');
+      expect(normalizeSafeServiceUrl('https://safe.global/path@foo')).to.equal(
+        'https://safe.global/path@foo/api',
+      );
+      expect(normalizeSafeServiceUrl('http://safe.global/path@foo')).to.equal(
+        'http://safe.global/path@foo/api',
+      );
     });
 
     it('preserves /api when already present', () => {
