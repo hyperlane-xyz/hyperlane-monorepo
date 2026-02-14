@@ -52,14 +52,14 @@ export type SquadProposalStatus = {
   submissionDate: string;
 };
 
-export type ParsedSquadProposal = {
+export type ParsedSquadProposal = Readonly<{
   status: SquadsProposalStatus;
   approvals: number;
   rejections: number;
   cancellations: number;
   transactionIndex: number;
   statusTimestampSeconds: number | undefined;
-};
+}>;
 
 export enum SquadTxStatus {
   DRAFT = '📝',
