@@ -80,6 +80,8 @@ export function isContainerRuntimeUnavailable(error: unknown): boolean {
     /dial unix .*docker\.sock/i,
     /failed to connect to .*docker\.sock/i,
     /connect econnrefused .*docker\.sock/i,
+    /npipe:.*docker_engine/i,
+    /open \/\/\.\/pipe\/docker_engine/i,
   ].some((matcher) => matcher.test(message));
 }
 
