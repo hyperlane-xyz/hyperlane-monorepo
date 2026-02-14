@@ -715,16 +715,62 @@ export async function getSafe(
   safeAddress: Address,
   signer?: SafeProviderConfig['signer'],
 ): Promise<Safe.default> {
-  // Get the chain id for the given chain
-  const chainId = `${multiProvider.getEvmChainId(chain)}`;
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
+  let evmChainId: unknown;
+  try {
+    evmChainId = multiProvider.getEvmChainId(chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve EVM chain id for ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    (typeof evmChainId === 'number' &&
+      Number.isSafeInteger(evmChainId) &&
+      evmChainId > 0) ||
+      (typeof evmChainId === 'string' && evmChainId.trim().length > 0) ||
+      (typeof evmChainId === 'bigint' && evmChainId > 0n),
+    `EVM chain id must be a positive integer for ${chain}: ${stringifyValueForError(evmChainId)}`,
+  );
+  const chainId =
+    typeof evmChainId === 'string' ? evmChainId.trim() : `${evmChainId}`;
 
   // Get the safe version
   const safeService = getSafeService(chain, multiProvider);
-
-  const { version: rawSafeVersion } =
-    await safeService.getSafeInfo(safeAddress);
+  let safeInfo: unknown;
+  try {
+    safeInfo = await safeService.getSafeInfo(normalizedSafeAddress);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch Safe info for ${normalizedSafeAddress} on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    safeInfo !== null && typeof safeInfo === 'object',
+    `Safe info payload must be an object for ${normalizedSafeAddress} on ${chain}: ${stringifyValueForError(safeInfo)}`,
+  );
+  let rawSafeVersion: unknown;
+  try {
+    rawSafeVersion = (safeInfo as { version?: unknown }).version;
+  } catch {
+    throw new Error(
+      `Safe info version is inaccessible for ${normalizedSafeAddress} on ${chain}`,
+    );
+  }
+  assert(
+    typeof rawSafeVersion === 'string' && rawSafeVersion.trim().length > 0,
+    `Safe info version must be a non-empty string for ${normalizedSafeAddress} on ${chain}: ${stringifyValueForError(rawSafeVersion)}`,
+  );
   // Remove any build metadata from the version e.g. 1.3.0+L2 --> 1.3.0
-  const safeVersion = rawSafeVersion.split(' ')[0].split('+')[0].split('-')[0];
+  const safeVersion = rawSafeVersion
+    .trim()
+    .split(' ')[0]
+    .split('+')[0]
+    .split('-')[0];
+  assert(
+    safeVersion.length > 0,
+    `Safe info version must include semver core for ${normalizedSafeAddress} on ${chain}: ${rawSafeVersion}`,
+  );
 
   // Get the multiSend and multiSendCallOnly deployments for the given chain
   let multiSend, multiSendCallOnly;
@@ -740,31 +786,51 @@ export async function getSafe(
   } else if (safeDeploymentsVersions[safeVersion]) {
     const { multiSendVersion, multiSendCallOnlyVersion } =
       safeDeploymentsVersions[safeVersion];
-    multiSend = getMultiSendDeployment({
-      version: multiSendVersion,
-      network: chainId,
-    });
-    multiSendCallOnly = getMultiSendCallOnlyDeployment({
-      version: multiSendCallOnlyVersion,
-      network: chainId,
-    });
+    try {
+      multiSend = getMultiSendDeployment({
+        version: multiSendVersion,
+        network: chainId,
+      });
+      multiSendCallOnly = getMultiSendCallOnlyDeployment({
+        version: multiSendCallOnlyVersion,
+        network: chainId,
+      });
+    } catch (error) {
+      throw new Error(
+        `Failed to resolve Safe multisend deployments for version ${safeVersion} on chainId ${chainId}: ${stringifyValueForError(error)}`,
+      );
+    }
   }
 
-  // @ts-ignore
-  return Safe.init({
-    provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
-    signer,
-    safeAddress,
-    contractNetworks: {
-      [chainId]: {
-        // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
-        // if the contract is not deployed or if the version is not found.
-        multiSendAddress: multiSend?.networkAddresses[chainId] || safeAddress,
-        multiSendCallOnlyAddress:
-          multiSendCallOnly?.networkAddresses[chainId] || safeAddress,
+  let safeSdk: unknown;
+  try {
+    // @ts-ignore
+    safeSdk = await Safe.init({
+      provider: getPrimaryRpcUrl(chain, multiProvider),
+      signer,
+      safeAddress: normalizedSafeAddress,
+      contractNetworks: {
+        [chainId]: {
+          // Use the safe address for multiSendAddress and multiSendCallOnlyAddress
+          // if the contract is not deployed or if the version is not found.
+          multiSendAddress:
+            multiSend?.networkAddresses[chainId] || normalizedSafeAddress,
+          multiSendCallOnlyAddress:
+            multiSendCallOnly?.networkAddresses[chainId] ||
+            normalizedSafeAddress,
+        },
       },
-    },
-  });
+    });
+  } catch (error) {
+    throw new Error(
+      `Failed to initialize Safe SDK for ${normalizedSafeAddress} on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    safeSdk !== null && typeof safeSdk === 'object',
+    `Safe SDK instance must be an object: ${stringifyValueForError(safeSdk)}`,
+  );
+  return safeSdk as Safe.default;
 }
 
 export async function createSafeDeploymentTransaction(
@@ -782,7 +848,7 @@ export async function createSafeDeploymentTransaction(
 
   // @ts-ignore
   const safe = await Safe.init({
-    provider: multiProvider.getChainMetadata(chain).rpcUrls[0].http,
+    provider: getPrimaryRpcUrl(chain, multiProvider),
     predictedSafe: {
       safeAccountConfig,
     },
@@ -1317,44 +1383,165 @@ export async function executeTx(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
   safeAddress: Address,
-  safeTxHash: string,
+  safeTxHash: unknown,
 ): Promise<void> {
+  const normalizedSafeAddress = normalizeSafeAddress(safeAddress);
+  const normalizedSafeTxHash = normalizeSafeTxHash(safeTxHash);
   const { safeSdk, safeService } = await getSafeAndService(
     chain,
     multiProvider,
-    safeAddress,
+    normalizedSafeAddress,
   );
-  const safeTransaction = await retrySafeApi(() =>
-    safeService.getTransaction(safeTxHash),
+  const safeServiceObject =
+    safeService !== null && typeof safeService === 'object'
+      ? (safeService as {
+          getTransaction?: unknown;
+          estimateSafeTransaction?: unknown;
+        })
+      : undefined;
+  assert(
+    safeServiceObject,
+    `Safe service instance must be an object: ${stringifyValueForError(safeService)}`,
   );
-  if (!safeTransaction) {
-    throw new Error(`Failed to fetch transaction details for ${safeTxHash}`);
-  }
-
-  let estimate;
+  let getTransaction: unknown;
+  let estimateSafeTransaction: unknown;
   try {
-    estimate = await retrySafeApi(() =>
-      safeService.estimateSafeTransaction(safeAddress, safeTransaction),
+    ({ getTransaction, estimateSafeTransaction } = safeServiceObject);
+  } catch {
+    throw new Error(
+      'Safe service transaction accessors are inaccessible for executeTx',
+    );
+  }
+  assert(
+    typeof getTransaction === 'function',
+    `Safe service getTransaction must be a function: ${stringifyValueForError(getTransaction)}`,
+  );
+  assert(
+    typeof estimateSafeTransaction === 'function',
+    `Safe service estimateSafeTransaction must be a function: ${stringifyValueForError(estimateSafeTransaction)}`,
+  );
+
+  let safeTransaction: unknown;
+  try {
+    safeTransaction = await retrySafeApi(() =>
+      getTransaction.call(safeServiceObject, normalizedSafeTxHash),
     );
   } catch (error) {
     throw new Error(
-      `Failed to estimate gas for Safe transaction ${safeTxHash} on chain ${chain}: ${error}`,
+      `Failed to fetch transaction details for ${normalizedSafeTxHash}: ${stringifyValueForError(error)}`,
     );
   }
-  const balance = await multiProvider
-    .getProvider(chain)
-    .getBalance(safeAddress);
-  if (balance.lt(estimate.safeTxGas)) {
+  if (safeTransaction === undefined || safeTransaction === null) {
     throw new Error(
-      `Safe ${safeAddress} on ${chain} has insufficient balance (${balance.toString()}) for estimated gas (${
-        estimate.safeTxGas
-      })`,
+      `Failed to fetch transaction details for ${normalizedSafeTxHash}`,
+    );
+  }
+  assert(
+    typeof safeTransaction === 'object',
+    `Safe transaction details payload must be an object: ${stringifyValueForError(safeTransaction)}`,
+  );
+
+  let estimate: unknown;
+  try {
+    estimate = await retrySafeApi(() =>
+      estimateSafeTransaction.call(
+        safeServiceObject,
+        normalizedSafeAddress,
+        safeTransaction,
+      ),
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to estimate gas for Safe transaction ${normalizedSafeTxHash} on chain ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    estimate !== null && typeof estimate === 'object',
+    `Safe transaction gas estimate payload must be an object: ${stringifyValueForError(estimate)}`,
+  );
+  let safeTxGas: unknown;
+  try {
+    safeTxGas = (estimate as { safeTxGas?: unknown }).safeTxGas;
+  } catch {
+    throw new Error('Safe transaction gas estimate safeTxGas is inaccessible');
+  }
+  const normalizedSafeTxGas = parseNonNegativeBigNumber(
+    safeTxGas,
+    `Safe transaction gas estimate safeTxGas must be a non-negative integer: ${stringifyValueForError(safeTxGas)}`,
+  );
+
+  let provider: unknown;
+  try {
+    provider = multiProvider.getProvider(chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve provider for ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    provider !== null && typeof provider === 'object',
+    `Resolved provider must be an object for ${chain}: ${stringifyValueForError(provider)}`,
+  );
+  let getBalance: unknown;
+  try {
+    ({ getBalance } = provider as { getBalance?: unknown });
+  } catch {
+    throw new Error(
+      `Provider getBalance accessor is inaccessible for ${chain}`,
+    );
+  }
+  assert(
+    typeof getBalance === 'function',
+    `Provider getBalance must be a function for ${chain}: ${stringifyValueForError(getBalance)}`,
+  );
+  let balanceValue: unknown;
+  try {
+    balanceValue = await getBalance.call(provider, normalizedSafeAddress);
+  } catch (error) {
+    throw new Error(
+      `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  const balance = parseNonNegativeBigNumber(
+    balanceValue,
+    `Safe balance must be a non-negative integer for ${normalizedSafeAddress} on ${chain}: ${stringifyValueForError(balanceValue)}`,
+  );
+
+  if (balance.lt(normalizedSafeTxGas)) {
+    throw new Error(
+      `Safe ${normalizedSafeAddress} on ${chain} has insufficient balance (${balance.toString()}) for estimated gas (${normalizedSafeTxGas.toString()})`,
     );
   }
 
-  await safeSdk.executeTransaction(safeTransaction);
+  const safeSdkObject =
+    safeSdk !== null && typeof safeSdk === 'object'
+      ? (safeSdk as { executeTransaction?: unknown })
+      : undefined;
+  assert(
+    safeSdkObject,
+    `Safe SDK instance must be an object: ${stringifyValueForError(safeSdk)}`,
+  );
+  let executeTransaction: unknown;
+  try {
+    ({ executeTransaction } = safeSdkObject);
+  } catch {
+    throw new Error('Safe SDK executeTransaction accessor is inaccessible');
+  }
+  assert(
+    typeof executeTransaction === 'function',
+    `Safe SDK executeTransaction must be a function: ${stringifyValueForError(executeTransaction)}`,
+  );
+  try {
+    await executeTransaction.call(safeSdkObject, safeTransaction);
+  } catch (error) {
+    throw new Error(
+      `Failed to execute Safe transaction ${normalizedSafeTxHash} on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
   rootLogger.info(
-    chalk.green.bold(`Executed transaction ${safeTxHash} on ${chain}`),
+    chalk.green.bold(
+      `Executed transaction ${normalizedSafeTxHash} on ${chain}`,
+    ),
   );
 }
 
@@ -2074,6 +2261,81 @@ function serializeSafeCallValue(value: unknown): string {
     `Safe call value must be an unsigned integer string: ${stringifyValueForError(serializedValue)}`,
   );
   return serializedValue;
+}
+
+function getPrimaryRpcUrl(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+): string {
+  let chainMetadata: unknown;
+  try {
+    chainMetadata = multiProvider.getChainMetadata(chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to read chain metadata for ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    chainMetadata !== null && typeof chainMetadata === 'object',
+    `Chain metadata must be an object for ${chain}: ${stringifyValueForError(chainMetadata)}`,
+  );
+  let rpcUrls: unknown;
+  try {
+    rpcUrls = (chainMetadata as { rpcUrls?: unknown }).rpcUrls;
+  } catch {
+    throw new Error(`Chain metadata rpcUrls are inaccessible for ${chain}`);
+  }
+  assert(
+    Array.isArray(rpcUrls),
+    `Chain metadata rpcUrls must be an array for ${chain}: ${stringifyValueForError(rpcUrls)}`,
+  );
+  let rpcUrlCount = 0;
+  try {
+    rpcUrlCount = rpcUrls.length;
+  } catch {
+    throw new Error(
+      `Chain metadata rpcUrls length is inaccessible for ${chain}`,
+    );
+  }
+  assert(
+    Number.isSafeInteger(rpcUrlCount) && rpcUrlCount > 0,
+    `Chain metadata rpcUrls length is invalid for ${chain}: ${stringifyValueForError(rpcUrlCount)}`,
+  );
+  let primaryRpcUrlEntry: unknown;
+  try {
+    primaryRpcUrlEntry = rpcUrls[0];
+  } catch {
+    throw new Error(`Primary RPC entry is inaccessible for ${chain}`);
+  }
+  assert(
+    primaryRpcUrlEntry !== null && typeof primaryRpcUrlEntry === 'object',
+    `Primary RPC entry must be an object for ${chain}: ${stringifyValueForError(primaryRpcUrlEntry)}`,
+  );
+  let rpcHttp: unknown;
+  try {
+    rpcHttp = (primaryRpcUrlEntry as { http?: unknown }).http;
+  } catch {
+    throw new Error(`Primary RPC http URL is inaccessible for ${chain}`);
+  }
+  assert(
+    typeof rpcHttp === 'string' && rpcHttp.trim().length > 0,
+    `Primary RPC http URL must be a non-empty string for ${chain}: ${stringifyValueForError(rpcHttp)}`,
+  );
+  return rpcHttp.trim();
+}
+
+function parseNonNegativeBigNumber(
+  value: unknown,
+  errorMessage: string,
+): BigNumber {
+  let parsed: BigNumber;
+  try {
+    parsed = BigNumber.from(value as BigNumber);
+  } catch {
+    throw new Error(errorMessage);
+  }
+  assert(parsed.gte(0), errorMessage);
+  return parsed;
 }
 
 export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {

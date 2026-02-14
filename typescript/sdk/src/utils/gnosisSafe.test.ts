@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 import { encodeFunctionData, getAddress, parseAbi } from 'viem';
+import SafeApiKit from '@safe-global/api-kit';
+import Safe from '@safe-global/protocol-kit';
 
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
@@ -10,6 +12,7 @@ import {
   deleteAllPendingSafeTxs,
   deleteSafeTx,
   decodeMultiSendData,
+  executeTx,
   getSafeTx,
   getKnownMultiSendAddresses,
   getOwnerChanges,
@@ -5124,6 +5127,197 @@ describe('gnosisSafe utils', () => {
           'Safe signer address must be valid: bad',
         );
       }
+    });
+  });
+
+  describe(executeTx.name, () => {
+    const safeModule = Safe as unknown as { init: unknown };
+    const safeApiPrototype = SafeApiKit.prototype as unknown as Record<
+      string,
+      unknown
+    >;
+    const originalSafeInit = safeModule.init;
+    const originalGetServiceInfo = safeApiPrototype.getServiceInfo;
+    const originalGetSafeInfo = safeApiPrototype.getSafeInfo;
+    const originalGetTransaction = safeApiPrototype.getTransaction;
+    const originalEstimateSafeTransaction =
+      safeApiPrototype.estimateSafeTransaction;
+
+    afterEach(() => {
+      safeModule.init = originalSafeInit;
+      safeApiPrototype.getServiceInfo = originalGetServiceInfo;
+      safeApiPrototype.getSafeInfo = originalGetSafeInfo;
+      safeApiPrototype.getTransaction = originalGetTransaction;
+      safeApiPrototype.estimateSafeTransaction =
+        originalEstimateSafeTransaction;
+    });
+
+    it('throws for invalid safe tx hash before provider/service setup', async () => {
+      let getChainMetadataCalled = false;
+      let getSignerCalled = false;
+      let getProviderCalled = false;
+      let getEvmChainIdCalled = false;
+
+      const multiProviderMock = {
+        getChainMetadata: () => {
+          getChainMetadataCalled = true;
+          throw new Error('should not be called');
+        },
+        getSigner: () => {
+          getSignerCalled = true;
+          throw new Error('should not be called');
+        },
+        getProvider: () => {
+          getProviderCalled = true;
+          throw new Error('should not be called');
+        },
+        getEvmChainId: () => {
+          getEvmChainIdCalled = true;
+          throw new Error('should not be called');
+        },
+      } as unknown as Parameters<typeof executeTx>[1];
+
+      try {
+        await executeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          'bad-hash',
+        );
+        expect.fail('Expected executeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction hash must be 32-byte hex: bad-hash',
+        );
+      }
+
+      expect(getChainMetadataCalled).to.equal(false);
+      expect(getSignerCalled).to.equal(false);
+      expect(getProviderCalled).to.equal(false);
+      expect(getEvmChainIdCalled).to.equal(false);
+    });
+
+    it('canonicalizes tx hash/address across service and provider calls', async () => {
+      const mixedCaseSafeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
+      const normalizedSafeAddress = getAddress(mixedCaseSafeAddress);
+      const mixedCaseHash = `0X${'AB'.repeat(32)}`;
+      const normalizedHash = `0x${'ab'.repeat(32)}`;
+      const safeTransaction = { safeTxHash: normalizedHash };
+      let getSafeInfoAddress: string | undefined;
+      let getTransactionHash: string | undefined;
+      let estimatedSafeAddress: string | undefined;
+      let balanceAddress: string | undefined;
+      let executedTransaction: unknown;
+      let safeInitConfig: unknown;
+
+      safeModule.init = (async (config: unknown) => {
+        safeInitConfig = config;
+        return {
+          executeTransaction: async (transaction: unknown) => {
+            executedTransaction = transaction;
+          },
+        };
+      }) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async (safeAddress: string) => {
+        getSafeInfoAddress = safeAddress;
+        return { version: '1.3.0+L2' };
+      }) as unknown;
+      safeApiPrototype.getTransaction = (async (safeTxHash: string) => {
+        getTransactionHash = safeTxHash;
+        return safeTransaction;
+      }) as unknown;
+      safeApiPrototype.estimateSafeTransaction = (async (
+        safeAddress: string,
+      ) => {
+        estimatedSafeAddress = safeAddress;
+        return { safeTxGas: BigNumber.from(5) };
+      }) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getProvider: () => ({
+          getBalance: async (safeAddress: string) => {
+            balanceAddress = safeAddress;
+            return BigNumber.from(10);
+          },
+        }),
+      } as unknown as Parameters<typeof executeTx>[1];
+
+      await executeTx(
+        'test',
+        multiProviderMock,
+        mixedCaseSafeAddress,
+        mixedCaseHash,
+      );
+
+      expect(getSafeInfoAddress).to.equal(normalizedSafeAddress);
+      expect(getTransactionHash).to.equal(normalizedHash);
+      expect(estimatedSafeAddress).to.equal(normalizedSafeAddress);
+      expect(balanceAddress).to.equal(normalizedSafeAddress);
+      expect(
+        (safeInitConfig as { safeAddress?: unknown }).safeAddress,
+      ).to.equal(normalizedSafeAddress);
+      expect(executedTransaction).to.equal(safeTransaction);
+    });
+
+    it('throws when safe transaction estimate gas is invalid', async () => {
+      let executeTransactionCalled = false;
+
+      safeModule.init = (async () => ({
+        executeTransaction: async () => {
+          executeTransactionCalled = true;
+        },
+      })) as unknown;
+      safeApiPrototype.getServiceInfo = (async () => ({
+        version: '5.18.0',
+      })) as unknown;
+      safeApiPrototype.getSafeInfo = (async () => ({
+        version: '1.3.0',
+      })) as unknown;
+      safeApiPrototype.getTransaction = (async () => ({
+        safeTxHash: `0x${'aa'.repeat(32)}`,
+      })) as unknown;
+      safeApiPrototype.estimateSafeTransaction = (async () => ({
+        safeTxGas: 'not-a-number',
+      })) as unknown;
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getProvider: () => ({
+          getBalance: async () => BigNumber.from(100),
+        }),
+      } as unknown as Parameters<typeof executeTx>[1];
+
+      try {
+        await executeTx(
+          'test',
+          multiProviderMock,
+          '0x0000000000000000000000000000000000000001',
+          `0x${'aa'.repeat(32)}`,
+        );
+        expect.fail('Expected executeTx to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction gas estimate safeTxGas must be a non-negative integer: not-a-number',
+        );
+      }
+
+      expect(executeTransactionCalled).to.equal(false);
     });
   });
 
