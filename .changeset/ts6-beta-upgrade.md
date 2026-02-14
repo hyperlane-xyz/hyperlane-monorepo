@@ -47,3 +47,5 @@ Nested runtime-error traversal was additionally hardened to tolerate malformed i
 Nested iterable traversal is now also bounded to guard against unbounded iterator payloads in wrapper errors.
 
 Nested error-collection traversal was further hardened to tolerate throwing map iterators and throwing object accessors without crashing matcher evaluation.
+
+Extracted-error queue traversal was also refactored to index-based iteration to avoid repeated queue shifting during nested error scans.
