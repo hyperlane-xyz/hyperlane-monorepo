@@ -62,16 +62,29 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
-      if (error.message.trim().length > 0) {
-        return error.message;
+      const errorMessage = error.message;
+      if (errorMessage.trim().length > 0) {
+        return errorMessage;
       }
     } catch {
       // Fall through to generic guarded extraction below.
     }
 
     const errorName = getObjectProperty(error, 'name');
-    if (typeof errorName === 'string' && errorName.length > 0) {
-      return errorName;
+    if (typeof errorName === 'string' && errorName.trim().length > 0) {
+      return errorName.trim();
+    }
+
+    try {
+      const constructorName = error.constructor?.name;
+      if (
+        typeof constructorName === 'string' &&
+        constructorName.trim().length > 0
+      ) {
+        return constructorName.trim();
+      }
+    } catch {
+      // Fall through to generic guarded extraction below.
     }
   }
 

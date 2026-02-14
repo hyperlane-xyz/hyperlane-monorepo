@@ -77,3 +77,5 @@ Regression coverage was expanded for case-and-whitespace normalized `ENOENT` cod
 When `Error.message` access fails, startup formatting now falls back to the error name before structural serialization, improving readability for hostile error wrappers.
 
 Blank-string `message` payloads are now treated as non-informative so formatter output can fall back to richer name/structured diagnostics.
+
+If both message and name are blank on `Error` instances, formatter diagnostics now fall back to constructor names before structural serialization.

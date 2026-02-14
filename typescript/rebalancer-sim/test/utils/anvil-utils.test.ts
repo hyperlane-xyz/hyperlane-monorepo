@@ -694,6 +694,16 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: Error',
       );
     });
+
+    it('falls back to constructor name when Error name is empty', () => {
+      const namelessError = new Error('hidden');
+      namelessError.message = ' ';
+      namelessError.name = ' ';
+
+      expect(formatLocalAnvilStartError(namelessError)).to.equal(
+        'Failed to start local anvil: Error',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {
