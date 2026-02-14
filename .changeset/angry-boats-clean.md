@@ -10,6 +10,7 @@ Safe utility typing and robustness were improved by:
 
 - Modeling nullable tx-service fields in SDK Safe utility types.
 - Hardening Safe API version parsing for real-world semver formats, including uppercase `V` prefixes, strict separator validation, safe-integer guards, and rejection of malformed/leading-zero numeric components.
+- Hardening Safe API version parser boundaries with explicit non-string rejection and deterministic invalid-version messaging for unstringifiable runtime inputs.
 - Tightening Safe tx payload validation with required hex calldata assertions, selector-length checks, and calldata normalization for uppercase `0X`, missing `0x` prefixes, surrounding whitespace, and uppercase payload casing.
 - Strengthening hex normalization (`asHex`) with required-input checks, whitespace and prefix normalization, deterministic lowercase canonicalization, odd-length nibble rejection, and invalid-hex fail-fast checks.
 - Widening parser input contracts (`parseSafeTx`, `decodeMultiSendData`, `asHex`) to accept unknown runtime values and validate at boundaries instead of relying on caller-side string casts.
