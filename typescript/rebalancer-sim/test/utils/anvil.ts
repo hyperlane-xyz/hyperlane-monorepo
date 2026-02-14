@@ -131,6 +131,7 @@ export function formatLocalAnvilStartError(error: unknown): string {
 function extractErrorMessages(error: unknown): string[] {
   const messages: string[] = [];
   const queue: unknown[] = [error];
+  let queueIndex = 0;
   const seen = new Set<unknown>();
   const enqueue = (value: unknown): boolean => {
     if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return false;
@@ -216,8 +217,9 @@ function extractErrorMessages(error: unknown): string[] {
     }
   };
 
-  while (queue.length > 0 && seen.size < MAX_EXTRACTED_ERROR_NODES) {
-    const current = queue.shift();
+  while (queueIndex < queue.length && seen.size < MAX_EXTRACTED_ERROR_NODES) {
+    const current = queue[queueIndex];
+    queueIndex += 1;
     if (current === undefined || seen.has(current)) continue;
     seen.add(current);
 
