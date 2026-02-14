@@ -75,7 +75,7 @@ export enum SquadsProposalVoteError {
  * Matches both named errors and their hex error codes.
  */
 export function parseSquadsProposalVoteError(
-  transactionLogs: string[],
+  transactionLogs: readonly string[],
 ): SquadsProposalVoteError | undefined {
   const logs = transactionLogs.join('\n').toLowerCase();
 

@@ -89,6 +89,16 @@ describe('squads utils', () => {
         parseSquadsProposalVoteError(['custom program error: 0x177B']),
       ).to.equal(SquadsProposalVoteError.AlreadyRejected);
     });
+
+    it('parses readonly frozen transaction logs', () => {
+      const frozenLogs = Object.freeze([
+        'Program log: AlreadyApproved',
+      ]) as readonly string[];
+
+      expect(parseSquadsProposalVoteError(frozenLogs)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
   });
 
   describe(parseSquadsProposalVoteErrorFromError.name, () => {
