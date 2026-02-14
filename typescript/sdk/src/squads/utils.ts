@@ -1442,7 +1442,9 @@ export async function submitProposalToSquads(
     ]);
     rootLogger.info(`Proposal approved: ${approveSignature}`);
   } catch (error) {
-    rootLogger.error(`Failed to submit proposal to Squads: ${error}`);
+    rootLogger.error(
+      `Failed to submit proposal to Squads: ${formatUnknownErrorForMessage(error)}`,
+    );
     throw error;
   }
 }
@@ -1588,7 +1590,7 @@ export async function executeProposal(
     );
   } catch (error) {
     rootLogger.error(
-      `Error executing proposal ${transactionIndex} on ${chain}: ${String(error)}`,
+      `Error executing proposal ${transactionIndex} on ${chain}: ${formatUnknownErrorForMessage(error)}`,
     );
     throw error;
   }
