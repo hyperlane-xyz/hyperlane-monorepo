@@ -1277,6 +1277,34 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('matches iterable wrapper cause fallbacks even when noisy entries hit extraction limits', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        errors: {
+          *[Symbol.iterator]() {
+            for (let i = 0; i < 700; i += 1) {
+              yield { message: `noise-${i}` };
+            }
+          },
+          cause: { message: 'No Docker client strategy found' },
+          toJSON() {
+            throw new Error('json blocked');
+          },
+          [inspectCustom]() {
+            return 'iterable wrapper without nested details';
+          },
+        },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('still matches cause-chain runtime signals before extraction cap', () => {
       expect(isContainerRuntimeUnavailable(buildCauseChain(550, 120))).to.equal(
         true,

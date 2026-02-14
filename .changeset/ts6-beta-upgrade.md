@@ -154,4 +154,8 @@ Regression coverage now also confirms generator-wrapper `errors` payloads with s
 
 Regression coverage now also confirms generator-wrapper `errors` payloads still match runtime-unavailable signals when wrapper `cause` accessors throw but wrapper-level `errors` fallbacks remain available.
 
+Nested wrapper-field extraction for map/array/iterable wrappers now prioritizes wrapper-level `cause`/`errors` fallback enqueueing ahead of entry scans, so runtime-unavailable wrapper signals are not starved by noisy collections that exhaust extraction limits.
+
+Regression coverage now also confirms iterable wrappers with large non-matching entry sets still detect runtime-unavailable wrapper-level `cause` fallbacks under extraction-pressure scenarios.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.

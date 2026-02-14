@@ -193,6 +193,7 @@ function extractErrorMessages(error: unknown): string[] {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
 
     if (nestedErrors instanceof Map) {
+      enqueueWrapperFields(nestedErrors);
       let mapTraversalSucceeded = false;
       try {
         for (const nestedError of nestedErrors.values()) {
@@ -213,14 +214,13 @@ function extractErrorMessages(error: unknown): string[] {
         } catch {
           // Fall through to generic iterable/object traversal.
         }
-      } finally {
-        enqueueWrapperFields(nestedErrors);
       }
 
       if (mapTraversalSucceeded) return;
     }
 
     if (Array.isArray(nestedErrors)) {
+      enqueueWrapperFields(nestedErrors);
       let arrayTraversalSucceeded = false;
       try {
         for (const nestedError of nestedErrors) {
@@ -229,8 +229,6 @@ function extractErrorMessages(error: unknown): string[] {
         arrayTraversalSucceeded = true;
       } catch {
         // Fall through to generic iterable/object traversal.
-      } finally {
-        enqueueWrapperFields(nestedErrors);
       }
 
       if (arrayTraversalSucceeded) return;
@@ -241,6 +239,7 @@ function extractErrorMessages(error: unknown): string[] {
         Symbol.iterator
       ];
       if (typeof iterator === 'function') {
+        enqueueWrapperFields(nestedErrors);
         let iterableTraversalSucceeded = false;
         try {
           let valuesRead = 0;
@@ -252,8 +251,6 @@ function extractErrorMessages(error: unknown): string[] {
           iterableTraversalSucceeded = true;
         } catch {
           // Fall through to object-value traversal for malformed iterables.
-        } finally {
-          enqueueWrapperFields(nestedErrors);
         }
 
         if (iterableTraversalSucceeded) return;
