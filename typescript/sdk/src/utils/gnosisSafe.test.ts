@@ -3160,7 +3160,20 @@ describe('gnosisSafe utils', () => {
       };
 
       const signer = await resolveSafeSigner('test', multiProviderMock);
-      expect(signer).to.equal(wallet.privateKey);
+      expect(signer).to.equal(wallet.privateKey.toLowerCase());
+    });
+
+    it('canonicalizes multiprovider private key casing', async () => {
+      const uppercasePrivateKey = `0X${'AB'.repeat(32)}`;
+      const multiProviderMock: SignerProvider = {
+        getSigner: () =>
+          ({
+            privateKey: uppercasePrivateKey,
+          }) as unknown as ethers.Signer,
+      };
+
+      const signer = await resolveSafeSigner('test', multiProviderMock);
+      expect(signer).to.equal(`0x${'ab'.repeat(32)}`);
     });
 
     it('falls back to signer address when private key is unavailable', async () => {
@@ -3243,6 +3256,22 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Resolved MultiProvider private key must be a non-empty string: 123',
+        );
+      }
+
+      const malformedPrivateKeyProvider: SignerProvider = {
+        getSigner: () =>
+          ({
+            privateKey: 'not-hex',
+          }) as unknown as ethers.Signer,
+      };
+
+      try {
+        await resolveSafeSigner('test', malformedPrivateKeyProvider);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved MultiProvider private key must be 32-byte hex: not-hex',
         );
       }
     });

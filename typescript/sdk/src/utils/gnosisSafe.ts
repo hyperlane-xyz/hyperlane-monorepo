@@ -908,7 +908,16 @@ export async function resolveSafeSigner(
       typeof privateKey === 'string' && privateKey.length > 0,
       `Resolved MultiProvider private key must be a non-empty string: ${stringifyValueForError(privateKey)}`,
     );
-    return privateKey;
+    const privateKeyValidationError = `Resolved MultiProvider private key must be 32-byte hex: ${stringifyValueForError(privateKey)}`;
+    const normalizedPrivateKey = asHex(privateKey, {
+      required: privateKeyValidationError,
+      invalid: privateKeyValidationError,
+    });
+    assert(
+      ethers.utils.isHexString(normalizedPrivateKey, 32),
+      privateKeyValidationError,
+    );
+    return normalizedPrivateKey;
   }
 
   let getSignerAddress: unknown;
