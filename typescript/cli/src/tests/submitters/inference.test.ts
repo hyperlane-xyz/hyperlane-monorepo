@@ -54,6 +54,65 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     expect(batches[0].transactions).to.have.length(2);
   });
 
+  it('falls back to inference when strategy file has no config for chain', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-missing-chain-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      someOtherChain: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: 'someOtherChain',
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+      },
+    });
+
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeOwner.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+        strategyUrl: strategyPath,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
   it('routes transactions using explicit per-target submitter overrides', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-overrides-${Date.now()}.yaml`;
     const overrideTarget = '0x9999999999999999999999999999999999999999';
@@ -567,6 +626,36 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       chain: CHAIN,
       transactions: [TX as any],
       context,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+  });
+
+  it('uses non-ethereum default when strategy file has no config for chain', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-non-evm-missing-chain-${Date.now()}.yaml`;
+    writeYamlOrJson(strategyPath, {
+      someOtherChain: {
+        submitter: {
+          type: TxSubmitterType.GNOSIS_TX_BUILDER,
+          chain: 'someOtherChain',
+          safeAddress: '0x2222222222222222222222222222222222222222',
+          version: '1.0',
+        },
+      },
+    });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.CosmosNative,
+      },
+    } as any;
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [TX as any],
+      context,
+      strategyUrl: strategyPath,
     });
 
     expect(batches).to.have.length(1);
