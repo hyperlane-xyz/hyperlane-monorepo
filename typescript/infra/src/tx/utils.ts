@@ -102,6 +102,11 @@ export function processGovernorReaderResult(
       `Governor reader output file name must not include path separators: ${normalizedOutputFileName}`,
     );
   }
+  if (normalizedOutputFileName === '.' || normalizedOutputFileName === '..') {
+    throw new Error(
+      `Governor reader output file name must not be '.' or '..': ${normalizedOutputFileName}`,
+    );
+  }
   if (!/^[A-Za-z0-9._-]+$/.test(normalizedOutputFileName)) {
     throw new Error(
       `Governor reader output file name contains invalid characters: ${normalizedOutputFileName}`,

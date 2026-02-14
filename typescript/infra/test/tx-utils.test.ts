@@ -893,6 +893,15 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it("throws when output file name is '.' or '..'", () => {
+    expect(() => processGovernorReaderResult([], [], '.')).to.throw(
+      "Governor reader output file name must not be '.' or '..': .",
+    );
+    expect(() => processGovernorReaderResult([], [], '..')).to.throw(
+      "Governor reader output file name must not be '.' or '..': ..",
+    );
+  });
+
   it('throws when output file name contains invalid characters', () => {
     expect(() => processGovernorReaderResult([], [], 'safe tx parse')).to.throw(
       'Governor reader output file name contains invalid characters: safe tx parse',
