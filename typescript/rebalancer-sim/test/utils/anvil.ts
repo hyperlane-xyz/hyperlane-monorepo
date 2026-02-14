@@ -73,14 +73,7 @@ const normalizeStringValue = (value: unknown): string | undefined => {
   if (!isBoxedString(value)) return undefined;
 
   try {
-    const boxedValue = (value as { valueOf: () => unknown }).valueOf();
-    if (typeof boxedValue === 'string') return boxedValue;
-  } catch {
-    // Fall through to String coercion below.
-  }
-
-  try {
-    return String(value);
+    return String.prototype.valueOf.call(value);
   } catch {
     return undefined;
   }

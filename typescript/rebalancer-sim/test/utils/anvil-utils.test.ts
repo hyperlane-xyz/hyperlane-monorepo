@@ -10,6 +10,26 @@ import {
   stopLocalAnvilProcess,
 } from './anvil.js';
 
+const buildUncoercibleSpoofedBoxedString = () => ({
+  [Symbol.toStringTag]: 'String',
+  toString() {
+    throw new Error('blocked toString');
+  },
+  valueOf() {
+    throw new Error('blocked valueOf');
+  },
+});
+
+const buildCoercibleSpoofedBoxedString = (value: string) => ({
+  [Symbol.toStringTag]: 'String',
+  toString() {
+    return value;
+  },
+  valueOf() {
+    return value;
+  },
+});
+
 describe('Anvil utils', () => {
   describe('isContainerRuntimeUnavailable', () => {
     const buildCauseChain = (
@@ -147,16 +167,6 @@ describe('Anvil utils', () => {
 
       return wrapper;
     };
-    const buildUncoercibleSpoofedBoxedString = () => ({
-      [Symbol.toStringTag]: 'String',
-      toString() {
-        throw new Error('blocked toString');
-      },
-      valueOf() {
-        throw new Error('blocked valueOf');
-      },
-    });
-
     it('returns true for testcontainers runtime-strategy errors', () => {
       const error = new Error(
         'Could not find a working container runtime strategy',
@@ -679,6 +689,14 @@ describe('Anvil utils', () => {
       expect(result).to.equal(false);
     });
 
+    it('ignores spoofed boxed-string throw values when coercion succeeds', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          buildCoercibleSpoofedBoxedString('No Docker client strategy found'),
+        ),
+      ).to.equal(false);
+    });
+
     it('matches boxed-string message fields when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const wrappedError = {
@@ -734,6 +752,29 @@ describe('Anvil utils', () => {
         isContainerRuntimeUnavailable({
           message: 'top-level wrapper noise',
           errors: buildUncoercibleSpoofedBoxedString(),
+          cause: { message: 'No Docker client strategy found' },
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores spoofed boxed-string errors payloads when coercion succeeds', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildCoercibleSpoofedBoxedString(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(false);
+    });
+
+    it('matches runtime causes when coercible spoofed boxed-string errors payloads are present', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildCoercibleSpoofedBoxedString(
+            'No Docker client strategy found',
+          ),
           cause: { message: 'No Docker client strategy found' },
         }),
       ).to.equal(true);
@@ -2173,16 +2214,6 @@ describe('Anvil utils', () => {
   });
 
   describe('formatLocalAnvilStartError', () => {
-    const buildUncoercibleSpoofedBoxedString = () => ({
-      [Symbol.toStringTag]: 'String',
-      toString() {
-        throw new Error('blocked toString');
-      },
-      valueOf() {
-        throw new Error('blocked valueOf');
-      },
-    });
-
     it('returns installation hint when anvil binary is missing', () => {
       const error = new Error('spawn anvil ENOENT') as NodeJS.ErrnoException;
       error.code = 'ENOENT';
@@ -2255,6 +2286,15 @@ describe('Anvil utils', () => {
       ).to.equal('Failed to start local anvil: spawn failed');
     });
 
+    it('ignores spoofed boxed-string code values when coercion succeeds', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: buildCoercibleSpoofedBoxedString('ENOENT'),
+          message: 'spawn failed',
+        }),
+      ).to.equal('Failed to start local anvil: spawn failed');
+    });
+
     it('returns plain message for other startup errors', () => {
       const error = new Error('permission denied');
       expect(formatLocalAnvilStartError(error)).to.equal(
@@ -2282,6 +2322,17 @@ describe('Anvil utils', () => {
       expect(
         formatLocalAnvilStartError({
           message: buildUncoercibleSpoofedBoxedString(),
+          reason: 'spawn-failure',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: {"message":{},"reason":"spawn-failure"}',
+      );
+    });
+
+    it('falls back when spoofed boxed-string message coercion succeeds', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: buildCoercibleSpoofedBoxedString('custom object failure'),
           reason: 'spawn-failure',
         }),
       ).to.equal(

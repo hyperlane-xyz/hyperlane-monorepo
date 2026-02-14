@@ -221,3 +221,7 @@ Regression coverage now also confirms cross-realm boxed-string throw values and 
 Boxed-string normalization now also handles spoofed `[object String]` payloads that throw during coercion, preventing matcher/formatter crashes when hostile wrappers masquerade as boxed strings.
 
 Regression coverage now also confirms uncoercible spoofed boxed-string throw payloads and nested `errors` fields are handled safely, runtime causes remain detectable alongside spoofed nested payloads, spoofed boxed `code` values do not mis-trigger ENOENT hints, and spoofed boxed `message` values cleanly fall back to structured diagnostics.
+
+Boxed-string normalization now uses `String.prototype.valueOf.call(...)` for boxed payload extraction, so only genuine boxed strings (including cross-realm values) are normalized while spoofed `[object String]` objects are ignored even when they return string-like coercions.
+
+Regression coverage now also confirms coercible spoofed boxed-string throw payloads and nested `errors` fields do not trigger runtime-unavailable false positives, runtime `cause` fallback detection remains intact when coercible spoofed nested payloads are present, and coercible spoofed boxed `code`/`message` metadata still falls back to standard non-string diagnostic paths.
