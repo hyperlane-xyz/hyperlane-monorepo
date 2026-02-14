@@ -3115,6 +3115,119 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('falls back to next-latest ICA event when latest log parsing fails', async () => {
+    const inferredIcaOwner = '0x7878787878787878787878787878787878787878';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+    const originRouterAddress = '0x9191919191919191919191919191919191919191';
+    const signerBytes32 = `0x000000000000000000000000${SIGNER.slice(2)}` as const;
+    const originRouterBytes32 = `0x000000000000000000000000${originRouterAddress.slice(
+      2,
+    )}` as const;
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const validOlderLog = {
+      topics: ['0xvalid-older'],
+      data: '0x',
+      blockNumber: 100,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const malformedLatestLog = {
+      topics: ['0xmalformed-latest'],
+      data: '0x',
+      blockNumber: 101,
+      transactionIndex: 0,
+      logIndex: 0,
+    };
+    const provider = {
+      getLogs: sinon.stub().resolves([validOlderLog, malformedLatestLog]),
+    };
+
+    const parseLogStub = sinon.stub().callsFake((log: any) => {
+      if (log === malformedLatestLog) {
+        throw new Error('malformed ICA event');
+      }
+      if (log === validOlderLog) {
+        return {
+          args: {
+            origin: 31347,
+            router: originRouterBytes32,
+            owner: signerBytes32,
+            ism: ethersConstants.AddressZero,
+          },
+        };
+      }
+      throw new Error('unexpected log');
+    });
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: parseLogStub,
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) return 'anvil3';
+          throw new Error('unknown domain');
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.INTERCHAIN_ACCOUNT,
+      );
+      expect((batches[0].config.submitter as any).chain).to.equal('anvil3');
+      expect(provider.getLogs.callCount).to.equal(1);
+      expect(parseLogStub.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('caches null when ICA event log has malformed bytes32 fields', async () => {
     const inferredIcaOwner = '0x7979797979797979797979797979797979797979';
     const destinationRouterAddress =

@@ -556,8 +556,34 @@ async function inferIcaSubmitterFromAccount({
     logs = [];
   }
 
-  const lastLog = selectLatestLogByPosition(logs);
-  if (!lastLog) {
+  const logsDescendingByPosition = [...logs].sort((a, b) =>
+    compareLogsByPosition(b, a),
+  );
+
+  let parsedLatestIcaEvent:
+    | {
+        originDomain: number;
+        originRouter: Address;
+        owner: Address;
+        ism: Address;
+      }
+    | undefined;
+  for (const log of logsDescendingByPosition) {
+    try {
+      const parsed = destinationRouter.interface.parseLog(log);
+      parsedLatestIcaEvent = {
+        originDomain: Number(parsed.args.origin),
+        originRouter: bytes32ToAddress(parsed.args.router),
+        owner: bytes32ToAddress(parsed.args.owner),
+        ism: parsed.args.ism as Address,
+      };
+      break;
+    } catch {
+      continue;
+    }
+  }
+
+  if (!parsedLatestIcaEvent) {
     // Fall back to deriving the ICA from signer owner and known routers,
     // to support routes where the ICA has not been deployed yet.
     const signerAddress = await getSignerAddressForChain(
@@ -651,20 +677,7 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  let originDomain: number;
-  let originRouter: Address;
-  let owner: Address;
-  let ism: Address;
-  try {
-    const parsed = destinationRouter.interface.parseLog(lastLog);
-    originDomain = Number(parsed.args.origin);
-    originRouter = bytes32ToAddress(parsed.args.router);
-    owner = bytes32ToAddress(parsed.args.owner);
-    ism = parsed.args.ism as Address;
-  } catch {
-    cache.icaByChainAndAddress.set(cacheId, null);
-    return null;
-  }
+  const { originDomain, originRouter, owner, ism } = parsedLatestIcaEvent;
 
   const originChain = getChainNameForDomain(context, cache, originDomain);
   if (!originChain) {
