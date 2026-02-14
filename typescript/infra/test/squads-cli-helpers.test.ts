@@ -146,16 +146,16 @@ describe('squads cli helpers', () => {
   });
 
   it('throws for explicitly provided non-string chain values', () => {
-    expect(() => resolveSquadsChains([123 as unknown as string])).to.throw(
+    expect(() => resolveSquadsChains([123])).to.throw(
       'Expected chains[0] to be a string, but received number',
     );
   });
 
   it('reports exact index for explicitly provided non-string chain values', () => {
     const [chain] = getSquadsChains();
-    expect(() =>
-      resolveSquadsChains([chain, 123 as unknown as string]),
-    ).to.throw('Expected chains[1] to be a string, but received number');
+    expect(() => resolveSquadsChains([chain, 123])).to.throw(
+      'Expected chains[1] to be a string, but received number',
+    );
   });
 
   it('throws for explicitly provided non-squads chain', () => {
