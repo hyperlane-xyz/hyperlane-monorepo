@@ -139,6 +139,7 @@ const SQUADS_ERROR_KNOWN_ARRAY_FIELD_NAMES = new Set<string>([
 ]);
 const SQUADS_LOG_FIELD_NAME_CACHE = new Map<string, boolean>();
 const SAFE_INTEGER_DECIMAL_PATTERN = /^-?\d+$/;
+const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 
 function tokenizeFieldName(fieldName: string): string[] {
   return fieldName
@@ -823,7 +824,7 @@ function getMultisigMemberCount(
         `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
       );
       assert(
-        normalizedMemberKey !== '[object Object]',
+        !GENERIC_OBJECT_STRING_PATTERN.test(normalizedMemberKey),
         `Squads ${fieldPrefix} members[${index}] key must stringify to a meaningful identifier`,
       );
       assert(

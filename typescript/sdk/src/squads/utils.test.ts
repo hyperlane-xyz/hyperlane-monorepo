@@ -1065,6 +1065,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when object member key stringifies to custom object label', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: { toString: () => '[object CustomKey]' } }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must stringify to a meaningful identifier',
+      );
+    });
+
     it('uses caller-provided field prefix for empty normalized object keys', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig(
