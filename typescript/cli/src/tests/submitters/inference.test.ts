@@ -5583,6 +5583,105 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('reconstructs timelock proposer roles correctly from unsorted role logs', async () => {
+    const timelockOwner = '0x5858585858585858585858585858585858585858';
+    const safeProposer = '0x6969696969696969696969696969696969696969';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const earlyGrant = {
+      topics: ['0xgrant-early'],
+      data: '0x',
+      blockNumber: 100,
+      transactionIndex: 0,
+      logIndex: 1,
+    };
+    const midRevoke = {
+      topics: ['0xrevoke-mid'],
+      data: '0x',
+      blockNumber: 101,
+      transactionIndex: 0,
+      logIndex: 1,
+    };
+    const lateGrant = {
+      topics: ['0xgrant-late'],
+      data: '0x',
+      blockNumber: 102,
+      transactionIndex: 0,
+      logIndex: 1,
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          // intentionally unsorted newest-first
+          return [lateGrant, earlyGrant];
+        }
+        return [midRevoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect((batches[0].config.submitter as any).proposerSubmitter.safeAddress)
+        .to.equal(safeProposer);
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('ignores malformed proposer account addresses in timelock role logs', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
     const safeProposer = '0x6666666666666666666666666666666666666666';
