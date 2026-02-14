@@ -1,22 +1,25 @@
 import { expect } from 'chai';
 
 import {
+  BUILTIN_SQUADS_ERROR_LABELS,
   isGenericObjectStringifiedValue,
   normalizeStringifiedSquadsError,
 } from './error-format.js';
 
-const BUILTIN_ERROR_LABELS = [
-  'Error',
-  'TypeError',
-  'RangeError',
-  'ReferenceError',
-  'SyntaxError',
-  'URIError',
-  'EvalError',
-  'AggregateError',
-] as const;
-
 describe('squads error-format', () => {
+  it('exports built-in squads error labels', () => {
+    expect(BUILTIN_SQUADS_ERROR_LABELS).to.deep.equal([
+      'Error',
+      'TypeError',
+      'RangeError',
+      'ReferenceError',
+      'SyntaxError',
+      'URIError',
+      'EvalError',
+      'AggregateError',
+    ]);
+  });
+
   describe(normalizeStringifiedSquadsError.name, () => {
     it('returns undefined for empty and whitespace-only strings', () => {
       expect(normalizeStringifiedSquadsError('')).to.equal(undefined);
@@ -33,7 +36,7 @@ describe('squads error-format', () => {
     });
 
     it('returns undefined for bare built-in error labels', () => {
-      for (const errorLabel of BUILTIN_ERROR_LABELS) {
+      for (const errorLabel of BUILTIN_SQUADS_ERROR_LABELS) {
         expect(normalizeStringifiedSquadsError(errorLabel)).to.equal(undefined);
         expect(normalizeStringifiedSquadsError(`${errorLabel}:`)).to.equal(
           undefined,

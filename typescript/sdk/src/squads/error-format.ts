@@ -1,15 +1,19 @@
 const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
 const TRAILING_COLON_WITH_OPTIONAL_SPACING_PATTERN = /\s*:\s*$/;
-const GENERIC_ERROR_LABELS = new Set([
-  'error',
-  'typeerror',
-  'rangeerror',
-  'referenceerror',
-  'syntaxerror',
-  'urierror',
-  'evalerror',
-  'aggregateerror',
-]);
+export const BUILTIN_SQUADS_ERROR_LABELS = [
+  'Error',
+  'TypeError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'URIError',
+  'EvalError',
+  'AggregateError',
+] as const;
+
+const GENERIC_ERROR_LABELS = new Set(
+  BUILTIN_SQUADS_ERROR_LABELS.map((label) => label.toLowerCase()),
+);
 
 export function isGenericObjectStringifiedValue(value: string): boolean {
   return GENERIC_OBJECT_STRING_PATTERN.test(value.trim());

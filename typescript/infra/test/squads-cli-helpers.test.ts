@@ -2,6 +2,7 @@ import { expect } from 'chai';
 import yargs, { type Argv } from 'yargs';
 
 import {
+  BUILTIN_SQUADS_ERROR_LABELS,
   getSquadsChains,
   getUnsupportedSquadsChainsErrorMessage,
 } from '@hyperlane-xyz/sdk';
@@ -16,40 +17,35 @@ import {
   withSquadsChains,
 } from '../scripts/squads/cli-helpers.js';
 
-const BUILTIN_ERROR_LABEL_CASES = [
-  {
-    label: 'Error',
-    createError: () => new Error(''),
-  },
-  {
-    label: 'TypeError',
-    createError: () => new TypeError(''),
-  },
-  {
-    label: 'RangeError',
-    createError: () => new RangeError(''),
-  },
-  {
-    label: 'ReferenceError',
-    createError: () => new ReferenceError(''),
-  },
-  {
-    label: 'SyntaxError',
-    createError: () => new SyntaxError(''),
-  },
-  {
-    label: 'URIError',
-    createError: () => new URIError(''),
-  },
-  {
-    label: 'EvalError',
-    createError: () => new EvalError(''),
-  },
-  {
-    label: 'AggregateError',
-    createError: () => new AggregateError([], ''),
-  },
-] as const;
+function createBuiltInError(
+  label: (typeof BUILTIN_SQUADS_ERROR_LABELS)[number],
+): Error {
+  switch (label) {
+    case 'Error':
+      return new Error('');
+    case 'TypeError':
+      return new TypeError('');
+    case 'RangeError':
+      return new RangeError('');
+    case 'ReferenceError':
+      return new ReferenceError('');
+    case 'SyntaxError':
+      return new SyntaxError('');
+    case 'URIError':
+      return new URIError('');
+    case 'EvalError':
+      return new EvalError('');
+    case 'AggregateError':
+      return new AggregateError([], '');
+    default:
+      throw new Error(`Unsupported built-in error label: ${label}`);
+  }
+}
+
+const BUILTIN_ERROR_LABEL_CASES = BUILTIN_SQUADS_ERROR_LABELS.map((label) => ({
+  label,
+  createError: () => createBuiltInError(label),
+}));
 
 function parseArgs(args: Argv) {
   return args
