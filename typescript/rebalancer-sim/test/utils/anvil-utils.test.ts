@@ -377,6 +377,24 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in error-shaped wrappers with nested causes', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        errors: {
+          message: 'wrapper noise',
+          cause: { message: 'No Docker client strategy found' },
+        },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches docker runtime errors in object error arrays without message', () => {
       expect(
         isContainerRuntimeUnavailable({

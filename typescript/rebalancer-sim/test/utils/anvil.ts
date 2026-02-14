@@ -234,15 +234,18 @@ function extractErrorMessages(error: unknown): string[] {
       }
     }
 
-    if (
-      typeof nestedErrors === 'object' &&
-      nestedErrors !== null &&
-      typeof getObjectProperty(nestedErrors, 'message') !== 'string'
-    ) {
+    if (typeof nestedErrors === 'object' && nestedErrors !== null) {
+      if (!enqueue(nestedErrors)) return;
+
+      if (
+        getTrimmedNonEmptyString(getObjectProperty(nestedErrors, 'message'))
+      ) {
+        return;
+      }
+
       try {
         for (const nestedErrorKey of Object.keys(nestedErrors)) {
-          let nestedError: unknown;
-          nestedError = getObjectProperty(nestedErrors, nestedErrorKey);
+          const nestedError = getObjectProperty(nestedErrors, nestedErrorKey);
           if (nestedError === undefined) continue;
 
           if (!enqueue(nestedError)) break;
