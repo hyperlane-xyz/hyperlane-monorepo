@@ -13,7 +13,8 @@ import {
   MultiProtocolProvider,
   SQUADS_PROPOSAL_OVERHEAD,
   SvmMultiProtocolSignerAdapter,
-  squadsConfigs,
+  getSquadsChains,
+  getSquadsKeys,
   submitProposalToSquads,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -362,10 +363,7 @@ async function processChain(
   );
 
   // Load Squads vault address (the multisig that will execute the transaction)
-  if (!squadsConfigs[chain]) {
-    throw new Error(`Squads configuration not found for chain ${chain}`);
-  }
-  const vaultPubkey = new PublicKey(squadsConfigs[chain].vault);
+  const { vault: vaultPubkey } = getSquadsKeys(chain);
   rootLogger.debug(`Using Squads vault (multisig): ${vaultPubkey.toBase58()}`);
   rootLogger.debug(
     `Using Turnkey signer (proposal creator): ${await adapter.address()}`,
@@ -431,14 +429,28 @@ async function main() {
 
   // Compute default chains based on environment
   const envConfig = getEnvironmentConfig(environment);
+  const squadsChains = getSquadsChains();
+  const squadsChainSet = new Set(squadsChains);
+
   const chains =
     !chainsArg || chainsArg.length === 0
       ? envConfig.supportedChainNames.filter(
           (chain) =>
             chainIsProtocol(chain, ProtocolType.Sealevel) &&
+            squadsChainSet.has(chain) &&
             !chainsToSkip.includes(chain),
         )
       : chainsArg;
+
+  const chainsWithoutSquadsConfig = chains.filter(
+    (chain) => !squadsChainSet.has(chain),
+  );
+  if (chainsWithoutSquadsConfig.length > 0) {
+    throw new Error(
+      `Squads configuration not found for chains: ${chainsWithoutSquadsConfig.join(', ')}. ` +
+        `Available Squads chains: ${squadsChains.join(', ')}`,
+    );
+  }
 
   // Initialize Turnkey signer
   rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');
