@@ -3665,6 +3665,16 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data must include function selector');
     });
 
+    it('throws when transaction data is only uppercase 0X prefix', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: '0X',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must include function selector');
+    });
+
     it('throws when short transaction data is unprefixed', () => {
       expect(() =>
         parseSafeTx({
@@ -4002,6 +4012,9 @@ describe('gnosisSafe utils', () => {
 
     it('throws when calldata does not include multisend selector', () => {
       expect(() => decodeMultiSendData('0x')).to.throw(
+        'Invalid multisend payload: missing multisend selector',
+      );
+      expect(() => decodeMultiSendData(' 0x ')).to.throw(
         'Invalid multisend payload: missing multisend selector',
       );
       expect(() => decodeMultiSendData('0X')).to.throw(
