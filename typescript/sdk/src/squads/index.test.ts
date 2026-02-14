@@ -1,6 +1,8 @@
 import { expect } from 'chai';
 
 import {
+  BUILTIN_SQUADS_ERROR_LABELS,
+  DEFAULT_SQUADS_ERROR_PLACEHOLDER,
   SquadsTransactionReader,
   getSquadsChains,
   normalizeStringifiedSquadsError,
@@ -11,6 +13,8 @@ import {
   SquadsTransactionReader as DirectSquadsTransactionReader,
 } from './transaction-reader.js';
 import {
+  BUILTIN_SQUADS_ERROR_LABELS as directBuiltinSquadsErrorLabels,
+  DEFAULT_SQUADS_ERROR_PLACEHOLDER as directDefaultSquadsErrorPlaceholder,
   normalizeStringifiedSquadsError as directNormalizeStringifiedSquadsError,
   stringifyUnknownSquadsError as directStringifyUnknownSquadsError,
 } from './error-format.js';
@@ -35,6 +39,12 @@ describe('squads barrel exports', () => {
     );
     expect(normalizeStringifiedSquadsError).to.equal(
       directNormalizeStringifiedSquadsError,
+    );
+    expect(BUILTIN_SQUADS_ERROR_LABELS).to.equal(
+      directBuiltinSquadsErrorLabels,
+    );
+    expect(DEFAULT_SQUADS_ERROR_PLACEHOLDER).to.equal(
+      directDefaultSquadsErrorPlaceholder,
     );
   });
 });
