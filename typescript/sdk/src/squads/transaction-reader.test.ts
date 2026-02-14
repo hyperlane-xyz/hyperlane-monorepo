@@ -63,6 +63,17 @@ function createUnstringifiableError(): { toString: () => string } {
   };
 }
 
+function createErrorWithUnstringifiableMessage(): Error {
+  const error = new Error('boom');
+  Object.defineProperty(error, 'message', {
+    configurable: true,
+    get() {
+      throw new Error('message unavailable');
+    },
+  });
+  return error;
+}
+
 describe('squads transaction reader', () => {
   function createMockProposalData(
     transactionIndex: unknown,
@@ -390,6 +401,48 @@ describe('squads transaction reader', () => {
     );
 
     expect(thrownError).to.equal(unstringifiableError);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: '[unstringifiable error]',
+      },
+    ]);
+  });
+
+  it('records a stable placeholder when thrown Error message is unstringifiable', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: () => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    const malformedError = createErrorWithUnstringifiableMessage();
+    readerAny.readConfigTransaction = async () => {
+      throw malformedError;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError).to.equal(malformedError);
     expect(reader.errors).to.deep.equal([
       {
         chain: 'solanamainnet',
