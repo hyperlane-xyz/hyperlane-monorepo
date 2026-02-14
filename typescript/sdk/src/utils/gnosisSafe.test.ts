@@ -1153,18 +1153,45 @@ describe('gnosisSafe utils', () => {
     });
 
     it('rejects percent-encoded authorities', () => {
-      expect(safeApiKeyRequired('https://safe%2Eglobal/api')).to.equal(false);
+      const encodedDots = ['%2E', '%2e', '%252E', '%252e'];
+
+      for (const encodedDot of encodedDots) {
+        const authorities = [
+          `safe${encodedDot}global`,
+          `safe-transaction-mainnet${encodedDot}5afe.dev`,
+        ];
+
+        for (const authority of authorities) {
+          expect(safeApiKeyRequired(`https://${authority}/api`)).to.equal(
+            false,
+          );
+          expect(safeApiKeyRequired(`//${authority}/api`)).to.equal(false);
+          expect(safeApiKeyRequired(authority)).to.equal(false);
+          expect(safeApiKeyRequired(`https://${authority}:443/api`)).to.equal(
+            false,
+          );
+          expect(safeApiKeyRequired(`//${authority}:443/api`)).to.equal(false);
+          expect(safeApiKeyRequired(`${authority}:443`)).to.equal(false);
+        }
+      }
+    });
+
+    it('accepts percent-encoded data outside the authority', () => {
       expect(
-        safeApiKeyRequired('https://safe-transaction-mainnet%2E5afe.dev/api'),
-      ).to.equal(false);
-      expect(safeApiKeyRequired('//safe%2Eglobal/api')).to.equal(false);
+        safeApiKeyRequired('https://safe.global/path%2Esegment/api'),
+      ).to.equal(true);
+      expect(safeApiKeyRequired('//safe.global/path%2Esegment')).to.equal(true);
+      expect(safeApiKeyRequired('safe.global/path%2Esegment')).to.equal(true);
       expect(
-        safeApiKeyRequired('//safe-transaction-mainnet%2E5afe.dev/api'),
-      ).to.equal(false);
-      expect(safeApiKeyRequired('safe%2Eglobal')).to.equal(false);
+        safeApiKeyRequired(
+          'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
+        ),
+      ).to.equal(true);
       expect(
-        safeApiKeyRequired('safe-transaction-mainnet%2E5afe.dev'),
-      ).to.equal(false);
+        safeApiKeyRequired(
+          'safe-transaction-mainnet.5afe.dev/path%2Esegment?next=%2Ffoo%2Ebar',
+        ),
+      ).to.equal(true);
     });
 
     it('rejects encoded-backslash userinfo spoof patterns at deeper repeated-%25 depths', () => {
@@ -2696,31 +2723,57 @@ describe('gnosisSafe utils', () => {
     });
 
     it('throws when authority contains percent-encoded host octets', () => {
-      expect(() =>
-        normalizeSafeServiceUrl('https://safe%2Eglobal/api'),
-      ).to.throw('Safe tx service URL is invalid: https://safe%2Eglobal/api');
-      expect(() =>
+      const encodedDots = ['%2E', '%2e', '%252E', '%252e'];
+
+      for (const encodedDot of encodedDots) {
+        const authorities = [
+          `safe${encodedDot}global`,
+          `safe-transaction-mainnet${encodedDot}5afe.dev`,
+        ];
+
+        for (const authority of authorities) {
+          const explicitUrl = `https://${authority}/api`;
+          const schemeRelativeUrl = `//${authority}/api`;
+          const hostOnlyUrl = authority;
+          const explicitPortUrl = `https://${authority}:443/api`;
+          const schemeRelativePortUrl = `//${authority}:443/api`;
+          const hostOnlyPortUrl = `${authority}:443`;
+
+          expect(() => normalizeSafeServiceUrl(explicitUrl)).to.throw(
+            `Safe tx service URL is invalid: ${explicitUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(schemeRelativeUrl)).to.throw(
+            `Safe tx service URL is invalid: ${schemeRelativeUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(hostOnlyUrl)).to.throw(
+            `Safe tx service URL is invalid: ${hostOnlyUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(explicitPortUrl)).to.throw(
+            `Safe tx service URL is invalid: ${explicitPortUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(schemeRelativePortUrl)).to.throw(
+            `Safe tx service URL is invalid: ${schemeRelativePortUrl}`,
+          );
+          expect(() => normalizeSafeServiceUrl(hostOnlyPortUrl)).to.throw(
+            `Safe tx service URL is invalid: ${hostOnlyPortUrl}`,
+          );
+        }
+      }
+    });
+
+    it('preserves percent-encoded data outside the authority', () => {
+      expect(normalizeSafeServiceUrl('//safe.global/path%2Esegment')).to.equal(
+        'https://safe.global/path%2Esegment/api',
+      );
+      expect(
+        normalizeSafeServiceUrl('safe.global/path%2Esegment?next=%2Ffoo%2Ebar'),
+      ).to.equal('https://safe.global/path%2Esegment/api');
+      expect(
         normalizeSafeServiceUrl(
-          'https://safe-transaction-mainnet%2E5afe.dev/api',
+          'safe-transaction-mainnet.5afe.dev/path%2Esegment?next=%2Ffoo%2Ebar',
         ),
-      ).to.throw(
-        'Safe tx service URL is invalid: https://safe-transaction-mainnet%2E5afe.dev/api',
-      );
-      expect(() => normalizeSafeServiceUrl('//safe%2Eglobal/api')).to.throw(
-        'Safe tx service URL is invalid: //safe%2Eglobal/api',
-      );
-      expect(() =>
-        normalizeSafeServiceUrl('//safe-transaction-mainnet%2E5afe.dev/api'),
-      ).to.throw(
-        'Safe tx service URL is invalid: //safe-transaction-mainnet%2E5afe.dev/api',
-      );
-      expect(() => normalizeSafeServiceUrl('safe%2Eglobal')).to.throw(
-        'Safe tx service URL is invalid: safe%2Eglobal',
-      );
-      expect(() =>
-        normalizeSafeServiceUrl('safe-transaction-mainnet%2E5afe.dev'),
-      ).to.throw(
-        'Safe tx service URL is invalid: safe-transaction-mainnet%2E5afe.dev',
+      ).to.equal(
+        'https://safe-transaction-mainnet.5afe.dev/path%2Esegment/api',
       );
     });
 
