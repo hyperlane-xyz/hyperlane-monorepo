@@ -2231,6 +2231,36 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('returns undefined when provider lookup throws for supported chains', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
+    it('returns undefined when provider bridge validation fails', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          return {};
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposal = await getSquadProposalAccount('solanamainnet', mpp, 1);
+
+      expect(proposal).to.equal(undefined);
+      expect(providerLookupCalled).to.equal(true);
+    });
+
     it('fails fast for invalid transaction index before proposal fetch attempts', async () => {
       let providerLookupCalled = false;
       const mpp = {
