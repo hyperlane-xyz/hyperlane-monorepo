@@ -3391,6 +3391,9 @@ describe('gnosisSafe utils', () => {
         data: 'AbCd',
       });
 
+      expect(callData.to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000aa'),
+      );
       expect(callData.data).to.equal('0xabcd');
     });
 
@@ -3543,7 +3546,7 @@ describe('gnosisSafe utils', () => {
         {
           transactions: [
             {
-              to: '0x00000000000000000000000000000000000000aa',
+              to: getAddress('0x00000000000000000000000000000000000000aa'),
               data: '0x1234',
               value: '0',
             },
@@ -3569,7 +3572,7 @@ describe('gnosisSafe utils', () => {
         {
           transactions: [
             {
-              to: '0x00000000000000000000000000000000000000aa',
+              to: getAddress('0x00000000000000000000000000000000000000aa'),
               data: '0x1234',
               value: '0',
             },
@@ -3599,7 +3602,7 @@ describe('gnosisSafe utils', () => {
         {
           transactions: [
             {
-              to: '0x00000000000000000000000000000000000000AA',
+              to: getAddress('0x00000000000000000000000000000000000000AA'),
               data: '0xabcd',
               value: '0',
             },
@@ -3899,12 +3902,24 @@ describe('gnosisSafe utils', () => {
 
       expect(createTransactionCalls).to.deep.equal([
         {
-          transactions: exampleTransactions,
+          transactions: [
+            {
+              to: getAddress('0x00000000000000000000000000000000000000aa'),
+              data: '0x1234',
+              value: '0',
+            },
+          ],
           onlyCalls: undefined,
           options: { nonce: 0 },
         },
         {
-          transactions: exampleTransactions,
+          transactions: [
+            {
+              to: getAddress('0x00000000000000000000000000000000000000aa'),
+              data: '0x1234',
+              value: '0',
+            },
+          ],
           onlyCalls: undefined,
           options: { nonce: Number.MAX_SAFE_INTEGER },
         },

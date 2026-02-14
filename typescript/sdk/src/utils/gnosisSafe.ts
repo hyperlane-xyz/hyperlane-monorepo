@@ -997,7 +997,7 @@ export function createSafeTransactionData(call: unknown): MetaTransactionData {
     invalid: 'Safe call data must be hex',
   });
   return {
-    to,
+    to: getAddress(to),
     data: normalizedData,
     value: serializeSafeCallValue(value),
   };
