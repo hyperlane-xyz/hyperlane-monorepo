@@ -1109,6 +1109,29 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when result entry key is unstringifiable', () => {
+    const unstringifiableKey = {
+      [Symbol.toPrimitive]() {
+        throw new Error('key to-primitive boom');
+      },
+    };
+
+    expect(() =>
+      processGovernorReaderResult(
+        [
+          [
+            unstringifiableKey as unknown as string,
+            { status: 'ok' } as unknown as any,
+          ],
+        ],
+        [],
+        'safe-tx-parse-results',
+      ),
+    ).to.throw(
+      'Governor reader result key at index 0 must be a non-empty string: <unstringifiable>',
+    );
+  });
+
   it('throws when result entry values are inaccessible', () => {
     const resultEntry = new Proxy(
       ['chainA-1-0xabc', { status: 'ok' } as unknown as any],
@@ -1305,6 +1328,37 @@ describe('processGovernorReaderResult', () => {
     processGovernorReaderResult(
       [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
       [{ message: 'fatal' }],
+      'safe-tx-parse-results',
+      {
+        nowFn: () => 1700000000000,
+        writeYamlFn: (path) => {
+          writtenPath = path;
+        },
+        exitFn: (code) => {
+          exitCode = code;
+        },
+      },
+    );
+
+    expect(writtenPath).to.equal('safe-tx-parse-results-1700000000000.yaml');
+    expect(exitCode).to.equal(1);
+  });
+
+  it('exits with code 1 when fatal errors payload is unstringifiable', () => {
+    let writtenPath: string | undefined;
+    let exitCode: number | undefined;
+    const errorsWithThrowingEntry = new Proxy([{ message: 'fatal' }], {
+      get(target, property, receiver) {
+        if (property === '0') {
+          throw new Error('error entry boom');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    processGovernorReaderResult(
+      [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+      errorsWithThrowingEntry as unknown as any[],
       'safe-tx-parse-results',
       {
         nowFn: () => 1700000000000,
