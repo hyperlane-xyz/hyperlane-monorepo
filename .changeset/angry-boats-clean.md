@@ -17,6 +17,7 @@ Safe utility typing and robustness were improved by:
 - Hardening invalid-input error paths to safely handle unstringifiable runtime values while preserving deterministic, caller-level error messaging.
 - Strengthening owner-diff invariants with duplicate-owner and invalid-address fail-fast checks.
 - Normalizing Safe service URLs with host-only URL handling, non-http(s) scheme rejection, malformed authority/userinfo rejection, host-octet/Unicode/control-character authority guards, query/hash stripping, `/api` canonicalization, and explicit empty-value fail-fast assertions.
+- Hardening Safe URL helper boundaries with explicit non-string input handling: fail-closed API-key requirement checks and deterministic normalization errors (including unstringifiable runtime values).
 - Tightening Safe API key host matching with hostname boundary checks, trailing-dot normalization, malformed URL and userinfo spoof rejection (including encoded `@` and encoded backslash variants), and strict authority validation while preserving valid encoded path/query/fragment data.
 - Hardening multisend decoding with pre-decode selector-length guards plus strict segment-boundary checks that reject truncated payload headers/bodies, overflowed data-length fields, unsupported operation values, and invalid/whitespace-only deployment version inputs.
 - Expanding safe transaction parser coverage across Safe methods (`execTransaction*`, `approveHash`, `setup`) and adding additional fail-fast assertions in deployment transaction utilities.
