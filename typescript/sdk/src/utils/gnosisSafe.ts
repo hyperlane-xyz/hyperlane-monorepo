@@ -1451,7 +1451,12 @@ export async function deleteSafeTx(
     return;
   }
 
-  const txDetails = (await txDetailsResponse.json()) as unknown;
+  let txDetails: unknown;
+  try {
+    txDetails = (await txDetailsResponse.json()) as unknown;
+  } catch {
+    throw new Error('Safe transaction details payload is inaccessible');
+  }
   assert(
     txDetails !== null && typeof txDetails === 'object',
     `Safe transaction details payload must be an object: ${stringifyValueForError(txDetails)}`,
