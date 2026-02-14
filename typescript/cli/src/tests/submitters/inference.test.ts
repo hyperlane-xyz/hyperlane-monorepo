@@ -7311,6 +7311,108 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('ignores non-integer string timelock role positions during ordering', async () => {
+    const timelockOwner = '0x6060606060606060606060606060606060606060';
+    const safeProposer = '0x7171717171717171717171717171717171717171';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeProposer.toLowerCase()) {
+          throw new Error('not safe');
+        }
+        return {
+          getThreshold: async () => 1,
+        } as any;
+      },
+    );
+
+    const validGrant = {
+      topics: ['0xgrant-valid'],
+      data: '0x',
+      blockNumber: '1000',
+      transactionIndex: '1',
+      logIndex: '1',
+    };
+    const malformedHigherGrant = {
+      topics: ['0xgrant-malformed-high'],
+      data: '0x',
+      blockNumber: '9999.9',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+    const revoke = {
+      topics: ['0xrevoke'],
+      data: '0x',
+      blockNumber: '999',
+      transactionIndex: '0',
+      logIndex: '0',
+    };
+
+    const provider = {
+      getLogs: sinon.stub().callsFake(async (filter: any) => {
+        if (filter.topics?.[0] === 'RoleGranted') {
+          // malformed grant appears later in array but should not outrank valid grant
+          return [validGrant, malformedHigherGrant];
+        }
+        return [revoke];
+      }),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: () => ({ args: { account: safeProposer } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      expect(
+        (batches[0].config.submitter as any).proposerSubmitter.type,
+      ).to.equal(TxSubmitterType.GNOSIS_TX_BUILDER);
+      expect(
+        (
+          batches[0].config.submitter as any
+        ).proposerSubmitter.safeAddress.toLowerCase(),
+      ).to.equal(safeProposer.toLowerCase());
+      expect(provider.getLogs.callCount).to.equal(2);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('ignores malformed proposer account addresses in timelock role logs', async () => {
     const timelockOwner = '0x5555555555555555555555555555555555555555';
     const safeProposer = '0x6666666666666666666666666666666666666666';
