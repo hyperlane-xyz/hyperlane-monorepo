@@ -98,6 +98,17 @@ describe('hyperlane core apply e2e tests', async function () {
     ).to.equal(initialOwnerAddress);
   });
 
+  it('should infer jsonRpc for signer-owned core updates', async () => {
+    await hyperlaneCore.deploy(ANVIL_KEY);
+    const coreConfig: CoreConfig = await hyperlaneCore.readConfig();
+    coreConfig.owner = randomAddress().toLowerCase();
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, coreConfig);
+
+    const result = await hyperlaneCore.apply(ANVIL_KEY).nothrow();
+    expect(result.exitCode).to.equal(0);
+    expect(result.text()).to.include('jsonRpc');
+  });
+
   it('should update the ProxyAdmin to a new one for the mailbox', async () => {
     await hyperlaneCore.deploy(ANVIL_KEY);
     const coreConfig: CoreConfig = await hyperlaneCore.readConfig();

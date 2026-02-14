@@ -562,6 +562,36 @@ describe('hyperlane warp apply with submitters', async function () {
   });
 
   describe('auto inference', () => {
+    it('should infer jsonRpc for signer-owned warp routes', async () => {
+      const warpDeployConfig = fixture.getDeployConfig();
+      await deployAndExportWarpRoute();
+
+      const expectedUpdatedGasValue = '120001';
+      warpDeployConfig[
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+      ].destinationGas = {
+        [chain2DomainId]: expectedUpdatedGasValue,
+      };
+      writeYamlOrJson(WARP_DEPLOY_CONFIG_PATH, warpDeployConfig);
+
+      const result = await evmWarpCommands.applyRaw({
+        warpRouteId: WARP_ROUTE_ID,
+        hypKey: HYP_KEY_BY_PROTOCOL.ethereum,
+      });
+
+      expect(result.text()).to.match(/-jsonRpc-\d+-receipts\.json/);
+
+      const updatedWarpDeployConfig_3_2 = await evmWarpCommands.readConfig(
+        TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3,
+        WARP_CORE_CONFIG_PATH,
+      );
+      expect(
+        updatedWarpDeployConfig_3_2[
+          TEST_CHAIN_NAMES_BY_PROTOCOL.ethereum.CHAIN_NAME_3
+        ].destinationGas![chain2DomainId],
+      ).to.equal(expectedUpdatedGasValue);
+    });
+
     it('should infer gnosisSafeTxBuilder for Safe-owned warp routes', async () => {
       const warpDeployConfig = fixture.getDeployConfig();
       warpDeployConfig[
