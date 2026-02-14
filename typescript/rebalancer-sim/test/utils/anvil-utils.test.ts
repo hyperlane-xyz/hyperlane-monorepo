@@ -468,6 +468,30 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
     });
 
+    it('handles wrapper proxies with throwing message and cause accessors', () => {
+      const wrappedError = new Proxy(
+        {
+          errors: [{ message: 'No Docker client strategy found' }],
+        },
+        {
+          get(target, property) {
+            if (property === 'message' || property === 'cause') {
+              throw new Error('blocked accessor');
+            }
+            return Reflect.get(target, property);
+          },
+          has(target, property) {
+            if (property === 'message') {
+              throw new Error('blocked has trap');
+            }
+            return Reflect.has(target, property);
+          },
+        },
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(

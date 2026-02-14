@@ -53,20 +53,28 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) return error.message;
 
-  if (
-    typeof error === 'object' &&
-    error !== null &&
-    'message' in error &&
-    typeof (error as { message?: unknown }).message === 'string'
-  ) {
-    return (error as { message: string }).message;
+  if (typeof error === 'object' && error !== null) {
+    let message: unknown;
+    try {
+      message = (error as { message?: unknown }).message;
+    } catch {
+      message = undefined;
+    }
+
+    if (typeof message === 'string') {
+      return message;
+    }
   }
 
   if (typeof error === 'object' && error !== null) {
     try {
       return JSON.stringify(error);
     } catch {
-      return inspect(error);
+      try {
+        return inspect(error);
+      } catch {
+        return Object.prototype.toString.call(error);
+      }
     }
   }
 
@@ -133,6 +141,14 @@ function extractErrorMessages(error: unknown): string[] {
   const queue: unknown[] = [error];
   let queueIndex = 0;
   const seen = new Set<unknown>();
+  const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
+    if (typeof value !== 'object' || value === null) return undefined;
+    try {
+      return (value as Record<PropertyKey, unknown>)[key];
+    } catch {
+      return undefined;
+    }
+  };
   const enqueue = (value: unknown): boolean => {
     if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return false;
     queue.push(value);
@@ -197,18 +213,13 @@ function extractErrorMessages(error: unknown): string[] {
     if (
       typeof nestedErrors === 'object' &&
       nestedErrors !== null &&
-      !('message' in nestedErrors)
+      typeof getObjectProperty(nestedErrors, 'message') !== 'string'
     ) {
       try {
         for (const nestedErrorKey of Object.keys(nestedErrors)) {
           let nestedError: unknown;
-          try {
-            nestedError = (nestedErrors as Record<string, unknown>)[
-              nestedErrorKey
-            ];
-          } catch {
-            continue;
-          }
+          nestedError = getObjectProperty(nestedErrors, nestedErrorKey);
+          if (nestedError === undefined) continue;
 
           if (!enqueue(nestedError)) break;
         }
@@ -227,30 +238,28 @@ function extractErrorMessages(error: unknown): string[] {
     if (current instanceof Error) {
       messages.push(current.message);
 
-      const cause = (current as { cause?: unknown }).cause;
+      const cause = getObjectProperty(current, 'cause');
       if (cause !== undefined) enqueue(cause);
 
       if (current instanceof AggregateError) {
-        enqueueNestedErrors(current.errors);
+        enqueueNestedErrors(getObjectProperty(current, 'errors'));
       }
 
       continue;
     }
 
     if (typeof current === 'object' && current !== null) {
-      if (
-        'message' in current &&
-        typeof (current as { message?: unknown }).message === 'string'
-      ) {
-        messages.push((current as { message: string }).message);
+      const message = getObjectProperty(current, 'message');
+      if (typeof message === 'string') {
+        messages.push(message);
       } else {
         messages.push(getErrorMessage(current));
       }
 
-      const cause = (current as { cause?: unknown }).cause;
+      const cause = getObjectProperty(current, 'cause');
       if (cause !== undefined) enqueue(cause);
 
-      enqueueNestedErrors((current as { errors?: unknown }).errors);
+      enqueueNestedErrors(getObjectProperty(current, 'errors'));
 
       continue;
     }
