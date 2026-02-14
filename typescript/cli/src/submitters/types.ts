@@ -84,11 +84,36 @@ function preprocessExtendedChainSubmissionStrategy(value: unknown) {
   return result;
 }
 
+function refineExtendedChainSubmissionStrategy(
+  value: Record<string, { submitter: ExtendedSubmitterMetadata; submitterOverrides?: Record<string, ExtendedSubmitterMetadata> }>,
+  ctx: z.RefinementCtx,
+) {
+  refineChainSubmissionStrategy(value as any, ctx);
+
+  Object.entries(value).forEach(([chain, strategy]) => {
+    const overrides = strategy.submitterOverrides;
+    if (!overrides) {
+      return;
+    }
+
+    Object.values(overrides).forEach((overrideSubmitter) => {
+      refineChainSubmissionStrategy(
+        {
+          [chain]: {
+            submitter: overrideSubmitter,
+          },
+        } as any,
+        ctx,
+      );
+    });
+  });
+}
+
 export const ExtendedChainSubmissionStrategySchema = z.preprocess(
   preprocessExtendedChainSubmissionStrategy,
   z
     .record(ZChainName, ExtendedSubmissionStrategySchema)
-    .superRefine(refineChainSubmissionStrategy),
+    .superRefine(refineExtendedChainSubmissionStrategy),
 );
 
 export type ExtendedChainSubmissionStrategy = z.infer<

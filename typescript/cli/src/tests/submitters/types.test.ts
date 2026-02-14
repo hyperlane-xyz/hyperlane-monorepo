@@ -70,4 +70,30 @@ describe('ExtendedChainSubmissionStrategySchema', () => {
     expect(override.internalSubmitter.type).to.equal(TxSubmitterType.JSON_RPC);
     expect(override.internalSubmitter.chain).to.equal(CHAIN);
   });
+
+  it('fails when ICA override owner and safe address mismatch', () => {
+    const input = {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+        },
+        submitterOverrides: {
+          [ADDRESS_1]: {
+            type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+            chain: CHAIN,
+            owner: ADDRESS_1,
+            destinationChain: CHAIN,
+            internalSubmitter: {
+              type: TxSubmitterType.GNOSIS_SAFE,
+              chain: CHAIN,
+              safeAddress: ADDRESS_2,
+            },
+          },
+        },
+      },
+    };
+
+    const result = ExtendedChainSubmissionStrategySchema.safeParse(input);
+    expect(result.success).to.equal(false);
+  });
 });
