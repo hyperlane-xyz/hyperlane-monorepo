@@ -20,15 +20,31 @@ const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/cancel-proposal.ts',
 ]);
 
-const LEGACY_SQUADS_IMPORT_PATTERN =
-  /from\s+['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]/;
-const SQDS_MULTISIG_IMPORT_PATTERN = /from\s+['"]@sqds\/multisig['"]/;
+const LEGACY_SQUADS_REFERENCE_PATTERN =
+  /(?:from\s+['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]|import\(\s*['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]\s*\)|require\(\s*['"](?:\.\.\/)+src\/(?:config|utils|tx)\/squads(?:-transaction-reader)?(?:\.js)?['"]\s*\))/;
+const SQDS_MULTISIG_REFERENCE_PATTERN =
+  /(?:from\s+['"]@sqds\/multisig['"]|import\(\s*['"]@sqds\/multisig['"]\s*\)|require\(\s*['"]@sqds\/multisig['"]\s*\))/;
 const SDK_SQUADS_IMPORT_PATTERN =
   /from\s+['"]@hyperlane-xyz\/sdk['"]/;
 const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'cache', '.turbo']);
 
 function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
+}
+
+function assertNoForbiddenSquadsReferences(
+  fileContents: string,
+  relativePath: string,
+): void {
+  expect(
+    LEGACY_SQUADS_REFERENCE_PATTERN.test(fileContents),
+    `Expected file to avoid legacy infra squads references: ${relativePath}`,
+  ).to.equal(false);
+
+  expect(
+    SQDS_MULTISIG_REFERENCE_PATTERN.test(fileContents),
+    `Expected file to avoid direct @sqds/multisig references: ${relativePath}`,
+  ).to.equal(false);
 }
 
 function listTypeScriptFilesRecursively(relativeDir: string): string[] {
@@ -75,15 +91,7 @@ describe('squads sdk migration regression', () => {
         `Expected script to import squads APIs from SDK: ${scriptPath}`,
       ).to.equal(true);
 
-      expect(
-        LEGACY_SQUADS_IMPORT_PATTERN.test(scriptContents),
-        `Expected script to avoid legacy infra squads imports: ${scriptPath}`,
-      ).to.equal(false);
-
-      expect(
-        SQDS_MULTISIG_IMPORT_PATTERN.test(scriptContents),
-        `Expected script to avoid direct @sqds/multisig imports: ${scriptPath}`,
-      ).to.equal(false);
+      assertNoForbiddenSquadsReferences(scriptContents, scriptPath);
     }
   });
 
@@ -92,16 +100,7 @@ describe('squads sdk migration regression', () => {
 
     for (const relativePath of typeScriptFiles) {
       const fileContents = readInfraFile(relativePath);
-
-      expect(
-        LEGACY_SQUADS_IMPORT_PATTERN.test(fileContents),
-        `Expected file to avoid legacy infra squads imports: ${relativePath}`,
-      ).to.equal(false);
-
-      expect(
-        SQDS_MULTISIG_IMPORT_PATTERN.test(fileContents),
-        `Expected file to avoid direct @sqds/multisig imports: ${relativePath}`,
-      ).to.equal(false);
+      assertNoForbiddenSquadsReferences(fileContents, relativePath);
     }
   });
 });
