@@ -266,7 +266,12 @@ async function hasSignerForChain(
   }
 
   try {
-    const signer = maybeTryGetSigner.call(context.multiProvider, chain);
+    const maybeSigner = maybeTryGetSigner.call(context.multiProvider, chain);
+    const signer =
+      maybeSigner &&
+      typeof (maybeSigner as { then?: unknown }).then === 'function'
+        ? await maybeSigner
+        : maybeSigner;
     if (!signer) {
       cache.signerByChain.set(chain, false);
       return false;
