@@ -641,6 +641,9 @@ export function getMinimumProposalIndexToCheck(
 export function parseSquadProposal(
   proposal: accounts.Proposal,
 ): ParsedSquadProposal {
+  const approvals = getProposalVoteCount(proposal, 'approved');
+  const rejections = getProposalVoteCount(proposal, 'rejected');
+  const cancellations = getProposalVoteCount(proposal, 'cancelled');
   const transactionIndex = toSafeInteger(
     proposal.transactionIndex,
     'transaction index',
@@ -657,14 +660,26 @@ export function parseSquadProposal(
 
   const parsedProposal: ParsedSquadProposal = {
     status: proposal.status.__kind,
-    approvals: proposal.approved.length,
-    rejections: proposal.rejected.length,
-    cancellations: proposal.cancelled.length,
+    approvals,
+    rejections,
+    cancellations,
     transactionIndex,
     statusTimestampSeconds,
   };
 
   return parsedProposal;
+}
+
+function getProposalVoteCount(
+  proposal: accounts.Proposal,
+  fieldName: 'approved' | 'rejected' | 'cancelled',
+): number {
+  const fieldValue = (proposal as unknown as Record<string, unknown>)[fieldName];
+  assert(
+    Array.isArray(fieldValue),
+    `Squads proposal ${fieldName} votes must be an array`,
+  );
+  return fieldValue.length;
 }
 
 export function parseSquadMultisig(

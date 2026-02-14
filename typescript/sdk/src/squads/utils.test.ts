@@ -382,6 +382,35 @@ describe('squads utils', () => {
         'Squads status timestamp must be a non-negative JavaScript safe integer: -1',
       );
     });
+
+    it('throws when approved votes field is not an array', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: 'not-an-array',
+          rejected: [],
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal approved votes must be an array',
+      );
+    });
+
+    it('throws when cancelled votes field is missing', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal cancelled votes must be an array',
+      );
+    });
   });
 
   describe(parseSquadMultisig.name, () => {
