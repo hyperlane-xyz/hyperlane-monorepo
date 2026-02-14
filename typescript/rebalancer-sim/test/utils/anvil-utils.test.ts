@@ -931,6 +931,70 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('handles generator wrappers with self-referential errors fields and runtime causes', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const generatorWrapper = {
+        *[Symbol.iterator]() {
+          yield { message: 'non-matching wrapper noise' };
+        },
+        cause: { message: 'No Docker client strategy found' },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'generator wrapper without nested details';
+        },
+      };
+      Object.assign(generatorWrapper, { errors: generatorWrapper });
+
+      const wrappedError = {
+        errors: generatorWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('matches generator wrappers when cause accessors throw but errors remain available', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const generatorWrapper = {
+        *[Symbol.iterator]() {
+          yield { message: 'non-matching wrapper noise' };
+        },
+        errors: { message: 'Cannot connect to the Docker daemon' },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'generator wrapper without nested details';
+        },
+      };
+      Object.defineProperty(generatorWrapper, 'cause', {
+        configurable: true,
+        enumerable: true,
+        get() {
+          throw new Error('cause blocked');
+        },
+      });
+
+      const wrappedError = {
+        errors: generatorWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches docker runtime errors in object-valued error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
