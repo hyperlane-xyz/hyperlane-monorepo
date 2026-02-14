@@ -111,6 +111,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from frozen log arrays in unknown error shape', () => {
+      const error = {
+        transactionLogs: Object.freeze(['Program log: AlreadyRejected']),
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('returns undefined for malformed unknown error shape', () => {
       expect(parseSquadsProposalVoteErrorFromError({})).to.equal(undefined);
       expect(parseSquadsProposalVoteErrorFromError(null)).to.equal(undefined);
