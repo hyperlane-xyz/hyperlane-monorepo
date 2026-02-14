@@ -16,7 +16,11 @@ import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import { SvmMultiProtocolSignerAdapter } from '../signers/svm/solana-web3js.js';
 import { ChainName } from '../types.js';
 
-import { assertIsSquadsChain, getSquadsKeys, isSquadsChain } from './config.js';
+import {
+  assertIsSquadsChain,
+  getSquadsKeys,
+  partitionSquadsChains,
+} from './config.js';
 import { toSquadsProvider } from './provider.js';
 
 /**
@@ -121,16 +125,16 @@ export async function getPendingProposalsForChains(
   mpp: MultiProtocolProvider,
 ): Promise<SquadProposalStatus[]> {
   const proposals: SquadProposalStatus[] = [];
+  const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
+
+  if (nonSquadsChains.length > 0) {
+    rootLogger.warn(
+      `Skipping chains without Squads config: ${nonSquadsChains.join(', ')}`,
+    );
+  }
 
   await Promise.all(
-    chains.map(async (chain) => {
-      if (!isSquadsChain(chain)) {
-        rootLogger.warn(
-          `Skipping chain ${chain} as no Squads config exists for it`,
-        );
-        return;
-      }
-
+    squadsChains.map(async (chain) => {
       try {
         const { svmProvider, multisigPda } = await getSquadAndProvider(
           chain,

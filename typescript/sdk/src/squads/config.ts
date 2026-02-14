@@ -52,6 +52,24 @@ export function isSquadsChain(chainName: string): chainName is ChainName {
   return Object.prototype.hasOwnProperty.call(squadsConfigs, chainName);
 }
 
+export function partitionSquadsChains(chains: string[]): {
+  squadsChains: ChainName[];
+  nonSquadsChains: string[];
+} {
+  const squadsChains: ChainName[] = [];
+  const nonSquadsChains: string[] = [];
+
+  for (const chain of chains) {
+    if (isSquadsChain(chain)) {
+      squadsChains.push(chain);
+    } else {
+      nonSquadsChains.push(chain);
+    }
+  }
+
+  return { squadsChains, nonSquadsChains };
+}
+
 export function assertIsSquadsChain(
   chainName: string,
 ): asserts chainName is ChainName {

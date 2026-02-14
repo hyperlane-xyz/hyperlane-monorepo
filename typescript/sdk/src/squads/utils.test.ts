@@ -16,6 +16,7 @@ import {
   getSquadsChains,
   getSquadsKeys,
   isSquadsChain,
+  partitionSquadsChains,
   squadsConfigs,
 } from './config.js';
 
@@ -131,6 +132,15 @@ describe('squads utils', () => {
     expect(() => assertIsSquadsChain('not-a-squads-chain')).to.throw(
       'Squads config not found on chain not-a-squads-chain',
     );
+  });
+
+  it('partitions chains into squads and non-squads', () => {
+    const { squadsChains, nonSquadsChains } = partitionSquadsChains([
+      'solanamainnet',
+      'unknown-chain',
+    ]);
+    expect(squadsChains).to.deep.equal(['solanamainnet']);
+    expect(nonSquadsChains).to.deep.equal(['unknown-chain']);
   });
 
   it('exports canonical proposal statuses', () => {
