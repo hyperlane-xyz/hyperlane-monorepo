@@ -3277,6 +3277,116 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches protocol checks while deriving timelock ICA proposer fallback', async () => {
+    const timelockOwnerA = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
+    const timelockOwnerB = '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb';
+    const derivedIcaProposer = '0xcccccccccccccccccccccccccccccccccccccccc';
+    const destinationRouterAddress =
+      '0xdddddddddddddddddddddddddddddddddddddddd';
+    const originRouterAddress = '0xeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeeee';
+
+    const ownerByTarget: Record<string, string> = {
+      '0x1111111111111111111111111111111111111111': timelockOwnerA,
+      '0x2222222222222222222222222222222222222222': timelockOwnerB,
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () => ownerByTarget[targetAddress.toLowerCase()],
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .callsFake(() => ({
+        getMinDelay: async () => 0,
+        hasRole: async (_role: string, account: string) =>
+          account.toLowerCase() === derivedIcaProposer.toLowerCase(),
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
+        },
+      }) as any);
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+          } as any;
+        }
+
+        if (address.toLowerCase() === originRouterAddress.toLowerCase()) {
+          return {
+            ['getRemoteInterchainAccount(address,address,address)']: async () =>
+              derivedIcaProposer,
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const protocolCalls: Record<string, number> = {};
+    const context = {
+      multiProvider: {
+        getProtocol: (chainName: string) => {
+          protocolCalls[chainName] = (protocolCalls[chainName] ?? 0) + 1;
+          if (chainName === 'unknownChain') {
+            throw new Error('unknown chain metadata');
+          }
+          return ProtocolType.Ethereum;
+        },
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+          unknownChain: {
+            interchainAccountRouter:
+              '0xffffffffffffffffffffffffffffffffffffffff',
+          },
+          anvil3: {
+            interchainAccountRouter: originRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          { ...TX, to: '0x1111111111111111111111111111111111111111' } as any,
+          { ...TX, to: '0x2222222222222222222222222222222222222222' } as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(2);
+      expect(protocolCalls.unknownChain).to.equal(1);
+      expect(protocolCalls.anvil3).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('falls back to jsonRpc when timelock ICA origin signer is unavailable', async () => {
     const timelockOwner = '0x1111111111111111111111111111111111111111';
     const proposerIca = '0x2222222222222222222222222222222222222222';
