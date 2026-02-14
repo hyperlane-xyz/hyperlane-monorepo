@@ -50,6 +50,12 @@ async function captureAsyncError(
 
 describe('squads utils', () => {
   describe(getSquadTxStatus.name, () => {
+    it('returns draft for draft proposal', () => {
+      expect(getSquadTxStatus('Draft', 0, 3, 12, 10)).to.equal(
+        SquadTxStatus.DRAFT,
+      );
+    });
+
     it('returns stale for stale non-executed proposal', () => {
       expect(getSquadTxStatus('Active', 0, 2, 5, 10)).to.equal(
         SquadTxStatus.STALE,
@@ -71,6 +77,30 @@ describe('squads utils', () => {
     it('returns executed for executed proposal', () => {
       expect(getSquadTxStatus('Executed', 3, 3, 9, 10)).to.equal(
         SquadTxStatus.EXECUTED,
+      );
+    });
+
+    it('returns rejected for rejected proposal', () => {
+      expect(getSquadTxStatus('Rejected', 0, 3, 12, 10)).to.equal(
+        SquadTxStatus.REJECTED,
+      );
+    });
+
+    it('returns approved for approved proposal status', () => {
+      expect(getSquadTxStatus('Approved', 0, 3, 12, 10)).to.equal(
+        SquadTxStatus.APPROVED,
+      );
+    });
+
+    it('returns executing for executing proposal', () => {
+      expect(getSquadTxStatus('Executing', 3, 3, 12, 10)).to.equal(
+        SquadTxStatus.EXECUTING,
+      );
+    });
+
+    it('returns cancelled for cancelled proposal', () => {
+      expect(getSquadTxStatus('Cancelled', 0, 3, 12, 10)).to.equal(
+        SquadTxStatus.CANCELLED,
       );
     });
 
