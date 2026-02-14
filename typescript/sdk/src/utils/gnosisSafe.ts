@@ -72,7 +72,17 @@ function parseSemverPrefix(version: string): [number, number, number] {
   if (!match) {
     throw new Error(`Invalid Safe API version: ${version}`);
   }
-  return [Number(match[1]), Number(match[2]), Number(match[3])];
+  const major = Number(match[1]);
+  const minor = Number(match[2]);
+  const patch = Number(match[3]);
+  if (
+    !Number.isSafeInteger(major) ||
+    !Number.isSafeInteger(minor) ||
+    !Number.isSafeInteger(patch)
+  ) {
+    throw new Error(`Invalid Safe API version: ${version}`);
+  }
+  return [major, minor, patch];
 }
 
 function hasExplicitUrlScheme(value: string): boolean {

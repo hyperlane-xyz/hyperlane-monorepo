@@ -2862,6 +2862,24 @@ describe('gnosisSafe utils', () => {
           'Invalid Safe API version: 5.18.0-rc.1 +build.7',
         );
       }
+
+      try {
+        await isLegacySafeApi('9007199254740993.18.0');
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Invalid Safe API version: 9007199254740993.18.0',
+        );
+      }
+
+      try {
+        await isLegacySafeApi('5.9007199254740993.0');
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Invalid Safe API version: 5.9007199254740993.0',
+        );
+      }
     });
   });
 
