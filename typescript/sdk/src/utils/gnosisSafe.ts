@@ -564,23 +564,20 @@ function getSafeServiceHeaders(
 ): Record<string, string> {
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
   const chainMetadata = getChainMetadataForSafe(chain, multiProvider);
-  let gnosisSafeApiKey: unknown;
+  let rawSafeApiKey: unknown;
   try {
-    gnosisSafeApiKey = (chainMetadata as { gnosisSafeApiKey?: unknown })
+    rawSafeApiKey = (chainMetadata as { gnosisSafeApiKey?: unknown })
       .gnosisSafeApiKey;
   } catch {
     throw new Error(`Safe API key is inaccessible for ${chain}`);
   }
+  const gnosisSafeApiKey = normalizeOptionalSafeApiKey(rawSafeApiKey, chain);
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'User-Agent': 'node-fetch',
   };
-  if (
-    typeof gnosisSafeApiKey === 'string' &&
-    gnosisSafeApiKey.trim().length > 0 &&
-    safeApiKeyRequired(txServiceUrl)
-  ) {
-    headers.Authorization = `Bearer ${gnosisSafeApiKey.trim()}`;
+  if (safeApiKeyRequired(txServiceUrl) && gnosisSafeApiKey !== undefined) {
+    headers.Authorization = `Bearer ${gnosisSafeApiKey}`;
   }
   return headers;
 }
@@ -590,13 +587,14 @@ export function getSafeService(
   multiProvider: MultiProvider,
 ): SafeApiKit.default {
   const chainMetadata = getChainMetadataForSafe(chain, multiProvider);
-  let gnosisSafeApiKey: unknown;
+  let rawSafeApiKey: unknown;
   try {
-    gnosisSafeApiKey = (chainMetadata as { gnosisSafeApiKey?: unknown })
+    rawSafeApiKey = (chainMetadata as { gnosisSafeApiKey?: unknown })
       .gnosisSafeApiKey;
   } catch {
     throw new Error(`Safe API key is inaccessible for ${chain}`);
   }
+  const gnosisSafeApiKey = normalizeOptionalSafeApiKey(rawSafeApiKey, chain);
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
 
   let chainId: unknown;
@@ -638,8 +636,8 @@ export function getSafeService(
     txServiceUrl,
     // Only provide apiKey if the url contains safe.global or 5afe.dev
     apiKey:
-      safeApiKeyRequired(txServiceUrl) && typeof gnosisSafeApiKey === 'string'
-        ? gnosisSafeApiKey.trim()
+      safeApiKeyRequired(txServiceUrl) && gnosisSafeApiKey !== undefined
+        ? gnosisSafeApiKey
         : undefined,
   });
 }
@@ -2995,6 +2993,24 @@ function getChainMetadataForSafe(
     `Chain metadata must be an object for ${chain}: ${stringifyValueForError(chainMetadata)}`,
   );
   return chainMetadata;
+}
+
+function normalizeOptionalSafeApiKey(
+  safeApiKey: unknown,
+  chain: ChainNameOrId,
+): string | undefined {
+  if (safeApiKey === undefined || safeApiKey === null) {
+    return undefined;
+  }
+  assert(
+    typeof safeApiKey === 'string',
+    `Safe API key must be a string for ${chain}: ${stringifyValueForError(safeApiKey)}`,
+  );
+  const normalizedSafeApiKey = safeApiKey.trim();
+  if (normalizedSafeApiKey.length === 0) {
+    return undefined;
+  }
+  return normalizedSafeApiKey;
 }
 
 function serializeSafeCallValue(value: unknown): string {

@@ -5531,6 +5531,34 @@ describe('gnosisSafe utils', () => {
         'EVM chain id must be a positive integer for test: 0',
       );
     });
+
+    it('throws when safe api key is non-string', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+          gnosisSafeApiKey: 123,
+        }),
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Safe API key must be a string for test: 123',
+      );
+    });
+
+    it('accepts whitespace-only safe api key as unset', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+          gnosisSafeApiKey: '   ',
+        }),
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.not.throw();
+    });
   });
 
   describe(getSafeAndService.name, () => {
