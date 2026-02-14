@@ -56,6 +56,12 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/tx-service/eth/api');
     });
 
+    it('normalizes trailing slash on /api urls', () => {
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/tx-service/eth/api/'),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+    });
+
     it('removes trailing slashes before appending', () => {
       expect(
         normalizeSafeServiceUrl('https://transaction.foo.xyz///'),

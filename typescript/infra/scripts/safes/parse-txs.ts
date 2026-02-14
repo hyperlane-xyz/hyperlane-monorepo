@@ -10,6 +10,7 @@ import {
 import {
   LogFormat,
   LogLevel,
+  assert,
   configureRootLogger,
   rootLogger,
 } from '@hyperlane-xyz/utils';
@@ -79,6 +80,10 @@ async function main() {
           chalk.gray.italic(`Reading tx ${fullTxHash} on ${chain}`),
         );
         const safeTx = await getSafeTx(chain, multiProvider, fullTxHash);
+        assert(
+          safeTx,
+          `Failed to fetch Safe transaction ${fullTxHash} on chain ${chain}`,
+        );
         const tx: AnnotatedEV5Transaction = {
           to: safeTx.to,
           data: safeTx.data,
