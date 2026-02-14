@@ -3517,6 +3517,16 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('deduplicates addresses when deployment versions repeat', () => {
+      const repeated = getKnownMultiSendAddresses(['1.3.0', '1.3.0']);
+      const single = getKnownMultiSendAddresses(['1.3.0']);
+
+      expect(repeated.multiSend).to.deep.equal(single.multiSend);
+      expect(repeated.multiSendCallOnly).to.deep.equal(
+        single.multiSendCallOnly,
+      );
+    });
+
     it('throws for unknown safe deployment version', () => {
       expect(() => getKnownMultiSendAddresses(['0.0.0'])).to.throw(
         'MultiSend and MultiSendCallOnly deployments not found for version 0.0.0',
