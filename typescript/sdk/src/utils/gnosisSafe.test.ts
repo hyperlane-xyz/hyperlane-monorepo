@@ -3397,6 +3397,17 @@ describe('gnosisSafe utils', () => {
       expect(callData.data).to.equal('0xabcd');
     });
 
+    it('canonicalizes target address casing to checksum format', () => {
+      const callData = createSafeTransactionData({
+        to: '0x52908400098527886e0f7030069857d2e4169ee7',
+        data: '0x1234',
+      });
+
+      expect(callData.to).to.equal(
+        getAddress('0x52908400098527886e0f7030069857d2e4169ee7'),
+      );
+    });
+
     it('defaults value to zero when omitted', () => {
       const callData = createSafeTransactionData({
         to: '0x00000000000000000000000000000000000000aa',
@@ -3593,7 +3604,7 @@ describe('gnosisSafe utils', () => {
 
       await createSafeTransaction(safeSdkMock, [
         {
-          to: '0x00000000000000000000000000000000000000AA',
+          to: '0x52908400098527886e0f7030069857d2e4169ee7',
           data: 'ABCD',
         },
       ] as unknown as Parameters<typeof createSafeTransaction>[1]);
@@ -3602,7 +3613,7 @@ describe('gnosisSafe utils', () => {
         {
           transactions: [
             {
-              to: getAddress('0x00000000000000000000000000000000000000AA'),
+              to: getAddress('0x52908400098527886e0f7030069857d2e4169ee7'),
               data: '0xabcd',
               value: '0',
             },
