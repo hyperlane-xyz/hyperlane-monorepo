@@ -599,6 +599,12 @@ describe('Anvil utils', () => {
       ).to.equal('Failed to start local anvil: custom object failure');
     });
 
+    it('trims non-Error object messages', () => {
+      expect(
+        formatLocalAnvilStartError({ message: '  custom object failure  ' }),
+      ).to.equal('Failed to start local anvil: custom object failure');
+    });
+
     it('falls back when non-Error message field is empty', () => {
       expect(
         formatLocalAnvilStartError({
@@ -727,6 +733,15 @@ describe('Anvil utils', () => {
 
       expect(formatLocalAnvilStartError(emptyMessageError)).to.equal(
         'Failed to start local anvil: Error',
+      );
+    });
+
+    it('trims Error messages before formatting', () => {
+      const paddedMessageError = new Error('hidden');
+      paddedMessageError.message = '  permission denied  ';
+
+      expect(formatLocalAnvilStartError(paddedMessageError)).to.equal(
+        'Failed to start local anvil: permission denied',
       );
     });
 

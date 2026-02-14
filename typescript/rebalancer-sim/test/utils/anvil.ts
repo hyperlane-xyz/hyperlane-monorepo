@@ -59,40 +59,39 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
   }
 };
 
-const isNonEmptyString = (value: unknown): value is string =>
-  typeof value === 'string' && value.trim().length > 0;
+const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
+  if (typeof value !== 'string') return undefined;
+  const trimmed = value.trim();
+  return trimmed.length > 0 ? trimmed : undefined;
+};
 
 function getErrorMessage(error: unknown): string {
   if (error instanceof Error) {
     try {
-      const errorMessage = error.message;
-      if (isNonEmptyString(errorMessage)) {
-        return errorMessage;
-      }
+      const errorMessage = getTrimmedNonEmptyString(error.message);
+      if (errorMessage) return errorMessage;
     } catch {
       // Fall through to generic guarded extraction below.
     }
 
-    const errorName = getObjectProperty(error, 'name');
-    if (isNonEmptyString(errorName)) {
-      return errorName.trim();
-    }
+    const errorName = getTrimmedNonEmptyString(
+      getObjectProperty(error, 'name'),
+    );
+    if (errorName) return errorName;
 
     try {
-      const constructorName = error.constructor?.name;
-      if (isNonEmptyString(constructorName)) {
-        return constructorName.trim();
-      }
+      const constructorName = getTrimmedNonEmptyString(error.constructor?.name);
+      if (constructorName) return constructorName;
     } catch {
       // Fall through to generic guarded extraction below.
     }
   }
 
   if (typeof error === 'object' && error !== null) {
-    const message = getObjectProperty(error, 'message');
-    if (isNonEmptyString(message)) {
-      return message;
-    }
+    const message = getTrimmedNonEmptyString(
+      getObjectProperty(error, 'message'),
+    );
+    if (message) return message;
   }
 
   if (typeof error === 'object' && error !== null) {
@@ -161,10 +160,7 @@ interface StartedAnvil {
 
 export function formatLocalAnvilStartError(error: unknown): string {
   const errorCode = getObjectProperty(error, 'code');
-  if (
-    isNonEmptyString(errorCode) &&
-    errorCode.trim().toUpperCase() === 'ENOENT'
-  ) {
+  if (getTrimmedNonEmptyString(errorCode)?.toUpperCase() === 'ENOENT') {
     return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
   }
 
@@ -264,8 +260,10 @@ function extractErrorMessages(error: unknown): string[] {
     seen.add(current);
 
     if (current instanceof Error) {
-      const message = getObjectProperty(current, 'message');
-      if (isNonEmptyString(message)) {
+      const message = getTrimmedNonEmptyString(
+        getObjectProperty(current, 'message'),
+      );
+      if (message) {
         messages.push(message);
       } else {
         messages.push(getErrorMessage(current));
@@ -282,8 +280,10 @@ function extractErrorMessages(error: unknown): string[] {
     }
 
     if (typeof current === 'object' && current !== null) {
-      const message = getObjectProperty(current, 'message');
-      if (isNonEmptyString(message)) {
+      const message = getTrimmedNonEmptyString(
+        getObjectProperty(current, 'message'),
+      );
+      if (message) {
         messages.push(message);
       } else {
         messages.push(getErrorMessage(current));

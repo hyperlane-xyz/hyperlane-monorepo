@@ -87,3 +87,5 @@ Runtime-unavailable extraction now guards `Error.message` reads the same way as 
 String non-emptiness checks in formatter/matcher extraction were consolidated, with regression coverage for whitespace-heavy `ENOENT` code normalization.
 
 Matcher regression coverage now also confirms docker-runtime causes are still detected when top-level `Error` messages are whitespace-only.
+
+Formatter and matcher message extraction now normalize non-empty strings by trimming surrounding whitespace, reducing noisy diagnostics from padded wrapper messages.
