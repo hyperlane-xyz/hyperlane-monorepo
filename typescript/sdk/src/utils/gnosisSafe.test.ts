@@ -3388,6 +3388,37 @@ describe('gnosisSafe utils', () => {
       expect(decoded.args[0].toNumber()).to.equal(newThreshold);
     });
 
+    it('parses execTransaction tx calldata', () => {
+      const execInterface = new ethers.utils.Interface([
+        'function execTransaction(address to,uint256 value,bytes data,uint8 operation,uint256 safeTxGas,uint256 baseGas,uint256 gasPrice,address gasToken,address refundReceiver,bytes signatures)',
+      ]);
+      const to = '0x00000000000000000000000000000000000000aa';
+      const data = execInterface.encodeFunctionData('execTransaction', [
+        to,
+        1,
+        '0x1234',
+        0,
+        0,
+        0,
+        0,
+        '0x0000000000000000000000000000000000000000',
+        '0x0000000000000000000000000000000000000000',
+        '0x',
+      ]);
+
+      const decoded = parseSafeTx({
+        to: '0x1234567890123456789012345678901234567890',
+        data,
+        value: BigNumber.from(0),
+      });
+
+      expect(decoded.name).to.equal('execTransaction');
+      expect(decoded.args.to).to.equal(getAddress(to));
+      expect(decoded.args.value.toNumber()).to.equal(1);
+      expect(decoded.args.data).to.equal('0x1234');
+      expect(decoded.args.operation).to.equal(0);
+    });
+
     it('throws for calldata that does not match the safe interface', () => {
       expect(() =>
         parseSafeTx({
@@ -3484,6 +3515,28 @@ describe('gnosisSafe utils', () => {
 
       const decoded = decodeMultiSendData(encoded);
       expect(decoded).to.deep.equal([]);
+    });
+
+    it('accepts multisend calldata without 0x prefix', () => {
+      const txBytes = `0x${encodeMultiSendTx({
+        operation: 0,
+        to: '0x00000000000000000000000000000000000000aa',
+        value: 1n,
+        data: '0x',
+      })}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [txBytes],
+      });
+
+      const decoded = decodeMultiSendData(encoded.slice(2));
+      expect(decoded).to.have.length(1);
+      expect(decoded[0].to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000aa'),
+      );
+      expect(decoded[0].value).to.equal('1');
     });
 
     it('throws when calldata is not a multisend invocation', () => {
