@@ -2,8 +2,6 @@ import { expect } from 'chai';
 import { BigNumber, ethers } from 'ethers';
 import { encodeFunctionData, getAddress, parseAbi } from 'viem';
 
-import type { MultiProvider } from '../providers/MultiProvider.js';
-
 import {
   DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
   createSafeTransactionData,
@@ -85,11 +83,11 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(resolveSafeSigner.name, () => {
-    type SignerOnlyMultiProvider = Pick<MultiProvider, 'getSigner'>;
+    type SignerProvider = Parameters<typeof resolveSafeSigner>[1];
 
     it('returns explicit signer when provided', async () => {
       const explicitSigner = '0x1234567890123456789012345678901234567890';
-      const multiProviderMock: SignerOnlyMultiProvider = {
+      const multiProviderMock: SignerProvider = {
         getSigner: () => {
           throw new Error('should not be called');
         },
@@ -97,7 +95,7 @@ describe('gnosisSafe utils', () => {
 
       const signer = await resolveSafeSigner(
         'test',
-        multiProviderMock as MultiProvider,
+        multiProviderMock,
         explicitSigner,
       );
       expect(signer).to.equal(explicitSigner);
@@ -105,27 +103,21 @@ describe('gnosisSafe utils', () => {
 
     it('prefers multiprovider private key when signer is not provided', async () => {
       const wallet = ethers.Wallet.createRandom();
-      const multiProviderMock: SignerOnlyMultiProvider = {
+      const multiProviderMock: SignerProvider = {
         getSigner: () => wallet,
       };
 
-      const signer = await resolveSafeSigner(
-        'test',
-        multiProviderMock as MultiProvider,
-      );
+      const signer = await resolveSafeSigner('test', multiProviderMock);
       expect(signer).to.equal(wallet.privateKey);
     });
 
     it('falls back to signer address when private key is unavailable', async () => {
       const signerAddress = '0x2222222222222222222222222222222222222222';
-      const multiProviderMock: SignerOnlyMultiProvider = {
+      const multiProviderMock: SignerProvider = {
         getSigner: () => new ethers.VoidSigner(signerAddress),
       };
 
-      const signer = await resolveSafeSigner(
-        'test',
-        multiProviderMock as MultiProvider,
-      );
+      const signer = await resolveSafeSigner('test', multiProviderMock);
       expect(signer).to.equal(signerAddress);
     });
   });

@@ -100,6 +100,8 @@ type SafeServicePendingTransactionsResponse = {
   }>;
 };
 
+type SafeSignerProvider = Pick<MultiProvider, 'getSigner'>;
+
 export enum SafeTxStatus {
   NO_CONFIRMATIONS = '🔴',
   PENDING = '🟡',
@@ -422,14 +424,14 @@ export async function isLegacySafeApi(version?: string): Promise<boolean> {
 
 export async function resolveSafeSigner(
   chain: ChainNameOrId,
-  multiProvider: MultiProvider,
+  signerProvider: SafeSignerProvider,
   signer?: SafeProviderConfig['signer'],
 ): Promise<NonNullable<SafeProviderConfig['signer']>> {
   if (signer) {
     return signer;
   }
 
-  const multiProviderSigner = multiProvider.getSigner(
+  const multiProviderSigner = signerProvider.getSigner(
     chain,
   ) as ethers.Signer & {
     privateKey?: string;
