@@ -102,6 +102,27 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors nested in object causes', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          cause: { message: 'Cannot connect to the Docker daemon' },
+        }),
+      ).to.equal(true);
+    });
+
+    it('matches docker runtime errors nested in object error arrays', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'runtime bootstrap failed',
+          errors: [
+            { message: 'irrelevant startup warning' },
+            { message: 'No Docker client strategy found' },
+          ],
+        }),
+      ).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(

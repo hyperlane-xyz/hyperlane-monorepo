@@ -14,6 +14,17 @@ const DEFAULT_CHAIN_ID = 31337;
 const LOCAL_ANVIL_HOST = '127.0.0.1';
 const LOCAL_ANVIL_STARTUP_TIMEOUT_MS = 30_000;
 const LOCAL_ANVIL_STOP_TIMEOUT_MS = 5_000;
+const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
+  /could not find a working container runtime strategy/i,
+  /no docker client strategy found/i,
+  /cannot connect to the docker daemon/i,
+  /permission denied while trying to connect to the docker daemon socket/i,
+  /dial unix .*docker\.sock/i,
+  /failed to connect to .*docker\.sock/i,
+  /connect econnrefused .*docker\.sock/i,
+  /npipe:.*docker_engine/i,
+  /open \/\/\.\/pipe\/docker_engine/i,
+];
 
 let hasLoggedLocalFallback = false;
 
@@ -102,29 +113,31 @@ function extractErrorMessages(error: unknown): string[] {
       typeof (current as { message?: unknown }).message === 'string'
     ) {
       messages.push((current as { message: string }).message);
-    } else {
-      messages.push(String(current));
+
+      const cause = (current as { cause?: unknown }).cause;
+      if (cause !== undefined) queue.push(cause);
+
+      const nestedErrors = (current as { errors?: unknown }).errors;
+      if (Array.isArray(nestedErrors)) {
+        for (const nestedError of nestedErrors) {
+          queue.push(nestedError);
+        }
+      }
+
+      continue;
     }
+
+    messages.push(String(current));
   }
 
   return messages;
 }
 
 export function isContainerRuntimeUnavailable(error: unknown): boolean {
-  const messagePatterns = [
-    /could not find a working container runtime strategy/i,
-    /no docker client strategy found/i,
-    /cannot connect to the docker daemon/i,
-    /permission denied while trying to connect to the docker daemon socket/i,
-    /dial unix .*docker\.sock/i,
-    /failed to connect to .*docker\.sock/i,
-    /connect econnrefused .*docker\.sock/i,
-    /npipe:.*docker_engine/i,
-    /open \/\/\.\/pipe\/docker_engine/i,
-  ];
-
   return extractErrorMessages(error).some((message) =>
-    messagePatterns.some((matcher) => matcher.test(message)),
+    CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS.some((matcher) =>
+      matcher.test(message),
+    ),
   );
 }
 
