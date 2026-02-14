@@ -3954,6 +3954,182 @@ describe('gnosisSafe utils', () => {
         );
       }
     });
+
+    it('throws when safe address is invalid', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          safeTransactionMock,
+          'bad' as unknown as Parameters<typeof proposeSafeTransaction>[4],
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe address must be valid: bad',
+        );
+      }
+    });
+
+    it('throws when safe sdk accessors are inaccessible', async () => {
+      const safeSdkWithThrowingAccessors = {
+        get getTransactionHash() {
+          throw new Error('boom');
+        },
+      };
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkWithThrowingAccessors as unknown as Parameters<
+            typeof proposeSafeTransaction
+          >[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK transaction hash/signature accessors are inaccessible',
+        );
+      }
+    });
+
+    it('throws when safe service instance is non-object', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          123 as unknown as Parameters<typeof proposeSafeTransaction>[2],
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe service instance must be an object: 123',
+        );
+      }
+    });
+
+    it('throws when safe transaction data is inaccessible', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+      const inaccessibleSafeTransaction = {
+        get data() {
+          throw new Error('boom');
+        },
+      };
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          inaccessibleSafeTransaction as unknown as Parameters<
+            typeof proposeSafeTransaction
+          >[3],
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction data is inaccessible',
+        );
+      }
+    });
+
+    it('throws when safe sdk hash/signing calls fail', async () => {
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+      const hashFailingSafeSdk = {
+        getTransactionHash: async () => {
+          throw new Error('hash failed');
+        },
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const signingFailingSafeSdk = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => {
+          throw new Error('sign failed');
+        },
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          hashFailingSafeSdk,
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to derive Safe transaction hash: Error: hash failed',
+        );
+      }
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          signingFailingSafeSdk,
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to sign Safe transaction: Error: sign failed',
+        );
+      }
+    });
   });
 
   describe(getOwnerChanges.name, () => {
