@@ -257,8 +257,8 @@ async function hasSignerForChain(
     return cached;
   }
 
-  const maybeTryGetSigner = (context.multiProvider as any).tryGetSigner;
-  if (typeof maybeTryGetSigner !== 'function') {
+  const maybeTryGetSigner = getTryGetSignerMethod(context.multiProvider);
+  if (!maybeTryGetSigner) {
     const signerAddress = await getSignerAddressForChain(context, cache, chain);
     const hasSigner = !!signerAddress;
     cache.signerByChain.set(chain, hasSigner);
@@ -292,6 +292,21 @@ async function hasSignerForChain(
     const hasSigner = !!signerAddress;
     cache.signerByChain.set(chain, hasSigner);
     return hasSigner;
+  }
+}
+
+function getTryGetSignerMethod(multiProvider: unknown): unknown {
+  if (
+    !multiProvider ||
+    (typeof multiProvider !== 'object' && typeof multiProvider !== 'function')
+  ) {
+    return null;
+  }
+
+  try {
+    return (multiProvider as { tryGetSigner?: unknown }).tryGetSigner;
+  } catch {
+    return null;
   }
 }
 
