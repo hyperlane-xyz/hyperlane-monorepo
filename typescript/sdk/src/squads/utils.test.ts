@@ -636,6 +636,29 @@ describe('squads utils', () => {
       });
     });
 
+    it('accepts member keys that stringify via Symbol.toPrimitive', () => {
+      const parsed = parseSquadMultisig({
+        threshold: 1n,
+        transactionIndex: 1n,
+        staleTransactionIndex: 1n,
+        timeLock: 0n,
+        members: [
+          {
+            key: {
+              [Symbol.toPrimitive]: () => 'member-key',
+            },
+          },
+        ],
+      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parsed).to.deep.equal({
+        threshold: 1,
+        currentTransactionIndex: 1,
+        staleTransactionIndex: 1,
+        timeLock: 0,
+      });
+    });
+
     it('throws when multisig threshold is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({
