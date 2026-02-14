@@ -1549,14 +1549,16 @@ export function parseSafeTx(tx: unknown) {
     tx !== null && typeof tx === 'object'
       ? (tx as Partial<ParseableSafeTx>)
       : undefined;
+  assert(
+    txPayload,
+    `Safe transaction payload must be an object: ${stringifyValueForError(tx)}`,
+  );
   let data: unknown;
   let value: unknown;
-  if (txPayload) {
-    try {
-      ({ data, value } = txPayload);
-    } catch {
-      throw new Error(SAFE_TX_PAYLOAD_INACCESSIBLE_ERROR);
-    }
+  try {
+    ({ data, value } = txPayload);
+  } catch {
+    throw new Error(SAFE_TX_PAYLOAD_INACCESSIBLE_ERROR);
   }
   const normalizedData = asHex(data, {
     required: SAFE_TX_DATA_REQUIRED_ERROR,

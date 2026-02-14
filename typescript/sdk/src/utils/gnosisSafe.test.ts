@@ -3991,11 +3991,14 @@ describe('gnosisSafe utils', () => {
     });
 
     it('throws when transaction payload is non-object', () => {
+      expect(() => parseSafeTx(undefined)).to.throw(
+        'Safe transaction payload must be an object: undefined',
+      );
       expect(() => parseSafeTx(null)).to.throw(
-        'Safe transaction data is required',
+        'Safe transaction payload must be an object: null',
       );
       expect(() => parseSafeTx(123)).to.throw(
-        'Safe transaction data is required',
+        'Safe transaction payload must be an object: 123',
       );
     });
 
