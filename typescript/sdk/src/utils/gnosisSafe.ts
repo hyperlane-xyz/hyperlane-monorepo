@@ -1361,8 +1361,9 @@ export async function getSafeTx(
   const headers = getSafeServiceHeaders(chain, multiProvider);
   const txDetailsUrl = `${txServiceUrl}/v2/multisig-transactions/${normalizedSafeTxHash}/`;
 
+  let txDetails: unknown;
   try {
-    const txDetails = await retrySafeApi(async () => {
+    txDetails = await retrySafeApi(async () => {
       const txDetailsResponse = await fetch(txDetailsUrl, {
         method: 'GET',
         headers,
@@ -1372,6 +1373,16 @@ export async function getSafeTx(
       }
       return (await txDetailsResponse.json()) as unknown;
     });
+  } catch (error) {
+    rootLogger.error(
+      chalk.red(
+        `Failed to fetch transaction details for ${normalizedSafeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+      ),
+    );
+    return;
+  }
+
+  try {
     assert(
       txDetails !== null && typeof txDetails === 'object',
       `Safe transaction details payload must be an object: ${stringifyValueForError(txDetails)}`,
@@ -1380,7 +1391,7 @@ export async function getSafeTx(
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch transaction details for ${normalizedSafeTxHash} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+        `Failed to parse transaction details for ${normalizedSafeTxHash}: ${error}`,
       ),
     );
     return;

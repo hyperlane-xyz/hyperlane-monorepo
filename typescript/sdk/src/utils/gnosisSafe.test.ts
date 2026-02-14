@@ -5194,7 +5194,9 @@ describe('gnosisSafe utils', () => {
     });
 
     it('getSafeTx returns undefined when tx details payload is non-object', async () => {
+      let fetchCalls = 0;
       globalThis.fetch = (async () => {
+        fetchCalls += 1;
         return {
           ok: true,
           status: 200,
@@ -5215,6 +5217,7 @@ describe('gnosisSafe utils', () => {
         `0x${'ab'.repeat(32)}`,
       );
       expect(transaction).to.equal(undefined);
+      expect(fetchCalls).to.equal(1);
     });
 
     it('deleteSafeTx throws for invalid safe tx hash before signer/network calls', async () => {
