@@ -335,8 +335,14 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('https://safe.global/path@foo')).to.equal(
         'https://safe.global/path@foo/api',
       );
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/path%40foo'),
+      ).to.equal('https://safe.global/path%40foo/api');
       expect(normalizeSafeServiceUrl('http://safe.global/path@foo')).to.equal(
         'http://safe.global/path@foo/api',
+      );
+      expect(normalizeSafeServiceUrl('http://safe.global/path%40foo')).to.equal(
+        'http://safe.global/path%40foo/api',
       );
     });
 
@@ -344,6 +350,9 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl('https://safe.global/tx-service/eth/api'),
       ).to.equal('https://safe.global/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/path%40foo/api'),
+      ).to.equal('https://safe.global/path%40foo/api');
     });
 
     it('normalizes trailing slash on /api urls', () => {
