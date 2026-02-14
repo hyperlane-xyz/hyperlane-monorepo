@@ -257,6 +257,20 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(first)).to.equal(true);
     });
 
+    it('handles Error instances with throwing message accessors in cause chains', () => {
+      const wrappedError = new Error('hidden message');
+      Object.defineProperty(wrappedError, 'message', {
+        get() {
+          throw new Error('blocked message getter');
+        },
+      });
+      (wrappedError as Error & { cause?: unknown }).cause = new Error(
+        'No Docker client strategy found',
+      );
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('reads message from non-Error throw objects', () => {
       expect(
         isContainerRuntimeUnavailable({

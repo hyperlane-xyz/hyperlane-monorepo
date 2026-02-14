@@ -264,7 +264,12 @@ function extractErrorMessages(error: unknown): string[] {
     seen.add(current);
 
     if (current instanceof Error) {
-      messages.push(current.message);
+      const message = getObjectProperty(current, 'message');
+      if (typeof message === 'string' && message.trim().length > 0) {
+        messages.push(message);
+      } else {
+        messages.push(getErrorMessage(current));
+      }
 
       const cause = getObjectProperty(current, 'cause');
       if (cause !== undefined) enqueue(cause);
@@ -278,7 +283,7 @@ function extractErrorMessages(error: unknown): string[] {
 
     if (typeof current === 'object' && current !== null) {
       const message = getObjectProperty(current, 'message');
-      if (typeof message === 'string') {
+      if (typeof message === 'string' && message.trim().length > 0) {
         messages.push(message);
       } else {
         messages.push(getErrorMessage(current));
