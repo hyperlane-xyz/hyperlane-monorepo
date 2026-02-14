@@ -10,24 +10,33 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { rootLogger } from '@hyperlane-xyz/utils';
 
-import type { EnvironmentConfig } from '../../src/config/environment.js';
+import type {
+  DeployEnvironment,
+  EnvironmentConfig,
+} from '../../src/config/environment.js';
 import { logTable } from '../../src/utils/log.js';
 
 export const SQUADS_ENVIRONMENT = 'mainnet3';
-let squadsEnvironmentConfigPromise: Promise<EnvironmentConfig> | undefined;
-let squadsMultiProtocolProviderPromise:
-  | Promise<MultiProtocolProvider>
-  | undefined;
-let squadsTurnkeySignerPromise:
-  | Promise<
+const environmentConfigPromises: Partial<
+  Record<DeployEnvironment, Promise<EnvironmentConfig>>
+> = {};
+const multiProtocolProviderPromises: Partial<
+  Record<DeployEnvironment, Promise<MultiProtocolProvider>>
+> = {};
+const turnkeySignerPromises: Partial<
+  Record<
+    DeployEnvironment,
+    Promise<
       Awaited<
         ReturnType<
           (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
         >
       >
     >
-  | undefined;
-let squadsRegistryPromise: Promise<IRegistry> | undefined;
+  >
+> = {};
+const registryPromises: Partial<Record<DeployEnvironment, Promise<IRegistry>>> =
+  {};
 
 export function withTransactionIndex<T>(args: Argv<T>) {
   return args
@@ -64,18 +73,47 @@ export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
   return getSquadsChains();
 }
 
-export async function getSquadsEnvironmentConfig(): Promise<EnvironmentConfig> {
-  squadsEnvironmentConfigPromise ??= import('../core-utils.js').then(
-    ({ getEnvironmentConfig }) => getEnvironmentConfig(SQUADS_ENVIRONMENT),
+export async function getEnvironmentConfigFor(
+  environment: DeployEnvironment,
+): Promise<EnvironmentConfig> {
+  environmentConfigPromises[environment] ??= import('../core-utils.js').then(
+    ({ getEnvironmentConfig }) => getEnvironmentConfig(environment),
   );
-  return squadsEnvironmentConfigPromise;
+  return environmentConfigPromises[environment]!;
+}
+
+export async function getSquadsEnvironmentConfig(): Promise<EnvironmentConfig> {
+  return getEnvironmentConfigFor(SQUADS_ENVIRONMENT);
+}
+
+export async function getMultiProtocolProviderFor(
+  environment: DeployEnvironment,
+): Promise<MultiProtocolProvider> {
+  multiProtocolProviderPromises[environment] ??= getEnvironmentConfigFor(
+    environment,
+  ).then((envConfig) => envConfig.getMultiProtocolProvider());
+  return multiProtocolProviderPromises[environment]!;
 }
 
 export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolProvider> {
-  squadsMultiProtocolProviderPromise ??= getSquadsEnvironmentConfig().then(
-    (envConfig) => envConfig.getMultiProtocolProvider(),
-  );
-  return squadsMultiProtocolProviderPromise;
+  return getMultiProtocolProviderFor(SQUADS_ENVIRONMENT);
+}
+
+export async function getTurnkeySignerFor(
+  environment: DeployEnvironment,
+): Promise<
+  Awaited<
+    ReturnType<
+      (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
+    >
+  >
+> {
+  turnkeySignerPromises[environment] ??=
+    import('../../src/utils/turnkey.js').then(
+      ({ getTurnkeySealevelDeployerSigner }) =>
+        getTurnkeySealevelDeployerSigner(environment),
+    );
+  return turnkeySignerPromises[environment]!;
 }
 
 export async function getSquadsTurnkeySigner(): Promise<
@@ -85,18 +123,20 @@ export async function getSquadsTurnkeySigner(): Promise<
     >
   >
 > {
-  squadsTurnkeySignerPromise ??= import('../../src/utils/turnkey.js').then(
-    ({ getTurnkeySealevelDeployerSigner }) =>
-      getTurnkeySealevelDeployerSigner(SQUADS_ENVIRONMENT),
+  return getTurnkeySignerFor(SQUADS_ENVIRONMENT);
+}
+
+export async function getRegistryFor(
+  environment: DeployEnvironment,
+): Promise<IRegistry> {
+  registryPromises[environment] ??= getEnvironmentConfigFor(environment).then(
+    (envConfig) => envConfig.getRegistry(),
   );
-  return squadsTurnkeySignerPromise;
+  return registryPromises[environment]!;
 }
 
 export async function getSquadsRegistry(): Promise<IRegistry> {
-  squadsRegistryPromise ??= getSquadsEnvironmentConfig().then((envConfig) =>
-    envConfig.getRegistry(),
-  );
-  return squadsRegistryPromise;
+  return getRegistryFor(SQUADS_ENVIRONMENT);
 }
 
 export function logProposals(pendingProposals: SquadProposalStatus[]) {

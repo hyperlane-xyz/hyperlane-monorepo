@@ -35,7 +35,12 @@ import {
   multisigIsmConfigPath,
   serializeMultisigIsmDifference,
 } from '../../src/utils/sealevel.js';
-import { withSquadsChains } from '../squads/cli-helpers.js';
+import {
+  getEnvironmentConfigFor,
+  getMultiProtocolProviderFor,
+  getTurnkeySignerFor,
+  withSquadsChains,
+} from '../squads/cli-helpers.js';
 
 const DEPLOY_ENVIRONMENTS = ['test', 'testnet4', 'mainnet3'] as const;
 
@@ -440,13 +445,10 @@ async function main() {
     .alias('x', 'context').argv;
 
   const { chainsToSkip } = await import('../../src/config/chain.js');
-  const { getTurnkeySealevelDeployerSigner } =
-    await import('../../src/utils/turnkey.js');
-  const { getEnvironmentConfig } = await import('../core-utils.js');
 
   // Compute default chains based on environment
-  const envConfig = getEnvironmentConfig(environment);
-  const mpp = await envConfig.getMultiProtocolProvider();
+  const envConfig = await getEnvironmentConfigFor(environment);
+  const mpp = await getMultiProtocolProviderFor(environment);
   const configuredSquadsChains = getSquadsChains();
   const hasExplicitChains = !!chainsArg && chainsArg.length > 0;
   const selectedChains = hasExplicitChains
@@ -471,7 +473,7 @@ async function main() {
 
   // Initialize Turnkey signer
   rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');
-  const turnkeySigner = await getTurnkeySealevelDeployerSigner(environment);
+  const turnkeySigner = await getTurnkeySignerFor(environment);
   const creatorPublicKey = turnkeySigner.publicKey;
   rootLogger.info(
     `Proposal creator public key: ${creatorPublicKey.toBase58()}`,
