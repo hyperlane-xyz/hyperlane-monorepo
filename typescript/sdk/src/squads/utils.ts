@@ -41,7 +41,7 @@ export const SQUADS_ACCOUNT_DISCRIMINATOR_SIZE = 8;
 export type SquadProposalStatus = {
   chain: SquadsChainName;
   nonce: number;
-  status: string;
+  status: SquadTxStatus;
   shortTxHash: string;
   fullTxHash: string;
   approvals: number;
@@ -71,6 +71,7 @@ export enum SquadTxStatus {
   EXECUTED = '✅',
   CANCELLED = '❌',
   STALE = '💩',
+  UNKNOWN = '❓',
 }
 
 export enum SquadsProposalVoteError {
@@ -426,7 +427,7 @@ export function getSquadTxStatus(
   threshold: number,
   transactionIndex: number,
   staleTransactionIndex: number,
-): string {
+): SquadTxStatus {
   if (
     transactionIndex < staleTransactionIndex &&
     statusKind !== SquadsProposalStatus.Executed
@@ -454,7 +455,7 @@ export function getSquadTxStatus(
     case SquadsProposalStatus.Cancelled:
       return SquadTxStatus.CANCELLED;
     default:
-      return '❓';
+      return SquadTxStatus.UNKNOWN;
   }
 }
 
