@@ -1341,6 +1341,57 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('keeps first non-ethereum override when trimmed keys collide', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-cosmos-collision-${Date.now()}.yaml`;
+    const overrideTarget = 'cosmos1overrideaddress000000000000000000000000';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [`  ${overrideTarget}  `]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+          [overrideTarget]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN,
+            timelockAddress: '0x9999999999999999999999999999999999999999',
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN,
+            },
+          },
+        },
+      },
+    });
+
+    const txOverride = {
+      ...TX,
+      to: overrideTarget,
+    };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [txOverride as any],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.CosmosNative,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(1);
+    expect(batches[0].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+  });
+
   it('splits non-ethereum explicit overrides when matches are non-contiguous', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-cosmos-order-${Date.now()}.yaml`;
     const overrideTarget = 'cosmos1overrideaddress000000000000000000000000';
