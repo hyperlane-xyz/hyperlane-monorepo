@@ -789,6 +789,18 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(error)).to.equal('boom');
   });
 
+  it('falls back to Error message when stack is a low-signal built-in label', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return 'TypeError:';
+      },
+    });
+
+    expect(formatScriptError(error)).to.equal('boom');
+  });
+
   it('falls back to Error stringification when stack and message are empty', () => {
     const error = new Error('boom');
     Object.defineProperty(error, 'stack', {
@@ -801,6 +813,25 @@ describe('squads cli helpers', () => {
       configurable: true,
       get() {
         return '';
+      },
+    });
+    error.toString = () => 'custom error string';
+
+    expect(formatScriptError(error)).to.equal('custom error string');
+  });
+
+  it('falls back to Error stringification when stack/message are low-signal labels', () => {
+    const error = new Error('');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return 'Error';
+      },
+    });
+    Object.defineProperty(error, 'message', {
+      configurable: true,
+      get() {
+        return '   ';
       },
     });
     error.toString = () => 'custom error string';
