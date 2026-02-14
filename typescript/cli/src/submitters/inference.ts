@@ -41,6 +41,7 @@ type InferredSubmitter = SubmitterMetadata;
 type Cache = {
   safeByChainAndAddress: Map<string, boolean>;
   timelockByChainAndAddress: Map<string, boolean>;
+  ownerByChainAndAddress: Map<string, Address | null>;
   icaByChainAndAddress: Map<string, InferredSubmitter | null>;
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
   signerByChain: Map<ChainName, boolean>;
@@ -237,6 +238,34 @@ function getProviderForChain(
     return provider;
   } catch {
     cache.providerByChain.set(chain, null);
+    return null;
+  }
+}
+
+async function getOwnerForTarget(
+  context: WriteCommandContext,
+  cache: Cache,
+  chain: ChainName,
+  target: Address,
+): Promise<Address | null> {
+  const ownerKey = cacheKey(chain, target);
+  if (cache.ownerByChainAndAddress.has(ownerKey)) {
+    return cache.ownerByChainAndAddress.get(ownerKey) ?? null;
+  }
+
+  const provider = getProviderForChain(context, cache, chain);
+  if (!provider) {
+    cache.ownerByChainAndAddress.set(ownerKey, null);
+    return null;
+  }
+
+  try {
+    const ownerAddress = await Ownable__factory.connect(target, provider).owner();
+    const normalizedOwner = tryNormalizeEvmAddress(ownerAddress);
+    cache.ownerByChainAndAddress.set(ownerKey, normalizedOwner);
+    return normalizedOwner;
+  } catch {
+    cache.ownerByChainAndAddress.set(ownerKey, null);
     return null;
   }
 }
@@ -971,26 +1000,8 @@ async function inferSubmitterFromTransaction({
   if (!normalizedTarget && !normalizedFrom) {
     return defaultSubmitter;
   }
-
-  const provider = getProviderForChain(context, cache, chain);
-  if (!provider) {
-    return defaultSubmitter;
-  }
-
-  let ownerAddress: Address | null = null;
-  if (normalizedTarget) {
-    try {
-      ownerAddress = await Ownable__factory.connect(
-        normalizedTarget,
-        provider,
-      ).owner();
-    } catch {
-      ownerAddress = null;
-    }
-  }
-
-  const normalizedOwner = ownerAddress
-    ? tryNormalizeEvmAddress(ownerAddress)
+  const normalizedOwner = normalizedTarget
+    ? await getOwnerForTarget(context, cache, chain, normalizedTarget)
     : null;
   const addressToInferFrom =
     normalizedOwner ?? normalizedFrom ?? normalizedTarget;
@@ -1178,6 +1189,7 @@ function createCache(): Cache {
   return {
     safeByChainAndAddress: new Map(),
     timelockByChainAndAddress: new Map(),
+    ownerByChainAndAddress: new Map(),
     icaByChainAndAddress: new Map(),
     timelockProposerByChainAndAddress: new Map(),
     signerByChain: new Map(),

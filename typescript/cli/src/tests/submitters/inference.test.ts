@@ -1413,7 +1413,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
-      expect(ownableStub.callCount).to.equal(2);
+      expect(ownableStub.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(1);
       expect(timelockStub.callCount).to.equal(1);
       expect(providerCalls).to.equal(1);
@@ -1482,7 +1482,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
 
       expect(batches).to.have.length(1);
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
-      expect(ownableStub.callCount).to.equal(2);
+      expect(ownableStub.callCount).to.equal(1);
       expect(safeStub.callCount).to.equal(0);
       expect(timelockStub.callCount).to.equal(0);
       expect(signerAddressCalls).to.equal(1);
@@ -1641,6 +1641,108 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     } finally {
       ownableStub.restore();
       safeStub.restore();
+    }
+  });
+
+  it('caches owner reads for repeated transaction targets', async () => {
+    const safeOwner = '0x4444444444444444444444444444444444444444';
+    let ownerReads = 0;
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => {
+        ownerReads += 1;
+        return safeOwner;
+      },
+    } as any);
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeOwner.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, { ...TX, data: '0xdeadbeef' } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(ownerReads).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
+  it('caches failed owner reads for repeated transaction targets', async () => {
+    let ownerReads = 0;
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => {
+        ownerReads += 1;
+        throw new Error('owner read failed');
+      },
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, { ...TX, data: '0xdeadbeef' } as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownerReads).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
     }
   });
 
