@@ -160,7 +160,12 @@ function toNonNegativeIntegerBigInt(value: unknown): bigint | null {
     value !== null &&
     typeof (value as { toString?: unknown }).toString === 'function'
   ) {
-    const stringified = (value as { toString: () => unknown }).toString();
+    let stringified: unknown;
+    try {
+      stringified = (value as { toString: () => unknown }).toString();
+    } catch {
+      return null;
+    }
     if (typeof stringified !== 'string') {
       return null;
     }
