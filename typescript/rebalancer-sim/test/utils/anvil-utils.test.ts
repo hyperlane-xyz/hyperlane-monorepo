@@ -10,6 +10,29 @@ import {
 
 describe('Anvil utils', () => {
   describe('isContainerRuntimeUnavailable', () => {
+    const buildCauseChain = (
+      depth: number,
+      runtimeSignalDepth: number | null,
+    ): unknown => {
+      const root: { message: string; cause?: unknown } = {
+        message: 'root wrapper',
+      };
+      let cursor = root;
+
+      for (let i = 1; i <= depth; i += 1) {
+        const node: { message: string; cause?: unknown } = {
+          message:
+            runtimeSignalDepth === i
+              ? 'No Docker client strategy found'
+              : `wrapper-${i}`,
+        };
+        cursor.cause = node;
+        cursor = node;
+      }
+
+      return root;
+    };
+
     it('returns true for testcontainers runtime-strategy errors', () => {
       const error = new Error(
         'Could not find a working container runtime strategy',
@@ -404,6 +427,18 @@ describe('Anvil utils', () => {
           },
         }),
       ).to.equal(false);
+    });
+
+    it('still matches cause-chain runtime signals before extraction cap', () => {
+      expect(isContainerRuntimeUnavailable(buildCauseChain(550, 120))).to.equal(
+        true,
+      );
+    });
+
+    it('ignores cause-chain runtime signals beyond extraction cap', () => {
+      expect(isContainerRuntimeUnavailable(buildCauseChain(550, 520))).to.equal(
+        false,
+      );
     });
 
     it('handles object error collections with throwing property accessors', () => {
