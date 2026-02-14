@@ -7,6 +7,12 @@ export type SquadsProvider = Parameters<
   typeof accounts.Multisig.fromAccountAddress
 >[0];
 
+function formatValueType(value: unknown): string {
+  if (value === null) return 'null';
+  if (Array.isArray(value)) return 'array';
+  return typeof value;
+}
+
 export function toSquadsProvider(
   provider: ReturnType<MultiProtocolProvider['getSolanaWeb3Provider']>,
 ): SquadsProvider {
@@ -16,7 +22,9 @@ export function toSquadsProvider(
 
   assert(
     typeof getAccountInfo === 'function',
-    'Invalid Solana provider: missing getAccountInfo function',
+    `Invalid Solana provider: expected getAccountInfo function, got ${formatValueType(
+      getAccountInfo,
+    )}`,
   );
 
   // Squads SDK expects a narrower connection type than sdk providers expose.
