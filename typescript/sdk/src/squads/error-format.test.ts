@@ -5,6 +5,17 @@ import {
   normalizeStringifiedSquadsError,
 } from './error-format.js';
 
+const BUILTIN_ERROR_LABELS = [
+  'Error',
+  'TypeError',
+  'RangeError',
+  'ReferenceError',
+  'SyntaxError',
+  'URIError',
+  'EvalError',
+  'AggregateError',
+] as const;
+
 describe('squads error-format', () => {
   describe(normalizeStringifiedSquadsError.name, () => {
     it('returns undefined for empty and whitespace-only strings', () => {
@@ -22,15 +33,18 @@ describe('squads error-format', () => {
     });
 
     it('returns undefined for bare built-in error labels', () => {
-      expect(normalizeStringifiedSquadsError('Error')).to.equal(undefined);
-      expect(normalizeStringifiedSquadsError('TypeError:')).to.equal(undefined);
-      expect(normalizeStringifiedSquadsError('Error :')).to.equal(undefined);
-      expect(normalizeStringifiedSquadsError('  TypeError :   ')).to.equal(
-        undefined,
-      );
-      expect(normalizeStringifiedSquadsError('referenceerror')).to.equal(
-        undefined,
-      );
+      for (const errorLabel of BUILTIN_ERROR_LABELS) {
+        expect(normalizeStringifiedSquadsError(errorLabel)).to.equal(undefined);
+        expect(normalizeStringifiedSquadsError(`${errorLabel}:`)).to.equal(
+          undefined,
+        );
+        expect(normalizeStringifiedSquadsError(`  ${errorLabel} :   `)).to.equal(
+          undefined,
+        );
+        expect(
+          normalizeStringifiedSquadsError(errorLabel.toLowerCase()),
+        ).to.equal(undefined);
+      }
     });
 
     it('preserves custom error-like labels and detailed messages', () => {
