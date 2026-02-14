@@ -4480,10 +4480,18 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
     let tryGetSignerCalls = 0;
+    const signerAddressCallsByChain: Record<string, number> = {};
     const context = {
       multiProvider: {
         getProtocol: () => ProtocolType.Ethereum,
-        getSignerAddress: async () => SIGNER,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN) {
+            return SIGNER;
+          }
+          throw new Error(`unexpected signer lookup for ${chainName}`);
+        },
         getProvider: () => provider,
         getChainName: (domainId: number) => {
           if (domainId === 31347) return 'anvil3';
@@ -4518,6 +4526,8 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
       expect(tryGetSignerCalls).to.equal(1);
       expect(provider.getLogs.callCount).to.equal(2);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3 ?? 0).to.equal(0);
     } finally {
       ownableStub.restore();
       safeStub.restore();
