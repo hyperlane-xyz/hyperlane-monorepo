@@ -18,6 +18,7 @@ const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/parse-txs.ts',
   'scripts/squads/read-proposal.ts',
   'scripts/squads/cancel-proposal.ts',
+  'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
 
 const LEGACY_SQUADS_REFERENCE_PATTERN =
