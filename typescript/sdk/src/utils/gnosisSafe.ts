@@ -542,12 +542,20 @@ function getSafeTxServiceUrl(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
 ): string {
-  const { gnosisSafeTransactionServiceUrl } =
-    multiProvider.getChainMetadata(chain);
-  if (!gnosisSafeTransactionServiceUrl) {
-    throw new Error(`must provide tx service url for ${chain}`);
+  const chainMetadata = getChainMetadataForSafe(chain, multiProvider);
+  let rawTxServiceUrl: unknown;
+  try {
+    rawTxServiceUrl = (
+      chainMetadata as { gnosisSafeTransactionServiceUrl?: unknown }
+    ).gnosisSafeTransactionServiceUrl;
+  } catch {
+    throw new Error(`Safe tx service URL is inaccessible for ${chain}`);
   }
-  return normalizeSafeServiceUrl(gnosisSafeTransactionServiceUrl);
+  assert(
+    typeof rawTxServiceUrl === 'string' && rawTxServiceUrl.trim().length > 0,
+    `Safe tx service URL must be provided for ${chain}: ${stringifyValueForError(rawTxServiceUrl)}`,
+  );
+  return normalizeSafeServiceUrl(rawTxServiceUrl);
 }
 
 function getSafeServiceHeaders(
@@ -555,13 +563,24 @@ function getSafeServiceHeaders(
   multiProvider: MultiProvider,
 ): Record<string, string> {
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
-  const { gnosisSafeApiKey } = multiProvider.getChainMetadata(chain);
+  const chainMetadata = getChainMetadataForSafe(chain, multiProvider);
+  let gnosisSafeApiKey: unknown;
+  try {
+    gnosisSafeApiKey = (chainMetadata as { gnosisSafeApiKey?: unknown })
+      .gnosisSafeApiKey;
+  } catch {
+    throw new Error(`Safe API key is inaccessible for ${chain}`);
+  }
   const headers: Record<string, string> = {
     'Content-Type': 'application/json',
     'User-Agent': 'node-fetch',
   };
-  if (gnosisSafeApiKey && safeApiKeyRequired(txServiceUrl)) {
-    headers.Authorization = `Bearer ${gnosisSafeApiKey}`;
+  if (
+    typeof gnosisSafeApiKey === 'string' &&
+    gnosisSafeApiKey.trim().length > 0 &&
+    safeApiKeyRequired(txServiceUrl)
+  ) {
+    headers.Authorization = `Bearer ${gnosisSafeApiKey.trim()}`;
   }
   return headers;
 }
@@ -570,20 +589,58 @@ export function getSafeService(
   chain: ChainNameOrId,
   multiProvider: MultiProvider,
 ): SafeApiKit.default {
-  const { gnosisSafeApiKey } = multiProvider.getChainMetadata(chain);
+  const chainMetadata = getChainMetadataForSafe(chain, multiProvider);
+  let gnosisSafeApiKey: unknown;
+  try {
+    gnosisSafeApiKey = (chainMetadata as { gnosisSafeApiKey?: unknown })
+      .gnosisSafeApiKey;
+  } catch {
+    throw new Error(`Safe API key is inaccessible for ${chain}`);
+  }
   const txServiceUrl = getSafeTxServiceUrl(chain, multiProvider);
 
-  const chainId = multiProvider.getEvmChainId(chain);
-  if (!chainId) {
-    throw new Error(`Chain is not an EVM chain: ${chain}`);
+  let chainId: unknown;
+  try {
+    chainId = multiProvider.getEvmChainId(chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve EVM chain id for ${chain}: ${stringifyValueForError(error)}`,
+    );
   }
+  assert(
+    (typeof chainId === 'number' &&
+      Number.isSafeInteger(chainId) &&
+      chainId > 0) ||
+      (typeof chainId === 'string' &&
+        chainId.trim().length > 0 &&
+        /^\d+$/.test(chainId.trim()) &&
+        chainId.trim() !== '0') ||
+      (typeof chainId === 'bigint' && chainId > 0n),
+    `EVM chain id must be a positive integer for ${chain}: ${stringifyValueForError(chainId)}`,
+  );
+  const normalizedChainId = String(chainId).trim();
+  let safeServiceChainId: bigint;
+  try {
+    safeServiceChainId = BigInt(normalizedChainId);
+  } catch {
+    throw new Error(
+      `EVM chain id must be a positive integer for ${chain}: ${stringifyValueForError(chainId)}`,
+    );
+  }
+  assert(
+    safeServiceChainId > 0n,
+    `EVM chain id must be a positive integer for ${chain}: ${stringifyValueForError(chainId)}`,
+  );
 
   // @ts-ignore
   return new SafeApiKit({
-    chainId: BigInt(chainId),
+    chainId: safeServiceChainId,
     txServiceUrl,
     // Only provide apiKey if the url contains safe.global or 5afe.dev
-    apiKey: safeApiKeyRequired(txServiceUrl) ? gnosisSafeApiKey : undefined,
+    apiKey:
+      safeApiKeyRequired(txServiceUrl) && typeof gnosisSafeApiKey === 'string'
+        ? gnosisSafeApiKey.trim()
+        : undefined,
   });
 }
 
@@ -2488,6 +2545,25 @@ function stringifyValueForError(value: unknown): string {
   } catch {
     return '<unstringifiable>';
   }
+}
+
+function getChainMetadataForSafe(
+  chain: ChainNameOrId,
+  multiProvider: MultiProvider,
+): unknown {
+  let chainMetadata: unknown;
+  try {
+    chainMetadata = multiProvider.getChainMetadata(chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to read chain metadata for ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    chainMetadata !== null && typeof chainMetadata === 'object',
+    `Chain metadata must be an object for ${chain}: ${stringifyValueForError(chainMetadata)}`,
+  );
+  return chainMetadata;
 }
 
 function serializeSafeCallValue(value: unknown): string {

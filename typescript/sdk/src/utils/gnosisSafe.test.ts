@@ -17,6 +17,7 @@ import {
   executeTx,
   getSafeAndService,
   getSafeDelegates,
+  getSafeService,
   getSafeTx,
   getKnownMultiSendAddresses,
   getOwnerChanges,
@@ -5487,6 +5488,46 @@ describe('gnosisSafe utils', () => {
       );
 
       expect(canPropose).to.equal(true);
+    });
+  });
+
+  describe(getSafeService.name, () => {
+    it('throws when chain metadata accessor throws', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => {
+          throw new Error('metadata unavailable');
+        },
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Failed to read chain metadata for test: Error: metadata unavailable',
+      );
+    });
+
+    it('throws when tx-service url is missing', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({}),
+        getEvmChainId: () => 1,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'Safe tx service URL must be provided for test: undefined',
+      );
+    });
+
+    it('throws when evm chain id is non-positive', () => {
+      const multiProviderMock = {
+        getChainMetadata: () => ({
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getEvmChainId: () => 0,
+      } as unknown as Parameters<typeof getSafeService>[1];
+
+      expect(() => getSafeService('test', multiProviderMock)).to.throw(
+        'EVM chain id must be a positive integer for test: 0',
+      );
     });
   });
 
