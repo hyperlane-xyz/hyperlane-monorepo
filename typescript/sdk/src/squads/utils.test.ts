@@ -190,6 +190,26 @@ describe('squads utils', () => {
       );
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('propagates provider lookup failures for supported chains', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      let thrownError: Error | undefined;
+      try {
+        await getSquadAndProvider('solanamainnet', mpp);
+      } catch (error) {
+        thrownError = error as Error;
+      }
+
+      expect(thrownError?.message).to.include('provider lookup failed');
+      expect(providerLookupCalled).to.equal(true);
+    });
   });
 
   describe(getSquadProposal.name, () => {
