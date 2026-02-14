@@ -1030,6 +1030,39 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('handles set wrappers with throwing iterators and non-enumerable errors fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const setWrapper = Object.assign(new Set([{ message: 'noise-entry' }]), {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'set wrapper without nested details';
+        },
+      });
+      Object.defineProperty(setWrapper, Symbol.iterator, {
+        value() {
+          throw new Error('broken set iterator');
+        },
+      });
+      Object.defineProperty(setWrapper, 'errors', {
+        value: { message: 'Cannot connect to the Docker daemon' },
+        enumerable: false,
+      });
+
+      const wrappedError = {
+        errors: setWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('handles maps with throwing values iterators', () => {
       class ThrowingValuesMap extends Map<string, { message: string }> {
         public override values(): IterableIterator<{ message: string }> {

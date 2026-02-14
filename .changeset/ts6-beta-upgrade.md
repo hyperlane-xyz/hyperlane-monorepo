@@ -146,4 +146,6 @@ Regression coverage now also confirms malformed iterable and map wrappers with f
 
 Regression coverage now also confirms malformed array wrappers with throwing iterators still detect runtime-unavailable signals when only non-enumerable wrapper-level `errors` fallbacks are available.
 
+Regression coverage now also confirms malformed set wrappers with throwing iterators still detect runtime-unavailable signals when only non-enumerable wrapper-level `errors` fallbacks are available.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
