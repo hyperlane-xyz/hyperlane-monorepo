@@ -1,7 +1,7 @@
 import { expect } from 'chai';
 import yargs from 'yargs';
 
-import { getSquadsChains } from '@hyperlane-xyz/sdk';
+import { ChainName, getSquadsChains } from '@hyperlane-xyz/sdk';
 
 import {
   resolveSquadsChains,
@@ -33,6 +33,12 @@ describe('squads cli helpers', () => {
       firstChain,
       secondChain,
     ]);
+  });
+
+  it('throws for explicitly provided non-squads chain', () => {
+    expect(() => resolveSquadsChains(['ethereum' as ChainName])).to.throw(
+      'Squads configuration not found for chains: ethereum',
+    );
   });
 
   it('returns a defensive copy for explicit chains', () => {

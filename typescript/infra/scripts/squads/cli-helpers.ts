@@ -83,10 +83,21 @@ export function withSquadsChains<T>(args: Argv<T>) {
 }
 
 export function resolveSquadsChains(chains?: ChainName[]): ChainName[] {
+  const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
-    return Array.from(new Set(chains));
+    const uniqueChains = Array.from(new Set(chains));
+    const nonSquadsChains = uniqueChains.filter(
+      (chain) => !configuredSquadsChains.includes(chain),
+    );
+    if (nonSquadsChains.length > 0) {
+      throw new Error(
+        `Squads configuration not found for chains: ${nonSquadsChains.join(', ')}. ` +
+          `Available Squads chains: ${configuredSquadsChains.join(', ')}`,
+      );
+    }
+    return uniqueChains;
   }
-  return getSquadsChains();
+  return configuredSquadsChains;
 }
 
 export async function getEnvironmentConfigFor(
