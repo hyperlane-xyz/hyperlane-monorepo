@@ -107,3 +107,5 @@ Regression coverage now also confirms error-shaped `errors` wrappers with blank 
 Regression coverage now also confirms error-shaped `errors` wrappers with non-string top-level messages still detect runtime-unavailable signals via nested `cause` chains.
 
 Regression coverage now also confirms iterable wrappers with non-matching yielded entries still detect runtime-unavailable signals exposed via wrapper-level `cause` fallbacks.
+
+Nested iterable wrapper traversal now also preserves wrapper-level `cause`/`errors` fallbacks after iterable value scans, so runtime-unavailable signals are still detected even when yielded values are non-matching and wrapper formatting is non-informative.

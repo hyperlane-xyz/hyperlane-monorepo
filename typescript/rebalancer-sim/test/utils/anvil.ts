@@ -178,6 +178,17 @@ function extractErrorMessages(error: unknown): string[] {
     queue.push(value);
     return true;
   };
+  const enqueueWrapperFields = (value: unknown) => {
+    if (typeof value !== 'object' || value === null) return;
+
+    const wrapperCause = getObjectProperty(value, 'cause');
+    if (wrapperCause !== undefined) enqueue(wrapperCause);
+
+    const wrapperErrors = getObjectProperty(value, 'errors');
+    if (wrapperErrors !== undefined && wrapperErrors !== value) {
+      enqueue(wrapperErrors);
+    }
+  };
   const enqueueNestedErrors = (nestedErrors: unknown) => {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
 
@@ -186,6 +197,7 @@ function extractErrorMessages(error: unknown): string[] {
         for (const nestedError of nestedErrors.values()) {
           if (!enqueue(nestedError)) break;
         }
+        enqueueWrapperFields(nestedErrors);
         return;
       } catch {
         try {
@@ -197,6 +209,7 @@ function extractErrorMessages(error: unknown): string[] {
 
             if (!enqueue(nestedEntry)) break;
           }
+          enqueueWrapperFields(nestedErrors);
           return;
         } catch {
           // Fall through to generic iterable/object traversal.
@@ -209,6 +222,7 @@ function extractErrorMessages(error: unknown): string[] {
         for (const nestedError of nestedErrors) {
           if (!enqueue(nestedError)) break;
         }
+        enqueueWrapperFields(nestedErrors);
         return;
       } catch {
         // Fall through to generic iterable/object traversal.
@@ -227,6 +241,7 @@ function extractErrorMessages(error: unknown): string[] {
             valuesRead += 1;
             if (valuesRead >= MAX_NESTED_ITERABLE_VALUES) break;
           }
+          enqueueWrapperFields(nestedErrors);
           return;
         } catch {
           // Fall through to object-value traversal for malformed iterables.
