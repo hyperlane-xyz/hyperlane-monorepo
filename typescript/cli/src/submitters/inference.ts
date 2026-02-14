@@ -310,7 +310,7 @@ function getThenableHandler(value: unknown): unknown {
 async function getSignerAddressFromSignerObject(
   signer: unknown,
 ): Promise<Address | null> {
-  const maybeGetAddress = (signer as { getAddress?: unknown })?.getAddress;
+  const maybeGetAddress = getSignerAddressMethod(signer);
   if (typeof maybeGetAddress !== 'function') {
     return null;
   }
@@ -322,6 +322,18 @@ async function getSignerAddressFromSignerObject(
       !eqAddress(normalizedSignerAddress, ethersConstants.AddressZero)
       ? (normalizedSignerAddress as Address)
       : null;
+  } catch {
+    return null;
+  }
+}
+
+function getSignerAddressMethod(signer: unknown): unknown {
+  if (!signer || (typeof signer !== 'object' && typeof signer !== 'function')) {
+    return null;
+  }
+
+  try {
+    return (signer as { getAddress?: unknown }).getAddress;
   } catch {
     return null;
   }
