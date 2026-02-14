@@ -69,16 +69,16 @@ describe('squads cli helpers', () => {
     ).to.deep.equal([firstChain, secondChain]);
   });
 
-  it('stringifies argv chain values before resolving', () => {
+  it('normalizes duplicate argv chain string values before resolving', () => {
     const [firstChain] = getSquadsChains();
     expect(
       resolveSquadsChainsFromArgv([firstChain, `${firstChain}`]),
     ).to.deep.equal([firstChain]);
   });
 
-  it('rejects unsupported numeric argv chain values after stringification', () => {
+  it('rejects non-string argv chain values with index-aware errors', () => {
     expect(() => resolveSquadsChainsFromArgv([123])).to.throw(
-      'Squads configuration not found for chains: 123',
+      'Expected --chains[0] to be a string, but received number',
     );
   });
 

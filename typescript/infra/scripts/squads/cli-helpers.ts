@@ -134,6 +134,14 @@ function getArgTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
+function normalizeArgvChainValue(chain: unknown, index: number): string {
+  assert(
+    typeof chain === 'string',
+    `Expected --chains[${index}] to be a string, but received ${getArgTypeName(chain)}`,
+  );
+  return chain;
+}
+
 function normalizeArgvChains(chains: unknown): string[] {
   if (typeof chains === 'undefined') {
     return [];
@@ -144,7 +152,7 @@ function normalizeArgvChains(chains: unknown): string[] {
     `Expected --chains to resolve to an array, but received ${getArgTypeName(chains)}`,
   );
 
-  return chains.map((chain) => String(chain));
+  return chains.map((chain, index) => normalizeArgvChainValue(chain, index));
 }
 
 export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
