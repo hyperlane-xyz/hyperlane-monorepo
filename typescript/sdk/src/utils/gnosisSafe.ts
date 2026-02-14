@@ -1429,7 +1429,13 @@ export function parseSafeTx(tx: AnnotatedEV5Transaction) {
 
 export function asHex(hex?: string): Hex {
   assert(hex, 'Hex value is required');
-  return isHex(hex) ? (hex as Hex) : (`0x${hex}` as Hex);
+  if (isHex(hex)) {
+    return hex as Hex;
+  }
+
+  const prefixedHex = `0x${hex}`;
+  assert(isHex(prefixedHex), `Hex value must be valid hex: ${hex}`);
+  return prefixedHex as Hex;
 }
 
 export function decodeMultiSendData(

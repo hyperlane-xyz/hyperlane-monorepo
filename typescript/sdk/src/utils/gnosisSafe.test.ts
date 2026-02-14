@@ -3533,6 +3533,13 @@ describe('gnosisSafe utils', () => {
       expect(() => asHex()).to.throw('Hex value is required');
       expect(() => asHex('')).to.throw('Hex value is required');
     });
+
+    it('throws when hex value has invalid characters', () => {
+      expect(() => asHex('xyz')).to.throw('Hex value must be valid hex: xyz');
+      expect(() => asHex('0xxyz')).to.throw(
+        'Hex value must be valid hex: 0xxyz',
+      );
+    });
   });
 
   describe(decodeMultiSendData.name, () => {
@@ -3656,6 +3663,12 @@ describe('gnosisSafe utils', () => {
 
     it('throws when calldata is empty', () => {
       expect(() => decodeMultiSendData('')).to.throw('Hex value is required');
+    });
+
+    it('throws when calldata is not valid hex', () => {
+      expect(() => decodeMultiSendData('xyz')).to.throw(
+        'Hex value must be valid hex: xyz',
+      );
     });
 
     it('throws when an inner multisend tx payload is truncated', () => {
