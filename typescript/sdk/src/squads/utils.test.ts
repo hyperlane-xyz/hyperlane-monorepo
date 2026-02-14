@@ -253,6 +253,23 @@ describe('squads utils', () => {
       });
     });
 
+    it('accepts bignum-like values with decimal toString output', () => {
+      const decimalLikeValue = { toString: () => '42' };
+      const parsed = parseSquadMultisig({
+        threshold: decimalLikeValue,
+        transactionIndex: decimalLikeValue,
+        staleTransactionIndex: decimalLikeValue,
+        timeLock: decimalLikeValue,
+      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parsed).to.deep.equal({
+        threshold: 42,
+        currentTransactionIndex: 42,
+        staleTransactionIndex: 42,
+        timeLock: 42,
+      });
+    });
+
     it('throws when multisig threshold is not a safe integer', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig({
@@ -292,6 +309,20 @@ describe('squads utils', () => {
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: 42',
+      );
+    });
+
+    it('throws when bignum-like value string is non-decimal', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: { toString: () => '1e3' },
+          transactionIndex: 1n,
+          staleTransactionIndex: 0n,
+          timeLock: 0n,
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig threshold must be a JavaScript safe integer: 1e3',
       );
     });
 
