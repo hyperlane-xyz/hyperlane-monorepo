@@ -3573,6 +3573,49 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when transaction list entry access is inaccessible', async () => {
+      const transactionsWithThrowingEntry = [...exampleTransactions];
+      Object.defineProperty(transactionsWithThrowingEntry, '0', {
+        get() {
+          throw new Error('boom');
+        },
+      });
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(
+          safeSdkMock,
+          transactionsWithThrowingEntry as unknown as Parameters<
+            typeof createSafeTransaction
+          >[1],
+        );
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction entry is inaccessible at index 0',
+        );
+      }
+    });
+
+    it('throws when transaction list entry is non-object', async () => {
+      const safeSdkMock = {
+        createTransaction: async () => ({ data: { nonce: 1 } }),
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, [123] as unknown as Parameters<
+          typeof createSafeTransaction
+        >[1]);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction entry must be an object at index 0: 123',
+        );
+      }
+    });
+
     it('throws when onlyCalls flag is not boolean', async () => {
       const safeSdkMock = {
         createTransaction: async () => ({ data: { nonce: 1 } }),
@@ -3692,6 +3735,29 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe transaction list must be an array: bad',
+        );
+      }
+
+      expect(createTransactionCallCount).to.equal(0);
+    });
+
+    it('fails fast before safe sdk call on invalid transaction entry', async () => {
+      let createTransactionCallCount = 0;
+      const safeSdkMock = {
+        createTransaction: async () => {
+          createTransactionCallCount += 1;
+          return { data: { nonce: 1 } };
+        },
+      } as unknown as Parameters<typeof createSafeTransaction>[0];
+
+      try {
+        await createSafeTransaction(safeSdkMock, [
+          undefined,
+        ] as unknown as Parameters<typeof createSafeTransaction>[1]);
+        expect.fail('Expected createSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction entry must be an object at index 0: undefined',
         );
       }
 

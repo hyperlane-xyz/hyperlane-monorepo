@@ -1007,6 +1007,20 @@ export async function createSafeTransaction(
     Number.isSafeInteger(transactionsCount) && transactionsCount >= 0,
     `Safe transaction list length is invalid: ${stringifyValueForError(transactionsCount)}`,
   );
+  for (let index = 0; index < transactionsCount; index += 1) {
+    let transaction: unknown;
+    try {
+      transaction = transactions[index];
+    } catch {
+      throw new Error(
+        `Safe transaction entry is inaccessible at index ${index}`,
+      );
+    }
+    assert(
+      transaction !== null && typeof transaction === 'object',
+      `Safe transaction entry must be an object at index ${index}: ${stringifyValueForError(transaction)}`,
+    );
+  }
   if (onlyCalls !== undefined) {
     assert(
       typeof onlyCalls === 'boolean',
