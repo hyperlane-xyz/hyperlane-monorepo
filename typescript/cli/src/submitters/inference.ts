@@ -679,7 +679,6 @@ function resolveExplicitSubmitterForTransaction({
   }
 
   let selectedSubmitter = explicitSubmissionStrategy.submitter;
-  const entries = Object.entries(overrides);
   if (protocol === ProtocolType.Ethereum) {
     const normalizedTarget = tryNormalizeEvmAddress(to.trim());
     if (!normalizedTarget) {
