@@ -722,6 +722,30 @@ describe('squads cli helpers', () => {
     expect(formatScriptError(error)).to.equal('[unformattable error instance]');
   });
 
+  it('falls back to Error message when stack accessor throws', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        throw new Error('stack unavailable');
+      },
+    });
+
+    expect(formatScriptError(error)).to.equal('boom');
+  });
+
+  it('falls back to Error message when stack is empty', () => {
+    const error = new Error('boom');
+    Object.defineProperty(error, 'stack', {
+      configurable: true,
+      get() {
+        return '';
+      },
+    });
+
+    expect(formatScriptError(error)).to.equal('boom');
+  });
+
   it('formats string errors unchanged', () => {
     expect(formatScriptError('oops')).to.equal('oops');
   });
