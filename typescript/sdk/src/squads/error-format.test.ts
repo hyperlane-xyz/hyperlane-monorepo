@@ -120,6 +120,40 @@ describe('squads error-format', () => {
       ).to.equal('Error: boom\n at sample.ts:1:1');
     });
 
+    it('falls back to message when preferred Error stack access throws', () => {
+      const error = new Error('boom');
+      Object.defineProperty(error, 'stack', {
+        configurable: true,
+        get() {
+          throw new Error('stack unavailable');
+        },
+      });
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorStackForErrorInstances: true,
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('boom');
+    });
+
+    it('falls back to String(error) when preferred Error message access throws', () => {
+      const error = new Error('boom');
+      Object.defineProperty(error, 'message', {
+        configurable: true,
+        get() {
+          throw new Error('message unavailable');
+        },
+      });
+      error.toString = () => 'custom error fallback';
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('custom error fallback');
+    });
+
     it('falls back to message when preferred Error stack is low-signal', () => {
       const error = new Error('boom');
       error.stack = 'Error';
@@ -130,6 +164,16 @@ describe('squads error-format', () => {
           preferErrorMessageForErrorInstances: true,
         }),
       ).to.equal('boom');
+    });
+
+    it('returns placeholder for low-signal Error stringification', () => {
+      const error = new Error('');
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
     });
 
     it('prefers object stack then message before final fallback', () => {
