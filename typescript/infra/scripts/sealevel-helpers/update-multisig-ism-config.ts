@@ -15,6 +15,7 @@ import {
   SvmMultiProtocolSignerAdapter,
   getSquadsChains,
   getSquadsKeys,
+  isSquadsChain,
   submitProposalToSquads,
 } from '@hyperlane-xyz/sdk';
 import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
@@ -430,20 +431,19 @@ async function main() {
   // Compute default chains based on environment
   const envConfig = getEnvironmentConfig(environment);
   const squadsChains = getSquadsChains();
-  const squadsChainSet = new Set(squadsChains);
 
   const chains =
     !chainsArg || chainsArg.length === 0
       ? envConfig.supportedChainNames.filter(
           (chain) =>
             chainIsProtocol(chain, ProtocolType.Sealevel) &&
-            squadsChainSet.has(chain) &&
+            isSquadsChain(chain) &&
             !chainsToSkip.includes(chain),
         )
       : chainsArg;
 
   const chainsWithoutSquadsConfig = chains.filter(
-    (chain) => !squadsChainSet.has(chain),
+    (chain) => !isSquadsChain(chain),
   );
   if (chainsWithoutSquadsConfig.length > 0) {
     throw new Error(
