@@ -147,6 +147,9 @@ describe('gnosisSafe utils', () => {
         false,
       );
       expect(safeApiKeyRequired('///safe.global/api')).to.equal(false);
+      expect(
+        safeApiKeyRequired('///safe-transaction-mainnet.safe.global/api'),
+      ).to.equal(false);
     });
   });
 
@@ -298,6 +301,13 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe tx service URL is invalid: /tx-service/eth?foo=bar');
       expect(() => normalizeSafeServiceUrl('///safe.global/api')).to.throw(
         'Safe tx service URL is invalid: ///safe.global/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
+          '///safe-transaction-mainnet.safe.global/tx-service/eth',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: ///safe-transaction-mainnet.safe.global/tx-service/eth',
       );
       expect(() => normalizeSafeServiceUrl('not a url')).to.throw(
         'Safe tx service URL is invalid: not a url',
