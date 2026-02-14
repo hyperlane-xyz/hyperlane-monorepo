@@ -414,4 +414,58 @@ describe('hyperlane core apply e2e tests', async function () {
     expect(result.text()).to.include('gnosisSafeTxBuilder');
     expect(result.text()).to.include('timelockController');
   });
+
+  it('should prioritize selector-specific override over target-only override for core apply', async () => {
+    const addresses = await hyperlaneCore.deployOrUseExistingCore(ANVIL_KEY);
+
+    const [mockSafe, timelock] = await Promise.all([
+      new MockSafe__factory()
+        .connect(signer)
+        .deploy([initialOwnerAddress], 1),
+      new TimelockController__factory()
+        .connect(signer)
+        .deploy(
+          0,
+          [initialOwnerAddress],
+          [initialOwnerAddress],
+          ethers.constants.AddressZero,
+        ),
+    ]);
+
+    const strategyPath = `${TEMP_PATH}/core-apply-selector-overrides.yaml`;
+    writeYamlOrJson(strategyPath, {
+      [CHAIN_NAME_2]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN_NAME_2,
+        },
+        submitterOverrides: {
+          [addresses.mailbox]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN_NAME_2,
+            safeAddress: mockSafe.address,
+            version: '1.0',
+          },
+          [`${addresses.mailbox}@0xf2fde38b`]: {
+            type: TxSubmitterType.TIMELOCK_CONTROLLER,
+            chain: CHAIN_NAME_2,
+            timelockAddress: timelock.address,
+            proposerSubmitter: {
+              type: TxSubmitterType.JSON_RPC,
+              chain: CHAIN_NAME_2,
+            },
+          },
+        },
+      },
+    });
+
+    const config: CoreConfig = await hyperlaneCore.readConfig();
+    config.owner = randomAddress().toLowerCase();
+    writeYamlOrJson(CORE_READ_CONFIG_PATH_2, config);
+
+    const result = await hyperlaneCore.apply(ANVIL_KEY, strategyPath).nothrow();
+    expect(result.exitCode).to.equal(0);
+    expect(result.text()).to.include('timelockController');
+    expect(result.text()).to.not.include('gnosisSafeTxBuilder');
+  });
 });
