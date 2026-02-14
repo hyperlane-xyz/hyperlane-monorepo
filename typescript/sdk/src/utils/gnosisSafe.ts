@@ -1204,7 +1204,22 @@ function assertValidUniqueOwners(
     `Owner list for ${ownerGroupName} must be an array: ${stringifyValueForError(owners)}`,
   );
   const seenOwners = new Set<string>();
-  for (const owner of owners) {
+  let ownerCount = 0;
+  try {
+    ownerCount = owners.length;
+  } catch {
+    throw new Error(`Owner list length is inaccessible for ${ownerGroupName}`);
+  }
+
+  for (let index = 0; index < ownerCount; index += 1) {
+    let owner: unknown;
+    try {
+      owner = owners[index];
+    } catch {
+      throw new Error(
+        `Owner entry is inaccessible for ${ownerGroupName} at index ${index}`,
+      );
+    }
     assert(
       typeof owner === 'string' && ethers.utils.isAddress(owner),
       `Invalid owner address found in ${ownerGroupName}: ${stringifyValueForError(owner)}`,

@@ -3572,6 +3572,43 @@ describe('gnosisSafe utils', () => {
         'Invalid owner address found in expected owners: <unstringifiable>',
       );
     });
+
+    it('throws when owner list length access is inaccessible', async () => {
+      const ownersWithThrowingLength = new Proxy(
+        ['0x0000000000000000000000000000000000000001'],
+        {
+          get(target, property, receiver) {
+            if (property === 'length') {
+              throw new Error('boom');
+            }
+            return Reflect.get(target, property, receiver);
+          },
+        },
+      );
+
+      await expectOwnerChangesError(
+        ownersWithThrowingLength,
+        ['0x0000000000000000000000000000000000000002'],
+        'Owner list length is inaccessible for current owners',
+      );
+    });
+
+    it('throws when owner list entry access is inaccessible', async () => {
+      const ownersWithThrowingEntry = [
+        '0x0000000000000000000000000000000000000001',
+      ];
+      Object.defineProperty(ownersWithThrowingEntry, '0', {
+        get() {
+          throw new Error('boom');
+        },
+      });
+
+      await expectOwnerChangesError(
+        ['0x0000000000000000000000000000000000000002'],
+        ownersWithThrowingEntry,
+        'Owner entry is inaccessible for expected owners at index 0',
+      );
+    });
   });
 
   describe(parseSafeTx.name, () => {
