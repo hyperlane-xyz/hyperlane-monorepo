@@ -2672,6 +2672,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
     const protocolCalls: Record<string, number> = {};
+    let registryReads = 0;
     const context = {
       multiProvider: {
         getProtocol: (chainName: string) => {
@@ -2689,18 +2690,21 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         },
       },
       registry: {
-        getAddresses: async () => ({
-          [CHAIN]: {
-            interchainAccountRouter: destinationRouterAddress,
-          },
-          unknownChain: {
-            interchainAccountRouter:
-              '0x7777777777777777777777777777777777777777',
-          },
-          anvil3: {
-            interchainAccountRouter: originRouterAddress,
-          },
-        }),
+        getAddresses: async () => {
+          registryReads += 1;
+          return {
+            [CHAIN]: {
+              interchainAccountRouter: destinationRouterAddress,
+            },
+            unknownChain: {
+              interchainAccountRouter:
+                '0x7777777777777777777777777777777777777777',
+            },
+            anvil3: {
+              interchainAccountRouter: originRouterAddress,
+            },
+          };
+        },
       },
     } as any;
 
@@ -2720,6 +2724,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       expect(protocolCalls.unknownChain).to.equal(1);
       expect(protocolCalls.anvil3).to.equal(1);
+      expect(registryReads).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();
@@ -3475,6 +3480,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       });
 
     const protocolCalls: Record<string, number> = {};
+    let registryReads = 0;
     const context = {
       multiProvider: {
         getProtocol: (chainName: string) => {
@@ -3488,18 +3494,21 @@ describe('resolveSubmitterBatchesForTransactions', () => {
         getProvider: () => provider,
       },
       registry: {
-        getAddresses: async () => ({
-          [CHAIN]: {
-            interchainAccountRouter: destinationRouterAddress,
-          },
-          unknownChain: {
-            interchainAccountRouter:
-              '0xffffffffffffffffffffffffffffffffffffffff',
-          },
-          anvil3: {
-            interchainAccountRouter: originRouterAddress,
-          },
-        }),
+        getAddresses: async () => {
+          registryReads += 1;
+          return {
+            [CHAIN]: {
+              interchainAccountRouter: destinationRouterAddress,
+            },
+            unknownChain: {
+              interchainAccountRouter:
+                '0xffffffffffffffffffffffffffffffffffffffff',
+            },
+            anvil3: {
+              interchainAccountRouter: originRouterAddress,
+            },
+          };
+        },
       },
     } as any;
 
@@ -3516,6 +3525,7 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       expect(batches).to.have.length(2);
       expect(protocolCalls.unknownChain).to.equal(1);
       expect(protocolCalls.anvil3).to.equal(1);
+      expect(registryReads).to.equal(1);
     } finally {
       ownableStub.restore();
       safeStub.restore();

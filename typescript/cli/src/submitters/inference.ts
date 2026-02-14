@@ -45,6 +45,9 @@ type Cache = {
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
   signerByChain: Map<ChainName, boolean>;
   protocolIsEthereumByChain: Map<string, boolean>;
+  registryAddresses?: Awaited<
+    ReturnType<WriteCommandContext['registry']['getAddresses']>
+  >;
 };
 
 type InferSubmitterFromAddressParams = {
@@ -155,6 +158,18 @@ function isEthereumProtocolChain(
   }
 }
 
+async function getRegistryAddresses(
+  context: WriteCommandContext,
+  cache: Cache,
+): Promise<Awaited<ReturnType<WriteCommandContext['registry']['getAddresses']>>> {
+  if (cache.registryAddresses) {
+    return cache.registryAddresses;
+  }
+  const registryAddresses = await context.registry.getAddresses();
+  cache.registryAddresses = registryAddresses;
+  return registryAddresses;
+}
+
 function getDefaultSubmitter(chain: ChainName): ExtendedSubmissionStrategy {
   return {
     submitter: {
@@ -250,7 +265,7 @@ async function inferIcaSubmitterFromAccount({
     return cached ?? null;
   }
 
-  const registryAddresses = await context.registry.getAddresses();
+  const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationAddresses = registryAddresses[destinationChain];
   const destinationRouterAddress = destinationAddresses?.interchainAccountRouter;
   if (!destinationRouterAddress) {
@@ -472,7 +487,7 @@ async function inferTimelockProposerSubmitter({
   const proposers = Array.from(granted).filter(
     (account) => !eqAddress(account, ethersConstants.AddressZero),
   );
-  const registryAddresses = await context.registry.getAddresses();
+  const registryAddresses = await getRegistryAddresses(context, cache);
   const destinationRouterAddress =
     registryAddresses[chain]?.interchainAccountRouter;
 
