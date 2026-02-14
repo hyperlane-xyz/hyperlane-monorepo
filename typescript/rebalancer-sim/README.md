@@ -206,6 +206,10 @@ open results/extreme-drain-chain1-HyperlaneRebalancer.html
 curl -L https://foundry.paradigm.xyz | bash && foundryup
 ```
 
+If both Docker and local `anvil` are unavailable, tests fail fast with a clear
+message explaining that `anvil` was not found in `PATH` and suggesting
+`foundryup`.
+
 ## Visualization
 
 The simulator generates interactive HTML timelines for each test run:
