@@ -22,7 +22,13 @@ const SQUADS_SCRIPT_HELP_CASES: readonly HelpCase[] = Object.freeze([
   },
   {
     scriptPath: 'scripts/squads/read-proposal.ts',
-    expectedOutput: ['--help', '--version', '--chain', '--transactionIndex'],
+    expectedOutput: [
+      '--help',
+      '--version',
+      '--chain',
+      '--transactionIndex',
+      '--verbose',
+    ],
   },
   {
     scriptPath: 'scripts/squads/cancel-proposal.ts',
