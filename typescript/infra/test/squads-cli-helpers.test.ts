@@ -585,10 +585,25 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('rejects infinite transaction index values', async () => {
+    await expectParseError(
+      withTransactionIndex(yargs(['--transactionIndex', 'Infinity'])),
+      'Expected --transactionIndex to be a finite number, but received Infinity',
+    );
+  });
+
   it('rejects non-integer transaction index values', async () => {
     await expectParseError(
       withTransactionIndex(yargs(['--transactionIndex', '1.5'])),
       'Expected --transactionIndex to be a safe integer, but received 1.5',
+    );
+  });
+
+  it('rejects unsafe transaction index values', async () => {
+    const unsafeInteger = Number.MAX_SAFE_INTEGER + 1;
+    await expectParseError(
+      withTransactionIndex(yargs([`--transactionIndex=${unsafeInteger}`])),
+      `Expected --transactionIndex to be a safe integer, but received ${unsafeInteger}`,
     );
   });
 
