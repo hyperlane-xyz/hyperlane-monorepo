@@ -2,7 +2,7 @@ import { AccountInfo, ComputeBudgetProgram, PublicKey } from '@solana/web3.js';
 import { accounts, getTransactionPda, types } from '@sqds/multisig';
 import { deserializeUnchecked } from 'borsh';
 
-import { ProtocolType, rootLogger } from '@hyperlane-xyz/utils';
+import { ProtocolType, assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import { defaultMultisigConfigs } from '../consts/multisigIsm.js';
 import { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
@@ -51,6 +51,7 @@ import {
   getSquadProposal,
   isConfigTransaction,
   isVaultTransaction,
+  parseSquadProposal,
 } from './utils.js';
 import { toSquadsProvider } from './provider.js';
 import { assertValidTransactionIndexInput } from './validation.js';
@@ -1000,6 +1001,14 @@ export class SquadsTransactionReader {
         chain,
         transactionIndex,
       );
+      const { transactionIndex: proposalTransactionIndex } = parseSquadProposal(
+        proposalData.proposal,
+      );
+      assert(
+        proposalTransactionIndex === transactionIndex,
+        `Expected proposal index ${transactionIndex} for ${chain}, got ${proposalTransactionIndex}`,
+      );
+
       const [transactionPda] = getTransactionPda({
         multisigPda: proposalData.multisigPda,
         index: BigInt(transactionIndex),

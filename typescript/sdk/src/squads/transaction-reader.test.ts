@@ -42,6 +42,23 @@ async function captureAsyncError(
 }
 
 describe('squads transaction reader', () => {
+  function createMockProposalData(
+    transactionIndex: unknown,
+  ): Record<string, unknown> {
+    return {
+      proposal: {
+        status: { __kind: 'Active' },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex,
+      },
+      proposalPda: new PublicKey('11111111111111111111111111111111'),
+      multisigPda: new PublicKey('11111111111111111111111111111111'),
+      programId: new PublicKey('11111111111111111111111111111111'),
+    };
+  }
+
   const invalidTransactionIndexCases: Array<{
     title: string;
     transactionIndex: number;
@@ -119,18 +136,12 @@ describe('squads transaction reader', () => {
     };
 
     readerAny.fetchProposalData = async () =>
-      ({
-        proposal: {
-          transactionIndex: {
-            toString: () => {
-              throw new Error('proposal transactionIndex should not stringify');
-            },
-          },
+      createMockProposalData({
+        [Symbol.toPrimitive]: () => '5',
+        toString: () => {
+          throw new Error('proposal transactionIndex should not stringify');
         },
-        proposalPda: new PublicKey('11111111111111111111111111111111'),
-        multisigPda: new PublicKey('11111111111111111111111111111111'),
-        programId: new PublicKey('11111111111111111111111111111111'),
-      }) as Record<string, unknown>;
+      });
 
     readerAny.fetchTransactionAccount = async () => ({
       data: Buffer.from([
@@ -151,5 +162,46 @@ describe('squads transaction reader', () => {
 
     expect(result.transactionIndex).to.equal(5);
     expect(observedTransactionIndex).to.equal(5);
+  });
+
+  it('fails before account lookup when proposal index mismatches request', async () => {
+    const reader = new SquadsTransactionReader(
+      {} as unknown as MultiProtocolProvider,
+      {
+        resolveCoreProgramIds: () => ({
+          mailbox: 'mailbox-program-id',
+          multisig_ism_message_id: 'multisig-ism-program-id',
+        }),
+      },
+    );
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(7);
+
+    let fetchTransactionAccountCalled = false;
+    readerAny.fetchTransactionAccount = async () => {
+      fetchTransactionAccountCalled = true;
+      return {
+        data: Buffer.from([
+          ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+          1,
+        ]),
+      };
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Expected proposal index 5 for solanamainnet, got 7',
+    );
+    expect(fetchTransactionAccountCalled).to.equal(false);
   });
 });
