@@ -239,6 +239,24 @@ describe('squads utils', () => {
       ).to.equal(SquadsProposalVoteError.AlreadyRejected);
     });
 
+    it('parses known vote error from direct log array values', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError([
+          123,
+          'Program log: AlreadyCancelled',
+        ]),
+      ).to.equal(SquadsProposalVoteError.AlreadyCancelled);
+    });
+
+    it('returns undefined for direct log arrays without known errors', () => {
+      expect(
+        parseSquadsProposalVoteErrorFromError([
+          'Program log: unrelated',
+          999,
+        ]),
+      ).to.equal(undefined);
+    });
+
     it('parses known vote error from unknown error shape', () => {
       const error = {
         transactionLogs: ['Program log: AlreadyCancelled'],

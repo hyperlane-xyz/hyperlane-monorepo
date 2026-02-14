@@ -151,6 +151,15 @@ export function parseSquadsProposalVoteErrorFromError(
     return parseSquadsProposalVoteErrorText(error);
   }
 
+  if (Array.isArray(error)) {
+    const logEntries = error.filter((value): value is string => {
+      return typeof value === 'string';
+    });
+    if (logEntries.length > 0) {
+      return parseSquadsProposalVoteError(logEntries);
+    }
+  }
+
   if (!error || typeof error !== 'object') {
     return undefined;
   }
