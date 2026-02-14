@@ -112,11 +112,22 @@ function hasMalformedSchemeRelativeAuthority(value: string): boolean {
   );
 }
 
+function hasEncodedAtInHostlessAuthority(value: string): boolean {
+  if (hasExplicitUrlScheme(value)) {
+    return false;
+  }
+
+  const authorityAndPath = value.startsWith('//') ? value.slice(2) : value;
+  const authority = authorityAndPath.split(/[/?#]/, 1)[0];
+  return /%40/i.test(authority);
+}
+
 function hasInvalidHostlessSafeServiceUrl(value: string): boolean {
   return (
     isSlashPrefixedRelativePath(value) ||
     hasSchemeRelativeHostWithEmptyPort(value) ||
-    hasMalformedSchemeRelativeAuthority(value)
+    hasMalformedSchemeRelativeAuthority(value) ||
+    hasEncodedAtInHostlessAuthority(value)
   );
 }
 
