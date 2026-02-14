@@ -121,6 +121,7 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('https://safe.global@evil.com/api')).to.equal(
         false,
       );
+      expect(safeApiKeyRequired('//safe.global@evil.com/api')).to.equal(false);
       expect(safeApiKeyRequired('https://safe.global./api')).to.equal(true);
       expect(safeApiKeyRequired('https://not5afe.dev/api')).to.equal(false);
       expect(
