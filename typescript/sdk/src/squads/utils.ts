@@ -771,6 +771,21 @@ function getMultisigMemberCount(
       typeof memberKey !== 'undefined' && memberKey !== null,
       `Squads ${fieldPrefix} members[${index}] must include key`,
     );
+    if (typeof memberKey === 'string') {
+      assert(
+        memberKey.trim().length > 0,
+        `Squads ${fieldPrefix} members[${index}] key must be a non-empty string`,
+      );
+    } else {
+      assert(
+        typeof memberKey === 'object',
+        `Squads ${fieldPrefix} members[${index}] key must be an object or non-empty string`,
+      );
+      assert(
+        typeof (memberKey as { toString?: unknown }).toString === 'function',
+        `Squads ${fieldPrefix} members[${index}] key must be stringifiable`,
+      );
+    }
   }
 
   return members.length;

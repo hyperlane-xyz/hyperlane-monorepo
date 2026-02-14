@@ -831,6 +831,36 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when members entry key is an empty string', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: '   ' }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must be a non-empty string',
+      );
+    });
+
+    it('throws when members entry key is non-stringifiable primitive', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig({
+          threshold: 1n,
+          transactionIndex: 1n,
+          staleTransactionIndex: 1n,
+          timeLock: 0n,
+          members: [{ key: 7 }],
+        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads multisig members[0] key must be an object or non-empty string',
+      );
+    });
+
     it('throws when members array is empty but threshold is positive', () => {
       const parseInvalidMultisig = () =>
         parseSquadMultisig({
