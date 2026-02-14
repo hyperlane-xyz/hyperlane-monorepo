@@ -60,8 +60,15 @@ const getObjectProperty = (value: unknown, key: PropertyKey): unknown => {
 };
 
 const getTrimmedNonEmptyString = (value: unknown): string | undefined => {
-  if (typeof value !== 'string') return undefined;
-  const trimmed = value.trim();
+  const normalized =
+    typeof value === 'string'
+      ? value
+      : value instanceof String
+        ? String(value)
+        : undefined;
+  if (normalized === undefined) return undefined;
+
+  const trimmed = normalized.trim();
   return trimmed.length > 0 ? trimmed : undefined;
 };
 

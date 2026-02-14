@@ -642,6 +642,36 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('matches boxed-string message fields when wrapper formatting is non-informative', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: new String('No Docker client strategy found'),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string message fields when wrapper formatting is non-informative', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const wrappedError = {
+        message: new String('unrelated nested warning'),
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(false);
+    });
+
     it('matches docker runtime errors in iterable error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
@@ -2117,11 +2147,30 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('treats boxed-string code values as ENOENT', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: new String('  enoent  '),
+          message: 'spawn failed',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.',
+      );
+    });
+
     it('returns plain message for other startup errors', () => {
       const error = new Error('permission denied');
       expect(formatLocalAnvilStartError(error)).to.equal(
         'Failed to start local anvil: permission denied',
       );
+    });
+
+    it('uses boxed-string message fields from non-Error objects', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: new String('  custom object failure  '),
+        }),
+      ).to.equal('Failed to start local anvil: custom object failure');
     });
 
     it('uses message field from non-Error objects', () => {
