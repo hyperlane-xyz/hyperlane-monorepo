@@ -119,3 +119,5 @@ Regression coverage now also confirms set-wrapper `errors` payloads preserve wra
 Regression coverage now also confirms generator-wrapper `errors` payloads preserve wrapper-level `cause` fallbacks after yielded-entry scans, even when yielded values are non-matching and wrapper formatting is non-informative.
 
 Regression coverage now also confirms generator-wrapper `errors` payloads preserve wrapper-level nested `errors` fallbacks after yielded-entry scans, even when yielded values are non-matching and wrapper formatting is non-informative.
+
+Regression coverage now also confirms map-wrapper `errors` payloads preserve wrapper-level nested `errors` fallbacks after map-value scans, even when map entries are non-matching and wrapper formatting is non-informative.
