@@ -121,6 +121,15 @@ describe('gnosisSafe utils', () => {
       ).to.equal('https://safe.global/tx-service/eth/api');
     });
 
+    it('canonicalizes case-insensitive /api suffix to /api', () => {
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/tx-service/eth/API'),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+      expect(
+        normalizeSafeServiceUrl('https://safe.global/tx-service/eth/Api/'),
+      ).to.equal('https://safe.global/tx-service/eth/api');
+    });
+
     it('canonicalizes /api/v2 urls to /api', () => {
       expect(
         normalizeSafeServiceUrl('https://safe.global/tx-service/eth/api/v2'),
