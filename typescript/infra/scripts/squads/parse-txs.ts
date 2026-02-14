@@ -20,6 +20,7 @@ import { processGovernorReaderResult } from '../../src/tx/utils.js';
 import { Contexts } from '../../config/contexts.js';
 import {
   SQUADS_ENVIRONMENT,
+  formatScriptError,
   getSquadsRegistry,
   getSquadsMultiProtocolProvider,
   logProposals,
@@ -96,10 +97,11 @@ async function main() {
           );
           return [`${chain}-${nonce}-${fullTxHash}`, result];
         } catch (error) {
-          const errorMessage = String(error);
+          const errorMessage = formatScriptError(error);
           rootLogger.error(
-            chalk.red(`Error parsing proposal ${nonce} on ${chain}:`),
-            error,
+            chalk.red(
+              `Error parsing proposal ${nonce} on ${chain}: ${errorMessage}`,
+            ),
           );
           return [
             `${chain}-${nonce}-${fullTxHash}`,
@@ -119,6 +121,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error:', err);
+  rootLogger.error(`Error: ${formatScriptError(err)}`);
   process.exit(1);
 });

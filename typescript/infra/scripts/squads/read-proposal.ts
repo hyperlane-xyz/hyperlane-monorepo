@@ -18,6 +18,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  formatScriptError,
   getSquadsMultiProtocolProvider,
   withRequiredSquadsChain,
   withTransactionIndex,
@@ -488,7 +489,7 @@ async function main() {
     );
   } catch (error) {
     rootLogger.error(chalk.red.bold('❌ Error reading proposal:'));
-    rootLogger.error(chalk.red(error));
+    rootLogger.error(chalk.red(formatScriptError(error)));
     process.exit(1);
   }
 }
@@ -496,6 +497,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(formatScriptError(e));
     process.exit(1);
   });

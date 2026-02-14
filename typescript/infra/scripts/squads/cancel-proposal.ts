@@ -22,6 +22,7 @@ import {
 } from '@hyperlane-xyz/utils';
 
 import {
+  formatScriptError,
   getSquadsMultiProtocolProvider,
   getSquadsTurnkeySigner,
   withRequiredSquadsChain,
@@ -104,7 +105,9 @@ async function main() {
 
   if (status === SquadsProposalStatus.Cancelled) {
     rootLogger.warn(
-      chalk.yellow(`Proposal ${proposalTransactionIndex} is already cancelled.`),
+      chalk.yellow(
+        `Proposal ${proposalTransactionIndex} is already cancelled.`,
+      ),
     );
     return;
   }
@@ -226,6 +229,8 @@ async function main() {
 }
 
 main().catch((err) => {
-  rootLogger.error('Error processing Squads proposal:', err);
+  rootLogger.error(
+    `Error processing Squads proposal: ${formatScriptError(err)}`,
+  );
   process.exit(1);
 });

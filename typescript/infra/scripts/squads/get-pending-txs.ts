@@ -19,6 +19,7 @@ import {
 
 import { executePendingTransactions } from '../../src/tx/utils.js';
 import {
+  formatScriptError,
   getSquadsMultiProtocolProvider,
   getSquadsTurnkeySigner,
   logProposals,
@@ -132,6 +133,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    rootLogger.error(e);
+    rootLogger.error(formatScriptError(e));
     process.exit(1);
   });
