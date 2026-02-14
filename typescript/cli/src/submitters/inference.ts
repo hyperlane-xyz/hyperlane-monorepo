@@ -44,6 +44,7 @@ type Cache = {
   icaByChainAndAddress: Map<string, InferredSubmitter>;
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
   signerByChain: Map<ChainName, boolean>;
+  protocolIsEthereumByChain: Map<string, boolean>;
 };
 
 type InferSubmitterFromAddressParams = {
@@ -134,12 +135,22 @@ function hasSignerForChain(
 
 function isEthereumProtocolChain(
   context: WriteCommandContext,
+  cache: Cache,
   chain: string,
 ): chain is ChainName {
+  const cached = cache.protocolIsEthereumByChain.get(chain);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   try {
-    return context.multiProvider.getProtocol(chain as ChainName) ===
+    const isEthereum =
+      context.multiProvider.getProtocol(chain as ChainName) ===
       ProtocolType.Ethereum;
+    cache.protocolIsEthereumByChain.set(chain, isEthereum);
+    return isEthereum;
   } catch {
+    cache.protocolIsEthereumByChain.set(chain, false);
     return false;
   }
 }
@@ -277,7 +288,7 @@ async function inferIcaSubmitterFromAccount({
           continue;
         }
 
-        if (!isEthereumProtocolChain(context, originChain)) {
+        if (!isEthereumProtocolChain(context, cache, originChain)) {
           continue;
         }
 
@@ -505,7 +516,7 @@ async function inferTimelockProposerSubmitter({
         if (originChainName === chain) {
           continue;
         }
-        if (!isEthereumProtocolChain(context, originChainName)) {
+        if (!isEthereumProtocolChain(context, cache, originChainName)) {
           continue;
         }
 
@@ -576,7 +587,7 @@ async function inferTimelockProposerSubmitter({
       if (originChainName === chain) {
         continue;
       }
-      if (!isEthereumProtocolChain(context, originChainName)) {
+      if (!isEthereumProtocolChain(context, cache, originChainName)) {
         continue;
       }
 
@@ -966,6 +977,7 @@ function createCache(): Cache {
     icaByChainAndAddress: new Map(),
     timelockProposerByChainAndAddress: new Map(),
     signerByChain: new Map(),
+    protocolIsEthereumByChain: new Map(),
   };
 }
 
