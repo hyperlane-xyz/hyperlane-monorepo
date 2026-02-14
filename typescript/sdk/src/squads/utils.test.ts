@@ -173,6 +173,26 @@ describe('squads utils', () => {
       );
     });
 
+    it('prefers transactionLogs over logs when both contain known errors', () => {
+      const error = {
+        transactionLogs: ['custom program error: 0x177c'],
+        logs: ['custom program error: 0x177b'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
+    it('uses logs when transactionLogs is present but not an array', () => {
+      const error = {
+        transactionLogs: 'custom program error: 0x177b',
+        logs: ['custom program error: 0x177a'],
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('parses known vote error from frozen log arrays in unknown error shape', () => {
       const error = {
         transactionLogs: Object.freeze(['Program log: AlreadyRejected']),
