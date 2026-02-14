@@ -44,7 +44,6 @@ const NON_AUTHORITY_URL_SCHEME_PREFIX_REGEX =
 const GENERIC_URL_SCHEME_PREFIX_REGEX = /^[a-zA-Z][a-zA-Z\d+.-]*:/;
 const HOST_WITH_PORT_PREFIX_REGEX = /^[^/?#:@]+:\d+(?:[/?#]|$)/;
 const SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX = /^\/\/[^/?#:@]+:(?:[/?#]|$)/;
-const SCHEME_RELATIVE_AUTHORITY_WITH_USERINFO_REGEX = /^\/\/[^/?#]*@/;
 
 const SAFE_INTERFACE = new ethers.utils.Interface([
   'function approveHash(bytes32 hashToApprove)',
@@ -99,6 +98,20 @@ function hasSchemeRelativeHostWithEmptyPort(value: string): boolean {
   return SCHEME_RELATIVE_HOST_WITH_EMPTY_PORT_REGEX.test(value);
 }
 
+function extractHostlessAuthority(value: string): string | undefined {
+  if (hasExplicitUrlScheme(value)) {
+    return undefined;
+  }
+
+  const authorityAndPath = value.startsWith('//') ? value.slice(2) : value;
+  return authorityAndPath.split(/[/?#]/, 1)[0];
+}
+
+function hasUserinfoLikeAuthority(value: string): boolean {
+  const authority = extractHostlessAuthority(value);
+  return authority !== undefined && /@|%40/i.test(authority);
+}
+
 function hasMalformedSchemeRelativeAuthority(value: string): boolean {
   // Treat scheme-relative authorities with missing host/userinfo as invalid
   // host-only values. Without this guard, URL fallback parsing can reinterpret
@@ -106,18 +119,12 @@ function hasMalformedSchemeRelativeAuthority(value: string): boolean {
   return (
     value.startsWith('//@') ||
     value.startsWith('//:') ||
-    SCHEME_RELATIVE_AUTHORITY_WITH_USERINFO_REGEX.test(value)
+    (value.startsWith('//') && hasUserinfoLikeAuthority(value))
   );
 }
 
 function hasUserinfoLikeHostlessAuthority(value: string): boolean {
-  if (hasExplicitUrlScheme(value)) {
-    return false;
-  }
-
-  const authorityAndPath = value.startsWith('//') ? value.slice(2) : value;
-  const authority = authorityAndPath.split(/[/?#]/, 1)[0];
-  return /@|%40/i.test(authority);
+  return hasUserinfoLikeAuthority(value);
 }
 
 function hasInvalidHostlessSafeServiceUrl(value: string): boolean {
