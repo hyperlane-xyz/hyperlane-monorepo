@@ -1118,6 +1118,10 @@ async function inferSubmitterFromAddress({
     return defaultSubmitter;
   }
 
+  if (eqAddress(address, ethersConstants.AddressZero)) {
+    return defaultSubmitter;
+  }
+
   const signerAddress = await getSignerAddressForChain(context, cache, chain);
   if (!signerAddress) {
     return defaultSubmitter;
