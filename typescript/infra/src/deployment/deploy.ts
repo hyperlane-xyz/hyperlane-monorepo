@@ -22,7 +22,7 @@ import {
   getAddresses,
   writeAddresses,
 } from '../../scripts/agent-utils.js';
-import { DeployEnvironment } from '../config/environment.js';
+import { DeployEnvironment } from '../config/deploy-environment.js';
 import { writeAndFormatJsonAtPath } from '../utils/utils.js';
 
 enum DeployStatus {

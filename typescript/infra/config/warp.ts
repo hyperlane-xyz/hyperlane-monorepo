@@ -10,10 +10,8 @@ import {
 } from '@hyperlane-xyz/sdk';
 import { assert, objMap, promiseObjAll } from '@hyperlane-xyz/utils';
 
-import {
-  EnvironmentConfig,
-  getRouterConfigsForAllVms,
-} from '../src/config/environment.js';
+import { getRouterConfigsForAllVms } from '../scripts/core-utils.js';
+import { EnvironmentConfig } from '../src/config/environment.js';
 import { RouterConfigWithoutOwner } from '../src/config/warp.js';
 
 import { getAleoUSDCWarpConfig } from './environments/mainnet3/warp/configGetters/getAleoUSDCWarpConfig.js';

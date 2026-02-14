@@ -14,7 +14,6 @@ import {
 import { WithAddress, assert } from '@hyperlane-xyz/utils';
 
 import type { BaseMetadataBuilder } from './builder.js';
-import { decodeIsmMetadata } from './decode.js';
 import type {
   MetadataBuilder,
   MetadataContext,
@@ -61,6 +60,10 @@ export class StaticRoutingMetadataBuilder implements MetadataBuilder {
   static decode(
     metadata: string,
     context: MetadataContext<WithAddress<DomainRoutingIsmConfig>>,
+    decodeFn: (
+      metadata: string,
+      context: MetadataContext,
+    ) => StructuredMetadata,
   ): RoutingMetadata<StructuredMetadata | string> {
     // TODO: this is a naive implementation, we should support domain ID keys
     assert(context.message.parsed.originChain, 'originChain is required');
@@ -69,7 +72,7 @@ export class StaticRoutingMetadataBuilder implements MetadataBuilder {
     const originMetadata =
       typeof ism === 'string'
         ? metadata
-        : decodeIsmMetadata(metadata, {
+        : decodeFn(metadata, {
             ...context,
             ism: ism as DerivedIsmConfig,
           });

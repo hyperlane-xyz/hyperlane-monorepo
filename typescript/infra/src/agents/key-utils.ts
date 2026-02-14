@@ -19,7 +19,7 @@ import type {
   AgentContextConfig,
   RootAgentConfig,
 } from '../config/agent/agent.js';
-import type { DeployEnvironment } from '../config/environment.js';
+import type { DeployEnvironment } from '../config/deploy-environment.js';
 import { getAWValidatorsPath } from '../paths.js';
 import { Role } from '../roles.js';
 import { fetchGCPSecret, setGCPSecretUsingClient } from '../utils/gcloud.js';
