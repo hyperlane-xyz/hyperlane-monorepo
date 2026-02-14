@@ -5,6 +5,7 @@ import { encodeFunctionData, getAddress, parseAbi } from 'viem';
 import type { MultiProvider } from '../providers/MultiProvider.js';
 
 import {
+  DEFAULT_SAFE_DEPLOYMENT_VERSIONS,
   createSafeTransactionData,
   decodeMultiSendData,
   getKnownMultiSendAddresses,
@@ -320,10 +321,23 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(getKnownMultiSendAddresses.name, () => {
+    it('uses expected default safe deployment versions', () => {
+      expect([...DEFAULT_SAFE_DEPLOYMENT_VERSIONS]).to.deep.equal([
+        '1.3.0',
+        '1.4.1',
+      ]);
+    });
+
     it('returns known deployment addresses for multisend contracts', () => {
       const deployments = getKnownMultiSendAddresses();
       expect(deployments.multiSend.length).to.be.greaterThan(0);
       expect(deployments.multiSendCallOnly.length).to.be.greaterThan(0);
+      expect(new Set(deployments.multiSend).size).to.equal(
+        deployments.multiSend.length,
+      );
+      expect(new Set(deployments.multiSendCallOnly).size).to.equal(
+        deployments.multiSendCallOnly.length,
+      );
     });
 
     it('throws for unknown safe deployment version', () => {
