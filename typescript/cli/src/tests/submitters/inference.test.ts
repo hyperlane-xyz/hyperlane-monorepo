@@ -95,6 +95,56 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     );
   });
 
+  it('preserves transaction order by splitting non-contiguous explicit submitter matches', async () => {
+    const strategyPath = `${tmpdir()}/submitter-inference-overrides-order-${Date.now()}.yaml`;
+    const overrideTarget = '0x9999999999999999999999999999999999999999';
+    writeYamlOrJson(strategyPath, {
+      [CHAIN]: {
+        submitter: {
+          type: TxSubmitterType.JSON_RPC,
+          chain: CHAIN,
+        },
+        submitterOverrides: {
+          [overrideTarget]: {
+            type: TxSubmitterType.GNOSIS_TX_BUILDER,
+            chain: CHAIN,
+            safeAddress: '0x8888888888888888888888888888888888888888',
+            version: '1.0',
+          },
+        },
+      },
+    });
+
+    const txDefaultFirst = { ...TX, to: '0x1111111111111111111111111111111111111111' };
+    const txOverride = { ...TX, to: overrideTarget };
+    const txDefaultLast = { ...TX, to: '0x2222222222222222222222222222222222222222' };
+
+    const batches = await resolveSubmitterBatchesForTransactions({
+      chain: CHAIN,
+      transactions: [
+        txDefaultFirst as any,
+        txOverride as any,
+        txDefaultLast as any,
+      ],
+      context: {
+        multiProvider: {
+          getProtocol: () => ProtocolType.Ethereum,
+        },
+      } as any,
+      strategyUrl: strategyPath,
+    });
+
+    expect(batches).to.have.length(3);
+    expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[1].config.submitter.type).to.equal(
+      TxSubmitterType.GNOSIS_TX_BUILDER,
+    );
+    expect(batches[2].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+    expect(batches[0].transactions).to.deep.equal([txDefaultFirst as any]);
+    expect(batches[1].transactions).to.deep.equal([txOverride as any]);
+    expect(batches[2].transactions).to.deep.equal([txDefaultLast as any]);
+  });
+
   it('prioritizes selector-specific override over target override', async () => {
     const strategyPath = `${tmpdir()}/submitter-inference-selector-overrides-${Date.now()}.yaml`;
     const overrideTarget = '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa';
@@ -384,6 +434,84 @@ describe('resolveSubmitterBatchesForTransactions', () => {
       );
       expect(batches[0].transactions).to.deep.equal([txSignerOwned as any]);
       expect(batches[1].transactions).to.deep.equal([txSafeOwned as any]);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+    }
+  });
+
+  it('preserves transaction order by splitting non-contiguous inferred submitter matches', async () => {
+    const safeOwner = '0x2222222222222222222222222222222222222222';
+    const txSignerFirst = {
+      ...TX,
+      to: '0xaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa',
+    };
+    const txSafeOwned = {
+      ...TX,
+      to: '0xbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb',
+    };
+    const txSignerLast = {
+      ...TX,
+      to: '0xcccccccccccccccccccccccccccccccccccccccc',
+    };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      (targetAddress: string) =>
+        ({
+          owner: async () =>
+            targetAddress.toLowerCase() === txSafeOwned.to.toLowerCase()
+              ? safeOwner
+              : SIGNER,
+        }) as any,
+    );
+    const safeStub = sinon.stub(ISafe__factory, 'connect').callsFake(
+      (address: string) => {
+        if (address.toLowerCase() !== safeOwner.toLowerCase()) {
+          throw new Error('not safe');
+        }
+
+        return {
+          getThreshold: async () => 1,
+          nonce: async () => 0,
+        } as any;
+      },
+    );
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [
+          txSignerFirst as any,
+          txSafeOwned as any,
+          txSignerLast as any,
+        ],
+        context,
+      });
+
+      expect(batches).to.have.length(3);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(batches[1].config.submitter.type).to.equal(
+        TxSubmitterType.GNOSIS_TX_BUILDER,
+      );
+      expect(batches[2].config.submitter.type).to.equal(
+        TxSubmitterType.JSON_RPC,
+      );
+      expect(batches[0].transactions).to.deep.equal([txSignerFirst as any]);
+      expect(batches[1].transactions).to.deep.equal([txSafeOwned as any]);
+      expect(batches[2].transactions).to.deep.equal([txSignerLast as any]);
     } finally {
       ownableStub.restore();
       safeStub.restore();

@@ -687,37 +687,30 @@ export async function resolveSubmitterBatchesForTransactions({
       : undefined;
 
   if (explicitSubmissionStrategy) {
-    const grouped = new Map<
-      string,
-      { config: ExtendedSubmissionStrategy; transactions: TypedAnnotatedTransaction[]; firstIndex: number }
-    >();
-    for (const [index, transaction] of transactions.entries()) {
+    const batches: ResolvedSubmitterBatch[] = [];
+    let lastBatchFingerprint: string | null = null;
+
+    for (const transaction of transactions) {
       const selectedConfig = resolveExplicitSubmitterForTransaction({
         chain,
         protocol,
         transaction,
         explicitSubmissionStrategy,
       });
+      const fingerprint = getConfigFingerprint(selectedConfig);
 
-      const key = getConfigFingerprint(selectedConfig);
-      const existing = grouped.get(key);
-      if (existing) {
-        existing.transactions.push(transaction);
+      if (batches.length > 0 && lastBatchFingerprint === fingerprint) {
+        batches[batches.length - 1].transactions.push(transaction);
       } else {
-        grouped.set(key, {
+        batches.push({
           config: selectedConfig,
           transactions: [transaction],
-          firstIndex: index,
         });
+        lastBatchFingerprint = fingerprint;
       }
     }
 
-    return Array.from(grouped.values())
-      .sort((a, b) => a.firstIndex - b.firstIndex)
-      .map(({ config, transactions: groupedTransactions }) => ({
-        config,
-        transactions: groupedTransactions,
-      }));
+    return batches;
   }
 
   if (protocol !== ProtocolType.Ethereum) {
@@ -730,12 +723,10 @@ export async function resolveSubmitterBatchesForTransactions({
   }
 
   const cache = createCache();
-  const grouped = new Map<
-    string,
-    { config: ExtendedSubmissionStrategy; transactions: TypedAnnotatedTransaction[]; firstIndex: number }
-  >();
+  const batches: ResolvedSubmitterBatch[] = [];
+  let lastBatchFingerprint: string | null = null;
 
-  for (const [index, transaction] of transactions.entries()) {
+  for (const transaction of transactions) {
     let inferred: ExtendedSubmissionStrategy;
     try {
       inferred = await inferSubmitterFromTransaction({
@@ -752,23 +743,17 @@ export async function resolveSubmitterBatchesForTransactions({
       inferred = getDefaultSubmitter(chain);
     }
 
-    const key = getConfigFingerprint(inferred);
-    const current = grouped.get(key);
-    if (current) {
-      current.transactions.push(transaction);
+    const fingerprint = getConfigFingerprint(inferred);
+    if (batches.length > 0 && lastBatchFingerprint === fingerprint) {
+      batches[batches.length - 1].transactions.push(transaction);
     } else {
-      grouped.set(key, {
+      batches.push({
         config: inferred,
         transactions: [transaction],
-        firstIndex: index,
       });
+      lastBatchFingerprint = fingerprint;
     }
   }
 
-  return Array.from(grouped.values())
-    .sort((a, b) => a.firstIndex - b.firstIndex)
-    .map(({ config, transactions: groupedTransactions }) => ({
-      config,
-      transactions: groupedTransactions,
-    }));
+  return batches;
 }
