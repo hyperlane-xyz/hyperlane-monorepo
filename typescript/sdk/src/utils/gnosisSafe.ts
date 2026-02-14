@@ -1511,13 +1511,21 @@ function serializeSafeCallValue(value: unknown): string {
   if (value === undefined || value === null) {
     return '0';
   }
+  let serializedValue: unknown;
   try {
-    return value.toString();
+    serializedValue = value.toString();
   } catch {
     throw new Error(
       `Safe call value must be serializable: ${stringifyValueForError(value)}`,
     );
   }
+  assert(
+    typeof serializedValue === 'string' &&
+      serializedValue.length > 0 &&
+      /^\d+$/.test(serializedValue),
+    `Safe call value must be an unsigned integer string: ${stringifyValueForError(serializedValue)}`,
+  );
+  return serializedValue;
 }
 
 export function asHex(hex?: unknown, errorMessages?: AsHexErrorMessages): Hex {

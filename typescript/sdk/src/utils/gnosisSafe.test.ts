@@ -3323,6 +3323,32 @@ describe('gnosisSafe utils', () => {
         }),
       ).to.throw('Safe call value must be serializable: <unstringifiable>');
     });
+
+    it('throws when call value is not an unsigned integer string', () => {
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: -1,
+        }),
+      ).to.throw('Safe call value must be an unsigned integer string: -1');
+
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: '1.0',
+        }),
+      ).to.throw('Safe call value must be an unsigned integer string: 1.0');
+
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: true,
+        }),
+      ).to.throw('Safe call value must be an unsigned integer string: true');
+    });
   });
 
   describe(getOwnerChanges.name, () => {
