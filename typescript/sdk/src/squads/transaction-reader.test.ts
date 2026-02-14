@@ -74,6 +74,19 @@ function createUnstringifiableErrorWithMessage(
   };
 }
 
+function createUnstringifiableErrorWithStackAndMessage(
+  stack: string,
+  message: string,
+): { stack: string; message: string; toString: () => string } {
+  return {
+    stack,
+    message,
+    toString: () => {
+      throw new Error('unable to stringify');
+    },
+  };
+}
+
 function createErrorWithUnstringifiableMessage(): Error {
   const error = new Error('boom');
   Object.defineProperty(error, 'message', {
@@ -506,6 +519,51 @@ describe('squads transaction reader', () => {
     ]);
   });
 
+  it('prefers stack over message from thrown object when stringification fails', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: () => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    const stackBackedError = createUnstringifiableErrorWithStackAndMessage(
+      'Error: config read failed\n at test.ts:1:1',
+      'config read failed',
+    );
+    readerAny.readConfigTransaction = async () => {
+      throw stackBackedError;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError).to.equal(stackBackedError);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: 'Error: config read failed\n at test.ts:1:1',
+      },
+    ]);
+  });
+
   it('records exactly one error when proposal data lookup fails', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
@@ -869,6 +927,66 @@ describe('squads transaction reader', () => {
     });
     expect(parsed.instructions[0]?.warnings).to.deep.equal([
       'Failed to parse: unable to parse instruction',
+    ]);
+  });
+
+  it('prefers stack over message for unstringifiable instruction parse throw objects', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+      isMailboxInstruction: () => boolean;
+    };
+
+    readerAny.isMailboxInstruction = () => {
+      throw createUnstringifiableErrorWithStackAndMessage(
+        'Error: unable to parse instruction\n at parse.ts:1:1',
+        'unable to parse instruction',
+      );
+    };
+
+    const vaultTransaction = {
+      message: {
+        accountKeys: [SYSTEM_PROGRAM_ID],
+        addressTableLookups: [],
+        instructions: [
+          {
+            programIdIndex: 0,
+            accountIndexes: [],
+            data: Buffer.from([1, 2, 3]),
+          },
+        ],
+      },
+    };
+
+    const parsed = await readerAny.parseVaultInstructions(
+      'solanamainnet',
+      vaultTransaction,
+      {
+        getAccountInfo: async () => null,
+      },
+    );
+
+    expect(parsed.warnings).to.deep.equal([
+      'Failed to parse instruction: Instruction 0: Error: unable to parse instruction\n at parse.ts:1:1',
+    ]);
+    expect(parsed.instructions).to.have.lengthOf(1);
+    expect(parsed.instructions[0]?.data).to.deep.equal({
+      error: 'Error: unable to parse instruction\n at parse.ts:1:1',
+    });
+    expect(parsed.instructions[0]?.warnings).to.deep.equal([
+      'Failed to parse: Error: unable to parse instruction\n at parse.ts:1:1',
     ]);
   });
 });
