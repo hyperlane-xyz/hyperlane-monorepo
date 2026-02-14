@@ -590,15 +590,7 @@ export function getSquadTxStatus(
   transactionIndex: number,
   staleTransactionIndex: number,
 ): SquadTxStatus {
-  assert(
-    typeof statusKind === 'string',
-    `Expected status kind to be a string, got ${typeof statusKind}`,
-  );
-  const normalizedStatusKind = statusKind.trim();
-  assert(
-    normalizedStatusKind.length > 0,
-    'Expected status kind to be a non-empty string',
-  );
+  const normalizedStatusKind = normalizeStatusKind(statusKind);
   assert(
     Number.isSafeInteger(approvals) && approvals >= 0,
     `Expected approvals to be a non-negative safe integer, got ${approvals}`,
@@ -704,14 +696,9 @@ function getProposalStatusMetadata(proposal: accounts.Proposal): {
   assert(status && typeof status === 'object', 'Squads proposal status must be an object');
 
   const statusRecord = status as Record<string, unknown>;
-  const statusKind = statusRecord.__kind;
-  assert(
-    typeof statusKind === 'string',
+  const normalizedStatusKind = normalizeStatusKind(
+    statusRecord.__kind,
     'Squads proposal status kind must be a string',
-  );
-  const normalizedStatusKind = statusKind.trim();
-  assert(
-    normalizedStatusKind.length > 0,
     'Squads proposal status kind must be a non-empty string',
   );
 
@@ -719,6 +706,17 @@ function getProposalStatusMetadata(proposal: accounts.Proposal): {
     statusKind: normalizedStatusKind,
     rawStatusTimestamp: statusRecord.timestamp,
   };
+}
+
+function normalizeStatusKind(
+  statusKind: unknown,
+  nonStringMessage = `Expected status kind to be a string, got ${typeof statusKind}`,
+  emptyMessage = 'Expected status kind to be a non-empty string',
+): string {
+  assert(typeof statusKind === 'string', nonStringMessage);
+  const normalizedStatusKind = statusKind.trim();
+  assert(normalizedStatusKind.length > 0, emptyMessage);
+  return normalizedStatusKind;
 }
 
 function getProposalVoteCount(
