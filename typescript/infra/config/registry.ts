@@ -85,6 +85,10 @@ export function resetRegistry() {
 export function getRegistry(): FileSystemRegistry {
   if (!registry) {
     const registryUri = process.env.REGISTRY_URI || DEFAULT_REGISTRY_URI;
+    assert(
+      existsSync(registryUri),
+      `Registry URI does not exist on disk: ${registryUri}`,
+    );
     rootLogger.debug({ registryUri }, 'Using registry URI');
     registry = new FileSystemRegistry({
       uri: registryUri,

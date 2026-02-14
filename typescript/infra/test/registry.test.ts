@@ -60,4 +60,16 @@ describe('Registry defaults', () => {
     const registry = getRegistry();
     expect(registry.getUri()).to.equal(tempRegistryDir);
   });
+
+  it('throws a clear error for a missing REGISTRY_URI path', () => {
+    process.env.REGISTRY_URI = join(
+      tmpdir(),
+      'hyperlane-registry-does-not-exist',
+    );
+    resetRegistry();
+
+    expect(() => getRegistry()).to.throw(
+      `Registry URI does not exist on disk: ${process.env.REGISTRY_URI}`,
+    );
+  });
 });
