@@ -21,4 +21,5 @@ Safe utility typing and robustness were improved by:
 - Tightening Safe API key host matching with hostname boundary checks, trailing-dot normalization, malformed URL and userinfo spoof rejection (including encoded `@` and encoded backslash variants), and strict authority validation while preserving valid encoded path/query/fragment data.
 - Hardening multisend decoding with pre-decode selector-length guards plus strict segment-boundary checks that reject truncated payload headers/bodies, overflowed data-length fields, unsupported operation values, and invalid deployment-version inputs (non-array lists, non-string elements, and empty/whitespace-only entries).
 - Expanding safe transaction parser coverage across Safe methods (`execTransaction*`, `approveHash`, `setup`) and adding additional fail-fast assertions in deployment transaction utilities.
+- Hardening Safe call transaction-data construction with boundary validation for payload/object shape, target address validity, calldata hex normalization, and deterministic value serialization errors for malformed runtime inputs.
 - Requiring typed-data signer support before Safe tx deletion.

@@ -311,6 +311,12 @@ export type SafeCallData = {
   value?: string | number | bigint | { toString(): string };
 };
 
+type ParseableSafeCallData = Omit<SafeCallData, 'to' | 'data' | 'value'> & {
+  to?: unknown;
+  data?: unknown;
+  value?: unknown;
+};
+
 export type SafeDeploymentConfig = {
   owners: Address[];
   threshold: number;
@@ -887,13 +893,27 @@ export async function getSafeAndService(
   return { safeSdk, safeService };
 }
 
-export function createSafeTransactionData(
-  call: SafeCallData,
-): MetaTransactionData {
+export function createSafeTransactionData(call: unknown): MetaTransactionData {
+  const callData =
+    call !== null && typeof call === 'object'
+      ? (call as ParseableSafeCallData)
+      : undefined;
+  assert(
+    callData,
+    `Safe call payload must be an object: ${stringifyValueForError(call)}`,
+  );
+  assert(
+    typeof callData.to === 'string' && ethers.utils.isAddress(callData.to),
+    `Safe call target must be valid address: ${stringifyValueForError(callData.to)}`,
+  );
+  const normalizedData = asHex(callData.data, {
+    required: 'Safe call data is required',
+    invalid: 'Safe call data must be hex',
+  });
   return {
-    to: call.to,
-    data: call.data.toString(),
-    value: call.value?.toString() || '0',
+    to: callData.to,
+    data: normalizedData,
+    value: serializeSafeCallValue(callData.value),
   };
 }
 
@@ -1480,6 +1500,19 @@ function stringifyValueForError(value: unknown): string {
     return String(value);
   } catch {
     return '<unstringifiable>';
+  }
+}
+
+function serializeSafeCallValue(value: unknown): string {
+  if (value === undefined || value === null) {
+    return '0';
+  }
+  try {
+    return value.toString();
+  } catch {
+    throw new Error(
+      `Safe call value must be serializable: ${stringifyValueForError(value)}`,
+    );
   }
 }
 

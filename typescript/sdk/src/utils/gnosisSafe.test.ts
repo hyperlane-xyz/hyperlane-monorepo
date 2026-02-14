@@ -3233,6 +3233,15 @@ describe('gnosisSafe utils', () => {
   });
 
   describe(createSafeTransactionData.name, () => {
+    it('normalizes calldata casing and missing 0x prefix', () => {
+      const callData = createSafeTransactionData({
+        to: '0x00000000000000000000000000000000000000aa',
+        data: 'AbCd',
+      });
+
+      expect(callData.data).to.equal('0xabcd');
+    });
+
     it('defaults value to zero when omitted', () => {
       const callData = createSafeTransactionData({
         to: '0x00000000000000000000000000000000000000aa',
@@ -3262,6 +3271,55 @@ describe('gnosisSafe utils', () => {
       });
 
       expect(callData.value).to.equal('123');
+    });
+
+    it('throws when call payload is non-object', () => {
+      expect(() => createSafeTransactionData(null)).to.throw(
+        'Safe call payload must be an object: null',
+      );
+      expect(() => createSafeTransactionData(123)).to.throw(
+        'Safe call payload must be an object: 123',
+      );
+    });
+
+    it('throws when target address is invalid', () => {
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x1234',
+          data: '0x1234',
+        }),
+      ).to.throw('Safe call target must be valid address: 0x1234');
+    });
+
+    it('throws when calldata is missing or invalid', () => {
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x00000000000000000000000000000000000000aa',
+        }),
+      ).to.throw('Safe call data is required');
+
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: 123,
+        }),
+      ).to.throw('Safe call data must be hex');
+    });
+
+    it('throws deterministic error for unstringifiable call value', () => {
+      const unstringifiableValue = {
+        toString: () => {
+          throw new Error('boom');
+        },
+      };
+
+      expect(() =>
+        createSafeTransactionData({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: unstringifiableValue,
+        }),
+      ).to.throw('Safe call value must be serializable: <unstringifiable>');
     });
   });
 
