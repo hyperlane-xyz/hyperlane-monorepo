@@ -124,7 +124,19 @@ export async function executePendingTransactions<T>(
     );
   }
 
-  if (executableTxs.length === 0) {
+  let executableTxCount = 0;
+  try {
+    executableTxCount = executableTxs.length;
+  } catch {
+    throw new Error('Executable transactions length is inaccessible');
+  }
+  if (!Number.isSafeInteger(executableTxCount) || executableTxCount < 0) {
+    throw new Error(
+      `Executable transactions length is invalid: ${stringifyValueForError(executableTxCount)}`,
+    );
+  }
+
+  if (executableTxCount === 0) {
     return;
   }
 
@@ -132,7 +144,7 @@ export async function executePendingTransactions<T>(
   let confirmExecuteAll = false;
   try {
     const executeAllResponse = await confirmPrompt({
-      message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
+      message: `Execute ALL ${executableTxCount} transactions without further prompts?`,
       default: false,
     });
     if (typeof executeAllResponse === 'boolean') {
@@ -157,7 +169,22 @@ export async function executePendingTransactions<T>(
     error: unknown;
   }> = [];
 
-  for (const tx of executableTxs) {
+  for (let index = 0; index < executableTxCount; index += 1) {
+    let tx: T;
+    try {
+      tx = executableTxs[index] as T;
+    } catch (error) {
+      rootLogger.error(
+        chalk.red(`Error reading pending transaction at index ${index}:`),
+        error,
+      );
+      failedTransactions.push({
+        id: '<unknown>',
+        chain: '<unknown>',
+        error,
+      });
+      continue;
+    }
     let id: string;
     let chain: string;
     try {

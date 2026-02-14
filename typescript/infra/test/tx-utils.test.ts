@@ -72,6 +72,56 @@ describe('executePendingTransactions', () => {
     }
   });
 
+  it('throws when executable transaction length is inaccessible', async () => {
+    const txsWithThrowingLength = new Proxy([{ id: 'tx1', chain: 'chainA' }], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          throw new Error('boom');
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    try {
+      await executePendingTransactions(
+        txsWithThrowingLength as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Executable transactions length is inaccessible',
+      );
+    }
+  });
+
+  it('throws when executable transaction length is invalid', async () => {
+    const txsWithInvalidLength = new Proxy([{ id: 'tx1', chain: 'chainA' }], {
+      get(target, property, receiver) {
+        if (property === 'length') {
+          return Number.POSITIVE_INFINITY;
+        }
+        return Reflect.get(target, property, receiver);
+      },
+    });
+
+    try {
+      await executePendingTransactions(
+        txsWithInvalidLength as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async () => undefined,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Executable transactions length is invalid: Infinity',
+      );
+    }
+  });
+
   it('throws when confirmPrompt input is invalid', async () => {
     try {
       await executePendingTransactions(
@@ -281,6 +331,38 @@ describe('executePendingTransactions', () => {
     } catch (error) {
       expect((error as Error).message).to.equal(
         'Failed to execute 1 transaction(s): <unknown>:tx2',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1']);
+  });
+
+  it('continues when transaction entry access throws', async () => {
+    const txsWithThrowingEntry = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    Object.defineProperty(txsWithThrowingEntry, '1', {
+      get() {
+        throw new Error('entry boom');
+      },
+    });
+    const executed: string[] = [];
+
+    try {
+      await executePendingTransactions(
+        txsWithThrowingEntry as unknown as PendingTxFixture[],
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        async () => true,
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): <unknown>:<unknown>',
       );
     }
 
