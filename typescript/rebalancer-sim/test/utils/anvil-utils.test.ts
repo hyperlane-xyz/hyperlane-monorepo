@@ -1576,6 +1576,32 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches wrapper message fallbacks when cause and errors accessors throw', () => {
+      for (const [wrapperName, errors] of buildNoisyWrappersWithMessage(
+        'No Docker client strategy found',
+      )) {
+        if (typeof errors === 'object' && errors !== null) {
+          Object.defineProperty(errors, 'cause', {
+            configurable: true,
+            get() {
+              throw new Error('blocked cause accessor');
+            },
+          });
+          Object.defineProperty(errors, 'errors', {
+            configurable: true,
+            get() {
+              throw new Error('blocked errors accessor');
+            },
+          });
+        }
+
+        expect(
+          isContainerRuntimeUnavailable({ errors }),
+          `${wrapperName} wrapper should surface runtime message despite throwing fields`,
+        ).to.equal(true);
+      }
+    });
+
     it('matches plain-object wrapper message fallback under extraction limits', () => {
       const errors = buildNoisyObjectWrapperWithFallback(
         'cause',
@@ -1585,6 +1611,32 @@ describe('Anvil utils', () => {
         value: undefined,
         enumerable: false,
         configurable: true,
+      });
+      Object.defineProperty(errors, 'message', {
+        value: 'No Docker client strategy found',
+        enumerable: false,
+        configurable: true,
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
+    it('matches plain-object wrapper message fallback when cause and errors accessors throw', () => {
+      const errors = buildNoisyObjectWrapperWithFallback(
+        'cause',
+        'non-runtime-noise',
+      );
+      Object.defineProperty(errors, 'cause', {
+        configurable: true,
+        get() {
+          throw new Error('blocked cause accessor');
+        },
+      });
+      Object.defineProperty(errors, 'errors', {
+        configurable: true,
+        get() {
+          throw new Error('blocked errors accessor');
+        },
       });
       Object.defineProperty(errors, 'message', {
         value: 'No Docker client strategy found',

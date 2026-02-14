@@ -178,4 +178,6 @@ Nested wrapper extraction now also preserves runtime-unavailable wrapper-level `
 
 Regression coverage now also confirms noisy map/array/set/generator wrappers (and noisy plain-object wrappers) still detect runtime-unavailable wrapper-level `message` fallbacks under extraction pressure.
 
+Regression coverage now also confirms noisy wrapper-level `message` fallbacks remain detectable when wrapper `cause` and `errors` accessors throw across map/array/set/generator and plain-object wrappers.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
