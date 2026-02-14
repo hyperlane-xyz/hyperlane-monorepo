@@ -121,7 +121,9 @@ export function parseSquadsProposalVoteError(
 
 /**
  * Parse known Squads proposal vote/cancel errors from an unknown error object.
- * Expects optional `transactionLogs` or `logs` string array shape from Solana RPC failures.
+ * Supports direct string errors and nested wrapper objects commonly returned by
+ * Solana clients (`error`, `cause`, `data`, `value`, `errors[]`) and scans
+ * their `transactionLogs`, `logs`, and `message` string fields.
  */
 export function parseSquadsProposalVoteErrorFromError(
   error: unknown,
