@@ -144,7 +144,12 @@ export function hasSafeServiceTransactionPayload(
 }
 
 export function normalizeSafeServiceUrl(txServiceUrl: string): string {
-  const normalized = txServiceUrl.replace(/\/+$/, '');
+  let normalized = txServiceUrl.replace(/\/+$/, '');
+
+  // Some metadata may already point to a versioned API path (e.g. /api/v2).
+  // Canonicalize this to /api so downstream helpers can append /v2/... safely.
+  normalized = normalized.replace(/\/api\/v\d+$/i, '/api');
+
   if (normalized.endsWith('/api')) {
     return normalized;
   }
