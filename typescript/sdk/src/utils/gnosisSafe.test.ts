@@ -88,6 +88,11 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
+          'https://safe-transaction-mainnet.safe.global/path%5Cfoo/api',
+        ),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired(
           'https://safe-transaction-mainnet.safe.global/path%252540foo/api',
         ),
       ).to.equal(true);
@@ -330,6 +335,9 @@ describe('gnosisSafe utils', () => {
       ).to.equal(true);
       expect(
         safeApiKeyRequired('//safe-transaction-mainnet.safe.global/path%40foo'),
+      ).to.equal(true);
+      expect(
+        safeApiKeyRequired('//safe-transaction-mainnet.safe.global/path%5Cfoo'),
       ).to.equal(true);
       expect(
         safeApiKeyRequired(
@@ -584,6 +592,9 @@ describe('gnosisSafe utils', () => {
         normalizeSafeServiceUrl('https://safe.global/path%40foo'),
       ).to.equal('https://safe.global/path%40foo/api');
       expect(
+        normalizeSafeServiceUrl('https://safe.global/path%5Cfoo'),
+      ).to.equal('https://safe.global/path%5Cfoo/api');
+      expect(
         normalizeSafeServiceUrl('https://safe.global/path%252540foo'),
       ).to.equal('https://safe.global/path%252540foo/api');
       expect(
@@ -675,6 +686,9 @@ describe('gnosisSafe utils', () => {
       );
       expect(normalizeSafeServiceUrl('safe.global/path%40foo')).to.equal(
         'https://safe.global/path%40foo/api',
+      );
+      expect(normalizeSafeServiceUrl('safe.global/path%5Cfoo')).to.equal(
+        'https://safe.global/path%5Cfoo/api',
       );
       expect(normalizeSafeServiceUrl('safe.global/path%252540foo')).to.equal(
         'https://safe.global/path%252540foo/api',
@@ -787,6 +801,9 @@ describe('gnosisSafe utils', () => {
       expect(
         normalizeSafeServiceUrl('//safe.global/tx-service/path%40foo'),
       ).to.equal('https://safe.global/tx-service/path%40foo/api');
+      expect(normalizeSafeServiceUrl('//safe.global/path%5Cfoo')).to.equal(
+        'https://safe.global/path%5Cfoo/api',
+      );
       expect(normalizeSafeServiceUrl('//safe.global/path%252540foo')).to.equal(
         'https://safe.global/path%252540foo/api',
       );
