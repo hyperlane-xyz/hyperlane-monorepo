@@ -723,6 +723,32 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
+    it('handles array wrappers with self-referential errors fields and runtime causes', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const arrayWrapper = Object.assign([{ message: 'noise-entry' }], {
+        cause: { message: 'No Docker client strategy found' },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'array wrapper without nested details';
+        },
+      });
+      Object.assign(arrayWrapper, { errors: arrayWrapper });
+
+      const wrappedError = {
+        errors: arrayWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('matches runtime errors in set wrappers with cause fallbacks when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const setWrapper = Object.assign(
