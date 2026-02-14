@@ -155,6 +155,12 @@ describe('gnosisSafe utils', () => {
     });
 
     it('normalizes host-only service urls by inferring https', () => {
+      expect(normalizeSafeServiceUrl('safe.global')).to.equal(
+        'https://safe.global/api',
+      );
+      expect(normalizeSafeServiceUrl('safe.global/')).to.equal(
+        'https://safe.global/api',
+      );
       expect(normalizeSafeServiceUrl('safe.global/tx-service/eth')).to.equal(
         'https://safe.global/tx-service/eth/api',
       );
