@@ -1443,10 +1443,18 @@ interface AsHexErrorMessages {
 export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
   const requiredErrorMessage =
     errorMessages?.required ?? 'Hex value is required';
+  const invalidErrorMessage = errorMessages?.invalid;
   assert(hex, requiredErrorMessage);
   const normalizedHex = hex.trim();
   assert(normalizedHex.length > 0, requiredErrorMessage);
   const lowerCaseHex = normalizedHex.toLowerCase();
+  const normalizedBody = lowerCaseHex.startsWith('0x')
+    ? lowerCaseHex.slice(2)
+    : lowerCaseHex;
+  assert(
+    normalizedBody.length % 2 === 0,
+    invalidErrorMessage ?? `Hex value must be valid hex: ${normalizedHex}`,
+  );
 
   if (isHex(lowerCaseHex)) {
     return lowerCaseHex as Hex;
@@ -1455,9 +1463,10 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
   const prefixedHex = lowerCaseHex.startsWith('0x')
     ? lowerCaseHex
     : `0x${lowerCaseHex}`;
-  const invalidErrorMessage =
-    errorMessages?.invalid ?? `Hex value must be valid hex: ${normalizedHex}`;
-  assert(isHex(prefixedHex), invalidErrorMessage);
+  assert(
+    isHex(prefixedHex),
+    invalidErrorMessage ?? `Hex value must be valid hex: ${normalizedHex}`,
+  );
   return prefixedHex as Hex;
 }
 
