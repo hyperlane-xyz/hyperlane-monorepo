@@ -560,32 +560,67 @@ async function inferIcaSubmitterFromAccount({
     compareLogsByPosition(b, a),
   );
 
-  let parsedLatestIcaEvent:
-    | {
-        originDomain: number;
-        originRouter: Address;
-        owner: Address;
-        ism: Address;
-      }
-    | undefined;
   for (const log of logsDescendingByPosition) {
+    let originDomain: number;
+    let originRouter: Address;
+    let owner: Address;
+    let ism: Address;
     try {
       const parsed = destinationRouter.interface.parseLog(log);
-      parsedLatestIcaEvent = {
-        originDomain: Number(parsed.args.origin),
-        originRouter: bytes32ToAddress(parsed.args.router),
-        owner: bytes32ToAddress(parsed.args.owner),
-        ism: parsed.args.ism as Address,
-      };
-      break;
+      originDomain = Number(parsed.args.origin);
+      originRouter = bytes32ToAddress(parsed.args.router);
+      owner = bytes32ToAddress(parsed.args.owner);
+      ism = parsed.args.ism as Address;
     } catch {
       continue;
     }
+
+    const originChain = getChainNameForDomain(context, cache, originDomain);
+    if (!originChain) {
+      continue;
+    }
+
+    if (!(await hasSignerForChain(context, cache, originChain))) {
+      continue;
+    }
+
+    let internalSubmitter: InferredSubmitter;
+    try {
+      internalSubmitter = await inferSubmitterFromAddress({
+        chain: originChain,
+        address: owner,
+        context,
+        cache,
+        depth: depth + 1,
+      });
+    } catch {
+      continue;
+    }
+
+    const submitter = {
+      type: TxSubmitterType.INTERCHAIN_ACCOUNT,
+      chain: originChain,
+      destinationChain,
+      owner,
+      internalSubmitter,
+      originInterchainAccountRouter: originRouter,
+      destinationInterchainAccountRouter: normalizedDestinationRouterAddress,
+      ...(eqAddress(ism, ethersConstants.AddressZero)
+        ? {}
+        : { interchainSecurityModule: ism }),
+    } satisfies Extract<
+      InferredSubmitter,
+      { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
+    >;
+
+    cache.icaByChainAndAddress.set(cacheId, submitter);
+    return submitter;
   }
 
-  if (!parsedLatestIcaEvent) {
-    // Fall back to deriving the ICA from signer owner and known routers,
-    // to support routes where the ICA has not been deployed yet.
+  // Fall back to deriving the ICA from signer owner and known routers,
+  // to support routes where the ICA has not been deployed yet or when
+  // event logs cannot be fully inferred.
+  {
     const signerAddress = await getSignerAddressForChain(
       context,
       cache,
@@ -676,52 +711,6 @@ async function inferIcaSubmitterFromAccount({
     cache.icaByChainAndAddress.set(cacheId, null);
     return null;
   }
-
-  const { originDomain, originRouter, owner, ism } = parsedLatestIcaEvent;
-
-  const originChain = getChainNameForDomain(context, cache, originDomain);
-  if (!originChain) {
-    cache.icaByChainAndAddress.set(cacheId, null);
-    return null;
-  }
-
-  if (!(await hasSignerForChain(context, cache, originChain))) {
-    cache.icaByChainAndAddress.set(cacheId, null);
-    return null;
-  }
-
-  let internalSubmitter: InferredSubmitter;
-  try {
-    internalSubmitter = await inferSubmitterFromAddress({
-      chain: originChain,
-      address: owner,
-      context,
-      cache,
-      depth: depth + 1,
-    });
-  } catch {
-    cache.icaByChainAndAddress.set(cacheId, null);
-    return null;
-  }
-
-  const submitter = {
-    type: TxSubmitterType.INTERCHAIN_ACCOUNT,
-    chain: originChain,
-    destinationChain,
-    owner,
-    internalSubmitter,
-    originInterchainAccountRouter: originRouter,
-    destinationInterchainAccountRouter: normalizedDestinationRouterAddress,
-    ...(eqAddress(ism, ethersConstants.AddressZero)
-      ? {}
-      : { interchainSecurityModule: ism }),
-  } satisfies Extract<
-    InferredSubmitter,
-    { type: TxSubmitterType.INTERCHAIN_ACCOUNT }
-  >;
-
-  cache.icaByChainAndAddress.set(cacheId, submitter);
-  return submitter;
 }
 
 async function inferTimelockProposerSubmitter({
