@@ -195,6 +195,13 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('does not match unknown windows named-pipe engine signatures', () => {
+      const error = new Error(
+        'error during connect: Get "http://%2F%2F.%2Fpipe%2FrandomEngine/v1.24/info": The system cannot find the file specified.',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(false);
+    });
+
     it('matches docker runtime errors nested in error causes', () => {
       const error = new Error('container startup failed');
       (error as Error & { cause?: unknown }).cause = new Error(
