@@ -214,6 +214,21 @@ describe('squads error-format', () => {
       ).to.equal('boom');
     });
 
+    it('falls back to object message when stack accessor throws', () => {
+      const errorLike = { message: 'boom' } as {
+        message: string;
+        stack?: string;
+      };
+      Object.defineProperty(errorLike, 'stack', {
+        configurable: true,
+        get() {
+          throw new Error('stack unavailable');
+        },
+      });
+
+      expect(stringifyUnknownSquadsError(errorLike)).to.equal('boom');
+    });
+
     it('supports placeholder overrides', () => {
       expect(
         stringifyUnknownSquadsError('   ', {
@@ -412,6 +427,35 @@ describe('squads error-format', () => {
 
       expect(
         stringifyUnknownSquadsError(errorLike, {
+          placeholder: '[fallback]',
+        }),
+      ).to.equal('[fallback]');
+    });
+
+    it('returns placeholder when stack/message access and String(error) all throw', () => {
+      const unstringifiableErrorLike = {} as {
+        stack?: string;
+        message?: string;
+        toString: () => string;
+      };
+      Object.defineProperty(unstringifiableErrorLike, 'stack', {
+        configurable: true,
+        get() {
+          throw new Error('stack unavailable');
+        },
+      });
+      Object.defineProperty(unstringifiableErrorLike, 'message', {
+        configurable: true,
+        get() {
+          throw new Error('message unavailable');
+        },
+      });
+      unstringifiableErrorLike.toString = () => {
+        throw new Error('cannot stringify');
+      };
+
+      expect(
+        stringifyUnknownSquadsError(unstringifiableErrorLike, {
           placeholder: '[fallback]',
         }),
       ).to.equal('[fallback]');
