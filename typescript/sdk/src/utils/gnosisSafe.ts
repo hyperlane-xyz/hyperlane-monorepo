@@ -1060,19 +1060,135 @@ export async function proposeSafeTransaction(
   safeAddress: Address,
   signer: ethers.Signer,
 ): Promise<void> {
-  const safeTxHash = await safeSdk.getTransactionHash(safeTransaction);
-  const senderSignature = await safeSdk.signTypedData(safeTransaction);
-  const senderAddress = await signer.getAddress();
-
-  await retrySafeApi(() =>
-    safeService.proposeTransaction({
-      safeAddress,
-      safeTransactionData: safeTransaction.data,
-      safeTxHash,
-      senderAddress,
-      senderSignature: senderSignature.data,
-    }),
+  assert(
+    ethers.utils.isAddress(safeAddress),
+    `Safe address must be valid: ${stringifyValueForError(safeAddress)}`,
   );
+  const safeSdkObject =
+    safeSdk !== null && typeof safeSdk === 'object'
+      ? (safeSdk as {
+          getTransactionHash?: unknown;
+          signTypedData?: unknown;
+        })
+      : undefined;
+  assert(
+    safeSdkObject,
+    `Safe SDK instance must be an object: ${stringifyValueForError(safeSdk)}`,
+  );
+  let getTransactionHash: unknown;
+  let signTypedData: unknown;
+  try {
+    ({ getTransactionHash, signTypedData } = safeSdkObject);
+  } catch {
+    throw new Error(
+      'Safe SDK transaction hash/signature accessors are inaccessible',
+    );
+  }
+  assert(
+    typeof getTransactionHash === 'function',
+    `Safe SDK getTransactionHash must be a function: ${stringifyValueForError(getTransactionHash)}`,
+  );
+  assert(
+    typeof signTypedData === 'function',
+    `Safe SDK signTypedData must be a function: ${stringifyValueForError(signTypedData)}`,
+  );
+  const safeServiceObject =
+    safeService !== null && typeof safeService === 'object'
+      ? (safeService as { proposeTransaction?: unknown })
+      : undefined;
+  assert(
+    safeServiceObject,
+    `Safe service instance must be an object: ${stringifyValueForError(safeService)}`,
+  );
+  let proposeTransaction: unknown;
+  try {
+    ({ proposeTransaction } = safeServiceObject);
+  } catch {
+    throw new Error('Safe service proposeTransaction accessor is inaccessible');
+  }
+  assert(
+    typeof proposeTransaction === 'function',
+    `Safe service proposeTransaction must be a function: ${stringifyValueForError(proposeTransaction)}`,
+  );
+  assert(
+    signer !== null &&
+      typeof signer === 'object' &&
+      typeof (signer as { getAddress?: unknown }).getAddress === 'function',
+    `Safe signer getAddress must be a function: ${stringifyValueForError(signer)}`,
+  );
+  assert(
+    safeTransaction !== null && typeof safeTransaction === 'object',
+    `Safe transaction payload must be an object: ${stringifyValueForError(safeTransaction)}`,
+  );
+  let safeTransactionData: unknown;
+  try {
+    safeTransactionData = (safeTransaction as { data?: unknown }).data;
+  } catch {
+    throw new Error('Safe transaction data is inaccessible');
+  }
+  assert(
+    safeTransactionData !== null && typeof safeTransactionData === 'object',
+    `Safe transaction data must be an object: ${stringifyValueForError(safeTransactionData)}`,
+  );
+
+  let safeTxHash: unknown;
+  try {
+    safeTxHash = await getTransactionHash.call(safeSdkObject, safeTransaction);
+  } catch (error) {
+    throw new Error(
+      `Failed to derive Safe transaction hash: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    typeof safeTxHash === 'string' && ethers.utils.isHexString(safeTxHash, 32),
+    `Safe transaction hash must be 32-byte hex: ${stringifyValueForError(safeTxHash)}`,
+  );
+  let senderSignature: unknown;
+  try {
+    senderSignature = await signTypedData.call(safeSdkObject, safeTransaction);
+  } catch (error) {
+    throw new Error(
+      `Failed to sign Safe transaction: ${stringifyValueForError(error)}`,
+    );
+  }
+  let senderSignatureData: unknown;
+  try {
+    senderSignatureData = (senderSignature as { data?: unknown }).data;
+  } catch {
+    throw new Error('Safe sender signature data is inaccessible');
+  }
+  assert(
+    typeof senderSignatureData === 'string' && senderSignatureData.length > 0,
+    `Safe sender signature data must be a non-empty string: ${stringifyValueForError(senderSignatureData)}`,
+  );
+  let senderAddress: unknown;
+  try {
+    senderAddress = await signer.getAddress();
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve Safe signer address: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    typeof senderAddress === 'string' && ethers.utils.isAddress(senderAddress),
+    `Safe signer address must be valid: ${stringifyValueForError(senderAddress)}`,
+  );
+
+  try {
+    await retrySafeApi(() =>
+      proposeTransaction.call(safeServiceObject, {
+        safeAddress,
+        safeTransactionData,
+        safeTxHash,
+        senderAddress,
+        senderSignature: senderSignatureData,
+      }),
+    );
+  } catch (error) {
+    throw new Error(
+      `Failed to propose Safe transaction ${safeTxHash} on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
 
   rootLogger.info(
     chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
