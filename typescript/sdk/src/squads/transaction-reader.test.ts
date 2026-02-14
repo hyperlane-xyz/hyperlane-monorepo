@@ -110,6 +110,7 @@ describe('squads transaction reader', () => {
 
       expect(thrownError?.message).to.equal(expectedMessage);
       expect(getLookupCount()).to.equal(0);
+      expect(reader.errors).to.deep.equal([]);
     });
   }
 
@@ -203,6 +204,13 @@ describe('squads transaction reader', () => {
       'Expected proposal index 5 for solanamainnet, got 7',
     );
     expect(fetchTransactionAccountCalled).to.equal(false);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: 'Error: Expected proposal index 5 for solanamainnet, got 7',
+      },
+    ]);
   });
 
   it('fails before account lookup when proposal index is invalid', async () => {
@@ -244,5 +252,13 @@ describe('squads transaction reader', () => {
       'Squads transaction index must be a JavaScript safe integer: true',
     );
     expect(fetchTransactionAccountCalled).to.equal(false);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error:
+          'Error: Squads transaction index must be a JavaScript safe integer: true',
+      },
+    ]);
   });
 });
