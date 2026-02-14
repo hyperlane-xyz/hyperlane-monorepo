@@ -22,28 +22,36 @@ type TurnkeySealevelDeployerSigner = Awaited<
     (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
   >
 >;
-const environmentConfigPromises: Partial<
-  Record<DeployEnvironment, Promise<EnvironmentConfig>>
-> = {};
-const multiProtocolProviderPromises: Partial<
-  Record<DeployEnvironment, Promise<MultiProtocolProvider>>
-> = {};
-const turnkeySignerPromises: Partial<
-  Record<DeployEnvironment, Promise<TurnkeySealevelDeployerSigner>>
-> = {};
-const registryPromises: Partial<Record<DeployEnvironment, Promise<IRegistry>>> =
-  {};
+const environmentConfigPromises = new Map<
+  DeployEnvironment,
+  Promise<EnvironmentConfig>
+>();
+const multiProtocolProviderPromises = new Map<
+  DeployEnvironment,
+  Promise<MultiProtocolProvider>
+>();
+const turnkeySignerPromises = new Map<
+  DeployEnvironment,
+  Promise<TurnkeySealevelDeployerSigner>
+>();
+const registryPromises = new Map<DeployEnvironment, Promise<IRegistry>>();
 
 function memoizeByEnvironment<T>(
-  cache: Partial<Record<DeployEnvironment, Promise<T>>>,
+  cache: Map<DeployEnvironment, Promise<T>>,
   environment: DeployEnvironment,
   factory: () => Promise<T>,
 ): Promise<T> {
-  cache[environment] ??= factory().catch((error) => {
-    delete cache[environment];
+  const cachedPromise = cache.get(environment);
+  if (cachedPromise) {
+    return cachedPromise;
+  }
+
+  const promise = factory().catch((error) => {
+    cache.delete(environment);
     throw error;
   });
-  return cache[environment]!;
+  cache.set(environment, promise);
+  return promise;
 }
 
 export function withTransactionIndex<T>(args: Argv<T>) {

@@ -14,6 +14,10 @@ describe('squads cli helpers', () => {
     expect(resolveSquadsChains(undefined)).to.deep.equal(getSquadsChains());
   });
 
+  it('resolves to configured squads chains when empty list', () => {
+    expect(resolveSquadsChains([])).to.deep.equal(getSquadsChains());
+  });
+
   it('resolves to provided chains when explicitly set', () => {
     const squadsChains = getSquadsChains();
     const selectedChains = [squadsChains[0]];
