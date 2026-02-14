@@ -1450,12 +1450,13 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
   const canonicalHex = normalizedHex.startsWith('0X')
     ? `0x${normalizedHex.slice(2)}`
     : normalizedHex;
+  const lowerCaseHex = canonicalHex.toLowerCase();
 
-  if (isHex(canonicalHex)) {
-    return canonicalHex as Hex;
+  if (isHex(lowerCaseHex)) {
+    return lowerCaseHex as Hex;
   }
 
-  const prefixedHex = `0x${canonicalHex}`;
+  const prefixedHex = `0x${lowerCaseHex}`;
   const invalidErrorMessage =
     errorMessages?.invalid ?? `Hex value must be valid hex: ${normalizedHex}`;
   assert(isHex(prefixedHex), invalidErrorMessage);

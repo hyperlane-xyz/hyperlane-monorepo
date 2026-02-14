@@ -3634,6 +3634,16 @@ describe('gnosisSafe utils', () => {
       ).to.throw('Safe transaction data must include function selector');
     });
 
+    it('throws when transaction data is only 0x prefix', () => {
+      expect(() =>
+        parseSafeTx({
+          to: '0x1234567890123456789012345678901234567890',
+          data: '0x',
+          value: BigNumber.from(0),
+        }),
+      ).to.throw('Safe transaction data must include function selector');
+    });
+
     it('accepts transaction data with uppercase 0X prefix', () => {
       const data = safeInterface.encodeFunctionData('changeThreshold', [2]);
 
@@ -3709,10 +3719,12 @@ describe('gnosisSafe utils', () => {
 
     it('normalizes uppercase 0X prefixes', () => {
       expect(asHex('0X1234')).to.equal('0x1234');
+      expect(asHex('0XABCD')).to.equal('0xabcd');
     });
 
     it('prefixes unprefixed hex values', () => {
       expect(asHex('1234')).to.equal('0x1234');
+      expect(asHex('ABCD')).to.equal('0xabcd');
     });
 
     it('trims surrounding whitespace from hex values', () => {
@@ -3909,6 +3921,27 @@ describe('gnosisSafe utils', () => {
       });
 
       const decoded = decodeMultiSendData(`0X${encoded.slice(2)}`);
+      expect(decoded).to.have.length(1);
+      expect(decoded[0].to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000aa'),
+      );
+    });
+
+    it('accepts uppercase calldata without 0x prefix', () => {
+      const txBytes = `0x${encodeMultiSendTx({
+        operation: 0,
+        to: '0x00000000000000000000000000000000000000aa',
+        value: 1n,
+        data: '0x',
+      })}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [txBytes],
+      });
+
+      const decoded = decodeMultiSendData(encoded.slice(2).toUpperCase());
       expect(decoded).to.have.length(1);
       expect(decoded[0].to).to.equal(
         getAddress('0x00000000000000000000000000000000000000aa'),
