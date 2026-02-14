@@ -27,6 +27,7 @@ import { toSquadsProvider } from './provider.js';
  * Overhead added by Squads v4 when wrapping instructions in a vault transaction proposal.
  */
 export const SQUADS_PROPOSAL_OVERHEAD = 500;
+const SQUADS_PROPOSAL_LOOKBACK_COUNT = 10;
 
 /**
  * Squads V4 instruction discriminator size (8-byte Anchor discriminator)
@@ -445,9 +446,11 @@ export async function getPendingProposalsForChains(
           `Fetching proposals for squads ${multisigPda.toBase58()} on ${chain}`,
         );
 
-        const maxIndexToCheck = Math.max(1, currentTransactionIndex - 10);
+        const minIndexToCheck = getMinimumProposalIndexToCheck(
+          currentTransactionIndex,
+        );
 
-        for (let i = currentTransactionIndex; i >= maxIndexToCheck; i--) {
+        for (let i = currentTransactionIndex; i >= minIndexToCheck; i--) {
           try {
             const proposalData = await getSquadProposal(chain, mpp, i);
             if (!proposalData) continue;
@@ -592,6 +595,22 @@ export function getSquadTxStatus(
     default:
       return SquadTxStatus.UNKNOWN;
   }
+}
+
+export function getMinimumProposalIndexToCheck(
+  currentTransactionIndex: number,
+  lookbackCount = SQUADS_PROPOSAL_LOOKBACK_COUNT,
+): number {
+  assert(
+    Number.isSafeInteger(currentTransactionIndex) && currentTransactionIndex >= 0,
+    `Expected current transaction index to be a non-negative safe integer, got ${currentTransactionIndex}`,
+  );
+  assert(
+    Number.isSafeInteger(lookbackCount) && lookbackCount >= 0,
+    `Expected lookback count to be a non-negative safe integer, got ${lookbackCount}`,
+  );
+
+  return Math.max(0, currentTransactionIndex - lookbackCount);
 }
 
 export function parseSquadProposal(

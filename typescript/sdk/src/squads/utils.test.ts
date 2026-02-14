@@ -10,6 +10,7 @@ import {
   SQUADS_ACCOUNT_DISCRIMINATORS,
   decodePermissions,
   getSquadAndProvider,
+  getMinimumProposalIndexToCheck,
   getSquadProposal,
   getSquadTxStatus,
   isConfigTransaction,
@@ -50,6 +51,32 @@ async function captureAsyncError(
 }
 
 describe('squads utils', () => {
+  describe(getMinimumProposalIndexToCheck.name, () => {
+    it('includes transaction index zero in search range', () => {
+      expect(getMinimumProposalIndexToCheck(0)).to.equal(0);
+    });
+
+    it('clamps minimum index to zero for small indices', () => {
+      expect(getMinimumProposalIndexToCheck(5, 10)).to.equal(0);
+    });
+
+    it('subtracts lookback count for larger indices', () => {
+      expect(getMinimumProposalIndexToCheck(25, 10)).to.equal(15);
+    });
+
+    it('throws for negative current transaction index', () => {
+      expect(() => getMinimumProposalIndexToCheck(-1)).to.throw(
+        'Expected current transaction index to be a non-negative safe integer, got -1',
+      );
+    });
+
+    it('throws for negative lookback count', () => {
+      expect(() => getMinimumProposalIndexToCheck(1, -1)).to.throw(
+        'Expected lookback count to be a non-negative safe integer, got -1',
+      );
+    });
+  });
+
   describe(getSquadTxStatus.name, () => {
     it('returns draft for draft proposal', () => {
       expect(getSquadTxStatus('Draft', 0, 3, 12, 10)).to.equal(
