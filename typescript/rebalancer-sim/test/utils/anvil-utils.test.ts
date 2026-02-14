@@ -937,6 +937,37 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('handles iterable wrappers with throwing iterators and non-enumerable errors fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const iterableWrapper = {
+        [Symbol.iterator]() {
+          throw new Error('broken iterator');
+        },
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'iterable wrapper without nested details';
+        },
+      };
+      Object.defineProperty(iterableWrapper, 'errors', {
+        value: { message: 'Cannot connect to the Docker daemon' },
+        enumerable: false,
+      });
+
+      const wrappedError = {
+        errors: iterableWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
+    });
+
     it('handles maps with throwing values iterators', () => {
       class ThrowingValuesMap extends Map<string, { message: string }> {
         public override values(): IterableIterator<{ message: string }> {
@@ -960,6 +991,50 @@ describe('Anvil utils', () => {
       errors.set('runtime', { message: 'No Docker client strategy found' });
 
       expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
+    it('handles map wrappers with fully throwing iterators and non-enumerable errors fallbacks', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+
+      class ThrowingMap extends Map<string, { message: string }> {
+        public override values(): IterableIterator<{ message: string }> {
+          throw new Error('broken map values iterator');
+        }
+
+        public override [Symbol.iterator](): IterableIterator<
+          [string, { message: string }]
+        > {
+          throw new Error('broken map iterator');
+        }
+      }
+
+      const mapWrapper = new ThrowingMap([
+        ['noise', { message: 'non-matching wrapper noise' }],
+      ]);
+      Object.defineProperty(mapWrapper, 'errors', {
+        value: { message: 'Cannot connect to the Docker daemon' },
+        enumerable: false,
+      });
+      Object.assign(mapWrapper, {
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'map wrapper without nested details';
+        },
+      });
+
+      const wrappedError = {
+        errors: mapWrapper,
+        toJSON() {
+          throw new Error('json blocked');
+        },
+        [inspectCustom]() {
+          return 'top-level wrapper without nested details';
+        },
+      };
+
+      expect(isContainerRuntimeUnavailable(wrappedError)).to.equal(true);
     });
 
     it('uses map entry values (not keys) when values iterator fails', () => {

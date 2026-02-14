@@ -193,12 +193,12 @@ function extractErrorMessages(error: unknown): string[] {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
 
     if (nestedErrors instanceof Map) {
+      let mapTraversalSucceeded = false;
       try {
         for (const nestedError of nestedErrors.values()) {
           if (!enqueue(nestedError)) break;
         }
-        enqueueWrapperFields(nestedErrors);
-        return;
+        mapTraversalSucceeded = true;
       } catch {
         try {
           for (const nestedEntry of nestedErrors) {
@@ -209,24 +209,31 @@ function extractErrorMessages(error: unknown): string[] {
 
             if (!enqueue(nestedEntry)) break;
           }
-          enqueueWrapperFields(nestedErrors);
-          return;
+          mapTraversalSucceeded = true;
         } catch {
           // Fall through to generic iterable/object traversal.
         }
+      } finally {
+        enqueueWrapperFields(nestedErrors);
       }
+
+      if (mapTraversalSucceeded) return;
     }
 
     if (Array.isArray(nestedErrors)) {
+      let arrayTraversalSucceeded = false;
       try {
         for (const nestedError of nestedErrors) {
           if (!enqueue(nestedError)) break;
         }
-        enqueueWrapperFields(nestedErrors);
-        return;
+        arrayTraversalSucceeded = true;
       } catch {
         // Fall through to generic iterable/object traversal.
+      } finally {
+        enqueueWrapperFields(nestedErrors);
       }
+
+      if (arrayTraversalSucceeded) return;
     }
 
     if (typeof nestedErrors === 'object' && nestedErrors !== null) {
@@ -234,6 +241,7 @@ function extractErrorMessages(error: unknown): string[] {
         Symbol.iterator
       ];
       if (typeof iterator === 'function') {
+        let iterableTraversalSucceeded = false;
         try {
           let valuesRead = 0;
           for (const nestedError of nestedErrors as Iterable<unknown>) {
@@ -241,11 +249,14 @@ function extractErrorMessages(error: unknown): string[] {
             valuesRead += 1;
             if (valuesRead >= MAX_NESTED_ITERABLE_VALUES) break;
           }
-          enqueueWrapperFields(nestedErrors);
-          return;
+          iterableTraversalSucceeded = true;
         } catch {
           // Fall through to object-value traversal for malformed iterables.
+        } finally {
+          enqueueWrapperFields(nestedErrors);
         }
+
+        if (iterableTraversalSucceeded) return;
       }
     }
 

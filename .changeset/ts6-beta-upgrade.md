@@ -139,3 +139,7 @@ Regression coverage now also confirms map-wrapper `errors` payloads still match 
 Regression coverage now also confirms array-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.
 
 Regression coverage now also confirms set-wrapper `errors` payloads still match runtime-unavailable signals when wrapper `cause` accessors throw but wrapper-level `errors` fallbacks remain available.
+
+Nested wrapper-field extraction now always runs after map/array/iterable traversal attempts, so wrapper-level `cause`/`errors` fallbacks are preserved even when iterators throw.
+
+Regression coverage now also confirms malformed iterable and map wrappers with fully throwing iterators still detect runtime-unavailable signals when only non-enumerable wrapper-level `errors` fallbacks are available.
