@@ -258,7 +258,7 @@ async function hasSignerForChain(
   }
 
   const maybeTryGetSigner = getTryGetSignerMethod(context.multiProvider);
-  if (!maybeTryGetSigner) {
+  if (typeof maybeTryGetSigner !== 'function') {
     const signerAddress = await getSignerAddressForChain(context, cache, chain);
     const hasSigner = !!signerAddress;
     cache.signerByChain.set(chain, hasSigner);
