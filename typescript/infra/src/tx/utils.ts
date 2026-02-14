@@ -48,6 +48,25 @@ export function processGovernorReaderResult(
       `Governor reader output file name must be a non-empty string: ${stringifyValueForError(outputFileName)}`,
     );
   }
+  const normalizedOutputFileName = outputFileName.trim();
+  if (
+    deps.writeYamlFn !== undefined &&
+    typeof deps.writeYamlFn !== 'function'
+  ) {
+    throw new Error(
+      `Governor reader writeYamlFn must be a function: ${stringifyValueForError(deps.writeYamlFn)}`,
+    );
+  }
+  if (deps.nowFn !== undefined && typeof deps.nowFn !== 'function') {
+    throw new Error(
+      `Governor reader nowFn must be a function: ${stringifyValueForError(deps.nowFn)}`,
+    );
+  }
+  if (deps.exitFn !== undefined && typeof deps.exitFn !== 'function') {
+    throw new Error(
+      `Governor reader exitFn must be a function: ${stringifyValueForError(deps.exitFn)}`,
+    );
+  }
   const writeYamlFn = deps.writeYamlFn ?? writeYaml;
   const nowFn = deps.nowFn ?? Date.now;
   const exitFn = deps.exitFn ?? process.exit;
@@ -65,7 +84,7 @@ export function processGovernorReaderResult(
   }
 
   const chainResults = Object.fromEntries(result);
-  const resultsPath = `${outputFileName}-${nowFn()}.yaml`;
+  const resultsPath = `${normalizedOutputFileName}-${nowFn()}.yaml`;
   writeYamlFn(resultsPath, chainResults);
   rootLogger.info(`Results written to ${resultsPath}`);
 

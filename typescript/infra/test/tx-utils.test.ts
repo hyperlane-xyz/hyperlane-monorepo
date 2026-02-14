@@ -495,6 +495,26 @@ describe('processGovernorReaderResult', () => {
     );
   });
 
+  it('throws when injected dependency functions are invalid', () => {
+    expect(() =>
+      processGovernorReaderResult([], [], 'safe-tx-parse-results', {
+        writeYamlFn: null as unknown as any,
+      }),
+    ).to.throw('Governor reader writeYamlFn must be a function: null');
+
+    expect(() =>
+      processGovernorReaderResult([], [], 'safe-tx-parse-results', {
+        nowFn: null as unknown as any,
+      }),
+    ).to.throw('Governor reader nowFn must be a function: null');
+
+    expect(() =>
+      processGovernorReaderResult([], [], 'safe-tx-parse-results', {
+        exitFn: null as unknown as any,
+      }),
+    ).to.throw('Governor reader exitFn must be a function: null');
+  });
+
   it('writes result yaml and does not exit when there are no fatal errors', () => {
     let writtenPath: string | undefined;
     let writtenValue: Record<string, unknown> | undefined;
@@ -544,5 +564,23 @@ describe('processGovernorReaderResult', () => {
 
     expect(writtenPath).to.equal('safe-tx-parse-results-1700000000000.yaml');
     expect(exitCode).to.equal(1);
+  });
+
+  it('trims output file name before writing results', () => {
+    let writtenPath: string | undefined;
+
+    processGovernorReaderResult(
+      [['chainA-1-0xabc', { status: 'ok' } as unknown as any]],
+      [],
+      '  safe-tx-parse-results  ',
+      {
+        nowFn: () => 1700000000000,
+        writeYamlFn: (path) => {
+          writtenPath = path;
+        },
+      },
+    );
+
+    expect(writtenPath).to.equal('safe-tx-parse-results-1700000000000.yaml');
   });
 });
