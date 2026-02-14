@@ -8,10 +8,10 @@ import bs58 from 'bs58';
 import chalk from 'chalk';
 
 import {
-  ChainName,
   IsmType,
   MultiProtocolProvider,
   SQUADS_PROPOSAL_OVERHEAD,
+  SquadsChainName,
   SvmMultiProtocolSignerAdapter,
   getSquadsChains,
   getSquadsKeys,
@@ -59,7 +59,7 @@ function assertDeployEnvironment(env: string): DeployEnvironment {
  */
 async function fetchAllMultisigIsmStates(
   mpp: MultiProtocolProvider,
-  chain: ChainName,
+  chain: SquadsChainName,
   multisigIsmProgramId: PublicKey,
   config: SvmMultisigConfigMap,
 ): Promise<SvmMultisigConfigMap> {
@@ -91,7 +91,7 @@ async function fetchAllMultisigIsmStates(
  * Compare expected vs actual configs and collect updates needed
  */
 function analyzeConfigDifferences(
-  chain: ChainName,
+  chain: SquadsChainName,
   config: SvmMultisigConfigMap,
   onChainStates: SvmMultisigConfigMap,
 ): {
@@ -126,7 +126,7 @@ function analyzeConfigDifferences(
  * Log MultisigIsm update transaction and optionally submit to Squads
  */
 async function logAndSubmitMultisigIsmUpdateTransaction(
-  chain: ChainName,
+  chain: SquadsChainName,
   instructions: TransactionInstruction[],
   owner: PublicKey,
   batchChainNames: string[],
@@ -266,7 +266,7 @@ async function logAndSubmitMultisigIsmUpdateTransaction(
  * separate Squads proposal.
  */
 async function printAndSubmitMultisigIsmUpdates(
-  chain: ChainName,
+  chain: SquadsChainName,
   multisigIsmProgramId: PublicKey,
   vaultPubkey: PublicKey,
   configsToUpdate: SvmMultisigConfigMap,
@@ -355,7 +355,7 @@ async function printAndSubmitMultisigIsmUpdates(
 async function processChain(
   environment: DeployEnvironment,
   mpp: MultiProtocolProvider,
-  chain: ChainName,
+  chain: SquadsChainName,
   context: Contexts,
   adapter: SvmMultiProtocolSignerAdapter,
 ): Promise<{
