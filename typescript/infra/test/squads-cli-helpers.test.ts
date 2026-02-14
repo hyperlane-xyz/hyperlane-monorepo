@@ -112,6 +112,12 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('throws when unsupported-chain formatter receives empty chains list', () => {
+    expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
+      'Expected at least one unsupported squads chain to format error message',
+    );
+  });
+
   it('deduplicates values in unsupported-chain error formatter', () => {
     expect(
       getUnsupportedSquadsChainsErrorMessage(

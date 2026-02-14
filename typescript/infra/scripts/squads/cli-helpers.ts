@@ -9,7 +9,7 @@ import {
   getSquadsChains,
   partitionSquadsChains,
 } from '@hyperlane-xyz/sdk';
-import { rootLogger } from '@hyperlane-xyz/utils';
+import { assert, rootLogger } from '@hyperlane-xyz/utils';
 
 import type {
   DeployEnvironment,
@@ -86,12 +86,20 @@ export function withSquadsChains<T>(args: Argv<T>) {
 }
 
 export function getUnsupportedSquadsChainsErrorMessage(
-  nonSquadsChains: string[],
-  configuredSquadsChains: string[] = getSquadsChains(),
+  nonSquadsChains: readonly string[],
+  configuredSquadsChains: readonly string[] = getSquadsChains(),
 ): string {
+  assert(
+    nonSquadsChains.length > 0,
+    'Expected at least one unsupported squads chain to format error message',
+  );
   const uniqueNonSquadsChains = Array.from(new Set(nonSquadsChains));
   const uniqueConfiguredSquadsChains = Array.from(
     new Set(configuredSquadsChains),
+  );
+  assert(
+    uniqueConfiguredSquadsChains.length > 0,
+    'Expected at least one configured squads chain',
   );
   return (
     `Squads configuration not found for chains: ${uniqueNonSquadsChains.join(', ')}. ` +
@@ -99,10 +107,12 @@ export function getUnsupportedSquadsChainsErrorMessage(
   );
 }
 
-export function resolveSquadsChains(chains?: string[]): ChainName[] {
+export function resolveSquadsChains(chains?: readonly string[]): ChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
-    const { squadsChains, nonSquadsChains } = partitionSquadsChains(chains);
+    const { squadsChains, nonSquadsChains } = partitionSquadsChains([
+      ...chains,
+    ]);
     if (nonSquadsChains.length > 0) {
       throw new Error(
         getUnsupportedSquadsChainsErrorMessage(
@@ -111,7 +121,7 @@ export function resolveSquadsChains(chains?: string[]): ChainName[] {
         ),
       );
     }
-    return squadsChains;
+    return [...squadsChains];
   }
   return configuredSquadsChains;
 }
