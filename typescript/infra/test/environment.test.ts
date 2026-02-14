@@ -10,6 +10,7 @@ import {
 import { assert, objFilter } from '@hyperlane-xyz/utils';
 
 import { environments } from '../config/environments/index.js';
+import { getMultiProtocolProvider } from '../scripts/agent-utils.js';
 import { isEthereumProtocolChain } from '../src/utils/utils.js';
 
 describe('Environment', () => {
@@ -27,8 +28,9 @@ describe('Environment', () => {
   for (const env of [environments.testnet4, environments.mainnet3]) {
     describe(`Core config for ${env.environment}`, () => {
       it('should generate core config for all supported chains', async () => {
-        const { core, supportedChainNames, getMultiProvider } = env;
-        const multiProvider = await getMultiProvider();
+        const { core, supportedChainNames, getRegistry } = env;
+        const registry = await getRegistry(false, supportedChainNames);
+        const multiProvider = await getMultiProtocolProvider(registry);
 
         const ethereumCoreConfigs = objFilter(
           core,
