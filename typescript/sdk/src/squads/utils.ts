@@ -217,7 +217,15 @@ function formatUnknownErrorForMessage(error: unknown): string {
   }
 
   try {
-    return String(error);
+    const formattedError = String(error);
+    const trimmedFormattedError = formattedError.trim();
+    if (
+      trimmedFormattedError.length === 0 ||
+      GENERIC_OBJECT_STRING_PATTERN.test(trimmedFormattedError)
+    ) {
+      return '[unstringifiable error]';
+    }
+    return formattedError;
   } catch {
     return '[unstringifiable error]';
   }
