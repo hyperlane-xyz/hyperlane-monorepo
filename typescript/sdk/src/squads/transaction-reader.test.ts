@@ -52,6 +52,14 @@ async function captureAsyncError(
   }
 }
 
+function createUnstringifiableError(): { toString: () => string } {
+  return {
+    toString: () => {
+      throw new Error('unable to stringify');
+    },
+  };
+}
+
 describe('squads transaction reader', () => {
   function createMockProposalData(
     transactionIndex: unknown,
@@ -342,6 +350,48 @@ describe('squads transaction reader', () => {
         chain: 'solanamainnet',
         transactionIndex: 5,
         error: 'Error: config read failed',
+      },
+    ]);
+  });
+
+  it('records a stable placeholder when thrown error cannot stringify', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      fetchProposalData: (
+        chain: string,
+        transactionIndex: number,
+      ) => Promise<Record<string, unknown>>;
+      fetchTransactionAccount: () => Promise<{ data: Buffer }>;
+      readConfigTransaction: () => Promise<unknown>;
+    };
+
+    readerAny.fetchProposalData = async () => createMockProposalData(5);
+    readerAny.fetchTransactionAccount = async () => ({
+      data: Buffer.from([
+        ...SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG],
+        1,
+      ]),
+    });
+    const unstringifiableError = createUnstringifiableError();
+    readerAny.readConfigTransaction = async () => {
+      throw unstringifiableError;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      reader.read('solanamainnet', 5),
+    );
+
+    expect(thrownError).to.equal(unstringifiableError);
+    expect(reader.errors).to.deep.equal([
+      {
+        chain: 'solanamainnet',
+        transactionIndex: 5,
+        error: '[unstringifiable error]',
       },
     ]);
   });

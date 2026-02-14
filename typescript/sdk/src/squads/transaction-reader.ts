@@ -147,6 +147,14 @@ type SolanaWeb3Provider = ReturnType<
   MultiProtocolProvider['getSolanaWeb3Provider']
 >;
 
+function stringifyUnknownError(error: unknown): string {
+  try {
+    return String(error);
+  } catch {
+    return '[unstringifiable error]';
+  }
+}
+
 function formatValidatorsWithAliases(
   chain: ChainName,
   validators: readonly string[],
@@ -465,15 +473,16 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
+      const formattedError = stringifyUnknownError(error);
       return {
         instructionType: 'WarpRouteInstruction',
         data: {
           routeName: metadata.routeName,
           symbol: metadata.symbol,
-          error: `Failed to deserialize: ${error}`,
+          error: `Failed to deserialize: ${formattedError}`,
         },
         insight: `${metadata.symbol} warp route instruction (parse error)`,
-        warnings: [`Borsh deserialization failed: ${error}`],
+        warnings: [`Borsh deserialization failed: ${formattedError}`],
       };
     }
   }
@@ -553,13 +562,14 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
+      const formattedError = stringifyUnknownError(error);
       return {
         instructionType: InstructionType.UNKNOWN,
         data: {
-          error: `Failed to deserialize: ${error}`,
+          error: `Failed to deserialize: ${formattedError}`,
           rawData: instructionData.toString('hex'),
         },
-        warnings: [`Borsh deserialization failed: ${error}`],
+        warnings: [`Borsh deserialization failed: ${formattedError}`],
       };
     }
   }
@@ -654,13 +664,14 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
+      const formattedError = stringifyUnknownError(error);
       return {
         instructionType: InstructionType.UNKNOWN,
         data: {
-          error: `Failed to deserialize: ${error}`,
+          error: `Failed to deserialize: ${formattedError}`,
           rawData: instructionData.toString('hex'),
         },
-        warnings: [`Borsh deserialization failed: ${error}`],
+        warnings: [`Borsh deserialization failed: ${formattedError}`],
       };
     }
   }
@@ -749,8 +760,9 @@ export class SquadsTransactionReader {
           if (idx < addresses.length) accountKeys.push(addresses[idx]);
         }
       } catch (error) {
+        const formattedError = stringifyUnknownError(error);
         rootLogger.warn(
-          `Failed to resolve address lookup table ${lookup.accountKey.toBase58()} on ${chain}: ${error}`,
+          `Failed to resolve address lookup table ${lookup.accountKey.toBase58()} on ${chain}: ${formattedError}`,
         );
       }
     }
@@ -907,15 +919,16 @@ export class SquadsTransactionReader {
         });
         warnings.push(...unknownWarnings);
       } catch (error) {
-        const errorMsg = `Instruction ${idx}: ${error}`;
+        const formattedError = stringifyUnknownError(error);
+        const errorMsg = `Instruction ${idx}: ${formattedError}`;
         warnings.push(`Failed to parse instruction: ${errorMsg}`);
         parsedInstructions.push({
           programId: SYSTEM_PROGRAM_ID,
           programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.PARSE_FAILED,
-          data: { error: String(error) },
+          data: { error: formattedError },
           accounts: [],
-          warnings: [`Failed to parse: ${error}`],
+          warnings: [`Failed to parse: ${formattedError}`],
         });
       }
     }
@@ -972,7 +985,7 @@ export class SquadsTransactionReader {
         transactionPda,
       );
     } catch (error) {
-      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${error}`;
+      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${stringifyUnknownError(error)}`;
       throw new Error(errorMsg);
     }
 
@@ -1055,7 +1068,11 @@ export class SquadsTransactionReader {
         transactionPda,
       );
     } catch (error) {
-      this.errors.push({ chain, transactionIndex, error: String(error) });
+      this.errors.push({
+        chain,
+        transactionIndex,
+        error: stringifyUnknownError(error),
+      });
       throw error;
     }
   }
@@ -1075,7 +1092,9 @@ export class SquadsTransactionReader {
       this.multisigConfigs.set(chain, config);
       return config;
     } catch (error) {
-      rootLogger.warn(`Failed to load multisig config for ${chain}: ${error}`);
+      rootLogger.warn(
+        `Failed to load multisig config for ${chain}: ${stringifyUnknownError(error)}`,
+      );
       this.multisigConfigs.set(chain, null);
       return null;
     }
