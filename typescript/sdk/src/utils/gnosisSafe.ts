@@ -50,6 +50,14 @@ const SAFE_INTERFACE = new ethers.utils.Interface([
   'function simulateAndRevert(address targetContract,bytes calldataPayload)',
 ]);
 
+function parseSemverPrefix(version: string): [number, number, number] {
+  const match = version.trim().match(/^v?(\d+)\.(\d+)\.(\d+)/);
+  if (!match) {
+    throw new Error(`Invalid Safe API version: ${version}`);
+  }
+  return [Number(match[1]), Number(match[2]), Number(match[3])];
+}
+
 export type SafeCallData = {
   to: Address;
   data: string;
@@ -410,12 +418,10 @@ export async function isLegacySafeApi(version?: string): Promise<boolean> {
   if (!version) {
     throw new Error('Version is required');
   }
-  const minVersion = MIN_SAFE_API_VERSION.split('.').map((v: string) =>
-    parseInt(v, 10),
-  );
-  const versionParts = version.split('.').map((v: string) => parseInt(v, 10));
+  const minVersion = parseSemverPrefix(MIN_SAFE_API_VERSION);
+  const versionParts = parseSemverPrefix(version);
   for (let i = 0; i < minVersion.length; ++i) {
-    const v = versionParts[i] ?? 0;
+    const v = versionParts[i];
     if (v < minVersion[i]) return true;
     if (v > minVersion[i]) return false;
   }

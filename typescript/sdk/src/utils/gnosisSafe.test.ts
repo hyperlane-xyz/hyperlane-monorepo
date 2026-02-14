@@ -80,6 +80,22 @@ describe('gnosisSafe utils', () => {
     it('accepts newer versions', async () => {
       expect(await isLegacySafeApi('5.19.1')).to.equal(false);
     });
+
+    it('supports semver prefixes/suffixes used by services', async () => {
+      expect(await isLegacySafeApi('v5.18.0')).to.equal(false);
+      expect(await isLegacySafeApi('5.18.0+L2')).to.equal(false);
+    });
+
+    it('throws on invalid versions', async () => {
+      try {
+        await isLegacySafeApi('invalid');
+        expect.fail('Expected isLegacySafeApi to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Invalid Safe API version: invalid',
+        );
+      }
+    });
   });
 
   describe(resolveSafeSigner.name, () => {
