@@ -394,6 +394,32 @@ describe('squads utils', () => {
       });
     });
 
+    it('accepts proposal indexes and timestamps that stringify via Symbol.toPrimitive', () => {
+      const parsed = parseSquadProposal({
+        status: {
+          __kind: SquadsProposalStatus.Active,
+          timestamp: {
+            [Symbol.toPrimitive]: () => '1700000001',
+          },
+        },
+        approved: [],
+        rejected: [],
+        cancelled: [],
+        transactionIndex: {
+          [Symbol.toPrimitive]: () => '8',
+        },
+      } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parsed).to.deep.equal({
+        status: SquadsProposalStatus.Active,
+        approvals: 0,
+        rejections: 0,
+        cancellations: 0,
+        transactionIndex: 8,
+        statusTimestampSeconds: 1700000001,
+      });
+    });
+
     it('throws when transaction index is not a safe integer', () => {
       const parseUnsafeProposal = () =>
         parseSquadProposal({
@@ -661,6 +687,25 @@ describe('squads utils', () => {
 
     it('accepts bignum-like values with decimal toString output', () => {
       const decimalLikeValue = { toString: () => '42' };
+      const parsed = parseSquadMultisig({
+        threshold: decimalLikeValue,
+        transactionIndex: decimalLikeValue,
+        staleTransactionIndex: decimalLikeValue,
+        timeLock: decimalLikeValue,
+      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+
+      expect(parsed).to.deep.equal({
+        threshold: 42,
+        currentTransactionIndex: 42,
+        staleTransactionIndex: 42,
+        timeLock: 42,
+      });
+    });
+
+    it('accepts multisig values that stringify via Symbol.toPrimitive', () => {
+      const decimalLikeValue = {
+        [Symbol.toPrimitive]: () => '42',
+      };
       const parsed = parseSquadMultisig({
         threshold: decimalLikeValue,
         transactionIndex: decimalLikeValue,

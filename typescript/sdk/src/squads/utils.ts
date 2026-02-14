@@ -334,32 +334,25 @@ function normalizeSafeIntegerValue(value: unknown): {
     return { parsedValue: Number.NaN, displayValue: String(value) };
   }
 
-  const toStringCandidate = (value as { toString?: unknown }).toString;
-  if (typeof toStringCandidate !== 'function') {
-    return {
-      parsedValue: Number.NaN,
-      displayValue: Object.prototype.toString.call(value),
-    };
-  }
-
-  let rawStringValue: unknown;
-  try {
-    rawStringValue = toStringCandidate.call(value);
-  } catch {
-    return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
-  }
-
   let displayValue: string;
   try {
-    displayValue =
-      typeof rawStringValue === 'string'
-        ? rawStringValue
-        : String(rawStringValue);
+    displayValue = String(value);
   } catch {
+    const toStringCandidate = (value as { toString?: unknown }).toString;
+    if (typeof toStringCandidate !== 'function') {
+      return {
+        parsedValue: Number.NaN,
+        displayValue: Object.prototype.toString.call(value),
+      };
+    }
     return { parsedValue: Number.NaN, displayValue: '[unstringifiable value]' };
   }
+
   if (!SAFE_INTEGER_DECIMAL_PATTERN.test(displayValue)) {
-    return { parsedValue: Number.NaN, displayValue };
+    return {
+      parsedValue: Number.NaN,
+      displayValue,
+    };
   }
 
   return { parsedValue: Number(displayValue), displayValue };
