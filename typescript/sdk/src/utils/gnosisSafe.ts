@@ -21,7 +21,13 @@ import { BigNumber, ethers } from 'ethers';
 import { formatUnits } from 'ethers/lib/utils.js';
 import { Hex, decodeFunctionData, getAddress, isHex, parseAbi } from 'viem';
 
-import { Address, eqAddress, rootLogger, sleep } from '@hyperlane-xyz/utils';
+import {
+  Address,
+  assert,
+  eqAddress,
+  rootLogger,
+  sleep,
+} from '@hyperlane-xyz/utils';
 
 import { MultiProvider } from '../providers/MultiProvider.js';
 import { AnnotatedEV5Transaction } from '../providers/ProviderType.js';
@@ -67,6 +73,12 @@ export type SafeCallData = {
 export type SafeDeploymentConfig = {
   owners: Address[];
   threshold: number;
+};
+
+export type SafeDeploymentTransaction = {
+  to: Address;
+  data: string;
+  value: string;
 };
 
 export type SafeOwnerUpdateCall = {
@@ -359,7 +371,7 @@ export async function createSafeDeploymentTransaction(
   config: SafeDeploymentConfig,
 ): Promise<{
   safeAddress: Address;
-  transaction: { to: Address; data: string; value: string };
+  transaction: SafeDeploymentTransaction;
 }> {
   const safeAccountConfig: SafeAccountConfig = {
     owners: config.owners,
@@ -375,6 +387,12 @@ export async function createSafeDeploymentTransaction(
   });
 
   const { to, data, value } = await safe.createSafeDeploymentTransaction();
+  assert(to, `Safe deployment tx for ${chain} has no to address`);
+  assert(data, `Safe deployment tx for ${chain} has no calldata`);
+  assert(
+    value !== undefined && value !== null,
+    'Safe deployment tx has no value',
+  );
   const safeAddress = await safe.getAddress();
 
   return {

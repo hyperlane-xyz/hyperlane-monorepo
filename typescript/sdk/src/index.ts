@@ -875,6 +875,7 @@ export {
   SafeCallData,
   SafeAndService,
   SafeDeploymentConfig,
+  SafeDeploymentTransaction,
   SafeOwnerUpdateCall,
   SafeServiceTransaction,
   SafeServiceTransactionWithPayload,
