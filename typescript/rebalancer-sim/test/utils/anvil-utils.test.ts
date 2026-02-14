@@ -41,9 +41,23 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches podman socket connection failures', () => {
+      const error = new Error(
+        'dial unix /run/user/1000/podman/podman.sock: connect: no such file or directory',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches docker socket ECONNREFUSED failures', () => {
       const error = new Error(
         'connect ECONNREFUSED /var/run/docker.sock while creating container',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
+    it('matches podman socket ECONNREFUSED failures', () => {
+      const error = new Error(
+        'connect ECONNREFUSED /run/user/1000/podman/podman.sock while creating container',
       );
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
