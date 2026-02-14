@@ -175,6 +175,8 @@ across Linux/macOS (`docker.sock`) and Windows named pipes (`docker_engine`,
 `dockerDesktopEngine`, `dockerDesktopLinuxEngine`, including URL-encoded
 forward/backslash pipe signatures), including Podman socket failures and
 nested/wrapped error payloads from container tooling.
+Unknown Windows pipe engine names are intentionally ignored to avoid
+false-positive fallback activation.
 
 ### 3. Select Rebalancers
 
