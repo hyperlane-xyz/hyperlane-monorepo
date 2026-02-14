@@ -398,6 +398,21 @@ describe('squads utils', () => {
       );
     });
 
+    it('throws when rejected votes field is not an array', () => {
+      const parseInvalidProposal = () =>
+        parseSquadProposal({
+          status: { __kind: SquadsProposalStatus.Active },
+          approved: [],
+          rejected: 'not-an-array',
+          cancelled: [],
+          transactionIndex: 1,
+        } as unknown as Parameters<typeof parseSquadProposal>[0]);
+
+      expect(parseInvalidProposal).to.throw(
+        'Squads proposal rejected votes must be an array',
+      );
+    });
+
     it('throws when cancelled votes field is missing', () => {
       const parseInvalidProposal = () =>
         parseSquadProposal({
