@@ -26,6 +26,29 @@ const CONTAINER_RUNTIME_UNAVAILABLE_PATTERNS = [
   /open \/\/\.\/pipe\/docker_engine/i,
 ];
 
+function getErrorMessage(error: unknown): string {
+  if (error instanceof Error) return error.message;
+
+  if (
+    typeof error === 'object' &&
+    error !== null &&
+    'message' in error &&
+    typeof (error as { message?: unknown }).message === 'string'
+  ) {
+    return (error as { message: string }).message;
+  }
+
+  if (typeof error === 'object' && error !== null) {
+    try {
+      return JSON.stringify(error);
+    } catch {
+      // Ignore JSON serialization failures and fall back to String conversion.
+    }
+  }
+
+  return String(error);
+}
+
 let hasLoggedLocalFallback = false;
 
 /**
@@ -77,7 +100,7 @@ export function formatLocalAnvilStartError(error: unknown): string {
     return 'Failed to start local anvil: binary not found in PATH. Install Foundry (`foundryup`) or ensure `anvil` is available.';
   }
 
-  const message = error instanceof Error ? error.message : String(error);
+  const message = getErrorMessage(error);
   return `Failed to start local anvil: ${message}`;
 }
 
@@ -202,10 +225,9 @@ export async function stopLocalAnvilProcess(
           resolveOnce();
           return;
         }
-        const message = error instanceof Error ? error.message : String(error);
         rejectOnce(
           new Error(
-            `Failed to stop local anvil process with ${signal}: ${message}`,
+            `Failed to stop local anvil process with ${signal}: ${getErrorMessage(error)}`,
           ),
         );
       }

@@ -166,6 +166,23 @@ describe('Anvil utils', () => {
         'Failed to start local anvil: permission denied',
       );
     });
+
+    it('uses message field from non-Error objects', () => {
+      expect(
+        formatLocalAnvilStartError({ message: 'custom object failure' }),
+      ).to.equal('Failed to start local anvil: custom object failure');
+    });
+
+    it('serializes non-Error objects without message fields', () => {
+      expect(
+        formatLocalAnvilStartError({
+          reason: 'spawn-failure',
+          code: 500,
+        }),
+      ).to.equal(
+        'Failed to start local anvil: {"reason":"spawn-failure","code":500}',
+      );
+    });
   });
 
   describe('stopLocalAnvilProcess', () => {
