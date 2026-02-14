@@ -143,6 +143,9 @@ describe('gnosisSafe utils', () => {
       expect(safeApiKeyRequired('safe.global@evil.com')).to.equal(false);
       expect(safeApiKeyRequired('')).to.equal(false);
       expect(safeApiKeyRequired('/safe.global/api')).to.equal(false);
+      expect(safeApiKeyRequired('  /safe.global/api?foo=bar  ')).to.equal(
+        false,
+      );
     });
   });
 
