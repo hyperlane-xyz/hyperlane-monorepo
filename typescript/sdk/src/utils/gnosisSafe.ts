@@ -2567,18 +2567,35 @@ export async function getPendingTxsForChains(
   );
   const txs: SafeStatus[] = [];
   await Promise.all(
-    chains.map(async (chain) => {
+    chains.map(async (chain, index) => {
+      if (typeof chain !== 'string') {
+        rootLogger.error(
+          chalk.red.bold(
+            `Safe chain entry must be a string at index ${index}: ${stringifyValueForError(chain)}`,
+          ),
+        );
+        return;
+      }
+      const chainName = chain.trim();
+      if (chainName.length === 0) {
+        rootLogger.error(
+          chalk.red.bold(
+            `Safe chain entry must be non-empty at index ${index}: ${stringifyValueForError(chain)}`,
+          ),
+        );
+        return;
+      }
       let safeAddress: unknown;
       try {
-        safeAddress = safes[chain];
+        safeAddress = safes[chainName];
       } catch {
         rootLogger.error(
-          chalk.red.bold(`Safe address is inaccessible for ${chain}`),
+          chalk.red.bold(`Safe address is inaccessible for ${chainName}`),
         );
         return;
       }
       if (!safeAddress) {
-        rootLogger.error(chalk.red.bold(`No safe found for ${chain}`));
+        rootLogger.error(chalk.red.bold(`No safe found for ${chainName}`));
         return;
       }
       let normalizedSafeAddress: Address;
@@ -2587,16 +2604,16 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red.bold(
-            `Invalid safe configured for ${chain}: ${stringifyValueForError(error)}`,
+            `Invalid safe configured for ${chainName}: ${stringifyValueForError(error)}`,
           ),
         );
         return;
       }
 
-      if (chain === 'endurance') {
+      if (chainName === 'endurance') {
         rootLogger.info(
           chalk.gray.italic(
-            `Skipping chain ${chain} as it does not have a functional safe API`,
+            `Skipping chain ${chainName} as it does not have a functional safe API`,
           ),
         );
         return;
@@ -2606,7 +2623,7 @@ export async function getPendingTxsForChains(
       let safeService: SafeApiKit.default;
       try {
         ({ safeSdk, safeService } = await getSafeAndService(
-          chain,
+          chainName,
           multiProvider,
           normalizedSafeAddress,
         ));
@@ -2747,11 +2764,11 @@ export async function getPendingTxsForChains(
       }
       let nativeToken: unknown;
       try {
-        nativeToken = await multiProvider.getNativeToken(chain);
+        nativeToken = await multiProvider.getNativeToken(chainName);
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch native token metadata for ${chain}: ${error}`,
+            `Failed to fetch native token metadata for ${chainName}: ${error}`,
           ),
         );
         return;
@@ -2876,7 +2893,7 @@ export async function getPendingTxsForChains(
                 : SafeTxStatus.PENDING;
 
         txs.push({
-          chain,
+          chain: chainName,
           nonce: normalizedNonce,
           submissionDate: normalizedSubmissionDate.toDateString(),
           shortTxHash: `${normalizedSafeTxHash.slice(0, 6)}...${normalizedSafeTxHash.slice(-4)}`,
