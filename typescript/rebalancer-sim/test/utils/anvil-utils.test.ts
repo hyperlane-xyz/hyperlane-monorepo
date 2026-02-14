@@ -349,6 +349,31 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('handles maps with throwing values iterators', () => {
+      class ThrowingValuesMap extends Map<string, { message: string }> {
+        public override values(): IterableIterator<{ message: string }> {
+          let hasThrown = false;
+          return {
+            [Symbol.iterator]() {
+              return this;
+            },
+            next() {
+              if (!hasThrown) {
+                hasThrown = true;
+                throw new Error('broken map values iterator');
+              }
+              return { done: true, value: undefined };
+            },
+          } as IterableIterator<{ message: string }>;
+        }
+      }
+
+      const errors = new ThrowingValuesMap();
+      errors.set('runtime', { message: 'No Docker client strategy found' });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
+    });
+
     it('handles unbounded iterable error collections safely', () => {
       expect(
         isContainerRuntimeUnavailable({
@@ -361,6 +386,20 @@ describe('Anvil utils', () => {
           },
         }),
       ).to.equal(false);
+    });
+
+    it('handles object error collections with throwing property accessors', () => {
+      const errors: Record<string, unknown> = {
+        nested: { message: 'No Docker client strategy found' },
+      };
+      Object.defineProperty(errors, 'broken', {
+        enumerable: true,
+        get() {
+          throw new Error('broken object accessor');
+        },
+      });
+
+      expect(isContainerRuntimeUnavailable({ errors })).to.equal(true);
     });
 
     it('handles non-Error throw values safely', () => {

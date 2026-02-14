@@ -132,25 +132,45 @@ function extractErrorMessages(error: unknown): string[] {
   const messages: string[] = [];
   const queue: unknown[] = [error];
   const seen = new Set<unknown>();
-  const enqueue = (value: unknown) => {
-    if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return;
+  const enqueue = (value: unknown): boolean => {
+    if (queue.length >= MAX_EXTRACTED_ERROR_NODES) return false;
     queue.push(value);
+    return true;
   };
   const enqueueNestedErrors = (nestedErrors: unknown) => {
     if (!nestedErrors || typeof nestedErrors === 'string') return;
 
     if (nestedErrors instanceof Map) {
-      for (const nestedError of nestedErrors.values()) {
-        enqueue(nestedError);
+      try {
+        for (const nestedError of nestedErrors.values()) {
+          if (!enqueue(nestedError)) break;
+        }
+        return;
+      } catch {
+        try {
+          for (const nestedEntry of nestedErrors) {
+            if (Array.isArray(nestedEntry) && nestedEntry.length >= 2) {
+              if (!enqueue(nestedEntry[1])) break;
+              continue;
+            }
+
+            if (!enqueue(nestedEntry)) break;
+          }
+        } catch {
+          // Fall through to generic iterable/object traversal.
+        }
       }
-      return;
     }
 
     if (Array.isArray(nestedErrors)) {
-      for (const nestedError of nestedErrors) {
-        enqueue(nestedError);
+      try {
+        for (const nestedError of nestedErrors) {
+          if (!enqueue(nestedError)) break;
+        }
+        return;
+      } catch {
+        // Fall through to generic iterable/object traversal.
       }
-      return;
     }
 
     if (typeof nestedErrors === 'object' && nestedErrors !== null) {
@@ -161,7 +181,7 @@ function extractErrorMessages(error: unknown): string[] {
         try {
           let valuesRead = 0;
           for (const nestedError of nestedErrors as Iterable<unknown>) {
-            enqueue(nestedError);
+            if (!enqueue(nestedError)) break;
             valuesRead += 1;
             if (valuesRead >= MAX_NESTED_ITERABLE_VALUES) break;
           }
@@ -177,8 +197,21 @@ function extractErrorMessages(error: unknown): string[] {
       nestedErrors !== null &&
       !('message' in nestedErrors)
     ) {
-      for (const nestedError of Object.values(nestedErrors)) {
-        enqueue(nestedError);
+      try {
+        for (const nestedErrorKey of Object.keys(nestedErrors)) {
+          let nestedError: unknown;
+          try {
+            nestedError = (nestedErrors as Record<string, unknown>)[
+              nestedErrorKey
+            ];
+          } catch {
+            continue;
+          }
+
+          if (!enqueue(nestedError)) break;
+        }
+      } catch {
+        // Ignore malformed object accessors in wrapper payloads.
       }
     }
   };
