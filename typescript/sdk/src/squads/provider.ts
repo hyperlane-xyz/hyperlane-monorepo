@@ -17,5 +17,5 @@ export function toSquadsProvider(
   );
 
   // Squads SDK expects a narrower connection type than sdk providers expose.
-  return provider as unknown as SquadsProvider;
+  return provider as SquadsProvider;
 }
