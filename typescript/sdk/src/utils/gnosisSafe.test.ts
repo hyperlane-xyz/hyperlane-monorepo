@@ -78,6 +78,9 @@ describe('gnosisSafe utils', () => {
     it('requires safe domains to match on label boundaries', () => {
       expect(safeApiKeyRequired('https://notsafe.global/api')).to.equal(false);
       expect(safeApiKeyRequired('https://safe.global/api')).to.equal(true);
+      expect(safeApiKeyRequired('https://user:pass@safe.global/api')).to.equal(
+        true,
+      );
       expect(safeApiKeyRequired('https://safe.global.evil.com/api')).to.equal(
         false,
       );
