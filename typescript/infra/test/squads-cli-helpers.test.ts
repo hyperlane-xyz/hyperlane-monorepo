@@ -114,6 +114,16 @@ describe('squads cli helpers', () => {
     expect(parserError?.message).to.include('Missing required argument: chain');
   });
 
+  it('parses chain when using required chain parser helper', async () => {
+    const chain = getSquadsChains()[0];
+
+    const parsedArgs = await parseArgs(
+      withRequiredSquadsChain(yargs(['--chain', chain])),
+    );
+
+    expect(parsedArgs.chain).to.equal(chain);
+  });
+
   it('deduplicates chains parsed from repeated args', async () => {
     const chain = getSquadsChains()[0];
 
