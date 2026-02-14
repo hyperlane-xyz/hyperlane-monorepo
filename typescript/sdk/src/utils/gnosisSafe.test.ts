@@ -4523,6 +4523,12 @@ describe('gnosisSafe utils', () => {
       );
     });
 
+    it('throws deterministic message for malformed safe deployment version', () => {
+      expect(() => getKnownMultiSendAddresses(['bad.version'])).to.throw(
+        'MultiSend and MultiSendCallOnly deployments not found for version bad.version',
+      );
+    });
+
     it('throws for empty safe deployment version input', () => {
       expect(() => getKnownMultiSendAddresses([''])).to.throw(
         'Safe deployment version is required',
