@@ -164,6 +164,11 @@ describe('gnosisSafe utils', () => {
         safeApiKeyRequired('safe-transaction-mainnet.safe.global/path%40foo'),
       ).to.equal(true);
       expect(
+        safeApiKeyRequired(
+          'SAFE-TRANSACTION-MAINNET.SAFE.GLOBAL/PATH%40FOO?email=user%40hyperlane.xyz',
+        ),
+      ).to.equal(true);
+      expect(
         safeApiKeyRequired('safe-transaction-mainnet.safe.global:443/api'),
       ).to.equal(true);
       expect(
@@ -474,6 +479,11 @@ describe('gnosisSafe utils', () => {
       expect(normalizeSafeServiceUrl('safe.global/path%40foo')).to.equal(
         'https://safe.global/path%40foo/api',
       );
+      expect(
+        normalizeSafeServiceUrl(
+          'SAFE.GLOBAL/PATH%40FOO?email=user%40hyperlane.xyz#frag',
+        ),
+      ).to.equal('https://safe.global/PATH%40FOO/api');
       expect(
         normalizeSafeServiceUrl('safe.global?email=user@hyperlane.xyz'),
       ).to.equal('https://safe.global/api');
