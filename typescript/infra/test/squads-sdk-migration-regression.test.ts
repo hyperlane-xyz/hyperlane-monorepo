@@ -6,10 +6,17 @@ import { expect } from 'chai';
 
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
-const REMOVED_INFRA_SQUADS_MODULES = Object.freeze([
-  'src/config/squads.ts',
-  'src/utils/squads.ts',
-  'src/tx/squads-transaction-reader.ts',
+const REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS = Object.freeze([
+  'src/config/squads',
+  'src/utils/squads',
+  'src/tx/squads-transaction-reader',
+]);
+const SOURCE_FILE_EXTENSIONS = Object.freeze([
+  '.ts',
+  '.tsx',
+  '.mts',
+  '.cts',
+  '.js',
 ]);
 
 const SQUADS_SCRIPT_PATHS = Object.freeze([
@@ -101,6 +108,14 @@ function listTypeScriptFilesRecursively(relativeDir: string): string[] {
 }
 
 describe('squads sdk migration regression', () => {
+  it('keeps infra package explicitly depending on sdk squads surface', () => {
+    const infraPackageJson = readInfraPackageJson();
+
+    expect(infraPackageJson.dependencies?.['@hyperlane-xyz/sdk']).to.not.equal(
+      undefined,
+    );
+  });
+
   it('keeps infra package free of direct @sqds/multisig dependency', () => {
     const infraPackageJson = readInfraPackageJson();
 
@@ -113,12 +128,15 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps removed infra squads modules deleted', () => {
-    for (const removedModulePath of REMOVED_INFRA_SQUADS_MODULES) {
-      const absolutePath = path.join(INFRA_ROOT, removedModulePath);
-      expect(
-        fs.existsSync(absolutePath),
-        `Expected removed module to stay deleted: ${removedModulePath}`,
-      ).to.equal(false);
+    for (const removedModuleBasePath of REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS) {
+      for (const extension of SOURCE_FILE_EXTENSIONS) {
+        const removedModulePath = `${removedModuleBasePath}${extension}`;
+        const absolutePath = path.join(INFRA_ROOT, removedModulePath);
+        expect(
+          fs.existsSync(absolutePath),
+          `Expected removed module to stay deleted: ${removedModulePath}`,
+        ).to.equal(false);
+      }
     }
   });
 
