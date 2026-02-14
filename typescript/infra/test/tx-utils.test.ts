@@ -269,4 +269,66 @@ describe('executePendingTransactions', () => {
 
     expect(executed).to.deep.equal(['tx1', 'tx2']);
   });
+
+  it('falls back to per-transaction prompts when execute-all prompt is non-boolean', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+    const promptSteps = ['execute-all', 'tx1', 'tx2'] as const;
+    let promptIndex = 0;
+
+    await executePendingTransactions(
+      txs,
+      (tx) => tx.id,
+      (tx) => tx.chain,
+      async (tx) => {
+        executed.push(tx.id);
+      },
+      async () => {
+        const step = promptSteps[promptIndex];
+        promptIndex += 1;
+        if (step === 'execute-all') return 'yes';
+        return true;
+      },
+    );
+
+    expect(executed).to.deep.equal(['tx1', 'tx2']);
+  });
+
+  it('records failure when per-transaction prompt returns non-boolean', async () => {
+    const txs = [
+      { id: 'tx1', chain: 'chainA' },
+      { id: 'tx2', chain: 'chainB' },
+    ];
+    const executed: string[] = [];
+    const promptSteps = ['execute-all', 'tx1', 'tx2'] as const;
+    let promptIndex = 0;
+
+    try {
+      await executePendingTransactions(
+        txs,
+        (tx) => tx.id,
+        (tx) => tx.chain,
+        async (tx) => {
+          executed.push(tx.id);
+        },
+        async () => {
+          const step = promptSteps[promptIndex];
+          promptIndex += 1;
+          if (step === 'execute-all') return false;
+          if (step === 'tx1') return true;
+          return 'y';
+        },
+      );
+      expect.fail('Expected executePendingTransactions to throw');
+    } catch (error) {
+      expect((error as Error).message).to.equal(
+        'Failed to execute 1 transaction(s): chainB:tx2',
+      );
+    }
+
+    expect(executed).to.deep.equal(['tx1']);
+  });
 });

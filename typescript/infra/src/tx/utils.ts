@@ -9,7 +9,7 @@ import { GovernTransaction } from './govern-transaction-reader.js';
 type ConfirmPrompt = (options: {
   message: string;
   default: boolean;
-}) => Promise<boolean>;
+}) => Promise<unknown>;
 
 export function processGovernorReaderResult(
   result: [string, GovernTransaction][],
@@ -52,10 +52,19 @@ export async function executePendingTransactions<T>(
   // Ask if user wants to execute all transactions at once
   let confirmExecuteAll = false;
   try {
-    confirmExecuteAll = await confirmPrompt({
+    const executeAllResponse = await confirmPrompt({
       message: `Execute ALL ${executableTxs.length} transactions without further prompts?`,
       default: false,
     });
+    if (typeof executeAllResponse === 'boolean') {
+      confirmExecuteAll = executeAllResponse;
+    } else {
+      rootLogger.error(
+        chalk.red(
+          `Execute-all confirmation must return boolean, got ${String(executeAllResponse)}`,
+        ),
+      );
+    }
   } catch (error) {
     rootLogger.error(
       chalk.red('Error prompting for execute-all confirmation:'),
@@ -107,10 +116,16 @@ export async function executePendingTransactions<T>(
     let confirmExecuteTx = confirmExecuteAll;
     if (!confirmExecuteAll) {
       try {
-        confirmExecuteTx = await confirmPrompt({
+        const executeTxResponse = await confirmPrompt({
           message: `Execute transaction ${normalizedId} on chain ${normalizedChain}?`,
           default: false,
         });
+        if (typeof executeTxResponse !== 'boolean') {
+          throw new Error(
+            `Transaction confirmation must return boolean, got ${String(executeTxResponse)}`,
+          );
+        }
+        confirmExecuteTx = executeTxResponse;
       } catch (error) {
         rootLogger.error(
           chalk.red(
