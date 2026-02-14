@@ -148,6 +148,13 @@ describe('gnosisSafe utils', () => {
           value: '1',
         }),
       ).to.equal(true);
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x',
+          value: '0',
+        }),
+      ).to.equal(true);
     });
 
     it('returns false when payload fields are missing', () => {
@@ -192,6 +199,13 @@ describe('gnosisSafe utils', () => {
           to: '0x00000000000000000000000000000000000000aa',
           data: '0x1234',
           value: '1.0',
+        }),
+      ).to.equal(false);
+      expect(
+        hasSafeServiceTransactionPayload({
+          to: '0x00000000000000000000000000000000000000aa',
+          data: '0x1234',
+          value: '-1',
         }),
       ).to.equal(false);
     });
