@@ -678,7 +678,6 @@ export class SquadsTransactionReader {
     );
     if (!proposalData) {
       const error = `Proposal ${transactionIndex} not found on ${chain}`;
-      this.errors.push({ chain, transactionIndex, error });
       throw new Error(error);
     }
 
@@ -968,7 +967,6 @@ export class SquadsTransactionReader {
       );
     } catch (error) {
       const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${error}`;
-      this.errors.push({ chain, transactionIndex, error: errorMsg });
       throw new Error(errorMsg);
     }
 
@@ -1022,7 +1020,7 @@ export class SquadsTransactionReader {
       );
 
       if (isConfigTransaction(accountInfo.data)) {
-        return this.readConfigTransaction(
+        return await this.readConfigTransaction(
           chain,
           transactionIndex,
           proposalData,
@@ -1040,7 +1038,7 @@ export class SquadsTransactionReader {
         );
       }
 
-      return this.readVaultTransaction(
+      return await this.readVaultTransaction(
         chain,
         transactionIndex,
         proposalData,
