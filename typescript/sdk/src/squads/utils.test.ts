@@ -250,6 +250,30 @@ describe('squads utils', () => {
       expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(undefined);
     });
 
+    it('parses known vote error from aggregate errors array', () => {
+      const error = {
+        errors: [
+          { message: 'unrelated' },
+          { logs: ['custom program error: 0x177a'] },
+        ],
+      };
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
+    it('ignores non-array aggregate errors values while parsing', () => {
+      const error = {
+        errors: { logs: ['custom program error: 0x177b'] },
+        logs: ['custom program error: 0x177c'],
+      };
+
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
     it('parses known vote error from frozen log arrays in unknown error shape', () => {
       const error = {
         transactionLogs: Object.freeze(['Program log: AlreadyRejected']),

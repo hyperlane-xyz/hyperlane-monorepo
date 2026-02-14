@@ -132,9 +132,11 @@ export function parseSquadsProposalVoteErrorFromError(
 
   const traversalQueue: unknown[] = [error];
   const visitedObjects = new Set<object>();
+  let queueIndex = 0;
 
-  while (traversalQueue.length > 0) {
-    const current = traversalQueue.shift();
+  while (queueIndex < traversalQueue.length) {
+    const current = traversalQueue[queueIndex];
+    queueIndex++;
     if (!current || typeof current !== 'object') {
       continue;
     }
@@ -158,10 +160,14 @@ export function parseSquadsProposalVoteErrorFromError(
       if (parsedError) return parsedError;
     }
 
+    const nestedErrors = Array.isArray(currentRecord.errors)
+      ? currentRecord.errors
+      : [];
     traversalQueue.push(
       currentRecord.cause,
       currentRecord.data,
       currentRecord.value,
+      ...nestedErrors,
     );
   }
 
