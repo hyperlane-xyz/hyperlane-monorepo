@@ -40,6 +40,5 @@ export function toSquadsProvider(
     )} (provider: ${formatValueType(provider)})`,
   );
 
-  // Squads SDK expects a narrower connection type than sdk providers expose.
-  return provider as SquadsProvider;
+  return provider;
 }
