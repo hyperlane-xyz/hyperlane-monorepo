@@ -431,23 +431,26 @@ async function main() {
   // Compute default chains based on environment
   const envConfig = getEnvironmentConfig(environment);
   const configuredSquadsChains = getSquadsChains();
-  const selectedChains =
-    !chainsArg || chainsArg.length === 0
-      ? envConfig.supportedChainNames.filter(
-          (chain) =>
-            chainIsProtocol(chain, ProtocolType.Sealevel) &&
-            !chainsToSkip.includes(chain),
-        )
-      : chainsArg;
+  const hasExplicitChains = !!chainsArg && chainsArg.length > 0;
+  const selectedChains = hasExplicitChains
+    ? chainsArg
+    : envConfig.supportedChainNames.filter(
+        (chain) =>
+          chainIsProtocol(chain, ProtocolType.Sealevel) &&
+          !chainsToSkip.includes(chain),
+      );
 
-  const { squadsChains: chains, nonSquadsChains: chainsWithoutSquadsConfig } =
+  const { squadsChains, nonSquadsChains } =
     partitionSquadsChains(selectedChains);
-  if (chainsWithoutSquadsConfig.length > 0) {
+
+  if (hasExplicitChains && nonSquadsChains.length > 0) {
     throw new Error(
-      `Squads configuration not found for chains: ${chainsWithoutSquadsConfig.join(', ')}. ` +
+      `Squads configuration not found for chains: ${nonSquadsChains.join(', ')}. ` +
         `Available Squads chains: ${configuredSquadsChains.join(', ')}`,
     );
   }
+
+  const chains = squadsChains;
 
   // Initialize Turnkey signer
   rootLogger.info('Initializing Turnkey signer from GCP Secret Manager...');
