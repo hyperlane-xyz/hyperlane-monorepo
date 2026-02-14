@@ -50,6 +50,16 @@ describe('squads provider bridge', () => {
     );
   });
 
+  it('labels boolean getAccountInfo values in malformed provider errors', () => {
+    expect(() =>
+      toSquadsProvider({
+        getAccountInfo: false,
+      } as unknown as SolanaProvider),
+    ).to.throw(
+      'Invalid Solana provider: expected getAccountInfo function, got boolean',
+    );
+  });
+
   it('throws for null malformed provider values', () => {
     expect(() => toSquadsProvider(null as unknown as SolanaProvider)).to.throw(
       'Invalid Solana provider: expected getAccountInfo function, got undefined',
