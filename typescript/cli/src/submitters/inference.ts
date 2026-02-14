@@ -43,6 +43,7 @@ type Cache = {
   timelockByChainAndAddress: Map<string, boolean>;
   icaByChainAndAddress: Map<string, InferredSubmitter>;
   timelockProposerByChainAndAddress: Map<string, InferredSubmitter>;
+  signerByChain: Map<ChainName, boolean>;
 };
 
 type InferSubmitterFromAddressParams = {
@@ -106,17 +107,27 @@ function cacheKey(chain: ChainName, address: Address): string {
 
 function hasSignerForChain(
   context: WriteCommandContext,
+  cache: Cache,
   chain: ChainName,
 ): boolean {
+  const cached = cache.signerByChain.get(chain);
+  if (cached !== undefined) {
+    return cached;
+  }
+
   const maybeTryGetSigner = (context.multiProvider as any).tryGetSigner;
   if (typeof maybeTryGetSigner !== 'function') {
     // Preserve compatibility with lightweight test contexts that only mock
     // the methods used by a specific test.
+    cache.signerByChain.set(chain, true);
     return true;
   }
   try {
-    return !!maybeTryGetSigner.call(context.multiProvider, chain);
+    const hasSigner = !!maybeTryGetSigner.call(context.multiProvider, chain);
+    cache.signerByChain.set(chain, hasSigner);
+    return hasSigner;
   } catch {
+    cache.signerByChain.set(chain, false);
     return false;
   }
 }
@@ -267,7 +278,7 @@ async function inferIcaSubmitterFromAccount({
         }
 
         try {
-          if (!hasSignerForChain(context, originChain)) {
+          if (!hasSignerForChain(context, cache, originChain)) {
             continue;
           }
 
@@ -328,7 +339,7 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  if (!hasSignerForChain(context, originChain)) {
+  if (!hasSignerForChain(context, cache, originChain)) {
     return null;
   }
 
@@ -498,7 +509,7 @@ async function inferTimelockProposerSubmitter({
         }
 
         try {
-          if (!hasSignerForChain(context, originChainName)) {
+          if (!hasSignerForChain(context, cache, originChainName)) {
             continue;
           }
 
@@ -572,7 +583,7 @@ async function inferTimelockProposerSubmitter({
       }
 
       try {
-        if (!hasSignerForChain(context, originChainName)) {
+        if (!hasSignerForChain(context, cache, originChainName)) {
           continue;
         }
 
@@ -951,6 +962,7 @@ function createCache(): Cache {
     timelockByChainAndAddress: new Map(),
     icaByChainAndAddress: new Map(),
     timelockProposerByChainAndAddress: new Map(),
+    signerByChain: new Map(),
   };
 }
 
