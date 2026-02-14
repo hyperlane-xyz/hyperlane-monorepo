@@ -142,6 +142,32 @@ describe('squads utils', () => {
   });
 
   describe(getSquadAndProvider.name, () => {
+    it('returns provider and squads keys for supported chains', async () => {
+      const supportedChain = 'solanamainnet';
+      const provider = { provider: 'solana' };
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return provider;
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+        supportedChain,
+        mpp,
+      );
+
+      expect(providerLookupChain).to.equal(supportedChain);
+      expect(svmProvider).to.equal(provider);
+      expect(multisigPda.toBase58()).to.equal(
+        squadsConfigs[supportedChain].multisigPda,
+      );
+      expect(programId.toBase58()).to.equal(
+        squadsConfigs[supportedChain].programId,
+      );
+    });
+
     it('fails fast for unsupported chains before provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
