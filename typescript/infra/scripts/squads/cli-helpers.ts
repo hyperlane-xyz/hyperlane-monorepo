@@ -17,6 +17,11 @@ import type {
 import { logTable } from '../../src/utils/log.js';
 
 export const SQUADS_ENVIRONMENT = 'mainnet3';
+type TurnkeySealevelDeployerSigner = Awaited<
+  ReturnType<
+    (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
+  >
+>;
 const environmentConfigPromises: Partial<
   Record<DeployEnvironment, Promise<EnvironmentConfig>>
 > = {};
@@ -24,16 +29,7 @@ const multiProtocolProviderPromises: Partial<
   Record<DeployEnvironment, Promise<MultiProtocolProvider>>
 > = {};
 const turnkeySignerPromises: Partial<
-  Record<
-    DeployEnvironment,
-    Promise<
-      Awaited<
-        ReturnType<
-          (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
-        >
-      >
-    >
-  >
+  Record<DeployEnvironment, Promise<TurnkeySealevelDeployerSigner>>
 > = {};
 const registryPromises: Partial<Record<DeployEnvironment, Promise<IRegistry>>> =
   {};
@@ -115,13 +111,7 @@ export async function getSquadsMultiProtocolProvider(): Promise<MultiProtocolPro
 
 export async function getTurnkeySignerFor(
   environment: DeployEnvironment,
-): Promise<
-  Awaited<
-    ReturnType<
-      (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
-    >
-  >
-> {
+): Promise<TurnkeySealevelDeployerSigner> {
   return memoizeByEnvironment(turnkeySignerPromises, environment, () =>
     import('../../src/utils/turnkey.js').then(
       ({ getTurnkeySealevelDeployerSigner }) =>
@@ -130,13 +120,7 @@ export async function getTurnkeySignerFor(
   );
 }
 
-export async function getSquadsTurnkeySigner(): Promise<
-  Awaited<
-    ReturnType<
-      (typeof import('../../src/utils/turnkey.js'))['getTurnkeySealevelDeployerSigner']
-    >
-  >
-> {
+export async function getSquadsTurnkeySigner(): Promise<TurnkeySealevelDeployerSigner> {
   return getTurnkeySignerFor(SQUADS_ENVIRONMENT);
 }
 
