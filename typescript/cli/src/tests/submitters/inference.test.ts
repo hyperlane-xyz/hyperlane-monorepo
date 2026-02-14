@@ -1540,6 +1540,53 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('falls back to jsonRpc when destination signer is malformed during owner inference', async () => {
+    const safeOwner = '0x4444444444444444444444444444444444444444';
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => safeOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('safe probe should not run'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('timelock probe should not run'));
+
+    let signerAddressCalls = 0;
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => {
+          signerAddressCalls += 1;
+          return 'not-an-evm-address';
+        },
+        getProvider: () => ({}),
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(ownableStub.callCount).to.equal(1);
+      expect(safeStub.callCount).to.equal(0);
+      expect(timelockStub.callCount).to.equal(0);
+      expect(signerAddressCalls).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+    }
+  });
+
   it('uses transaction from fallback when transaction target is malformed', async () => {
     const fromSafe = '0x4444444444444444444444444444444444444444';
     const ownableStub = sinon.stub(Ownable__factory, 'connect');
@@ -13503,6 +13550,103 @@ describe('resolveSubmitterBatchesForTransactions', () => {
             return SIGNER;
           }
           return ethersConstants.AddressZero;
+        },
+        getProvider: () => provider,
+        getChainName: (domainId: number) => {
+          if (domainId === 31347) return 'anvil3';
+          throw new Error('unknown domain');
+        },
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(1);
+      expect(signerAddressCallsByChain[CHAIN]).to.equal(1);
+      expect(signerAddressCallsByChain.anvil3).to.equal(1);
+      expect(safeStub.callCount).to.equal(1);
+      expect(timelockStub.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
+  it('falls back to jsonRpc when ICA event-derived origin signer is malformed without tryGetSigner', async () => {
+    const inferredIcaOwner = '0x9898989898989898989898989898989898989898';
+    const destinationRouterAddress =
+      '0x9191919191919191919191919191919191919191';
+    const originOwner = '0xa2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2a2';
+    const originOwnerBytes32 =
+      `0x000000000000000000000000${originOwner.slice(2)}` as const;
+    const originRouterBytes32 =
+      '0x0000000000000000000000009292929292929292929292929292929292929292';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([{ topics: [], data: '0x' }]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => ({
+                args: {
+                  origin: 31347,
+                  router: originRouterBytes32,
+                  owner: originOwnerBytes32,
+                  ism: ethersConstants.AddressZero,
+                },
+              }),
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const signerAddressCallsByChain: Record<string, number> = {};
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async (chainName: string) => {
+          signerAddressCallsByChain[chainName] =
+            (signerAddressCallsByChain[chainName] ?? 0) + 1;
+          if (chainName === CHAIN) {
+            return SIGNER;
+          }
+          return 'not-an-evm-address';
         },
         getProvider: () => provider,
         getChainName: (domainId: number) => {
