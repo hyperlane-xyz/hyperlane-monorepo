@@ -45,6 +45,12 @@ export async function executePendingTransactions<T>(
     default: false,
   });
 
+  const failedTransactions: Array<{
+    id: string;
+    chain: string;
+    error: unknown;
+  }> = [];
+
   for (const tx of executableTxs) {
     const id = txId(tx);
     const chain = txChain(tx);
@@ -64,8 +70,21 @@ export async function executePendingTransactions<T>(
     try {
       await executeTx(tx);
     } catch (error) {
-      rootLogger.error(chalk.red(`Error executing transaction: ${error}`));
-      return;
+      rootLogger.error(
+        chalk.red(`Error executing transaction ${id} on chain ${chain}:`),
+        error,
+      );
+      failedTransactions.push({ id, chain, error });
+      continue;
     }
+  }
+
+  if (failedTransactions.length > 0) {
+    const failedTxSummary = failedTransactions
+      .map(({ id, chain }) => `${chain}:${id}`)
+      .join(', ');
+    throw new Error(
+      `Failed to execute ${failedTransactions.length} transaction(s): ${failedTxSummary}`,
+    );
   }
 }
