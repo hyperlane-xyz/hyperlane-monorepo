@@ -714,6 +714,12 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired('https://safe.global%25255c%40evil.com/api'),
       ).to.equal(false);
+      expect(
+        safeApiKeyRequired('https://safe.global%255c@evil.com/api'),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired('https://safe.global%25255c@evil.com/api'),
+      ).to.equal(false);
       expect(safeApiKeyRequired('//safe.global%5C@evil.com/api')).to.equal(
         false,
       );
@@ -729,12 +735,20 @@ describe('gnosisSafe utils', () => {
       expect(
         safeApiKeyRequired('//safe.global%25255c%40evil.com/api'),
       ).to.equal(false);
+      expect(safeApiKeyRequired('//safe.global%255c@evil.com/api')).to.equal(
+        false,
+      );
+      expect(safeApiKeyRequired('//safe.global%25255c@evil.com/api')).to.equal(
+        false,
+      );
       expect(safeApiKeyRequired('safe.global%5C@evil.com')).to.equal(false);
       expect(safeApiKeyRequired('safe.global%255C@evil.com')).to.equal(false);
       expect(safeApiKeyRequired('safe.global%25255C@evil.com')).to.equal(false);
       expect(safeApiKeyRequired('safe.global%25255c%40evil.com')).to.equal(
         false,
       );
+      expect(safeApiKeyRequired('safe.global%255c@evil.com')).to.equal(false);
+      expect(safeApiKeyRequired('safe.global%25255c@evil.com')).to.equal(false);
       expect(
         safeApiKeyRequired('http://safe.global%252540evil.com/api'),
       ).to.equal(false);
@@ -755,6 +769,16 @@ describe('gnosisSafe utils', () => {
       ).to.equal(false);
       expect(
         safeApiKeyRequired(
+          'https://safe-transaction-mainnet.5afe.dev%255c@evil.com/api',
+        ),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired(
+          'https://safe-transaction-mainnet.5afe.dev%25255c@evil.com/api',
+        ),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired(
           'https:////safe-transaction-mainnet.5afe.dev%5C@evil.com/api',
         ),
       ).to.equal(false);
@@ -769,12 +793,28 @@ describe('gnosisSafe utils', () => {
         ),
       ).to.equal(false);
       expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.5afe.dev%255c@evil.com/api',
+        ),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired(
+          '//safe-transaction-mainnet.5afe.dev%25255c@evil.com/api',
+        ),
+      ).to.equal(false);
+      expect(
         safeApiKeyRequired('safe-transaction-mainnet.5afe.dev%255c%40evil.com'),
       ).to.equal(false);
       expect(
         safeApiKeyRequired(
           'safe-transaction-mainnet.5afe.dev%25255c%40evil.com',
         ),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired('safe-transaction-mainnet.5afe.dev%255c@evil.com'),
+      ).to.equal(false);
+      expect(
+        safeApiKeyRequired('safe-transaction-mainnet.5afe.dev%25255c@evil.com'),
       ).to.equal(false);
       expect(
         safeApiKeyRequired('https://safe.global%25252540evil.com/api'),
@@ -1606,6 +1646,16 @@ describe('gnosisSafe utils', () => {
         'Safe tx service URL is invalid: https://safe.global%25255c%40evil.com/api',
       );
       expect(() =>
+        normalizeSafeServiceUrl('https://safe.global%255c@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe.global%255c@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('https://safe.global%25255c@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe.global%25255c@evil.com/api',
+      );
+      expect(() =>
         normalizeSafeServiceUrl('//safe.global%5C@evil.com/api'),
       ).to.throw(
         'Safe tx service URL is invalid: //safe.global%5C@evil.com/api',
@@ -1630,6 +1680,16 @@ describe('gnosisSafe utils', () => {
       ).to.throw(
         'Safe tx service URL is invalid: //safe.global%25255c%40evil.com/api',
       );
+      expect(() =>
+        normalizeSafeServiceUrl('//safe.global%255c@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: //safe.global%255c@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('//safe.global%25255c@evil.com/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: //safe.global%25255c@evil.com/api',
+      );
       expect(() => normalizeSafeServiceUrl('safe.global%5C@evil.com')).to.throw(
         'Safe tx service URL is invalid: safe.global%5C@evil.com',
       );
@@ -1644,6 +1704,12 @@ describe('gnosisSafe utils', () => {
       ).to.throw(
         'Safe tx service URL is invalid: safe.global%25255c%40evil.com',
       );
+      expect(() =>
+        normalizeSafeServiceUrl('safe.global%255c@evil.com'),
+      ).to.throw('Safe tx service URL is invalid: safe.global%255c@evil.com');
+      expect(() =>
+        normalizeSafeServiceUrl('safe.global%25255c@evil.com'),
+      ).to.throw('Safe tx service URL is invalid: safe.global%25255c@evil.com');
       expect(() =>
         normalizeSafeServiceUrl('https://safe.global%25252540evil.com/api'),
       ).to.throw(
@@ -1672,6 +1738,20 @@ describe('gnosisSafe utils', () => {
       );
       expect(() =>
         normalizeSafeServiceUrl(
+          'https://safe-transaction-mainnet.5afe.dev%255c@evil.com/api',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe-transaction-mainnet.5afe.dev%255c@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
+          'https://safe-transaction-mainnet.5afe.dev%25255c@evil.com/api',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe-transaction-mainnet.5afe.dev%25255c@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
           'https:////safe-transaction-mainnet.5afe.dev%5C@evil.com/api',
         ),
       ).to.throw(
@@ -1693,6 +1773,20 @@ describe('gnosisSafe utils', () => {
       );
       expect(() =>
         normalizeSafeServiceUrl(
+          '//safe-transaction-mainnet.5afe.dev%255c@evil.com/api',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: //safe-transaction-mainnet.5afe.dev%255c@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
+          '//safe-transaction-mainnet.5afe.dev%25255c@evil.com/api',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: //safe-transaction-mainnet.5afe.dev%25255c@evil.com/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
           'safe-transaction-mainnet.5afe.dev%255c%40evil.com',
         ),
       ).to.throw(
@@ -1704,6 +1798,20 @@ describe('gnosisSafe utils', () => {
         ),
       ).to.throw(
         'Safe tx service URL is invalid: safe-transaction-mainnet.5afe.dev%25255c%40evil.com',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
+          'safe-transaction-mainnet.5afe.dev%255c@evil.com',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: safe-transaction-mainnet.5afe.dev%255c@evil.com',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl(
+          'safe-transaction-mainnet.5afe.dev%25255c@evil.com',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: safe-transaction-mainnet.5afe.dev%25255c@evil.com',
       );
       expect(() =>
         normalizeSafeServiceUrl('http://safe.global%252540evil.com/api'),
