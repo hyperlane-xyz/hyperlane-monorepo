@@ -62,11 +62,12 @@ export async function runSubmit({
       }
     }
   } catch (error) {
+    const errorMessage = errorToString(error);
     logRed(
       `⛔️ Failed to submit ${transactions.length} transactions:`,
-      errorToString(error),
+      errorMessage,
     );
-    throw new Error('Failed to submit transactions.');
+    throw new Error(`Failed to submit transactions: ${errorMessage}`);
   }
 }
 

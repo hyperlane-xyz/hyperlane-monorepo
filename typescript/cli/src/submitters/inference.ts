@@ -20,6 +20,7 @@ import {
   bytes32ToAddress,
   eqAddress,
   isAddressEvm,
+  normalizeAddressEvm,
   rootLogger,
 } from '@hyperlane-xyz/utils';
 
@@ -96,7 +97,7 @@ function normalizeEvmAddressFlexible(address: string): string {
     isAddressEvm(normalizedPrefix),
     `Invalid EVM address: ${normalizedPrefix}`,
   );
-  return normalizedPrefix.toLowerCase();
+  return normalizeAddressEvm(normalizedPrefix.toLowerCase());
 }
 
 function cacheKey(chain: ChainName, address: Address): string {
@@ -143,7 +144,7 @@ async function isSafeContract({
   try {
     const provider = context.multiProvider.getProvider(chain);
     const safe = ISafe__factory.connect(address, provider);
-    await Promise.all([safe.getThreshold(), safe.nonce()]);
+    await safe.getThreshold();
     cache.safeByChainAndAddress.set(key, true);
     return true;
   } catch {
