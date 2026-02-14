@@ -137,13 +137,12 @@ export async function getSquadProposal(
     }
   | undefined
 > {
-  assertIsSquadsChain(chain);
+  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+  );
 
   try {
-    const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
-      chain,
-      mpp,
-    );
     const squadsProvider = toSquadsProvider(svmProvider);
 
     const multisig = await accounts.Multisig.fromAccountAddress(
