@@ -76,6 +76,7 @@ Safe utility typing and robustness were improved by:
 - Canonicalizing owner-diff helper output addresses to checksum format after validation.
 - Hardening pending-status chain input handling by validating non-string/empty entries and trimming chain names before safe lookup/provider calls.
 - Skipping duplicate pending-status chain entries after normalization to avoid repeated Safe API requests and duplicate status output.
+- Hardening pending-status chain iteration against inaccessible chain-entry accessors by skipping unreadable entries before Safe API calls.
 - Hardening pending-status confirmation parsing by rejecting inaccessible or invalid confirmation-array lengths per entry.
 - Hardening Safe API key metadata parsing by rejecting non-string values and treating whitespace-only values as unset.
 - Normalizing getSafeAndService initialization error wrapping with deterministic unknown-error stringification.

@@ -5806,6 +5806,41 @@ describe('gnosisSafe utils', () => {
       expect(pendingCalls).to.equal(0);
     });
 
+    it('returns empty and avoids service calls when chain entry access is inaccessible', async () => {
+      let pendingCalls = 0;
+      safeApiPrototype.getPendingTransactions = (async () => {
+        pendingCalls += 1;
+        return { results: [] };
+      }) as unknown;
+
+      const chainsWithThrowingEntry = ['test'];
+      Object.defineProperty(chainsWithThrowingEntry, '0', {
+        get() {
+          throw new Error('boom');
+        },
+      });
+
+      const multiProviderMock = {
+        getEvmChainId: () => 1,
+        getChainMetadata: () => ({
+          rpcUrls: [{ http: 'https://rpc.test.example' }],
+          gnosisSafeTransactionServiceUrl:
+            'https://safe-transaction-mainnet.safe.global/api',
+        }),
+        getSigner: () => ({ privateKey: `0x${'11'.repeat(32)}` }),
+        getNativeToken: async () => ({ symbol: 'ETH', decimals: 18 }),
+      } as unknown as Parameters<typeof getPendingTxsForChains>[1];
+
+      const statuses = await getPendingTxsForChains(
+        chainsWithThrowingEntry as unknown as string[],
+        multiProviderMock,
+        { test: '0x52908400098527886e0f7030069857d2e4169ee7' },
+      );
+
+      expect(statuses).to.deep.equal([]);
+      expect(pendingCalls).to.equal(0);
+    });
+
     it('trims chain names before safe lookup and status output', async () => {
       safeModule.init = (async () => ({
         getThreshold: async () => 1,

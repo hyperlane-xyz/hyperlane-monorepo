@@ -2566,35 +2566,48 @@ export async function getPendingTxsForChains(
     `Safe chain list length is invalid: ${stringifyValueForError(chainCount)}`,
   );
   const seenChains = new Set<string>();
+  const normalizedChains: string[] = [];
+  for (let index = 0; index < chainCount; index += 1) {
+    let chain: unknown;
+    try {
+      chain = chains[index];
+    } catch {
+      rootLogger.error(
+        chalk.red.bold(`Safe chain entry is inaccessible at index ${index}`),
+      );
+      continue;
+    }
+    if (typeof chain !== 'string') {
+      rootLogger.error(
+        chalk.red.bold(
+          `Safe chain entry must be a string at index ${index}: ${stringifyValueForError(chain)}`,
+        ),
+      );
+      continue;
+    }
+    const chainName = chain.trim();
+    if (chainName.length === 0) {
+      rootLogger.error(
+        chalk.red.bold(
+          `Safe chain entry must be non-empty at index ${index}: ${stringifyValueForError(chain)}`,
+        ),
+      );
+      continue;
+    }
+    if (seenChains.has(chainName)) {
+      rootLogger.info(
+        chalk.gray.italic(
+          `Skipping duplicate safe chain entry ${chainName} at index ${index}`,
+        ),
+      );
+      continue;
+    }
+    seenChains.add(chainName);
+    normalizedChains.push(chainName);
+  }
   const txsByChain = await Promise.all(
-    chains.map(async (chain, index) => {
+    normalizedChains.map(async (chainName) => {
       const chainTxs: SafeStatus[] = [];
-      if (typeof chain !== 'string') {
-        rootLogger.error(
-          chalk.red.bold(
-            `Safe chain entry must be a string at index ${index}: ${stringifyValueForError(chain)}`,
-          ),
-        );
-        return chainTxs;
-      }
-      const chainName = chain.trim();
-      if (chainName.length === 0) {
-        rootLogger.error(
-          chalk.red.bold(
-            `Safe chain entry must be non-empty at index ${index}: ${stringifyValueForError(chain)}`,
-          ),
-        );
-        return chainTxs;
-      }
-      if (seenChains.has(chainName)) {
-        rootLogger.info(
-          chalk.gray.italic(
-            `Skipping duplicate safe chain entry ${chainName} at index ${index}`,
-          ),
-        );
-        return chainTxs;
-      }
-      seenChains.add(chainName);
       let safeAddress: unknown;
       try {
         safeAddress = safes[chainName];
@@ -2640,7 +2653,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.warn(
           chalk.yellow(
-            `Skipping chain ${chain} as there was an error getting the safe service: ${error}`,
+            `Skipping chain ${chainName} as there was an error getting the safe service: ${error}`,
           ),
         );
         return chainTxs;
@@ -2652,7 +2665,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch threshold for safe ${normalizedSafeAddress} on ${chain}: ${error}`,
+            `Failed to fetch threshold for safe ${normalizedSafeAddress} on ${chainName}: ${error}`,
           ),
         );
         return chainTxs;
@@ -2661,7 +2674,7 @@ export async function getPendingTxsForChains(
       try {
         threshold = parseNonNegativeSafeInteger(
           thresholdRaw,
-          `Safe threshold must be a positive integer on ${chain}: ${stringifyValueForError(thresholdRaw)}`,
+          `Safe threshold must be a positive integer on ${chainName}: ${stringifyValueForError(thresholdRaw)}`,
         );
       } catch (error) {
         rootLogger.error(chalk.red(String(error)));
@@ -2670,7 +2683,7 @@ export async function getPendingTxsForChains(
       if (threshold === 0) {
         rootLogger.error(
           chalk.red(
-            `Safe threshold must be a positive integer on ${chain}: ${stringifyValueForError(thresholdRaw)}`,
+            `Safe threshold must be a positive integer on ${chainName}: ${stringifyValueForError(thresholdRaw)}`,
           ),
         );
         return chainTxs;
@@ -2679,7 +2692,7 @@ export async function getPendingTxsForChains(
       let pendingTxs: unknown;
       rootLogger.info(
         chalk.gray.italic(
-          `Fetching pending transactions for safe ${normalizedSafeAddress} on ${chain}`,
+          `Fetching pending transactions for safe ${normalizedSafeAddress} on ${chainName}`,
         ),
       );
       try {
@@ -2689,7 +2702,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch pending transactions for safe ${normalizedSafeAddress} on ${chain} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
+            `Failed to fetch pending transactions for safe ${normalizedSafeAddress} on ${chainName} after ${SAFE_API_MAX_RETRIES} attempts: ${error}`,
           ),
         );
         return chainTxs;
@@ -2698,7 +2711,7 @@ export async function getPendingTxsForChains(
       if (!pendingTxs || typeof pendingTxs !== 'object') {
         rootLogger.error(
           chalk.red(
-            `Pending Safe transaction payload must be an object on ${chain}: ${stringifyValueForError(pendingTxs)}`,
+            `Pending Safe transaction payload must be an object on ${chainName}: ${stringifyValueForError(pendingTxs)}`,
           ),
         );
         return chainTxs;
@@ -2710,7 +2723,7 @@ export async function getPendingTxsForChains(
       } catch {
         rootLogger.error(
           chalk.red(
-            `Pending Safe transaction list is inaccessible on ${chain}`,
+            `Pending Safe transaction list is inaccessible on ${chainName}`,
           ),
         );
         return chainTxs;
@@ -2718,7 +2731,7 @@ export async function getPendingTxsForChains(
       if (!Array.isArray(pendingTxResults)) {
         rootLogger.error(
           chalk.red(
-            `Pending Safe transaction list must be an array on ${chain}: ${stringifyValueForError(pendingTxResults)}`,
+            `Pending Safe transaction list must be an array on ${chainName}: ${stringifyValueForError(pendingTxResults)}`,
           ),
         );
         return chainTxs;
@@ -2729,7 +2742,7 @@ export async function getPendingTxsForChains(
       } catch {
         rootLogger.error(
           chalk.red(
-            `Pending Safe transaction list length is inaccessible on ${chain}`,
+            `Pending Safe transaction list length is inaccessible on ${chainName}`,
           ),
         );
         return chainTxs;
@@ -2737,7 +2750,7 @@ export async function getPendingTxsForChains(
       if (!Number.isSafeInteger(pendingTxCount) || pendingTxCount < 0) {
         rootLogger.error(
           chalk.red(
-            `Pending Safe transaction list length is invalid on ${chain}: ${stringifyValueForError(pendingTxCount)}`,
+            `Pending Safe transaction list length is invalid on ${chainName}: ${stringifyValueForError(pendingTxCount)}`,
           ),
         );
         return chainTxs;
@@ -2745,7 +2758,7 @@ export async function getPendingTxsForChains(
       if (pendingTxCount === 0) {
         rootLogger.info(
           chalk.gray.italic(
-            `No pending transactions found for safe ${normalizedSafeAddress} on ${chain}`,
+            `No pending transactions found for safe ${normalizedSafeAddress} on ${chainName}`,
           ),
         );
         return chainTxs;
@@ -2757,7 +2770,7 @@ export async function getPendingTxsForChains(
       } catch (error) {
         rootLogger.error(
           chalk.red(
-            `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chain}: ${error}`,
+            `Failed to fetch Safe balance for ${normalizedSafeAddress} on ${chainName}: ${error}`,
           ),
         );
         return chainTxs;
@@ -2766,7 +2779,7 @@ export async function getPendingTxsForChains(
       try {
         balance = parseNonNegativeBigNumber(
           safeBalanceRaw,
-          `Safe balance must be non-negative integer on ${chain}: ${stringifyValueForError(safeBalanceRaw)}`,
+          `Safe balance must be non-negative integer on ${chainName}: ${stringifyValueForError(safeBalanceRaw)}`,
         );
       } catch (error) {
         rootLogger.error(chalk.red(String(error)));
@@ -2786,7 +2799,7 @@ export async function getPendingTxsForChains(
       if (nativeToken === null || typeof nativeToken !== 'object') {
         rootLogger.error(
           chalk.red(
-            `Native token metadata must be an object for ${chain}: ${stringifyValueForError(nativeToken)}`,
+            `Native token metadata must be an object for ${chainName}: ${stringifyValueForError(nativeToken)}`,
           ),
         );
         return chainTxs;
@@ -2802,7 +2815,7 @@ export async function getPendingTxsForChains(
       } catch {
         rootLogger.error(
           chalk.red(
-            `Native token metadata fields are inaccessible for ${chain}`,
+            `Native token metadata fields are inaccessible for ${chainName}`,
           ),
         );
         return chainTxs;
@@ -2813,7 +2826,7 @@ export async function getPendingTxsForChains(
       ) {
         rootLogger.error(
           chalk.red(
-            `Native token symbol must be non-empty string for ${chain}: ${stringifyValueForError(nativeTokenSymbol)}`,
+            `Native token symbol must be non-empty string for ${chainName}: ${stringifyValueForError(nativeTokenSymbol)}`,
           ),
         );
         return chainTxs;
@@ -2825,7 +2838,7 @@ export async function getPendingTxsForChains(
       ) {
         rootLogger.error(
           chalk.red(
-            `Native token decimals must be non-negative integer for ${chain}: ${stringifyValueForError(nativeTokenDecimals)}`,
+            `Native token decimals must be non-negative integer for ${chainName}: ${stringifyValueForError(nativeTokenDecimals)}`,
           ),
         );
         return chainTxs;
@@ -2836,7 +2849,7 @@ export async function getPendingTxsForChains(
         if (pendingTx === null || typeof pendingTx !== 'object') {
           rootLogger.error(
             chalk.red(
-              `Pending Safe transaction entry must be an object at index ${index} on ${chain}: ${stringifyValueForError(pendingTx)}`,
+              `Pending Safe transaction entry must be an object at index ${index} on ${chainName}: ${stringifyValueForError(pendingTx)}`,
             ),
           );
           return;
@@ -2855,7 +2868,7 @@ export async function getPendingTxsForChains(
         } catch {
           rootLogger.error(
             chalk.red(
-              `Pending Safe transaction entry fields are inaccessible at index ${index} on ${chain}`,
+              `Pending Safe transaction entry fields are inaccessible at index ${index} on ${chainName}`,
             ),
           );
           return;
@@ -2864,7 +2877,7 @@ export async function getPendingTxsForChains(
         try {
           normalizedNonce = parseNonNegativeSafeInteger(
             nonce,
-            `Pending Safe transaction nonce must be a non-negative integer at index ${index} on ${chain}: ${stringifyValueForError(nonce)}`,
+            `Pending Safe transaction nonce must be a non-negative integer at index ${index} on ${chainName}: ${stringifyValueForError(nonce)}`,
           );
         } catch (error) {
           rootLogger.error(chalk.red(String(error)));
@@ -2880,7 +2893,7 @@ export async function getPendingTxsForChains(
         ) {
           rootLogger.error(
             chalk.red(
-              `Pending Safe transaction submission date must be valid at index ${index} on ${chain}: ${stringifyValueForError(submissionDate)}`,
+              `Pending Safe transaction submission date must be valid at index ${index} on ${chainName}: ${stringifyValueForError(submissionDate)}`,
             ),
           );
           return;
@@ -2899,7 +2912,7 @@ export async function getPendingTxsForChains(
           } catch {
             rootLogger.error(
               chalk.red(
-                `Pending Safe transaction confirmations length is inaccessible at index ${index} on ${chain}: ${stringifyValueForError(confirmations)}`,
+                `Pending Safe transaction confirmations length is inaccessible at index ${index} on ${chainName}: ${stringifyValueForError(confirmations)}`,
               ),
             );
             return;
@@ -2907,7 +2920,7 @@ export async function getPendingTxsForChains(
           if (!Number.isSafeInteger(confs) || confs < 0) {
             rootLogger.error(
               chalk.red(
-                `Pending Safe transaction confirmations length is invalid at index ${index} on ${chain}: ${stringifyValueForError(confs)}`,
+                `Pending Safe transaction confirmations length is invalid at index ${index} on ${chainName}: ${stringifyValueForError(confs)}`,
               ),
             );
             return;
