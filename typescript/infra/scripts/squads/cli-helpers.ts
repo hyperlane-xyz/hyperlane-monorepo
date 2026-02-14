@@ -90,9 +90,13 @@ export function getUnsupportedSquadsChainsErrorMessage(
   nonSquadsChains: ChainName[],
   configuredSquadsChains: ChainName[] = getSquadsChains(),
 ): string {
+  const uniqueNonSquadsChains = Array.from(new Set(nonSquadsChains));
+  const uniqueConfiguredSquadsChains = Array.from(
+    new Set(configuredSquadsChains),
+  );
   return (
-    `Squads configuration not found for chains: ${nonSquadsChains.join(', ')}. ` +
-    `Available Squads chains: ${configuredSquadsChains.join(', ')}`
+    `Squads configuration not found for chains: ${uniqueNonSquadsChains.join(', ')}. ` +
+    `Available Squads chains: ${uniqueConfiguredSquadsChains.join(', ')}`
   );
 }
 
