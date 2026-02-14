@@ -154,8 +154,10 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      const { svmProvider, vault, multisigPda, programId } =
-        await getSquadAndProvider(supportedChain, mpp);
+      const { svmProvider, vault, multisigPda, programId } = getSquadAndProvider(
+        supportedChain,
+        mpp,
+      );
 
       expect(providerLookupChain).to.equal(supportedChain);
       expect(svmProvider).to.equal(provider);
@@ -179,7 +181,7 @@ describe('squads utils', () => {
 
       let thrownError: Error | undefined;
       try {
-        await getSquadAndProvider('unsupported-chain', mpp);
+        getSquadAndProvider('unsupported-chain', mpp);
       } catch (error) {
         thrownError = error as Error;
       }
@@ -201,7 +203,7 @@ describe('squads utils', () => {
 
       let thrownError: Error | undefined;
       try {
-        await getSquadAndProvider('solanamainnet', mpp);
+        getSquadAndProvider('solanamainnet', mpp);
       } catch (error) {
         thrownError = error as Error;
       }

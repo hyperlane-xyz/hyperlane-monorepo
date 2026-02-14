@@ -681,10 +681,7 @@ export class SquadsTransactionReader {
     }
 
     const { proposal, proposalPda } = proposalData;
-    const { multisigPda, programId } = await getSquadAndProvider(
-      chain,
-      this.mpp,
-    );
+    const { multisigPda, programId } = getSquadAndProvider(chain, this.mpp);
 
     return { proposal, proposalPda, multisigPda, programId };
   }
@@ -694,7 +691,7 @@ export class SquadsTransactionReader {
     transactionIndex: number,
     transactionPda: PublicKey,
   ) {
-    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const { svmProvider } = getSquadAndProvider(chain, this.mpp);
     const accountInfo = await svmProvider.getAccountInfo(transactionPda);
 
     if (!accountInfo) {
@@ -716,7 +713,7 @@ export class SquadsTransactionReader {
     chain: ChainName,
     vaultTransaction: accounts.VaultTransaction,
   ): Promise<PublicKey[]> {
-    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const { svmProvider } = getSquadAndProvider(chain, this.mpp);
     const accountKeys = [...vaultTransaction.message.accountKeys];
     const lookups = vaultTransaction.message.addressTableLookups;
 
@@ -957,7 +954,7 @@ export class SquadsTransactionReader {
     },
     transactionPda: PublicKey,
   ): Promise<SquadsTransaction> {
-    const { svmProvider } = await getSquadAndProvider(chain, this.mpp);
+    const { svmProvider } = getSquadAndProvider(chain, this.mpp);
     const squadsProvider = toSquadsProvider(svmProvider);
 
     let vaultTransaction: accounts.VaultTransaction;

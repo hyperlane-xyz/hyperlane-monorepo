@@ -114,7 +114,7 @@ export function parseSquadsProposalVoteErrorFromError(
   return parseSquadsProposalVoteError(logs);
 }
 
-export async function getSquadAndProvider(
+export function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
 ) {
@@ -186,10 +186,7 @@ export async function getPendingProposalsForChains(
     squadsChains.map(async (chain) => {
       try {
         const { svmProvider, vault, multisigPda, programId } =
-          await getSquadAndProvider(
-          chain,
-          mpp,
-          );
+          getSquadAndProvider(chain, mpp);
         const squadsProvider = toSquadsProvider(svmProvider);
 
         const multisig = await accounts.Multisig.fromAccountAddress(
@@ -426,7 +423,7 @@ async function getNextSquadsTransactionIndex(
   chain: SquadsChainName,
   mpp: MultiProtocolProvider,
 ): Promise<bigint> {
-  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+  const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
   );
@@ -523,8 +520,10 @@ export async function buildSquadsVaultTransactionProposal(
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
 }> {
-  const { svmProvider, vault, multisigPda, programId } =
-    await getSquadAndProvider(chain, mpp);
+  const { svmProvider, vault, multisigPda, programId } = getSquadAndProvider(
+    chain,
+    mpp,
+  );
 
   const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
 
@@ -566,7 +565,7 @@ export async function buildSquadsProposalRejection(
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = getSquadAndProvider(chain, mpp);
 
   const rejectIx = instructions.proposalReject({
     multisigPda,
@@ -588,7 +587,7 @@ export async function buildSquadsProposalCancellation(
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
-  const { multisigPda, programId } = await getSquadAndProvider(chain, mpp);
+  const { multisigPda, programId } = getSquadAndProvider(chain, mpp);
 
   const cancelIx = createProposalCancelInstruction(
     multisigPda,
@@ -670,7 +669,7 @@ export async function getTransactionType(
   mpp: MultiProtocolProvider,
   transactionIndex: number,
 ): Promise<SquadsAccountType> {
-  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+  const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
   );
@@ -709,7 +708,7 @@ export async function executeProposal(
   transactionIndex: number,
   signerAdapter: SvmMultiProtocolSignerAdapter,
 ): Promise<void> {
-  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+  const { svmProvider, multisigPda, programId } = getSquadAndProvider(
     chain,
     mpp,
   );
