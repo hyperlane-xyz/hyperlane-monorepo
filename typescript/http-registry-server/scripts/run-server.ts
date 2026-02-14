@@ -50,7 +50,10 @@ async function main() {
     return getRegistry({
       registryUris: [registry],
       enableProxy: true,
-      logger: rootLogger,
+      logger:
+        rootLogger as unknown as NonNullable<
+          Parameters<typeof getRegistry>[0]['logger']
+        >,
       authToken,
     });
   };

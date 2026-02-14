@@ -144,7 +144,10 @@ export async function getContext({
   const registry = getRegistry({
     registryUris,
     enableProxy: !disableProxy,
-    logger: rootLogger,
+    logger:
+      rootLogger as unknown as NonNullable<
+        Parameters<typeof getRegistry>[0]['logger']
+      >,
     authToken,
   });
 
