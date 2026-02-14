@@ -1445,21 +1445,19 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
   const requiredErrorMessage =
     errorMessages?.required ?? 'Hex value is required';
   const invalidErrorMessage = errorMessages?.invalid;
+  const resolvedInvalidErrorMessage =
+    invalidErrorMessage ?? `Hex value must be valid hex: ${String(hex)}`;
   assert(hex !== undefined && hex !== null, requiredErrorMessage);
-  assert(
-    typeof hex === 'string',
-    invalidErrorMessage ?? `Hex value must be valid hex: ${String(hex)}`,
-  );
+  assert(typeof hex === 'string', resolvedInvalidErrorMessage);
   const normalizedHex = hex.trim();
+  const normalizedInvalidErrorMessage =
+    invalidErrorMessage ?? `Hex value must be valid hex: ${normalizedHex}`;
   assert(normalizedHex.length > 0, requiredErrorMessage);
   const lowerCaseHex = normalizedHex.toLowerCase();
   const normalizedBody = lowerCaseHex.startsWith('0x')
     ? lowerCaseHex.slice(2)
     : lowerCaseHex;
-  assert(
-    normalizedBody.length % 2 === 0,
-    invalidErrorMessage ?? `Hex value must be valid hex: ${normalizedHex}`,
-  );
+  assert(normalizedBody.length % 2 === 0, normalizedInvalidErrorMessage);
 
   if (isHex(lowerCaseHex)) {
     return lowerCaseHex as Hex;
@@ -1468,10 +1466,7 @@ export function asHex(hex?: string, errorMessages?: AsHexErrorMessages): Hex {
   const prefixedHex = lowerCaseHex.startsWith('0x')
     ? lowerCaseHex
     : `0x${lowerCaseHex}`;
-  assert(
-    isHex(prefixedHex),
-    invalidErrorMessage ?? `Hex value must be valid hex: ${normalizedHex}`,
-  );
+  assert(isHex(prefixedHex), normalizedInvalidErrorMessage);
   return prefixedHex as Hex;
 }
 
