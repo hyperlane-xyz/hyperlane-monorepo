@@ -53,6 +53,14 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('includes available squads chains in unsupported-chain error', () => {
+    const availableChains = getSquadsChains().join(', ');
+
+    expect(() => resolveSquadsChains(['ethereum' as ChainName])).to.throw(
+      `Available Squads chains: ${availableChains}`,
+    );
+  });
+
   it('reports unsupported chains once when duplicates are provided', () => {
     expect(() =>
       resolveSquadsChains([
