@@ -233,3 +233,5 @@ Regression coverage now also confirms genuine boxed-string throw values plus box
 Regression coverage now also confirms boxed-string-valued `AggregateError.errors` payloads remain detectable when `Symbol.toStringTag` accessors throw, while coercible spoofed boxed-string `AggregateError.errors` payloads stay ignored.
 
 Regression coverage now also confirms boxed-string-valued wrapper `errors` fields remain detectable/ignorable under runtime/non-runtime signals even when boxed-string `Symbol.toStringTag` accessors throw.
+
+Regression coverage now also confirms `String.prototype` impostor payloads (objects inheriting `String.prototype` without true boxed-string internals) are ignored for runtime/error-code matching, while wrapper-level runtime `cause` fallbacks remain detectable when such impostors are present.

@@ -29,6 +29,15 @@ const buildCoercibleSpoofedBoxedString = (value: string) => ({
     return value;
   },
 });
+const buildStringPrototypeImpostor = (value: string) => {
+  const impostor = Object.create(String.prototype) as {
+    toString: () => string;
+    valueOf: () => string;
+  };
+  impostor.toString = () => value;
+  impostor.valueOf = () => value;
+  return impostor;
+};
 const buildRealBoxedStringWithThrowingToStringTag = (value: string) => {
   const boxed = new String(value);
   Object.defineProperty(boxed, Symbol.toStringTag, {
@@ -782,6 +791,14 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('ignores string-prototype impostor throw values when coercion succeeds', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          buildStringPrototypeImpostor('No Docker client strategy found'),
+        ),
+      ).to.equal(false);
+    });
+
     it('matches boxed-string message fields when wrapper formatting is non-informative', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const wrappedError = {
@@ -858,6 +875,29 @@ describe('Anvil utils', () => {
         isContainerRuntimeUnavailable({
           message: 'top-level wrapper noise',
           errors: buildCoercibleSpoofedBoxedString(
+            'No Docker client strategy found',
+          ),
+          cause: { message: 'No Docker client strategy found' },
+        }),
+      ).to.equal(true);
+    });
+
+    it('ignores string-prototype impostor errors payloads when coercion succeeds', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildStringPrototypeImpostor(
+            'No Docker client strategy found',
+          ),
+        }),
+      ).to.equal(false);
+    });
+
+    it('matches runtime causes when string-prototype impostor errors payloads are present', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          message: 'top-level wrapper noise',
+          errors: buildStringPrototypeImpostor(
             'No Docker client strategy found',
           ),
           cause: { message: 'No Docker client strategy found' },
@@ -2391,6 +2431,15 @@ describe('Anvil utils', () => {
       ).to.equal('Failed to start local anvil: spawn failed');
     });
 
+    it('ignores string-prototype impostor code values when coercion succeeds', () => {
+      expect(
+        formatLocalAnvilStartError({
+          code: buildStringPrototypeImpostor('ENOENT'),
+          message: 'spawn failed',
+        }),
+      ).to.equal('Failed to start local anvil: spawn failed');
+    });
+
     it('returns plain message for other startup errors', () => {
       const error = new Error('permission denied');
       expect(formatLocalAnvilStartError(error)).to.equal(
@@ -2439,6 +2488,17 @@ describe('Anvil utils', () => {
       expect(
         formatLocalAnvilStartError({
           message: buildCoercibleSpoofedBoxedString('custom object failure'),
+          reason: 'spawn-failure',
+        }),
+      ).to.equal(
+        'Failed to start local anvil: {"message":{},"reason":"spawn-failure"}',
+      );
+    });
+
+    it('falls back when string-prototype impostor message coercion succeeds', () => {
+      expect(
+        formatLocalAnvilStartError({
+          message: buildStringPrototypeImpostor('custom object failure'),
           reason: 'spawn-failure',
         }),
       ).to.equal(
