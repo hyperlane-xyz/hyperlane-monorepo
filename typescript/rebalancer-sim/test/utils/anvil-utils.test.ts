@@ -32,6 +32,54 @@ describe('Anvil utils', () => {
 
       return root;
     };
+    const noisyWrapperEntryCount = 700;
+
+    const buildNoisyWrappersWithFallback = (
+      fallbackField: 'cause' | 'errors',
+      fallbackValue: unknown,
+    ): ReadonlyArray<readonly [string, unknown]> => {
+      const noisyMap = Object.assign(
+        new Map(
+          Array.from({ length: noisyWrapperEntryCount }, (_, index) => [
+            index,
+            { message: `noise-${index}` },
+          ]),
+        ),
+        { [fallbackField]: fallbackValue },
+      );
+
+      const noisyArray = Object.assign(
+        Array.from({ length: noisyWrapperEntryCount }, (_, index) => ({
+          message: `noise-${index}`,
+        })),
+        { [fallbackField]: fallbackValue },
+      );
+
+      const noisySet = Object.assign(
+        new Set(
+          Array.from({ length: noisyWrapperEntryCount }, (_, index) => ({
+            message: `noise-${index}`,
+          })),
+        ),
+        { [fallbackField]: fallbackValue },
+      );
+
+      const noisyGenerator = {
+        *[Symbol.iterator]() {
+          for (let index = 0; index < noisyWrapperEntryCount; index += 1) {
+            yield { message: `noise-${index}` };
+          }
+        },
+        [fallbackField]: fallbackValue,
+      };
+
+      return [
+        ['map', noisyMap],
+        ['array', noisyArray],
+        ['set', noisySet],
+        ['generator', noisyGenerator],
+      ] as const;
+    };
 
     it('returns true for testcontainers runtime-strategy errors', () => {
       const error = new Error(
@@ -1307,48 +1355,10 @@ describe('Anvil utils', () => {
 
     it('matches wrapper cause fallbacks for noisy map/array/set/generator wrappers under extraction limits', () => {
       const runtimeCause = { message: 'No Docker client strategy found' };
-
-      const noisyMap = Object.assign(
-        new Map(
-          Array.from({ length: 700 }, (_, index) => [
-            index,
-            { message: `noise-${index}` },
-          ]),
-        ),
-        { cause: runtimeCause },
-      );
-
-      const noisyArray = Object.assign(
-        Array.from({ length: 700 }, (_, index) => ({
-          message: `noise-${index}`,
-        })),
-        { cause: runtimeCause },
-      );
-
-      const noisySet = Object.assign(
-        new Set(
-          Array.from({ length: 700 }, (_, index) => ({
-            message: `noise-${index}`,
-          })),
-        ),
-        { cause: runtimeCause },
-      );
-
-      const noisyGenerator = {
-        *[Symbol.iterator]() {
-          for (let index = 0; index < 700; index += 1) {
-            yield { message: `noise-${index}` };
-          }
-        },
-        cause: runtimeCause,
-      };
-
-      for (const [wrapperName, errors] of [
-        ['map', noisyMap],
-        ['array', noisyArray],
-        ['set', noisySet],
-        ['generator', noisyGenerator],
-      ] as const) {
+      for (const [wrapperName, errors] of buildNoisyWrappersWithFallback(
+        'cause',
+        runtimeCause,
+      )) {
         expect(
           isContainerRuntimeUnavailable({ errors }),
           `${wrapperName} wrapper should surface runtime cause`,
@@ -1360,48 +1370,10 @@ describe('Anvil utils', () => {
       const runtimeErrorsFallback = {
         message: 'Cannot connect to the Docker daemon',
       };
-
-      const noisyMap = Object.assign(
-        new Map(
-          Array.from({ length: 700 }, (_, index) => [
-            index,
-            { message: `noise-${index}` },
-          ]),
-        ),
-        { errors: runtimeErrorsFallback },
-      );
-
-      const noisyArray = Object.assign(
-        Array.from({ length: 700 }, (_, index) => ({
-          message: `noise-${index}`,
-        })),
-        { errors: runtimeErrorsFallback },
-      );
-
-      const noisySet = Object.assign(
-        new Set(
-          Array.from({ length: 700 }, (_, index) => ({
-            message: `noise-${index}`,
-          })),
-        ),
-        { errors: runtimeErrorsFallback },
-      );
-
-      const noisyGenerator = {
-        *[Symbol.iterator]() {
-          for (let index = 0; index < 700; index += 1) {
-            yield { message: `noise-${index}` };
-          }
-        },
-        errors: runtimeErrorsFallback,
-      };
-
-      for (const [wrapperName, errors] of [
-        ['map', noisyMap],
-        ['array', noisyArray],
-        ['set', noisySet],
-        ['generator', noisyGenerator],
-      ] as const) {
+      for (const [wrapperName, errors] of buildNoisyWrappersWithFallback(
+        'errors',
+        runtimeErrorsFallback,
+      )) {
         expect(
           isContainerRuntimeUnavailable({ errors }),
           `${wrapperName} wrapper should surface runtime errors fallback`,
