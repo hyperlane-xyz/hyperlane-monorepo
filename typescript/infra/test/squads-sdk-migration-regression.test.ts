@@ -27,13 +27,9 @@ const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/cancel-proposal.ts',
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
-const SQUADS_ERROR_FORMATTING_SCRIPT_PATHS = Object.freeze([
-  'scripts/squads/get-pending-txs.ts',
-  'scripts/squads/parse-txs.ts',
-  'scripts/squads/read-proposal.ts',
-  'scripts/squads/cancel-proposal.ts',
-  'scripts/sealevel-helpers/update-multisig-ism-config.ts',
-]);
+const SQUADS_ERROR_FORMATTING_SCRIPT_PATHS = SQUADS_SCRIPT_PATHS.filter(
+  (scriptPath) => !scriptPath.endsWith('/cli-helpers.ts'),
+);
 
 const LEGACY_SQUADS_SPECIFIER =
   '(?:(?:\\.\\.\\/)+src\\/|src\\/|@hyperlane-xyz\\/infra\\/src\\/)(?:config|utils|tx)\\/squads(?:-transaction-reader)?(?:\\.[cm]?[jt]sx?|\\.js)?';
