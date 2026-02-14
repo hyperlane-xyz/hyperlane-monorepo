@@ -110,6 +110,26 @@ function extractErrorMessages(error: unknown): string[] {
   const messages: string[] = [];
   const queue: unknown[] = [error];
   const seen = new Set<unknown>();
+  const enqueueNestedErrors = (nestedErrors: unknown) => {
+    if (!nestedErrors || typeof nestedErrors === 'string') return;
+
+    if (Array.isArray(nestedErrors)) {
+      for (const nestedError of nestedErrors) {
+        queue.push(nestedError);
+      }
+      return;
+    }
+
+    if (
+      typeof nestedErrors === 'object' &&
+      nestedErrors !== null &&
+      Symbol.iterator in nestedErrors
+    ) {
+      for (const nestedError of nestedErrors as Iterable<unknown>) {
+        queue.push(nestedError);
+      }
+    }
+  };
 
   while (queue.length > 0) {
     const current = queue.shift();
@@ -123,9 +143,7 @@ function extractErrorMessages(error: unknown): string[] {
       if (cause !== undefined) queue.push(cause);
 
       if (current instanceof AggregateError) {
-        for (const nestedError of current.errors) {
-          queue.push(nestedError);
-        }
+        enqueueNestedErrors(current.errors);
       }
 
       continue;
@@ -144,12 +162,7 @@ function extractErrorMessages(error: unknown): string[] {
       const cause = (current as { cause?: unknown }).cause;
       if (cause !== undefined) queue.push(cause);
 
-      const nestedErrors = (current as { errors?: unknown }).errors;
-      if (Array.isArray(nestedErrors)) {
-        for (const nestedError of nestedErrors) {
-          queue.push(nestedError);
-        }
-      }
+      enqueueNestedErrors((current as { errors?: unknown }).errors);
 
       continue;
     }

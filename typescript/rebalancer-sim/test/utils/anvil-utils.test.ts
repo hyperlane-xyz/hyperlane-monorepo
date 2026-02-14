@@ -146,6 +146,17 @@ describe('Anvil utils', () => {
       ).to.equal(true);
     });
 
+    it('matches docker runtime errors in iterable error collections', () => {
+      expect(
+        isContainerRuntimeUnavailable({
+          errors: new Set([
+            { message: 'random warning' },
+            { message: 'No Docker client strategy found' },
+          ]),
+        }),
+      ).to.equal(true);
+    });
+
     it('handles non-Error throw values safely', () => {
       expect(
         isContainerRuntimeUnavailable(
