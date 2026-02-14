@@ -525,7 +525,7 @@ async function inferSubmitterFromTransaction({
     return defaultSubmitter;
   }
 
-  const normalizedTarget = normalizeAddressEvm(to);
+  const normalizedTarget = normalizeAddressEvm(to.trim());
   const provider = context.multiProvider.getProvider(chain);
 
   let ownerAddress: Address | null = null;
@@ -537,7 +537,9 @@ async function inferSubmitterFromTransaction({
 
   const addressToInferFrom =
     ownerAddress ??
-    (typeof from === 'string' ? normalizeAddressEvm(from) : normalizedTarget);
+    (typeof from === 'string'
+      ? normalizeAddressEvm(from.trim())
+      : normalizedTarget);
 
   const inferredSubmitter = await inferSubmitterFromAddress({
     chain,
@@ -611,7 +613,7 @@ function resolveExplicitSubmitterForTransaction({
   let selectedSubmitter = explicitSubmissionStrategy.submitter;
   const entries = Object.entries(overrides);
   if (protocol === ProtocolType.Ethereum) {
-    const normalizedTarget = tryNormalizeEvmAddress(to);
+    const normalizedTarget = tryNormalizeEvmAddress(to.trim());
     if (!normalizedTarget) {
       return ExtendedSubmissionStrategySchema.parse({
         submitter: explicitSubmissionStrategy.submitter,
