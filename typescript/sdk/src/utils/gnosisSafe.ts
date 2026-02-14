@@ -11,7 +11,9 @@ import type {
   SafeTransaction,
 } from '@safe-global/safe-core-sdk-types';
 import {
+  getMultiSendCallOnlyDeployments,
   getMultiSendCallOnlyDeployment,
+  getMultiSendDeployments,
   getMultiSendDeployment,
 } from '@safe-global/safe-deployments';
 import chalk from 'chalk';
@@ -191,6 +193,44 @@ const chainOverrides: Record<
     multiSendCallOnly: '0x40A2aCCbd92BCA938b02010E17A5b8929b49130D',
   },
 };
+
+export const DEFAULT_SAFE_DEPLOYMENT_VERSIONS = ['1.3.0', '1.4.1'] as const;
+
+export function getKnownMultiSendAddresses(
+  versions: string[] = [...DEFAULT_SAFE_DEPLOYMENT_VERSIONS],
+): {
+  multiSend: Address[];
+  multiSendCallOnly: Address[];
+} {
+  const multiSend: Address[] = [];
+  const multiSendCallOnly: Address[] = [];
+
+  for (const version of versions) {
+    const multiSendCallOnlyDeployments = getMultiSendCallOnlyDeployments({
+      version,
+    });
+    const multiSendDeployments = getMultiSendDeployments({
+      version,
+    });
+    if (!multiSendCallOnlyDeployments || !multiSendDeployments) {
+      throw new Error(
+        `MultiSend and MultiSendCallOnly deployments not found for version ${version}`,
+      );
+    }
+
+    Object.values(multiSendCallOnlyDeployments.deployments).forEach(
+      (deployment) => multiSendCallOnly.push(deployment.address as Address),
+    );
+    Object.values(multiSendDeployments.deployments).forEach((deployment) =>
+      multiSend.push(deployment.address as Address),
+    );
+  }
+
+  return {
+    multiSend: [...new Set(multiSend)],
+    multiSendCallOnly: [...new Set(multiSendCallOnly)],
+  };
+}
 
 export async function getSafe(
   chain: ChainNameOrId,

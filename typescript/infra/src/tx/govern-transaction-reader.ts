@@ -1,8 +1,4 @@
 import { Result } from '@ethersproject/abi';
-import {
-  getMultiSendCallOnlyDeployments,
-  getMultiSendDeployments,
-} from '@safe-global/safe-deployments';
 import assert from 'assert';
 import chalk from 'chalk';
 import { BigNumber, ethers } from 'ethers';
@@ -31,6 +27,7 @@ import {
   InterchainAccount,
   MultiProvider,
   decodeMultiSendData,
+  getKnownMultiSendAddresses,
   getSafeTx,
   parseSafeTx,
   TokenFeeType,
@@ -316,31 +313,11 @@ export class GovernTransactionReader {
       }
     }
 
-    // Get deployments for each version
-    const versions = ['1.3.0', '1.4.1'];
-    for (const version of versions) {
-      const multiSendCallOnlyDeployments = getMultiSendCallOnlyDeployments({
-        version,
-      });
-      const multiSendDeployments = getMultiSendDeployments({
-        version,
-      });
-      assert(
-        multiSendCallOnlyDeployments && multiSendDeployments,
-        `MultiSend and MultiSendCallOnly deployments not found for version ${version}`,
-      );
-
-      Object.values(multiSendCallOnlyDeployments.deployments).forEach(
-        (d: { address: string; codeHash: string }) => {
-          this.multiSendCallOnlyDeployments.push(d.address);
-        },
-      );
-      Object.values(multiSendDeployments.deployments).forEach(
-        (d: { address: string; codeHash: string }) => {
-          this.multiSendDeployments.push(d.address);
-        },
-      );
-    }
+    const knownMultiSendAddresses = getKnownMultiSendAddresses();
+    this.multiSendCallOnlyDeployments.push(
+      ...knownMultiSendAddresses.multiSendCallOnly,
+    );
+    this.multiSendDeployments.push(...knownMultiSendAddresses.multiSend);
   }
 
   async read(

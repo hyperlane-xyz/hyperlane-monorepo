@@ -6,6 +6,7 @@ import { ISafe__factory } from '@hyperlane-xyz/core';
 
 import {
   decodeMultiSendData,
+  getKnownMultiSendAddresses,
   getOwnerChanges,
   isLegacySafeApi,
   normalizeSafeServiceUrl,
@@ -235,6 +236,14 @@ describe('gnosisSafe utils', () => {
       expect(decoded[0].to).to.equal(getAddress(to));
       expect(decoded[0].value).to.equal('7');
       expect(decoded[0].data).to.equal('0x1234');
+    });
+  });
+
+  describe(getKnownMultiSendAddresses.name, () => {
+    it('returns known deployment addresses for multisend contracts', () => {
+      const deployments = getKnownMultiSendAddresses();
+      expect(deployments.multiSend.length).to.be.greaterThan(0);
+      expect(deployments.multiSendCallOnly.length).to.be.greaterThan(0);
     });
   });
 });
