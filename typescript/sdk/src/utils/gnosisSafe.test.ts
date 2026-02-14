@@ -3984,6 +3984,31 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when safe sdk instance is non-object', async () => {
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          123 as unknown as Parameters<typeof proposeSafeTransaction>[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK instance must be an object: 123',
+        );
+      }
+    });
+
     it('throws when safe sdk accessors are inaccessible', async () => {
       const safeSdkWithThrowingAccessors = {
         get getTransactionHash() {
@@ -4016,6 +4041,53 @@ describe('gnosisSafe utils', () => {
       }
     });
 
+    it('throws when safe sdk methods are not functions', async () => {
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          {
+            getTransactionHash: 'bad',
+            signTypedData: async () => ({ data: '0xabcdef' }),
+          } as unknown as Parameters<typeof proposeSafeTransaction>[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK getTransactionHash must be a function: bad',
+        );
+      }
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          {
+            getTransactionHash: async () => safeTxHash,
+            signTypedData: 'bad',
+          } as unknown as Parameters<typeof proposeSafeTransaction>[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe SDK signTypedData must be a function: bad',
+        );
+      }
+    });
+
     it('throws when safe service instance is non-object', async () => {
       const safeSdkMock = {
         getTransactionHash: async () => safeTxHash,
@@ -4038,6 +4110,140 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Safe service instance must be an object: 123',
+        );
+      }
+    });
+
+    it('throws when safe service proposal accessor is inaccessible', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceWithThrowingAccessor = {
+        get proposeTransaction() {
+          throw new Error('boom');
+        },
+      };
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceWithThrowingAccessor as unknown as Parameters<
+            typeof proposeSafeTransaction
+          >[2],
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe service proposeTransaction accessor is inaccessible',
+        );
+      }
+    });
+
+    it('throws when safe service proposal method is non-function', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          {
+            proposeTransaction: 'bad',
+          } as unknown as Parameters<typeof proposeSafeTransaction>[2],
+          safeTransactionMock,
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe service proposeTransaction must be a function: bad',
+        );
+      }
+    });
+
+    it('throws when signer shape is invalid', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          123 as unknown as Parameters<typeof proposeSafeTransaction>[5],
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe signer getAddress must be a function: 123',
+        );
+      }
+    });
+
+    it('throws when safe transaction payload shape is invalid', async () => {
+      const safeSdkMock = {
+        getTransactionHash: async () => safeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          123 as unknown as Parameters<typeof proposeSafeTransaction>[3],
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction payload must be an object: 123',
+        );
+      }
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          safeSdkMock,
+          safeServiceMock,
+          {
+            data: 'bad',
+          } as unknown as Parameters<typeof proposeSafeTransaction>[3],
+          safeAddress,
+          signerMock,
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe transaction data must be an object: bad',
         );
       }
     });
@@ -4127,6 +4333,54 @@ describe('gnosisSafe utils', () => {
       } catch (error) {
         expect((error as Error).message).to.equal(
           'Failed to sign Safe transaction: Error: sign failed',
+        );
+      }
+    });
+
+    it('throws when signature data or signer address is invalid', async () => {
+      const safeServiceMock = {
+        proposeTransaction: async () => undefined,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          {
+            getTransactionHash: async () => safeTxHash,
+            signTypedData: async () => ({ data: '' }),
+          } as unknown as Parameters<typeof proposeSafeTransaction>[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          {
+            getAddress: async () => senderAddress,
+          } as unknown as Parameters<typeof proposeSafeTransaction>[5],
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe sender signature data must be a non-empty string: ',
+        );
+      }
+
+      try {
+        await proposeSafeTransaction(
+          'test',
+          {
+            getTransactionHash: async () => safeTxHash,
+            signTypedData: async () => ({ data: '0xabcdef' }),
+          } as unknown as Parameters<typeof proposeSafeTransaction>[1],
+          safeServiceMock,
+          safeTransactionMock,
+          safeAddress,
+          {
+            getAddress: async () => 'bad',
+          } as unknown as Parameters<typeof proposeSafeTransaction>[5],
+        );
+        expect.fail('Expected proposeSafeTransaction to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Safe signer address must be valid: bad',
         );
       }
     });
