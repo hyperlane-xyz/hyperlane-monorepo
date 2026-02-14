@@ -120,9 +120,9 @@ export async function getSquadAndProvider(
 ) {
   assertIsSquadsChain(chain);
   const svmProvider = mpp.getSolanaWeb3Provider(chain);
-  const { multisigPda, programId } = getSquadsKeys(chain);
+  const { vault, multisigPda, programId } = getSquadsKeys(chain);
 
-  return { svmProvider, multisigPda, programId };
+  return { svmProvider, vault, multisigPda, programId };
 }
 
 export async function getSquadProposal(
@@ -185,10 +185,11 @@ export async function getPendingProposalsForChains(
   await Promise.all(
     squadsChains.map(async (chain) => {
       try {
-        const { svmProvider, multisigPda } = await getSquadAndProvider(
+        const { svmProvider, vault, multisigPda, programId } =
+          await getSquadAndProvider(
           chain,
           mpp,
-        );
+          );
         const squadsProvider = toSquadsProvider(svmProvider);
 
         const multisig = await accounts.Multisig.fromAccountAddress(
@@ -200,7 +201,6 @@ export async function getPendingProposalsForChains(
         const currentTransactionIndex = Number(multisig.transactionIndex);
         const staleTransactionIndex = Number(multisig.staleTransactionIndex);
 
-        const { vault } = getSquadsKeys(chain);
         const vaultBalance = await svmProvider.getBalance(vault);
         const decimals = mpp.getChainMetadata(chain).nativeToken?.decimals;
         if (!decimals) {
@@ -255,7 +255,6 @@ export async function getPendingProposalsForChains(
               submissionDate = new Date(timestamp * 1000).toDateString();
             }
 
-            const { programId } = getSquadsKeys(chain);
             const [transactionPda] = getTransactionPda({
               multisigPda,
               index: BigInt(i),
@@ -427,8 +426,10 @@ async function getNextSquadsTransactionIndex(
   chain: SquadsChainName,
   mpp: MultiProtocolProvider,
 ): Promise<bigint> {
-  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
-  const { programId } = getSquadsKeys(chain);
+  const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
+    chain,
+    mpp,
+  );
   const squadsProvider = toSquadsProvider(svmProvider);
 
   const multisig = await accounts.Multisig.fromAccountAddress(
@@ -522,8 +523,8 @@ export async function buildSquadsVaultTransactionProposal(
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
 }> {
-  const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
-  const { vault, programId } = getSquadsKeys(chain);
+  const { svmProvider, vault, multisigPda, programId } =
+    await getSquadAndProvider(chain, mpp);
 
   const transactionIndex = await getNextSquadsTransactionIndex(chain, mpp);
 

@@ -154,13 +154,12 @@ describe('squads utils', () => {
         },
       } as unknown as MultiProtocolProvider;
 
-      const { svmProvider, multisigPda, programId } = await getSquadAndProvider(
-        supportedChain,
-        mpp,
-      );
+      const { svmProvider, vault, multisigPda, programId } =
+        await getSquadAndProvider(supportedChain, mpp);
 
       expect(providerLookupChain).to.equal(supportedChain);
       expect(svmProvider).to.equal(provider);
+      expect(vault.toBase58()).to.equal(squadsConfigs[supportedChain].vault);
       expect(multisigPda.toBase58()).to.equal(
         squadsConfigs[supportedChain].multisigPda,
       );
