@@ -3850,6 +3850,13 @@ describe('gnosisSafe utils', () => {
           invalid: 'custom invalid message',
         }),
       ).to.throw('custom invalid message');
+
+      expect(() =>
+        asHex(123 as unknown as string, {
+          required: 'custom required message',
+          invalid: 'custom invalid message',
+        }),
+      ).to.throw('custom invalid message');
     });
 
     it('uses default message when only one override is provided', () => {
