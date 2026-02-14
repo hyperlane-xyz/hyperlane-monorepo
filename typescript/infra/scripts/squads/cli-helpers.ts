@@ -276,5 +276,9 @@ export function formatScriptError(error: unknown): string {
     }
   }
 
-  return String(error);
+  try {
+    return String(error);
+  } catch {
+    return '[unformattable error value]';
+  }
 }

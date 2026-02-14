@@ -726,4 +726,17 @@ describe('squads cli helpers', () => {
       '[unformattable error object]',
     );
   });
+
+  it('falls back for unformattable non-object error values', () => {
+    const unformattableValue = (() => 'noop') as unknown as {
+      toString: () => string;
+    };
+    unformattableValue.toString = () => {
+      throw new Error('cannot stringify');
+    };
+
+    expect(formatScriptError(unformattableValue)).to.equal(
+      '[unformattable error value]',
+    );
+  });
 });
