@@ -3,7 +3,11 @@ import { tmpdir } from 'os';
 import { expect } from 'chai';
 import sinon from 'sinon';
 
-import { ISafe__factory, Ownable__factory } from '@hyperlane-xyz/core';
+import {
+  ISafe__factory,
+  Ownable__factory,
+  TimelockController__factory,
+} from '@hyperlane-xyz/core';
 
 import { ProtocolType, TxSubmitterType } from '@hyperlane-xyz/sdk';
 
@@ -230,6 +234,67 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     } finally {
       ownableStub.restore();
       safeStub.restore();
+    }
+  });
+
+  it('caches timelock proposer inference per chain and timelock', async () => {
+    const timelockOwner = '0x5555555555555555555555555555555555555555';
+    const tx1 = { ...TX, to: '0xabababababababababababababababababababab' };
+    const tx2 = { ...TX, to: '0xcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcdcd' };
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').callsFake(
+      () =>
+        ({
+          owner: async () => timelockOwner,
+        }) as any,
+    );
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([]),
+    };
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .returns({
+        getMinDelay: async () => 0,
+        hasRole: async () => false,
+        interface: {
+          getEventTopic: (name: string) => name,
+          parseLog: (_log: unknown) => ({ args: { account: SIGNER } }),
+        },
+      } as any);
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({}),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [tx1 as any, tx2 as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(
+        TxSubmitterType.TIMELOCK_CONTROLLER,
+      );
+      // first inference call scans granted+revoked logs, second tx reuses cache
+      expect(provider.getLogs.callCount).to.equal(2);
+      expect(timelockStub.callCount).to.be.greaterThan(0);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
     }
   });
 });
