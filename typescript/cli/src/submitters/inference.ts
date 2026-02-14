@@ -246,18 +246,6 @@ function compareLogsByPosition(
   return compareLogPositionIndex(a.logIndex, b.logIndex);
 }
 
-function selectLatestLogByPosition<
-  T extends { blockNumber?: unknown; transactionIndex?: unknown; logIndex?: unknown },
->(logs: readonly T[]): T | undefined {
-  let latest: T | undefined;
-  for (const log of logs) {
-    if (!latest || compareLogsByPosition(log, latest) > 0) {
-      latest = log;
-    }
-  }
-  return latest;
-}
-
 async function hasSignerForChain(
   context: WriteCommandContext,
   cache: Cache,
