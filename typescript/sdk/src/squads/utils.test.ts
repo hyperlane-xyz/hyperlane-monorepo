@@ -254,6 +254,15 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from string cause values', () => {
+      const error = {
+        cause: 'custom program error: 0x177a',
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyApproved,
+      );
+    });
+
     it('prefers top-level parsed errors over nested errors', () => {
       const error = {
         logs: ['custom program error: 0x177c'],
@@ -293,7 +302,7 @@ describe('squads utils', () => {
       const error = {
         errors: [
           { message: 'unrelated' },
-          { logs: ['custom program error: 0x177a'] },
+          'custom program error: 0x177a',
         ],
       };
 

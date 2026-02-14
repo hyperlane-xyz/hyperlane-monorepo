@@ -141,6 +141,13 @@ export function parseSquadsProposalVoteErrorFromError(
   while (queueIndex < traversalQueue.length) {
     const current = traversalQueue[queueIndex];
     queueIndex++;
+
+    if (typeof current === 'string') {
+      const parsedError = parseSquadsProposalVoteError([current]);
+      if (parsedError) return parsedError;
+      continue;
+    }
+
     if (!current || typeof current !== 'object') {
       continue;
     }
