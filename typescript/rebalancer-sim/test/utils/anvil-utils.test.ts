@@ -125,6 +125,13 @@ describe('Anvil utils', () => {
       expect(isContainerRuntimeUnavailable(error)).to.equal(true);
     });
 
+    it('matches windows docker desktop npipe strategy failures', () => {
+      const error = new Error(
+        'Cannot connect to npipe:////./pipe/dockerDesktopLinuxEngine: The system cannot find the file specified.',
+      );
+      expect(isContainerRuntimeUnavailable(error)).to.equal(true);
+    });
+
     it('matches docker runtime errors nested in error causes', () => {
       const error = new Error('container startup failed');
       (error as Error & { cause?: unknown }).cause = new Error(
