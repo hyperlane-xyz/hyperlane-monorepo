@@ -145,6 +145,14 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('formats whitespace-only chain names as empty and deduplicates display values', () => {
+    expect(
+      getUnsupportedSquadsChainsErrorMessage([' ', ''], ['solanamainnet', '']),
+    ).to.equal(
+      'Squads configuration not found for chains: <empty>. Available Squads chains: solanamainnet, <empty>',
+    );
+  });
+
   it('throws when unsupported-chain formatter receives empty chains list', () => {
     expect(() => getUnsupportedSquadsChainsErrorMessage([])).to.throw(
       'Expected at least one unsupported squads chain to format error message',

@@ -102,17 +102,22 @@ export function getUnsupportedSquadsChainsErrorMessage(
     'Expected at least one configured squads chain',
   );
 
-  const formattedUnsupportedChains = uniqueNonSquadsChains.map((chain) =>
-    chain.length > 0 ? chain : '<empty>',
+  const formattedUnsupportedChains = Array.from(
+    new Set(uniqueNonSquadsChains.map(formatChainNameForDisplay)),
   );
-  const formattedConfiguredChains = uniqueConfiguredSquadsChains.map((chain) =>
-    chain.length > 0 ? chain : '<empty>',
+  const formattedConfiguredChains = Array.from(
+    new Set(uniqueConfiguredSquadsChains.map(formatChainNameForDisplay)),
   );
 
   return (
     `Squads configuration not found for chains: ${formattedUnsupportedChains.join(', ')}. ` +
     `Available Squads chains: ${formattedConfiguredChains.join(', ')}`
   );
+}
+
+function formatChainNameForDisplay(chain: string): string {
+  const trimmedChain = chain.trim();
+  return trimmedChain.length > 0 ? trimmedChain : '<empty>';
 }
 
 export function resolveSquadsChains(chains?: readonly string[]): ChainName[] {
