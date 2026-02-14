@@ -149,6 +149,16 @@ function hasUserinfoLikeHostlessAuthority(value: string): boolean {
   return hasUserinfoLikeAuthority(value);
 }
 
+function hasPercentEncodedAuthority(value: string): boolean {
+  const explicitAuthority = extractExplicitAuthority(value);
+  if (explicitAuthority !== undefined && explicitAuthority.includes('%')) {
+    return true;
+  }
+
+  const hostlessAuthority = extractHostlessAuthority(value);
+  return hostlessAuthority !== undefined && hostlessAuthority.includes('%');
+}
+
 function hasInvalidHostlessSafeServiceUrl(value: string): boolean {
   return (
     isSlashPrefixedRelativePath(value) ||
@@ -347,6 +357,9 @@ export function safeApiKeyRequired(txServiceUrl: string): boolean {
   if (hasInvalidHostlessSafeServiceUrl(trimmedUrl)) {
     return false;
   }
+  if (hasPercentEncodedAuthority(trimmedUrl)) {
+    return false;
+  }
 
   const hostname = extractHostname(trimmedUrl);
   if (hostname === undefined) {
@@ -403,6 +416,9 @@ export function normalizeSafeServiceUrl(txServiceUrl: string): string {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   if (hasInvalidHostlessSafeServiceUrl(trimmedUrl)) {
+    throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
+  }
+  if (hasPercentEncodedAuthority(trimmedUrl)) {
     throw new Error(`Safe tx service URL is invalid: ${trimmedUrl}`);
   }
   const hasScheme = hasExplicitUrlScheme(trimmedUrl);

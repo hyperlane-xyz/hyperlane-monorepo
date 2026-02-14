@@ -1142,6 +1142,21 @@ describe('gnosisSafe utils', () => {
       ).to.equal(false);
     });
 
+    it('rejects percent-encoded authorities', () => {
+      expect(safeApiKeyRequired('https://safe%2Eglobal/api')).to.equal(false);
+      expect(
+        safeApiKeyRequired('https://safe-transaction-mainnet%2E5afe.dev/api'),
+      ).to.equal(false);
+      expect(safeApiKeyRequired('//safe%2Eglobal/api')).to.equal(false);
+      expect(
+        safeApiKeyRequired('//safe-transaction-mainnet%2E5afe.dev/api'),
+      ).to.equal(false);
+      expect(safeApiKeyRequired('safe%2Eglobal')).to.equal(false);
+      expect(
+        safeApiKeyRequired('safe-transaction-mainnet%2E5afe.dev'),
+      ).to.equal(false);
+    });
+
     it('rejects encoded-backslash userinfo spoof patterns at deeper repeated-%25 depths', () => {
       const safeHosts = ['safe.global', 'safe-transaction-mainnet.5afe.dev'];
       const encodedBackslashes = ['%255c', '%255C'];
@@ -2657,6 +2672,35 @@ describe('gnosisSafe utils', () => {
       );
       expect(() => normalizeSafeServiceUrl('   ')).to.throw(
         'Safe tx service URL is empty',
+      );
+    });
+
+    it('throws when authority contains percent-encoded host octets', () => {
+      expect(() =>
+        normalizeSafeServiceUrl('https://safe%2Eglobal/api'),
+      ).to.throw('Safe tx service URL is invalid: https://safe%2Eglobal/api');
+      expect(() =>
+        normalizeSafeServiceUrl(
+          'https://safe-transaction-mainnet%2E5afe.dev/api',
+        ),
+      ).to.throw(
+        'Safe tx service URL is invalid: https://safe-transaction-mainnet%2E5afe.dev/api',
+      );
+      expect(() => normalizeSafeServiceUrl('//safe%2Eglobal/api')).to.throw(
+        'Safe tx service URL is invalid: //safe%2Eglobal/api',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('//safe-transaction-mainnet%2E5afe.dev/api'),
+      ).to.throw(
+        'Safe tx service URL is invalid: //safe-transaction-mainnet%2E5afe.dev/api',
+      );
+      expect(() => normalizeSafeServiceUrl('safe%2Eglobal')).to.throw(
+        'Safe tx service URL is invalid: safe%2Eglobal',
+      );
+      expect(() =>
+        normalizeSafeServiceUrl('safe-transaction-mainnet%2E5afe.dev'),
+      ).to.throw(
+        'Safe tx service URL is invalid: safe-transaction-mainnet%2E5afe.dev',
       );
     });
 
