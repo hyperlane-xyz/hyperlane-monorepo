@@ -226,6 +226,26 @@ describe('squads utils', () => {
       );
     });
 
+    it('parses known vote error from message field', () => {
+      const error = {
+        message: 'Squads transaction failed: custom program error: 0x177c',
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyCancelled,
+      );
+    });
+
+    it('parses known vote error from nested cause message', () => {
+      const error = {
+        cause: {
+          message: 'Program log: AlreadyRejected',
+        },
+      };
+      expect(parseSquadsProposalVoteErrorFromError(error)).to.equal(
+        SquadsProposalVoteError.AlreadyRejected,
+      );
+    });
+
     it('prefers top-level parsed errors over nested errors', () => {
       const error = {
         logs: ['custom program error: 0x177c'],

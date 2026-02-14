@@ -160,6 +160,11 @@ export function parseSquadsProposalVoteErrorFromError(
       if (parsedError) return parsedError;
     }
 
+    if (typeof currentRecord.message === 'string') {
+      const parsedError = parseSquadsProposalVoteError([currentRecord.message]);
+      if (parsedError) return parsedError;
+    }
+
     const nestedErrors = Array.isArray(currentRecord.errors)
       ? currentRecord.errors
       : [];
