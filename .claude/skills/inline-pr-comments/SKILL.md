@@ -74,6 +74,7 @@ args:
 | Related issue found           | ❌ No    | Summary body under "Observations Outside This PR"         |
 | Pre-existing bug discovered   | ❌ No    | Summary body (consider separate issue if critical)        |
 | Overall architecture concern  | N/A      | Summary body                                              |
-| Approval/changes requested    | N/A      | Sticky comment via `update_claude_comment`                |
+| Approve PR                    | N/A      | `gh api` review with `event: "APPROVE"`                   |
+| Changes requested             | N/A      | Sticky comment; never use `REQUEST_CHANGES`               |
 
 Be concise. Group minor style issues together.
