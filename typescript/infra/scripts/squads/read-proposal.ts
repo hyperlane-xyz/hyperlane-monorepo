@@ -23,6 +23,8 @@ import {
   withTransactionIndex,
 } from './cli-helpers.js';
 
+const GENERIC_OBJECT_STRING_PATTERN = /^\[object .+\]$/;
+
 function withVerbose<T>(args: Argv<T>) {
   return args
     .describe('verbose', 'Show verbose output including raw API data')
@@ -43,6 +45,14 @@ function toBase58IfPossible(
   if (typeof value === 'string') {
     const trimmedValue = value.trim();
     if (trimmedValue.length > 0) {
+      if (GENERIC_OBJECT_STRING_PATTERN.test(trimmedValue)) {
+        rootLogger.warn(
+          chalk.yellow(
+            `Skipping ${labelWithIndex} on ${chain}: string value must be a meaningful identifier`,
+          ),
+        );
+        return undefined;
+      }
       return trimmedValue;
     }
 
@@ -81,6 +91,14 @@ function toBase58IfPossible(
       rootLogger.warn(
         chalk.yellow(
           `Skipping ${labelWithIndex} on ${chain}: toBase58() returned an empty value`,
+        ),
+      );
+      return undefined;
+    }
+    if (GENERIC_OBJECT_STRING_PATTERN.test(normalizedValue)) {
+      rootLogger.warn(
+        chalk.yellow(
+          `Skipping ${labelWithIndex} on ${chain}: toBase58() returned a non-meaningful identifier`,
         ),
       );
       return undefined;
