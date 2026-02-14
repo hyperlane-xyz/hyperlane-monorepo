@@ -1437,12 +1437,15 @@ export function asHex(hex?: string): Hex {
   assert(hex, 'Hex value is required');
   const normalizedHex = hex.trim();
   assert(normalizedHex.length > 0, 'Hex value is required');
+  const canonicalHex = normalizedHex.startsWith('0X')
+    ? `0x${normalizedHex.slice(2)}`
+    : normalizedHex;
 
-  if (isHex(normalizedHex)) {
-    return normalizedHex as Hex;
+  if (isHex(canonicalHex)) {
+    return canonicalHex as Hex;
   }
 
-  const prefixedHex = `0x${normalizedHex}`;
+  const prefixedHex = `0x${canonicalHex}`;
   assert(isHex(prefixedHex), `Hex value must be valid hex: ${normalizedHex}`);
   return prefixedHex as Hex;
 }

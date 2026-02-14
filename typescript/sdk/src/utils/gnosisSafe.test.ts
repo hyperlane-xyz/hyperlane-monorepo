@@ -3642,6 +3642,10 @@ describe('gnosisSafe utils', () => {
       expect(asHex('0x1234')).to.equal('0x1234');
     });
 
+    it('normalizes uppercase 0X prefixes', () => {
+      expect(asHex('0X1234')).to.equal('0x1234');
+    });
+
     it('prefixes unprefixed hex values', () => {
       expect(asHex('1234')).to.equal('0x1234');
     });
@@ -3803,6 +3807,27 @@ describe('gnosisSafe utils', () => {
       });
 
       const decoded = decodeMultiSendData(`  ${encoded}  `);
+      expect(decoded).to.have.length(1);
+      expect(decoded[0].to).to.equal(
+        getAddress('0x00000000000000000000000000000000000000aa'),
+      );
+    });
+
+    it('accepts calldata with uppercase 0X prefix', () => {
+      const txBytes = `0x${encodeMultiSendTx({
+        operation: 0,
+        to: '0x00000000000000000000000000000000000000aa',
+        value: 1n,
+        data: '0x',
+      })}` as `0x${string}`;
+
+      const encoded = encodeFunctionData({
+        abi: parseAbi(['function multiSend(bytes transactions)']),
+        functionName: 'multiSend',
+        args: [txBytes],
+      });
+
+      const decoded = decodeMultiSendData(`0X${encoded.slice(2)}`);
       expect(decoded).to.have.length(1);
       expect(decoded[0].to).to.equal(
         getAddress('0x00000000000000000000000000000000000000aa'),
