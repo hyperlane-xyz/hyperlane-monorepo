@@ -53,3 +53,5 @@ Extracted-error queue traversal was also refactored to index-based iteration to 
 Bounded traversal semantics were regression-tested to ensure late iterable runtime signals beyond the extraction cap are intentionally ignored for safety.
 
 Runtime-fallback docs were updated to explicitly describe the bounded nested-error traversal behavior and its safety trade-off.
+
+Map-iterator fallback handling was corrected to avoid false positives from map keys when values iterators fail.
