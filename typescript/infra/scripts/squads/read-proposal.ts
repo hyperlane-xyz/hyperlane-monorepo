@@ -252,11 +252,12 @@ async function main() {
           permissions: unknown;
         } => typeof value !== 'undefined',
       );
+    const totalMultisigMembersCount = multisigMembers.length;
     const formattedMultisigMembers = formattedMultisigMemberRecords.map(
       (member) => member.key,
     );
     const skippedMultisigMembersCount =
-      multisigMembers.length - formattedMultisigMemberRecords.length;
+      totalMultisigMembersCount - formattedMultisigMemberRecords.length;
     if (!Array.isArray(multisig.members)) {
       rootLogger.warn(
         chalk.yellow(
@@ -440,9 +441,15 @@ async function main() {
     // Display multisig information
     rootLogger.info(chalk.green.bold('\n🏛️  Multisig Information:'));
     rootLogger.info(chalk.white(`  Threshold: ${threshold}`));
-    rootLogger.info(
-      chalk.white(`  Members: ${formattedMultisigMembers.length}`),
-    );
+    if (skippedMultisigMembersCount > 0) {
+      rootLogger.info(
+        chalk.white(
+          `  Members: ${formattedMultisigMembers.length}/${totalMultisigMembersCount} (valid/total)`,
+        ),
+      );
+    } else {
+      rootLogger.info(chalk.white(`  Members: ${totalMultisigMembersCount}`));
+    }
     rootLogger.info(
       chalk.white(`  Current Transaction Index: ${currentTransactionIndex}`),
     );
