@@ -348,11 +348,20 @@ async function inferIcaSubmitterFromAccount({
     return null;
   }
 
-  const parsed = destinationRouter.interface.parseLog(lastLog);
-  const originDomain = Number(parsed.args.origin);
-  const originRouter = bytes32ToAddress(parsed.args.router);
-  const owner = bytes32ToAddress(parsed.args.owner);
-  const ism = parsed.args.ism as Address;
+  let originDomain: number;
+  let originRouter: Address;
+  let owner: Address;
+  let ism: Address;
+  try {
+    const parsed = destinationRouter.interface.parseLog(lastLog);
+    originDomain = Number(parsed.args.origin);
+    originRouter = bytes32ToAddress(parsed.args.router);
+    owner = bytes32ToAddress(parsed.args.owner);
+    ism = parsed.args.ism as Address;
+  } catch {
+    cache.icaByChainAndAddress.set(cacheId, null);
+    return null;
+  }
 
   let originChain: ChainName;
   try {

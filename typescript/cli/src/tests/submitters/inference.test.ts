@@ -2459,6 +2459,77 @@ describe('resolveSubmitterBatchesForTransactions', () => {
     }
   });
 
+  it('caches null when ICA event log parsing fails', async () => {
+    const inferredIcaOwner = '0x7878787878787878787878787878787878787878';
+    const destinationRouterAddress =
+      '0x9090909090909090909090909090909090909090';
+
+    const ownableStub = sinon.stub(Ownable__factory, 'connect').returns({
+      owner: async () => inferredIcaOwner,
+    } as any);
+    const safeStub = sinon
+      .stub(ISafe__factory, 'connect')
+      .throws(new Error('not safe'));
+    const timelockStub = sinon
+      .stub(TimelockController__factory, 'connect')
+      .throws(new Error('not timelock'));
+
+    const provider = {
+      getLogs: sinon.stub().resolves([{ topics: [], data: '0x' }]),
+    };
+
+    const icaRouterStub = sinon
+      .stub(InterchainAccountRouter__factory, 'connect')
+      .callsFake((address: string) => {
+        if (address.toLowerCase() === destinationRouterAddress.toLowerCase()) {
+          return {
+            filters: {
+              InterchainAccountCreated: (_accountAddress: string) => ({}),
+            },
+            interface: {
+              parseLog: () => {
+                throw new Error('malformed ICA event');
+              },
+            },
+          } as any;
+        }
+
+        throw new Error('unexpected router');
+      });
+
+    const context = {
+      multiProvider: {
+        getProtocol: () => ProtocolType.Ethereum,
+        getSignerAddress: async () => SIGNER,
+        getProvider: () => provider,
+      },
+      registry: {
+        getAddresses: async () => ({
+          [CHAIN]: {
+            interchainAccountRouter: destinationRouterAddress,
+          },
+        }),
+      },
+    } as any;
+
+    try {
+      const batches = await resolveSubmitterBatchesForTransactions({
+        chain: CHAIN,
+        transactions: [TX as any, TX as any],
+        context,
+      });
+
+      expect(batches).to.have.length(1);
+      expect(batches[0].config.submitter.type).to.equal(TxSubmitterType.JSON_RPC);
+      expect(provider.getLogs.callCount).to.equal(1);
+    } finally {
+      ownableStub.restore();
+      safeStub.restore();
+      timelockStub.restore();
+      icaRouterStub.restore();
+    }
+  });
+
   it('ignores unknown registry chains while deriving direct ICA owner fallback', async () => {
     const inferredIcaOwner = '0x1212121212121212121212121212121212121212';
     const destinationRouterAddress =
