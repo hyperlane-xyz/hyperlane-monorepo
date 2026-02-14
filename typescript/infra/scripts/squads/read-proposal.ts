@@ -148,29 +148,7 @@ function formatMultisigMemberKey(
 
   const memberRecord = member as { key?: unknown };
   const memberKey = memberRecord.key;
-  if (typeof memberKey === 'string') {
-    const trimmedKey = memberKey.trim();
-    if (trimmedKey.length > 0) {
-      return trimmedKey;
-    }
-    rootLogger.warn(
-      chalk.yellow(
-        `Skipping multisig member[${index}] on ${chain}: key string is empty`,
-      ),
-    );
-    return undefined;
-  }
-
-  const base58Key = toBase58IfPossible(
-    memberKey,
-    'multisig.members',
-    chain,
-    index,
-  );
-  if (base58Key) {
-    return base58Key;
-  }
-  return undefined;
+  return toBase58IfPossible(memberKey, 'multisig.members', chain, index);
 }
 
 function formatMultisigMember(
