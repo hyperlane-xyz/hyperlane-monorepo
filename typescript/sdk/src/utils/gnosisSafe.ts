@@ -883,16 +883,50 @@ export async function resolveSafeSigner(
     return signer;
   }
 
-  const multiProviderSigner = signerProvider.getSigner(
-    chain,
-  ) as ethers.Signer & {
-    privateKey?: string;
-  };
-  if (multiProviderSigner.privateKey) {
-    return multiProviderSigner.privateKey;
+  let multiProviderSigner: unknown;
+  try {
+    multiProviderSigner = signerProvider.getSigner(chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve signer from MultiProvider on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    multiProviderSigner !== null && typeof multiProviderSigner === 'object',
+    `Resolved MultiProvider signer must be an object: ${stringifyValueForError(multiProviderSigner)}`,
+  );
+  let privateKey: unknown;
+  try {
+    privateKey = (multiProviderSigner as { privateKey?: unknown }).privateKey;
+  } catch {
+    throw new Error('Resolved MultiProvider signer privateKey is inaccessible');
+  }
+  if (privateKey !== undefined && privateKey !== null) {
+    assert(
+      typeof privateKey === 'string' && privateKey.length > 0,
+      `Resolved MultiProvider private key must be a non-empty string: ${stringifyValueForError(privateKey)}`,
+    );
+    return privateKey;
   }
 
-  const signerAddress = await multiProviderSigner.getAddress();
+  const getAddress = (multiProviderSigner as { getAddress?: unknown })
+    .getAddress;
+  assert(
+    typeof getAddress === 'function',
+    `Resolved MultiProvider signer getAddress must be a function: ${stringifyValueForError(getAddress)}`,
+  );
+  let signerAddress: unknown;
+  try {
+    signerAddress = await getAddress.call(multiProviderSigner);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve signer address from MultiProvider on ${chain}: ${stringifyValueForError(error)}`,
+    );
+  }
+  assert(
+    typeof signerAddress === 'string' && ethers.utils.isAddress(signerAddress),
+    `Resolved signer address must be valid: ${stringifyValueForError(signerAddress)}`,
+  );
   rootLogger.debug(
     `MultiProvider signer ${signerAddress} on ${chain} does not expose a private key. ` +
       'Falling back to address-based signer configuration for protocol-kit.',

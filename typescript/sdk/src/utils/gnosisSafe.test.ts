@@ -3172,6 +3172,131 @@ describe('gnosisSafe utils', () => {
       const signer = await resolveSafeSigner('test', multiProviderMock);
       expect(signer).to.equal(signerAddress);
     });
+
+    it('throws when multiprovider signer lookup fails', async () => {
+      const multiProviderMock: SignerProvider = {
+        getSigner: () => {
+          throw new Error('lookup failed');
+        },
+      };
+
+      try {
+        await resolveSafeSigner('test', multiProviderMock);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to resolve signer from MultiProvider on test: Error: lookup failed',
+        );
+      }
+    });
+
+    it('throws when multiprovider signer is not an object', async () => {
+      const multiProviderMock: SignerProvider = {
+        getSigner: () => 123 as unknown as ethers.Signer,
+      };
+
+      try {
+        await resolveSafeSigner('test', multiProviderMock);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved MultiProvider signer must be an object: 123',
+        );
+      }
+    });
+
+    it('throws when private key accessor is inaccessible', async () => {
+      const signerWithThrowingPrivateKey = {
+        get privateKey() {
+          throw new Error('boom');
+        },
+        getAddress: async () => '0x2222222222222222222222222222222222222222',
+      };
+      const multiProviderMock: SignerProvider = {
+        getSigner: () =>
+          signerWithThrowingPrivateKey as unknown as ethers.Signer,
+      };
+
+      try {
+        await resolveSafeSigner('test', multiProviderMock);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved MultiProvider signer privateKey is inaccessible',
+        );
+      }
+    });
+
+    it('throws when private key is invalid', async () => {
+      const multiProviderMock: SignerProvider = {
+        getSigner: () =>
+          ({
+            privateKey: 123,
+            getAddress: async () =>
+              '0x2222222222222222222222222222222222222222',
+          }) as unknown as ethers.Signer,
+      };
+
+      try {
+        await resolveSafeSigner('test', multiProviderMock);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved MultiProvider private key must be a non-empty string: 123',
+        );
+      }
+    });
+
+    it('throws when signer address resolver is missing or invalid', async () => {
+      const missingResolverProvider: SignerProvider = {
+        getSigner: () =>
+          ({ privateKey: undefined }) as unknown as ethers.Signer,
+      };
+      const invalidAddressProvider: SignerProvider = {
+        getSigner: () =>
+          ({
+            getAddress: async () => 'bad',
+          }) as unknown as ethers.Signer,
+      };
+
+      try {
+        await resolveSafeSigner('test', missingResolverProvider);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved MultiProvider signer getAddress must be a function: undefined',
+        );
+      }
+
+      try {
+        await resolveSafeSigner('test', invalidAddressProvider);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Resolved signer address must be valid: bad',
+        );
+      }
+    });
+
+    it('throws when signer address resolution call fails', async () => {
+      const failingProvider: SignerProvider = {
+        getSigner: () =>
+          ({
+            getAddress: async () => {
+              throw new Error('address failure');
+            },
+          }) as unknown as ethers.Signer,
+      };
+
+      try {
+        await resolveSafeSigner('test', failingProvider);
+        expect.fail('Expected resolveSafeSigner to throw');
+      } catch (error) {
+        expect((error as Error).message).to.equal(
+          'Failed to resolve signer address from MultiProvider on test: Error: address failure',
+        );
+      }
+    });
   });
 
   describe(hasSafeServiceTransactionPayload.name, () => {
