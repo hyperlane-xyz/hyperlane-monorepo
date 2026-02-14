@@ -9,6 +9,7 @@ import {
   getSquadsChains,
   normalizeStringifiedSquadsError,
   resolveSquadsChains as resolveSquadsChainsFromSdk,
+  stringifyUnknownSquadsError,
 } from '@hyperlane-xyz/sdk';
 import { assert, rootLogger, stringifyObject } from '@hyperlane-xyz/utils';
 
@@ -262,32 +263,11 @@ export function logProposals(
 
 export function formatScriptError(error: unknown): string {
   if (error instanceof Error) {
-    try {
-      if (typeof error.stack === 'string') {
-        const normalizedStack = normalizeStringifiedSquadsError(error.stack);
-        if (normalizedStack) {
-          return normalizedStack;
-        }
-      }
-    } catch {}
-
-    try {
-      if (typeof error.message === 'string') {
-        const normalizedMessage = normalizeStringifiedSquadsError(
-          error.message,
-        );
-        if (normalizedMessage) {
-          return normalizedMessage;
-        }
-      }
-    } catch {}
-
-    try {
-      const normalizedError = normalizeStringifiedSquadsError(String(error));
-      if (normalizedError) return normalizedError;
-    } catch {}
-
-    return '[unformattable error instance]';
+    return stringifyUnknownSquadsError(error, {
+      preferErrorStackForErrorInstances: true,
+      preferErrorMessageForErrorInstances: true,
+      placeholder: '[unformattable error instance]',
+    });
   }
 
   if (typeof error === 'string') {

@@ -40,6 +40,7 @@ export function normalizeStringifiedSquadsError(
 
 export interface StringifyUnknownSquadsErrorOptions {
   preferErrorMessageForErrorInstances?: boolean;
+  preferErrorStackForErrorInstances?: boolean;
   placeholder?: string;
 }
 
@@ -50,8 +51,21 @@ export function stringifyUnknownSquadsError(
   const placeholder = options.placeholder ?? '[unstringifiable error]';
   const preferErrorMessageForErrorInstances =
     options.preferErrorMessageForErrorInstances === true;
+  const preferErrorStackForErrorInstances =
+    options.preferErrorStackForErrorInstances === true;
 
   if (error instanceof Error) {
+    if (preferErrorStackForErrorInstances) {
+      try {
+        if (typeof error.stack === 'string') {
+          const normalizedStack = normalizeStringifiedSquadsError(error.stack);
+          if (normalizedStack) {
+            return normalizedStack;
+          }
+        }
+      } catch {}
+    }
+
     if (preferErrorMessageForErrorInstances) {
       try {
         const normalizedMessage = normalizeStringifiedSquadsError(error.message);

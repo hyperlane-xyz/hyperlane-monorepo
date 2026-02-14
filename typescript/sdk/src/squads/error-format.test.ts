@@ -108,6 +108,18 @@ describe('squads error-format', () => {
       ).to.equal('boom');
     });
 
+    it('supports stack-first formatting for Error instances', () => {
+      const error = new Error('boom');
+      error.stack = 'Error: boom\n at sample.ts:1:1';
+
+      expect(
+        stringifyUnknownSquadsError(error, {
+          preferErrorStackForErrorInstances: true,
+          preferErrorMessageForErrorInstances: true,
+        }),
+      ).to.equal('Error: boom\n at sample.ts:1:1');
+    });
+
     it('prefers object stack then message before final fallback', () => {
       expect(
         stringifyUnknownSquadsError({
