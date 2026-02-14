@@ -124,8 +124,9 @@ function formatChainNameForDisplay(chain: string): string {
 export function resolveSquadsChains(chains?: readonly string[]): ChainName[] {
   const configuredSquadsChains = getSquadsChains();
   if (chains && chains.length > 0) {
+    const normalizedChains = normalizeProvidedChains(chains);
     const { squadsChains, nonSquadsChains } = partitionSquadsChains([
-      ...chains,
+      ...normalizedChains,
     ]);
     if (nonSquadsChains.length > 0) {
       throw new Error(
@@ -184,6 +185,17 @@ function normalizeArgvChains(chains: unknown): string[] {
   );
 
   return chains.map((chain, index) => normalizeArgvChainValue(chain, index));
+}
+
+function normalizeProvidedChains(chains: readonly string[]): string[] {
+  return chains.map((chain, index) => {
+    const trimmedChain = chain.trim();
+    assert(
+      trimmedChain.length > 0,
+      `Expected chains[${index}] to be a non-empty string`,
+    );
+    return trimmedChain;
+  });
 }
 
 export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {

@@ -125,6 +125,19 @@ describe('squads cli helpers', () => {
     ]);
   });
 
+  it('trims explicitly provided chains before resolving', () => {
+    const [firstChain] = getSquadsChains();
+    expect(resolveSquadsChains([` ${firstChain} `])).to.deep.equal([
+      firstChain,
+    ]);
+  });
+
+  it('throws for explicitly provided empty chain values', () => {
+    expect(() => resolveSquadsChains(['   '])).to.throw(
+      'Expected chains[0] to be a non-empty string',
+    );
+  });
+
   it('throws for explicitly provided non-squads chain', () => {
     expect(() => resolveSquadsChains(['ethereum'])).to.throw(
       'Squads configuration not found for chains: ethereum',
