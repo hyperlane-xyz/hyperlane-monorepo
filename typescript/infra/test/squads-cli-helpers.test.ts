@@ -95,6 +95,13 @@ describe('squads cli helpers', () => {
     );
   });
 
+  it('reports the exact index for empty argv chain string values', () => {
+    const [chain] = getSquadsChains();
+    expect(() => resolveSquadsChainsFromArgv([chain, '   '])).to.throw(
+      'Expected --chains[1] to be a non-empty string',
+    );
+  });
+
   it('reports the exact index for non-string argv chain values', () => {
     const [chain] = getSquadsChains();
     expect(() => resolveSquadsChainsFromArgv([chain, 123])).to.throw(

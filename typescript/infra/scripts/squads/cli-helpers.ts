@@ -149,20 +149,6 @@ function getArgTypeName(value: unknown): string {
   return Array.isArray(value) ? 'array' : typeof value;
 }
 
-function normalizeArgvChainValue(chain: unknown, index: number): string {
-  assert(
-    typeof chain === 'string',
-    `Expected --chains[${index}] to be a string, but received ${getArgTypeName(chain)}`,
-  );
-
-  const trimmedChain = chain.trim();
-  assert(
-    trimmedChain.length > 0,
-    `Expected --chains[${index}] to be a non-empty string`,
-  );
-  return trimmedChain;
-}
-
 function normalizeArgvSingleChain(chain: unknown): string {
   assert(
     typeof chain === 'string',
@@ -172,6 +158,24 @@ function normalizeArgvSingleChain(chain: unknown): string {
   const trimmedChain = chain.trim();
   assert(trimmedChain.length > 0, 'Expected --chain to be a non-empty string');
   return trimmedChain;
+}
+
+function normalizeChainValues(
+  chains: readonly unknown[],
+  argName: '--chains' | 'chains',
+): string[] {
+  return chains.map((chain, index) => {
+    assert(
+      typeof chain === 'string',
+      `Expected ${argName}[${index}] to be a string, but received ${getArgTypeName(chain)}`,
+    );
+    const trimmedChain = chain.trim();
+    assert(
+      trimmedChain.length > 0,
+      `Expected ${argName}[${index}] to be a non-empty string`,
+    );
+    return trimmedChain;
+  });
 }
 
 function normalizeArgvChains(chains: unknown): string[] {
@@ -184,22 +188,11 @@ function normalizeArgvChains(chains: unknown): string[] {
     `Expected --chains to resolve to an array, but received ${getArgTypeName(chains)}`,
   );
 
-  return chains.map((chain, index) => normalizeArgvChainValue(chain, index));
+  return normalizeChainValues(chains, '--chains');
 }
 
 function normalizeProvidedChains(chains: readonly string[]): string[] {
-  return chains.map((chain, index) => {
-    assert(
-      typeof chain === 'string',
-      `Expected chains[${index}] to be a string, but received ${getArgTypeName(chain)}`,
-    );
-    const trimmedChain = chain.trim();
-    assert(
-      trimmedChain.length > 0,
-      `Expected chains[${index}] to be a non-empty string`,
-    );
-    return trimmedChain;
-  });
+  return normalizeChainValues(chains, 'chains');
 }
 
 export function resolveSquadsChainsFromArgv(chains: unknown): ChainName[] {
