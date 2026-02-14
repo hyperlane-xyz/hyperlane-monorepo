@@ -118,6 +118,7 @@ export async function getSquadAndProvider(
   chain: ChainName,
   mpp: MultiProtocolProvider,
 ) {
+  assertIsSquadsChain(chain);
   const svmProvider = mpp.getSolanaWeb3Provider(chain);
   const { multisigPda, programId } = getSquadsKeys(chain);
 
@@ -425,7 +426,7 @@ export function decodePermissions(mask: number): string {
 }
 
 async function getNextSquadsTransactionIndex(
-  chain: ChainName,
+  chain: SquadsChainName,
   mpp: MultiProtocolProvider,
 ): Promise<bigint> {
   const { svmProvider, multisigPda } = await getSquadAndProvider(chain, mpp);
@@ -514,7 +515,7 @@ function createProposalCancelInstruction(
 }
 
 export async function buildSquadsVaultTransactionProposal(
-  chain: ChainName,
+  chain: SquadsChainName,
   mpp: MultiProtocolProvider,
   ixs: readonly TransactionInstruction[],
   creator: PublicKey,
@@ -559,7 +560,7 @@ export async function buildSquadsVaultTransactionProposal(
 }
 
 export async function buildSquadsProposalRejection(
-  chain: ChainName,
+  chain: SquadsChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
@@ -581,7 +582,7 @@ export async function buildSquadsProposalRejection(
 }
 
 export async function buildSquadsProposalCancellation(
-  chain: ChainName,
+  chain: SquadsChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: bigint,
   member: PublicKey,
@@ -603,7 +604,7 @@ export async function buildSquadsProposalCancellation(
 }
 
 export async function submitProposalToSquads(
-  chain: ChainName,
+  chain: SquadsChainName,
   vaultInstructions: readonly TransactionInstruction[],
   mpp: MultiProtocolProvider,
   signerAdapter: SvmMultiProtocolSignerAdapter,
@@ -666,7 +667,7 @@ export function isConfigTransaction(accountData: Buffer): boolean {
 }
 
 export async function getTransactionType(
-  chain: ChainName,
+  chain: SquadsChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
 ): Promise<SquadsAccountType> {
@@ -704,7 +705,7 @@ export async function getTransactionType(
 }
 
 export async function executeProposal(
-  chain: ChainName,
+  chain: SquadsChainName,
   mpp: MultiProtocolProvider,
   transactionIndex: number,
   signerAdapter: SvmMultiProtocolSignerAdapter,
