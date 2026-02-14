@@ -644,6 +644,23 @@ describe('squads utils', () => {
       );
     });
 
+    it('uses caller-provided field prefix for stale index invariant errors', () => {
+      const parseInvalidMultisig = () =>
+        parseSquadMultisig(
+          {
+            threshold: 1n,
+            transactionIndex: 1n,
+            staleTransactionIndex: 2n,
+            timeLock: 0n,
+          } as unknown as Parameters<typeof parseSquadMultisig>[0],
+          'solanamainnet multisig',
+        );
+
+      expect(parseInvalidMultisig).to.throw(
+        'Squads solanamainnet multisig stale transaction index must be less than or equal to transaction index: 2 > 1',
+      );
+    });
+
     it('uses caller-provided field prefix in overflow errors', () => {
       const parseUnsafeMultisig = () =>
         parseSquadMultisig(
