@@ -204,4 +204,8 @@ Regression coverage now also confirms string-valued `AggregateError.errors` payl
 
 Regression coverage now also confirms boxed-string-valued `AggregateError.errors` payloads match runtime-unavailable signals while non-runtime boxed-scalar entries remain ignored.
 
+Runtime-unavailable extraction now also normalizes boxed-string throw values during queue traversal, preserving signal detection when non-Error payloads are thrown as `String` objects.
+
+Regression coverage now also confirms boxed-string throw values match runtime-unavailable signals while non-runtime boxed-string throw values remain ignored.
+
 Regression coverage now also confirms set-wrapper `errors` payloads with self-referential `errors` fields avoid re-enqueue loops while still detecting runtime-unavailable signals from wrapper-level `cause` fallbacks.

@@ -334,6 +334,11 @@ function extractErrorMessages(error: unknown): string[] {
       continue;
     }
 
+    if (current instanceof String) {
+      messages.push(String(current));
+      continue;
+    }
+
     if (typeof current === 'object' && current !== null) {
       const message = getTrimmedNonEmptyString(
         getObjectProperty(current, 'message'),

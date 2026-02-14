@@ -628,6 +628,20 @@ describe('Anvil utils', () => {
       ).to.equal(false);
     });
 
+    it('matches runtime boxed-string throw values', () => {
+      expect(
+        isContainerRuntimeUnavailable(
+          new String('No Docker client strategy found'),
+        ),
+      ).to.equal(true);
+    });
+
+    it('ignores non-runtime boxed-string throw values', () => {
+      expect(
+        isContainerRuntimeUnavailable(new String('unrelated nested warning')),
+      ).to.equal(false);
+    });
+
     it('matches docker runtime errors in iterable error collections', () => {
       expect(
         isContainerRuntimeUnavailable({
