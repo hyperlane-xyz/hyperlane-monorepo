@@ -1188,9 +1188,14 @@ export async function proposeSafeTransaction(
       `Failed to derive Safe transaction hash: ${stringifyValueForError(error)}`,
     );
   }
+  const safeTxHashValidationError = `Safe transaction hash must be 32-byte hex: ${stringifyValueForError(safeTxHash)}`;
+  const normalizedSafeTxHash = asHex(safeTxHash, {
+    required: safeTxHashValidationError,
+    invalid: safeTxHashValidationError,
+  });
   assert(
-    typeof safeTxHash === 'string' && ethers.utils.isHexString(safeTxHash, 32),
-    `Safe transaction hash must be 32-byte hex: ${stringifyValueForError(safeTxHash)}`,
+    ethers.utils.isHexString(normalizedSafeTxHash, 32),
+    safeTxHashValidationError,
   );
   let senderSignature: unknown;
   try {
@@ -1232,19 +1237,21 @@ export async function proposeSafeTransaction(
       proposeTransaction.call(safeServiceObject, {
         safeAddress: normalizedSafeAddress,
         safeTransactionData: normalizedSafeTransactionData,
-        safeTxHash,
+        safeTxHash: normalizedSafeTxHash,
         senderAddress: normalizedSenderAddress,
         senderSignature: normalizedSenderSignatureData,
       }),
     );
   } catch (error) {
     throw new Error(
-      `Failed to propose Safe transaction ${safeTxHash} on ${chain}: ${stringifyValueForError(error)}`,
+      `Failed to propose Safe transaction ${normalizedSafeTxHash} on ${chain}: ${stringifyValueForError(error)}`,
     );
   }
 
   rootLogger.info(
-    chalk.green(`Proposed transaction on ${chain} with hash ${safeTxHash}`),
+    chalk.green(
+      `Proposed transaction on ${chain} with hash ${normalizedSafeTxHash}`,
+    ),
   );
 }
 

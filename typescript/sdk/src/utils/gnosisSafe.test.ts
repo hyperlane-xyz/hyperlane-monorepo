@@ -4134,6 +4134,46 @@ describe('gnosisSafe utils', () => {
       ]);
     });
 
+    it('canonicalizes safe transaction hash casing before submission', async () => {
+      const proposedPayloads: unknown[] = [];
+      const upperSafeTxHash = `0X${'AA'.repeat(32)}`;
+      const safeSdkMock = {
+        getTransactionHash: async () => upperSafeTxHash,
+        signTypedData: async () => ({ data: '0xabcdef' }),
+      } as unknown as Parameters<typeof proposeSafeTransaction>[1];
+      const safeServiceMock = {
+        proposeTransaction: async (payload: unknown) => {
+          proposedPayloads.push(payload);
+        },
+      } as unknown as Parameters<typeof proposeSafeTransaction>[2];
+      const signerMock = {
+        getAddress: async () => senderAddress,
+      } as unknown as Parameters<typeof proposeSafeTransaction>[5];
+
+      await proposeSafeTransaction(
+        'test',
+        safeSdkMock,
+        safeServiceMock,
+        safeTransactionMock,
+        safeAddress,
+        signerMock,
+      );
+
+      expect(proposedPayloads).to.deep.equal([
+        {
+          safeAddress: getAddress(safeAddress),
+          safeTransactionData: {
+            to: getAddress(safeAddress),
+            value: '0',
+            data: '0x1234',
+          },
+          safeTxHash: `0x${'aa'.repeat(32)}`,
+          senderAddress,
+          senderSignature: '0xabcdef',
+        },
+      ]);
+    });
+
     it('canonicalizes safe proposal payload address casing', async () => {
       const proposedPayloads: unknown[] = [];
       const lowerSafeAddress = '0x52908400098527886e0f7030069857d2e4169ee7';
