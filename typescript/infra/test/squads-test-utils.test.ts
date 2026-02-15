@@ -90,6 +90,23 @@ describe('squads test utils', () => {
     }
   });
 
+  it('returns squads-directory script paths resolvable to files', () => {
+    const squadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+    const executableSquadsScripts =
+      listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+    for (const scriptPath of [...squadsScripts, ...executableSquadsScripts]) {
+      const absoluteScriptPath = path.join(INFRA_ROOT, scriptPath);
+      expect(
+        fs.existsSync(absoluteScriptPath),
+        `Expected listed squads script path to exist: ${scriptPath}`,
+      ).to.equal(true);
+      expect(
+        fs.statSync(absoluteScriptPath).isFile(),
+        `Expected listed squads script path to resolve to file: ${scriptPath}`,
+      ).to.equal(true);
+    }
+  });
+
   it('keeps squads-directory listing flat for top-level helper', () => {
     const topLevelSquadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     const recursivelyDiscoveredSquadsScripts =
