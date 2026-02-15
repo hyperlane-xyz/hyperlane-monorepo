@@ -6412,7 +6412,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('unsupported-chain', [], mpp, signerAdapter),
@@ -6439,7 +6439,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads(1, [], mpp, signerAdapter),
@@ -6466,7 +6466,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('   ', [], mpp, signerAdapter),
@@ -6493,7 +6493,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads(
@@ -6525,7 +6525,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [{}], mpp, signerAdapter),
@@ -6552,7 +6552,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
       const hostileInstructions = new Proxy([], {
         get(target, property, receiver) {
           if (property === 'length') {
@@ -6592,7 +6592,7 @@ describe('squads utils', () => {
           signerPublicKeyCalled = true;
           return PublicKey.default;
         },
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter, 1),
@@ -6620,7 +6620,7 @@ describe('squads utils', () => {
           return PublicKey.default;
         },
         buildAndSendTransaction: async () => 'signature',
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6648,7 +6648,7 @@ describe('squads utils', () => {
           return PublicKey.default;
         },
         buildAndSendTransaction: async () => 'signature',
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('  solanamainnet  ', [], mpp, signerAdapter),
@@ -6673,12 +6673,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        submitProposalToSquads(
-          'solanamainnet',
-          [],
-          mpp,
-          {} as Parameters<typeof submitProposalToSquads>[3],
-        ),
+        submitProposalToSquads('solanamainnet', [], mpp, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -6707,7 +6702,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as Parameters<typeof submitProposalToSquads>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6739,7 +6734,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as Parameters<typeof submitProposalToSquads>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6763,7 +6758,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
       const signerAdapter = {
         publicKey: () => 'not-a-public-key',
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6787,7 +6782,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
       const signerAdapter = {
         publicKey: () => Promise.resolve(PublicKey.default),
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6822,7 +6817,7 @@ describe('squads utils', () => {
               },
             },
           ),
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6846,7 +6841,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
       const signerAdapter = {
         publicKey: () => PublicKey.default,
-      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6880,7 +6875,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as Parameters<typeof submitProposalToSquads>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -6914,7 +6909,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as Parameters<typeof submitProposalToSquads>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         submitProposalToSquads('solanamainnet', [], mpp, signerAdapter),
@@ -7447,7 +7442,7 @@ describe('squads utils', () => {
         executeProposal('  solanamainnet  ', mpp, 0, {
           buildAndSendTransaction: async () => 'signature',
           publicKey: () => PublicKey.default,
-        } as unknown as Parameters<typeof executeProposal>[3]),
+        }),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7466,12 +7461,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'unsupported-chain',
-          mpp,
-          0,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('unsupported-chain', mpp, 0, {}),
       );
 
       expect(thrownError?.message).to.include(
@@ -7490,12 +7480,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'unsupported-chain',
-          mpp,
-          -1,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('unsupported-chain', mpp, -1, {}),
       );
 
       expect(thrownError?.message).to.include(
@@ -7514,12 +7499,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'unsupported-chain',
-          mpp,
-          '1',
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('unsupported-chain', mpp, '1', {}),
       );
 
       expect(thrownError?.message).to.include(
@@ -7538,7 +7518,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(1, mpp, 0, {} as Parameters<typeof executeProposal>[3]),
+        executeProposal(1, mpp, 0, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7557,12 +7537,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          '   ',
-          mpp,
-          0,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('   ', mpp, 0, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7581,12 +7556,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          '   ',
-          mpp,
-          -1,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('   ', mpp, -1, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7605,12 +7575,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          1,
-          mpp,
-          -1,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal(1, mpp, -1, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7629,12 +7594,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          -1,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, -1, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7653,12 +7613,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          1.5,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, 1.5, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7678,12 +7633,7 @@ describe('squads utils', () => {
       const unsafeIndex = Number.MAX_SAFE_INTEGER + 1;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          unsafeIndex,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, unsafeIndex, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7702,12 +7652,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          Number.NaN,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, Number.NaN, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7726,12 +7671,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          Number.POSITIVE_INFINITY,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, Number.POSITIVE_INFINITY, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7750,12 +7690,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          '1',
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, '1', {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7774,12 +7709,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        executeProposal(
-          'solanamainnet',
-          mpp,
-          null,
-          {} as Parameters<typeof executeProposal>[3],
-        ),
+        executeProposal('solanamainnet', mpp, null, {}),
       );
 
       expect(thrownError?.message).to.equal(
@@ -7800,7 +7730,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
       const signerAdapter = {
         publicKey: () => PublicKey.default,
-      } as unknown as Parameters<typeof executeProposal>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         executeProposal('solanamainnet', mpp, 0, signerAdapter),
@@ -7824,7 +7754,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
       const signerAdapter = {
         buildAndSendTransaction: async () => 'signature',
-      } as unknown as Parameters<typeof executeProposal>[3];
+      };
 
       const thrownError = await captureAsyncError(() =>
         executeProposal('solanamainnet', mpp, 0, signerAdapter),
@@ -7858,7 +7788,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as unknown as Parameters<typeof executeProposal>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         executeProposal('solanamainnet', mpp, 0, signerAdapter),
@@ -7892,7 +7822,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as unknown as Parameters<typeof executeProposal>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         executeProposal('solanamainnet', mpp, 0, signerAdapter),
@@ -7926,7 +7856,7 @@ describe('squads utils', () => {
             return Reflect.get(target, property, receiver);
           },
         },
-      ) as unknown as Parameters<typeof executeProposal>[3];
+      );
 
       const thrownError = await captureAsyncError(() =>
         executeProposal('solanamainnet', mpp, 0, signerAdapter),
