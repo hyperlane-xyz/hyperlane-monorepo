@@ -2215,6 +2215,27 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('clears require alias assignments to non-require values inside block scopes', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      '{',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('keeps require alias var declarations made inside block scopes', () => {
     const source = [
       '{',
@@ -2609,6 +2630,27 @@ describe('Gnosis Safe migration guards', () => {
       (reference) => `${reference.symbol}@${reference.source}`,
     );
     expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('clears module-source alias assignments to non-module values inside block scopes', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      '{',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const shadowedDefault = moduleAlias.default;',
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+      'void shadowedDefault;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(
+      references.filter(
+        (reference) => reference === 'default@./fixtures/guard-module.js',
+      ).length,
+    ).to.equal(1);
   });
 
   it('keeps module-source alias var declarations made inside block scopes', () => {
