@@ -699,6 +699,11 @@ describe('squads barrel exports', () => {
     expect(subsequentQuotedTokens).to.not.equal(baselineQuotedTokens);
   });
 
+  it('keeps sdk squads command token order canonical', () => {
+    const quotedTestTokens = getQuotedSdkSquadsTestTokens();
+    expect(quotedTestTokens).to.deep.equal([...SDK_SQUADS_TEST_TOKEN_PATHS]);
+  });
+
   it('keeps sdk squads token-path constants isolated from caller mutation', () => {
     const baselineTokenPaths = [...SDK_SQUADS_TEST_TOKEN_PATHS];
     assertSdkSquadsTokenPathSetNormalizedAndDeduplicated(

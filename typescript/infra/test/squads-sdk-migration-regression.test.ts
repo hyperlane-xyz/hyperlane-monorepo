@@ -771,6 +771,11 @@ describe('squads sdk migration regression', () => {
     expect(subsequentQuotedScriptPaths).to.not.equal(baselineQuotedScriptPaths);
   });
 
+  it('keeps infra squads regression command token order canonical', () => {
+    const quotedScriptPaths = getQuotedInfraSquadsRegressionPaths();
+    expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
+  });
+
   it('keeps infra package explicitly depending on sdk squads surface', () => {
     const infraPackageJson = readInfraPackageJson();
 
