@@ -2652,6 +2652,40 @@ describe('squads utils', () => {
       expect(proposals).to.deep.equal([]);
       expect(providerLookupCalled).to.equal(false);
     });
+
+    it('does not mutate caller-provided chain arrays while scanning proposals', async () => {
+      const chains = [' solanamainnet ', 'unsupported', ' solanamainnet '];
+      const baselineChains = [...chains];
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(chains, mpp);
+
+      expect(proposals).to.deep.equal([]);
+      expect(chains).to.deep.equal(baselineChains);
+    });
+
+    it('accepts readonly frozen chain arrays while scanning proposals', async () => {
+      const providerLookupChains: string[] = [];
+      const chains = Object.freeze([
+        ' solanamainnet ',
+        ' solanamainnet ',
+      ]) as readonly string[];
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChains.push(chain);
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const proposals = await getPendingProposalsForChains(chains, mpp);
+
+      expect(proposals).to.deep.equal([]);
+      expect(providerLookupChains).to.deep.equal(['solanamainnet']);
+    });
   });
 
   describe(getSquadProposal.name, () => {
