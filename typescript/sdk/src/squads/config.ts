@@ -208,7 +208,7 @@ export function resolveSquadsChains(
 }
 
 export function assertIsSquadsChain(
-  chainName: string,
+  chainName: unknown,
 ): asserts chainName is SquadsChainName {
   if (typeof chainName !== 'string') {
     throw new Error(
@@ -257,6 +257,6 @@ export function getSquadsKeysForResolvedChain(
   });
 }
 
-export function getSquadsKeys(chainName: string): SquadsKeys {
+export function getSquadsKeys(chainName: unknown): SquadsKeys {
   return getSquadsKeysForResolvedChain(resolveSquadsChainName(chainName));
 }

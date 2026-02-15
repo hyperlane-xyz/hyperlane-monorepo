@@ -97,10 +97,10 @@ describe('squads config', () => {
   });
 
   it('rejects non-string chain names in assert and key lookups', () => {
-    expect(() => assertIsSquadsChain(null as unknown as string)).to.throw(
+    expect(() => assertIsSquadsChain(null)).to.throw(
       'Expected chain name to be a string, got null',
     );
-    expect(() => getSquadsKeys(1 as unknown as string)).to.throw(
+    expect(() => getSquadsKeys(1)).to.throw(
       'Expected chain name to be a string, got number',
     );
   });
@@ -157,10 +157,10 @@ describe('squads config', () => {
 
   for (const { value, expectedType } of malformedChainNameCases) {
     it(`labels malformed chain-name type ${expectedType} in assertion errors`, () => {
-      expect(() => assertIsSquadsChain(value as unknown as string)).to.throw(
+      expect(() => assertIsSquadsChain(value)).to.throw(
         `Expected chain name to be a string, got ${expectedType}`,
       );
-      expect(() => getSquadsKeys(value as unknown as string)).to.throw(
+      expect(() => getSquadsKeys(value)).to.throw(
         `Expected chain name to be a string, got ${expectedType}`,
       );
       expect(() => resolveSquadsChainName(value)).to.throw(
