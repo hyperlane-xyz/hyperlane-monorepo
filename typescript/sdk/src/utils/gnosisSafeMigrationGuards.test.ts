@@ -2795,6 +2795,35 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('does not leak class static-block switch-case var alias shadowing to outer module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    switch (1) {',
+      '      case 1:',
+      '        var reqAlias = () => undefined;',
+      "        reqAlias('./fixtures/other-module.js');",
+      '        break;',
+      '      default:',
+      '        break;',
+      '    }',
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak class static-block for var alias shadowing to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -3662,6 +3691,30 @@ describe('Gnosis Safe migration guards', () => {
       '    for (var aliasKey in aliases) {',
       '      var reqAlias = aliases[aliasKey];',
       "      reqAlias('./fixtures/other-module.js').default;",
+      '    }',
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('does not leak class static-block switch-case var alias shadowing to outer symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      '    switch (1) {',
+      '      case 1:',
+      '        var reqAlias = () => undefined;',
+      "        reqAlias('./fixtures/other-module.js').default;",
+      '        break;',
+      '      default:',
+      '        break;',
       '    }',
       '  }',
       '}',
