@@ -48,8 +48,8 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
 describe('Gnosis Safe migration guards', () => {
   it('prevents sdk source imports from infra paths', () => {
     expectNoRipgrepMatches(
-      String.raw`from ['"].*typescript/infra|from ['"].*\/infra\/|from ['"]\.\.\/\.\.\/infra`,
-      'sdk imports that reference infra paths',
+      String.raw`(?:from ['"]|require\(['"]|import\(['"])(?:@hyperlane-xyz/infra|.*typescript/infra|.*\/infra\/|\.\.\/\.\.\/infra)`,
+      'sdk imports that reference infra paths or packages',
     );
   });
 
