@@ -23,6 +23,7 @@ const INFRA_ROOT = path.resolve(
   path.dirname(fileURLToPath(import.meta.url)),
   '..',
 );
+const INFRA_TEST_DIRECTORY_PATH = path.join(INFRA_ROOT, 'test');
 
 const REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS = Object.freeze([
   'src/config/squads',
@@ -211,6 +212,20 @@ function listQuotedScriptPaths(command: string): readonly string[] {
 
 function getQuotedInfraSquadsRegressionPaths(): readonly string[] {
   return listQuotedScriptPaths(EXPECTED_INFRA_SQUADS_TEST_SCRIPT);
+}
+
+function listInfraSquadsTestDirectoryAssets(): readonly string[] {
+  const entries = fs
+    .readdirSync(INFRA_TEST_DIRECTORY_PATH, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  return entries
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.startsWith('squads-') &&
+        entry.name.endsWith('.ts'),
+    )
+    .map((entry) => `test/${entry.name}`);
 }
 
 function countSubstringOccurrences(haystack: string, needle: string): number {
@@ -772,6 +787,31 @@ describe('squads sdk migration regression', () => {
     assertTrackedSourcePathSetNormalizedAndDeduplicated(
       SQUADS_TRACKED_TEST_ASSET_PATHS,
       'squads tracked test-asset',
+    );
+  });
+
+  it('keeps tracked squads test-asset constants synchronized with test directory discovery', () => {
+    const discoveredTestAssetPaths = listInfraSquadsTestDirectoryAssets();
+    assertTrackedSourcePathSetNormalizedAndDeduplicated(
+      discoveredTestAssetPaths,
+      'discovered squads test-directory asset',
+    );
+    const discoveredPartition = partitionTrackedTestAssetsByRole(
+      discoveredTestAssetPaths,
+    );
+    assertTrackedTestAssetPartitionShape(
+      discoveredPartition,
+      'discovered squads test-directory partition',
+    );
+    expect(
+      [...discoveredPartition.regressionPaths].sort(compareLexicographically),
+    ).to.deep.equal(
+      [...SQUADS_REGRESSION_TEST_PATHS].sort(compareLexicographically),
+    );
+    expect(
+      [...discoveredPartition.supportPaths].sort(compareLexicographically),
+    ).to.deep.equal(
+      [...SQUADS_TRACKED_TEST_SUPPORT_PATHS].sort(compareLexicographically),
     );
   });
 
