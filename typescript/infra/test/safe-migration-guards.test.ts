@@ -278,6 +278,10 @@ function collectSymbolSourceReferences(
         : undefined;
       if (source && node.importClause?.name) {
         moduleAliasByIdentifier.set(node.importClause.name.text, source);
+        references.push({
+          symbol: normalizeNamedSymbol(node.importClause.name.text),
+          source,
+        });
       }
       const namedBindings = node.importClause?.namedBindings;
       if (source && namedBindings) {
@@ -349,6 +353,10 @@ function collectSymbolSourceReferences(
         node.name.text,
         node.moduleReference.expression.text,
       );
+      references.push({
+        symbol: normalizeNamedSymbol(node.name.text),
+        source: node.moduleReference.expression.text,
+      });
     }
 
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
@@ -1038,6 +1046,22 @@ describe('Safe migration guards', () => {
       'parseAlias@./fixtures/guard-module.js',
       'SafeDefault@./fixtures/guard-module.js',
     ]);
+  });
+
+  it('tracks default import local symbol names from module specifiers', () => {
+    const source = "import getSafe from './fixtures/guard-module.js';";
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('getSafe@./fixtures/guard-module.js');
+  });
+
+  it('tracks import-equals local symbol names from module specifiers', () => {
+    const source = "import getSafe = require('./fixtures/guard-module.js');";
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('getSafe@./fixtures/guard-module.js');
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
