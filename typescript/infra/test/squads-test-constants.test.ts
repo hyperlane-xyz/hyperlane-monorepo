@@ -34,6 +34,20 @@ describe('squads test constants', () => {
     ]);
   });
 
+  it('keeps squads script extension allowlist normalized and deduplicated', () => {
+    expect(new Set(SQUADS_SCRIPT_FILE_EXTENSIONS).size).to.equal(
+      SQUADS_SCRIPT_FILE_EXTENSIONS.length,
+    );
+
+    for (const extension of SQUADS_SCRIPT_FILE_EXTENSIONS) {
+      expect(extension.startsWith('.')).to.equal(true);
+      expect(extension).to.equal(extension.trim());
+      expect(extension).to.equal(extension.toLowerCase());
+      expect(extension.includes('/')).to.equal(false);
+      expect(extension.includes('\\')).to.equal(false);
+    }
+  });
+
   it('keeps expected canonical executable squads script paths', () => {
     expect(EXECUTABLE_SQUADS_SCRIPT_PATHS).to.deep.equal([
       'scripts/squads/get-pending-txs.ts',
