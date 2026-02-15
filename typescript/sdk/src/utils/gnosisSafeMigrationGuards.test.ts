@@ -298,6 +298,18 @@ function unwrapInitializerExpression(expression: ts.Expression): ts.Expression {
   if (ts.isParenthesizedExpression(expression)) {
     return unwrapInitializerExpression(expression.expression);
   }
+  if (ts.isAsExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  if (ts.isTypeAssertionExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  if (ts.isNonNullExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
+  if (ts.isSatisfiesExpression(expression)) {
+    return unwrapInitializerExpression(expression.expression);
+  }
   return expression;
 }
 
@@ -1058,6 +1070,24 @@ describe('Gnosis Safe migration guards', () => {
       'infraModule = infraModule;',
       'const dynamicDefault = infraModule.default;',
       "const dynamicElementDefault = infraModule['default'];",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('tracks default symbol references through assertion wrappers', () => {
+    const source = [
+      "import * as infra from './fixtures/guard-module.js';",
+      'const asAlias = infra as unknown;',
+      'const typeAssertionAlias = <unknown>infra;',
+      'const nonNullAlias = asAlias!;',
+      'const satisfiesAlias = infra satisfies Record<string, unknown>;',
+      'const fromAsAlias = asAlias.default;',
+      "const fromTypeAssertionAlias = typeAssertionAlias['default'];",
+      'const fromNonNullAlias = nonNullAlias.default;',
+      'const fromSatisfiesAlias = satisfiesAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
