@@ -3800,6 +3800,31 @@ describe('squads utils', () => {
   });
 
   describe(getTransactionType.name, () => {
+    it('normalizes padded chain names before account lookup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {
+            getAccountInfo: async () => null,
+          };
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType(
+          '  solanamainnet  ' as unknown as Parameters<
+            typeof getTransactionType
+          >[0],
+          mpp,
+          0,
+        ),
+      );
+
+      expect(thrownError?.message).to.include('Transaction account not found at');
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('fails fast for unsupported chains before account lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3969,6 +3994,28 @@ describe('squads utils', () => {
   });
 
   describe(executeProposal.name, () => {
+    it('normalizes padded chain names before proposal execution setup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          '  solanamainnet  ' as unknown as Parameters<typeof executeProposal>[0],
+          mpp,
+          0,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
     it('fails fast for unsupported chains before proposal execution setup', async () => {
       let providerLookupCalled = false;
       const mpp = {
