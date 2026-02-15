@@ -192,6 +192,14 @@ type TimelockTransactionStatus = {
   canSignerExecute: boolean;
 };
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function getPendingTimelockTxsOnChain(
   chain: ChainName,
   timelockAddress: Address,
@@ -216,7 +224,7 @@ async function getPendingTimelockTxsOnChain(
   } catch (error) {
     rootLogger.error(
       chalk.red(
-        `Failed to fetch pending transactions for Timelock "${timelockAddress}" on ${chain} after ${TX_FETCH_RETRIES} attempts: ${error}`,
+        `Failed to fetch pending transactions for Timelock "${timelockAddress}" on ${chain} after ${TX_FETCH_RETRIES} attempts: ${stringifyValueForError(error)}`,
       ),
     );
     return;
