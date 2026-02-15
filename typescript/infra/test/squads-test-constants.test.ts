@@ -5,6 +5,7 @@ import {
   hasAllowedSquadsScriptExtension,
   isAllowlistedNonExecutableSquadsScriptPath,
   isExecutableSquadsScriptPath,
+  isGuardedSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
@@ -89,16 +90,19 @@ describe('squads test constants', () => {
   it('keeps non-executable helper list represented in squads script paths', () => {
     for (const nonExecutableScriptFile of NON_EXECUTABLE_SQUADS_SCRIPT_FILES) {
       expect(
-        SQUADS_SCRIPT_PATHS.some((scriptPath) =>
-          isAllowlistedNonExecutableSquadsScriptPath(scriptPath) &&
-          scriptPath.endsWith(`/${nonExecutableScriptFile}`),
+        SQUADS_SCRIPT_PATHS.some(
+          (scriptPath) =>
+            isAllowlistedNonExecutableSquadsScriptPath(scriptPath) &&
+            scriptPath.endsWith(`/${nonExecutableScriptFile}`),
         ),
       ).to.equal(true);
     }
   });
 
   it('keeps constants free of duplicate script paths', () => {
-    expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(SQUADS_SCRIPT_PATHS.length);
+    expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(
+      SQUADS_SCRIPT_PATHS.length,
+    );
     expect(new Set(EXECUTABLE_SQUADS_SCRIPT_PATHS).size).to.equal(
       EXECUTABLE_SQUADS_SCRIPT_PATHS.length,
     );
@@ -114,9 +118,9 @@ describe('squads test constants', () => {
     for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
       expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
     }
-    expect(isNormalizedGuardedScriptPath('/scripts/squads/cli-helpers.ts')).to.equal(
-      false,
-    );
+    expect(
+      isNormalizedGuardedScriptPath('/scripts/squads/cli-helpers.ts'),
+    ).to.equal(false);
     expect(
       isNormalizedGuardedScriptPath('scripts\\squads\\cli-helpers.ts'),
     ).to.equal(false);
@@ -184,12 +188,27 @@ describe('squads test constants', () => {
   it('classifies executable squads script paths consistently', () => {
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
       const expectedIsExecutable =
-        SQUADS_SCRIPT_PATHS.includes(scriptPath) &&
+        isGuardedSquadsScriptPath(scriptPath) &&
         !isAllowlistedNonExecutableSquadsScriptPath(scriptPath);
       expect(isExecutableSquadsScriptPath(scriptPath)).to.equal(
         expectedIsExecutable,
       );
     }
+  });
+
+  it('classifies guarded squads script paths consistently', () => {
+    for (const scriptPath of SQUADS_SCRIPT_PATHS) {
+      expect(isGuardedSquadsScriptPath(scriptPath)).to.equal(true);
+    }
+
+    expect(isGuardedSquadsScriptPath('scripts/squads/not-real.ts')).to.equal(
+      false,
+    );
+    expect(
+      isGuardedSquadsScriptPath(
+        'scripts/sealevel-helpers/not-real-multisig-script.ts',
+      ),
+    ).to.equal(false);
   });
 
   it('classifies squads-directory script paths consistently', () => {
@@ -201,9 +220,9 @@ describe('squads test constants', () => {
         expectedIsSquadsDirectoryPath,
       );
     }
-    expect(isSquadsDirectoryScriptPath('scripts\\squads\\cli-helpers.ts')).to.equal(
-      false,
-    );
+    expect(
+      isSquadsDirectoryScriptPath('scripts\\squads\\cli-helpers.ts'),
+    ).to.equal(false);
   });
 
   it('keeps non-executable classifier scoped to scripts/squads paths', () => {
@@ -231,8 +250,8 @@ describe('squads test constants', () => {
 
   it('classifies allowed squads script extensions consistently', () => {
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
-      const expectedIsAllowed = SQUADS_SCRIPT_FILE_EXTENSIONS.some((extension) =>
-        scriptPath.endsWith(extension),
+      const expectedIsAllowed = SQUADS_SCRIPT_FILE_EXTENSIONS.some(
+        (extension) => scriptPath.endsWith(extension),
       );
       expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(
         expectedIsAllowed,
@@ -265,13 +284,19 @@ describe('squads test constants', () => {
 
   it('rejects malformed non-executable script path candidates', () => {
     expect(
-      isAllowlistedNonExecutableSquadsScriptPath('../scripts/squads/cli-helpers.ts'),
+      isAllowlistedNonExecutableSquadsScriptPath(
+        '../scripts/squads/cli-helpers.ts',
+      ),
     ).to.equal(false);
     expect(
-      isAllowlistedNonExecutableSquadsScriptPath('scripts\\squads\\cli-helpers.ts'),
+      isAllowlistedNonExecutableSquadsScriptPath(
+        'scripts\\squads\\cli-helpers.ts',
+      ),
     ).to.equal(false);
     expect(
-      isAllowlistedNonExecutableSquadsScriptPath('/scripts/squads/cli-helpers.ts'),
+      isAllowlistedNonExecutableSquadsScriptPath(
+        '/scripts/squads/cli-helpers.ts',
+      ),
     ).to.equal(false);
   });
 

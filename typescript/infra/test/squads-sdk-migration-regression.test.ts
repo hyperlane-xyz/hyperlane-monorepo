@@ -8,6 +8,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   isAllowlistedNonExecutableSquadsScriptPath,
   isExecutableSquadsScriptPath,
+  isGuardedSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
   NON_EXECUTABLE_SQUADS_SCRIPT_FILES,
@@ -17,7 +18,10 @@ import {
 } from './squads-test-constants.js';
 import { listSquadsDirectoryScripts } from './squads-test-utils.js';
 
-const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
+const INFRA_ROOT = path.resolve(
+  path.dirname(fileURLToPath(import.meta.url)),
+  '..',
+);
 
 const REMOVED_INFRA_SQUADS_MODULE_BASE_PATHS = Object.freeze([
   'src/config/squads',
@@ -52,7 +56,12 @@ const SDK_SQUADS_IMPORT_PATTERN =
 const FORMATTED_ERROR_USAGE_PATTERN = /formatScriptError\(/;
 const DIRECT_ERROR_STRINGIFICATION_PATTERN =
   /(?:String\((?:error|err|e)\)|\$\{(?:error|err|e)\}|(?:error|err|e)\.message)/;
-const SKIPPED_DIRECTORIES = new Set(['node_modules', 'dist', 'cache', '.turbo']);
+const SKIPPED_DIRECTORIES = new Set([
+  'node_modules',
+  'dist',
+  'cache',
+  '.turbo',
+]);
 
 function readInfraFile(relativePath: string): string {
   return fs.readFileSync(path.join(INFRA_ROOT, relativePath), 'utf8');
@@ -137,7 +146,9 @@ describe('squads sdk migration regression', () => {
     expect(Object.isFrozen(NON_EXECUTABLE_SQUADS_SCRIPT_FILES)).to.equal(true);
     expect(Object.isFrozen(SQUADS_SCRIPT_FILE_EXTENSIONS)).to.equal(true);
     expect(Object.isFrozen(EXECUTABLE_SQUADS_SCRIPT_PATHS)).to.equal(true);
-    expect(Object.isFrozen(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS)).to.equal(
+      true,
+    );
   });
 
   it('keeps tracked-source extension policy deduplicated and squads-compatible', () => {
@@ -153,7 +164,9 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps guarded squads script path lists valid and deduplicated', () => {
-    expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(SQUADS_SCRIPT_PATHS.length);
+    expect(new Set(SQUADS_SCRIPT_PATHS).size).to.equal(
+      SQUADS_SCRIPT_PATHS.length,
+    );
     expect(new Set(SQUADS_ERROR_FORMATTING_SCRIPT_PATHS).size).to.equal(
       SQUADS_ERROR_FORMATTING_SCRIPT_PATHS.length,
     );
@@ -173,10 +186,11 @@ describe('squads sdk migration regression', () => {
     const squadsScriptSet = new Set(SQUADS_SCRIPT_PATHS);
     for (const scriptPath of SQUADS_ERROR_FORMATTING_SCRIPT_PATHS) {
       expect(
-        squadsScriptSet.has(scriptPath),
+        isGuardedSquadsScriptPath(scriptPath),
         `Expected formatting-guarded script to be in primary squads script list: ${scriptPath}`,
       ).to.equal(true);
     }
+    expect(squadsScriptSet.size).to.equal(SQUADS_SCRIPT_PATHS.length);
   });
 
   it('keeps guarded squads script paths normalized and relative', () => {

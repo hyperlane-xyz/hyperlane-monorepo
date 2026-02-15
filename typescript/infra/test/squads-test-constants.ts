@@ -23,6 +23,10 @@ export const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
 
+export function isGuardedSquadsScriptPath(scriptPath: string): boolean {
+  return SQUADS_SCRIPT_PATHS.includes(scriptPath);
+}
+
 export function isNormalizedGuardedScriptPath(scriptPath: string): boolean {
   return (
     scriptPath.startsWith('scripts/') &&
@@ -52,7 +56,7 @@ export function isAllowlistedNonExecutableSquadsScriptPath(
 
 export function isExecutableSquadsScriptPath(scriptPath: string): boolean {
   return (
-    SQUADS_SCRIPT_PATHS.includes(scriptPath) &&
+    isGuardedSquadsScriptPath(scriptPath) &&
     !isAllowlistedNonExecutableSquadsScriptPath(scriptPath)
   );
 }

@@ -9,6 +9,7 @@ import {
   EXECUTABLE_SQUADS_SCRIPT_PATHS,
   hasAllowedSquadsScriptExtension,
   isExecutableSquadsScriptPath,
+  isGuardedSquadsScriptPath,
   isNormalizedGuardedScriptPath,
   isSquadsDirectoryScriptPath,
 } from './squads-test-constants.js';
@@ -75,6 +76,7 @@ describe('squads scripts --help smoke', function () {
       expect(scriptPath.includes('\\')).to.equal(false);
       expect(scriptPath.startsWith('scripts/')).to.equal(true);
       expect(isNormalizedGuardedScriptPath(scriptPath)).to.equal(true);
+      expect(isGuardedSquadsScriptPath(scriptPath)).to.equal(true);
       expect(isExecutableSquadsScriptPath(scriptPath)).to.equal(true);
       expect(hasAllowedSquadsScriptExtension(scriptPath)).to.equal(true);
       expect(
