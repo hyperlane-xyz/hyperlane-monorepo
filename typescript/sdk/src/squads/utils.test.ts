@@ -1674,9 +1674,7 @@ describe('squads utils', () => {
       const parseNegativeIndex = () =>
         parseSquadProposalTransactionIndex({
           transactionIndex: -1,
-        } as unknown as Parameters<
-          typeof parseSquadProposalTransactionIndex
-        >[0]);
+        });
 
       expect(parseNegativeIndex).to.throw(
         'Squads transaction index must be a non-negative JavaScript safe integer: -1',
@@ -1700,7 +1698,7 @@ describe('squads utils', () => {
         transactionIndex: 42n,
         staleTransactionIndex: 17n,
         timeLock: 60n,
-      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         threshold: 3,
@@ -1727,7 +1725,7 @@ describe('squads utils', () => {
                 return Reflect.get(target, property, receiver);
               },
             },
-          ) as unknown as Parameters<typeof parseSquadMultisig>[0],
+          ),
         );
 
       expect(parseInvalidMultisig).to.throw(
@@ -1753,7 +1751,7 @@ describe('squads utils', () => {
                 return Reflect.get(target, property, receiver);
               },
             },
-          ) as unknown as Parameters<typeof parseSquadMultisig>[0],
+          ),
         );
 
       expect(parseInvalidMultisig).to.throw(
@@ -1776,7 +1774,7 @@ describe('squads utils', () => {
               return Reflect.get(target, property, receiver);
             },
           }),
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Failed to read Squads multisig members length: members length unavailable',
@@ -1798,7 +1796,7 @@ describe('squads utils', () => {
               return Reflect.get(target, property, receiver);
             },
           }),
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Failed to read Squads multisig members[0]: member entry unavailable',
@@ -1812,7 +1810,7 @@ describe('squads utils', () => {
         staleTransactionIndex: 7n,
         timeLock: 0n,
         members: [{ key: 'member-1' }],
-      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         threshold: 1,
@@ -1829,7 +1827,7 @@ describe('squads utils', () => {
         transactionIndex: decimalLikeValue,
         staleTransactionIndex: decimalLikeValue,
         timeLock: decimalLikeValue,
-      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         threshold: 42,
@@ -1848,7 +1846,7 @@ describe('squads utils', () => {
         transactionIndex: decimalLikeValue,
         staleTransactionIndex: decimalLikeValue,
         timeLock: decimalLikeValue,
-      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         threshold: 42,
@@ -1871,7 +1869,7 @@ describe('squads utils', () => {
             },
           },
         ],
-      } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+      });
 
       expect(parsed).to.deep.equal({
         threshold: 1,
@@ -1888,7 +1886,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseUnsafeMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer',
@@ -1902,7 +1900,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: not-a-number',
@@ -1916,7 +1914,7 @@ describe('squads utils', () => {
           transactionIndex: 1n,
           staleTransactionIndex: 0n,
           timeLock: 0n,
-        } as unknown as Parameters<typeof parseSquadMultisig>[0]);
+        });
 
       expect(parseInvalidMultisig).to.throw(
         'Squads multisig threshold must be a JavaScript safe integer: 42',
