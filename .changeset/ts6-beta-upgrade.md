@@ -504,4 +504,6 @@ Regression coverage now also confirms object-tag placeholder outputs from `Symbo
 
 Regression coverage now also confirms double-escaped quoted placeholder outputs from `Symbol.toPrimitive` (for example `\\\"[Object]\\\"`) are treated as non-informative and continue through matcher/formatter `Object.prototype.toString` fallback behavior.
 
+Regression coverage now also confirms double-escaped single-quoted and mixed-quoted placeholder outputs from `Symbol.toPrimitive` (for example `\\'[Object]\\'` and `\\\"'[Object]'\\\"`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter fallback semantics.
+
 Regression coverage now also confirms bracketed-array placeholder outputs from `Symbol.toPrimitive` (for example `[Array]`) are treated as non-informative and preserve runtime/non-runtime matcher plus formatter `Object.prototype.toString` fallback behavior.
