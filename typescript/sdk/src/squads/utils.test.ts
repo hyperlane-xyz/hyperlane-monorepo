@@ -849,6 +849,15 @@ describe('squads utils', () => {
   });
 
   describe(parseSquadProposal.name, () => {
+    it('throws when proposal container is not an object', () => {
+      expect(() => parseSquadProposal(null)).to.throw(
+        'Squads proposal must be an object, got null',
+      );
+      expect(() => parseSquadProposal([])).to.throw(
+        'Squads proposal must be an object, got array',
+      );
+    });
+
     it('extracts status, vote counts, and numeric transaction index', () => {
       const parsed = parseSquadProposal({
         status: { __kind: SquadsProposalStatus.Active },
@@ -1230,6 +1239,15 @@ describe('squads utils', () => {
   });
 
   describe(parseSquadProposalTransactionIndex.name, () => {
+    it('throws when proposal container is not an object', () => {
+      expect(() => parseSquadProposalTransactionIndex(null)).to.throw(
+        'Squads proposal must be an object, got null',
+      );
+      expect(() => parseSquadProposalTransactionIndex([])).to.throw(
+        'Squads proposal must be an object, got array',
+      );
+    });
+
     it('extracts non-negative transaction indices from valid proposals', () => {
       const transactionIndex = parseSquadProposalTransactionIndex({
         transactionIndex: 12n,
@@ -1276,6 +1294,15 @@ describe('squads utils', () => {
   });
 
   describe(parseSquadMultisig.name, () => {
+    it('throws when multisig container is not an object', () => {
+      expect(() => parseSquadMultisig(null)).to.throw(
+        'Squads multisig must be an object, got null',
+      );
+      expect(() => parseSquadMultisig([])).to.throw(
+        'Squads multisig must be an object, got array',
+      );
+    });
+
     it('extracts numeric multisig fields', () => {
       const parsed = parseSquadMultisig({
         threshold: 3n,
