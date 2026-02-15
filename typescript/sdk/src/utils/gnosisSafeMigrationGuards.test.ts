@@ -51,6 +51,77 @@ function hasDefaultModifier(node: ts.Node): boolean {
   );
 }
 
+function hasDefaultExportInSourceFile(
+  sourceText: string,
+  filePath: string,
+): boolean {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  return sourceFile.statements.some((statement) => {
+    if (ts.isExportAssignment(statement)) {
+      return !statement.isExportEquals;
+    }
+    if (ts.isExportDeclaration(statement) && statement.exportClause) {
+      if (ts.isNamedExports(statement.exportClause)) {
+        return statement.exportClause.elements.some(
+          (specifier) =>
+            specifier.name.text === 'default' ||
+            specifier.propertyName?.text === 'default',
+        );
+      }
+      if (ts.isNamespaceExport(statement.exportClause)) {
+        return statement.exportClause.name.text === 'default';
+      }
+    }
+    return hasExportModifier(statement) && hasDefaultModifier(statement);
+  });
+}
+
+function hasDefaultReExportFromModule(
+  sourceText: string,
+  filePath: string,
+  modulePath: string,
+): boolean {
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node): boolean => {
+    if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === modulePath &&
+      node.exportClause
+    ) {
+      if (ts.isNamedExports(node.exportClause)) {
+        return node.exportClause.elements.some(
+          (specifier) =>
+            specifier.name.text === 'default' ||
+            specifier.propertyName?.text === 'default',
+        );
+      }
+      if (ts.isNamespaceExport(node.exportClause)) {
+        return node.exportClause.name.text === 'default';
+      }
+    }
+
+    return ts.forEachChild(node, visit) ?? false;
+  };
+
+  return visit(sourceFile);
+}
+
 function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
@@ -470,6 +541,23 @@ describe('Gnosis Safe migration guards', () => {
     );
     const indexText = fs.readFileSync(indexPath, 'utf8');
     const gnosisSafeText = fs.readFileSync(gnosisSafePath, 'utf8');
+    expect(
+      hasDefaultExportInSourceFile(gnosisSafeText, gnosisSafePath),
+    ).to.equal(
+      false,
+      'Expected sdk gnosisSafe module to avoid default exports',
+    );
+    expect(
+      hasDefaultReExportFromModule(
+        indexText,
+        indexPath,
+        './utils/gnosisSafe.js',
+      ),
+    ).to.equal(
+      false,
+      'Expected sdk index to avoid default re-exports from gnosisSafe module',
+    );
+
     const moduleExports = extractTopLevelDeclarationExports(
       gnosisSafeText,
       gnosisSafePath,
