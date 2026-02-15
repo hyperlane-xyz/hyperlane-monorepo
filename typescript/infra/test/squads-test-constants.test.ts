@@ -205,6 +205,15 @@ describe('squads test constants', () => {
       false,
     );
     expect(
+      isGuardedSquadsScriptPath(' scripts/squads/cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
+      isGuardedSquadsScriptPath('scripts/squads/cli-helpers.ts '),
+    ).to.equal(false);
+    expect(
+      isGuardedSquadsScriptPath('scripts\\squads\\cli-helpers.ts'),
+    ).to.equal(false);
+    expect(
       isGuardedSquadsScriptPath(
         'scripts/sealevel-helpers/not-real-multisig-script.ts',
       ),

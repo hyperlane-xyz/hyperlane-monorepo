@@ -22,9 +22,10 @@ export const SQUADS_SCRIPT_PATHS = Object.freeze([
   'scripts/squads/cancel-proposal.ts',
   'scripts/sealevel-helpers/update-multisig-ism-config.ts',
 ]);
+const GUARDED_SQUADS_SCRIPT_PATH_SET = new Set(SQUADS_SCRIPT_PATHS);
 
 export function isGuardedSquadsScriptPath(scriptPath: string): boolean {
-  return SQUADS_SCRIPT_PATHS.includes(scriptPath);
+  return GUARDED_SQUADS_SCRIPT_PATH_SET.has(scriptPath);
 }
 
 export function isNormalizedGuardedScriptPath(scriptPath: string): boolean {
