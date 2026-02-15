@@ -76,4 +76,13 @@ describe('squads test constants', () => {
       SQUADS_ERROR_FORMATTING_SCRIPT_PATHS.length,
     );
   });
+
+  it('keeps exactly one squads-adjacent non-squads script path', () => {
+    const nonSquadsDirectoryScriptPaths = SQUADS_SCRIPT_PATHS.filter(
+      (scriptPath) => !scriptPath.startsWith('scripts/squads/'),
+    );
+    expect(nonSquadsDirectoryScriptPaths).to.deep.equal([
+      'scripts/sealevel-helpers/update-multisig-ism-config.ts',
+    ]);
+  });
 });
