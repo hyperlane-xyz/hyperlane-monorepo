@@ -505,6 +505,18 @@ describe('squads sdk migration regression', () => {
     }
   });
 
+  it('keeps expected canonical tracked-source extension policy', () => {
+    expect(SOURCE_FILE_EXTENSIONS).to.deep.equal([
+      '.ts',
+      '.tsx',
+      '.mts',
+      '.cts',
+      '.js',
+      '.mjs',
+      '.cjs',
+    ]);
+  });
+
   it('keeps tracked-source extension helper strict and suffix-based', () => {
     for (const extension of SOURCE_FILE_EXTENSIONS) {
       expect(hasTrackedSourceExtension(`src/example${extension}`)).to.equal(
@@ -557,6 +569,15 @@ describe('squads sdk migration regression', () => {
     expect(shouldSkipTrackedSourceDirectory('node_modules/cache')).to.equal(
       false,
     );
+  });
+
+  it('keeps expected canonical skipped tracked-source directory policy', () => {
+    expect([...SKIPPED_DIRECTORIES]).to.deep.equal([
+      'node_modules',
+      'dist',
+      'cache',
+      '.turbo',
+    ]);
   });
 
   it('keeps guarded squads script path lists valid and deduplicated', () => {
