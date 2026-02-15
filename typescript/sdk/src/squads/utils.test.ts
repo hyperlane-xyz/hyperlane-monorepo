@@ -6,6 +6,8 @@ import {
   SquadTxStatus,
   SquadsAccountType,
   SQUADS_DISCRIMINATOR_SIZE,
+  SquadsInstructionName,
+  SquadsInstructionType,
   SQUADS_INSTRUCTION_DISCRIMINATORS,
   SQUADS_PROPOSAL_OVERHEAD,
   SquadsProposalVoteError,
@@ -3278,6 +3280,68 @@ describe('squads utils', () => {
       ]);
       expect(isConfigTransaction(data)).to.equal(true);
       expect(isVaultTransaction(data)).to.equal(false);
+    });
+  });
+
+  describe('squads enum and constant tables', () => {
+    it('exports canonical squads account-type enum values', () => {
+      expect(SquadsAccountType.VAULT).to.equal(0);
+      expect(SquadsAccountType.CONFIG).to.equal(1);
+    });
+
+    it('exports canonical squads instruction-type and name mappings', () => {
+      expect(SquadsInstructionType.ADD_MEMBER).to.equal(0);
+      expect(SquadsInstructionType.REMOVE_MEMBER).to.equal(1);
+      expect(SquadsInstructionType.CHANGE_THRESHOLD).to.equal(2);
+      expect(SquadsInstructionName[SquadsInstructionType.ADD_MEMBER]).to.equal(
+        'AddMember',
+      );
+      expect(
+        SquadsInstructionName[SquadsInstructionType.REMOVE_MEMBER],
+      ).to.equal('RemoveMember');
+      expect(
+        SquadsInstructionName[SquadsInstructionType.CHANGE_THRESHOLD],
+      ).to.equal('ChangeThreshold');
+    });
+
+    it('keeps squads instruction discriminator table aligned with instruction enum', () => {
+      const instructionTypeValues = [
+        SquadsInstructionType.ADD_MEMBER,
+        SquadsInstructionType.REMOVE_MEMBER,
+        SquadsInstructionType.CHANGE_THRESHOLD,
+      ] as const;
+      const discriminatorKeys = Object.keys(
+        SQUADS_INSTRUCTION_DISCRIMINATORS,
+      ).map(Number);
+      expect(discriminatorKeys).to.deep.equal(instructionTypeValues);
+      for (const instructionType of instructionTypeValues) {
+        expect(SQUADS_INSTRUCTION_DISCRIMINATORS[instructionType]).to.not.equal(
+          undefined,
+        );
+      }
+    });
+
+    it('exports canonical squads permission bit flags', () => {
+      expect(SquadsPermission.PROPOSER).to.equal(1);
+      expect(SquadsPermission.VOTER).to.equal(2);
+      expect(SquadsPermission.EXECUTOR).to.equal(4);
+      expect(SquadsPermission.ALL_PERMISSIONS).to.equal(7);
+      expect(
+        SquadsPermission.PROPOSER |
+          SquadsPermission.VOTER |
+          SquadsPermission.EXECUTOR,
+      ).to.equal(SquadsPermission.ALL_PERMISSIONS);
+    });
+
+    it('decodes all canonical squads permission combinations', () => {
+      expect(decodePermissions(0)).to.equal('None');
+      expect(decodePermissions(1)).to.equal('Proposer');
+      expect(decodePermissions(2)).to.equal('Voter');
+      expect(decodePermissions(3)).to.equal('Proposer, Voter');
+      expect(decodePermissions(4)).to.equal('Executor');
+      expect(decodePermissions(5)).to.equal('Proposer, Executor');
+      expect(decodePermissions(6)).to.equal('Voter, Executor');
+      expect(decodePermissions(7)).to.equal('Proposer, Voter, Executor');
     });
   });
 
