@@ -1717,7 +1717,14 @@ export class SquadsTransactionReader {
       if (types.isConfigActionAddMember(action)) {
         const member = action.newMember.key.toBase58();
         const permissionsMask = action.newMember.permissions.mask;
-        const permissionsStr = decodePermissions(permissionsMask);
+        let permissionsStr = 'Unknown';
+        try {
+          permissionsStr = decodePermissions(permissionsMask);
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to decode config-action permissions on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+        }
 
         type = SquadsInstructionName[SquadsInstructionType.ADD_MEMBER];
         args = {
@@ -1739,11 +1746,20 @@ export class SquadsTransactionReader {
         args = { timeLock: action.newTimeLock };
         insight = `Set time lock to ${action.newTimeLock}s`;
       } else if (types.isConfigActionAddSpendingLimit(action)) {
+        let amountValue = '[invalid amount]';
+        try {
+          amountValue = action.amount.toString();
+        } catch (error) {
+          rootLogger.warn(
+            `Failed to stringify config-action spending-limit amount on ${chain}: ${stringifyUnknownSquadsError(error)}`,
+          );
+        }
+
         type = 'AddSpendingLimit';
         args = {
           vaultIndex: action.vaultIndex,
           mint: action.mint.toBase58(),
-          amount: action.amount.toString(),
+          amount: amountValue,
           members: action.members.map((m) => m.toBase58()),
           destinations: action.destinations.map((d) => d.toBase58()),
         };

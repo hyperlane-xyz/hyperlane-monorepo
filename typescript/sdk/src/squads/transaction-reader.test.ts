@@ -3613,6 +3613,82 @@ describe('squads transaction reader', () => {
     expect(result).to.equal(null);
   });
 
+  it('keeps add-member config actions when permissions decode fails', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+
+    const result = readerAny.formatConfigAction('solanamainnet', {
+      __kind: 'AddMember',
+      newMember: {
+        key: { toBase58: () => 'member-a' },
+        permissions: { mask: 'bad-mask' },
+      },
+    });
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: SquadsInstructionName[SquadsInstructionType.ADD_MEMBER],
+      args: {
+        member: 'member-a',
+        permissions: { mask: 'bad-mask', decoded: 'Unknown' },
+      },
+      insight: 'Add member member-a with Unknown permissions',
+    });
+  });
+
+  it('keeps add-spending-limit config actions when amount stringification fails', () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'mailbox-program-id',
+        multisig_ism_message_id: 'multisig-ism-program-id',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      formatConfigAction: (
+        chain: string,
+        action: Record<string, unknown>,
+      ) => Record<string, unknown> | null;
+    };
+
+    const result = readerAny.formatConfigAction('solanamainnet', {
+      __kind: 'AddSpendingLimit',
+      vaultIndex: 0,
+      mint: { toBase58: () => 'mint-address' },
+      amount: {
+        toString: () => {
+          throw new Error('amount unavailable');
+        },
+      },
+      members: [{ toBase58: () => 'member-a' }],
+      destinations: [{ toBase58: () => 'destination-a' }],
+    });
+
+    expect(result).to.deep.equal({
+      chain: 'solanamainnet',
+      to: 'Squads Multisig Configuration',
+      type: 'AddSpendingLimit',
+      args: {
+        vaultIndex: 0,
+        mint: 'mint-address',
+        amount: '[invalid amount]',
+        members: ['member-a'],
+        destinations: ['destination-a'],
+      },
+      insight: 'Add spending limit for vault 0',
+    });
+  });
+
   it('returns empty config instructions when config-action list access throws', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
