@@ -3337,6 +3337,36 @@ describe('squads utils', () => {
       }
     });
 
+    it('keeps canonical squads account discriminator byte values', () => {
+      expect(Array.from(SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.VAULT]))
+        .to.deep.equal([168, 250, 162, 100, 81, 14, 162, 207]);
+      expect(
+        Array.from(SQUADS_ACCOUNT_DISCRIMINATORS[SquadsAccountType.CONFIG]),
+      ).to.deep.equal([94, 8, 4, 35, 113, 139, 139, 112]);
+    });
+
+    it('keeps canonical squads instruction discriminator byte values', () => {
+      expect(
+        Array.from(
+          SQUADS_INSTRUCTION_DISCRIMINATORS[SquadsInstructionType.ADD_MEMBER],
+        ),
+      ).to.deep.equal([105, 59, 69, 187, 29, 191, 111, 175]);
+      expect(
+        Array.from(
+          SQUADS_INSTRUCTION_DISCRIMINATORS[
+            SquadsInstructionType.REMOVE_MEMBER
+          ],
+        ),
+      ).to.deep.equal([117, 255, 234, 193, 246, 150, 28, 141]);
+      expect(
+        Array.from(
+          SQUADS_INSTRUCTION_DISCRIMINATORS[
+            SquadsInstructionType.CHANGE_THRESHOLD
+          ],
+        ),
+      ).to.deep.equal([134, 5, 181, 153, 254, 178, 214, 132]);
+    });
+
     it('keeps squads instruction-name table aligned with instruction enum', () => {
       const instructionTypeValues = [
         SquadsInstructionType.ADD_MEMBER,
