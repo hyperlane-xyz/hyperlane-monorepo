@@ -156,6 +156,20 @@ function isRecordObject(value: unknown): value is Record<string, unknown> {
   return typeof value === 'object' && value !== null && !Array.isArray(value);
 }
 
+function parseCoreProgramId(
+  programId: string,
+  chain: SquadsChainName,
+  label: string,
+): PublicKey {
+  try {
+    return new PublicKey(programId);
+  } catch (error) {
+    throw new Error(
+      `Invalid ${label} for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+    );
+  }
+}
+
 function normalizeValidatorSet(validators: unknown): string[] | null {
   if (!Array.isArray(validators)) {
     return null;
@@ -1078,16 +1092,14 @@ export class SquadsTransactionReader {
       `multisig_ism_message_id program id for ${chain}`,
     );
 
-    try {
-      return {
-        mailbox: new PublicKey(mailboxProgramId),
-        multisigIsmMessageId: new PublicKey(multisigIsmMessageIdProgramId),
-      };
-    } catch (error) {
-      throw new Error(
-        `Invalid core program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
-      );
-    }
+    return {
+      mailbox: parseCoreProgramId(mailboxProgramId, chain, 'mailbox program id'),
+      multisigIsmMessageId: parseCoreProgramId(
+        multisigIsmMessageIdProgramId,
+        chain,
+        'multisig_ism_message_id program id',
+      ),
+    };
   }
 
   private async readConfigTransaction(

@@ -2846,6 +2846,72 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws stable error when resolved mailbox program id is not a valid public key', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: 'not-a-public-key',
+        multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.match(
+      /^Invalid mailbox program id for solanamainnet: Error:/,
+    );
+  });
+
+  it('throws stable error when resolved multisig program id is not a valid public key', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () => ({
+        mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+        multisig_ism_message_id: 'not-a-public-key',
+      }),
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.match(
+      /^Invalid multisig_ism_message_id program id for solanamainnet: Error:/,
+    );
+  });
+
   it('formats unstringifiable instruction parse errors safely', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
