@@ -756,6 +756,92 @@ function getSolanaWeb3ProviderForChain(
   return providerValue as SolanaWeb3Provider;
 }
 
+function getPendingProposalNativeTokenMetadataForChain(
+  mpp: MultiProtocolProvider,
+  chain: SquadsChainName,
+): { decimals: number; symbol: string } {
+  let getChainMetadataValue: unknown;
+  try {
+    getChainMetadataValue = (mpp as { getChainMetadata?: unknown })
+      .getChainMetadata;
+  } catch (error) {
+    throw new Error(
+      `Failed to read getChainMetadata accessor for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof getChainMetadataValue === 'function',
+    `Invalid multi-provider for ${chain}: expected getChainMetadata function, got ${getUnknownValueTypeName(getChainMetadataValue)}`,
+  );
+
+  let chainMetadata: unknown;
+  try {
+    chainMetadata = getChainMetadataValue.call(mpp, chain);
+  } catch (error) {
+    throw new Error(
+      `Failed to resolve chain metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof chainMetadata === 'object' && chainMetadata !== null,
+    `Malformed chain metadata for ${chain}: expected object, got ${getUnknownValueTypeName(chainMetadata)}`,
+  );
+
+  let nativeToken: unknown;
+  try {
+    nativeToken = (chainMetadata as { nativeToken?: unknown }).nativeToken;
+  } catch (error) {
+    throw new Error(
+      `Failed to read native token metadata for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof nativeToken === 'object' && nativeToken !== null,
+    `Malformed native token metadata for ${chain}: expected object, got ${getUnknownValueTypeName(nativeToken)}`,
+  );
+
+  let decimals: unknown;
+  try {
+    decimals = (nativeToken as { decimals?: unknown }).decimals;
+  } catch (error) {
+    throw new Error(
+      `Failed to read native token decimals for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof decimals === 'number' &&
+      Number.isSafeInteger(decimals) &&
+      decimals >= 0,
+    `Malformed native token decimals for ${chain}: expected non-negative safe integer, got ${getUnknownValueTypeName(decimals)}`,
+  );
+
+  let symbolValue: unknown;
+  try {
+    symbolValue = (nativeToken as { symbol?: unknown }).symbol;
+  } catch (error) {
+    throw new Error(
+      `Failed to read native token symbol for ${chain}: ${formatUnknownErrorForMessage(error)}`,
+    );
+  }
+
+  assert(
+    typeof symbolValue === 'string',
+    `Malformed native token symbol for ${chain}: expected non-empty string, got ${getUnknownValueTypeName(symbolValue)}`,
+  );
+
+  const symbol = symbolValue.trim();
+  assert(
+    symbol.length > 0,
+    `Malformed native token symbol for ${chain}: expected non-empty string, got empty`,
+  );
+
+  return { decimals, symbol };
+}
+
 function getSignerPublicKeyForChain(
   signerAdapter: unknown,
   chain: SquadsChainName,
@@ -983,6 +1069,8 @@ export async function getPendingProposalsForChains(
   await Promise.all(
     squadsChains.map(async (chain) => {
       try {
+        const { decimals, symbol: nativeTokenSymbol } =
+          getPendingProposalNativeTokenMetadataForChain(mpp, chain);
         const { svmProvider, vault, multisigPda, programId } =
           getSquadAndProviderForResolvedChain(chain, mpp);
         const squadsProvider = toSquadsProvider(svmProvider);
@@ -995,17 +1083,6 @@ export async function getPendingProposalsForChains(
           parseSquadMultisig(multisig, `${chain} multisig`);
 
         const vaultBalance = await svmProvider.getBalance(vault);
-        const nativeToken = mpp.getChainMetadata(chain).nativeToken;
-        const decimals = nativeToken?.decimals;
-        if (typeof decimals !== 'number') {
-          rootLogger.error(`No decimals found for ${chain}`);
-          return;
-        }
-        const nativeTokenSymbol = nativeToken?.symbol;
-        if (!nativeTokenSymbol) {
-          rootLogger.error(`No native token symbol found for ${chain}`);
-          return;
-        }
         const balanceFormatted = (vaultBalance / 10 ** decimals).toFixed(5);
 
         rootLogger.info(
