@@ -3471,6 +3471,54 @@ describe('squads utils', () => {
   });
 
   describe(getTransactionType.name, () => {
+    it('fails fast for unsupported chains before account lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType(
+          'unsupported-chain' as unknown as Parameters<
+            typeof getTransactionType
+          >[0],
+          mpp,
+          0,
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed chain names before account lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getTransactionType(
+          1 as unknown as Parameters<typeof getTransactionType>[0],
+          mpp,
+          0,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for negative transaction index before account lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3569,6 +3617,54 @@ describe('squads utils', () => {
   });
 
   describe(executeProposal.name, () => {
+    it('fails fast for unsupported chains before proposal execution setup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          'unsupported-chain' as unknown as Parameters<typeof executeProposal>[0],
+          mpp,
+          0,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.include(
+        'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed chain names before proposal execution setup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        executeProposal(
+          1 as unknown as Parameters<typeof executeProposal>[0],
+          mpp,
+          0,
+          {} as Parameters<typeof executeProposal>[3],
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for negative transaction index before proposal execution setup', async () => {
       let providerLookupCalled = false;
       const mpp = {
