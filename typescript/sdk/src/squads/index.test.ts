@@ -52,6 +52,12 @@ const EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS = Object.freeze([
   "export * from './transaction-reader.js';",
   "export * from './error-format.js';",
 ]);
+const EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS = Object.freeze([
+  'src/squads/config.ts',
+  'src/squads/error-format.ts',
+  'src/squads/transaction-reader.ts',
+  'src/squads/utils.ts',
+]);
 const SDK_SQUADS_INDEX_SOURCE_PATH = 'src/squads/index.ts';
 const EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS = Object.freeze([
   'src/squads/provider.ts',
@@ -829,6 +835,15 @@ describe('squads barrel exports', () => {
     expect(new Set(barrelExportedSourcePaths).size).to.equal(
       barrelExportedSourcePaths.length,
     );
+    expect(barrelExportedSourcePaths).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
+    ]);
+    for (const barrelExportedSourcePath of barrelExportedSourcePaths) {
+      assertSdkSquadsNonTestSourcePathShape(
+        barrelExportedSourcePath,
+        'sdk squads barrel-exported source path',
+      );
+    }
     const nonExportedSourcePaths = discoveredNonTestSourcePaths
       .filter(
         (sourcePath) =>
