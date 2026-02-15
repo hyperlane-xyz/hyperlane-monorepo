@@ -443,3 +443,5 @@ Regression coverage also now confirms triple-escaped quoted object-tag/object-ta
 Regression coverage also now confirms triple-escaped single-quoted and mixed-quoted object-tag/object-tag-object placeholder outputs from `String(error)` (for example `\\\\\\'[object Array]\\\\\\'`, `\\\\\\\"'[object Array]'\\\\\\\"`, `\\\\\\'[object Object]\\\\\\'`, and `\\\\\\\"'[object Object]'\\\\\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
 
 Regression coverage now also confirms primitive throw values are handled safely: top-level string primitives still match runtime-unavailable signatures, non-string primitives remain ignored for matcher activation, and formatter output for `undefined`/`null`/scalar/symbol primitive startup errors uses the final `String(error)` fallback.
+
+Regression coverage now also confirms triple-escaped quoted/single-quoted/mixed-quoted bracketed placeholder outputs from `String(error)` (for example `\\\\\\\"[Array]\\\\\\\"`, `\\\\\\'[Array]\\\\\\'`, and `\\\\\\\"'[Array]'\\\\\\\"`) are treated as non-informative and continue through to `Object.prototype.toString`.
