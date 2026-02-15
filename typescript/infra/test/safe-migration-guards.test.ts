@@ -753,25 +753,54 @@ function readStaticBooleanCondition(
   if (unwrapped.kind === ts.SyntaxKind.TrueKeyword) return true;
   if (unwrapped.kind === ts.SyntaxKind.FalseKeyword) return false;
 
-  if (
-    ts.isBinaryExpression(unwrapped) &&
-    (unwrapped.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
-      unwrapped.operatorToken.kind ===
-        ts.SyntaxKind.ExclamationEqualsEqualsToken)
-  ) {
-    const leftValue = readStaticPrimitiveValue(unwrapped.left);
-    const rightValue = readStaticPrimitiveValue(unwrapped.right);
+  if (ts.isBinaryExpression(unwrapped)) {
     if (
-      leftValue === STATIC_PRIMITIVE_UNKNOWN ||
-      rightValue === STATIC_PRIMITIVE_UNKNOWN
+      unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken ||
+      unwrapped.operatorToken.kind === ts.SyntaxKind.BarBarToken
     ) {
+      const leftCondition = readStaticBooleanCondition(unwrapped.left);
+      const rightCondition = readStaticBooleanCondition(unwrapped.right);
+
+      if (
+        unwrapped.operatorToken.kind === ts.SyntaxKind.AmpersandAmpersandToken
+      ) {
+        if (leftCondition === false || rightCondition === false) {
+          return false;
+        }
+        if (leftCondition === true && rightCondition === true) {
+          return true;
+        }
+        return undefined;
+      }
+
+      if (leftCondition === true || rightCondition === true) {
+        return true;
+      }
+      if (leftCondition === false && rightCondition === false) {
+        return false;
+      }
       return undefined;
     }
-    const isEqual = leftValue === rightValue;
-    return unwrapped.operatorToken.kind ===
-      ts.SyntaxKind.EqualsEqualsEqualsToken
-      ? isEqual
-      : !isEqual;
+
+    if (
+      unwrapped.operatorToken.kind === ts.SyntaxKind.EqualsEqualsEqualsToken ||
+      unwrapped.operatorToken.kind ===
+        ts.SyntaxKind.ExclamationEqualsEqualsToken
+    ) {
+      const leftValue = readStaticPrimitiveValue(unwrapped.left);
+      const rightValue = readStaticPrimitiveValue(unwrapped.right);
+      if (
+        leftValue === STATIC_PRIMITIVE_UNKNOWN ||
+        rightValue === STATIC_PRIMITIVE_UNKNOWN
+      ) {
+        return undefined;
+      }
+      const isEqual = leftValue === rightValue;
+      return unwrapped.operatorToken.kind ===
+        ts.SyntaxKind.EqualsEqualsEqualsToken
+        ? isEqual
+        : !isEqual;
+    }
   }
 
   if (
@@ -5935,6 +5964,80 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('treats logical-and false conditions as false branches for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (true && false) {',
+      '  reqAlias = require;',
+      '} else {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats logical-or true conditions as true branches for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (false || true) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats logical-and short-circuit false conditions as false branches for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (marker === 1 && false) {',
+      '  reqAlias = require;',
+      '} else {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
+  it('treats logical-or short-circuit true conditions as true branches for symbol sources', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (marker === 1 || true) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js').default;",
+      "const directDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('treats strict-inequality null-undefined conditions as true branches for symbol sources', () => {
     const source = [
       'let reqAlias: any = require;',
@@ -7866,6 +7969,76 @@ describe('Safe migration guards', () => {
       "  moduleAlias = { default: 'not-a-module' };",
       '} else {',
       "  moduleAlias = require('./fixtures/other-module.js');",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats logical-and false conditions as false branches for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if (true && false) {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '} else {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats logical-or true conditions as true branches for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'if (false || true) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats logical-and short-circuit false conditions as false branches for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (marker === 1 && false) {',
+      "  moduleAlias = { default: 'not-a-module' };",
+      '} else {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '}',
+      'const postIfDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/other-module.js');
+    expect(references).to.not.include('default@./fixtures/guard-module.js');
+  });
+
+  it('treats logical-or short-circuit true conditions as true branches for module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'const marker = Math.random();',
+      'if (marker === 1 || true) {',
+      "  moduleAlias = require('./fixtures/other-module.js');",
+      '} else {',
+      "  moduleAlias = { default: 'not-a-module' };",
       '}',
       'const postIfDefault = moduleAlias.default;',
     ].join('\n');
@@ -16217,6 +16390,100 @@ describe('Safe migration guards', () => {
       '  reqAlias = require;',
       '} else {',
       '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats logical-and false conditions as false branches for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (true && false) {',
+      '  reqAlias = require;',
+      '} else {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats logical-or true conditions as true branches for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'if (false || true) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats logical-and short-circuit false conditions as false branches for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (marker === 1 && false) {',
+      '  reqAlias = require;',
+      '} else {',
+      '  reqAlias = () => undefined;',
+      '}',
+      "reqAlias('./fixtures/other-module.js');",
+      "const directCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('treats logical-or short-circuit true conditions as true branches for module specifiers', () => {
+    const source = [
+      'let reqAlias: any = require;',
+      'const marker = Math.random();',
+      'if (marker === 1 || true) {',
+      '  reqAlias = () => undefined;',
+      '} else {',
+      '  reqAlias = require;',
       '}',
       "reqAlias('./fixtures/other-module.js');",
       "const directCall = require('./fixtures/guard-module.js');",
