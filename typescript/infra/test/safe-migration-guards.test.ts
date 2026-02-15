@@ -587,6 +587,27 @@ function readImportTypeQualifierSymbol(
   return readImportTypeQualifierSymbol(qualifier.left);
 }
 
+function isAmbientContextNode(node: ts.Node): boolean {
+  if (node.getSourceFile().isDeclarationFile) return true;
+
+  let current: ts.Node | undefined = node;
+  while (current && !ts.isSourceFile(current)) {
+    if (ts.canHaveModifiers(current)) {
+      const modifiers = ts.getModifiers(current);
+      if (
+        modifiers?.some(
+          (modifier) => modifier.kind === ts.SyntaxKind.DeclareKeyword,
+        )
+      ) {
+        return true;
+      }
+    }
+    current = current.parent;
+  }
+
+  return false;
+}
+
 function isLexicalScopeBoundary(node: ts.Node): boolean {
   const hasLexicalBindings = (declarations: ts.VariableDeclarationList) =>
     (declarations.flags & (ts.NodeFlags.Let | ts.NodeFlags.Const)) !== 0;
@@ -714,7 +735,8 @@ function collectSymbolSourceReferences(
       (ts.isFunctionDeclaration(node) ||
         ts.isClassDeclaration(node) ||
         ts.isEnumDeclaration(node)) &&
-      node.name
+      node.name &&
+      !isAmbientContextNode(node)
     ) {
       const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
       if (shadowedIdentifier) {
@@ -810,6 +832,10 @@ function collectSymbolSourceReferences(
     }
 
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      if (isAmbientContextNode(node)) {
+        ts.forEachChild(node, visit);
+        return;
+      }
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)
         : undefined;
@@ -983,7 +1009,11 @@ function collectSymbolSourceReferences(
       );
     }
 
-    if (ts.isFunctionDeclaration(node) && node.name) {
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      !isAmbientContextNode(node)
+    ) {
       const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
       if (shadowedIdentifier) {
         moduleAliasByIdentifier.delete(shadowedIdentifier);
@@ -1090,7 +1120,8 @@ function collectModuleSpecifierReferences(
       (ts.isFunctionDeclaration(node) ||
         ts.isClassDeclaration(node) ||
         ts.isEnumDeclaration(node)) &&
-      node.name
+      node.name &&
+      !isAmbientContextNode(node)
     ) {
       const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
       if (shadowedIdentifier) {
@@ -1145,6 +1176,10 @@ function collectModuleSpecifierReferences(
     }
 
     if (ts.isVariableDeclaration(node) && ts.isIdentifier(node.name)) {
+      if (isAmbientContextNode(node)) {
+        ts.forEachChild(node, visit);
+        return;
+      }
       const initializer = node.initializer
         ? unwrapInitializerExpression(node.initializer)
         : undefined;
@@ -1185,7 +1220,11 @@ function collectModuleSpecifierReferences(
       restoreStringSet(requireLikeIdentifiers, functionScopeSnapshot);
     }
 
-    if (ts.isFunctionDeclaration(node) && node.name) {
+    if (
+      ts.isFunctionDeclaration(node) &&
+      node.name &&
+      !isAmbientContextNode(node)
+    ) {
       const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
       if (shadowedIdentifier) {
         requireLikeIdentifiers.delete(shadowedIdentifier);
@@ -1878,6 +1917,28 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps symbol-source detection when require is ambient-declared as variable', () => {
+    const source = [
+      'declare const require: unknown;',
+      "const ambientDeclaredDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps symbol-source detection when require is ambient-declared as function', () => {
+    const source = [
+      'declare function require(path: string): unknown;',
+      "const ambientDeclaredDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('does not treat shadowed require parameter default access as module-sourced', () => {
     const source = [
       "const outerDefault = require('./fixtures/guard-module.js').default;",
@@ -2307,6 +2368,34 @@ describe('Safe migration guards', () => {
     );
     expect(moduleReferences).to.not.include(
       './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps module specifier detection when require is ambient-declared as variable', () => {
+    const source = [
+      'declare const require: unknown;',
+      "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps module specifier detection when require is ambient-declared as function', () => {
+    const source = [
+      'declare function require(path: string): unknown;',
+      "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
     );
   });
 
