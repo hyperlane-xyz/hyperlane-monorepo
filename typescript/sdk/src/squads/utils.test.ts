@@ -42,6 +42,8 @@ import {
   parseSquadProposal,
   parseSquadProposalTransactionIndex,
   isVaultTransaction,
+  buildSquadsProposalCancellation,
+  buildSquadsProposalRejection,
 } from './utils.js';
 import type { MultiProtocolProvider } from '../providers/MultiProtocolProvider.js';
 import {
@@ -3331,6 +3333,54 @@ describe('squads utils', () => {
   });
 
   describe(buildSquadsVaultTransactionProposal.name, () => {
+    it('normalizes padded chain names before proposal build provider lookup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          '  solanamainnet  ' as unknown as Parameters<
+            typeof buildSquadsVaultTransactionProposal
+          >[0],
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.include('provider lookup failed');
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('fails fast for malformed chain names before proposal build provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsVaultTransactionProposal(
+          1 as unknown as Parameters<typeof buildSquadsVaultTransactionProposal>[0],
+          mpp,
+          [],
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('looks up provider once when proposal build fails during provider validation', async () => {
       let providerLookupCount = 0;
       const mpp = {
@@ -3376,6 +3426,102 @@ describe('squads utils', () => {
       );
 
       expect(thrownError?.message).to.include('Invalid Solana provider');
+      expect(providerLookupCalled).to.equal(false);
+    });
+  });
+
+  describe(buildSquadsProposalRejection.name, () => {
+    it('normalizes padded chain names before rejection provider lookup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {};
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const result = await buildSquadsProposalRejection(
+        '  solanamainnet  ' as unknown as Parameters<
+          typeof buildSquadsProposalRejection
+        >[0],
+        mpp,
+        1n,
+        PublicKey.default,
+      );
+
+      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(result.instruction).to.not.equal(undefined);
+    });
+
+    it('fails fast for malformed chain names before rejection provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalRejection(
+          1 as unknown as Parameters<typeof buildSquadsProposalRejection>[0],
+          mpp,
+          1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+  });
+
+  describe(buildSquadsProposalCancellation.name, () => {
+    it('normalizes padded chain names before cancellation provider lookup', async () => {
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          return {};
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const result = await buildSquadsProposalCancellation(
+        '  solanamainnet  ' as unknown as Parameters<
+          typeof buildSquadsProposalCancellation
+        >[0],
+        mpp,
+        1n,
+        PublicKey.default,
+      );
+
+      expect(providerLookupChain).to.equal('solanamainnet');
+      expect(result.instruction).to.not.equal(undefined);
+    });
+
+    it('fails fast for malformed chain names before cancellation provider lookup', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        buildSquadsProposalCancellation(
+          1 as unknown as Parameters<typeof buildSquadsProposalCancellation>[0],
+          mpp,
+          1n,
+          PublicKey.default,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
       expect(providerLookupCalled).to.equal(false);
     });
   });
@@ -3449,8 +3595,10 @@ describe('squads utils', () => {
 
     it('does not request signer public key when provider lookup fails', async () => {
       let signerPublicKeyCalled = false;
+      let providerLookupChain: string | undefined;
       const mpp = {
-        getSolanaWeb3Provider: () => {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
           throw new Error('provider lookup failed');
         },
       } as unknown as MultiProtocolProvider;
@@ -3466,6 +3614,39 @@ describe('squads utils', () => {
       );
 
       expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(signerPublicKeyCalled).to.equal(false);
+      expect(providerLookupChain).to.equal('solanamainnet');
+    });
+
+    it('normalizes padded chain names before submit provider lookup', async () => {
+      let signerPublicKeyCalled = false;
+      let providerLookupChain: string | undefined;
+      const mpp = {
+        getSolanaWeb3Provider: (chain: string) => {
+          providerLookupChain = chain;
+          throw new Error('provider lookup failed');
+        },
+      } as unknown as MultiProtocolProvider;
+      const signerAdapter = {
+        publicKey: () => {
+          signerPublicKeyCalled = true;
+          return PublicKey.default;
+        },
+      } as unknown as Parameters<typeof submitProposalToSquads>[3];
+
+      const thrownError = await captureAsyncError(() =>
+        submitProposalToSquads(
+          '  solanamainnet  ' as unknown as Parameters<
+            typeof submitProposalToSquads
+          >[0],
+          [],
+          mpp,
+          signerAdapter,
+        ),
+      );
+
+      expect(thrownError?.message).to.equal('provider lookup failed');
+      expect(providerLookupChain).to.equal('solanamainnet');
       expect(signerPublicKeyCalled).to.equal(false);
     });
   });

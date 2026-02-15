@@ -1358,11 +1358,16 @@ export async function buildSquadsVaultTransactionProposal(
   instructions: TransactionInstruction[];
   transactionIndex: bigint;
 }> {
+  const normalizedChain = resolveSquadsChainName(chain);
   const { svmProvider, vault, multisigPda, programId } =
-    getSquadAndProviderForResolvedChain(chain, mpp, svmProviderOverride);
+    getSquadAndProviderForResolvedChain(
+      normalizedChain,
+      mpp,
+      svmProviderOverride,
+    );
 
   const transactionIndex = await getNextSquadsTransactionIndex(
-    chain,
+    normalizedChain,
     mpp,
     svmProvider,
   );
@@ -1406,8 +1411,9 @@ export async function buildSquadsProposalRejection(
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
+  const normalizedChain = resolveSquadsChainName(chain);
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
-    chain,
+    normalizedChain,
     mpp,
     svmProviderOverride,
   );
@@ -1433,8 +1439,9 @@ export async function buildSquadsProposalCancellation(
 ): Promise<{
   instruction: TransactionInstruction;
 }> {
+  const normalizedChain = resolveSquadsChainName(chain);
   const { multisigPda, programId } = getSquadAndProviderForResolvedChain(
-    chain,
+    normalizedChain,
     mpp,
     svmProviderOverride,
   );
@@ -1459,13 +1466,14 @@ export async function submitProposalToSquads(
   memo?: string,
 ): Promise<void> {
   try {
+    const normalizedChain = resolveSquadsChainName(chain);
     const { svmProvider, multisigPda, programId } =
-      getSquadAndProviderForResolvedChain(chain, mpp);
+      getSquadAndProviderForResolvedChain(normalizedChain, mpp);
     const creatorPublicKey = signerAdapter.publicKey();
 
     const { instructions: proposalInstructions, transactionIndex } =
       await buildSquadsVaultTransactionProposal(
-        chain,
+        normalizedChain,
         mpp,
         vaultInstructions,
         creatorPublicKey,
