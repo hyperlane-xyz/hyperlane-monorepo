@@ -280,6 +280,10 @@ function assertRegressionTestPathShape(
   pathLabel: string,
 ): void {
   expect(
+    pathValue.startsWith('test/'),
+    `Expected ${pathLabel} to stay test-directory scoped: ${pathValue}`,
+  ).to.equal(true);
+  expect(
     pathValue.startsWith('test/squads-'),
     `Expected ${pathLabel} to start with test/squads-: ${pathValue}`,
   ).to.equal(true);
@@ -293,6 +297,10 @@ function assertSupportSourcePathShape(
   pathValue: string,
   pathLabel: string,
 ): void {
+  expect(
+    pathValue.startsWith('test/'),
+    `Expected ${pathLabel} to stay test-directory scoped: ${pathValue}`,
+  ).to.equal(true);
   expect(
     pathValue.startsWith('test/squads-'),
     `Expected ${pathLabel} to start with test/squads-: ${pathValue}`,
@@ -722,7 +730,17 @@ describe('squads sdk migration regression', () => {
 
   it('keeps squads tracked test assets scoped to test directory', () => {
     for (const testAssetPath of SQUADS_TRACKED_TEST_ASSET_PATHS) {
-      expect(testAssetPath.startsWith('test/')).to.equal(true);
+      if (testAssetPath.endsWith('.test.ts')) {
+        assertRegressionTestPathShape(
+          testAssetPath,
+          'squads tracked regression-like scoped path',
+        );
+        continue;
+      }
+      assertSupportSourcePathShape(
+        testAssetPath,
+        'squads tracked support-like scoped path',
+      );
     }
   });
 
