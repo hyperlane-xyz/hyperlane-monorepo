@@ -4876,6 +4876,79 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('keeps class static-block ambient function declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    declare function reqAlias(_path: string): unknown;',
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps class static-block ambient namespace declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    declare namespace reqAlias {',
+      '      const marker: unknown;',
+      '    }',
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps class static-block ambient module declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js');",
+      '    declare module reqAlias {',
+      '      const marker: unknown;',
+      '    }',
+      '  }',
+      '}',
+      "const postStaticCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('does not leak class static-block var alias shadowing to outer module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -9805,6 +9878,64 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps class static-block ambient function declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    declare function reqAlias(_path: string): unknown;',
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps class static-block ambient namespace declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    declare namespace reqAlias {',
+      '      const marker: unknown;',
+      '    }',
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps class static-block ambient module declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'class ShadowContainer {',
+      '  static {',
+      "    reqAlias('./fixtures/other-module.js').default;",
+      '    declare module reqAlias {',
+      '      const marker: unknown;',
+      '    }',
+      '  }',
+      '}',
+      "const postStaticDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak class static-block var alias shadowing to outer symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -10327,6 +10458,67 @@ describe('Gnosis Safe migration guards', () => {
       '    const preDeclarationSymbol = moduleAlias.inner;',
       '    declare enum moduleAlias {',
       '      Marker = 0,',
+      '    }',
+      '    void preDeclarationSymbol;',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps class static-block ambient function declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    declare function moduleAlias(_path: string): unknown;',
+      '    void preDeclarationSymbol;',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps class static-block ambient namespace declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    declare namespace moduleAlias {',
+      '      const marker: unknown;',
+      '    }',
+      '    void preDeclarationSymbol;',
+      '  }',
+      '}',
+      'const postStaticDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps class static-block ambient module declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'class ShadowContainer {',
+      '  static {',
+      '    const preDeclarationSymbol = moduleAlias.inner;',
+      '    declare module moduleAlias {',
+      '      const marker: unknown;',
       '    }',
       '    void preDeclarationSymbol;',
       '  }',
