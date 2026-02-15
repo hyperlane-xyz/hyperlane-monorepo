@@ -384,6 +384,20 @@ describe('squads sdk migration regression', () => {
     expect(firstTrackedSourceFiles).to.deep.equal(secondTrackedSourceFiles);
   });
 
+  it('keeps tracked infra source file scan isolated from caller mutation', () => {
+    const baselineTrackedSourceFiles = getTrackedSourceFileSnapshot();
+    const callerMutatedTrackedSourceFiles = [...getTrackedSourceFileSnapshot()];
+    callerMutatedTrackedSourceFiles.pop();
+
+    const subsequentTrackedSourceFiles = getTrackedSourceFileSnapshot();
+    expect(callerMutatedTrackedSourceFiles).to.not.deep.equal(
+      baselineTrackedSourceFiles,
+    );
+    expect(subsequentTrackedSourceFiles).to.deep.equal(
+      baselineTrackedSourceFiles,
+    );
+  });
+
   it('keeps tracked infra source file scan non-empty and deduplicated', () => {
     const trackedSourceFiles = getTrackedSourceFileSnapshot();
     expect(trackedSourceFiles.length).to.be.greaterThan(0);
