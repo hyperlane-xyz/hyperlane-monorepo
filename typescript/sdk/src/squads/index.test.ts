@@ -909,6 +909,42 @@ describe('squads barrel exports', () => {
     }
   });
 
+  it('keeps sdk squads source-role constants normalized and disjoint', () => {
+    expect(Object.isFrozen(EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS)).to.equal(
+      true,
+    );
+    expect(
+      Object.isFrozen(EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS),
+    ).to.equal(true);
+
+    expect(new Set(EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS).size).to.equal(
+      EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS.length,
+    );
+    for (const exportStatement of EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS) {
+      expect(exportStatement).to.equal(exportStatement.trim());
+      expect(/\s{2,}/.test(exportStatement)).to.equal(false);
+      expect(exportStatement.startsWith("export * from './")).to.equal(true);
+      expect(exportStatement.endsWith(".js';")).to.equal(true);
+    }
+
+    expect(
+      new Set(EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS).size,
+    ).to.equal(EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS.length);
+    for (const sourcePath of EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS) {
+      assertSdkSquadsNonTestSourcePathShape(
+        sourcePath,
+        'expected sdk squads internal non-exported source path constant',
+      );
+    }
+
+    const exportedSourcePathSet = new Set(
+      EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
+    );
+    for (const internalSourcePath of EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS) {
+      expect(exportedSourcePathSet.has(internalSourcePath)).to.equal(false);
+    }
+  });
+
   it('keeps sdk squads source-path constants isolated from caller mutation', () => {
     const baselineBarrelExportedPaths = [
       ...EXPECTED_SDK_SQUADS_BARREL_EXPORTED_SOURCE_PATHS,
