@@ -147,13 +147,28 @@ describe('squads test constants', () => {
 
   it('classifies allowlisted non-executable script paths consistently', () => {
     for (const scriptPath of SQUADS_SCRIPT_PATHS) {
-      const expectedIsAllowlisted = NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some(
-        (fileName) => scriptPath.endsWith(`/${fileName}`),
-      );
+      const expectedIsAllowlisted =
+        scriptPath.startsWith('scripts/squads/') &&
+        NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
+          scriptPath.endsWith(`/${fileName}`),
+        );
       expect(isAllowlistedNonExecutableSquadsScriptPath(scriptPath)).to.equal(
         expectedIsAllowlisted,
       );
     }
+  });
+
+  it('keeps non-executable classifier scoped to scripts/squads paths', () => {
+    expect(
+      isAllowlistedNonExecutableSquadsScriptPath(
+        'scripts/squads/cli-helpers.ts',
+      ),
+    ).to.equal(true);
+    expect(
+      isAllowlistedNonExecutableSquadsScriptPath(
+        'scripts/sealevel-helpers/cli-helpers.ts',
+      ),
+    ).to.equal(false);
   });
 
   it('keeps configured squads script paths constrained to allowed extensions', () => {

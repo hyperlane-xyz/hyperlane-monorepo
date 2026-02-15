@@ -20,6 +20,9 @@ export const SQUADS_SCRIPT_PATHS = Object.freeze([
 export function isAllowlistedNonExecutableSquadsScriptPath(
   scriptPath: string,
 ): boolean {
+  if (!scriptPath.startsWith('scripts/squads/')) {
+    return false;
+  }
   return NON_EXECUTABLE_SQUADS_SCRIPT_FILES.some((fileName) =>
     scriptPath.endsWith(`/${fileName}`),
   );
