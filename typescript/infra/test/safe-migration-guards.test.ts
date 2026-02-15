@@ -260,6 +260,17 @@ function collectSymbolSourceReferences(
     getScriptKind(filePath),
   );
 
+  const readSpecifierSymbols = (
+    specifier: ts.ImportSpecifier | ts.ExportSpecifier,
+  ): string[] => {
+    const symbols = new Set<string>();
+    symbols.add(normalizeNamedSymbol(specifier.name.text));
+    if (specifier.propertyName) {
+      symbols.add(normalizeNamedSymbol(specifier.propertyName.text));
+    }
+    return [...symbols].filter(Boolean);
+  };
+
   const visit = (node: ts.Node) => {
     if (ts.isImportDeclaration(node)) {
       const source = ts.isStringLiteralLike(node.moduleSpecifier)
@@ -275,12 +286,9 @@ function collectSymbolSourceReferences(
         }
         if (ts.isNamedImports(namedBindings)) {
           for (const importSpecifier of namedBindings.elements) {
-            references.push({
-              symbol: normalizeNamedSymbol(
-                importSpecifier.propertyName?.text ?? importSpecifier.name.text,
-              ),
-              source,
-            });
+            for (const symbol of readSpecifierSymbols(importSpecifier)) {
+              references.push({ symbol, source });
+            }
           }
         }
       }
@@ -296,12 +304,9 @@ function collectSymbolSourceReferences(
         ts.isNamedExports(namedExports)
       ) {
         for (const exportSpecifier of namedExports.elements) {
-          references.push({
-            symbol: normalizeNamedSymbol(
-              exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
-            ),
-            source: source.text,
-          });
+          for (const symbol of readSpecifierSymbols(exportSpecifier)) {
+            references.push({ symbol, source: source.text });
+          }
         }
       }
     }
@@ -932,6 +937,23 @@ describe('Safe migration guards', () => {
     expect(
       hasDefaultReExportFromModule(source, 'fixture.ts', './fixtures/other.js'),
     ).to.equal(false);
+  });
+
+  it('tracks aliased named import and export symbols from module specifiers', () => {
+    const source = [
+      "import { default as getSafe, parseSafeTx as parseAlias } from './fixtures/guard-module.js';",
+      "export { default as SafeDefault, parseAlias as parseSafeTx } from './fixtures/guard-module.js';",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include.members([
+      'default@./fixtures/guard-module.js',
+      'getSafe@./fixtures/guard-module.js',
+      'parseSafeTx@./fixtures/guard-module.js',
+      'parseAlias@./fixtures/guard-module.js',
+      'SafeDefault@./fixtures/guard-module.js',
+    ]);
   });
 
   it('keeps required runtime safe helpers value-exported from sdk index', () => {
