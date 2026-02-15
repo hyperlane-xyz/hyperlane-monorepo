@@ -5,6 +5,7 @@ import {
   assertIsSquadsChain,
   getSquadsChains,
   getSquadsKeys,
+  getSquadsKeysForResolvedChain,
   getUnsupportedSquadsChainsErrorMessage,
   isSquadsChain,
   partitionSquadsChains,
@@ -267,9 +268,37 @@ describe('squads config', () => {
     expect(keys.vault.toBase58()).to.equal(squadsConfigs.solanamainnet.vault);
   });
 
+  it('returns frozen squads key containers for resolved chain names', () => {
+    const keys = getSquadsKeysForResolvedChain('solanamainnet');
+    expect(Object.isFrozen(keys)).to.equal(true);
+    expect(keys.multisigPda.toBase58()).to.equal(
+      squadsConfigs.solanamainnet.multisigPda,
+    );
+    expect(keys.programId.toBase58()).to.equal(
+      squadsConfigs.solanamainnet.programId,
+    );
+    expect(keys.vault.toBase58()).to.equal(squadsConfigs.solanamainnet.vault);
+  });
+
   it('returns fresh immutable squads key containers per lookup', () => {
     const firstKeys = getSquadsKeys('solanamainnet');
     const secondKeys = getSquadsKeys('solanamainnet');
+
+    expect(firstKeys).to.not.equal(secondKeys);
+    expect(Object.isFrozen(firstKeys)).to.equal(true);
+    expect(Object.isFrozen(secondKeys)).to.equal(true);
+    expect(firstKeys.multisigPda.toBase58()).to.equal(
+      secondKeys.multisigPda.toBase58(),
+    );
+    expect(firstKeys.programId.toBase58()).to.equal(
+      secondKeys.programId.toBase58(),
+    );
+    expect(firstKeys.vault.toBase58()).to.equal(secondKeys.vault.toBase58());
+  });
+
+  it('returns fresh immutable squads key containers per resolved-chain lookup', () => {
+    const firstKeys = getSquadsKeysForResolvedChain('solanamainnet');
+    const secondKeys = getSquadsKeysForResolvedChain('solanamainnet');
 
     expect(firstKeys).to.not.equal(secondKeys);
     expect(Object.isFrozen(firstKeys)).to.equal(true);

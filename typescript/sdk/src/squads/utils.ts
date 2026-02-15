@@ -18,6 +18,7 @@ import { ChainName } from '../types.js';
 
 import {
   getSquadsKeys,
+  getSquadsKeysForResolvedChain,
   partitionSquadsChains,
   resolveSquadsChainName,
   SquadsChainName,
@@ -540,7 +541,9 @@ function getSquadAndProviderForResolvedChain(
   mpp: MultiProtocolProvider,
   svmProviderOverride?: SolanaWeb3Provider,
 ): SquadAndProvider {
-  const { vault, multisigPda, programId } = getSquadsKeys(chain);
+  const { vault, multisigPda, programId } = getSquadsKeysForResolvedChain(
+    chain,
+  );
   const svmProvider =
     svmProviderOverride ?? mpp.getSolanaWeb3Provider(chain);
 

@@ -244,13 +244,18 @@ export function resolveSquadsChainName(chainName: unknown): SquadsChainName {
   return normalizedChainName;
 }
 
-export function getSquadsKeys(chainName: string): SquadsKeys {
-  const normalizedChainName = resolveSquadsChainName(chainName);
-  const keys = SQUADS_KEYS_BY_CHAIN[normalizedChainName];
+export function getSquadsKeysForResolvedChain(
+  chainName: SquadsChainName,
+): SquadsKeys {
+  const keys = SQUADS_KEYS_BY_CHAIN[chainName];
 
   return Object.freeze({
     multisigPda: keys.multisigPda,
     programId: keys.programId,
     vault: keys.vault,
   });
+}
+
+export function getSquadsKeys(chainName: string): SquadsKeys {
+  return getSquadsKeysForResolvedChain(resolveSquadsChainName(chainName));
 }
