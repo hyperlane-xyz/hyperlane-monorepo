@@ -271,6 +271,38 @@ function assertTrackedSourceSetContainsPaths(
   }
 }
 
+function assertRegressionTestPathShape(
+  pathValue: string,
+  pathLabel: string,
+): void {
+  expect(
+    pathValue.startsWith('test/squads-'),
+    `Expected ${pathLabel} to start with test/squads-: ${pathValue}`,
+  ).to.equal(true);
+  expect(
+    pathValue.endsWith('.test.ts'),
+    `Expected ${pathLabel} to end with .test.ts: ${pathValue}`,
+  ).to.equal(true);
+}
+
+function assertSupportSourcePathShape(
+  pathValue: string,
+  pathLabel: string,
+): void {
+  expect(
+    pathValue.startsWith('test/squads-'),
+    `Expected ${pathLabel} to start with test/squads-: ${pathValue}`,
+  ).to.equal(true);
+  expect(
+    pathValue.endsWith('.ts'),
+    `Expected ${pathLabel} to end with .ts: ${pathValue}`,
+  ).to.equal(true);
+  expect(
+    pathValue.endsWith('.test.ts'),
+    `Expected ${pathLabel} to be source-only (not *.test.ts): ${pathValue}`,
+  ).to.equal(false);
+}
+
 describe('squads sdk migration regression', () => {
   it('keeps squads script constants immutable', () => {
     expect(Object.isFrozen(SQUADS_SCRIPT_PATHS)).to.equal(true);
@@ -486,8 +518,10 @@ describe('squads sdk migration regression', () => {
     expect(quotedScriptPaths).to.deep.equal([...SQUADS_REGRESSION_TEST_PATHS]);
     expect(new Set(quotedScriptPaths).size).to.equal(quotedScriptPaths.length);
     for (const quotedScriptPath of quotedScriptPaths) {
-      expect(quotedScriptPath.startsWith('test/squads-')).to.equal(true);
-      expect(quotedScriptPath.endsWith('.test.ts')).to.equal(true);
+      assertRegressionTestPathShape(
+        quotedScriptPath,
+        'quoted squads regression script path',
+      );
     }
     for (const scriptPath of SQUADS_REGRESSION_TEST_PATHS) {
       const quotedScriptPath = `"${scriptPath}"`;
@@ -603,8 +637,10 @@ describe('squads sdk migration regression', () => {
 
   it('keeps squads regression test paths constrained to squads test naming', () => {
     for (const regressionTestPath of SQUADS_REGRESSION_TEST_PATHS) {
-      expect(regressionTestPath.startsWith('test/squads-')).to.equal(true);
-      expect(regressionTestPath.endsWith('.test.ts')).to.equal(true);
+      assertRegressionTestPathShape(
+        regressionTestPath,
+        'squads regression test path',
+      );
     }
   });
 
@@ -637,9 +673,7 @@ describe('squads sdk migration regression', () => {
 
   it('keeps squads test-support paths source-only and squads-scoped', () => {
     for (const supportPath of SQUADS_TRACKED_TEST_SUPPORT_PATHS) {
-      expect(supportPath.startsWith('test/squads-')).to.equal(true);
-      expect(supportPath.endsWith('.ts')).to.equal(true);
-      expect(supportPath.endsWith('.test.ts')).to.equal(false);
+      assertSupportSourcePathShape(supportPath, 'squads test-support path');
     }
   });
 
