@@ -2652,6 +2652,52 @@ describe('Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/guard-module.js');
   });
 
+  it('keeps symbol-source detection when require is ambient-declared as let', () => {
+    const source = [
+      'declare let require: (path: string) => unknown;',
+      "const ambientDeclaredDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps symbol-source detection when require is ambient-declared as var', () => {
+    const source = [
+      'declare var require: (path: string) => unknown;',
+      "const ambientDeclaredDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps symbol-source detection when require has a type-alias declaration', () => {
+    const source = [
+      'type require = (path: string) => unknown;',
+      "const ambientDeclaredDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
+  it('keeps symbol-source detection when require has an interface declaration', () => {
+    const source = [
+      'interface require {',
+      '  (path: string): unknown;',
+      '}',
+      "const ambientDeclaredDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+  });
+
   it('does not treat shadowed require parameter default access as module-sourced', () => {
     const source = [
       "const outerDefault = require('./fixtures/guard-module.js').default;",
@@ -7064,6 +7110,64 @@ describe('Safe migration guards', () => {
     const source = [
       'declare module require {',
       '  const marker: unknown;',
+      '}',
+      "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps module specifier detection when require is ambient-declared as let', () => {
+    const source = [
+      'declare let require: (path: string) => unknown;',
+      "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps module specifier detection when require is ambient-declared as var', () => {
+    const source = [
+      'declare var require: (path: string) => unknown;',
+      "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps module specifier detection when require has a type-alias declaration', () => {
+    const source = [
+      'type require = (path: string) => unknown;',
+      "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps module specifier detection when require has an interface declaration', () => {
+    const source = [
+      'interface require {',
+      '  (path: string): unknown;',
       '}',
       "const ambientDeclaredCall = require('./fixtures/guard-module.js');",
     ].join('\n');
