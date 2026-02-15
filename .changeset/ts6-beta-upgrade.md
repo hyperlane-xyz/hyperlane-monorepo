@@ -343,3 +343,5 @@ Regression coverage now also confirms `toJSON`-returns-`undefined` paths continu
 `getErrorMessage` now also treats generic inspect placeholders (`{}`, `[]`, `null`, `undefined`) as non-informative, falling through to `Object.prototype.toString` so runtime signatures encoded in structural tags are not masked by empty inspect output.
 
 Inspect-placeholder filtering now also covers bracketed placeholders (`[Object]`, `[Array]`), with regression coverage confirming matcher/formatter paths still fall through to `Object.prototype.toString` for runtime and non-runtime structural signal handling.
+
+Inspect-placeholder filtering now also normalizes case and covers object-tag placeholders such as `[object Object]`/`[object Array]`, preventing these inert representations from masking runtime signals carried in `Object.prototype.toString` fallbacks.

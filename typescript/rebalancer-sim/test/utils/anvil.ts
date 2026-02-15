@@ -22,8 +22,10 @@ const NON_INFORMATIVE_STRUCTURED_OUTPUTS = new Set([
   '[]',
   'null',
   'undefined',
-  '[Object]',
-  '[Array]',
+  '[object]',
+  '[array]',
+  '[object object]',
+  '[object array]',
 ]);
 const WINDOWS_DOCKER_PIPE_ENGINES = [
   'docker_engine',
@@ -133,7 +135,7 @@ function getErrorMessage(error: unknown): string {
       const inspectedValue = getTrimmedNonEmptyString(inspect(error));
       if (
         inspectedValue &&
-        !NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(inspectedValue)
+        !NON_INFORMATIVE_STRUCTURED_OUTPUTS.has(inspectedValue.toLowerCase())
       ) {
         return inspectedValue;
       }
