@@ -1083,12 +1083,29 @@ export class SquadsTransactionReader {
       `Invalid core program ids for ${chain}: expected object, got ${coreProgramIdsType}`,
     );
 
+    let mailboxProgramIdValue: unknown;
+    try {
+      mailboxProgramIdValue = coreProgramIds.mailbox;
+    } catch (error) {
+      throw new Error(
+        `Failed to read mailbox program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
     const mailboxProgramId = assertNonEmptyStringValue(
-      coreProgramIds.mailbox,
+      mailboxProgramIdValue,
       `mailbox program id for ${chain}`,
     );
+
+    let multisigIsmMessageIdProgramIdValue: unknown;
+    try {
+      multisigIsmMessageIdProgramIdValue = coreProgramIds.multisig_ism_message_id;
+    } catch (error) {
+      throw new Error(
+        `Failed to read multisig_ism_message_id program id for ${chain}: ${stringifyUnknownSquadsError(error)}`,
+      );
+    }
     const multisigIsmMessageIdProgramId = assertNonEmptyStringValue(
-      coreProgramIds.multisig_ism_message_id,
+      multisigIsmMessageIdProgramIdValue,
       `multisig_ism_message_id program id for ${chain}`,
     );
 

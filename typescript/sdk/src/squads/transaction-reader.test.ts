@@ -2780,6 +2780,98 @@ describe('squads transaction reader', () => {
     );
   });
 
+  it('throws stable error when mailbox program id getter throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () =>
+        new Proxy(
+          {
+            multisig_ism_message_id: SYSTEM_PROGRAM_ID.toBase58(),
+          },
+          {
+            get(target, property, receiver) {
+              if (property === 'mailbox') {
+                throw new Error('mailbox getter failed');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ) as unknown as {
+          mailbox: string;
+          multisig_ism_message_id: string;
+        },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read mailbox program id for solanamainnet: Error: mailbox getter failed',
+    );
+  });
+
+  it('throws stable error when multisig program id getter throws', async () => {
+    const reader = new SquadsTransactionReader(createNoopMpp(), {
+      resolveCoreProgramIds: () =>
+        new Proxy(
+          {
+            mailbox: SYSTEM_PROGRAM_ID.toBase58(),
+          },
+          {
+            get(target, property, receiver) {
+              if (property === 'multisig_ism_message_id') {
+                throw new Error('multisig getter failed');
+              }
+              return Reflect.get(target, property, receiver);
+            },
+          },
+        ) as unknown as {
+          mailbox: string;
+          multisig_ism_message_id: string;
+        },
+    });
+    const readerAny = reader as unknown as {
+      parseVaultInstructions: (
+        chain: string,
+        vaultTransaction: Record<string, unknown>,
+        svmProvider: unknown,
+      ) => Promise<{
+        instructions: Array<Record<string, unknown>>;
+        warnings: string[];
+      }>;
+    };
+
+    const thrownError = await captureAsyncError(() =>
+      readerAny.parseVaultInstructions(
+        'solanamainnet',
+        {
+          message: { accountKeys: [], addressTableLookups: [], instructions: [] },
+        },
+        { getAccountInfo: async () => null },
+      ),
+    );
+
+    expect(thrownError?.message).to.equal(
+      'Failed to read multisig_ism_message_id program id for solanamainnet: Error: multisig getter failed',
+    );
+  });
+
   it('throws stable error when resolved core program ids are malformed', async () => {
     const reader = new SquadsTransactionReader(createNoopMpp(), {
       resolveCoreProgramIds: () => ({
