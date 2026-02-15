@@ -338,9 +338,8 @@ function extractErrorMessages(error: unknown): string[] {
       const cause = getObjectProperty(current, 'cause');
       if (cause !== undefined) enqueue(cause);
 
-      if (current instanceof AggregateError) {
-        enqueueNestedErrors(getObjectProperty(current, 'errors'));
-      }
+      const errors = getObjectProperty(current, 'errors');
+      if (errors !== undefined) enqueueNestedErrors(errors);
 
       continue;
     }
