@@ -178,6 +178,20 @@ function listSdkSquadsTestFilePaths(): readonly string[] {
     .map((entry) => `src/squads/${entry.name}`);
 }
 
+function listSdkSquadsNonTestSourceFilePaths(): readonly string[] {
+  const directoryEntries = fs
+    .readdirSync(SDK_SQUADS_SOURCE_DIR, { withFileTypes: true })
+    .sort((left, right) => compareLexicographically(left.name, right.name));
+  return directoryEntries
+    .filter(
+      (entry) =>
+        entry.isFile() &&
+        entry.name.endsWith('.ts') &&
+        !entry.name.endsWith('.test.ts'),
+    )
+    .map((entry) => `src/squads/${entry.name}`);
+}
+
 function matchesSingleAsteriskGlob(
   candidatePath: string,
   globPattern: string,
@@ -477,6 +491,27 @@ describe('squads barrel exports', () => {
         matchingDiscoveredPaths.length,
         `Expected sdk squads test glob to match at least one discovered squads test file: ${globPattern}`,
       ).to.be.greaterThan(0);
+    }
+  });
+
+  it('keeps sdk squads test globs excluding non-test squads source files', () => {
+    const nonTestSquadsSourcePaths = listSdkSquadsNonTestSourceFilePaths();
+    expect(
+      nonTestSquadsSourcePaths.length,
+      'Expected at least one sdk squads non-test source file',
+    ).to.be.greaterThan(0);
+
+    for (const nonTestPath of nonTestSquadsSourcePaths) {
+      expect(nonTestPath.startsWith('src/')).to.equal(true);
+      expect(nonTestPath.includes('/squads/')).to.equal(true);
+      expect(nonTestPath.endsWith('.ts')).to.equal(true);
+      expect(nonTestPath.endsWith('.test.ts')).to.equal(false);
+      expect(
+        SDK_SQUADS_TEST_TOKEN_PATHS.some((globPattern) =>
+          matchesSingleAsteriskGlob(nonTestPath, globPattern),
+        ),
+        `Expected sdk squads test command glob to exclude non-test source path: ${nonTestPath}`,
+      ).to.equal(false);
     }
   });
 });
