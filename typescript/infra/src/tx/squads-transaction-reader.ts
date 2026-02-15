@@ -100,6 +100,14 @@ export interface SquadsTransaction extends Record<string, any> {
   instructions?: GovernTransaction[];
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Format validator addresses with their aliases from defaultMultisigConfigs
  */
@@ -421,16 +429,17 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
+      const errorDetails = stringifyValueForError(error);
       return {
         instructionType: 'WarpRouteInstruction',
         data: {
           routeName: metadata.routeName,
           symbol: metadata.symbol,
-          error: `Failed to deserialize: ${error}`,
+          error: `Failed to deserialize: ${errorDetails}`,
           rawData: instructionData.toString('hex'),
         },
         insight: `${metadata.symbol} warp route instruction (parse error)`,
-        warnings: [`Borsh deserialization failed: ${error}`],
+        warnings: [`Borsh deserialization failed: ${errorDetails}`],
       };
     }
   }
@@ -534,13 +543,14 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
+      const errorDetails = stringifyValueForError(error);
       return {
         instructionType: InstructionType.UNKNOWN,
         data: {
-          error: `Failed to deserialize: ${error}`,
+          error: `Failed to deserialize: ${errorDetails}`,
           rawData: instructionData.toString('hex'),
         },
-        warnings: [`Borsh deserialization failed: ${error}`],
+        warnings: [`Borsh deserialization failed: ${errorDetails}`],
       };
     }
   }
@@ -657,13 +667,14 @@ export class SquadsTransactionReader {
           };
       }
     } catch (error) {
+      const errorDetails = stringifyValueForError(error);
       return {
         instructionType: InstructionType.UNKNOWN,
         data: {
-          error: `Failed to deserialize: ${error}`,
+          error: `Failed to deserialize: ${errorDetails}`,
           rawData: instructionData.toString('hex'),
         },
-        warnings: [`Borsh deserialization failed: ${error}`],
+        warnings: [`Borsh deserialization failed: ${errorDetails}`],
       };
     }
   }
@@ -795,7 +806,7 @@ export class SquadsTransactionReader {
       } catch (error) {
         rootLogger.warn(
           chalk.yellow(
-            `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${error}`,
+            `Failed to resolve address lookup table ${lookup.accountKey.toBase58()}: ${stringifyValueForError(error)}`,
           ),
         );
       }
@@ -980,7 +991,8 @@ export class SquadsTransactionReader {
         });
         warnings.push(...unknownWarnings);
       } catch (error) {
-        const errorMsg = `Instruction ${idx}: ${error}`;
+        const errorDetails = stringifyValueForError(error);
+        const errorMsg = `Instruction ${idx}: ${errorDetails}`;
         rootLogger.error(chalk.red(`Failed to parse instruction: ${errorMsg}`));
         warnings.push(`Failed to parse instruction: ${errorMsg}`);
 
@@ -989,9 +1001,9 @@ export class SquadsTransactionReader {
           programId: new PublicKey('11111111111111111111111111111111'),
           programName: ProgramName.UNKNOWN,
           instructionType: InstructionType.PARSE_FAILED,
-          data: { error: String(error) },
+          data: { error: errorDetails },
           accounts: [],
-          warnings: [`Failed to parse: ${error}`],
+          warnings: [`Failed to parse: ${errorDetails}`],
         });
       }
     }
@@ -1072,7 +1084,7 @@ export class SquadsTransactionReader {
         throw new Error(errorMsg);
       }
 
-      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${error}`;
+      const errorMsg = `Failed to fetch VaultTransaction at ${transactionPda.toBase58()}: ${stringifyValueForError(error)}`;
       rootLogger.error(chalk.red(errorMsg));
       this.errors.push({ chain, transactionIndex, error: errorMsg });
       throw new Error(errorMsg);
@@ -1187,7 +1199,9 @@ export class SquadsTransactionReader {
       return config;
     } catch (error) {
       rootLogger.warn(
-        chalk.yellow(`Failed to load multisig config for ${chain}: ${error}`),
+        chalk.yellow(
+          `Failed to load multisig config for ${chain}: ${stringifyValueForError(error)}`,
+        ),
       );
       return null;
     }
