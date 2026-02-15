@@ -277,8 +277,13 @@ export function normalizeSquadsAddressValue(
 }
 
 export function normalizeSquadsAddressList(
-  values: readonly unknown[],
+  values: unknown,
 ): NormalizeSquadsAddressListResult {
+  assert(
+    Array.isArray(values),
+    `Expected address list to be an array, got ${getUnknownValueTypeName(values)}`,
+  );
+
   const addresses: string[] = [];
   let invalidEntries = 0;
 
@@ -295,8 +300,13 @@ export function normalizeSquadsAddressList(
 }
 
 export function parseSquadsMultisigMembers(
-  members: readonly unknown[],
+  members: unknown,
 ): ParseSquadsMultisigMembersResult {
+  assert(
+    Array.isArray(members),
+    `Expected multisig members to be an array, got ${getUnknownValueTypeName(members)}`,
+  );
+
   const parsedMembers: ParsedSquadsMultisigMember[] = [];
   let invalidEntries = 0;
 

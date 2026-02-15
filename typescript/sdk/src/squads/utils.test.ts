@@ -484,6 +484,15 @@ describe('squads utils', () => {
         invalidEntries: 3,
       });
     });
+
+    it('throws for malformed non-array address-list inputs', () => {
+      expect(() => normalizeSquadsAddressList('not-array')).to.throw(
+        'Expected address list to be an array, got string',
+      );
+      expect(() => normalizeSquadsAddressList(null)).to.throw(
+        'Expected address list to be an array, got null',
+      );
+    });
   });
 
   describe(parseSquadsMultisigMembers.name, () => {
@@ -524,6 +533,15 @@ describe('squads utils', () => {
         members: [],
         invalidEntries: 3,
       });
+    });
+
+    it('throws for malformed non-array multisig-member inputs', () => {
+      expect(() => parseSquadsMultisigMembers('not-array')).to.throw(
+        'Expected multisig members to be an array, got string',
+      );
+      expect(() => parseSquadsMultisigMembers(null)).to.throw(
+        'Expected multisig members to be an array, got null',
+      );
     });
   });
 
