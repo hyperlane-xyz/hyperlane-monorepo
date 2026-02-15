@@ -186,7 +186,15 @@ where
         tx: &TypedTransaction,
         function: &Function,
     ) -> ChainResult<U256> {
-        let contract_call = self.build_contract_call::<()>(tx.clone(), function.clone());
+        let mut tx = tx.clone();
+        // Set the from address to the signer's address when estimating gas.
+        // On some chains, if no `from` address is specified, the RPC assumes the zero address,
+        // which may not have funds, causing gas estimation to fail even though the relayer
+        // has sufficient funds. See: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+        if let Some(signer) = self.get_signer() {
+            tx.set_from(signer);
+        }
+        let contract_call = self.build_contract_call::<()>(tx, function.clone());
         let gas_limit = contract_call.estimate_gas().await?.into();
         Ok(gas_limit)
     }
@@ -229,7 +237,12 @@ where
         multi_precursor: (TypedTransaction, Function),
         precursors: Vec<(TypedTransaction, Function)>,
     ) -> ChainResult<U256> {
-        let (multi_tx, multi_function) = multi_precursor;
+        let (mut multi_tx, multi_function) = multi_precursor;
+        // Set the from address to the signer's address when estimating gas.
+        // See: https://github.com/hyperlane-xyz/hyperlane-monorepo/issues/4585
+        if let Some(signer) = self.get_signer() {
+            multi_tx.set_from(signer);
+        }
         let multicall_contract_call = self.build_contract_call::<()>(multi_tx, multi_function);
         let contract_calls = self.create_contract_calls(precursors);
 
