@@ -146,6 +146,14 @@ function readImportTypeQualifierSymbol(
   return readImportTypeQualifierSymbol(qualifier.left);
 }
 
+function resolveModuleSourceFromEntityName(
+  name: ts.EntityName,
+  moduleAliasByIdentifier: Map<string, string>,
+): string | undefined {
+  if (ts.isIdentifier(name)) return moduleAliasByIdentifier.get(name.text);
+  return resolveModuleSourceFromEntityName(name.left, moduleAliasByIdentifier);
+}
+
 function collectSymbolSourceReferences(
   contents: string,
   filePath: string,
@@ -218,6 +226,19 @@ function collectSymbolSourceReferences(
         if (symbol) {
           references.push({ symbol, source: argument.literal.text });
         }
+      }
+    }
+
+    if (ts.isQualifiedName(node)) {
+      const source = resolveModuleSourceFromEntityName(
+        node.left,
+        moduleAliasByIdentifier,
+      );
+      if (source) {
+        references.push({
+          symbol: normalizeNamedSymbol(node.right.text),
+          source,
+        });
       }
     }
 
