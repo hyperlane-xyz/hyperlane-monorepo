@@ -654,6 +654,7 @@ describe('Gnosis Safe migration guards', () => {
       "import type SafeType from '@fixtures/guard-module';",
       "import { default as SafeAlias } from '@fixtures/guard-module';",
       "import { type default as SafeTypeAlias } from '@fixtures/guard-module';",
+      "import type { default as SafeTypeClauseAlias } from '@fixtures/guard-module';",
       "import { getSafe } from '@fixtures/guard-module';",
       "import SafeOther from '@fixtures/other-module';",
     ].join('\n');
@@ -667,6 +668,7 @@ describe('Gnosis Safe migration guards', () => {
       'SafeType',
       'SafeAlias',
       'SafeTypeAlias',
+      'SafeTypeClauseAlias',
     ]);
   });
 
@@ -710,7 +712,7 @@ describe('Gnosis Safe migration guards', () => {
     expect(defaultInfraImports).to.deep.equal([]);
 
     expectNoRipgrepMatches(
-      String.raw`(?:import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/infra['"]|import\s*\{\s*(?:type\s+)?default(?:\s+as\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}\s*from\s+['"]@hyperlane-xyz/infra['"])`,
+      String.raw`(?:import\s+[A-Za-z_$][A-Za-z0-9_$]*\s+from\s+['"]@hyperlane-xyz/infra['"]|import\s+(?:type\s+)?\{\s*(?:type\s+)?default(?:\s+as\s+[A-Za-z_$][A-Za-z0-9_$]*)?\s*\}\s*from\s+['"]@hyperlane-xyz/infra['"])`,
       'default imports from @hyperlane-xyz/infra',
     );
   });
