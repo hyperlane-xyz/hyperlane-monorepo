@@ -66,12 +66,14 @@ describe('squads provider bridge', () => {
     expect(getAccountInfoReadCount).to.equal(1);
   });
 
-  it('propagates getter errors while reading getAccountInfo', () => {
+  it('fails with stable malformed-provider error when getAccountInfo getter throws', () => {
     const providerLike = createGetterBackedProvider(() => {
       throw new Error('getter failure');
     });
 
-    expect(() => toSquadsProvider(providerLike)).to.throw('getter failure');
+    expect(() => toSquadsProvider(providerLike)).to.throw(
+      'Invalid Solana provider: failed to read getAccountInfo (provider: object)',
+    );
   });
 
   it('reads malformed getter-backed getAccountInfo once during validation', () => {

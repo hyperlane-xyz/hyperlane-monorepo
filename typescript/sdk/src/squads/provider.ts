@@ -18,8 +18,22 @@ function formatValueType(value: unknown): string {
   return typeof value;
 }
 
-function getProviderGetAccountInfo(value: unknown): unknown {
-  return (value as ProviderWithOptionalGetAccountInfo)?.getAccountInfo;
+function getProviderGetAccountInfo(value: unknown): {
+  getAccountInfo: unknown;
+  readFailed: boolean;
+} {
+  try {
+    return {
+      getAccountInfo: (value as ProviderWithOptionalGetAccountInfo)
+        ?.getAccountInfo,
+      readFailed: false,
+    };
+  } catch {
+    return {
+      getAccountInfo: undefined,
+      readFailed: true,
+    };
+  }
 }
 
 function isGetAccountInfoFunction(
@@ -31,7 +45,13 @@ function isGetAccountInfoFunction(
 export function toSquadsProvider(
   provider: unknown,
 ): SquadsProvider {
-  const getAccountInfo = getProviderGetAccountInfo(provider);
+  const { getAccountInfo, readFailed } = getProviderGetAccountInfo(provider);
+  assert(
+    !readFailed,
+    `Invalid Solana provider: failed to read getAccountInfo (provider: ${formatValueType(
+      provider,
+    )})`,
+  );
 
   assert(
     isGetAccountInfoFunction(getAccountInfo),
