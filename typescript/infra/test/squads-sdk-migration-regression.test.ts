@@ -896,6 +896,12 @@ describe('squads sdk migration regression', () => {
     );
   });
 
+  it('keeps squads tracked test path constants immutable', () => {
+    expect(Object.isFrozen(SQUADS_REGRESSION_TEST_PATHS)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_TRACKED_TEST_SUPPORT_PATHS)).to.equal(true);
+    expect(Object.isFrozen(SQUADS_TRACKED_TEST_ASSET_PATHS)).to.equal(true);
+  });
+
   it('keeps squads tracked test-asset ordering composed from regression then support paths', () => {
     expect(SQUADS_TRACKED_TEST_ASSET_PATHS).to.deep.equal([
       ...SQUADS_REGRESSION_TEST_PATHS,
