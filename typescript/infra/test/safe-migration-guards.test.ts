@@ -1999,6 +1999,20 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not leak direct require symbol-source shadowing across lexical for-in scopes', () => {
+    const source = [
+      'for (const require in { item: 1 }) {',
+      "  require('./fixtures/other-module.js').default;",
+      '}',
+      "const postLoopDefault = require('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('does not leak direct require symbol-source shadowing across lexical for scopes', () => {
     const source = [
       'for (let require = () => undefined; ; ) {',
@@ -2463,6 +2477,25 @@ describe('Safe migration guards', () => {
   it('does not leak direct require shadowing across lexical for-of scopes', () => {
     const source = [
       'for (const require of [() => undefined]) {',
+      "  require('./fixtures/other-module.js');",
+      '}',
+      "const postLoopCall = require('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not leak direct require shadowing across lexical for-in scopes', () => {
+    const source = [
+      'for (const require in { item: 1 }) {',
       "  require('./fixtures/other-module.js');",
       '}',
       "const postLoopCall = require('./fixtures/guard-module.js');",
