@@ -734,7 +734,7 @@ function getSolanaWeb3ProviderForChain(
 
   let providerValue: unknown;
   try {
-    providerValue = getSolanaWeb3ProviderValue(chain);
+    providerValue = getSolanaWeb3ProviderValue.call(mpp, chain);
   } catch (error) {
     throw new Error(
       `Failed to resolve solana provider for ${chain}: ${formatUnknownErrorForMessage(error)}`,

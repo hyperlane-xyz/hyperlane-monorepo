@@ -3387,6 +3387,29 @@ describe('squads utils', () => {
       );
     });
 
+    it('resolves provider when multiprovider resolver relies on this binding', () => {
+      const provider = {
+        getAccountInfo: async () => null,
+      };
+      const mpp = {
+        providers: {
+          solanamainnet: provider,
+        },
+        getSolanaWeb3Provider(
+          this: {
+            providers: Record<string, unknown>;
+          },
+          chain: string,
+        ) {
+          return this.providers[chain];
+        },
+      };
+
+      const { svmProvider } = getSquadAndProvider('solanamainnet', mpp);
+
+      expect(svmProvider).to.equal(provider);
+    });
+
     it('fails fast for unsupported chains before provider lookup', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3583,6 +3606,31 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.equal(
         'Failed to inspect solana provider for solanamainnet: failed to read promise-like then field (then unavailable)',
+      );
+    });
+
+    it('throws contextual error when provider getAccountInfo accessor fails', () => {
+      const mpp = {
+        getSolanaWeb3Provider: () =>
+          new Proxy(
+            {},
+            {
+              get(target, property, receiver) {
+                if (property === 'getAccountInfo') {
+                  throw new Error('account info unavailable');
+                }
+                return Reflect.get(target, property, receiver);
+              },
+            },
+          ),
+      };
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('solanamainnet', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Failed to read getAccountInfo for solanamainnet: account info unavailable',
       );
     });
 
