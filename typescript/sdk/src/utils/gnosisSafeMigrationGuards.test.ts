@@ -3896,6 +3896,98 @@ describe('Gnosis Safe migration guards', () => {
     );
   });
 
+  it('keeps while-block type-alias declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  type reqAlias = (_path: string) => unknown;',
+      '  break;',
+      '}',
+      "const postWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps while-block interface declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  interface reqAlias {',
+      '    value: string;',
+      '  }',
+      '  break;',
+      '}',
+      "const postWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps while-block ambient class declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare class reqAlias {}',
+      '  break;',
+      '}',
+      "const postWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps while-block ambient enum declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  break;',
+      '}',
+      "const postWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
   it('keeps while-block ambient function declarations from shadowing runtime require aliases in module specifiers', () => {
     const source = [
       'const reqAlias = require;',
@@ -4019,6 +4111,94 @@ describe('Gnosis Safe migration guards', () => {
       '  break;',
       '}',
       "const postWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps do-while type-alias declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  type reqAlias = (_path: string) => unknown;',
+      '} while (false);',
+      "const postDoWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps do-while interface declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  interface reqAlias {',
+      '    value: string;',
+      '  }',
+      '} while (false);',
+      "const postDoWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps do-while ambient class declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare class reqAlias {}',
+      '} while (false);',
+      "const postDoWhileCall = reqAlias('./fixtures/guard-module.js');",
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('keeps do-while ambient enum declarations from shadowing runtime require aliases in module specifiers', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js');",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '} while (false);',
+      "const postDoWhileCall = reqAlias('./fixtures/guard-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
@@ -9511,6 +9691,78 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('default@./fixtures/other-module.js');
   });
 
+  it('keeps while-block type-alias declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  type reqAlias = (_path: string) => unknown;',
+      '  break;',
+      '}',
+      "const postWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps while-block interface declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  interface reqAlias {',
+      '    value: string;',
+      '  }',
+      '  break;',
+      '}',
+      "const postWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps while-block ambient class declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare class reqAlias {}',
+      '  break;',
+      '}',
+      "const postWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps while-block ambient enum declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'while (true) {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  break;',
+      '}',
+      "const postWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
   it('keeps while-block ambient function declarations from shadowing runtime require aliases in symbol sources', () => {
     const source = [
       'const reqAlias = require;',
@@ -9609,6 +9861,74 @@ describe('Gnosis Safe migration guards', () => {
       '  break;',
       '}',
       "const postWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps do-while type-alias declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  type reqAlias = (_path: string) => unknown;',
+      '} while (false);',
+      "const postDoWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps do-while interface declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  interface reqAlias {',
+      '    value: string;',
+      '  }',
+      '} while (false);',
+      "const postDoWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps do-while ambient class declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare class reqAlias {}',
+      '} while (false);',
+      "const postDoWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('default@./fixtures/other-module.js');
+  });
+
+  it('keeps do-while ambient enum declarations from shadowing runtime require aliases in symbol sources', () => {
+    const source = [
+      'const reqAlias = require;',
+      'do {',
+      "  reqAlias('./fixtures/other-module.js').default;",
+      '  declare enum reqAlias {',
+      '    Marker = 0,',
+      '  }',
+      '} while (false);',
+      "const postDoWhileDefault = reqAlias('./fixtures/guard-module.js').default;",
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
@@ -9977,6 +10297,82 @@ describe('Gnosis Safe migration guards', () => {
     expect(references).to.include('inner@./fixtures/guard-module.js');
   });
 
+  it('keeps while-block type-alias declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'while (true) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  type moduleAlias = { inner: unknown };',
+      '  void preDeclarationSymbol;',
+      '  break;',
+      '}',
+      'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps while-block interface declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'while (true) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  interface moduleAlias {',
+      '    inner: unknown;',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '  break;',
+      '}',
+      'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps while-block ambient class declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'while (true) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '  break;',
+      '}',
+      'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps while-block ambient enum declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'while (true) {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare enum moduleAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '  break;',
+      '}',
+      'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
   it('keeps while-block ambient function declarations from shadowing module-source aliases in symbol sources', () => {
     const source = [
       "let moduleAlias: any = require('./fixtures/guard-module.js');",
@@ -10081,6 +10477,78 @@ describe('Gnosis Safe migration guards', () => {
       '  break;',
       '}',
       'const postWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps do-while type-alias declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'do {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  type moduleAlias = { inner: unknown };',
+      '  void preDeclarationSymbol;',
+      '} while (false);',
+      'const postDoWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps do-while interface declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'do {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  interface moduleAlias {',
+      '    inner: unknown;',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '} while (false);',
+      'const postDoWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps do-while ambient class declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'do {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare class moduleAlias {}',
+      '  void preDeclarationSymbol;',
+      '} while (false);',
+      'const postDoWhileDefault = moduleAlias.default;',
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.include('inner@./fixtures/guard-module.js');
+  });
+
+  it('keeps do-while ambient enum declarations from shadowing module-source aliases in symbol sources', () => {
+    const source = [
+      "let moduleAlias: any = require('./fixtures/guard-module.js');",
+      'do {',
+      '  const preDeclarationSymbol = moduleAlias.inner;',
+      '  declare enum moduleAlias {',
+      '    Marker = 0,',
+      '  }',
+      '  void preDeclarationSymbol;',
+      '} while (false);',
+      'const postDoWhileDefault = moduleAlias.default;',
     ].join('\n');
     const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
       (reference) => `${reference.symbol}@${reference.source}`,
