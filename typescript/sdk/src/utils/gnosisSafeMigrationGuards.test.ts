@@ -4,6 +4,30 @@ import path from 'path';
 
 import { expect } from 'chai';
 
+function extractNamedExportSymbols(
+  sourceText: string,
+  modulePath: string,
+): string[] {
+  const fromNeedles = [`from '${modulePath}';`, `from "${modulePath}";`];
+  const fromIndex = fromNeedles
+    .map((needle) => sourceText.indexOf(needle))
+    .find((index) => index >= 0);
+  if (fromIndex === undefined) return [];
+
+  const exportStartIndex = sourceText.lastIndexOf('export {', fromIndex);
+  if (exportStartIndex < 0) return [];
+
+  const exportedBlock = sourceText.slice(
+    exportStartIndex + 'export {'.length,
+    fromIndex,
+  );
+  return exportedBlock
+    .split(',')
+    .map((s) => s.trim())
+    .filter(Boolean)
+    .map((s) => s.replace(/\s+as\s+\w+$/, ''));
+}
+
 function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
     const output = execFileSync('rg', [pattern, 'src', '--glob', '*.ts'], {
@@ -32,6 +56,14 @@ describe('Gnosis Safe migration guards', () => {
   it('keeps gnosis safe helpers exported from sdk index', () => {
     const indexPath = path.resolve(process.cwd(), 'src/index.ts');
     const indexText = fs.readFileSync(indexPath, 'utf8');
+    const gnosisSafeExports = extractNamedExportSymbols(
+      indexText,
+      './utils/gnosisSafe.js',
+    );
+    expect(gnosisSafeExports.length).to.be.greaterThan(
+      0,
+      'Expected to find named exports for ./utils/gnosisSafe.js in sdk index',
+    );
 
     const requiredExports = [
       'asHex',
@@ -74,8 +106,8 @@ describe('Gnosis Safe migration guards', () => {
 
     for (const exportedSymbol of requiredExports) {
       expect(
-        indexText.includes(exportedSymbol),
-        `Expected sdk index to export ${exportedSymbol}`,
+        gnosisSafeExports.includes(exportedSymbol),
+        `Expected sdk index gnosisSafe export list to include ${exportedSymbol}`,
       ).to.equal(true);
     }
   });
