@@ -441,6 +441,9 @@ describe('squads sdk migration regression', () => {
   });
 
   it('keeps expected infra squads test command derived from regression path list', () => {
+    expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT).to.equal(
+      EXPECTED_INFRA_SQUADS_TEST_SCRIPT.trim(),
+    );
     expect(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT.startsWith(
         `${INFRA_SQUADS_TEST_COMMAND_PREFIX} `,
@@ -455,6 +458,12 @@ describe('squads sdk migration regression', () => {
     expect(
       countSubstringOccurrences(EXPECTED_INFRA_SQUADS_TEST_SCRIPT, '"'),
     ).to.equal(SQUADS_REGRESSION_TEST_PATHS.length * 2);
+    expect(
+      countSubstringOccurrences(
+        EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
+        INFRA_SQUADS_TEST_COMMAND_PREFIX,
+      ),
+    ).to.equal(1);
     expect(EXPECTED_INFRA_SQUADS_TEST_SCRIPT.includes('\\')).to.equal(false);
     const quotedScriptPaths = listQuotedScriptPaths(
       EXPECTED_INFRA_SQUADS_TEST_SCRIPT,
