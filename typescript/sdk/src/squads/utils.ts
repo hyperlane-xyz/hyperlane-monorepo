@@ -1338,6 +1338,12 @@ export async function getPendingProposalsForChains(
               programId,
             });
             const txHash = formatAddressForError(transactionPda);
+            if (txHash === '[invalid address]') {
+              rootLogger.warn(
+                `Skipping proposal ${proposalIndex} on ${chain} due to malformed transaction PDA`,
+              );
+              continue;
+            }
 
             proposals.push({
               chain,

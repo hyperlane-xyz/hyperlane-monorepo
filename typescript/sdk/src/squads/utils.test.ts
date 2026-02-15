@@ -4164,6 +4164,74 @@ describe('squads utils', () => {
         ).fromAccountAddress = originalFromAccountAddress;
       }
     });
+
+    it('skips proposals when transaction PDA formatting is malformed', async () => {
+      const originalMultisigFromAccountAddress =
+        accounts.Multisig.fromAccountAddress;
+      const originalProposalFromAccountAddress =
+        accounts.Proposal.fromAccountAddress;
+      const originalToBase58 = PublicKey.prototype.toBase58;
+      try {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalMultisigFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            threshold: 1,
+            transactionIndex: 0,
+            staleTransactionIndex: 0,
+            timeLock: 0,
+          }) as unknown as accounts.Multisig;
+        (
+          accounts.Proposal as unknown as {
+            fromAccountAddress: typeof originalProposalFromAccountAddress;
+          }
+        ).fromAccountAddress = async () =>
+          ({
+            status: { __kind: 'Active' },
+            approved: [],
+            rejected: [],
+            cancelled: [],
+            transactionIndex: 0,
+          }) as unknown as accounts.Proposal;
+        PublicKey.prototype.toBase58 = function () {
+          throw new Error('address unavailable');
+        };
+
+        const mpp = {
+          getChainMetadata: () => ({
+            nativeToken: {
+              decimals: 9,
+              symbol: 'SOL',
+            },
+          }),
+          getSolanaWeb3Provider: () => ({
+            getAccountInfo: async () => null,
+            getBalance: async () => 100,
+          }),
+        };
+
+        const proposals = await getPendingProposalsForChains(
+          ['solanamainnet'],
+          mpp,
+        );
+
+        expect(proposals).to.deep.equal([]);
+      } finally {
+        (
+          accounts.Multisig as unknown as {
+            fromAccountAddress: typeof originalMultisigFromAccountAddress;
+          }
+        ).fromAccountAddress = originalMultisigFromAccountAddress;
+        (
+          accounts.Proposal as unknown as {
+            fromAccountAddress: typeof originalProposalFromAccountAddress;
+          }
+        ).fromAccountAddress = originalProposalFromAccountAddress;
+        PublicKey.prototype.toBase58 = originalToBase58;
+      }
+    });
   });
 
   describe(getSquadProposal.name, () => {
