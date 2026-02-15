@@ -337,3 +337,5 @@ Regression coverage now also confirms structural `getErrorMessage` fallbacks (`J
 Regression coverage now also confirms `toJSON`-returns-`undefined` paths continue through `Object.prototype.toString` and final placeholder fallbacks (not just `inspect`) for both matcher and formatter code paths, including runtime/non-runtime wrapper detection guarantees for fully hostile accessor permutations.
 
 `getErrorMessage` now also treats whitespace-only `inspect(...)` output as non-informative, continuing to `Object.prototype.toString` fallback so structural runtime signals are not masked by blank custom inspect implementations.
+
+`getErrorMessage` now also treats `JSON.stringify(...) === "null"` as non-informative in object-formatting fallbacks, allowing `inspect`/`Object.prototype.toString` to surface runtime signals instead of returning a generic `null` string.

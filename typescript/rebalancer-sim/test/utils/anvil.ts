@@ -111,7 +111,12 @@ function getErrorMessage(error: unknown): string {
   if (typeof error === 'object' && error !== null) {
     try {
       const jsonValue = JSON.stringify(error);
-      if (typeof jsonValue === 'string') return jsonValue;
+      if (typeof jsonValue === 'string') {
+        const trimmedJsonValue = getTrimmedNonEmptyString(jsonValue);
+        if (trimmedJsonValue && trimmedJsonValue !== 'null') {
+          return jsonValue;
+        }
+      }
     } catch {
       // Fall through to inspect/toString formatting fallbacks.
     }

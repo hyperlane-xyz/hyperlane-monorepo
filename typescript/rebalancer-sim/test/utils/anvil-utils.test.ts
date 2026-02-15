@@ -1275,6 +1275,24 @@ describe('Anvil utils', () => {
       }
     });
 
+    it('matches runtime wrapper strings via inspect fallback when JSON.stringify returns null under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => null,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => 'No Docker client strategy found',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} inspect runtime fallback after null JSON`,
+        ).to.equal(true);
+      }
+    });
+
     it('ignores non-runtime wrapper strings via inspect fallback when JSON.stringify returns undefined under hostile accessors', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       for (const wrapperKind of hostileFallbackWrapperKinds) {
@@ -1289,6 +1307,24 @@ describe('Anvil utils', () => {
         expect(
           isContainerRuntimeUnavailable(wrapper),
           `${wrapperKind} inspect non-runtime fallback after undefined JSON`,
+        ).to.equal(false);
+      }
+    });
+
+    it('ignores non-runtime wrapper strings via inspect fallback when JSON.stringify returns null under hostile accessors', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      for (const wrapperKind of hostileFallbackWrapperKinds) {
+        const wrapper = buildHostileFallbackWrapper(wrapperKind);
+        Object.defineProperty(wrapper, 'toJSON', {
+          value: () => null,
+        });
+        Object.defineProperty(wrapper, inspectCustom, {
+          value: () => 'unrelated nested startup warning',
+        });
+
+        expect(
+          isContainerRuntimeUnavailable(wrapper),
+          `${wrapperKind} inspect non-runtime fallback after null JSON`,
         ).to.equal(false);
       }
     });
@@ -7751,6 +7787,22 @@ describe('Anvil utils', () => {
       );
     });
 
+    it('falls back to inspect when stringify returns null', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return null;
+        },
+        [inspectCustom]() {
+          return 'inspect fallback message';
+        },
+      };
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: inspect fallback message',
+      );
+    });
+
     it('falls back to Object.prototype.toString when stringify returns undefined and inspect throws', () => {
       const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
       const problematic = {
@@ -7759,6 +7811,22 @@ describe('Anvil utils', () => {
         },
         [inspectCustom]() {
           throw new Error('inspect blocked');
+        },
+      };
+
+      expect(formatLocalAnvilStartError(problematic)).to.equal(
+        'Failed to start local anvil: [object Object]',
+      );
+    });
+
+    it('falls back to Object.prototype.toString when stringify returns null and inspect is only whitespace', () => {
+      const inspectCustom = Symbol.for('nodejs.util.inspect.custom');
+      const problematic = {
+        toJSON() {
+          return null;
+        },
+        [inspectCustom]() {
+          return '   ';
         },
       };
 
