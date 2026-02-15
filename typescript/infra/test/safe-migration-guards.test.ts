@@ -694,6 +694,19 @@ function collectSymbolSourceReferences(
       }
     }
 
+    if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isEnumDeclaration(node)) &&
+      node.name
+    ) {
+      const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
+      if (shadowedIdentifier) {
+        moduleAliasByIdentifier.delete(shadowedIdentifier);
+        requireLikeIdentifiers.delete(shadowedIdentifier);
+      }
+    }
+
     if (ts.isImportDeclaration(node)) {
       const source = ts.isStringLiteralLike(node.moduleSpecifier)
         ? node.moduleSpecifier.text
@@ -953,6 +966,14 @@ function collectSymbolSourceReferences(
         functionScopeSnapshot.requireLikeIdentifiers,
       );
     }
+
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
+      if (shadowedIdentifier) {
+        moduleAliasByIdentifier.delete(shadowedIdentifier);
+        requireLikeIdentifiers.delete(shadowedIdentifier);
+      }
+    }
   };
 
   visit(sourceFile);
@@ -1050,6 +1071,18 @@ function collectModuleSpecifierReferences(
     }
 
     if (
+      (ts.isFunctionDeclaration(node) ||
+        ts.isClassDeclaration(node) ||
+        ts.isEnumDeclaration(node)) &&
+      node.name
+    ) {
+      const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
+      if (shadowedIdentifier) {
+        requireLikeIdentifiers.delete(shadowedIdentifier);
+      }
+    }
+
+    if (
       ts.isImportDeclaration(node) &&
       ts.isStringLiteralLike(node.moduleSpecifier)
     ) {
@@ -1134,6 +1167,13 @@ function collectModuleSpecifierReferences(
       restoreStringSet(requireLikeIdentifiers, scopeSnapshot);
     } else if (functionScopeSnapshot) {
       restoreStringSet(requireLikeIdentifiers, functionScopeSnapshot);
+    }
+
+    if (ts.isFunctionDeclaration(node) && node.name) {
+      const shadowedIdentifier = normalizeNamedSymbol(node.name.text);
+      if (shadowedIdentifier) {
+        requireLikeIdentifiers.delete(shadowedIdentifier);
+      }
     }
   };
 
@@ -1837,6 +1877,24 @@ describe('Safe migration guards', () => {
     expect(references).to.not.include('default@./fixtures/other-module.js');
   });
 
+  it('does not treat block-scoped function shadowing of require alias as module-sourced', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  function reqAlias(_value: unknown) {',
+      '    return _value;',
+      '  }',
+      "  const innerDefault = reqAlias('./fixtures/other-module.js').default;",
+      '}',
+      "const outerDefault = reqAlias('./fixtures/guard-module.js').default;",
+    ].join('\n');
+    const references = collectSymbolSourceReferences(source, 'fixture.ts').map(
+      (reference) => `${reference.symbol}@${reference.source}`,
+    );
+    expect(references).to.include('default@./fixtures/guard-module.js');
+    expect(references).to.not.include('default@./fixtures/other-module.js');
+  });
+
   it('tracks default symbol references through logical wrappers', () => {
     const source = [
       'declare const maybeAlias: unknown;',
@@ -2140,6 +2198,29 @@ describe('Safe migration guards', () => {
       "  return require('./fixtures/other-module.js');",
       '}',
       'void outerRequire;',
+    ].join('\n');
+    const moduleReferences = collectModuleSpecifierReferences(
+      source,
+      'fixture.ts',
+    ).map((reference) => `${reference.source}@${reference.filePath}`);
+    expect(moduleReferences).to.include(
+      './fixtures/guard-module.js@fixture.ts',
+    );
+    expect(moduleReferences).to.not.include(
+      './fixtures/other-module.js@fixture.ts',
+    );
+  });
+
+  it('does not treat block-scoped function shadowing of require alias as module specifier source', () => {
+    const source = [
+      'const reqAlias = require;',
+      '{',
+      '  function reqAlias(_value: unknown) {',
+      '    return _value;',
+      '  }',
+      "  const innerCall = reqAlias('./fixtures/other-module.js');",
+      '}',
+      "const outerCall = reqAlias('./fixtures/guard-module.js');",
     ].join('\n');
     const moduleReferences = collectModuleSpecifierReferences(
       source,
