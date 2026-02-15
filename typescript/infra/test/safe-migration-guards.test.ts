@@ -58,6 +58,14 @@ function normalizeNamedSymbol(symbol: string): string {
     .trim();
 }
 
+function hasExportModifier(node: ts.Node): boolean {
+  if (!ts.canHaveModifiers(node)) return false;
+  const modifiers = ts.getModifiers(node);
+  return !!modifiers?.some(
+    (modifier: ts.Modifier) => modifier.kind === ts.SyntaxKind.ExportKeyword,
+  );
+}
+
 function getScriptKind(filePath: string): ts.ScriptKind {
   if (/\.(?:[cm]?tsx)$/.test(filePath)) return ts.ScriptKind.TSX;
   if (filePath.endsWith('.jsx')) return ts.ScriptKind.JSX;
@@ -551,8 +559,9 @@ function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
   filePath: string,
+  fallbackModuleExportSymbols: readonly string[] = [],
 ): string[] {
-  const symbols: string[] = [];
+  const symbols = new Set<string>();
   const sourceFile = ts.createSourceFile(
     filePath,
     sourceText,
@@ -567,35 +576,145 @@ function extractNamedExportSymbols(
       node.moduleSpecifier &&
       ts.isStringLiteralLike(node.moduleSpecifier) &&
       node.moduleSpecifier.text === modulePath &&
-      node.exportClause &&
-      ts.isNamedExports(node.exportClause)
+      node.exportClause
     ) {
-      for (const exportSpecifier of node.exportClause.elements) {
-        symbols.push(
-          normalizeNamedSymbol(
-            exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
-          ),
-        );
+      if (ts.isNamedExports(node.exportClause)) {
+        for (const exportSpecifier of node.exportClause.elements) {
+          symbols.add(
+            normalizeNamedSymbol(
+              exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
+            ),
+          );
+        }
+      }
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === modulePath &&
+      !node.exportClause
+    ) {
+      for (const symbol of fallbackModuleExportSymbols) {
+        symbols.add(normalizeNamedSymbol(symbol));
       }
     }
     ts.forEachChild(node, visit);
   };
 
   visit(sourceFile);
-  return symbols.filter(Boolean);
+  return [...symbols].filter(Boolean);
+}
+
+function extractTopLevelDeclarationExports(
+  sourceText: string,
+  filePath: string,
+): string[] {
+  const symbols = new Set<string>();
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    sourceText,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const collectBindingIdentifiers = (name: ts.BindingName): string[] => {
+    if (ts.isIdentifier(name)) return [name.text];
+    if (ts.isObjectBindingPattern(name) || ts.isArrayBindingPattern(name)) {
+      return name.elements.flatMap((element) =>
+        ts.isBindingElement(element)
+          ? element.dotDotDotToken
+            ? []
+            : collectBindingIdentifiers(element.name)
+          : [],
+      );
+    }
+    return [];
+  };
+
+  for (const statement of sourceFile.statements) {
+    if (
+      ts.isExportDeclaration(statement) &&
+      !statement.moduleSpecifier &&
+      statement.exportClause &&
+      ts.isNamedExports(statement.exportClause)
+    ) {
+      for (const exportSpecifier of statement.exportClause.elements) {
+        symbols.add(exportSpecifier.name.text);
+      }
+      continue;
+    }
+
+    if (!hasExportModifier(statement)) continue;
+    if (ts.isFunctionDeclaration(statement) && statement.name) {
+      symbols.add(statement.name.text);
+      continue;
+    }
+    if (
+      (ts.isClassDeclaration(statement) ||
+        ts.isInterfaceDeclaration(statement) ||
+        ts.isTypeAliasDeclaration(statement) ||
+        ts.isEnumDeclaration(statement)) &&
+      statement.name
+    ) {
+      symbols.add(statement.name.text);
+      continue;
+    }
+    if (ts.isVariableStatement(statement)) {
+      for (const declaration of statement.declarationList.declarations) {
+        for (const symbol of collectBindingIdentifiers(declaration.name)) {
+          symbols.add(symbol);
+        }
+      }
+    }
+  }
+
+  return [...symbols].map(normalizeNamedSymbol).filter(Boolean);
 }
 
 function getSdkGnosisSafeExports(): string[] {
   const sdkIndexPath = path.resolve(process.cwd(), '../sdk/src/index.ts');
   const sdkIndexText = fs.readFileSync(sdkIndexPath, 'utf8');
+  const sdkGnosisSafePath = path.resolve(
+    process.cwd(),
+    '../sdk/src/utils/gnosisSafe.ts',
+  );
+  const sdkGnosisSafeText = fs.readFileSync(sdkGnosisSafePath, 'utf8');
+  const fallbackGnosisSafeExports = extractTopLevelDeclarationExports(
+    sdkGnosisSafeText,
+    sdkGnosisSafePath,
+  );
   return extractNamedExportSymbols(
     sdkIndexText,
     './utils/gnosisSafe.js',
     sdkIndexPath,
+    fallbackGnosisSafeExports,
   );
 }
 
 describe('Safe migration guards', () => {
+  it('extracts wildcard sdk module re-exports with fallback symbols', () => {
+    const source = "export * from './fixtures/guard-module.js';";
+    const symbols = extractNamedExportSymbols(
+      source,
+      './fixtures/guard-module.js',
+      'fixture.ts',
+      ['getSafe', 'createSafeTransaction', 'getSafe'],
+    );
+    expect(symbols).to.deep.equal(['getSafe', 'createSafeTransaction']);
+  });
+
+  it('extracts top-level export aliases from local declarations', () => {
+    const source = [
+      'const internalCall = 1;',
+      'export { internalCall as SafeCallData };',
+      'const internalStatus = 2;',
+      'export { internalStatus as SafeStatus };',
+    ].join('\n');
+    const symbols = extractTopLevelDeclarationExports(source, 'fixture.ts');
+    expect(symbols).to.deep.equal(['SafeCallData', 'SafeStatus']);
+  });
+
   it('keeps legacy infra safe utility module deleted', () => {
     const legacySafeUtilPath = path.join(process.cwd(), 'src/utils/safe.ts');
     expect(fs.existsSync(legacySafeUtilPath)).to.equal(false);

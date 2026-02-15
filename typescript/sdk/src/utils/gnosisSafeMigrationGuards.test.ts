@@ -42,8 +42,9 @@ function extractNamedExportSymbols(
   sourceText: string,
   modulePath: string,
   filePath: string,
+  fallbackModuleExportSymbols: readonly string[] = [],
 ): string[] {
-  const symbols: string[] = [];
+  const symbols = new Set<string>();
   const sourceFile = ts.createSourceFile(
     filePath,
     sourceText,
@@ -58,22 +59,33 @@ function extractNamedExportSymbols(
       node.moduleSpecifier &&
       ts.isStringLiteralLike(node.moduleSpecifier) &&
       node.moduleSpecifier.text === modulePath &&
-      node.exportClause &&
-      ts.isNamedExports(node.exportClause)
+      node.exportClause
     ) {
-      for (const exportSpecifier of node.exportClause.elements) {
-        symbols.push(
-          normalizeNamedSymbol(
-            exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
-          ),
-        );
+      if (ts.isNamedExports(node.exportClause)) {
+        for (const exportSpecifier of node.exportClause.elements) {
+          symbols.add(
+            normalizeNamedSymbol(
+              exportSpecifier.propertyName?.text ?? exportSpecifier.name.text,
+            ),
+          );
+        }
+      }
+    } else if (
+      ts.isExportDeclaration(node) &&
+      node.moduleSpecifier &&
+      ts.isStringLiteralLike(node.moduleSpecifier) &&
+      node.moduleSpecifier.text === modulePath &&
+      !node.exportClause
+    ) {
+      for (const symbol of fallbackModuleExportSymbols) {
+        symbols.add(normalizeNamedSymbol(symbol));
       }
     }
     ts.forEachChild(node, visit);
   };
 
   visit(sourceFile);
-  return symbols.filter(Boolean);
+  return [...symbols].filter(Boolean);
 }
 
 function extractTopLevelDeclarationExports(
@@ -280,6 +292,17 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
 }
 
 describe('Gnosis Safe migration guards', () => {
+  it('extracts wildcard module re-exports with fallback symbols', () => {
+    const source = "export * from './fixtures/guard-module.js';";
+    const symbols = extractNamedExportSymbols(
+      source,
+      './fixtures/guard-module.js',
+      'fixture.ts',
+      ['getSafe', 'createSafeTransaction', 'getSafe'],
+    );
+    expect(symbols).to.deep.equal(['getSafe', 'createSafeTransaction']);
+  });
+
   it('extracts local export specifier aliases from source declarations', () => {
     const source = [
       'const internalCall = 1;',
@@ -328,10 +351,15 @@ describe('Gnosis Safe migration guards', () => {
     );
     const indexText = fs.readFileSync(indexPath, 'utf8');
     const gnosisSafeText = fs.readFileSync(gnosisSafePath, 'utf8');
+    const moduleExports = extractTopLevelDeclarationExports(
+      gnosisSafeText,
+      gnosisSafePath,
+    );
     const gnosisSafeExports = extractNamedExportSymbols(
       indexText,
       './utils/gnosisSafe.js',
       indexPath,
+      moduleExports,
     );
     expect(gnosisSafeExports.length).to.be.greaterThan(
       0,
@@ -385,10 +413,6 @@ describe('Gnosis Safe migration guards', () => {
       ).to.equal(true);
     }
 
-    const moduleExports = extractTopLevelDeclarationExports(
-      gnosisSafeText,
-      gnosisSafePath,
-    );
     const missingExports = moduleExports.filter(
       (symbol) => !gnosisSafeExports.includes(symbol),
     );
