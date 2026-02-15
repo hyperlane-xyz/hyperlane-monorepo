@@ -65,7 +65,12 @@ import {
   warpDeploymentConfigCommandOption,
   warpRouteIdCommandOption,
 } from './options.js';
+import { privacyRegisterCommand } from './privacy-register.js';
+import { privacySetupCommand } from './privacy-setup.js';
 import { type MessageOptionsArgTypes, messageSendOptions } from './send.js';
+import { warpForwardCommand } from './warp-forward.js';
+import { warpRefundCommand } from './warp-refund.js';
+import { warpSendPrivateCommand } from './warp-send-private.js';
 
 /**
  * Parent command
@@ -79,17 +84,29 @@ export const warpCommand: CommandModule = {
       .command(check)
       .command(deploy)
       .command(fork)
+      .command(forward)
       .command(getFees)
       .command(init)
+      .command(privacyRegister)
+      .command(privacySetup)
       .command(read)
       .command(rebalancer)
+      .command(refund)
       .command(send)
+      .command(sendPrivate)
       .command(verify)
       .version(false)
       .demandCommand(),
 
   handler: () => log('Command required'),
 };
+
+// Privacy commands aliases
+const privacySetup = privacySetupCommand;
+const privacyRegister = privacyRegisterCommand;
+const sendPrivate = warpSendPrivateCommand;
+const forward = warpForwardCommand;
+const refund = warpRefundCommand;
 
 const SELECT_WARP_ROUTE_BUILDER = {
   config: warpDeploymentConfigCommandOption,

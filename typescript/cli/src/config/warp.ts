@@ -71,6 +71,12 @@ const TYPE_DESCRIPTIONS: Record<DeployableTokenType, string> = {
     'A collateral token that can be transferred via Everclear intents',
   [TokenType.ethEverclear]:
     'An ETH token that can be transferred via Everclear intents',
+  [TokenType.privateNative]:
+    'Privacy-enhanced native token with Aleo privacy hub',
+  [TokenType.privateCollateral]:
+    'Privacy-enhanced collateral token with Aleo privacy hub',
+  [TokenType.privateSynthetic]:
+    'Privacy-enhanced synthetic token with Aleo privacy hub',
   // TODO: describe
   [TokenType.syntheticUri]: '',
   [TokenType.collateralUri]: '',

@@ -1,0 +1,44 @@
+{
+  "ethereum": {
+    "type": "privateNative",
+    "aleoPrivacyHub": "privacy_hub.aleo",
+    "aleoDomain": 9999999,
+    "aleoChain": "aleo",
+    "mailbox": "0x...",
+    "owner": "0x...",
+    "hook": "0x...",
+    "interchainSecurityModule": "0x...",
+    "remoteRouters": {
+      "polygon": "0x...",
+      "arbitrum": "0x..."
+    }
+  },
+  "polygon": {
+    "type": "privateNative",
+    "aleoPrivacyHub": "privacy_hub.aleo",
+    "aleoDomain": 9999999,
+    "aleoChain": "aleo",
+    "mailbox": "0x...",
+    "owner": "0x...",
+    "hook": "0x...",
+    "interchainSecurityModule": "0x...",
+    "remoteRouters": {
+      "ethereum": "0x...",
+      "arbitrum": "0x..."
+    }
+  },
+  "arbitrum": {
+    "type": "privateNative",
+    "aleoPrivacyHub": "privacy_hub.aleo",
+    "aleoDomain": 9999999,
+    "aleoChain": "aleo",
+    "mailbox": "0x...",
+    "owner": "0x...",
+    "hook": "0x...",
+    "interchainSecurityModule": "0x...",
+    "remoteRouters": {
+      "ethereum": "0x...",
+      "polygon": "0x..."
+    }
+  }
+}

@@ -649,6 +649,28 @@ export {
   EvmXERC20Adapter,
 } from './token/adapters/EvmTokenAdapter.js';
 export {
+  AleoPrivacyHubAdapter,
+  DepositRecord,
+  ForwardParams,
+  RefundParams,
+  HubConfig,
+  RemoteRouter,
+  MailboxState,
+  CreditAllowance,
+  RegistrationParams,
+  AleoWalletInterface,
+} from './token/adapters/AleoPrivacyHubAdapter.js';
+export {
+  BasePrivateWarpOriginAdapter,
+  EvmHypPrivateNativeAdapter,
+  EvmHypPrivateCollateralAdapter,
+  EvmHypPrivateSyntheticAdapter,
+  AleoWalletAdapter,
+  PrivateDepositParams,
+  PrivateDepositResult,
+  UserRegistrationInfo,
+} from './token/adapters/PrivateWarpOriginAdapter.js';
+export {
   IHypTokenAdapter,
   IHypVSXERC20Adapter,
   IHypXERC20Adapter,
@@ -807,6 +829,16 @@ export {
   XERC20Type,
   XERC20TokenExtraBridgesLimits,
   XERC20TokenMetadata,
+  PrivateWarpConfigSchema,
+  PrivateNativeConfig,
+  PrivateNativeConfigSchema,
+  isPrivateNativeConfig,
+  PrivateCollateralConfig,
+  PrivateCollateralConfigSchema,
+  isPrivateCollateralConfig,
+  PrivateSyntheticConfig,
+  PrivateSyntheticConfigSchema,
+  isPrivateSyntheticConfig,
 } from './token/types.js';
 export {
   deriveBridgesConfig,

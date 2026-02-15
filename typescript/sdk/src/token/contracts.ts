@@ -43,6 +43,9 @@ export const hypERC20contracts = {
   [TokenType.nativeScaled]: 'HypNative',
   [TokenType.ethEverclear]: 'EverclearEthBridge',
   [TokenType.collateralEverclear]: 'EverclearTokenBridge',
+  [TokenType.privateNative]: 'HypPrivateNative',
+  [TokenType.privateCollateral]: 'HypPrivateCollateral',
+  [TokenType.privateSynthetic]: 'HypPrivateSynthetic',
 } as const satisfies Record<DeployableTokenType, string>;
 export type HypERC20contracts = typeof hypERC20contracts;
 
@@ -70,6 +73,11 @@ export const hypERC20factories = {
 
   [TokenType.ethEverclear]: new EverclearEthBridge__factory(),
   [TokenType.collateralEverclear]: new EverclearTokenBridge__factory(),
+
+  // Privacy routes use placeholder factories until contracts are deployed
+  [TokenType.privateNative]: new HypNative__factory(), // Temporary
+  [TokenType.privateCollateral]: new HypERC20Collateral__factory(), // Temporary
+  [TokenType.privateSynthetic]: new HypERC20__factory(), // Temporary
 } as const satisfies Record<HypERC20TokenType, ContractFactory>;
 export type HypERC20Factories = typeof hypERC20factories;
 

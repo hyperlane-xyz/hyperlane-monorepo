@@ -213,6 +213,14 @@ describe('EvmWarpModule', async () => {
         type: TokenType.nativeScaled,
         allowedRebalancers,
       },
+      [TokenType.privateCollateral]: {
+        ...baseConfig,
+        type: TokenType.privateCollateral,
+        token: token.address,
+        allowedRebalancers,
+        aleoPrivacyHub: 'privacy_hub.aleo',
+        aleoDomain: 999999, // Mock Aleo domain
+      },
     };
   };
 

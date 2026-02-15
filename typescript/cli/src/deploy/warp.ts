@@ -91,6 +91,11 @@ import { canSelfRelay, runSelfRelay } from '../utils/relay.js';
 
 import { validateWarpConfigForAltVM } from './configValidation.js';
 import {
+  displayPrivacyDeploymentNotes,
+  isPrivacyRoute,
+  validatePrivacyWarpConfig,
+} from './privacy.js';
+import {
   completeDeploy,
   getBalances,
   runPreflightChecksForChains,
@@ -279,6 +284,12 @@ async function runDeployPlanStep({ context, warpDeployConfig }: DeployParams) {
   const { skipConfirmation } = context;
 
   displayWarpDeployPlan(warpDeployConfig);
+
+  // Validate and display privacy-specific information
+  if (isPrivacyRoute(warpDeployConfig)) {
+    validatePrivacyWarpConfig(warpDeployConfig);
+    displayPrivacyDeploymentNotes();
+  }
 
   if (skipConfirmation) return;
 

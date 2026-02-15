@@ -341,6 +341,9 @@ export const EVM_TOKEN_TYPE_TO_STANDARD: Record<
   [TokenType.nativeOpL2]: TokenStandard.EvmHypNative,
   [TokenType.ethEverclear]: TokenStandard.EvmHypEverclearEth,
   [TokenType.collateralEverclear]: TokenStandard.EvmHypEverclearCollateral,
+  [TokenType.privateNative]: TokenStandard.EvmHypNative,
+  [TokenType.privateCollateral]: TokenStandard.EvmHypCollateral,
+  [TokenType.privateSynthetic]: TokenStandard.EvmHypSynthetic,
 };
 
 // Cosmos Native supported token types

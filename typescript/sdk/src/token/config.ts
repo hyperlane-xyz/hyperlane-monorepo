@@ -17,6 +17,10 @@ export const TokenType = {
   ethEverclear: 'ethEverclear',
   // backwards compatible alias to native
   nativeScaled: 'nativeScaled',
+  // privacy warp routes (via Aleo)
+  privateNative: 'privateNative',
+  privateCollateral: 'privateCollateral',
+  privateSynthetic: 'privateSynthetic',
   unknown: 'unknown',
 } as const;
 
@@ -44,6 +48,9 @@ const isMovableCollateralTokenTypeMap = {
   [TokenType.syntheticUri]: false,
   [TokenType.ethEverclear]: false,
   [TokenType.collateralEverclear]: false,
+  [TokenType.privateNative]: false,
+  [TokenType.privateCollateral]: true,
+  [TokenType.privateSynthetic]: false,
   [TokenType.unknown]: false,
 } as const;
 
@@ -68,6 +75,10 @@ export const gasOverhead = (tokenType: TokenType): number => {
     case TokenType.native:
     case TokenType.nativeScaled:
       return 44_000;
+    case TokenType.privateNative:
+    case TokenType.privateCollateral:
+    case TokenType.privateSynthetic:
+      return 150_000; // Higher gas for privacy routing through Aleo
     default:
       return 68_000;
   }

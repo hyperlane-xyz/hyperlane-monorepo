@@ -298,6 +298,54 @@ export type HypTokenRouterVirtualConfig = z.infer<
   typeof HypTokenRouterVirtualConfigSchema
 >;
 
+// Privacy Warp Route Types - defined before AllHypTokenConfigSchema
+
+export const PrivateWarpConfigSchema = z.object({
+  aleoPrivacyHub: ZHash.describe('Aleo privacy hub program address'),
+  aleoDomain: z.number().int().positive().describe('Aleo chain domain ID'),
+});
+
+export const PrivateNativeConfigSchema = NativeTokenConfigSchema.omit({
+  type: true,
+})
+  .extend({
+    type: z.literal(TokenType.privateNative),
+  })
+  .merge(PrivateWarpConfigSchema);
+
+export type PrivateNativeConfig = z.infer<typeof PrivateNativeConfigSchema>;
+export const isPrivateNativeConfig = isCompliant(PrivateNativeConfigSchema);
+
+export const PrivateCollateralConfigSchema = CollateralTokenConfigSchema.omit({
+  type: true,
+})
+  .extend({
+    type: z.literal(TokenType.privateCollateral),
+  })
+  .merge(PrivateWarpConfigSchema);
+
+export type PrivateCollateralConfig = z.infer<
+  typeof PrivateCollateralConfigSchema
+>;
+export const isPrivateCollateralConfig = isCompliant(
+  PrivateCollateralConfigSchema,
+);
+
+export const PrivateSyntheticConfigSchema = SyntheticTokenConfigSchema.omit({
+  type: true,
+})
+  .extend({
+    type: z.literal(TokenType.privateSynthetic),
+  })
+  .merge(PrivateWarpConfigSchema);
+
+export type PrivateSyntheticConfig = z.infer<
+  typeof PrivateSyntheticConfigSchema
+>;
+export const isPrivateSyntheticConfig = isCompliant(
+  PrivateSyntheticConfigSchema,
+);
+
 export const UnknownTokenConfigSchema = TokenMetadataSchema.partial()
   .extend({
     type: z.literal(TokenType.unknown),
@@ -321,6 +369,9 @@ const AllHypTokenConfigSchema = z.discriminatedUnion('type', [
   CctpTokenConfigSchema,
   EverclearCollateralTokenConfigSchema,
   EverclearEthBridgeTokenConfigSchema,
+  PrivateNativeConfigSchema,
+  PrivateCollateralConfigSchema,
+  PrivateSyntheticConfigSchema,
   UnknownTokenConfigSchema,
 ]);
 

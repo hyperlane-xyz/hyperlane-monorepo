@@ -1,0 +1,50 @@
+{
+  "ethereum": {
+    "type": "privateCollateral",
+    "token": "0xA0b86991c6218b36c1d19D4a2e9Eb0cE3606eB48",
+    "aleoPrivacyHub": "privacy_hub.aleo",
+    "aleoDomain": 9999999,
+    "aleoChain": "aleo",
+    "mailbox": "0x...",
+    "owner": "0x...",
+    "hook": "0x...",
+    "interchainSecurityModule": "0x...",
+    "remoteRouters": {
+      "polygon": "0x...",
+      "arbitrum": "0x...",
+      "optimism": "0x..."
+    }
+  },
+  "polygon": {
+    "type": "privateCollateral",
+    "token": "0x2791Bca1f2de4661ED88A30C99A7a9449Aa84174",
+    "aleoPrivacyHub": "privacy_hub.aleo",
+    "aleoDomain": 9999999,
+    "aleoChain": "aleo",
+    "mailbox": "0x...",
+    "owner": "0x...",
+    "hook": "0x...",
+    "interchainSecurityModule": "0x...",
+    "remoteRouters": {
+      "ethereum": "0x...",
+      "arbitrum": "0x...",
+      "optimism": "0x..."
+    }
+  },
+  "arbitrum": {
+    "type": "privateCollateral",
+    "token": "0xaf88d065e77c8cC2239327C5EDb3A432268e5831",
+    "aleoPrivacyHub": "privacy_hub.aleo",
+    "aleoDomain": 9999999,
+    "aleoChain": "aleo",
+    "mailbox": "0x...",
+    "owner": "0x...",
+    "hook": "0x...",
+    "interchainSecurityModule": "0x...",
+    "remoteRouters": {
+      "ethereum": "0x...",
+      "polygon": "0x...",
+      "optimism": "0x..."
+    }
+  }
+}

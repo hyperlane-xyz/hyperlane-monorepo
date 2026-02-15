@@ -138,6 +138,9 @@ export class EvmWarpRouteReader extends EvmRouterReader {
         this.deriveEverclearEthTokenBridgeConfig.bind(this),
       [TokenType.collateralEverclear]:
         this.deriveEverclearCollateralTokenBridgeConfig.bind(this),
+      [TokenType.privateNative]: null,
+      [TokenType.privateCollateral]: null,
+      [TokenType.privateSynthetic]: null,
     };
 
     this.contractVerifier =
