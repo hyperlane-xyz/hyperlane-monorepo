@@ -16,6 +16,24 @@ import {
 const INFRA_ROOT = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '..');
 
 describe('squads test utils', () => {
+  it('returns fresh squads script arrays per call', () => {
+    const firstScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+    const secondScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+    expect(firstScripts).to.not.equal(secondScripts);
+    expect(firstScripts).to.deep.equal(secondScripts);
+  });
+
+  it('isolates caller mutation from subsequent squads script reads', () => {
+    const firstScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+    firstScripts.pop();
+    const secondScripts = listSquadsDirectoryScripts(INFRA_ROOT);
+
+    const configuredSquadsScripts = SQUADS_SCRIPT_PATHS.filter((scriptPath) =>
+      scriptPath.startsWith('scripts/squads/'),
+    ).sort();
+    expect(secondScripts).to.deep.equal(configuredSquadsScripts);
+  });
+
   it('lists squads directory scripts in sorted order', () => {
     const squadsScripts = listSquadsDirectoryScripts(INFRA_ROOT);
     expect(squadsScripts).to.deep.equal(
@@ -52,5 +70,27 @@ describe('squads test utils', () => {
       ),
       'Expected squads-directory executable helper list to remain scoped to scripts/squads',
     ).to.equal(false);
+  });
+
+  it('returns fresh executable squads script arrays per call', () => {
+    const firstExecutableScripts = listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+    const secondExecutableScripts =
+      listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+    expect(firstExecutableScripts).to.not.equal(secondExecutableScripts);
+    expect(firstExecutableScripts).to.deep.equal(secondExecutableScripts);
+  });
+
+  it('isolates caller mutation from subsequent executable squads script reads', () => {
+    const firstExecutableScripts = listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+    firstExecutableScripts.pop();
+    const secondExecutableScripts =
+      listExecutableSquadsDirectoryScripts(INFRA_ROOT);
+
+    const configuredExecutableSquadsScripts = EXECUTABLE_SQUADS_SCRIPT_PATHS.filter(
+      (scriptPath) => scriptPath.startsWith('scripts/squads/'),
+    ).sort();
+    expect(secondExecutableScripts).to.deep.equal(
+      configuredExecutableSquadsScripts,
+    );
   });
 });
