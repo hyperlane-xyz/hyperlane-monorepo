@@ -25373,6 +25373,11 @@ describe('Anvil utils', () => {
 
   describe('Symbol.toPrimitive descriptor parity guards', () => {
     const expectedDescriptorSetSize = 40;
+    const source = readFileSync(new URL(import.meta.url), 'utf8');
+    const matcherDescriptorPattern =
+      /it\('(?:matches runtime toStringTag signals|ignores non-runtime toStringTag signals) when non-Error Symbol\.toPrimitive String\(error\) is a ([^']+)'/g;
+    const formatterDescriptorPattern =
+      /it\('falls back to Object\.prototype\.toString for non-Error objects when Symbol\.toPrimitive String\(error\) is a ([^']+)'/g;
     const expectedDescriptorBases = [
       'lowercase bracketed placeholder',
       'lowercase bracketed-object placeholder',
@@ -25464,14 +25469,10 @@ describe('Anvil utils', () => {
       expect(sortedValues(values)).to.deep.equal(expectedDescriptorBases);
     };
 
-    it('keeps matcher descriptor sets equivalent across triple/json/double escape levels', () => {
-      const source = readFileSync(new URL(import.meta.url), 'utf8');
-      const matcherDescriptors = parseDescriptors(
-        source,
-        /it\('(?:matches runtime toStringTag signals|ignores non-runtime toStringTag signals) when non-Error Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
-      );
-      const { triple, json, double } = splitByEscapeLevel(matcherDescriptors);
-
+    const expectEscapeLevelParity = (
+      byEscapeLevel: Record<'triple' | 'json' | 'double', ReadonlySet<string>>,
+    ) => {
+      const { triple, json, double } = byEscapeLevel;
       expectDescriptorSetShape(triple);
       expectDescriptorSetShape(json);
       expectDescriptorSetShape(double);
@@ -25479,37 +25480,29 @@ describe('Anvil utils', () => {
       expect(sortedDifference(json, triple)).to.deep.equal([]);
       expect(sortedDifference(triple, double)).to.deep.equal([]);
       expect(sortedDifference(double, triple)).to.deep.equal([]);
+    };
+
+    it('keeps matcher descriptor sets equivalent across triple/json/double escape levels', () => {
+      const byEscapeLevel = splitByEscapeLevel(
+        parseDescriptors(source, matcherDescriptorPattern),
+      );
+      expectEscapeLevelParity(byEscapeLevel);
     });
 
     it('keeps formatter descriptor sets equivalent across triple/json/double escape levels', () => {
-      const source = readFileSync(new URL(import.meta.url), 'utf8');
-      const formatterDescriptors = parseDescriptors(
-        source,
-        /it\('falls back to Object\.prototype\.toString for non-Error objects when Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      const byEscapeLevel = splitByEscapeLevel(
+        parseDescriptors(source, formatterDescriptorPattern),
       );
-      const { triple, json, double } = splitByEscapeLevel(formatterDescriptors);
-
-      expectDescriptorSetShape(triple);
-      expectDescriptorSetShape(json);
-      expectDescriptorSetShape(double);
-      expect(sortedDifference(triple, json)).to.deep.equal([]);
-      expect(sortedDifference(json, triple)).to.deep.equal([]);
-      expect(sortedDifference(triple, double)).to.deep.equal([]);
-      expect(sortedDifference(double, triple)).to.deep.equal([]);
+      expectEscapeLevelParity(byEscapeLevel);
     });
 
     it('keeps matcher and formatter descriptor bases aligned', () => {
-      const source = readFileSync(new URL(import.meta.url), 'utf8');
-      const matcherDescriptors = parseDescriptors(
-        source,
-        /it\('(?:matches runtime toStringTag signals|ignores non-runtime toStringTag signals) when non-Error Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      const matcherByEscape = splitByEscapeLevel(
+        parseDescriptors(source, matcherDescriptorPattern),
       );
-      const formatterDescriptors = parseDescriptors(
-        source,
-        /it\('falls back to Object\.prototype\.toString for non-Error objects when Symbol\.toPrimitive String\(error\) is a ([^']+)'/g,
+      const formatterByEscape = splitByEscapeLevel(
+        parseDescriptors(source, formatterDescriptorPattern),
       );
-      const matcherByEscape = splitByEscapeLevel(matcherDescriptors);
-      const formatterByEscape = splitByEscapeLevel(formatterDescriptors);
 
       for (const escapeLevel of ['triple', 'json', 'double'] as const) {
         expect(
