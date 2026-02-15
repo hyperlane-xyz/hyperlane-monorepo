@@ -273,3 +273,5 @@ Regression coverage now also confirms `AggregateError` runtime matching remains 
 Regression coverage now also confirms same-realm and cross-realm boxed-string `AggregateError.errors` payloads (including hostile `Symbol.toStringTag` accessors) remain detectable/ignorable even when both `AggregateError.message` and `AggregateError.cause` accessors throw.
 
 Regression coverage now also confirms same-realm and cross-realm boxed-string `AggregateError.cause` payloads (including hostile `Symbol.toStringTag` accessors) remain detectable/ignorable even when both `AggregateError.message` and `AggregateError.errors` accessors throw.
+
+Regression coverage now also confirms same-realm and cross-realm boxed-string `AggregateError.errors` payloads remain detectable/ignorable under combined `message`+`cause` accessor failures both with and without hostile `Symbol.toStringTag` accessors.
