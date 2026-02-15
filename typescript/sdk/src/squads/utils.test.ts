@@ -2575,6 +2575,44 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for malformed chain names before provider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider(1 as unknown as string, mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for empty chain names before provider lookup', () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = captureSyncError(() =>
+        getSquadAndProvider('   ', mpp),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('propagates provider lookup failures for supported chains', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -2913,6 +2951,44 @@ describe('squads utils', () => {
       expect(providerLookupCalled).to.equal(false);
     });
 
+    it('fails fast for malformed chain names before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposal(1 as unknown as string, mpp, 1),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for empty chain names before proposal fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposal('   ', mpp, 1),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
     it('fails fast for negative transaction index before proposal fetch attempts', async () => {
       let providerLookupCalled = false;
       const mpp = {
@@ -3079,6 +3155,44 @@ describe('squads utils', () => {
 
       expect(thrownError?.message).to.include(
         'Squads config not found on chain unsupported-chain',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for malformed chain names before account fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposalAccount(1 as unknown as string, mpp, 1),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a string, got number',
+      );
+      expect(providerLookupCalled).to.equal(false);
+    });
+
+    it('fails fast for empty chain names before account fetch attempts', async () => {
+      let providerLookupCalled = false;
+      const mpp = {
+        getSolanaWeb3Provider: () => {
+          providerLookupCalled = true;
+          throw new Error('provider lookup should not execute');
+        },
+      } as unknown as MultiProtocolProvider;
+
+      const thrownError = await captureAsyncError(() =>
+        getSquadProposalAccount('   ', mpp, 1),
+      );
+
+      expect(thrownError?.message).to.equal(
+        'Expected chain name to be a non-empty string',
       );
       expect(providerLookupCalled).to.equal(false);
     });
