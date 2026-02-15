@@ -1,6 +1,7 @@
 import { execFileSync } from 'child_process';
 import fs from 'fs';
 import path from 'path';
+import * as ts from 'typescript';
 
 import { expect } from 'chai';
 
@@ -11,6 +12,11 @@ type SdkPackageJson = {
   devDependencies?: Record<string, string>;
   optionalDependencies?: Record<string, string>;
   peerDependencies?: Record<string, string>;
+};
+
+type ModuleSpecifierReference = {
+  source: string;
+  filePath: string;
 };
 
 function normalizeNamedSymbol(symbol: string): string {
@@ -49,6 +55,109 @@ function extractTopLevelDeclarationExports(sourceText: string): string[] {
   ].map(([, symbol]) => symbol);
 }
 
+function getScriptKind(filePath: string): ts.ScriptKind {
+  if (/\.(?:[cm]?tsx)$/.test(filePath)) return ts.ScriptKind.TSX;
+  if (filePath.endsWith('.jsx')) return ts.ScriptKind.JSX;
+  if (/\.(?:[cm]?js)$/.test(filePath) || filePath.endsWith('.mjs')) {
+    return ts.ScriptKind.JS;
+  }
+  return ts.ScriptKind.TS;
+}
+
+function readModuleSourceArg(
+  callExpression: ts.CallExpression,
+): string | undefined {
+  const [firstArg] = callExpression.arguments;
+  if (firstArg && ts.isStringLiteralLike(firstArg)) return firstArg.text;
+  return undefined;
+}
+
+function collectModuleSpecifierReferences(
+  contents: string,
+  filePath: string,
+): ModuleSpecifierReference[] {
+  const references: ModuleSpecifierReference[] = [];
+  const sourceFile = ts.createSourceFile(
+    filePath,
+    contents,
+    ts.ScriptTarget.Latest,
+    true,
+    getScriptKind(filePath),
+  );
+
+  const visit = (node: ts.Node) => {
+    if (
+      ts.isImportDeclaration(node) &&
+      ts.isStringLiteralLike(node.moduleSpecifier)
+    ) {
+      references.push({ source: node.moduleSpecifier.text, filePath });
+    }
+
+    if (ts.isExportDeclaration(node)) {
+      if (
+        node.moduleSpecifier &&
+        ts.isStringLiteralLike(node.moduleSpecifier)
+      ) {
+        references.push({ source: node.moduleSpecifier.text, filePath });
+      }
+    }
+
+    if (ts.isImportTypeNode(node)) {
+      const argument = node.argument;
+      if (
+        ts.isLiteralTypeNode(argument) &&
+        ts.isStringLiteralLike(argument.literal)
+      ) {
+        references.push({ source: argument.literal.text, filePath });
+      }
+    }
+
+    if (ts.isCallExpression(node)) {
+      if (
+        ts.isIdentifier(node.expression) &&
+        node.expression.text === 'require'
+      ) {
+        const source = readModuleSourceArg(node);
+        if (source) references.push({ source, filePath });
+      }
+      if (node.expression.kind === ts.SyntaxKind.ImportKeyword) {
+        const source = readModuleSourceArg(node);
+        if (source) references.push({ source, filePath });
+      }
+    }
+
+    ts.forEachChild(node, visit);
+  };
+
+  visit(sourceFile);
+  return references;
+}
+
+function collectSdkSourceFilePaths(dirPath: string): string[] {
+  const entries = fs.readdirSync(dirPath, { withFileTypes: true });
+  const filePaths: string[] = [];
+  for (const entry of entries) {
+    const entryPath = path.join(dirPath, entry.name);
+    if (entry.isDirectory()) {
+      filePaths.push(...collectSdkSourceFilePaths(entryPath));
+      continue;
+    }
+    if (!entry.isFile() || !/\.(?:[cm]?[jt]sx?)$/.test(entry.name)) continue;
+    filePaths.push(entryPath);
+  }
+  return filePaths;
+}
+
+function isInfraModuleSpecifier(source: string): boolean {
+  return (
+    source === '@hyperlane-xyz/infra' ||
+    source.startsWith('@hyperlane-xyz/infra/') ||
+    source.includes('typescript/infra') ||
+    source.includes('/infra/') ||
+    source.includes('../../infra')
+  );
+}
+
 function expectNoRipgrepMatches(pattern: string, description: string): void {
   try {
     const output = execFileSync(
@@ -72,6 +181,28 @@ function expectNoRipgrepMatches(pattern: string, description: string): void {
 
 describe('Gnosis Safe migration guards', () => {
   it('prevents sdk source imports from infra paths', () => {
+    const sourceFilePaths = collectSdkSourceFilePaths(
+      path.resolve(process.cwd(), 'src'),
+    );
+    const infraModuleReferences: string[] = [];
+    for (const sourceFilePath of sourceFilePaths) {
+      const contents = fs.readFileSync(sourceFilePath, 'utf8');
+      const references = collectModuleSpecifierReferences(
+        contents,
+        sourceFilePath,
+      );
+      for (const reference of references) {
+        if (!isInfraModuleSpecifier(reference.source)) continue;
+        infraModuleReferences.push(
+          `${path.relative(process.cwd(), reference.filePath)} -> ${reference.source}`,
+        );
+      }
+    }
+    expect(
+      infraModuleReferences,
+      'Found sdk module specifier references to infra paths/packages',
+    ).to.deep.equal([]);
+
     expectNoRipgrepMatches(
       String.raw`(?:from ['"]|require\(['"]|import\(['"])(?:@hyperlane-xyz/infra|.*typescript/infra|.*\/infra\/|\.\.\/\.\.\/infra)`,
       'sdk imports that reference infra paths or packages',
