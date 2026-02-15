@@ -46,6 +46,17 @@ const SDK_SQUADS_TEST_COMMAND_PREFIX = 'mocha --config .mocharc.json';
 const SDK_SQUADS_TEST_GLOB = 'src/squads/*.test.ts';
 const SDK_SQUADS_TEST_TOKEN_PATHS = Object.freeze([SDK_SQUADS_TEST_GLOB]);
 const EXPECTED_SDK_SQUADS_TEST_SCRIPT = `${SDK_SQUADS_TEST_COMMAND_PREFIX} ${SDK_SQUADS_TEST_TOKEN_PATHS.map((tokenPath) => `'${tokenPath}'`).join(' ')}`;
+const EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS = Object.freeze([
+  "export * from './config.js';",
+  "export * from './utils.js';",
+  "export * from './transaction-reader.js';",
+  "export * from './error-format.js';",
+]);
+const SDK_SQUADS_INDEX_SOURCE_PATH = 'src/squads/index.ts';
+const EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS = Object.freeze([
+  'src/squads/provider.ts',
+  'src/squads/validation.ts',
+]);
 const SINGLE_QUOTED_SCRIPT_TOKEN_PATTERN = /'([^']+)'/g;
 function compareLexicographically(left: string, right: string): number {
   if (left < right) {
@@ -379,6 +390,31 @@ function assertRelativePathsResolveToFiles(
   }
 }
 
+function listSquadsBarrelExportedSourcePaths(): readonly string[] {
+  const squadsBarrelSource = fs.readFileSync(SQUADS_BARREL_INDEX_PATH, 'utf8');
+  const exportStatements = squadsBarrelSource
+    .split('\n')
+    .map((line) => line.trim())
+    .filter((line) => line.startsWith('export * from'));
+  const exportedSourcePaths: string[] = [];
+
+  for (const exportStatement of exportStatements) {
+    const exportMatch = /^export \* from '\.\/(.+)\.js';$/.exec(
+      exportStatement,
+    );
+    expect(
+      exportMatch,
+      `Expected squads barrel export statement to follow canonical .js re-export shape: ${exportStatement}`,
+    ).to.not.equal(null);
+    if (!exportMatch) {
+      continue;
+    }
+    exportedSourcePaths.push(`src/squads/${exportMatch[1]}.ts`);
+  }
+
+  return exportedSourcePaths.sort(compareLexicographically);
+}
+
 describe('squads barrel exports', () => {
   it('keeps sdk squads test command constants normalized and scoped', () => {
     assertCanonicalCliCommandShape(
@@ -487,14 +523,7 @@ describe('squads barrel exports', () => {
       SQUADS_BARREL_INDEX_PATH,
       'utf8',
     );
-    const expectedSubmoduleExportStatements = [
-      "export * from './config.js';",
-      "export * from './utils.js';",
-      "export * from './transaction-reader.js';",
-      "export * from './error-format.js';",
-    ] as const;
-
-    for (const statement of expectedSubmoduleExportStatements) {
+    for (const statement of EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS) {
       expect(squadsBarrelSource).to.include(statement);
       expect(countOccurrences(squadsBarrelSource, statement)).to.equal(1);
     }
@@ -511,10 +540,7 @@ describe('squads barrel exports', () => {
       .filter((line) => line.startsWith('export * from'));
 
     expect(exportStatements).to.deep.equal([
-      "export * from './config.js';",
-      "export * from './utils.js';",
-      "export * from './transaction-reader.js';",
-      "export * from './error-format.js';",
+      ...EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS,
     ]);
   });
 
@@ -529,10 +555,7 @@ describe('squads barrel exports', () => {
       .filter((line) => line.includes("from './"));
 
     expect(localReferenceLines).to.deep.equal([
-      "export * from './config.js';",
-      "export * from './utils.js';",
-      "export * from './transaction-reader.js';",
-      "export * from './error-format.js';",
+      ...EXPECTED_SQUADS_BARREL_EXPORT_STATEMENTS,
     ]);
     expect(countOccurrences(squadsBarrelSource, "from './")).to.equal(4);
   });
@@ -764,6 +787,41 @@ describe('squads barrel exports', () => {
     assertRelativePathsResolveToFiles(
       discoveredAllTypeScriptPaths,
       'discovered sdk squads TypeScript',
+    );
+  });
+
+  it('keeps sdk squads non-test sources partitioned between barrel exports and internal modules', () => {
+    const discoveredNonTestSourcePaths = listSdkSquadsNonTestSourceFilePaths();
+    const barrelExportedSourcePaths = listSquadsBarrelExportedSourcePaths();
+    assertRelativePathsResolveToFiles(
+      discoveredNonTestSourcePaths,
+      'discovered sdk squads non-test source',
+    );
+    assertRelativePathsResolveToFiles(
+      barrelExportedSourcePaths,
+      'barrel-exported sdk squads source',
+    );
+    expect(new Set(barrelExportedSourcePaths).size).to.equal(
+      barrelExportedSourcePaths.length,
+    );
+    const nonExportedSourcePaths = discoveredNonTestSourcePaths
+      .filter(
+        (sourcePath) =>
+          sourcePath !== SDK_SQUADS_INDEX_SOURCE_PATH &&
+          !barrelExportedSourcePaths.includes(sourcePath),
+      )
+      .sort(compareLexicographically);
+    expect(nonExportedSourcePaths).to.deep.equal([
+      ...EXPECTED_SDK_SQUADS_INTERNAL_NON_EXPORTED_SOURCE_PATHS,
+    ]);
+    expect(
+      [
+        ...barrelExportedSourcePaths,
+        ...nonExportedSourcePaths,
+        SDK_SQUADS_INDEX_SOURCE_PATH,
+      ].sort(compareLexicographically),
+    ).to.deep.equal(
+      [...discoveredNonTestSourcePaths].sort(compareLexicographically),
     );
   });
 });
