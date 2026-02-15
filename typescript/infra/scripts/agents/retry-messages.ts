@@ -21,6 +21,14 @@ interface RetryOptions {
   port?: number;
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function retryMessage(options: RetryOptions) {
   const {
     environment,
@@ -146,7 +154,9 @@ async function retryMessage(options: RetryOptions) {
       console.log(`ℹ️  No messages matched the retry criteria`);
     }
   } catch (error) {
-    console.error('❌ Error making retry request:', error);
+    console.error(
+      `❌ Error making retry request: ${stringifyValueForError(error)}`,
+    );
     throw error;
   } finally {
     // Clean up port-forward
@@ -245,7 +255,7 @@ async function main() {
   try {
     await retryMessage(argv);
   } catch (error) {
-    console.error('💥 Message retry failed:', error);
+    console.error(`💥 Message retry failed: ${stringifyValueForError(error)}`);
     process.exit(1);
   }
 }
@@ -256,6 +266,6 @@ main()
     process.exit(0);
   })
   .catch((err) => {
-    console.error('💥 Error in message retry:', err);
+    console.error(`💥 Error in message retry: ${stringifyValueForError(err)}`);
     process.exit(1);
   });

@@ -15,6 +15,14 @@ import {
 import { getArgs, withBuildArtifactPath, withChain } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment, buildArtifactPath, verificationArtifactPath, chain } =
     await withChain(withBuildArtifactPath(getArgs()))
@@ -69,4 +77,6 @@ async function main() {
   process.exit(0);
 }
 
-main().then(console.log).catch(console.error);
+main()
+  .then(console.log)
+  .catch((error) => console.error(stringifyValueForError(error)));

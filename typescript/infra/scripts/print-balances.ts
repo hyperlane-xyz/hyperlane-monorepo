@@ -12,6 +12,14 @@ import {
 } from './agent-utils.js';
 import { getEnvironmentConfig } from './core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const MainnetDeployer = '0xa7ECcdb9Be08178f896c26b7BbD8C3D4E844d9Ba';
 const MainnetRelayer = '0x74Cae0ECC47B02Ed9B9D32E000Fd70B9417970C5';
 const TestnetDeployer = '0xfaD1C94469700833717Fa8a3017278BC1cA8031C';
@@ -79,8 +87,9 @@ async function main() {
               return null;
             } catch (error) {
               console.error(
-                `Error fetching balance for ${role} on ${chain}:`,
-                error,
+                `Error fetching balance for ${role} on ${chain}: ${stringifyValueForError(
+                  error,
+                )}`,
               );
               return null;
             }
@@ -94,7 +103,9 @@ async function main() {
           ),
         };
       } catch (error) {
-        console.error(`Error processing chain ${chain}:`, error);
+        console.error(
+          `Error processing chain ${chain}: ${stringifyValueForError(error)}`,
+        );
         return {
           chain,
           symbol: 'ERROR',
@@ -120,6 +131,6 @@ async function main() {
 main()
   .then()
   .catch((e) => {
-    console.error(e);
+    console.error(stringifyValueForError(e));
     process.exit(1);
   });

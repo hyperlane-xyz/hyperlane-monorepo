@@ -6,6 +6,14 @@ import { strip0x } from '@hyperlane-xyz/utils';
 import { getArgs } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * Generates a yaml payload intended to be consumed as a config by the cw-hyperlane
  * deploy CLI. Expected output is of the form:
@@ -67,6 +75,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Error:', err);
+  console.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

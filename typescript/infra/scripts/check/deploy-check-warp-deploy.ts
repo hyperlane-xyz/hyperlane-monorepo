@@ -4,6 +4,14 @@ import { HelmCommand } from '../../src/utils/helm.js';
 import { assertCorrectKubeContext } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { agentConfig, envConfig, environment } = await getConfigsBasedOnArgs();
   if (agentConfig.context != Contexts.Hyperlane)
@@ -23,4 +31,4 @@ async function main() {
 
 main()
   .then(() => console.log('Deploy successful!'))
-  .catch(console.error);
+  .catch((error) => console.error(stringifyValueForError(error)));

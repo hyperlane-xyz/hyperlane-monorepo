@@ -5,6 +5,14 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { getArgs, withChainRequired } from '../agent-utils.js';
 import { getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 enum ReorgStatus {
   NO_REORG = '✅ NO REORG',
   REORG = '❌ REORG',
@@ -199,4 +207,6 @@ async function getCanonicalCheckpointBinarySearch(
   }
 }
 
-main().catch(rootLogger.error);
+main().catch((error) => {
+  rootLogger.error(stringifyValueForError(error));
+});

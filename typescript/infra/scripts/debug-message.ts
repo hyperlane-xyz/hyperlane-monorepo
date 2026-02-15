@@ -13,6 +13,14 @@ import { assertChain } from '../src/utils/utils.js';
 import { getArgs } from './agent-utils.js';
 import { getHyperlaneCore } from './core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const argv = await getArgs()
     .string('tx-hash')
@@ -147,7 +155,7 @@ async function checkMessage(
     if (err.reason) {
       console.error('Reason: ', err.reason);
     } else {
-      console.error(err);
+      console.error(stringifyValueForError(err));
     }
   }
 }
@@ -164,5 +172,5 @@ async function isContract(
 }
 
 main().catch((err) => {
-  console.error('Error in main', err);
+  console.error(`Error in main: ${stringifyValueForError(err)}`);
 });

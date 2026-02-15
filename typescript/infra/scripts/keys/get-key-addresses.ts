@@ -6,6 +6,14 @@ import { getAllCloudAgentKeys } from '../../src/agents/key-utils.js';
 import { getArgs, withContext, withProtocol } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 function getKeyArgs() {
   return withProtocol(withContext(getArgs()))
     .alias('p', 'protocol')
@@ -58,7 +66,11 @@ async function main() {
       address = key.addressForProtocol(argv.protocol, argv.bech32Prefix);
     } catch (e) {
       // Swallow error
-      console.error('Error getting address', { key: key.identifier, e });
+      console.error(
+        `Error getting address for ${key.identifier}: ${stringifyValueForError(
+          e,
+        )}`,
+      );
     }
     return {
       identifier: key.identifier,
@@ -72,4 +84,4 @@ async function main() {
   console.log(JSON.stringify(keyInfos, null, 2));
 }
 
-main().catch(console.error);
+main().catch((error) => console.error(stringifyValueForError(error)));

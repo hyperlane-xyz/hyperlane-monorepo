@@ -17,6 +17,14 @@ import {
 } from '../agent-utils.js';
 import { getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 function getArgs() {
   return withContext(getRootArgs())
     .describe('chain', 'chain on which to register')
@@ -154,10 +162,14 @@ async function main() {
       }
     } catch (error) {
       console.error(
-        chalk.bold.red(`Error processing announcement for ${chain}:`, error),
+        chalk.bold.red(
+          `Error processing announcement for ${chain}: ${stringifyValueForError(
+            error,
+          )}`,
+        ),
       );
     }
   }
 }
 
-main().catch(console.error);
+main().catch((error) => console.error(stringifyValueForError(error)));

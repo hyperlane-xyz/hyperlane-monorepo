@@ -5,6 +5,14 @@ import rawTokenPrices from '../../config/environments/mainnet3/tokenPrices.json'
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export function withOriginChain<T>(args: Argv<T>) {
   return args
     .describe('originChain', 'The chain for which IGP prices are calculated')
@@ -109,6 +117,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Error:', err);
+  console.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

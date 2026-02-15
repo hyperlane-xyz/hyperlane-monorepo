@@ -5,6 +5,14 @@ import { InfraS3Validator } from '../../src/agents/aws/validator.js';
 import { getArgs, getValidatorsByChain, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const { environment, chains } = await withChains(getArgs()).argv;
   const config = getEnvironmentConfig(environment);
@@ -54,4 +62,4 @@ async function main() {
   );
 }
 
-main().catch(console.error);
+main().catch((error) => console.error(stringifyValueForError(error)));

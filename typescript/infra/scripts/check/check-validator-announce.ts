@@ -5,6 +5,14 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const minimumValidatorCount = 2;
 
 const validatorCountToThreshold: Record<number, number> = {
@@ -114,7 +122,9 @@ async function main() {
               unannouncedValidatorCount > 0 ? unannouncedValidatorCount : '',
           };
         } catch (error) {
-          console.error(`Error processing chain ${chain}:`, error);
+          console.error(
+            `Error processing chain ${chain}: ${stringifyValueForError(error)}`,
+          );
           return {
             chain,
             threshold: 'ERROR',
@@ -182,4 +192,6 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((error) => {
+  console.error(stringifyValueForError(error));
+});

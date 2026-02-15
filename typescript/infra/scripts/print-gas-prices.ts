@@ -27,6 +27,14 @@ import { getInfraPath, writeJsonWithAppendMode } from '../src/utils/utils.js';
 
 import { getArgs, withAppend, withWrite } from './agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const gasPricesFilePath = (environment: DeployEnvironment) => {
   return path.join(
     getInfraPath(),
@@ -88,7 +96,11 @@ async function main() {
 
           return [chain, finalGasPrice];
         } catch (error) {
-          console.error(`Error getting gas price for ${chain}:`, error);
+          console.error(
+            `Error getting gas price for ${chain}: ${stringifyValueForError(
+              error,
+            )}`,
+          );
           return [
             chain,
             gasPrices[chain as keyof typeof gasPrices] ||
@@ -134,8 +146,9 @@ async function getGasPrice(
         };
       } catch (error) {
         console.error(
-          `Error getting gas price for cosmos chain ${chain}:`,
-          error,
+          `Error getting gas price for cosmos chain ${chain}: ${stringifyValueForError(
+            error,
+          )}`,
         );
         return currentGasPrice || createDefaultGasPrice(chain, 1);
       }

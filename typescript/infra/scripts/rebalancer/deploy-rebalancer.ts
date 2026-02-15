@@ -31,6 +31,14 @@ function getRebalancerConfigPathPrefix(environment: DeployEnvironment) {
   return `config/environments/${environment}/rebalancer`;
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   configureRootLogger(LogFormat.Pretty, LogLevel.Info);
   const {
@@ -168,4 +176,6 @@ async function main() {
 
 main()
   .then(() => rootLogger.info('Deploy successful!'))
-  .catch(rootLogger.error);
+  .catch((error) => {
+    rootLogger.error(stringifyValueForError(error));
+  });

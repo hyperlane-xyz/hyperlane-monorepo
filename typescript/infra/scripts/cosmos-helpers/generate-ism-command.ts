@@ -5,6 +5,14 @@ import { defaultMultisigConfigs } from '@hyperlane-xyz/sdk';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 export function withCommandPrefix<T>(args: Argv<T>) {
   return args
     .describe(
@@ -58,6 +66,6 @@ async function main() {
 }
 
 main().catch((err) => {
-  console.error('Error:', err);
+  console.error(`Error: ${stringifyValueForError(err)}`);
   process.exit(1);
 });

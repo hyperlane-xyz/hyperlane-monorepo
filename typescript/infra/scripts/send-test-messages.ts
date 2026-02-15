@@ -28,6 +28,14 @@ enum MailboxHookType {
   DEFAULT = 'defaultHook',
 }
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 /**
  * If a hookArg is provided, set the mailbox hook to the defaultHookArg.
  * The hook is set either as the default hook or the required hook,
@@ -286,6 +294,8 @@ main()
     process.exit(0);
   })
   .catch((err) => {
-    console.error('Error sending random messages', err);
+    console.error(
+      `Error sending random messages: ${stringifyValueForError(err)}`,
+    );
     process.exit(1);
   });

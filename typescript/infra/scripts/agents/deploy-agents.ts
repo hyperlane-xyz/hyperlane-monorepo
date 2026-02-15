@@ -13,6 +13,14 @@ import { getConfigsBasedOnArgs } from '../core-utils.js';
 
 import { AgentCli } from './utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function fetchLatestMain() {
   try {
     console.log(
@@ -21,7 +29,11 @@ async function fetchLatestMain() {
     execSync('git fetch origin main', { stdio: 'inherit' });
     console.log(chalk.grey.italic('Fetch completed successfully.'));
   } catch (error) {
-    console.error(chalk.red('Error fetching from origin/main:', error));
+    console.error(
+      chalk.red(
+        `Error fetching from origin/main: ${stringifyValueForError(error)}`,
+      ),
+    );
     process.exit(1);
   }
 }
@@ -47,7 +59,9 @@ async function getCommitsBehindMain(): Promise<number> {
     const [behindCount] = execResult.toString().trim().split('\t');
     return parseInt(behindCount);
   } catch (error) {
-    console.error(chalk.red('Error checking git status:', error));
+    console.error(
+      chalk.red(`Error checking git status: ${stringifyValueForError(error)}`),
+    );
     process.exit(1);
   }
 }
@@ -139,6 +153,6 @@ async function main() {
 main()
   .then(console.log)
   .catch((err) => {
-    console.error('Error deploying agents:', err);
+    console.error(`Error deploying agents: ${stringifyValueForError(err)}`);
     process.exit(1);
   });

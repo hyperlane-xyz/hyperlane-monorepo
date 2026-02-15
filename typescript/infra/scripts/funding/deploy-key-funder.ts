@@ -12,6 +12,14 @@ import { getMonorepoRoot } from '../../src/utils/utils.js';
 import { assertCorrectKubeContext } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 function readRegistryRc(): string {
   const registryRcPath = join(getMonorepoRoot(), '.registryrc');
   return readFileSync(registryRcPath, 'utf-8').trim();
@@ -70,4 +78,4 @@ async function main() {
 
 main()
   .then(() => console.log('Deploy successful!'))
-  .catch(console.error);
+  .catch((error) => console.error(stringifyValueForError(error)));

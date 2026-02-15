@@ -14,6 +14,14 @@ import { rootLogger } from '@hyperlane-xyz/utils';
 import { DeployEnvironment } from '../../src/config/environment.js';
 import { getArgs } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 const rootDir = (environment: DeployEnvironment) =>
   path.resolve(
     path.dirname(new URL(import.meta.url).pathname),
@@ -140,4 +148,6 @@ async function main() {
   }
 }
 
-main().catch(rootLogger.error);
+main().catch((error) => {
+  rootLogger.error(stringifyValueForError(error));
+});

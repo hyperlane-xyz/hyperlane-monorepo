@@ -5,6 +5,14 @@ import {
   withKeyRoleAndChain,
 } from '../agent-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function rotateKey() {
   const argv = await withKeyRoleAndChain(withContext(getArgs())).argv;
   const agentConfig = getAgentConfig(argv.context, argv.environment);
@@ -31,4 +39,6 @@ async function rotateKey() {
   }
 }
 
-rotateKey().then(console.log).catch(console.error);
+rotateKey()
+  .then(console.log)
+  .catch((error) => console.error(stringifyValueForError(error)));

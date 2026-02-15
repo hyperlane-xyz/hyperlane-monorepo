@@ -9,6 +9,14 @@ import { isEthereumProtocolChain } from '../../src/utils/utils.js';
 import { getArgs, withChains } from '../agent-utils.js';
 import { getEnvironmentConfig, getHyperlaneCore } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 enum CheckResult {
   OK = '✅',
   WARNING = '🚨',
@@ -105,4 +113,4 @@ async function main() {
   console.table(output);
 }
 
-main().catch(console.error);
+main().catch((error) => console.error(stringifyValueForError(error)));

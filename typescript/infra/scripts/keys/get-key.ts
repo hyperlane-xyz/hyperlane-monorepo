@@ -2,6 +2,14 @@ import { getCloudAgentKey } from '../../src/agents/key-utils.js';
 import { getArgs, withAgentRole, withContext } from '../agent-utils.js';
 import { getConfigsBasedOnArgs } from '../core-utils.js';
 
+function stringifyValueForError(value: unknown): string {
+  try {
+    return String(value);
+  } catch {
+    return '<unstringifiable>';
+  }
+}
+
 async function main() {
   const argv = await withAgentRole(withContext(getArgs())).argv;
 
@@ -30,4 +38,4 @@ async function main() {
   }
 }
 
-main().catch(console.error);
+main().catch((error) => console.error(stringifyValueForError(error)));
