@@ -190,14 +190,11 @@ describe('squads config', () => {
 
   it('rejects malformed partition inputs with index-aware types', () => {
     expect(() =>
-      partitionSquadsChains('solanamainnet' as unknown as readonly string[]),
+      partitionSquadsChains('solanamainnet'),
     ).to.throw('Expected partitioned squads chains to be an array, got string');
 
     expect(() =>
-      partitionSquadsChains([
-        'solanamainnet',
-        null as unknown as string,
-      ] as readonly string[]),
+      partitionSquadsChains(['solanamainnet', null]),
     ).to.throw('Expected partitioned squads chains[1] to be a string, got null');
   });
 
@@ -214,14 +211,10 @@ describe('squads config', () => {
 
   it('rejects malformed formatter inputs', () => {
     expect(() =>
-      getUnsupportedSquadsChainsErrorMessage(
-        'ethereum' as unknown as readonly string[],
-      ),
+      getUnsupportedSquadsChainsErrorMessage('ethereum'),
     ).to.throw('Expected unsupported squads chains to be an array, got string');
     expect(() =>
-      getUnsupportedSquadsChainsErrorMessage(
-        null as unknown as readonly string[],
-      ),
+      getUnsupportedSquadsChainsErrorMessage(null),
     ).to.throw('Expected unsupported squads chains to be an array, got null');
 
     expect(() =>
@@ -242,16 +235,13 @@ describe('squads config', () => {
       .equal(['solanamainnet']);
 
     expect(() =>
-      resolveSquadsChains('solanamainnet' as unknown as readonly string[]),
+      resolveSquadsChains('solanamainnet'),
     ).to.throw('Expected squads chains to be an array, got string');
+    expect(() => resolveSquadsChains(null)).to.throw(
+      'Expected squads chains to be an array, got null',
+    );
     expect(() =>
-      resolveSquadsChains(null as unknown as readonly string[]),
-    ).to.throw('Expected squads chains to be an array, got null');
-    expect(() =>
-      resolveSquadsChains([
-        'solanamainnet',
-        1 as unknown as string,
-      ] as readonly string[]),
+      resolveSquadsChains(['solanamainnet', 1]),
     ).to.throw('Expected squads chains[1] to be a string, got number');
   });
 

@@ -101,7 +101,7 @@ function normalizeChainListValues(
   return normalizedChains;
 }
 
-export function partitionSquadsChains(chains: readonly unknown[]): {
+export function partitionSquadsChains(chains: unknown): {
   squadsChains: SquadsChainName[];
   nonSquadsChains: string[];
 } {
@@ -157,8 +157,8 @@ function formatUniqueChainNamesForDisplay(chains: readonly string[]): string[] {
 }
 
 export function getUnsupportedSquadsChainsErrorMessage(
-  nonSquadsChains: readonly unknown[],
-  configuredSquadsChains: readonly unknown[] = SQUADS_CHAINS,
+  nonSquadsChains: unknown,
+  configuredSquadsChains: unknown = SQUADS_CHAINS,
 ): string {
   const normalizedNonSquadsChains = normalizeChainListValues(
     nonSquadsChains,
@@ -191,7 +191,7 @@ export function getUnsupportedSquadsChainsErrorMessage(
 }
 
 export function resolveSquadsChains(
-  chains?: readonly unknown[],
+  chains?: unknown,
 ): SquadsChainName[] {
   if (typeof chains === 'undefined') {
     return getSquadsChains();

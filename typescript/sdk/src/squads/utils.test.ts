@@ -2690,10 +2690,7 @@ describe('squads utils', () => {
       } as unknown as MultiProtocolProvider;
 
       const thrownError = await captureAsyncError(() =>
-        getPendingProposalsForChains(
-          'solanamainnet' as unknown as readonly string[],
-          mpp,
-        ),
+        getPendingProposalsForChains('solanamainnet', mpp),
       );
 
       expect(thrownError?.message).to.equal(
@@ -5012,17 +5009,14 @@ describe('squads utils', () => {
 
   it('throws for non-string chain entries while partitioning', () => {
     expect(() =>
-      partitionSquadsChains([
-        'solanamainnet',
-        null as unknown as string,
-      ] as readonly string[]),
+      partitionSquadsChains(['solanamainnet', null]),
     ).to.throw('Expected partitioned squads chains[1] to be a string, got null');
   });
 
   it('throws for non-array partition inputs', () => {
-    expect(() =>
-      partitionSquadsChains('solanamainnet' as unknown as readonly string[]),
-    ).to.throw('Expected partitioned squads chains to be an array, got string');
+    expect(() => partitionSquadsChains('solanamainnet')).to.throw(
+      'Expected partitioned squads chains to be an array, got string',
+    );
   });
 
   it('resolves squads chains to configured defaults when input omitted', () => {
@@ -5076,30 +5070,24 @@ describe('squads utils', () => {
   });
 
   it('throws for explicit non-string squads chain entries', () => {
-    expect(() =>
-      resolveSquadsChains([
-        'solanamainnet',
-        1 as unknown as string,
-      ] as readonly string[]),
-    ).to.throw('Expected squads chains[1] to be a string, got number');
+    expect(() => resolveSquadsChains(['solanamainnet', 1])).to.throw(
+      'Expected squads chains[1] to be a string, got number',
+    );
   });
 
   it('throws for non-array explicit squads chain inputs', () => {
-    expect(() =>
-      resolveSquadsChains('solanamainnet' as unknown as readonly string[]),
-    ).to.throw('Expected squads chains to be an array, got string');
-    expect(() =>
-      resolveSquadsChains(null as unknown as readonly string[]),
-    ).to.throw('Expected squads chains to be an array, got null');
+    expect(() => resolveSquadsChains('solanamainnet')).to.throw(
+      'Expected squads chains to be an array, got string',
+    );
+    expect(() => resolveSquadsChains(null)).to.throw(
+      'Expected squads chains to be an array, got null',
+    );
   });
 
   it('labels array-valued explicit squads chain entries clearly', () => {
-    expect(() =>
-      resolveSquadsChains([
-        'solanamainnet',
-        [] as unknown as string,
-      ] as readonly string[]),
-    ).to.throw('Expected squads chains[1] to be a string, got array');
+    expect(() => resolveSquadsChains(['solanamainnet', []])).to.throw(
+      'Expected squads chains[1] to be a string, got array',
+    );
   });
 
   it('surfaces empty chain names as unsupported entries after trimming', () => {
@@ -5139,27 +5127,22 @@ describe('squads utils', () => {
 
   it('throws for non-string unsupported chain entries in formatter input', () => {
     expect(() =>
-      getUnsupportedSquadsChainsErrorMessage([
-        'ethereum',
-        null as unknown as string,
-      ] as readonly string[]),
+      getUnsupportedSquadsChainsErrorMessage(['ethereum', null]),
     ).to.throw('Expected unsupported squads chains[1] to be a string, got null');
   });
 
   it('throws for non-array unsupported chain formatter input', () => {
-    expect(() =>
-      getUnsupportedSquadsChainsErrorMessage(
-        'ethereum' as unknown as readonly string[],
-      ),
-    ).to.throw('Expected unsupported squads chains to be an array, got string');
+    expect(() => getUnsupportedSquadsChainsErrorMessage('ethereum')).to.throw(
+      'Expected unsupported squads chains to be an array, got string',
+    );
   });
 
   it('throws for non-string configured chain entries in formatter input', () => {
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(['ethereum'], [
         'solanamainnet',
-        {} as unknown as string,
-      ] as readonly string[]),
+        {},
+      ]),
     ).to.throw('Expected configured squads chains[1] to be a string, got object');
   });
 
@@ -5167,17 +5150,14 @@ describe('squads utils', () => {
     expect(() =>
       getUnsupportedSquadsChainsErrorMessage(
         ['ethereum'],
-        'solanamainnet' as unknown as readonly string[],
+        'solanamainnet',
       ),
     ).to.throw('Expected configured squads chains to be an array, got string');
   });
 
   it('labels symbol-valued unsupported chain entries in formatter input', () => {
     expect(() =>
-      getUnsupportedSquadsChainsErrorMessage([
-        'ethereum',
-        Symbol('bad-chain') as unknown as string,
-      ] as readonly string[]),
+      getUnsupportedSquadsChainsErrorMessage(['ethereum', Symbol('bad-chain')]),
     ).to.throw('Expected unsupported squads chains[1] to be a string, got symbol');
   });
 

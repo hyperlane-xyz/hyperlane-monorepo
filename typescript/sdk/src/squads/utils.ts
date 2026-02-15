@@ -685,7 +685,7 @@ export function isLikelyMissingSquadsAccountError(error: unknown): boolean {
 }
 
 export async function getPendingProposalsForChains(
-  chains: readonly unknown[],
+  chains: unknown,
   mpp: MultiProtocolProvider,
 ): Promise<SquadProposalStatus[]> {
   const proposals: SquadProposalStatus[] = [];
